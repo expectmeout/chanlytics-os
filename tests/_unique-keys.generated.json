@@ -1255,6 +1255,53 @@
       }
     },
     {
+      "table": "file_subjects",
+      "name": "file_subjects_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_subjects",
+      "name": "file_subjects_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_subjects",
+      "name": "file_subjects_one_name",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "file_id"
+        },
+        {
+          "lower": {
+            "column": "name"
+          }
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "files",
       "name": "files_pkey",
       "primary": true,

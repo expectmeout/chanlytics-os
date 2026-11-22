@@ -64,7 +64,7 @@ async function proposed({
     source: "made",
     source_ref: null,
     name: "open-late-on-fridays",
-    kind: video ? "video" : "photo",
+    kind: video ? "video" : "image",
     mime: video ? "video/mp4" : "image/jpeg",
     bytes: 1_000_000,
     seconds: video ? 13 : null,

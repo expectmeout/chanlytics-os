@@ -62,14 +62,14 @@ export {
   FILE_WHO_IN_IT,
   FILE_YES_SAID_IN,
   FILE_YES_USES,
-  SUBJECTS_STATES,
-  SUBJECT_HOWS,
-  SUBJECT_LABELS,
   filePathOf,
   FILES_BUCKET,
   FILES_MAX,
   FILES_PAGE,
   isFileMime,
+  SUBJECT_HOWS,
+  SUBJECT_LABELS,
+  SUBJECTS_STATES,
 } from "./limits";
 export type {
   FileLookStatus,

@@ -4,8 +4,6 @@
 export { APPROVE_FATES, approvePosts, keepPieceWords, readPostAsApproved, readRightsGap } from "./approvals";
 export type { ApproveFate, PostsApproved } from "./approvals";
 export { keepPostCaption, keepVideoCaption } from "./captions";
-export { listFileSubjects, nameFileSubjects, recordSubjectYes } from "./subjects";
-export type { FileSubjectRow } from "./subjects";
 export {
   beginCopyReturn,
   endSourceGrace,
@@ -197,6 +195,8 @@ export {
   watchedFolderOf,
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
+export { listFileSubjects, nameFileSubjects, recordSubjectYes } from "./subjects";
+export type { FileSubjectRow } from "./subjects";
 export { movePostTime } from "./waiting-posts";
 export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
 export type { FileYesKept } from "./yes";

@@ -13,21 +13,21 @@ export {
   isContentParam,
 } from "./address";
 export type { ContentList, ContentPlace, ContentView } from "./address";
+export { OwnersFactSchema, PostAboutSchema } from "./approval-schemas";
 export {
   APPROVAL_SUBJECTS,
   APPROVAL_VOID_WHYS,
   EMPTY_INTENT,
-  OwnersFactSchema,
-  PostAboutSchema,
-  RENDITION_SHAPES,
-  REVISION_CHANGES,
-  REVISION_MADE_BY,
   goodUntilOf,
   intentDates,
   intentOfAbout,
   ownersFactsOf,
   pieceIntentOf,
+  postAboutOf,
+  RENDITION_SHAPES,
   renditionShapeOf,
+  REVISION_CHANGES,
+  REVISION_MADE_BY,
   rightsGapOf,
 } from "./approvals";
 export type {
@@ -39,15 +39,15 @@ export type {
   PostAbout,
   RenditionShape,
   RevisionChange,
-  RightsGap,
   RevisionMadeBy,
+  RightsGap,
   SnapshotPlacement,
   SnapshotRendition,
 } from "./approvals";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
+export type { BringIn, BringInRefusal } from "./bring-in";
 export { CHECK_WORDS, CONTENT_CHECKS } from "./check-words";
 export type { ContentCheck } from "./check-words";
-export type { BringIn, BringInRefusal } from "./bring-in";
 export {
   CONTENT_IDEAS,
   contentIdeaAsk,
@@ -134,7 +134,7 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
-export { PLACE_CAPABILITIES, capabilityStands, placeTakes } from "./places";
+export { capabilityStands, PLACE_CAPABILITIES, placeTakes } from "./places";
 export type {
   CapabilityProof,
   PlaceAdapter,
@@ -151,10 +151,10 @@ export type {
   TakeDownAnswer,
 } from "./places";
 export { fileYesSpec } from "./post-spec";
-export { filePeopleSpec, personYesSpec } from "./rights-spec";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_CAPTION_MAX,
@@ -167,7 +167,6 @@ export {
   POST_SOON_MS,
   POST_STATUSES,
   POST_VIAS,
-  instagramKindsFor,
   postCaptionProblem,
   postPlaceTakenOf,
   postStandsSaid,
@@ -186,6 +185,7 @@ export type {
 } from "./posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
 export type { PostPublish } from "./publish";
+export { filePeopleSpec, personYesSpec } from "./rights-spec";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./sources";
 export type {

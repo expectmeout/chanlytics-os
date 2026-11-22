@@ -75,7 +75,7 @@ function InstagramAs(props: {
   const { as, kinds, choose } = props;
   return (
     <span className="cnv-as" role="group" aria-label={CONTENT_WORDS.post.asWhat}>
-      {instagramKindsFor("photo").map((kind) => (
+      {instagramKindsFor("image").map((kind) => (
         <Button
           key={kind}
           size="sm"

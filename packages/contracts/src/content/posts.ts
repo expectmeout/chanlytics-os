@@ -56,8 +56,8 @@ export type PostKind = (typeof POST_KINDS)[number];
 export const INSTAGRAM_POST_KINDS = ["picture", "story", "reel"] as const satisfies readonly PostKind[];
 export type InstagramPostKind = (typeof INSTAGRAM_POST_KINDS)[number];
 
-/** How a made file goes on Instagram: a picture as a post or a story, a video as a reel. */
-export const instagramKindsFor = (fileKind: "photo" | "video" | string): readonly InstagramPostKind[] =>
+/** How a made file goes on Instagram, by its kind as the file keeps it (files.kind): an image as a post or a story, a video as a reel. */
+export const instagramKindsFor = (fileKind: string): readonly InstagramPostKind[] =>
   fileKind === "video" ? ["reel"] : ["picture", "story"];
 
 /**

@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 199 | 199 |
+| door | 202 | 202 |
 | reader | 92 | 0 |
-| the server's | 425 | 355 |
+| the server's | 426 | 355 |
 | computed column | 3 | 0 |
-| trigger | 116 | 85 |
-| all | 835 | 639 |
+| trigger | 117 | 86 |
+| all | 840 | 643 |
 
 ## Called by nothing
 
@@ -107,7 +107,7 @@ being read is dropped by a migration.
 | `appointments_lead_stamp` | trigger | the server | trigger `appointments_lead_stamp on appointments` | A visit names the lead its person was made from (00426): |
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
-| `approval_hash` | the server's | the server | SQL `post_approve`, `post_as_approved` | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00690): |
+| `approval_hash` | the server's | the server | SQL `piece_words_keep`, `post_approve` and 1 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00690): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
 | `ask_for_tick` | the server's | the server | SQL `event_outbox_wake`, `job_kind_resume` and 2 more | Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00333, 00334). |
 | `ask_journal_open_days` | the server's | the server | SQL `ask_journal_write`, `trigger_notes_sweep` | The journal's days due (decision 0070): |
@@ -132,7 +132,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 26 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 29 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -236,7 +236,7 @@ being read is dropped by a migration.
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
 | `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
 | `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
-| `file_drawn_from` | the server's | the server | SQL `file_yes_take_back`, `files_drawn_from` and 2 more | The ids, as text, of every file a made piece's `made` names (00665): |
+| `file_drawn_from` | the server's | the server | SQL `file_rights_gap_of`, `file_yes_take_back` and 3 more | The ids, as text, of every file a made piece's `made` names (00665): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -250,11 +250,15 @@ being read is dropped by a migration.
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
+| `file_rights_gap` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's read, with the add_files permission (00691): |
+| `file_rights_gap_of` | the server's | the server | SQL `file_rights_gap`, `post_approve` and 1 more | Who stands between a file and a use (00691; |
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
 | `file_road_is_watched` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 6 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
+| `file_subjects_gone` | trigger | the server | trigger `file_subjects_gone on file_subjects` | Trigger (00691; the content loop PRD's 14.4): |
+| `file_subjects_name` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the add_files permission (00691): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
 | `file_twin_goes` | the server's | the server | SQL `file_found`, `file_printed` | A twin goes (00630): removed, its purge due now, and a file.removed event that names the file staying. |
 | `file_twin_of` | the server's | the server | SQL `file_found`, `file_printed` | The file a print finds (00630), by its id: |
@@ -265,7 +269,7 @@ being read is dropped by a migration.
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
 | `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665): |
-| `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00665): |
+| `file_yes_restate` | the server's | the server | SQL `file_subjects_gone`, `file_subjects_name` and 3 more | files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00691): |
 | `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665, 00676; |
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
@@ -556,10 +560,10 @@ being read is dropped by a migration.
 | `piece_end` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A video that could not be made (00613): |
 | `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613; |
 | `piece_of_made_file` | the server's | the server | SQL `post_approve` | The piece a made file is (00690): |
-| `piece_revise` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's door, with the settings permission (00690; |
 | `piece_sent` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video's bytes have all gone into the video platform (00613): |
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
+| `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's door, with the settings permission (00690; |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |
@@ -590,7 +594,7 @@ being read is dropped by a migration.
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
-| `post_shape` | the server's | the server | SQL `post_as_approved` | The shape a placement sends (00690, contracts renditionShapeOf): |
+| `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00690, contracts renditionShapeOf): |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |
@@ -820,6 +824,7 @@ being read is dropped by a migration.
 | `stamp_email_sent` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
 | `start_playbook` | reader | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts` and 2 more | A member starts a playbook and its line in the ledger together (00357): |
 | `stop_all_messages` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | The unsubscribe page's second, confirmed act: |
+| `subject_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the settings permission (00691; |
 | `sweep_health` | the server's | the server | code `apps/dashboard/src/server/console/health.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; SQL `trigger_call_reconcile` | One row per registered clock (public.sweep_status): |
 | `sweep_mark_alerted` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Records that an alert was DELIVERED for each sweep in p_alerted, and clears the suppression stamp of each sweep in p_healthy. |
 | `sweep_schedules` | the server's | the server | nothing at run time |  |

@@ -12,7 +12,7 @@ import type { FileMade } from "../files/views";
 import { isOneOf, nonBlankOrNull } from "../shared/unknown";
 import { CONTENT_ROUTE } from "./address";
 import { INSTAGRAM_POST_KINDS, POST_PLACES, type InstagramPostKind, type PostDto, type PostPlace } from "./posts";
-import { PostAboutSchema, ownersFactsOf, type OwnersFact, type PostAbout } from "./approvals";
+import { ownersFactsOf, postAboutOf, type OwnersFact, type PostAbout } from "./approvals";
 
 /**
  * A made post's caption, as Details says it, as Post it sends it and as Ask's card proposes it: theirs where they wrote one
@@ -74,7 +74,7 @@ export function postPublishOf(payload: Record<string, unknown>): PostPublish {
     caption: asText(payload.caption),
     caption_new: payload.caption_new === true,
     language: payload.language === "es" ? "es" : "en",
-    about: PostAboutSchema.safeParse(payload.about).data ?? null,
+    about: postAboutOf(payload.about),
     facts: ownersFactsOf(payload.facts),
   };
 }

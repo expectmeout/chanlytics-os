@@ -6,7 +6,6 @@
  * and the post is held ("Changed since you approved it. Look again."). The hash is taken where the snapshot is kept, in
  * one language: SHA-256 of the snapshot's own text as the database writes it.
  */
-import { z } from "zod";
 import { isObjectRecord, recordOrEmpty } from "../shared/unknown";
 import { DAY_KEY, shiftKey, zoneMidnight } from "../shared/zone/day-keys";
 import type { PostKind, PostPlace } from "./posts";
@@ -122,23 +121,32 @@ export type AsApproved =
 
 const textOrNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
 
-const DAY = z.string().regex(DAY_KEY);
-
 /**
  * What a press's words are about, as AI's card hands it to the approval (the PRD's 6.1): the day, an offer with its last
- * day, a service. Each part optional; the approval keeps it as the piece's intent.
+ * day, a service, or AI's own word that they date nothing (a standing "Open Thursday to Saturday"). Each part optional;
+ * the approval keeps it as the piece's intent. Its request schema is content/approval-schemas.ts (the server's).
  */
-export const PostAboutSchema = z.object({
-  day: DAY.nullish(),
-  offer: z.object({ says: z.string().trim().min(1).max(120), until: DAY.nullish() }).nullish(),
-  service: z.string().trim().min(1).max(120).nullish(),
-  /** AI's own word that the words date nothing (a standing "Open Thursday to Saturday"). */
-  nothing: z.literal(true).nullish(),
-});
-export type PostAbout = z.infer<typeof PostAboutSchema>;
+export interface PostAbout {
+  day?: string | null | undefined;
+  offer?: { says: string; until?: string | null | undefined } | null | undefined;
+  service?: string | null | undefined;
+  nothing?: true | null | undefined;
+}
 
-/** A fact the owner stated on the card, kept on the approval until its day ends. */
-export const OwnersFactSchema = z.object({ says: z.string().trim().min(1).max(200), until: DAY });
+/** What a card's payload says its words are about, read back; null where it says nothing it can read. */
+export function postAboutOf(value: unknown): PostAbout | null {
+  if (!isObjectRecord(value)) return null;
+  const offer = isObjectRecord(value.offer) ? value.offer : null;
+  const says = textOrNull(offer?.says);
+  const day = textOrNull(value.day);
+  const about: PostAbout = {
+    ...(day && DAY_KEY.test(day) ? { day } : {}),
+    ...(says ? { offer: { says, until: textOrNull(offer?.until) } } : {}),
+    ...(textOrNull(value.service) ? { service: textOrNull(value.service) } : {}),
+    ...(value.nothing === true ? { nothing: true as const } : {}),
+  };
+  return Object.keys(about).length > 0 ? about : null;
+}
 
 /** The intent an approval keeps for what a press said its words are about; null where they are about nothing. */
 export function intentOfAbout(about: PostAbout | undefined): PieceIntent | null {

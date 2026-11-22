@@ -484,7 +484,11 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // platform's id for it and its error code are nobody's.
   // A yes for one use of a file (00665): who said it, as the owner named them to AI. A person in a picture is not joined
   // to People, so, as the picture itself, it leaves with the workspace; an erasure of a person has no key to it.
-  file_consents: { who: WITH_WORKSPACE },
+  // What a yes reaches and where it was said (00691): places and a message's id, never the person's words.
+  file_consents: { who: WITH_WORKSPACE, ...all(NOT_PERSONAL, "scope", "evidence") },
+  // A person in a file, as the owner named them (00691): one who is in People goes with them (the row's foreign key to
+  // contacts, on the erasure's delete), and the file then says the owner must say who is in it again.
+  file_subjects: { name: withPerson("erase_contact") },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
     // The uses a file has a yes for, and those taken back (00665): words of a closed set, never a person's.

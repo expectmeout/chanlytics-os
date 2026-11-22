@@ -74,7 +74,7 @@ const fileRow = (tenant, over = {}) => ({
   removed_at: null,
   created_at: "2026-11-01T12:00:00Z",
   updated_at: "2026-11-01T12:00:00Z",
-  kind: "photo",
+  kind: "image",
   seconds: null,
   yes_for: [],
   yes_back: [],

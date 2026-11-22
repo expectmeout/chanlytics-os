@@ -231,6 +231,14 @@ before(async () => {
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
   ctx.file = await seed("files", fileRow("seeded"));
   await seed("file_consents", { tenant_id: A, file_id: ctx.file, use: "post", who: "Tenancy guest", said_in: "ai" });
+  // A person named in a file (00691): members read who is in it, its door writes it.
+  await seed("file_subjects", {
+    tenant_id: A,
+    file_id: ctx.file,
+    name: "Tenancy guest",
+    label: "client",
+    how: "owner_named",
+  });
   // Where a post went, and a send of it (00611): the service role writes both, a member reads where it stands.
   ctx.post = await seed("posts", {
     tenant_id: A,
@@ -865,6 +873,10 @@ const TENANT_TABLES = {
     () => ({ tenant_id: A, contact_id: ctx.contact, form: "request", answers: {}, words: "d".repeat(64), owed: [] }),
   ],
   file_consents: ["member", () => ({ tenant_id: A, file_id: ctx.file, use: "ad", who: "Stranger", said_in: "ai" })],
+  file_subjects: [
+    "member",
+    () => ({ tenant_id: A, file_id: ctx.file, name: "Stranger", label: "other", how: "owner_named" }),
+  ],
   // Where a post went and each send of it (00611): a member reads them, the service role writes them.
   posts: ["member", () => ({ tenant_id: A, file_id: ctx.file, place: "google", kind: "picture", status: "published" })],
   publish_attempts: [
