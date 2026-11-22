@@ -12,11 +12,16 @@ import { DAY_MS, REPORT_RANGES, dayInZone, headlineOf, toHeadlineVM } from "@cha
  * waits; a test of what stands after it puts this in its morning's `rested`.
  */
 export function weekSeen(zone = "America/New_York", nowMs = Date.now()) {
-  const day = dayInZone(zone, nowMs);
-  const at = Date.UTC(day.y, day.m - 1, day.d);
-  const back = (new Date(at).getUTCDay() + 6) % 7;
   const keyOf = (ms) => new Date(ms).toISOString().slice(0, 10);
-  return { [`week:${keyOf(at - back * DAY_MS)}`]: keyOf(at + (7 - back) * DAY_MS) };
+  const weekOf = (atMs) => {
+    const day = dayInZone(zone, atMs);
+    const at = Date.UTC(day.y, day.m - 1, day.d);
+    const back = (new Date(at).getUTCDay() + 6) % 7;
+    return [`week:${keyOf(at - back * DAY_MS)}`, keyOf(at + (7 - back) * DAY_MS)];
+  };
+  // The week of the day before and the day after too: a page on another zone's clock (a test's Chicago) is a day off at
+  // most, and on a Sunday night with the clock twelve hours on the two stood in different weeks (CI, 22 Nov 2026).
+  return Object.fromEntries([nowMs - DAY_MS, nowMs, nowMs + DAY_MS].map(weekOf));
 }
 
 const dayKey = (n) => new Date(Date.UTC(2026, 7, 1 + n)).toISOString().slice(0, 10);

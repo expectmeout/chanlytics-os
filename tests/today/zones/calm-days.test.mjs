@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  NEED_YOU_WORDS,
   figureDoorOf,
   restedWith,
   restedWithout,
@@ -266,6 +267,24 @@ test("one list in the owner's order (docs/words.md): who waits on a word, the fi
   const also = byTestId(tree, "today-also");
   assert.equal(also.props["aria-label"], TODAY_LINE_WORDS.also, "the line of what else is left, named for a reader");
   assert.match(textOf(also), /2 older/, "whoever waited past a week, counted there");
+  setSurfaceValue("today", undefined);
+  unmount();
+});
+
+test("a search that stopped to ask is whole in the card (D8): its question once, what to change in words, that nothing is spent, its two answers", () => {
+  // Today, calm drew the two answers alone, and the nightly's own case of it was red from that day (22 Nov 2026).
+  setSurfaceValue("today", dayWith([row("s1", "Pilates studios", { kind: "search", act: "answer" })]));
+  const card = byTestId(draw(NeedYou), "today-card");
+  const search = dayWith([row("s1", "Pilates studios", { kind: "search", act: "answer" })]).queue.rows[0];
+  assert.ok(byTestId(card, "queue-search"), "the search holds the card");
+  assert.ok(
+    all(card, (n) => n.props?.placeholder === NEED_YOU_WORDS.search.change).length,
+    "a line to say what to change",
+  );
+  assert.ok(textOf(card).includes(NEED_YOU_WORDS.search.nothingSpent), "and that nothing is spent while it waits");
+  for (const answer of [NEED_YOU_WORDS.search.stop, NEED_YOU_WORDS.search.keep])
+    assert.ok(textOf(card).includes(answer), `its answer: ${answer}`);
+  assert.equal(textOf(card).split(search.sentence).length - 1, 1, `the question is said once: ${textOf(card)}`);
   setSurfaceValue("today", undefined);
   unmount();
 });

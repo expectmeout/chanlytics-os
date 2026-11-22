@@ -41,6 +41,7 @@ import { serviceDb } from "../../shared/service-db";
 import { load, readerContext, type ReaderContext } from "../../shared/reader";
 import { getEditedSince } from "../tools/read/sequences";
 import * as readers from "../../readers/facts";
+import { findTodayHistory } from "../../metrics/history";
 import { createThread } from "../store";
 import { finishAskTurn, prepareAskTurn } from "../turn";
 import { listFindingCards, getSequencesAndRuns } from "./findings";
@@ -92,7 +93,7 @@ async function seenLately(ctx: RouteContext, member: Member, day: string): Promi
 /** What a morning reads around its own cards: what was offered lately, and what Today draws beside them. */
 interface AroundMorning {
   seen: AskIdeaSeen[];
-  beside: Pick<AskMorningDto, "findings" | "rested" | "lately">;
+  beside: Pick<AskMorningDto, "findings" | "rested" | "lately" | "history">;
 }
 
 /**
@@ -117,14 +118,15 @@ async function aroundMorning(
   clock: { timezone: string; day: string },
   nowMs: number,
 ): Promise<AroundMorning> {
-  const [read, offered, rested] = await Promise.all([
+  const [read, offered, rested, history] = await Promise.all([
     getSequencesAndRuns(ctx, member.tenantId),
     seenLately(ctx, member, clock.day),
     restsOf(ctx, member),
+    findTodayHistory(ctx.supabase, member.tenantId, { zone: clock.timezone, nowMs }),
   ]);
   const seen = ideasWithResults(offered, read.runs);
   const findings = await listFindingCards(ctx, member, { ...clock, nowMs }, read, rested);
-  return { seen, beside: { findings, rested, lately: latelyRows(seen, clock.day) } };
+  return { seen, beside: { findings, rested, lately: latelyRows(seen, clock.day), history } };
 }
 
 /** The answer's Say as stored (content.answer, v2), or nothing. */
@@ -214,7 +216,15 @@ export async function getMorning(ctx: RouteContext, member: Member, nowMs: numbe
     rested: {},
     lately: [],
   };
-  if (!offered) return { ...none, rested: await restsOf(ctx, member) };
+  // Whoever they are, Today reads what they set aside and how the business's history stands: a viewer, and a member of
+  // a workspace with mornings off, is told a milestone and the day's word as anyone is.
+  if (!offered) {
+    const [rested, history] = await Promise.all([
+      restsOf(ctx, member),
+      findTodayHistory(ctx.supabase, member.tenantId, { zone: clock.timezone, nowMs }),
+    ]);
+    return { ...none, rested, history };
+  }
   const { seen, beside } = await aroundMorning(ctx, member, clock, nowMs);
   const asOfNow: AskMorningDto = { ...none, ...beside };
   const row = await askMorningOf(ctx.supabase, member.tenantId, ctx.userId, day);
