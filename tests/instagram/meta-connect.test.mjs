@@ -5,11 +5,13 @@
  *
  * The way in: only where the workspace's content_preview is on; the code is traded for the business's own token with the
  * Meta app's id and secret; debug_token says what it may do, and a token without the account and its DMs keeps nothing;
- * the one account the business shared is read (several are refused with the list); one another workspace holds is refused
- * before anything is written; its webhook is subscribed for the fields its permissions allow; the row (the account's one
- * row, whichever login) is written, the token kept, and only then the row turned on. A working Instagram row it takes over
- * is put back as it was when the Vault refuses the new token, and otherwise has its old login's subscription removed. A
- * disconnect turns the row off and removes Meta's subscription.
+ * the one account the business shared is read (several are refused with the list); one another workspace has connected,
+ * and a second account for a workspace that has one, are refused before anything is written; its webhook is subscribed
+ * for the fields its permissions allow; then the row (the account's one row, whichever login), its token in the Vault
+ * and the row on are one write (00677). A working Instagram row it takes over is untouched when the Vault refuses the
+ * new token, and otherwise has its old login's subscription removed. A disconnect lets the account go (decision 0143):
+ * the row off and holding no account, its token deleted, Meta's subscription removed, and the account is then any
+ * workspace's to connect; moving back gives the first workspace its own row again.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
+import { accountDoors } from "./_account-doors.mjs";
 
 for (const k of ["META_APP_ID", "META_APP_SECRET", "META_LOGIN_CONFIG_ID", "META_REDIRECT_URI", "SUPABASE_URL"])
   delete process.env[k];
@@ -37,6 +40,7 @@ const T = "abababab-3333-4000-8000-000000000001";
 const OTHER = "abababab-3333-4000-8000-000000000002";
 const U = "cdcdcdcd-3333-4000-8000-000000000001";
 const auth = { ok: true, via: "token", workspace: T, user: U };
+const theirAuth = { ok: true, via: "token", workspace: OTHER, user: U };
 const ALL = [
   "instagram_basic",
   "instagram_manage_messages",
@@ -78,24 +82,17 @@ function world({ on = true, vaultFails = false, scopes = ALL } = {}) {
   const tables = {
     tenant_channels: [],
     events: [],
-    tenants: [{ id: T, name: "Harbor Nails" }],
-    tenant_config: [{ tenant_id: T, config: { features: { content_preview: on } } }],
+    tenants: [
+      { id: T, name: "Harbor Nails" },
+      { id: OTHER, name: "Harbor Spa" },
+    ],
+    tenant_config: [
+      { tenant_id: T, config: { features: { content_preview: on } } },
+      { tenant_id: OTHER, config: { features: { content_preview: true } } },
+    ],
   };
   const vault = {};
-  const db = fakeDb(
-    tables,
-    {},
-    {
-      get_channel_credentials: ({ p_channel_id }) => vault[p_channel_id] ?? null,
-      put_channel_credentials: ({ p_channel_id, p_secret }) => {
-        if (vaultFails) throw Object.assign(new Error("vault is read-only"), { code: "XX000" });
-        vault[p_channel_id] = p_secret;
-        const row = tables.tenant_channels.find((r) => r.id === p_channel_id);
-        if (row) row.credentials_ref = `vault-${p_channel_id}`;
-        return null;
-      },
-    },
-  );
+  const db = fakeDb(tables, {}, accountDoors(tables, vault, { vaultFails: () => vaultFails }));
   setPg(db);
   answers = {
     code: [200, { access_token: "bisu-token", token_type: "bearer" }],
@@ -247,7 +244,7 @@ test("a token without the account's messages keeps nothing; several accounts are
   assert.ok(!asked.slice(w2.mark).some((c) => c.url.includes("/subscribed_apps")), "nothing was subscribed");
 });
 
-test("an account another workspace holds is refused before anything is written or subscribed", async () => {
+test("an account another workspace has connected is refused, with who holds it, before anything is written or subscribed", async () => {
   Object.assign(process.env, APP);
   resetBreakers();
   const w = world();
@@ -262,10 +259,15 @@ test("an account another workspace holds is refused before anything is written o
   const [status, body] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
   assert.equal(status, 409);
   assert.equal(body.error, "instagram_account_taken");
+  assert.equal(body.held_by, OTHER, "the dashboard is told which, and says it only to someone who is in it");
   assert.ok(!asked.slice(w.mark).some((c) => c.url.includes("/subscribed_apps")), "nothing was subscribed");
+  // A connection Meta stopped accepting is still connected: only its own Disconnect lets the account go.
+  w.tables.tenant_channels[0].config = { token_lapsed_at: "2026-11-21T00:00:00.000Z" };
+  const [lapsed] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+  assert.equal(lapsed, 409);
 });
 
-test("a working Instagram row taken over keeps flowing: put back as it was if the Vault refuses, its old subscription removed if not", async () => {
+test("a working Instagram row taken over keeps flowing: untouched if the Vault refuses, its old subscription removed if not", async () => {
   Object.assign(process.env, APP);
   resetBreakers();
   const id = "efefefef-3333-4000-8000-000000000002";
@@ -282,7 +284,7 @@ test("a working Instagram row taken over keeps flowing: put back as it was if th
   });
   const [s1, b1] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
   assert.equal(s1, 500);
-  assert.equal(b1.error, "credentials_failed");
+  assert.equal(b1.error, "channel_write_failed");
   const [kept] = failing.tables.tenant_channels;
   assert.equal(kept.status, "active", "the account still answers its DMs on its old token");
   assert.deepEqual(kept.config, before);
@@ -312,7 +314,7 @@ test("a working Instagram row taken over keeps flowing: put back as it was if th
   assert.ok(newSub >= 0 && newSub < calls.indexOf(old), "Meta's subscription stands before the old one goes");
 });
 
-test("a disconnect turns the row off and removes Meta's subscription; another workspace's row is not found", async () => {
+test("a disconnect lets the account go: the row off and holding nothing, its token deleted, Meta's subscription removed; another's row is not found", async () => {
   Object.assign(process.env, APP);
   resetBreakers();
   const w = world();
@@ -325,13 +327,26 @@ test("a disconnect turns the row off and removes Meta's subscription; another wo
     external_id: w.ACCOUNT,
     status: "active",
     credentials_ref: "vault-x",
-    config: { login: "meta" },
+    config: { login: "meta", username: "harbor.nails", scopes: ALL, token_checked_at: "2026-11-21T00:00:00.000Z" },
   });
   assert.deepEqual(await heard(await runMetaOp(auth, { op: "disconnect", tenant_id: T, channel_id: id })), [
     200,
     { ok: true },
   ]);
-  assert.equal(w.tables.tenant_channels[0].status, "disabled");
+  const [row] = w.tables.tenant_channels;
+  assert.deepEqual([row.status, row.external_id, row.credentials_ref], ["disabled", `let-go:${id}`, null]);
+  assert.equal(row.config.account_id, w.ACCOUNT);
+  assert.equal(row.config.username, "harbor.nails", "the row still says whose it was");
+  assert.equal(row.config.disconnected_by, U);
+  assert.equal(row.config.scopes, undefined, "what was true of a token it no longer keeps goes with it");
+  assert.equal(w.vault[id], undefined, "no token is kept for an account that was disconnected");
+  assert.deepEqual(w.tables.events.find((e) => e.kind === "channel.disconnected").data, {
+    kind: "instagram",
+    login: "meta",
+    account_id: w.ACCOUNT,
+    username: "harbor.nails",
+    by: U,
+  });
   const del = asked.slice(w.mark).find((c) => c.method === "DELETE");
   assert.match(del.url, new RegExp(`^https://graph\\.facebook\\.com/v27\\.0/${w.ACCOUNT}/subscribed_apps\\?`));
   assert.equal(new URL(del.url).searchParams.get("appsecret_proof"), proofOf("bisu-token"));
@@ -345,4 +360,52 @@ test("a disconnect turns the row off and removes Meta's subscription; another wo
   });
   const [s] = await heard(await runMetaOp(auth, { op: "disconnect", tenant_id: T, channel_id: theirs }));
   assert.equal(s, 404);
+});
+
+test("a disconnected account connects in another workspace, and moving back gives the first workspace its own row", async () => {
+  Object.assign(process.env, APP);
+  resetBreakers();
+  const w = world();
+  const [, first] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+  assert.equal(first.ok, true);
+  await runMetaOp(auth, { op: "disconnect", tenant_id: T, channel_id: first.channel_id });
+  // The move that was refused for ever (21 Nov 2026, twice, on a silent page): the same account, another workspace.
+  const [status, moved] = await heard(await runMetaOp(theirAuth, { op: "connect", tenant_id: OTHER, code: "AQB" }));
+  assert.equal(status, 200, JSON.stringify(moved));
+  assert.notEqual(moved.channel_id, first.channel_id);
+  const theirs = w.tables.tenant_channels.find((r) => r.id === moved.channel_id);
+  assert.deepEqual([theirs.tenant_id, theirs.status, theirs.external_id], [OTHER, "active", w.ACCOUNT]);
+  const mine = w.tables.tenant_channels.find((r) => r.id === first.channel_id);
+  assert.deepEqual([mine.tenant_id, mine.status], [T, "disabled"], "the first workspace's row stays its own");
+  assert.equal(w.vault[first.channel_id], undefined);
+  assert.equal(w.vault[moved.channel_id].access_token, "bisu-token");
+  // The first workspace is the one refused now, until the second disconnects; then it gets its own row again.
+  const [held, body] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+  assert.deepEqual([held, body.error, body.held_by], [409, "instagram_account_taken", OTHER]);
+  await runMetaOp(theirAuth, { op: "disconnect", tenant_id: OTHER, channel_id: moved.channel_id });
+  const [, back] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+  assert.equal(back.channel_id, first.channel_id, "its threads, people and Activity name this row");
+  assert.equal(w.tables.tenant_channels.filter((r) => r.tenant_id === T).length, 1);
+  const again = w.tables.tenant_channels.find((r) => r.id === first.channel_id);
+  assert.deepEqual([again.status, again.external_id, again.config.account_id], ["active", w.ACCOUNT, undefined]);
+});
+
+test("a second, different account for a workspace that has one is refused with the one it has, and nothing is subscribed", async () => {
+  Object.assign(process.env, APP);
+  resetBreakers();
+  const w = world();
+  w.tables.tenant_channels.push({
+    id: "efefefef-3333-4000-8000-000000000005",
+    tenant_id: T,
+    kind: "instagram",
+    external_id: "17841500000099999",
+    status: "active",
+    config: { login: "meta", username: "harbor.spa" },
+  });
+  const [status, body] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+  assert.equal(status, 409);
+  assert.equal(body.error, "instagram_another_connected");
+  assert.equal(body.username, "harbor.spa");
+  assert.equal(w.tables.tenant_channels.length, 1);
+  assert.ok(!asked.slice(w.mark).some((c) => c.url.includes("/subscribed_apps")), "nothing was subscribed");
 });

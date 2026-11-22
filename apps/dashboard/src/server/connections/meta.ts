@@ -15,7 +15,9 @@ import { log } from "../shared/log";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
-import { backToConnections, loginReturnOf } from "./instagram";
+import { countPostsTimed } from "@chanlytics/db/files";
+import { logAndGoOn } from "@chanlytics/log";
+import { backToConnections, loginReturnOf, findOwnWorkspaceHolding } from "./instagram";
 
 /** The provider a state for Meta names (OAuthState.p): the Google, mailbox and Instagram callbacks refuse it. */
 const PROVIDER = "meta";
@@ -69,10 +71,23 @@ export async function readMetaSwitch(tenantId: TenantId): Promise<boolean> {
   return (await metaReadiness(tenantId)).ready;
 }
 
-/** `GET channels/meta`: whether Connect Meta can be offered in this workspace, and to this member. */
-export async function readMeta(member: Member): Promise<{ ready: boolean; can_connect: boolean }> {
+/**
+ * `GET channels/meta`: whether Connect Meta can be offered in this workspace, and to this member; and how many posts
+ * wait for their time on Instagram, which a Disconnect would hold and its question says first (decision 0143).
+ */
+export async function readMeta(
+  ctx: RouteContext,
+  member: Member,
+): Promise<{ ready: boolean; can_connect: boolean; posts_waiting: number }> {
   const ready = (await metaReadiness(member.tenantId)).ready;
-  return { ready, can_connect: ready && ROLE_PERMS[member.role].settings };
+  // A count that could not be read says nothing of posts: the question is asked without them, and each is still held
+  // and told at its time.
+  const waiting = ready
+    ? await countPostsTimed(ctx.supabase, member.tenantId, new Date().toISOString(), "instagram").catch(
+        logAndGoOn("count the posts a disconnect would hold", 0),
+      )
+    : 0;
+  return { ready, can_connect: ready && ROLE_PERMS[member.role].settings, posts_waiting: waiting };
 }
 
 /** `GET channels/meta/connect`: a signed state naming the workspace and the person, then Meta's dialog. */
@@ -127,14 +142,14 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
       reason,
       detail: typeof body.detail === "string" ? body.detail.slice(0, 200) : null,
     });
-    return back("error", reason);
+    return back("error", reason, await findOwnWorkspaceHolding(ctx, body.held_by));
   }
   // The row says Connected from the channels read; the next status asks the edge again.
   metaReadyCache.delete(tenantId);
   return back("connected");
 }
 
-/** `POST channels/meta/disconnect`: the account's row turned off, and its subscription removed. */
+/** `POST channels/meta/disconnect`: the account let go, its token deleted and its subscription removed. */
 export async function disconnectMeta(ctx: RouteContext, member: Member, channelId: string): Promise<{ ok: true }> {
   const answer = await edgeMeta({
     op: "disconnect",

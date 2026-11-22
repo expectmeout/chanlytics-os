@@ -132,6 +132,8 @@ export interface ConnectionLine {
   facts?: { label: string; value: string }[];
   /** A joined row's quiet acts beside its verb, each by its own name, in order (Check now, Stop watching, Disconnect). */
   acts?: ConnectionVerb[];
+  /** What the row's Disconnect question says would end and what stays, said before the press (an Instagram account's). */
+  leaving?: string;
 }
 
 export interface ConnectionInputs {
@@ -171,8 +173,8 @@ export interface ConnectionInputs {
    * null or still asking (`undefined`) reads as not yet: the row says Later.
    */
   instagram?: { ready: boolean } | null;
-  /** Whether this workspace may connect Meta (decision 0117: the app's login held, `content_preview` on); absent is no. */
-  meta?: { ready: boolean } | null;
+  /** Whether this workspace may connect Meta (0117: its login held, `content_preview` on), and its posts waiting for their time. */
+  meta?: { ready: boolean; postsWaiting?: number } | null;
   /** Where the workspace's watched folder stands (GET sources); absent or null while it is not read: the row is Later. */
   footage?: FootageDto | null;
 }

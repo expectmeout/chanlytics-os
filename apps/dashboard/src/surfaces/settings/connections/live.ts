@@ -15,7 +15,57 @@ import {
   type LineCodeDto,
 } from "@chanlytics/contracts";
 import { canDo } from "../../frame-verbs";
+import { igConnect } from "./instagram";
+import { metaConnect } from "./meta";
+import type { CameBack, Keeper } from "./model/came-back";
 import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
+
+/**
+ * What a keeper holds (model/came-back.ts), as a pane says it: the same on every drawing of the pane, and the Ok that
+ * ends it. The frame draws a pane more than once as its page loads, and the address says a return only the first time.
+ */
+export function useKept<T>(kept: Keeper<T>): [T | null, () => void] {
+  const [held, setHeld] = useState<T | null>(kept.read);
+  const drop = () => {
+    kept.seen();
+    setHeld(null);
+  };
+  return [held, drop];
+}
+
+/** A sign-in's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
+interface SignInDoor<D> {
+  config: () => Promise<D>;
+  held: () => D | null;
+  returned: Keeper<CameBack>;
+}
+
+/**
+ * A sign-in's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves
+ * the offer out), and what the browser came back from that sign-in with, said under its row until Ok.
+ */
+function useSignInDoor<D>(signIn: SignInDoor<D>) {
+  // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
+  const [door, setDoor] = useState<D | null | undefined>(() => signIn.held() ?? undefined);
+  const [returned, clearNote] = useKept(signIn.returned);
+  useEffect(() => {
+    let on = true;
+    signIn
+      .config()
+      .then((c) => on && setDoor(c))
+      .catch(() => on && setDoor(null));
+    return () => {
+      on = false;
+    };
+  }, [signIn]);
+  return { door, returned, clearNote };
+}
+
+/** Both sign-ins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
+export function useLogins() {
+  return { ig: useSignInDoor(igConnect), meta: useSignInDoor(metaConnect) };
+}
+export type Logins = ReturnType<typeof useLogins>;
 
 /** One read of the codes, painted if the page that asked still wants it; a read that fails changes nothing: the page keeps what it has. */
 function askCodes(paint: (codes: LineCodeDto[]) => void): void {

@@ -143,7 +143,8 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
  */
 export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: ChannelVM | null }): ConnectionDraft {
   const metaReady = !!connectionInputs.meta?.ready;
-  if (ig?.metaLines || (metaReady && !ig?.on)) return metaRow(ig, metaReady);
+  if (ig?.metaLines || (metaReady && !ig?.on))
+    return metaRow(ig, { ready: metaReady, postsWaiting: connectionInputs.meta?.postsWaiting ?? 0 });
   const base = { kind: "instagram" as const, icon: "instagram", title: "Instagram" };
   const detail = ig?.handle ? `@${ig.handle}` : null;
   const connect: ConnectionVerb = { label: "Connect Instagram", to: "verb:instagram-connect", who: "owner" };
@@ -164,6 +165,7 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
       stateWords: "Connected",
       sentence: `${ig.healthLabel}. AI answers its DMs within a day of each one, as Instagram allows.`,
       verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" },
+      leaving: leavingWords(0),
       // The same account, moved to Meta's one connection: its DMs keep flowing (the Meta link takes the row over).
       ...(metaReady ? { also: META_CONNECT_VERB, notes: [{ text: MOVE_TO_META, live: true as const }] } : {}),
     };
@@ -184,6 +186,17 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
     sentence: "Direct messages, answered by AI like WhatsApp.",
     verb: null,
   };
+}
+
+/**
+ * What a Disconnect of the account ends and what stays, said in its question: its DMs stop here, its conversations stay,
+ * and the posts waiting for their time are held (each is told again at its time, by the bell). Two sentences at most.
+ */
+export function leavingWords(postsWaiting: number): string {
+  const ends = "Its DMs stop being answered here until you connect it again.";
+  if (postsWaiting <= 0) return `${ends} Its conversations stay.`;
+  const held = postsWaiting === 1 ? "1 waiting post is held" : `${postsWaiting} waiting posts are held`;
+  return `${ends} Its conversations stay, and ${held}.`;
 }
 
 const META_CONNECT_VERB: ConnectionVerb = { label: "Connect Meta", to: "verb:meta-connect", who: "owner" };
@@ -209,7 +222,8 @@ function metaLinesNotes(lines: MetaLines): ConnectionNote[] {
  * this workspace may connect Meta, Connect Meta. A workspace without the switch never draws this row for an unconnected
  * account: the Instagram row stands as before.
  */
-function metaRow(ig: ChannelVM | null, metaReady: boolean): ConnectionDraft {
+function metaRow(ig: ChannelVM | null, meta: { ready: boolean; postsWaiting: number }): ConnectionDraft {
+  const metaReady = meta.ready;
   const base = { kind: "instagram" as const, icon: "instagram", title: "Meta" };
   const detail = ig?.handle ? `@${ig.handle}` : null;
   const lines = ig?.metaLines ?? null;
@@ -230,6 +244,7 @@ function metaRow(ig: ChannelVM | null, metaReady: boolean): ConnectionDraft {
       stateWords: "Connected",
       sentence: `${ig.healthLabel}. AI answers its DMs within a day of each one, as Instagram allows.`,
       verb: { label: "Disconnect", to: "verb:meta-disconnect", who: "owner" },
+      leaving: leavingWords(meta.postsWaiting),
       notes: metaLinesNotes(lines),
     };
   return {

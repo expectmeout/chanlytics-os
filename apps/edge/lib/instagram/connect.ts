@@ -9,12 +9,12 @@
  *               person back to, which the dashboard's way out is built from (the app id is public; its secret is here).
  *   connect     The code Instagram handed back becomes the business's token: traded for a short one, then for a 60-day
  *               one; the account it speaks for is read (`/me`: its Instagram id, the one its webhooks are addressed to),
- *               refused when another workspace holds it, and subscribed to this app's webhook for its messages; the
- *               channel row is written disabled, the token put in the Vault through the one function that writes a
- *               credential, and only then is the row turned on, so the only word a crash between the writes can leave is
- *               "disabled". From then on DMs to the account are answered on its own token.
- *   disconnect  The account's row turned off: nothing it is sent routes, and nothing leaves it. Its token stays in the
- *               Vault until a connect replaces it or the workspace is deleted, as a WhatsApp number's does.
+ *               refused while another workspace has it connected or this one has a different account (account.ts
+ *               refuseIfHeld), and subscribed to this app's webhook for its messages; then the row, its token in the
+ *               Vault and the row on are one write (keepConnection), so a connect that fails leaves nothing half made.
+ *               From then on DMs to the account are answered on its own token.
+ *   disconnect  The account let go (account.ts disconnectAccount, decision 0143): its row off and holding no account, its
+ *               token deleted, Instagram asked to stop sending. Any workspace may connect it after.
  *
  * Every answer is JSON with `ok`; a refusal is a code (http.ts refuse) and Meta's words in `detail`. The lines carry the
  * account's id and handle, never the token.
@@ -32,13 +32,7 @@ import {
   parseInstagramToken,
   type InstagramApp,
 } from "@chanlytics/channels/instagram";
-import { emitEvent, recordActivation } from "@chanlytics/db/events";
-import {
-  findInstagramAccountHolder,
-  putChannelSecret,
-  setInstagramStatus,
-  writeInstagramAccount,
-} from "@chanlytics/db/channels";
+import { recordActivation } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import { UUID, recordOrNull, isTenantId } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -46,9 +40,9 @@ import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { disconnectAccount, keepConnection, refuseIfHeld } from "./account.js";
 import type { InstagramSecret } from "./credentials.js";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -100,31 +94,6 @@ async function step<T>(
   }
 }
 
-/**
- * Another workspace's row for this account is refused before anything is written: (kind, external_id) is unique, so the
- * write that follows would otherwise move a live account, its token and its DMs between workspaces. A read that failed
- * says nothing about who holds it.
- */
-export async function refuseIfHeldElsewhere(
-  db: Db,
-  log: Log,
-  tenantId: TenantId,
-  accountId: string,
-): Promise<Response | null> {
-  let holder: { tenant_id: TenantId } | null;
-  try {
-    holder = await findInstagramAccountHolder(db, accountId);
-  } catch (e) {
-    log.info("ig_connect_channel_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return refuse(503, "channel_read_failed");
-  }
-  if (holder && holder.tenant_id !== tenantId) {
-    log.info("ig_connect_account_taken");
-    return refuse(409, "instagram_account_taken");
-  }
-  return null;
-}
-
 async function connect(
   db: Db,
   app: InstagramApp,
@@ -151,7 +120,7 @@ async function connect(
   const me = await step(log, "account", callInstagram(instagramMeRequest(long.accessToken)), parseInstagramMe);
   if (isRefused(me)) return refuse(502, "instagram_account_unreadable", me.refused);
   log = logger({ tenant_id: tenantId, account: me.accountId });
-  const held = await refuseIfHeldElsewhere(db, log, tenantId, me.accountId);
+  const held = await refuseIfHeld(db, log, tenantId, me.accountId);
   if (held) return held;
   // 3. Its DMs reach this app's webhook.
   const sub = await step(
@@ -164,61 +133,32 @@ async function connect(
     },
   );
   if (isRefused(sub)) return refuse(502, "subscribe_failed", sub.refused);
-  // 4. The row, disabled until its token is kept.
+  // 4. The row, its token and the row on, in one write.
   const now = new Date();
   const expiresAt = long.expiresInS > 0 ? new Date(now.getTime() + long.expiresInS * 1000).toISOString() : null;
-  const row = await writeInstagramAccount(db, {
-    tenantId,
-    accountId: me.accountId,
-    config: { username: me.username, name: me.name, connected_at: now.toISOString(), connected_by: userId },
-  });
-  if (row === "taken") {
-    log.info("ig_connect_account_taken", { at: "insert" });
-    return refuse(409, "instagram_account_taken");
-  }
-  if ("failed" in row) {
-    log.info("ig_connect_channel_write_failed", { error: row.failed });
-    return refuse(500, "channel_write_failed");
-  }
-  // 5. The token, in the Vault, through the one door that writes a credential.
   const secret: InstagramSecret = {
     access_token: long.accessToken,
     account_id: me.accountId,
     expires_at: expiresAt,
     refreshed_at: now.toISOString(),
   };
-  try {
-    await putChannelSecret(db, row.id, { ...secret });
-  } catch (e) {
-    log.info("ig_connect_credentials_failed", { error: e instanceof Error ? e.message : String(e) });
-    await setInstagramStatus(db, tenantId, row.id, "disabled");
-    return refuse(500, "credentials_failed");
-  }
-  // 6. Only now may the account route.
-  if (!(await setInstagramStatus(db, tenantId, row.id, "active"))) {
-    log.info("ig_connect_channel_write_failed", { at: "activate" });
-    return refuse(500, "channel_write_failed");
-  }
-  await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
-    kind: "instagram",
-    account_id: me.accountId,
-    username: me.username,
-    by: userId,
-  }).catch(logAndGoOn("event channel.connected"));
+  const row = await keepConnection(db, log, {
+    tenantId,
+    accountId: me.accountId,
+    config: { username: me.username, name: me.name, connected_at: now.toISOString(), connected_by: userId },
+    secret,
+  });
+  if (row instanceof Response) return row;
   // The workspace's first line that answers, the funnel's first milestone, whichever wire it is.
   await recordActivation(db, tenantId, "line_live", "instagram").catch(() => false);
-  log.info("ig_connected", { channel_id: row.id, username: me.username });
-  return json(200, { ok: true, channel_id: row.id, account_id: me.accountId, username: me.username, name: me.name });
-}
-
-async function disconnect(db: Db, tenantId: TenantId, channelId: string): Promise<Response> {
-  const log = logger({ tenant_id: tenantId, channel_id: channelId });
-  if (!(await setInstagramStatus(db, tenantId, channelId, "disabled"))) {
-    log.info("ig_disconnect_failed");
-    return refuse(404, "not_found");
-  }
-  log.info("ig_disconnected");
-  return json(200, { ok: true });
+  log.info("ig_connected", { channel_id: row.channelId, username: me.username });
+  return json(200, {
+    ok: true,
+    channel_id: row.channelId,
+    account_id: me.accountId,
+    username: me.username,
+    name: me.name,
+  });
 }
 
 export async function runInstagramOp(auth: Admitted, body: Partial<InstagramBody>): Promise<Response> {
@@ -246,7 +186,7 @@ export async function runInstagramOp(auth: Admitted, body: Partial<InstagramBody
   if (op === "disconnect") {
     const channelId = String(body.channel_id ?? "");
     if (!UUID.test(channelId)) return refuse(400, "bad_request", "channel_id required");
-    return disconnect(db, tenantId, channelId);
+    return disconnectAccount(db, { tenantId, userId }, channelId);
   }
   return refuse(400, "bad_request", "op is status, connect or disconnect");
 }

@@ -20,23 +20,25 @@ export {
 } from "./ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./ingest";
 export {
+  connectInstagramAccount,
+  disconnectInstagramAccount,
   findInstagramAccountHolder,
   findInstagramAccountRow,
+  findInstagramChannel,
   findInstagramId,
   findLastInboundOn,
   findMetaInstagramRow,
   findPersonOfInstagramId,
   listActiveInstagramAccounts,
+  listConnectedInstagramAccounts,
   listLastDmsSentTo,
   markMessageUnsent,
   noteInstagramToken,
   putChannelSecret,
   readChannelSecret,
   removeStoredMedia,
-  setInstagramStatus,
-  writeInstagramAccount,
 } from "./instagram";
-export type { InstagramAccountRow } from "./instagram";
+export type { InstagramAccountRow, InstagramConnect } from "./instagram";
 export { removeMedia, signMediaUrl, signMediaUrls, storeMedia } from "./media";
 export {
   findChannelNumber,
