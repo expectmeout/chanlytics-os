@@ -76,7 +76,7 @@ function morningSaid(m: TodayMorning): string[] {
 }
 
 /** Whether anything waits for morning: the one line has something to hold (the head says so only then). */
-export const morningWaits = (m: TodayMorning): boolean => morningSaid(m).length > 0;
+export const morningWaits = (morning: TodayMorning): boolean => morningSaid(morning).length > 0;
 
 /**
  * What can wait, folded into one line that waits for morning (W5): it says what it holds, and opens under itself on a
