@@ -20,7 +20,7 @@ import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
 import { CARD, QUESTION } from "./words";
 
 /** What the card's presses do. */
-interface CardActs {
+export interface AdCardActs {
   /** Open Meta's own window. */
   connect: () => void;
   /** The owner's answer to the one question: the platform's id of the account they meant. */
@@ -120,7 +120,7 @@ export function CardFacts({ facts }: { facts: ConnectCardVM["facts"] }) {
 }
 
 /** The one question: the accounts that could both be right, one picked, and the press that uses it. */
-function CardQuestion({
+export function CardQuestion({
   question,
   onChoose,
 }: {
@@ -185,7 +185,7 @@ function CardWord({ vm, onOpen }: { vm: ConnectCardVM; onOpen: () => void }) {
 
 interface ConnectCardProps {
   vm: ConnectCardVM;
-  acts: CardActs;
+  acts: AdCardActs;
   /** The name the page that draws it says it by. */
   title: string;
   /** AI stopped with ads still on, where the card says it (live/stop-notice.tsx). */

@@ -1,11 +1,10 @@
 /**
- * A connected mailbox on Settings › Connections, as the Email card (surfaces/settings/connections/mailboxes-block.tsx
- * EmailCard; the mailbox canvas, 27 Oct 2026), drawn on the stub React: it says what came in through the mailbox (when
- * it was read, who wrote today) and four facts, never its sending ramp, which is the sheet's; it offers the one act the
- * mailbox needs most -- its Settings when nothing needs mending -- and the rest on a caret (Ruben, 20 Oct 2026: no three
- * dots); its foot says how many senders it left today. Its settings open in a sheet beside the page, with the end of an
- * email as the preview of what it signs with. On production (27 Oct 2026) the row spoke its ramp beside six buttons in a
- * row, and its settings unfolded inside a box inside the row.
+ * A connected mailbox on Settings › Connections (surfaces/settings/connections/mailboxes-block.tsx EmailCard), drawn on
+ * the stub React: Email is a row, and each mailbox a row under it, the shape every connection's row has (Ruben, 21 Nov
+ * 2026: the card was five kinds of row in one, its facts always open). A mailbox's row is its address and its state, and
+ * says a quiet line only while there is something to say; it opens its settings in a sheet, or says Fix where something
+ * needs mending, and its sheet leads with that. Its sending, signature, what it brought in, a test, Pause and Remove are
+ * the sheet's. Under the mailboxes: what was left in the mailbox today, and Add a mailbox.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +16,6 @@ const SAM = "sam@getharbor.example";
 const CONNECTIONS = "../../../apps/dashboard/src/surfaces/settings/connections";
 const { EmailCard } = await import(`${CONNECTIONS}/mailboxes-block.tsx`);
 const { connectedMailboxes } = await import(`${CONNECTIONS}/connected-mailboxes.ts`);
-const { MoreMenu } = await import("../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 const { Segmented } = await import("../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
 
 // Who is acting: the frame's gate asks the role store; here an owner, or a member who may not change the mailboxes.
@@ -80,7 +78,7 @@ const ROW = {
   body: "mailboxes",
   notes: [],
 };
-/** The card for these mailboxes, drawn fresh; `left` is the senders Setup says were left today. */
+/** Email for these mailboxes, drawn fresh; `left` is the senders Setup says were left today. */
 const open = (mailboxes, left = null, over = {}) => {
   fresh();
   flashes.length = 0;
@@ -102,85 +100,69 @@ const open = (mailboxes, left = null, over = {}) => {
   return redraw();
 };
 const said = (n) => textOf(n).replace(/\s+/g, " ").trim();
-/** The Email card, whole: its words, state, act, facts and foot. */
-const cardOf = (tree) => byTestId(tree, "connection-mailbox");
-/** Its facts, each "label: value". */
-const factsOf = (tree) =>
-  all(byTestId(tree, "mailbox-facts"), (n) => n.props?.className === "set-mbx-fact").map((n) =>
-    n.props.children.map((c) => said(c)).join(": "),
-  );
-/** Its settings sheet, opened by its act (Settings, when nothing needs mending), the card drawn again after. */
+/** Email's own row. */
+const emailOf = (tree) => byTestId(tree, "connection-mailbox");
+/** A mailbox's row under it. */
+const rowOf = (tree, address) => byTestId(tree, `mailbox-${address}`);
+/** Its settings sheet, opened by the row's press (Settings), or by Fix where it needs mending; the block drawn again. */
 const openSettings = (tree, address) => {
-  press(byTestId(tree, `mailbox-settings-${address}`));
+  press(byTestId(tree, `mailbox-settings-${address}`) ?? byTestId(tree, `mailbox-fix-${address}`));
   return redraw();
 };
 /** The sheet's Save (the record kit's foot, kit/record/sheet.tsx). */
 const saveOf = (tree) => byTestId(tree, "rec-sheet-save-mailbox");
-/** A mailbox's caret: the kit's menu beside its one act; null where it has none. */
-const caretOf = (tree, address) =>
-  find(tree, (n) => n.type === MoreMenu && n.props.testid === `mailbox-more-${address}`);
-const caretWords = (tree, address) =>
-  (caretOf(tree, address)?.props.items ?? []).flatMap((it) => (it.label ? [it.label] : []));
-/** An item on a mailbox's caret, by its words, chosen as the menu chooses it; the block drawn again after. */
-const choose = (tree, address, words) => {
-  const it = caretOf(tree, address).props.items.find((i) => i.label === words);
-  assert.ok(it, `${address}'s caret holds ${words}`);
-  it.onClick();
-  return redraw();
+/** What its sheet says it brought in, each "label: value". */
+const broughtOf = (tree) => {
+  const dl = byTestId(tree, "mailbox-brought");
+  if (!dl) return [];
+  const parts = all(dl, (n) => n.type === "dt" || n.type === "dd").map((n) => said(n));
+  return parts.flatMap((part, i) => (i % 2 ? [] : [`${part}: ${parts[i + 1]}`]));
 };
 
-test("the card says what came in through it, its facts, and in its foot what it left, never the ramp", () => {
+test("Email is a row, each mailbox a row under it: its address and its state, nothing more while it works, and in the foot what it left", () => {
   const read = new Date(Date.now() - 2 * 60_000).toISOString();
-  const at = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, hour: "numeric", minute: "2-digit" }).format(
-    new Date(read),
-  );
   let tree = open([mbx({ synced_at: read, came_in: 3, sent_today: 20 })], 9);
-  const card = cardOf(tree);
-  assert.equal(said(byTestId(tree, `mailbox-${SAM}`)), `${SAM} · Google`, "its address and where it lives");
-  assert.equal(said(byTestId(tree, `mailbox-came-in-${SAM}`)), `Read at ${at} · 3 people wrote today`);
-  assert.doesNotMatch(said(card), /ramp|of 20 today/, "its day and its ramp are its sheet's");
-  assert.match(said(card), /Connected/, "a mailbox at its sending cap still reads");
-  assert.ok(said(card).startsWith("Email"), "the card is named Email");
+  assert.ok(said(emailOf(tree)).startsWith("Email"), "the row is named Email");
+  const row = rowOf(tree, SAM);
+  assert.equal(row.props["data-child"], "true", "a row under Email, where its name starts");
+  assert.equal(said(find(row, (n) => n.props?.className === "set-team-name")), SAM);
+  assert.match(said(row), /On/, "a mailbox at its sending cap still reads");
+  assert.doesNotMatch(said(row), /Read at|wrote today|ramp|of 20 today|Google/, "a row that works says nothing more");
+  assert.equal(row.props["data-offers"], "one", "the row is its press");
+  assert.equal(said(byTestId(row, `mailbox-settings-${SAM}`)), "Settings");
   assert.match(
     said(byTestId(tree, "mailbox-left")),
     /^Left in your mailbox · 9 senders today(Show who)?$/,
     "a count, no sentence",
   );
   tree = open([mbx({ synced_at: read, came_in: 0 })], 1);
-  assert.equal(said(byTestId(tree, `mailbox-came-in-${SAM}`)), `Read at ${at} · No one wrote today`);
   assert.match(said(byTestId(tree, "mailbox-left")), /^Left in your mailbox · 1 sender today/);
   tree = open([mbx()]);
-  assert.equal(said(byTestId(tree, `mailbox-came-in-${SAM}`)), "Not read yet", "an unread count is left out");
   assert.match(said(byTestId(tree, "mailbox-left")), /^Left in your mailbox(?! ·)/, "an unread count is not said");
 });
 
-test("one act and a caret: its Settings, the rest on the caret, its Sending lines in its sheet", async () => {
+test("its row opens its settings: no caret, no act beside Settings; Send a test is the sheet's, and its sending said once", async () => {
   const tested = [];
   Object.assign(connectedMailboxes, { test: async (id) => (tested.push(id), { ok: true, data: {} }) });
   let tree = open([
     mbx({ sent_today: 12, counts: { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 } }),
   ]);
-  const acts = find(tree, (n) => n.props?.className === "set-mbx-acts");
-  assert.ok(acts, "the act and its caret are one split pill");
-  assert.equal(said(byTestId(tree, `mailbox-settings-${SAM}`)), "Settings");
-  for (const gone of ["pause", "check", "test", "remove"])
-    assert.equal(byTestId(tree, `mailbox-${gone}-${SAM}`), null, `${gone} is not a button of the row`);
-  assert.deepEqual(caretWords(tree, SAM), ["Send a test", "Pause sending", "Remove…"], "acts alone, no state");
-  assert.match(caretOf(tree, SAM).props.btnClass, /set-mbx-caret/);
-  assert.equal(caretOf(tree, SAM).props.icon, "chevron-down", "a caret, never three dots");
-  choose(tree, SAM, "Send a test");
-  await settle();
-  assert.deepEqual(tested, ["m1"]);
-  tree = openSettings(redraw(), SAM);
+  for (const gone of ["pause", "check", "test", "remove", "more"])
+    assert.equal(byTestId(tree, `mailbox-${gone}-${SAM}`), null, `${gone} is not a press of the row`);
+  tree = openSettings(tree, SAM);
   assert.ok(byTestId(tree, `mailbox-sheet-${SAM}`), "its settings are a sheet, not a box in the row");
   const lines = said(byTestId(tree, `mailbox-sending-${SAM}`));
   // The ramp reads the days it sent (D15): nine, so its second step's 20 a day, and 30 after five more.
-  assert.match(lines, /12 of 20 today/);
-  assert.match(lines, /Day 10 of its ramp · 20 a day, 30 after 5 more days of sending/);
-  assert.match(lines, /0\.4% bounced · 2 said no · none marked as spam/);
+  assert.match(lines, /12 sent today · 20 a day for now, 30 after 5 more days of sending/);
+  assert.match(lines, /0\.4% bounced · 2 said no · none marked as spam/, "a bounce: its health is said");
+  assert.doesNotMatch(lines, /of 20 today|Day 10 of its ramp|A new mailbox starts/, "one limit, said once");
+  press(byTestId(tree, `mailbox-test-${SAM}`));
+  await settle();
+  assert.deepEqual(tested, ["m1"]);
+  assert.ok(byTestId(redraw(), `mailbox-sheet-${SAM}`), "a test keeps the sheet open");
 });
 
-test("its facts: what came in, as the ledger says it, then what it sends and signs as", async () => {
+test("what it brought in is its sheet's, as the ledger says it, never a fact on the rows", async () => {
   const imports = [
     {
       source: "mailbox",
@@ -197,20 +179,17 @@ test("its facts: what came in, as the ledger says it, then what it sends and sig
   ];
   const { importLineOf } = await import("@chanlytics/contracts");
   let tree = open([mbx({ daily_cap: 40 })], null, { imports });
-  assert.deepEqual(
-    factsOf(tree),
-    [`Inbox: ${importLineOf(imports[0], ZONE).says}`, "Sends: Up to 40 a day", "Signs as: Sam at Harbor"],
-    "the ledger's own line; no Contacts with nothing to say; with no signature in Gmail, its name ends its emails",
-  );
-  // Midnight on 7 June in UTC is the evening of the 6th in Los Angeles: the card says the workspace's day.
-  assert.match(factsOf(tree)[0], / · since Jun 6$/, "REGRESSION: the day it reached back to was the machine's");
-  tree = open([mbx({ signs: { from: "none", words: null, gmail_read_at: null, gmail: null } })]);
-  assert.deepEqual(factsOf(tree), ["Sends: Up to 40 a day", "Signs as: No signature"]);
-  tree = open([mbx({ signs: { from: "own", words: "Sam Reyes\nHarbor Moving", gmail_read_at: null, gmail: null } })]);
-  assert.equal(factsOf(tree).at(-1), "Signs as: Sam Reyes", "its first line");
+  assert.doesNotMatch(said(emailOf(tree)), /414|Inbox/, "a run that is in says nothing on Email's row");
+  assert.equal(byTestId(tree, "mailbox-facts"), null, "no box of facts");
+  tree = openSettings(tree, SAM);
+  assert.deepEqual(broughtOf(tree), [`Inbox: ${importLineOf(imports[0], ZONE).says}`], "the ledger's own line");
+  // Midnight on 7 June in UTC is the evening of the 6th in Los Angeles: the sheet says the workspace's day.
+  assert.match(broughtOf(tree)[0], / · since Jun 6$/, "REGRESSION: the day it reached back to was the machine's");
+  tree = openSettings(open([mbx()]), SAM);
+  assert.deepEqual(broughtOf(tree), [], "nothing brought: nothing said");
 });
 
-test("a stopped six months says so on the card, with Try again, the first run's own door (the live walk's TODAY-3, 27 Oct 2026)", async () => {
+test("a stopped six months says so on Email's row, with Try again, the first run's own door (the live walk's TODAY-3, 27 Oct 2026)", async () => {
   const { setupVerbs } = await import(`${CONNECTIONS}/../../setup/surface.ts`);
   const { IMPORT_STOPPED_WORDS } = await import("@chanlytics/contracts");
   const asked = [];
@@ -233,12 +212,9 @@ test("a stopped six months says so on the card, with Try again, the first run's 
       },
     ];
     let tree = open([mbx()], null, { imports });
-    assert.match(
-      factsOf(tree)[0],
-      /^Inbox: Stopped part way · 130 emails kept/,
-      "it says it stopped, and what it kept",
-    );
-    assert.doesNotMatch(factsOf(tree)[0], /· Stopped/, "and says Stopped once");
+    const line = said(byTestId(tree, "mailbox-import-mailbox"));
+    assert.match(line, /^Inbox: Stopped part way · 130 emails kept/, "it says it stopped, and what it kept");
+    assert.doesNotMatch(line, /· Stopped/, "and says Stopped once");
     const again = byTestId(tree, "mailbox-import-again-mailbox");
     assert.equal(said(again), "Try again");
     press(again);
@@ -246,55 +222,62 @@ test("a stopped six months says so on the card, with Try again, the first run's 
     tree = redraw();
     assert.deepEqual(asked, ["mailbox"], "the run starts again where it stopped");
     assert.equal(said(byTestId(tree, "mailbox-import-again-mailbox")), "Starting");
-    // Done, the card says what came in, and offers nothing to press.
+    // Done, the row says nothing of it, and offers nothing to press.
     tree = open([mbx()], null, { imports: [{ ...imports[0], state: "done", last_error: null }] });
+    assert.equal(byTestId(tree, "mailbox-import-mailbox"), null);
     assert.equal(byTestId(tree, "mailbox-import-again-mailbox"), null);
   } finally {
     setupVerbs.importAgain = was;
   }
 });
 
-test("the act is the one its mailbox needs most: Reconnect, Resume, Set up DNS, Unpause", async () => {
+test("what needs mending says Fix, and its sheet leads with what is wrong and the act: Reconnect, Resume, Set up DNS; Paused is its own word", async () => {
   const went = [];
-  const set = [];
   Object.assign(connectedMailboxes, {
     connect: async (p, id) => (went.push([p, id ?? null]), { ok: true, data: { url: "https://provider.example/" } }),
-    set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
   });
   let tree = open([mbx({ state: "reconnect", synced_at: new Date().toISOString(), came_in: 4 })]);
-  assert.match(said(cardOf(tree)), /Google signed it out: nothing is read from it or sent/);
-  assert.equal(byTestId(tree, `mailbox-came-in-${SAM}`), null, "signed out: nothing is read");
-  const reconnect = byTestId(tree, `mailbox-reconnect-${SAM}`);
-  assert.equal(reconnect.props.variant, "primary");
-  assert.match(caretOf(tree, SAM).props.btnClass, /btn-primary/, "its caret wears the act's fill");
-  assert.deepEqual(caretWords(tree, SAM), ["Settings", "Remove…"]);
-  press(reconnect);
+  assert.match(said(rowOf(tree, SAM)), /Google signed it out: nothing is read from it or sent/);
+  const fix = byTestId(tree, `mailbox-fix-${SAM}`);
+  assert.equal(said(fix), "Fix");
+  assert.equal(fix.props.variant, "primary", "the coral one");
+  assert.equal(rowOf(tree, SAM).props["data-offers"], "primary");
+  tree = openSettings(tree, SAM);
+  assert.match(said(byTestId(tree, `mailbox-problem-${SAM}`)), /Google signed it out/, "the sheet leads with it");
+  press(byTestId(tree, `mailbox-reconnect-${SAM}`));
   await settle();
   assert.deepEqual(went, [["google", "m1"]], "Reconnect goes back to its own provider, for its own mailbox");
 
   tree = open([mbx({ state: "held", held_why: "bounces", held_at: "2026-10-01T12:00:00Z" })]);
-  assert.match(said(cardOf(tree)), /Its sending is held since Oct 1: .*bounced/, "noon UTC is Oct 1 in Los Angeles");
+  assert.match(
+    said(rowOf(tree, SAM)),
+    /Its sending is held since Oct 1: .*bounced/,
+    "noon UTC is Oct 1 in Los Angeles",
+  );
+  tree = openSettings(tree, SAM);
   press(byTestId(tree, `mailbox-resume-${SAM}`));
   tree = redraw();
-  assert.match(said(tree), /Resume sam@getharbor\.example\?/, "asked first");
-  assert.ok(!caretWords(open([mbx({ state: "held" })]), SAM).includes("Send a test"), "a held mailbox sends no test");
+  assert.match(
+    said(byTestId(tree, `mailbox-sheet-${SAM}`)),
+    /Resume sam@getharbor\.example\?/,
+    "asked first, in the sheet",
+  );
+  tree = openSettings(open([mbx({ state: "held" })]), SAM);
+  assert.equal(byTestId(tree, `mailbox-test-${SAM}`), null, "a held mailbox sends no test");
 
   tree = open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]);
-  assert.equal(said(byTestId(tree, `mailbox-dns-${SAM}`)), "Set up DNS", "a record missing: Set up DNS is its act");
-  assert.ok(caretWords(tree, SAM).includes("Send a test"), "and the test waits on its caret");
-  assert.equal(
-    said(byTestId(tree, `mailbox-need-${SAM}`)),
-    "2 DNS records to add · 1 of 3 found",
-    "one line where the records stood",
-  );
-  assert.equal(byTestId(tree, "mailbox-dns-spf"), null, "its records are its DNS sheet's, not the card's");
+  assert.match(said(rowOf(tree, SAM)), /2 DNS records to add · 1 of 3 found/, "one line where the records stood");
+  assert.equal(byTestId(tree, "mailbox-dns-spf"), null, "its records are its DNS sheet's, not the row's");
+  tree = openSettings(tree, SAM);
+  assert.equal(said(byTestId(tree, `mailbox-dns-${SAM}`)), "Set up DNS");
+  assert.ok(byTestId(tree, `mailbox-test-${SAM}`), "and the test waits in the sheet");
 
   tree = open([mbx({ state: "paused" })]);
-  assert.match(said(cardOf(tree)), /You paused its sending: what people write still comes in/);
-  assert.equal(said(byTestId(tree, `mailbox-pause-${SAM}`)), "Unpause");
-  press(byTestId(tree, `mailbox-pause-${SAM}`));
-  await settle();
-  assert.deepEqual(set, [["m1", { paused: false }]]);
+  assert.match(said(rowOf(tree, SAM)), /You paused its sending: what people write still comes in/);
+  assert.match(said(rowOf(tree, SAM)), /Paused/);
+  assert.equal(byTestId(tree, `mailbox-fix-${SAM}`), null, "paused is the owner's choice, not a fault");
+  tree = openSettings(tree, SAM);
+  assert.equal(byTestId(tree, "mailbox-sending-switch").props.checked, false, "its switch turns it back on");
 });
 
 test("its domain's records, in a sheet: how many found, each to add with its host and value to copy, DKIM where to turn it on, Check again", async () => {
@@ -306,12 +289,16 @@ test("its domain's records, in a sheet: how many found, each to add with its hos
     value: { clipboard: { writeText: async (v) => void copied.push(v) } },
     configurable: true,
   });
+  /** Fix, then Set up DNS at the head of its sheet. */
+  const dnsOf = (tree) => {
+    press(byTestId(openSettings(tree, SAM), `mailbox-dns-${SAM}`));
+    return redraw();
+  };
   try {
-    let tree = open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]);
-    press(byTestId(tree, `mailbox-dns-${SAM}`));
-    tree = redraw();
+    let tree = dnsOf(open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]));
     const sheet = byTestId(tree, `mailbox-dns-sheet-${SAM}`);
     assert.ok(sheet, "Set up DNS opens its records in a sheet");
+    assert.equal(byTestId(tree, `mailbox-sheet-${SAM}`), null, "in place of its settings");
     assert.equal(said(byTestId(sheet, "mailbox-dns-found")), "1 of 3 found");
     const spf = said(byTestId(sheet, "mailbox-dns-spf"));
     assert.match(
@@ -349,16 +336,13 @@ test("its domain's records, in a sheet: how many found, each to add with its hos
     Object.defineProperty(globalThis, "navigator", { value: was, configurable: true });
   }
   // An SPF record the domain has already is changed, never added beside.
-  let changed = open([
-    mbx({
-      dns: { spf: "missing", dkim: "found", dmarc: "found" },
-      spf_record: "v=spf1 include:mailgun.org ~all",
-      spf_lookups: 2,
-    }),
-  ]);
-  assert.equal(said(byTestId(changed, `mailbox-need-${SAM}`)), "1 DNS record to add · 2 of 3 found");
-  press(byTestId(changed, `mailbox-dns-${SAM}`));
-  changed = redraw();
+  const spfOne = mbx({
+    dns: { spf: "missing", dkim: "found", dmarc: "found" },
+    spf_record: "v=spf1 include:mailgun.org ~all",
+    spf_lookups: 2,
+  });
+  assert.match(said(rowOf(open([spfOne]), SAM)), /1 DNS record to add · 2 of 3 found/);
+  const changed = dnsOf(open([spfOne]));
   assert.match(said(byTestId(changed, "mailbox-dns-spf")), /^Sender \(SPF\)TXTChange this/);
   assert.match(
     said(byTestId(changed, "mailbox-dns-spf")),
@@ -367,18 +351,16 @@ test("its domain's records, in a sheet: how many found, each to add with its hos
   assert.match(said(byTestId(changed, "mailbox-record-note-spf")), /may have only one/);
 });
 
-test("the owner's acts from the caret: pause at once, settings judged before they are sent, remove asked first", async () => {
+test("the owner's acts in the sheet: settings judged before they are sent, Sending a switch saved with them, Remove asked first", async () => {
   const set = [];
   const removed = [];
   Object.assign(connectedMailboxes, {
     set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
     remove: async (id) => (removed.push(id), { ok: true, data: { removed: true } }),
   });
-  let tree = open([mbx()]);
-  choose(tree, SAM, "Pause sending");
-  await settle();
-  assert.deepEqual(set, [["m1", { paused: true }]]);
-  tree = openSettings(redraw(), SAM);
+  let tree = openSettings(open([mbx()]), SAM);
+  assert.match(said(byTestId(tree, "mailbox-name")), /^Sender name/, "the name it sends as, said plainly");
+  assert.match(said(byTestId(tree, "mailbox-cap")), /^Daily limit/);
   const field = (id) => find(byTestId(tree, id), (n) => n.type === "input" || n.type === "textarea");
   field("mailbox-cap").props.onChange({ target: { value: "80" } });
   tree = redraw();
@@ -386,13 +368,13 @@ test("the owner's acts from the caret: pause at once, settings judged before the
   await settle();
   tree = redraw();
   assert.match(said(byTestId(tree, "mailbox-cap")), /Between 1 and 40 a day/, "judged under its box");
-  assert.equal(set.length, 1, "nothing is sent that the rules already refuse");
+  assert.equal(set.length, 0, "nothing is sent that the rules already refuse");
   field("mailbox-cap").props.onChange({ target: { value: "25" } });
   tree = redraw();
   press(saveOf(tree));
   await settle();
   // With nothing of its own written, it stands on Gmail's (00487): a save keeps it there, and the edge reads it again.
-  assert.deepEqual(set[1], [
+  assert.deepEqual(set[0], [
     "m1",
     { from_name: "Sam at Harbor", signature: null, signature_off: false, daily_cap: 25 },
   ]);
@@ -404,17 +386,14 @@ test("the owner's acts from the caret: pause at once, settings judged before the
   assert.match(said(byTestId(tree, `mailbox-sending-${SAM}`)), /^Paused: nothing leaves from sam@getharbor\.example\./);
   press(saveOf(tree));
   await settle();
-  assert.deepEqual(set[2][1], {
+  assert.deepEqual(set[1][1], {
     from_name: "Sam at Harbor",
     signature: null,
     signature_off: false,
     daily_cap: 40,
     paused: true,
   });
-  // Remove, from the caret or the sheet, is asked first.
-  tree = choose(redraw(), SAM, "Remove…");
-  assert.deepEqual(removed, [], "asked first");
-  assert.match(said(tree), /Remove sam@getharbor\.example\?/);
+  // Remove, from the sheet, is asked first.
   tree = openSettings(open([mbx()]), SAM);
   press(byTestId(tree, "mailbox-remove-ask"));
   tree = redraw();
@@ -425,18 +404,16 @@ test("the owner's acts from the caret: pause at once, settings judged before the
 test("a member who may not change the mailboxes reads them and their settings, is told once why, and finds no Remove", () => {
   role.owner = false;
   try {
-    const tree = open([mbx()]);
+    let tree = open([mbx()]);
     assert.match(said(byTestId(tree, "mailbox-gate")), /Only an owner can connect, pause, resume or remove a mailbox/);
-    assert.deepEqual(caretWords(tree, SAM), ["Send a test", "Pause sending"]);
-    const pause = caretOf(tree, SAM).props.items.find((i) => i.label === "Pause sending");
-    assert.equal(pause.gate["data-gated"], "pause a mailbox", "Pause says why it can't");
-    const test = caretOf(tree, SAM).props.items.find((i) => i.label === "Send a test");
-    assert.equal(test.gate["data-gated"], "send a test");
-    // Its settings are read, never changed: the sheet opens with no Save, its boxes held.
-    const sheet = openSettings(tree, SAM);
-    assert.ok(byTestId(sheet, `mailbox-sheet-${SAM}`));
-    assert.equal(saveOf(sheet), null, "no Save for a role that may not");
-    assert.equal(find(byTestId(sheet, "mailbox-cap"), (n) => n.type === "input").props.disabled, true);
+    assert.equal(byTestId(tree, "mailbox-add"), null, "no Add a mailbox");
+    // Its settings are read, never changed: the sheet opens with no Save, its boxes held, Send a test said gated.
+    tree = openSettings(tree, SAM);
+    assert.ok(byTestId(tree, `mailbox-sheet-${SAM}`));
+    assert.equal(saveOf(tree), null, "no Save for a role that may not");
+    assert.equal(find(byTestId(tree, "mailbox-cap"), (n) => n.type === "input").props.disabled, true);
+    assert.equal(byTestId(tree, "mailbox-remove-ask"), null);
+    assert.equal(byTestId(tree, `mailbox-test-${SAM}`).props["data-gated"], "send a test", "Send a test says why");
   } finally {
     role.owner = true;
   }
@@ -487,7 +464,7 @@ test("Settings reads the address: Connections opens, its row named Left in your 
   assert.equal(settingsRowOf("integrations"), null, "the page alone names no row");
 });
 
-test("what it signs with (00487): Gmail's, said as words with when it was read; their own words; or none", async () => {
+test("what it signs with (00487), said once: Gmail's as words with when it was read; their own in the box they write it in; or none", async () => {
   const set = [];
   Object.assign(connectedMailboxes, {
     set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
@@ -497,8 +474,6 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
   const signs = { from: "gmail", words: gmail, gmail_read_at: read, gmail };
   let tree = openSettings(open([mbx({ signs })]), SAM);
   const choice = () => find(tree, (n) => n.type === Segmented);
-  const preview = () => said(byTestId(tree, "mailbox-preview"));
-  const signedWith = () => said(byTestId(tree, "mailbox-preview-sig"));
   assert.equal(choice().props.value, "gmail", "it stands on Gmail's");
   assert.deepEqual(
     choice().props.options.map((o) => o.label),
@@ -513,12 +488,12 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
   assert.match(shown, /^Sam Reyes Harbor Moving/, "Gmail's signature, as words");
   assert.match(shown, /Read from Gmail .+\. Saving reads it again\./);
   assert.equal(byTestId(tree, "mailbox-signature"), null, "their own words' box is for Write one");
-  assert.equal(signedWith(), "Sam Reyes Harbor Moving", "the preview ends the email as the send will");
+  assert.equal(byTestId(tree, "mailbox-preview"), null, "said once: no preview says it again (Ruben, 21 Nov 2026)");
 
   choice().props.onValueChange("own");
   tree = redraw();
-  assert.equal(byTestId(tree, "mailbox-preview-sig"), null, "nothing written yet: nothing to show");
-  assert.match(preview(), /Write it above: it goes here\.$/);
+  assert.ok(byTestId(tree, "mailbox-signature"), "Write one: the box their words go in");
+  assert.equal(byTestId(tree, "mailbox-signs-said"), null);
   press(saveOf(tree));
   await settle();
   tree = redraw();
@@ -528,7 +503,6 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
     target: { value: "Sam · Harbor" },
   });
   tree = redraw();
-  assert.equal(signedWith(), "Sam · Harbor", "what is typed is what they read");
   press(saveOf(tree));
   await settle();
   assert.deepEqual(set[0][1], {
@@ -544,8 +518,6 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
   choice().props.onValueChange("none");
   tree = redraw();
   assert.match(said(byTestId(tree, "mailbox-signs-said")), /Nothing goes under its emails, not even its name\./);
-  assert.match(preview(), /Nothing under it, not even its name\.$/);
-  assert.equal(byTestId(tree, "mailbox-preview-sig"), null);
   press(saveOf(tree));
   await settle();
   assert.deepEqual(
@@ -565,7 +537,7 @@ test("a mailbox whose Gmail has no signature ends its emails with its name, and 
   );
 });
 
-test("what a mailbox brings is its own (decision 0086): its Inbox says where its history stands with the one act that fits, and under Add a mailbox what connecting brings, with Change", async () => {
+test("what a mailbox brings is its own (decision 0086): its row says where its history stands while it comes in or stopped, with the act that fits; its sheet offers the six months; Add a mailbox says what connecting brings", async () => {
   const { IMPORT_STOPPED_WORDS, MAILBOX_HISTORY_WORDS } = await import("@chanlytics/contracts");
   const pressed = [];
   const went = [];
@@ -591,20 +563,23 @@ test("what a mailbox brings is its own (decision 0086): its Inbox says where its
     via: "google",
     ...over,
   });
-  // Coming in: where it stands, and Stop in place of Try again.
+  // Coming in: where it stands, on its row, and Stop.
   let tree = open([mbx()], null, { imports: [own()] });
-  assert.match(factsOf(tree)[0], /^Inbox: 130 emails so far · …Stop$/);
+  assert.equal(said(byTestId(tree, `mailbox-history-${SAM}`)), "130 emails so far · … · Stop");
+  assert.equal(byTestId(tree, "mailbox-import-mailbox"), null, "its own run is its row's, never Email's too");
   press(byTestId(tree, `mailbox-history-stop-${SAM}`));
   await until(() => pressed.length === 1, "Stop pressed through the door");
   // Stopped by its owner: Resume, through the same door.
   tree = open([mbx()], null, { imports: [own({ state: "failed", last_error: IMPORT_STOPPED_WORDS.byYou })] });
-  assert.equal(factsOf(tree)[0], `Inbox: ${IMPORT_STOPPED_WORDS.byYou}Resume`);
+  assert.equal(said(byTestId(tree, `mailbox-history-${SAM}`)), `${IMPORT_STOPPED_WORDS.byYou} · Resume`);
   assert.equal(byTestId(tree, "mailbox-import-again-mailbox"), null, "one act, never Try again beside it");
   press(byTestId(tree, `mailbox-history-resume-${SAM}`));
   await until(() => pressed.length === 2, "Resume pressed through the door");
-  // Connected from now on: since when, by the workspace's calendar, and the six months to bring.
+  // From now on: nothing on its row; its sheet says since when, by the workspace's calendar, and offers the six months.
   tree = open([mbx({ history: "from_now" })]);
-  assert.equal(factsOf(tree)[0], `Inbox: ${MAILBOX_HISTORY_WORDS.fromNow("Sep 19")}Bring in the last 6 months`);
+  assert.equal(byTestId(tree, `mailbox-history-${SAM}`), null, "an offer is not a row's line");
+  tree = openSettings(tree, SAM);
+  assert.deepEqual(broughtOf(tree), [`Inbox: ${MAILBOX_HISTORY_WORDS.fromNow("Sep 19")} · Bring in the last 6 months`]);
   press(byTestId(tree, `mailbox-history-bring-${SAM}`));
   await until(() => pressed.length === 3, "Bring in pressed through the door");
   assert.deepEqual(pressed, [
@@ -612,7 +587,7 @@ test("what a mailbox brings is its own (decision 0086): its Inbox says where its
     ["m1", "resume"],
     ["m1", "bring"],
   ]);
-  // Several mailboxes: each line its own, the card's Inbox all of them as one.
+  // Several mailboxes: each line its own.
   const ops = "ops@getharbor.example";
   tree = open([mbx(), mbx({ id: "m2", address: ops })], null, {
     imports: [own(), own({ connection_id: "m2", state: "failed", last_error: IMPORT_STOPPED_WORDS.failed })],
@@ -626,13 +601,16 @@ test("what a mailbox brings is its own (decision 0086): its Inbox says where its
   role.owner = false;
   try {
     tree = open([mbx()], null, { imports: [own()] });
-    assert.equal(factsOf(tree)[0], "Inbox: 130 emails so far · …");
+    assert.equal(said(byTestId(tree, `mailbox-history-${SAM}`)), "130 emails so far · …");
     assert.equal(byTestId(tree, "mailbox-history-line"), null, "nor a choice of what connecting brings");
   } finally {
     role.owner = true;
   }
-  // Under Add a mailbox: what connecting brings, and Change opens the two ways in place; the choice rides the connect.
+  // Add a mailbox, pressed: what connecting brings, and Change opens the two ways in place; the choice rides the connect.
   tree = open([mbx()]);
+  assert.equal(byTestId(tree, "mailbox-history-line"), null, "it waits for Add a mailbox");
+  press(byTestId(tree, "mailbox-add"));
+  tree = redraw();
   assert.equal(said(byTestId(tree, "mailbox-history-line")), `${MAILBOX_HISTORY_WORDS.line.six_months} Change`);
   press(byTestId(tree, "mailbox-history-change"));
   tree = redraw();
