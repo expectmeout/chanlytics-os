@@ -154,6 +154,8 @@ function world({
         scope: "openid email",
       }),
       has_permission: () => may,
+      // A post approved before approvals were kept (00690): read as before.
+      post_as_approved: () => ({ is: "before" }),
       post_attempt_open: ({ p_post_id, p_attempt_no, p_step, p_request }) => {
         const row = {
           id: `att-${tables.publish_attempts.length + 1}`,

@@ -1,12 +1,15 @@
 /**
- * A post made ready on Instagram (00611, decision 0121): post_prepare. The post's picture, kept in its file's folder, is signed
- * for a day and Instagram is asked to make a container of it; once the container says FINISHED, the send is scheduled for the
- * post's time. Nothing here puts anything in front of anyone: the container is Instagram's draft, and lapses in a day.
+ * A post made ready on Instagram (00611, decision 0121; 00690): post_prepare. The approved bytes (a picture's shape, or a
+ * made video for a reel) are signed for a day and Instagram is asked, through its adapter (content/places/instagram.ts), to
+ * make a container of them; once the container says it is ready, the send is scheduled for the post's time. Nothing here
+ * puts anything in front of anyone: the container is Instagram's draft, and lapses in a day.
  *
- * Every run first reads the post and stops where it no longer stands where this job expects it (pulled, held). The
- * container's id is kept on its send's row, so a run that comes back after a throw asks after the same container rather
- * than making another. A refusal is said in the owner's words (contracts ON_INSTAGRAM.refused) and ends the job for good,
- * which tells the owner and settles the post (packages/jobs settle-post.ts); Instagram's bad minute is tried again.
+ * Every run first reads the post and stops where it no longer stands where this job expects it (pulled, held), and where it
+ * no longer stands as approved (00690 post_as_approved: its words, its bytes or its version moved since): held, "Changed
+ * since you approved it". The container's id is kept on its send's row, so a run that comes back after a throw asks after
+ * the same container rather than making another. A refusal is said in the owner's words (contracts ON_INSTAGRAM.refused)
+ * and ends the job for good, which tells the owner and settles the post (packages/jobs settle-post.ts); Instagram's bad
+ * minute is tried again.
  *
  * A second attempt asks after the first container before it makes anything: a send whose answer never came may have landed
  * since the reconcile looked. Up, the post is up and nothing more is sent. Still ready, it is the one sent again, so
@@ -15,35 +18,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
+  INSTAGRAM_POST_KINDS,
   ON_INSTAGRAM,
   SECOND_MS,
+  fileMadePathOf,
+  isOneOf,
   metaLinesOf,
   postPathOf,
   postPlanOf,
   postSentencesOf,
   recordOrEmpty,
   type InstagramPostKind,
+  type PlaceAdapter,
+  type PlaceRefusal,
+  type PlacedMedia,
+  type PostHeldWhy,
   type PostStatus,
+  type PreparedState,
 } from "@chanlytics/contracts";
-import {
-  callInstagram,
-  metaContainerFields,
-  metaContainerRequest,
-  metaContainerStatusRequest,
-  metaMediaSentBy,
-  metaNewestMediaRequest,
-  metaPostLimitRequest,
-  metaPostRefusalOf,
-  parseMetaContainerStatus,
-  parseMetaCreatedId,
-  parseMetaMediaList,
-  parseMetaPostLimit,
-  type InstagramAnswer,
-  type InstagramDeps,
-  type MetaContainerStatus,
-  type MetaMedia,
-  type MetaPoster,
-} from "@chanlytics/channels/instagram";
+import { metaContainerFields, metaContainerFieldsKept, type MetaPoster } from "@chanlytics/channels/instagram";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import {
   closePostAttempt,
@@ -55,33 +48,42 @@ import {
   movePost,
   openPostAttempt,
   queuePostAgain,
+  readPostAsApproved,
   type PostRow,
 } from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import { CertainFailure, isCertainFailure } from "@chanlytics/core";
+import { CertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { readKeptSecret } from "./credentials.js";
 import { tellPostMoved } from "../files/post-told.js";
+import { INSTAGRAM_CALL_MS, instagramPlace, type InstagramPlaceDeps } from "../content/places/instagram.js";
+import { letGoLate, readReasonNow } from "../content/reason.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** What a post job is handed besides its database: the network, and a pause between two looks at a container. */
-export interface PostDeps extends InstagramDeps {
+export interface PostDeps extends InstagramPlaceDeps {
   pause?: (ms: number) => Promise<void>;
 }
 
-/** How long Instagram has to fetch the picture: a day, as long as a container lives. */
-const PICTURE_LINK_S = DAY_MS / SECOND_MS;
-/** A picture's container is ready in seconds: looked at this often, three times, before the job comes back later. */
-const LOOK_EVERY_MS = 3 * SECOND_MS;
-const LOOKS = 3;
+/** How long Instagram has to fetch the media: a day, as long as a container lives. */
+const MEDIA_LINK_S = DAY_MS / SECOND_MS;
+/**
+ * How often a container is looked at, and how many times, before the job comes back later: a picture is ready in seconds,
+ * a reel in under a minute (the first-post sitting's, 47 seconds, for 13 seconds of video).
+ */
+const LOOKS: Readonly<Record<InstagramPostKind, { everyMs: number; times: number }>> = {
+  picture: { everyMs: 3 * SECOND_MS, times: 3 },
+  story: { everyMs: 3 * SECOND_MS, times: 3 },
+  reel: { everyMs: 10 * SECOND_MS, times: 6 },
+};
 /** The longest one call to Instagram waits (KIND_POLICY longestCallMs is 20 s). */
-export const POST_CALL_MS = 15 * SECOND_MS;
+export const POST_CALL_MS = INSTAGRAM_CALL_MS;
 
 /** What a post job names: the post, and which of its two attempts this is. */
 export function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
@@ -89,73 +91,93 @@ export function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
   return { postId, attempt: job.payload.attempt === "2" ? 2 : 1 };
 }
 
-/** The kind Instagram is sent: a reel waits for its road (decision 0121), so a reel's post never reaches here. */
+/** The kind Instagram is sent: a picture, a story or a reel (00690); anything else is no post of ours to send. */
 export function instagramKindOf(post: PostRow): InstagramPostKind {
-  if (post.kind === "picture" || post.kind === "story") return post.kind;
-  throw new CertainFailure(`post ${post.id}: a ${post.kind} cannot go yet`, ON_INSTAGRAM.notYet);
+  if (isOneOf(INSTAGRAM_POST_KINDS, post.kind)) return post.kind;
+  throw new CertainFailure(`post ${post.id}: a ${post.kind} cannot go`, ON_INSTAGRAM.notSent);
 }
 
 /** Who posts: the workspace's account connected through Meta, its token, and the app's secret; else why it may not now. */
-export async function findPoster(db: Db, tenantId: TenantId): Promise<{ poster: MetaPoster } | { held: string }> {
+export async function findPoster(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ poster: MetaPoster } | { held: string; why: PostHeldWhy }> {
   const appSecret = env.META_APP_SECRET;
   if (!appSecret) throw new Error("post: META_APP_SECRET is not set on this deployment");
   const row = await findMetaInstagramRow(db, tenantId);
-  if (!row) return { held: ON_INSTAGRAM.held.disconnected };
+  if (!row) return { held: ON_INSTAGRAM.held.disconnected, why: "disconnected" };
   const config = recordOrEmpty(row.config);
-  if (config.token_lapsed_at) return { held: ON_INSTAGRAM.held.disconnected };
-  if (!metaLinesOf(config.scopes).publish) return { held: ON_INSTAGRAM.held.lineOff };
+  if (config.token_lapsed_at) return { held: ON_INSTAGRAM.held.disconnected, why: "disconnected" };
+  if (!metaLinesOf(config.scopes).publish) return { held: ON_INSTAGRAM.held.lineOff, why: "line_off" };
   // A Vault that cannot be read throws: the job comes back, and nothing was sent.
   const secret = await readKeptSecret(db, row.id);
-  if (!secret?.access_token) return { held: ON_INSTAGRAM.held.disconnected };
+  if (!secret?.access_token) return { held: ON_INSTAGRAM.held.disconnected, why: "disconnected" };
   return { poster: { token: secret.access_token, appSecret, accountId: row.external_id } };
 }
 
-/** What Instagram's refusal comes to: the owner's words for good, or a throw to try again when it was only busy. */
-export function postRefusalOf(answer: Pick<InstagramAnswer, "status" | "json">, subject: string): Error {
-  const r = metaPostRefusalOf(answer);
-  const line = `${subject}: Instagram refused (${r.code ?? "-"}/${r.subcode ?? "-"})`;
-  return r.refusal === "busy" ? new Error(line) : new CertainFailure(line, ON_INSTAGRAM.refused[r.refusal]);
+/** Instagram's adapter for this workspace's account, knowing which of its posts another placement already keeps. */
+export function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDeps): PlaceAdapter {
+  return instagramPlace(poster, {
+    ...deps,
+    keptElsewhere: (ids) => listKeptPostIds(db, post.tenant_id, "instagram", [...ids]),
+  });
+}
+
+/** What a refusal comes to: the owner's words for good, or a throw to try again when it was only busy. */
+export function postRefusalOf(refusal: PlaceRefusal, subject: string): Error {
+  const line = `${subject}: Instagram refused (${refusal.code ?? "-"}/${refusal.subcode ?? "-"})`;
+  return refusal.busy ? new Error(line) : new CertainFailure(line, refusal.words);
 }
 
 /** The refusal as the post and its send keep it: Instagram's code, and the owner's sentence. */
-export function refusalKept(answer: Pick<InstagramAnswer, "status" | "json">) {
-  const r = metaPostRefusalOf(answer);
-  return { code: r.code, subcode: r.subcode, words: ON_INSTAGRAM.refused[r.refusal] };
-}
+export const refusalKept = (refusal: PlaceRefusal) => ({
+  code: refusal.code,
+  subcode: refusal.subcode,
+  words: refusal.words,
+});
 
-/** The post held: the recheck's words on it, and nothing sent. */
-export async function holdPost(db: Db, post: PostRow, words: string): Promise<{ skipped: string }> {
+/** The post held: the recheck's words and why on it, and nothing sent. */
+export async function holdPost(
+  db: Db,
+  post: PostRow,
+  hold: { words: string; why: PostHeldWhy },
+): Promise<{ skipped: string }> {
+  if (hold.why === "late") return letGoLate(db, post, hold.words);
   const moved = await movePost(db, {
     postId: post.id,
     from: ["queued", "preparing"],
     to: "held",
-    patch: { held_reason: words },
+    patch: { held_reason: hold.words, held_why: hold.why },
   });
-  logger({ tenant_id: post.tenant_id }).info("post_held", { post_id: post.id });
+  logger({ tenant_id: post.tenant_id }).info("post_held", { post_id: post.id, why: hold.why });
   // Held at its time, with no one there to see it: the bell says so (00616).
-  if (moved) await tellPostMoved(db, post, { is: "held", why: words });
+  if (moved) await tellPostMoved(db, post, { is: "held", why: hold.words });
   return { skipped: "held" };
 }
 
-/** The post is up: its id, its address and its time kept where they are known, and the line that says so. */
+/**
+ * The post is up: its id, its address and its time kept where they are known, the account it went to, when it was seen
+ * there (only when the account was read holding it), and the line that says so.
+ */
 export async function keepPublished(
   db: Db,
   post: PostRow,
-  from: readonly PostStatus[],
-  media: Partial<MetaMedia> | null,
+  at: { from: readonly PostStatus[]; media: PlacedMedia | null; accountId: string; seen: boolean },
 ): Promise<void> {
   const moved = await movePost(db, {
     postId: post.id,
-    from,
+    from: at.from,
     to: "published",
     patch: {
-      external_id: media?.id || null,
-      permalink: media?.permalink ?? null,
-      published_at: media?.timestamp ?? null,
+      external_id: at.media?.externalId || null,
+      permalink: at.media?.permalink ?? null,
+      published_at: at.media?.publishedAt ?? null,
+      account_id: at.accountId,
+      verified_at: at.seen ? new Date().toISOString() : null,
     },
   });
   if (!moved) return;
-  logger({ tenant_id: post.tenant_id }).info("post_published", { post_id: post.id, place: post.place });
+  logger({ tenant_id: post.tenant_id }).info("post_published", { post_id: post.id, place: post.place, seen: at.seen });
   // One that waited for its time went up with no one there to see it: the bell says so (00616).
   await tellPostMoved(db, post, { is: "up" });
 }
@@ -170,28 +192,20 @@ export async function findOnTheAccount(
   db: Db,
   at: { post: PostRow; poster: MetaPoster },
   deps: PostDeps,
-): Promise<MetaMedia | null> {
+): Promise<PlacedMedia | null> {
   const sends = await listPostAttempts(db, at.post.tenant_id, at.post.id);
   // In the order they were made: the first send is the earliest a post of this one can be.
   const send = sends.find((a) => a.step === "publish");
   if (!send) return null;
-  const listed = await callInstagram(
-    metaNewestMediaRequest(at.poster, instagramKindOf(at.post)),
-    { timeoutMs: POST_CALL_MS },
-    deps,
-  );
-  if (listed.outcome !== "ok") throw new Error(`post ${at.post.id}: the account's posts could not be read`);
-  const newest = parseMetaMediaList(listed.json);
-  const kept = await listKeptPostIds(
-    db,
-    at.post.tenant_id,
-    "instagram",
-    newest.map((m) => m.id),
-  );
-  return metaMediaSentBy(
-    newest.filter((m) => !kept.includes(m.id)),
-    { at: send.started_at, caption: at.post.caption },
-  );
+  const state = await placeFor(db, at.post, at.poster, deps).status?.({
+    postId: at.post.id,
+    kind: instagramKindOf(at.post),
+    externalId: at.post.external_id,
+    caption: at.post.caption,
+    sentAt: send.started_at,
+  });
+  if (!state || state.is === "unknown") throw new Error(`post ${at.post.id}: the account's posts could not be read`);
+  return state.is === "up" ? state.media : null;
 }
 
 /** What the picture says, for someone who cannot see it: the words drawn on it, in the order they are read. */
@@ -200,49 +214,51 @@ function pictureSays(file: { made: unknown }): string | null {
   return postSentencesOf([plan.over, plan.line, plan.under]) || null;
 }
 
-/** The signed address Instagram fetches the picture from: the post's own shape for a post, its story shape for a story. */
-async function pictureLinkOf(db: Db, post: PostRow, kind: InstagramPostKind): Promise<string> {
-  const path = postPathOf(post.tenant_id, post.file_id, kind === "story" ? "story" : "portrait");
-  const signed = await filesBucket(db).createSignedUrl(path, PICTURE_LINK_S);
-  if (signed.error) throw new Error(`post ${post.id}: the picture could not be signed`);
+/**
+ * Where the bytes Instagram fetches are kept: the approved shape's own path (00690), or, for a post approved before
+ * approvals were kept, the post's own shape (a picture's portrait, a story's) as before.
+ */
+function mediaPathOf(post: PostRow, kind: InstagramPostKind, approvedPath: string | null): string {
+  if (approvedPath) return approvedPath;
+  if (kind === "reel") return fileMadePathOf(post.tenant_id, post.file_id, "video");
+  return postPathOf(post.tenant_id, post.file_id, kind === "story" ? "story" : "portrait");
+}
+
+/** The signed address Instagram fetches the media from. */
+async function mediaLinkOf(db: Db, post: PostRow, path: string): Promise<string> {
+  const signed = await filesBucket(db).createSignedUrl(path, MEDIA_LINK_S);
+  if (signed.error) throw new Error(`post ${post.id}: the media could not be signed`);
   return signed.data.signedUrl;
 }
 
-/** At the day's limit, said before a container is made; a limit that could not be read lets the post go on. */
-async function refuseAtLimit(poster: MetaPoster, deps: PostDeps): Promise<void> {
-  const read = await callInstagram(metaPostLimitRequest(poster), { timeoutMs: POST_CALL_MS }, deps);
-  const limit = read.outcome === "ok" ? parseMetaPostLimit(read.json) : null;
-  if (limit && limit.used >= limit.total)
-    throw new CertainFailure("post: the account's day of posts is used", ON_INSTAGRAM.refused.limit);
-}
-
-/** What a run of post_prepare works on: the post, which of its two attempts, how it goes, and who posts it. */
+/** What a run of post_prepare works on: the post, which of its two attempts, how it goes, who posts it, and its bytes. */
 interface Preparing {
   post: PostRow;
   attempt: 1 | 2;
   kind: InstagramPostKind;
   poster: MetaPoster;
+  place: PlaceAdapter;
+  path: string;
 }
 
 /** A container Instagram already has for this post, and where it stands now. */
 interface FirstContainer {
   id: string;
-  code: MetaContainerStatus;
-  answer: InstagramAnswer;
+  state: PreparedState;
 }
 
 /**
  * Where the first attempt's container stands now, asked before a second is made. Null when there was none, or Instagram
  * answered that it no longer has it. No answer throws: the job comes back, and nothing is made blind.
  */
-async function firstContainerNow(db: Db, at: Preparing, deps: PostDeps): Promise<FirstContainer | null> {
+async function firstContainerNow(db: Db, at: Preparing): Promise<FirstContainer | null> {
   const sends = await listPostAttempts(db, at.post.tenant_id, at.post.id);
   const id = sends.find((a) => a.attempt_no === 1 && a.step === "container")?.container_id;
-  if (!id) return null;
-  const answer = await callInstagram(metaContainerStatusRequest(at.poster, id), { timeoutMs: POST_CALL_MS }, deps);
-  if (answer.outcome === "refused") return null;
-  if (answer.outcome !== "ok") throw new Error(`post ${at.post.id}: the first container could not be read`);
-  return { id, code: parseMetaContainerStatus(answer.json).code, answer };
+  if (!id || !at.place.preparedState) return null;
+  const state = await at.place.preparedState(id, at.kind);
+  if (state.is === "gone") return null;
+  if (state.is === "unknown") throw new Error(`post ${at.post.id}: the first container could not be read`);
+  return { id, state };
 }
 
 /** The first send landed after all: the post is up, how that was learned is kept on a row of its own, and nothing is sent. */
@@ -260,11 +276,16 @@ async function keepLanded(db: Db, at: Preparing, first: FirstContainer, deps: Po
   await closePostAttempt(db, {
     attemptId: opened.id,
     outcome: "ok",
-    httpStatus: first.answer.status,
-    answer: first.answer.json,
-    externalId: found?.id ?? null,
+    httpStatus: first.state.kept.status,
+    answer: first.state.kept.json,
+    externalId: found?.externalId ?? null,
   });
-  await keepPublished(db, at.post, ["queued"], found);
+  await keepPublished(db, at.post, {
+    from: ["queued"],
+    media: found,
+    accountId: at.poster.accountId,
+    seen: found !== null,
+  });
   return { skipped: "landed" };
 }
 
@@ -282,47 +303,74 @@ async function containerAgain(db: Db, at: Preparing, containerId: string): Promi
 }
 
 /** The container made, or the one an earlier run made: its id on the send's row and on the post. */
-async function containerOf(db: Db, at: Preparing & { says: string | null }, deps: PostDeps): Promise<string> {
-  const { post, attempt, kind, poster } = at;
-  const link = await pictureLinkOf(db, post, kind);
-  const fields = metaContainerFields(kind, link, { caption: post.caption, says: at.says });
-  // The request as kept: the picture's host alone, never its signed address or a token.
-  const request = { ...fields, image_url: new URL(link).host };
+async function containerOf(db: Db, at: Preparing & { says: string | null }): Promise<string> {
+  const { post, attempt, kind, place } = at;
+  const link = await mediaLinkOf(db, post, at.path);
+  const toSend = {
+    postId: post.id,
+    kind,
+    caption: post.caption,
+    mediaUrl: link,
+    says: at.says,
+    language: null,
+    book: false,
+  };
+  // The request as kept: the media's host alone, never its signed address or a token.
+  const request = metaContainerFieldsKept(metaContainerFields(kind, link, { caption: post.caption, says: at.says }));
   const opened = await openPostAttempt(db, { postId: post.id, attemptNo: attempt, step: "container", request });
   if (opened.finished && opened.outcome === "ok" && opened.containerId) return opened.containerId;
-  await refuseAtLimit(poster, deps);
-  const container = await callInstagram(metaContainerRequest(poster, fields), { timeoutMs: POST_CALL_MS }, deps);
-  if (container.outcome === "refused") {
+  const prepared = await place.prepare?.(toSend);
+  if (!prepared) throw new Error(`post ${post.id}: Instagram has no draft to make`);
+  if (prepared.is === "refused") {
     // Refused for good: the send's row says so. Only busy: it stays open, and the next run asks again on it.
-    const refused = postRefusalOf(container, `post ${post.id}`);
-    if (isCertainFailure(refused))
+    const refused = postRefusalOf(prepared.refusal, `post ${post.id}`);
+    if (!prepared.refusal.busy)
       await closePostAttempt(db, {
         attemptId: opened.id,
         outcome: "refused",
-        httpStatus: container.status,
-        answer: container.json,
-        error: refusalKept(container),
+        httpStatus: prepared.kept.status,
+        answer: prepared.kept.json,
+        error: refusalKept(prepared.refusal),
       });
     throw refused;
   }
   // No answer: the send's row stays open, and the next run makes the container again (an unused one lapses by itself).
-  if (container.outcome !== "ok")
-    throw new Error(`post ${post.id}: Instagram did not answer the container (${container.status})`);
-  const containerId = parseMetaCreatedId(container.json);
+  if (prepared.is === "unknown")
+    throw new Error(`post ${post.id}: Instagram did not answer the container (${prepared.kept.status ?? 0})`);
   await closePostAttempt(db, {
     attemptId: opened.id,
     outcome: "ok",
-    httpStatus: container.status,
-    answer: container.json,
-    containerId,
+    httpStatus: prepared.kept.status,
+    answer: prepared.kept.json,
+    containerId: prepared.ref,
   });
-  return containerId;
+  return prepared.ref;
 }
 
 /** A second attempt, from a fresh container: the post queued again with its job, together, and only ever once (00611). */
 export async function beginSecondAttempt(db: Db, post: PostRow, from: "preparing" | "checking"): Promise<void> {
   if (await queuePostAgain(db, post.id, from))
     logger({ tenant_id: post.tenant_id }).info("post_tried_again", { post_id: post.id });
+}
+
+/**
+ * Why a post may not be made ready or sent now, in words, or the bytes it sends: deleted, everything stopped, or no longer
+ * what was approved (00690). Read before Instagram is asked anything, at prepare and again right before the send.
+ */
+export async function approvedBytesOf(
+  db: Db,
+  post: PostRow,
+): Promise<{ path: string | null; made: unknown } | { held: string; why: PostHeldWhy }> {
+  const file = await findFileForWork(db, post.tenant_id, post.file_id);
+  if (!file || file.removed_at) return { held: ON_INSTAGRAM.held.removed, why: "removed" };
+  // Stop everything: nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
+  if (await isSendingStopped(db, post.tenant_id)) return { held: ON_INSTAGRAM.held.stopped, why: "stopped" };
+  const approved = await readPostAsApproved(db, post.id);
+  if (approved.is === "changed") return { held: ON_INSTAGRAM.held.changed, why: "changed" };
+  // The reason, read again (PRD 6.1): its day passed (let go, never sent late), or its offer or service is gone (held).
+  const reason = await readReasonNow(db, post, approved.is === "stands" ? approved : { intent: null, facts: [] });
+  if (reason) return { held: reason.words, why: reason.code };
+  return { path: approved.is === "stands" ? approved.path : null, made: file.made };
 }
 
 /** post_prepare: the post made ready on Instagram, and its send scheduled for its time. */
@@ -337,20 +385,25 @@ export async function preparePost(
   if (!post) return { skipped: "gone" };
   if (post.status !== "queued" && post.status !== "preparing") return { skipped: post.status };
   const kind = instagramKindOf(post);
-  const file = await findFileForWork(db, job.tenant_id, post.file_id);
-  if (!file || file.removed_at) return holdPost(db, post, ON_INSTAGRAM.held.removed);
-  // Stop everything: nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
-  if (await isSendingStopped(db, job.tenant_id)) return holdPost(db, post, ON_INSTAGRAM.held.stopped);
+  const bytes = await approvedBytesOf(db, post);
+  if ("held" in bytes) return holdPost(db, post, { words: bytes.held, why: bytes.why });
   const posting = await findPoster(db, job.tenant_id);
-  if ("held" in posting) return holdPost(db, post, posting.held);
-  const at: Preparing = { post, attempt, kind, poster: posting.poster };
+  if ("held" in posting) return holdPost(db, post, { words: posting.held, why: posting.why });
+  const at: Preparing = {
+    post,
+    attempt,
+    kind,
+    poster: posting.poster,
+    place: placeFor(db, post, posting.poster, deps),
+    path: mediaPathOf(post, kind, bytes.path),
+  };
   // Before a second container, the first is asked after: it may be up by now, or still ready to be the one sent.
-  const first = attempt === 2 && post.status === "queued" ? await firstContainerNow(db, at, deps) : null;
-  if (first?.code === "PUBLISHED") return keepLanded(db, at, first, deps);
+  const first = attempt === 2 && post.status === "queued" ? await firstContainerNow(db, at) : null;
+  if (first?.state.is === "published") return keepLanded(db, at, first, deps);
   const containerId =
-    first?.code === "FINISHED"
+    first?.state.is === "ready"
       ? await containerAgain(db, at, first.id)
-      : await containerOf(db, { ...at, says: pictureSays(file) }, deps);
+      : await containerOf(db, { ...at, says: kind === "picture" ? pictureSays(bytes) : null });
   // Whichever run kept the container: from here the post is being made ready. A run that died right after keeping it left
   // the post queued, and its send would have found nothing to send.
   await movePost(db, { postId: post.id, from: ["queued"], to: "preparing" });
@@ -364,18 +417,14 @@ async function sendWhenReady(
   wait: { containerId: string; deadline: number },
   deps: PostDeps,
 ): Promise<void> {
-  const { post, attempt } = at;
+  const { post, attempt, place } = at;
   const pause = deps.pause ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
-  for (let look = 0; look < LOOKS && Date.now() + POST_CALL_MS < wait.deadline; look += 1) {
-    if (look > 0) await pause(LOOK_EVERY_MS);
-    const read = await callInstagram(
-      metaContainerStatusRequest(at.poster, wait.containerId),
-      { timeoutMs: POST_CALL_MS },
-      deps,
-    );
-    if (read.outcome !== "ok") continue;
-    const status = parseMetaContainerStatus(read.json);
-    if (status.code === "FINISHED") {
+  const looks = LOOKS[at.kind];
+  for (let look = 0; look < looks.times && Date.now() + POST_CALL_MS < wait.deadline; look += 1) {
+    if (look > 0) await pause(looks.everyMs);
+    const state = await place.preparedState?.(wait.containerId, at.kind);
+    if (!state) break;
+    if (state.is === "ready") {
       await scheduleJobOnce(db, {
         tenantId: post.tenant_id,
         kind: "post_publish",
@@ -384,12 +433,12 @@ async function sendWhenReady(
       });
       return;
     }
-    if (status.code === "ERROR")
+    if (state.is === "failed")
       throw new CertainFailure(
-        `post ${post.id}: the container failed (${status.detail})`,
-        ON_INSTAGRAM.refused.picture,
+        `post ${post.id}: the container failed (${state.refusal.subcode ?? "-"})`,
+        state.refusal.words,
       );
-    if (status.code === "EXPIRED") {
+    if (state.is === "expired") {
       if (attempt === 2) throw new CertainFailure(`post ${post.id}: the container lapsed twice`, ON_INSTAGRAM.notSent);
       await beginSecondAttempt(db, post, "preparing");
       return;

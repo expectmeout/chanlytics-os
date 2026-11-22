@@ -570,6 +570,7 @@ export const LOG_EVENTS = [
   "piece_start_waits",
   "piece_started",
   "piece_unknown_step",
+  "placement_late",
   "playbook_failed_notice_failed",
   "playbook_failed_told",
   "playbook_run_failed",

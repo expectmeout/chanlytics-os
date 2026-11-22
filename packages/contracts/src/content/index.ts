@@ -13,7 +13,34 @@ export {
   isContentParam,
 } from "./address";
 export type { ContentList, ContentPlace, ContentView } from "./address";
+export {
+  APPROVAL_SUBJECTS,
+  APPROVAL_VOID_WHYS,
+  EMPTY_INTENT,
+  RENDITION_SHAPES,
+  REVISION_CHANGES,
+  REVISION_MADE_BY,
+  goodUntilOf,
+  intentDates,
+  ownersFactsOf,
+  pieceIntentOf,
+  renditionShapeOf,
+} from "./approvals";
+export type {
+  ApprovalVoidWhy,
+  AsApproved,
+  OwnersFact,
+  PieceApprovalSnapshot,
+  PieceIntent,
+  RenditionShape,
+  RevisionChange,
+  RevisionMadeBy,
+  SnapshotPlacement,
+  SnapshotRendition,
+} from "./approvals";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
+export { CHECK_WORDS, CONTENT_CHECKS } from "./check-words";
+export type { ContentCheck } from "./check-words";
 export type { BringIn, BringInRefusal } from "./bring-in";
 export {
   CONTENT_IDEAS,
@@ -101,6 +128,22 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
+export { PLACE_CAPABILITIES, capabilityStands, placeTakes } from "./places";
+export type {
+  CapabilityProof,
+  PlaceAdapter,
+  PlaceAnswerKept,
+  PlaceCapabilities,
+  PlacedMedia,
+  PlacementToSend,
+  PlaceRefusal,
+  Prepared,
+  PreparedState,
+  RemoteState,
+  SendOutcome,
+  SentPlacement,
+  TakeDownAnswer,
+} from "./places";
 export { fileYesSpec } from "./post-spec";
 export {
   HAND_LINK_MAX,
@@ -108,6 +151,7 @@ export {
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_CAPTION_MAX,
+  POST_HELD_WHYS,
   POST_KINDS,
   POST_ON_ITS_WAY,
   POST_PLACE_SAID,
@@ -116,6 +160,7 @@ export {
   POST_SOON_MS,
   POST_STATUSES,
   POST_VIAS,
+  instagramKindsFor,
   postCaptionProblem,
   postPlaceTakenOf,
   postStoppedWhyOf,
@@ -126,6 +171,7 @@ export type {
   InstagramPostable,
   InstagramPostKind,
   PostDto,
+  PostHeldWhy,
   PostKind,
   PostPlace,
   PostStatus,

@@ -48,13 +48,38 @@ export const POST_PLACE_SAID = { instagram: "Instagram", google: "Google" } as c
   string
 >;
 
-/** What it is there. A reel waits for a video's road to Instagram (decision 0121), so a press offers the first two. */
+/** What it is there: a picture in the feed, a story, or a reel (a video made here, since pass 1b of the content loop). */
 export const POST_KINDS = ["picture", "story", "reel"] as const;
 export type PostKind = (typeof POST_KINDS)[number];
 
-/** What a press may send to Instagram today. */
-export const INSTAGRAM_POST_KINDS = ["picture", "story"] as const satisfies readonly PostKind[];
+/** What a press may send to Instagram. */
+export const INSTAGRAM_POST_KINDS = ["picture", "story", "reel"] as const satisfies readonly PostKind[];
 export type InstagramPostKind = (typeof INSTAGRAM_POST_KINDS)[number];
+
+/** How a made file goes on Instagram: a picture as a post or a story, a video as a reel. */
+export const instagramKindsFor = (fileKind: "photo" | "video" | string): readonly InstagramPostKind[] =>
+  fileKind === "video" ? ["reel"] : ["picture", "story"];
+
+/**
+ * Why a post was held or let go before it went (posts.held_why, beside held_reason's words): the recheck's reasons, one of
+ * the seven checks' (the content loop PRD's 6.1), a change since it was approved, or a reason that passed (`late`: its day
+ * went by before it could be sent, and it is let go, never sent late).
+ */
+export const POST_HELD_WHYS = [
+  "approver",
+  "disconnected",
+  "line_off",
+  "removed",
+  "stopped",
+  "changed",
+  "rights",
+  "claim",
+  "place",
+  "money",
+  "reason_passed",
+  "late",
+] as const;
+export type PostHeldWhy = (typeof POST_HELD_WHYS)[number];
 
 /** Who approved it: a person's press on the file, or their Approve on Ask's card. */
 export const POST_VIAS = ["press", "card"] as const;
@@ -127,9 +152,15 @@ export interface PostDto {
   caption: string | null;
   status: PostStatus;
   held_reason: string | null;
+  /** What held or let it go, beside its words: the one the page acts on (POST_HELD_WHYS). */
+  held_why: PostHeldWhy | null;
   permalink: string | null;
   scheduled_for: string;
   published_at: string | null;
+  /** When the place was seen holding it; "On Instagram" is said only from then (PRD 8.2). */
+  verified_at: string | null;
+  /** The last moment it is still worth sending; null where nothing dates it. */
+  good_until: string | null;
   error: string | null;
   created_at: string;
 }
@@ -140,7 +171,7 @@ export interface PostDto {
  * and the file's sheet each say it so.
  */
 export const postStoppedWhyOf = (post: Pick<PostDto, "status" | "held_reason" | "error">): string | null =>
-  post.status === "held" ? post.held_reason : post.status === "failed" ? post.error : null;
+  post.status === "held" || post.status === "pulled" ? post.held_reason : post.status === "failed" ? post.error : null;
 
 /** Whether this workspace's Instagram can take a post now, and if not, the one reason the sheet says. */
 export type InstagramPostable = "yes" | "not_connected" | "line_off";
@@ -149,6 +180,7 @@ export const ON_INSTAGRAM = {
   post: "Post to Instagram",
   asPicture: "Post",
   asStory: "Story",
+  asReel: "Reel",
   asWhat: "How it goes on Instagram",
   caption: "Caption",
   captionNeeded: "Write a caption to go with it.",
@@ -159,9 +191,10 @@ export const ON_INSTAGRAM = {
   busy: "This post is already on its way to Instagram.",
   notConnected: "Connect Meta in Settings, under Connections, to post here.",
   lineOff: "Instagram did not allow posting. Connect Meta again and allow it.",
-  notAPost: "Only a post made here can go on Instagram.",
+  notAPost: "Only a post or a video made here can go on Instagram.",
   gone: "This post was deleted.",
-  notYet: "Reels come once Instagram has been tried with a real account.",
+  /** A made video sent as a picture or a story, or a picture as a reel: each file goes the one way it can. */
+  wrongKind: "A video goes on Instagram as a reel, and a picture as a post or a story.",
   notSent: "The post did not go through. Try again.",
   /** The door to it on Instagram, beside where it says it is up there: the place is named by its row. */
   see: "See it",
@@ -191,11 +224,22 @@ export const ON_INSTAGRAM = {
     removed: "The post was deleted.",
     /** Its owner stopped everything (Stop everything): a post never goes up late by itself, so it is theirs to post again. */
     stopped: "Everything is stopped, so this was not posted. Resume sending, then post it again.",
+    /** Its words, its picture or its version moved since the owner approved it (the approval's hash, PRD 5.3). */
+    changed: "Changed since you approved it. Look again.",
+  },
+  /** Sent, and Instagram has not shown it on the account yet (posts.verified_at): "On Instagram" waits for that. */
+  unverified: "Posted. Checking that it shows on Instagram.",
+  /** Taking a post down, where Instagram itself must be the way (the remediation's needs_person, not_possible). */
+  takeDown: {
+    byHand: "Instagram didn't let Chanlytics take it down. Delete it in the Instagram app.",
+    noId: "Chanlytics has no record of where this is on Instagram. Delete it in the Instagram app.",
   },
   /** What a refusal says, by what Instagram answered (decision 0121): the sheet's line and the bell's. */
   refused: {
     limit: "Instagram allows only so many posts a day, and this account has used them. Post it again tomorrow.",
     picture: "Instagram couldn't take this picture. Make a new version and post that.",
+    video: "Instagram couldn't take this video. Make a new version and post that.",
+    words: "Instagram takes up to 2,200 characters. Shorten the words, then post it again.",
     token: "Instagram no longer accepts the connection. Connect Meta again, then post it again.",
     busy: "Instagram is busy right now. Post it again in a few minutes.",
     other: "Instagram did not take the post.",
