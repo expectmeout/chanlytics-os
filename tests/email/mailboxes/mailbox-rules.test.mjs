@@ -356,22 +356,39 @@ test("a day or a time a mailbox says is the workspace's, whatever zone the page 
   );
 });
 
-test("its Sending lines: its day while it sends, its ramp, its health, the customer domain's ceiling, and the ramp's rule", () => {
+test("its Sending lines: what it may send a day said once, its health only where something went wrong, and the customer domain's ceiling", () => {
+  // Ruben, 21 Nov 2026: "0 of 10 today", "Day 5 of its ramp · 10 a day, 20 after 3 more days" and a cap of 40 read as
+  // three limits. One line says what it sent, what it may send now, and what comes next while the ramp holds it.
   const counts = { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 };
   assert.deepEqual(mailboxSendingLines(row({ sent_days: 9, sent_today: 12, counts }), NOW, TZ), [
-    "12 of 20 today",
-    "Day 10 of its ramp · 20 a day, 30 after 5 more days of sending",
+    "12 sent today · 20 a day for now, 30 after 5 more days of sending, then on up to the daily limit",
     "0.4% bounced · 2 said no · none marked as spam",
-    "A new mailbox starts at 10 a day and grows with the days it sends, to 40.",
   ]);
+  const clean = { ...counts, bounced: 0 };
+  assert.deepEqual(
+    mailboxSendingLines(row({ sent_days: 9, sent_today: 12, counts: clean }), NOW, TZ),
+    ["12 sent today · 20 a day for now, 30 after 5 more days of sending, then on up to the daily limit"],
+    "nothing went wrong: its health says nothing",
+  );
+  assert.deepEqual(
+    mailboxSendingLines(row({ sent_days: 9, daily_cap: 20, sent_today: 3 }), NOW, TZ),
+    ["3 sent today · up to 20 a day"],
+    "at the owner's own limit, the ramp is not said",
+  );
+  assert.deepEqual(
+    mailboxSendingLines(row({ sent_days: 9, daily_cap: 25 }), NOW, TZ)[0],
+    "20 a day for now, 25 after 5 more days of sending",
+    "the next step is never past the owner's limit",
+  );
   const customer = mailboxSendingLines(row({ customer_domain: true, sent_days: 30 }), NOW, TZ);
   assert.ok(customer.includes(customerDomainWords("getharbor.example")), "the customer domain's ceiling, said once");
   const paused = mailboxSendingLines(row({ state: "paused" }), NOW, TZ);
   assert.equal(
     paused[0],
-    "New: its ramp starts today · 10 a day, 20 after 7 more days of sending",
-    "its row says it's paused",
+    "10 a day for now, 20 after 7 more days of sending, then on up to the daily limit",
+    "paused, nothing is said of today",
   );
+  assert.deepEqual(mailboxSendingLines(row({ state: "held" }), NOW, TZ), [], "held: its sheet's head says why");
 });
 
 test("the records its domain needs, for the provider it is at, each found or not", () => {

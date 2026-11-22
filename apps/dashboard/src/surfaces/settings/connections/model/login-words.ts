@@ -9,7 +9,7 @@ import type { CameBack } from "./came-back";
 type SignIn = "Instagram" | "Meta";
 
 /** What a sentence may name: a workspace of this person's by its address's word, and the account connected here. */
-interface SignInNames {
+export interface SignInNames {
   /** The name of one of this person's own workspaces, by its slug; null for one they are not in, or not read yet. */
   workspace: (slug: string) => string | null;
   /** The handle of the account this workspace has connected, if it has one. */

@@ -27,9 +27,7 @@ import {
   mailboxRecordStateWords,
   mailboxRowWords,
   mailboxSendingLines,
-  mailboxSignsAsWords,
   mailboxSignsChoiceOf,
-  mailboxSignsOf,
   mailboxesFootWords,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
@@ -64,16 +62,13 @@ interface ConnectedMailboxesApi {
   outcome: typeof mailboxConnectOutcome;
   row: typeof mailboxRowWords;
   sending: typeof mailboxSendingLines;
-  /** What it signs with (00487): the choice it stands on, what the Gmail choice says, the rule the send reads (the
-   * sheet's preview), what the card says it signs as, and Settings' words. */
+  /** What it signs with (00487): the choice it stands on, what the Gmail choice says, and Settings' words. */
   signs: {
     choiceOf: typeof mailboxSignsChoiceOf;
-    of: typeof mailboxSignsOf;
-    as: typeof mailboxSignsAsWords;
     gmail: typeof mailboxGmailSignsWords;
     words: typeof MAILBOX_SIGNATURE_WORDS;
   };
-  /** The Email card's and its sheet's words (the mailbox canvas, 27 Oct 2026). */
+  /** A mailbox's sheet's words (the mailbox rows of 21 Nov 2026). */
   card: typeof MAILBOX_CARD_WORDS;
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
@@ -101,8 +96,6 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
   row: mailboxRowWords,
   signs: {
     choiceOf: mailboxSignsChoiceOf,
-    of: mailboxSignsOf,
-    as: mailboxSignsAsWords,
     gmail: mailboxGmailSignsWords,
     words: MAILBOX_SIGNATURE_WORDS,
   },
