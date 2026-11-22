@@ -3078,7 +3078,7 @@ end $$;
 -- Name: FUNCTION ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00683; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by yes_taken_back_walk and post_take_down_begin.';
+COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00682; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by file_yes_take_back (00676) and post_take_down_begin.';
 
 
 --
@@ -10764,70 +10764,6 @@ COMMENT ON FUNCTION public.file_restore(p_tenant_id uuid, p_id uuid) IS 'A membe
 
 
 --
--- Name: file_rights_gap(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if auth.uid() is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
-    raise exception 'Not yours to read.' using errcode = '42501';
-  end if;
-  return public.file_rights_gap_of(p_tenant_id, p_file_id, p_use);
-end $$;
-
-
---
--- Name: FUNCTION file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'A member''s read, with the add_files permission (00682): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
-
-
---
--- Name: file_rights_gap_of(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) RETURNS jsonb
-    LANGUAGE sql STABLE
-    SET search_path TO 'public'
-    AS $$
-  with shown as (
-    select f.id, f.subjects_state from public.files f
-     where f.tenant_id = p_tenant_id
-       and (f.id = p_file_id
-            or f.id::text = any (public.file_drawn_from(
-                 (select m.made from public.files m where m.tenant_id = p_tenant_id and m.id = p_file_id))))
-  )
-  select case
-    when exists (select 1 from shown where subjects_state = 'unsure') then jsonb_build_object('is', 'unsure')
-    else coalesce(
-      (select jsonb_build_object('is', 'person', 'name', s.name)
-         from public.file_subjects s
-        where s.tenant_id = p_tenant_id and s.file_id in (select id from shown)
-          and not exists (select 1 from public.file_consents k
-                           where k.tenant_id = s.tenant_id and k.subject_id = s.id and k.use = p_use
-                             and k.taken_back_at is null)
-        order by s.created_at, lower(s.name)
-        limit 1),
-      jsonb_build_object('is', 'ok'))
-  end;
-$$;
-
-
---
--- Name: FUNCTION file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'Who stands between a file and a use (00682; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
-
-
---
 -- Name: file_road_is_owners(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10955,107 +10891,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the add_files permission (00596: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
-
-
---
--- Name: file_subjects_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.file_subjects_erase_on_contact() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if new.erased_at is not null and old.erased_at is null then
-    delete from public.file_subjects where tenant_id = new.tenant_id and contact_id = new.id;
-  end if;
-  return null;
-end $$;
-
-
---
--- Name: FUNCTION file_subjects_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.file_subjects_erase_on_contact() IS 'When a person is erased, their rows in files go with them, and their yes with those rows (00682, decision 0036; the content loop PRD''s 14.4): each file they were in is then unsure of who is in it.';
-
-
---
--- Name: file_subjects_gone(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.file_subjects_gone() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  update public.files f set subjects_state = 'unsure'
-   where f.tenant_id = old.tenant_id and f.id = old.file_id and f.subjects_state = 'named';
-  perform public.file_yes_restate(old.tenant_id, array[old.file_id]);
-  return null;
-end $$;
-
-
---
--- Name: FUNCTION file_subjects_gone(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.file_subjects_gone() IS 'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure deletes it: file_subjects_erase_on_contact) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
-
-
---
--- Name: file_subjects_name(uuid, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_actor  uuid := auth.uid();
-  v_person jsonb;
-  v_added  integer := 0;
-begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if p_state is null or p_state <> all (array['none', 'named', 'unsure']) then
-    raise exception 'Say who is in it, that nobody is, or that you are not sure.' using errcode = '22023';
-  end if;
-  if not exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null) then
-    return jsonb_build_object('fate', 'gone');
-  end if;
-  if p_state = 'none' then
-    delete from public.file_subjects s where s.tenant_id = p_tenant_id and s.file_id = p_file_id;
-  elsif p_state = 'named' then
-    if jsonb_typeof(p_people) is distinct from 'array' or jsonb_array_length(p_people) not between 1 and 20 then
-      raise exception 'Name one to twenty people.' using errcode = '22023';
-    end if;
-    delete from public.file_subjects s
-     where s.tenant_id = p_tenant_id and s.file_id = p_file_id
-       and lower(s.name) not in (select lower(btrim(e ->> 'name')) from jsonb_array_elements(p_people) e);
-    for v_person in select * from jsonb_array_elements(p_people) loop
-      insert into public.file_subjects (tenant_id, file_id, contact_id, name, label, how, named_by)
-      values (p_tenant_id, p_file_id, nullif(v_person ->> 'contact_id', '')::uuid, btrim(v_person ->> 'name'),
-              coalesce(v_person ->> 'label', 'client'), coalesce(v_person ->> 'how', 'owner_named'), v_actor)
-      on conflict (tenant_id, file_id, (lower(name))) do nothing;
-      v_added := v_added + (case when found then 1 else 0 end);
-    end loop;
-  end if;
-  update public.files f set subjects_state = p_state where f.tenant_id = p_tenant_id and f.id = p_file_id;
-  perform public.file_yes_restate(p_tenant_id, array[p_file_id]);
-  return jsonb_build_object('fate', 'kept', 'added', v_added);
-end $$;
-
-
---
--- Name: FUNCTION file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) IS 'A member''s door, with the add_files permission (00682): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
 
 
 --
@@ -11518,15 +11353,9 @@ CREATE FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) RETURNS 
      set yes_for = s.yes_for, yes_back = s.yes_back
     from (
       select x.id,
-             coalesce((select array_agg(u.use order by u.use)
+             coalesce((select array_agg(c.use order by c.use)
                          from (select distinct c.use from public.file_consents c
-                                where c.tenant_id = p_tenant_id and c.file_id = x.id and c.taken_back_at is null) u
-                        -- People named: a use stands only where every one of them has a yes for it that stands.
-                        where not exists (select 1 from public.file_subjects s
-                                           where s.tenant_id = p_tenant_id and s.file_id = x.id
-                                             and not exists (select 1 from public.file_consents k
-                                                              where k.tenant_id = p_tenant_id and k.subject_id = s.id
-                                                                and k.use = u.use and k.taken_back_at is null))),
+                                where c.tenant_id = p_tenant_id and c.file_id = x.id and c.taken_back_at is null) c),
                       '{}'::text[]) as yes_for,
              coalesce((select array_agg(c.use order by c.use)
                          from (select c.use from public.file_consents c
@@ -11545,7 +11374,7 @@ $$;
 -- Name: FUNCTION file_yes_restate(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00682): a file whose people are named has a yes for a use only when every one of them has one that stands. Called by the doors that write a yes, in their own transaction.';
+COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00665): called by the doors that write a yes, in their own transaction.';
 
 
 --
@@ -11561,7 +11390,9 @@ declare
   v_uses  text[] := public.file_yes_uses(p_uses, true);
   v_files uuid[];
   v_back  integer;
-  v_walk  jsonb;
+  v_held  jsonb := '[]'::jsonb;
+  v_live  jsonb := '[]'::jsonb;
+  v_ads   jsonb := '[]'::jsonb;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -11569,8 +11400,8 @@ begin
   if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
-  if not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
-    raise exception 'A yes is for posts, ads, replies, cold emails or the website.' using errcode = '22023';
+  if not (v_uses <@ array['post', 'ad', 'reply', 'cold_email']) then
+    raise exception 'A yes is for posts, ads, replies or cold emails.' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
   if not exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null)
@@ -11591,8 +11422,38 @@ begin
   values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
           jsonb_build_object('file_id', p_file_id, 'by', v_actor,
                              'said', jsonb_build_object('taken_back', to_jsonb(v_uses))));
-  v_walk := public.yes_taken_back_walk(p_tenant_id, v_actor, p_file_id, v_files, v_uses, p_held);
-  return jsonb_build_object('taken_back', v_back, 'uses', to_jsonb(v_uses), 'files', to_jsonb(v_files)) || v_walk;
+  if 'post' = any (v_uses) then
+    -- 1. Every post of them still waiting is held, in this same transaction (the PRD's section 8).
+    with held as (
+      update public.posts p
+         set status = 'held', updated_at = now(),
+             held_reason = left(coalesce(nullif(btrim(p_held), ''), 'Someone in it took back their yes.'), 300)
+       where p.tenant_id = p_tenant_id and p.file_id = any (v_files)
+         and p.status = any (array['queued', 'preparing'])
+      returning p.id, p.file_id, p.place, p.kind, p.scheduled_for
+    )
+    select coalesce(jsonb_agg(jsonb_build_object('post_id', h.id, 'file_id', h.file_id, 'place', h.place,
+                                                 'kind', h.kind, 'at', h.scheduled_for)
+                              order by h.scheduled_for, h.id), '[]'::jsonb)
+      into v_held
+      from held h;
+    -- 2. Every one already up, or past holding on its way, is answered: the owner takes each down where it is.
+    select coalesce(jsonb_agg(jsonb_build_object('post_id', p.id, 'file_id', p.file_id, 'place', p.place,
+                                                 'kind', p.kind, 'status', p.status, 'permalink', p.permalink,
+                                                 'at', coalesce(p.published_at, p.scheduled_for))
+                              order by coalesce(p.published_at, p.scheduled_for) desc, p.id), '[]'::jsonb)
+      into v_live
+      from public.posts p
+     where p.tenant_id = p_tenant_id and p.file_id = any (v_files)
+       and p.status = any (array['publishing', 'checking', 'published']);
+  end if;
+  -- 3. G16 (the Ads plan): every ad made here that shows one of them is paused, in this same transaction, or cancelled
+  -- while it is set up, as a remediation, and the owner is told (00676). It runs again only with another picture.
+  if 'ad' = any (v_uses) then
+    v_ads := public.ads_remediate_files(p_tenant_id, v_actor, 'yes_taken_back', p_file_id::text, v_files);
+  end if;
+  return jsonb_build_object('taken_back', v_back, 'uses', to_jsonb(v_uses), 'files', to_jsonb(v_files),
+                            'held', v_held, 'live', v_live, 'ads', v_ads);
 end $$;
 
 
@@ -11600,7 +11461,7 @@ end $$;
 -- Name: FUNCTION file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665, 00676, 00683; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, then what that starts (yes_taken_back_walk): every post of them still waiting held with p_held''s words, every one up asked down at its place, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), down (their take-down actions), ads ([{ad_id, name, act, outcome}])}.';
+COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665, 00676; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (ads_remediate_files, the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads ([{ad_id, name, act, outcome}])}.';
 
 
 --
@@ -11612,8 +11473,7 @@ CREATE FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) RETURNS tex
     SET search_path TO 'public'
     AS $$
   select case
-           when coalesce(cardinality(p_uses), 0) = 0 and p_every
-             then array['ad', 'cold_email', 'post', 'reply', 'website']
+           when coalesce(cardinality(p_uses), 0) = 0 and p_every then array['ad', 'cold_email', 'post', 'reply']
            else coalesce((select array_agg(u order by u) from (select distinct u from unnest(p_uses) as u) d), '{}'::text[])
          end;
 $$;
@@ -11623,7 +11483,7 @@ $$;
 -- Name: FUNCTION file_yes_uses(p_uses text[], p_every boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a door was handed, each once and in order; with none named and p_every, every use a yes can be for (00665, 00682: the website too).';
+COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a yes door was handed, each once and sorted; every use where none was handed and p_every (00665).';
 
 
 --
@@ -29400,7 +29260,6 @@ declare
   v_later      boolean;
   v_posts      jsonb := '[]'::jsonb;
   v_snapshot   jsonb;
-  v_gap        jsonb;
   v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
 begin
   if v_actor is null then
@@ -29422,20 +29281,6 @@ begin
   end if;
   if v_file.source <> 'made' then
     return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
-  end if;
-  -- A yes for posts taken back on it, or on what it was drawn from, and not given again on it (00665): nothing goes.
-  if not ('post' = any (v_file.yes_for))
-     and ('post' = any (v_file.yes_back)
-          or exists (select 1 from public.files s
-                      where s.tenant_id = p_tenant_id and 'post' = any (s.yes_back)
-                        and s.id::text = any (public.file_drawn_from(v_file.made)))) then
-    return jsonb_build_object('fate', 'taken_back', 'posts', '[]'::jsonb);
-  end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00682):
-  -- nothing goes, and it says who.
-  v_gap := public.file_rights_gap_of(p_tenant_id, p_file_id, 'post');
-  if v_gap ->> 'is' <> 'ok' then
-    return jsonb_build_object('fate', 'rights', 'name', v_gap ->> 'name', 'posts', '[]'::jsonb);
   end if;
   -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
   for v_place in select * from jsonb_array_elements(v_places) loop
@@ -29566,7 +29411,7 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, rights (name: who has not said yes, 00682), late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 
 --
@@ -29583,16 +29428,10 @@ declare
   v_placement  jsonb;
   v_rendition  jsonb;
   v_live       public.piece_renditions;
-  v_gap        jsonb;
 begin
   select * into v_post from public.posts p where p.id = p_post_id;
   if not found then
     return jsonb_build_object('is', 'changed');
-  end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00682).
-  v_gap := public.file_rights_gap_of(v_post.tenant_id, v_post.file_id, 'post');
-  if v_gap ->> 'is' <> 'ok' then
-    return jsonb_build_object('is', 'rights', 'name', v_gap ->> 'name');
   end if;
   if v_post.approval_id is null then
     return jsonb_build_object('is', 'before');
@@ -29627,7 +29466,7 @@ end $$;
 -- Name: FUNCTION post_as_approved(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_as_approved(p_post_id uuid) IS 'Right before a send (00681; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00682), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+COMMENT ON FUNCTION public.post_as_approved(p_post_id uuid) IS 'Right before a send (00681; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
 
 
 --
@@ -30059,7 +29898,7 @@ end $$;
 -- Name: FUNCTION post_take_down_begin(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) IS 'A member''s door, with the settings permission (00683; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
+COMMENT ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
 
 
 --
@@ -30109,7 +29948,7 @@ end $$;
 -- Name: FUNCTION post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00683; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
 
 
 --
@@ -30169,7 +30008,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00683; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
 
 
 --
@@ -30224,8 +30063,8 @@ declare
   v_action uuid;
   v_out    jsonb := '[]'::jsonb;
 begin
-  if p_cause not in ('yes_taken_back', 'person_erased', 'owner_removed') then
-    raise exception 'posts_take_down_start: a yes taken back, a person erased or a take-down' using errcode = '22023';
+  if p_cause is distinct from 'owner_removed' then
+    raise exception 'posts_take_down_start: the owner''s own take-down' using errcode = '22023';
   end if;
   for v_post in
     select * from public.posts p
@@ -30280,7 +30119,7 @@ end $$;
 -- Name: FUNCTION posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00683; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
+COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00682; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause (owner_removed: the one cause that takes a post down) about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
 
 
 --
@@ -43133,188 +42972,6 @@ COMMENT ON FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uuid
 
 
 --
--- Name: subject_ask_record(uuid, uuid, text, text[]); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_uses text[] := coalesce(p_uses, '{}'::text[]);
-begin
-  if auth.uid() is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if nullif(btrim(coalesce(p_via, '')), '') is null or char_length(btrim(p_via)) > 40 then
-    raise exception 'Say how they were asked.' using errcode = '22023';
-  end if;
-  if cardinality(v_uses) = 0 or not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
-    raise exception 'Say what they were asked about.' using errcode = '22023';
-  end if;
-  update public.file_subjects s
-     set asked_at = now(), asked_via = btrim(p_via), asked_uses = v_uses, said_no_at = null
-   where s.tenant_id = p_tenant_id and s.id = p_subject_id;
-  return jsonb_build_object('fate', case when found then 'kept' else 'gone' end);
-end $$;
-
-
---
--- Name: FUNCTION subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) IS 'A member''s door, with the add_files permission (00682; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
-
-
---
--- Name: subject_no_record(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if auth.uid() is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  update public.file_subjects s set said_no_at = now()
-   where s.tenant_id = p_tenant_id and s.id = p_subject_id;
-  return jsonb_build_object('fate', case when found then 'kept' else 'gone' end);
-end $$;
-
-
---
--- Name: FUNCTION subject_no_record(p_tenant_id uuid, p_subject_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) IS 'A member''s door, with the settings permission (00682; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
-
-
---
--- Name: subject_yes_record(uuid, uuid, text[], text, jsonb); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_actor   uuid := auth.uid();
-  v_subject public.file_subjects;
-  v_use     text;
-  v_kept    integer := 0;
-begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if p_said_in is null or p_said_in <> all (array['ai', 'message', 'in_person']) then
-    raise exception 'Say where the yes was said.' using errcode = '22023';
-  end if;
-  select * into v_subject from public.file_subjects s where s.tenant_id = p_tenant_id and s.id = p_subject_id;
-  if not found then
-    return jsonb_build_object('fate', 'gone', 'kept', 0);
-  end if;
-  foreach v_use in array coalesce(p_uses, '{}'::text[]) loop
-    if v_use <> all (array['post', 'ad', 'reply', 'cold_email', 'website']) then
-      raise exception 'No such use: %.', v_use using errcode = '22023';
-    end if;
-    if not exists (select 1 from public.file_consents c
-                    where c.tenant_id = p_tenant_id and c.subject_id = v_subject.id and c.use = v_use
-                      and c.taken_back_at is null) then
-      insert into public.file_consents (tenant_id, file_id, use, who, said_in, said_by, subject_id, evidence)
-      values (p_tenant_id, v_subject.file_id, v_use, v_subject.name, p_said_in, v_actor, v_subject.id,
-              coalesce(p_evidence, '{}'::jsonb) || jsonb_build_object('kept_by', v_actor));
-      v_kept := v_kept + 1;
-    end if;
-  end loop;
-  -- A yes kept answers a no said before it.
-  update public.file_subjects s set said_no_at = null
-   where s.tenant_id = p_tenant_id and s.id = v_subject.id and s.said_no_at is not null and v_kept > 0;
-  perform public.file_yes_restate(p_tenant_id, array[v_subject.file_id]);
-  return jsonb_build_object('fate', 'kept', 'kept', v_kept);
-end $$;
-
-
---
--- Name: FUNCTION subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) IS 'A member''s door, with the settings permission (00682; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
-
-
---
--- Name: subject_yes_take_back(uuid, uuid, text[], text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[] DEFAULT NULL::text[], p_held text DEFAULT NULL::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_actor   uuid := auth.uid();
-  v_uses    text[] := public.file_yes_uses(p_uses, true);
-  v_subject public.file_subjects;
-  v_files   uuid[];
-  v_back    integer;
-  v_walk    jsonb;
-begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
-    raise exception 'A yes is for posts, ads, replies, cold emails or the website.' using errcode = '22023';
-  end if;
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
-  select * into v_subject from public.file_subjects s where s.tenant_id = p_tenant_id and s.id = p_subject_id;
-  if not found then
-    return jsonb_build_object('fate', 'gone', 'taken_back', 0);
-  end if;
-  update public.file_consents c
-     set taken_back_at = now(), taken_back_by = v_actor
-   where c.tenant_id = p_tenant_id and c.subject_id = v_subject.id and c.use = any (v_uses) and c.taken_back_at is null;
-  get diagnostics v_back = row_count;
-  if v_back = 0 then
-    return jsonb_build_object('fate', 'none', 'taken_back', 0);
-  end if;
-  -- The file they are in, and every piece drawn from it.
-  select array_agg(f.id order by f.id) into v_files
-    from public.files f
-   where f.tenant_id = p_tenant_id and f.removed_at is null
-     and (f.id = v_subject.file_id
-          or (f.source = 'made' and v_subject.file_id::text = any (public.file_drawn_from(f.made))));
-  v_files := coalesce(v_files, array[v_subject.file_id]);
-  perform public.file_yes_restate(p_tenant_id, v_files);
-  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
-          jsonb_build_object('file_id', v_subject.file_id, 'by', v_actor,
-                             'said', jsonb_build_object('taken_back', to_jsonb(v_uses))));
-  v_walk := public.yes_taken_back_walk(p_tenant_id, v_actor, v_subject.file_id, v_files, v_uses, p_held);
-  return jsonb_build_object('fate', 'taken_back', 'taken_back', v_back, 'uses', to_jsonb(v_uses),
-                            'files', to_jsonb(v_files)) || v_walk;
-end $$;
-
-
---
--- Name: FUNCTION subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00683; call 13): one person''s own yes for each use named (every use where none is) taken back, the file they are in and every piece drawn from it restated, then what that starts (yes_taken_back_walk): posts still waiting held, posts up asked down, ads paused. Answers {fate: taken_back, none (no yes of theirs stood), gone; taken_back; uses; files; held; live; down; ads}.';
-
-
---
 -- Name: sweep_health(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -45561,62 +45218,6 @@ COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the no
 
 
 --
--- Name: yes_taken_back_walk(uuid, uuid, uuid, uuid[], text[], text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_held  jsonb := '[]'::jsonb;
-  v_live  jsonb := '[]'::jsonb;
-  v_down  jsonb := jsonb_build_object('remediation_id', null, 'actions', '[]'::jsonb);
-  v_ads   jsonb := '[]'::jsonb;
-begin
-  if 'post' = any (p_uses) then
-    -- 1. Every post of them still waiting is held, in this same transaction (the PRD's section 8).
-    with held as (
-      update public.posts p
-         set status = 'held', held_why = 'rights', updated_at = now(),
-             held_reason = left(coalesce(nullif(btrim(p_held), ''), 'Someone in it took back their yes.'), 300)
-       where p.tenant_id = p_tenant_id and p.file_id = any (p_files)
-         and p.status = any (array['queued', 'preparing'])
-      returning p.id, p.file_id, p.place, p.kind, p.scheduled_for
-    )
-    select coalesce(jsonb_agg(jsonb_build_object('post_id', h.id, 'file_id', h.file_id, 'place', h.place,
-                                                 'kind', h.kind, 'at', h.scheduled_for)
-                              order by h.scheduled_for, h.id), '[]'::jsonb)
-      into v_held
-      from held h;
-    -- 2. Every one already up, or past holding on its way: what it is, for the answer, then asked down at its place.
-    select coalesce(jsonb_agg(jsonb_build_object('post_id', p.id, 'file_id', p.file_id, 'place', p.place,
-                                                 'kind', p.kind, 'status', p.status, 'permalink', p.permalink,
-                                                 'at', coalesce(p.published_at, p.scheduled_for))
-                              order by coalesce(p.published_at, p.scheduled_for) desc, p.id), '[]'::jsonb)
-      into v_live
-      from public.posts p
-     where p.tenant_id = p_tenant_id and p.file_id = any (p_files)
-       and p.status = any (array['publishing', 'checking', 'published']);
-    v_down := public.posts_take_down_start(p_tenant_id, p_actor, 'yes_taken_back', p_file_id::text, p_files, false);
-  end if;
-  -- 3. G16 (the Ads plan): every ad made here that shows one of them is paused, in this same transaction, or cancelled
-  -- while it is set up, as a remediation, and the owner is told (00676). It runs again only with another picture.
-  if 'ad' = any (p_uses) then
-    v_ads := public.ads_remediate_files(p_tenant_id, p_actor, 'yes_taken_back', p_file_id::text, p_files);
-  end if;
-  return jsonb_build_object('held', v_held, 'live', v_live, 'down', v_down -> 'actions', 'ads', v_ads);
-end $$;
-
-
---
--- Name: FUNCTION yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) IS 'What a yes taken back starts, the service''s, once for both doors (00683; the content loop PRD''s section 8): for posts, every post of p_files still waiting held (rights, with p_held''s words) and every one up asked down at its place (posts_take_down_start); for ads, every ad made here that shows one of them paused or cancelled (ads_remediate_files). Answers {held, live (posts up or on their way), down (the take-down actions), ads}.';
-
-
---
 -- Name: ad_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -47481,13 +47082,9 @@ CREATE TABLE public.file_consents (
     taken_back_at timestamp with time zone,
     taken_back_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    subject_id uuid,
-    scope jsonb DEFAULT '{}'::jsonb NOT NULL,
-    evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT file_consents_kept_shape CHECK (((jsonb_typeof(scope) = 'object'::text) AND (jsonb_typeof(evidence) = 'object'::text))),
-    CONSTRAINT file_consents_said_in_check CHECK ((said_in = ANY (ARRAY['ai'::text, 'before'::text, 'message'::text, 'in_person'::text]))),
+    CONSTRAINT file_consents_said_in_check CHECK ((said_in = ANY (ARRAY['ai'::text, 'before'::text]))),
     CONSTRAINT file_consents_taken_back_shape CHECK (((taken_back_by IS NULL) OR (taken_back_at IS NOT NULL))),
-    CONSTRAINT file_consents_use_check CHECK ((use = ANY (ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text, 'website'::text]))),
+    CONSTRAINT file_consents_use_check CHECK ((use = ANY (ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text]))),
     CONSTRAINT file_consents_who_check CHECK ((((char_length(who) >= 1) AND (char_length(who) <= 120)) AND (who = btrim(who))))
 );
 
@@ -47511,54 +47108,6 @@ COMMENT ON COLUMN public.file_consents.who IS 'Who said yes, as the owner named 
 --
 
 COMMENT ON COLUMN public.file_consents.said_in IS 'ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00665, carried over as a yes for posts: D11).';
-
-
---
--- Name: COLUMN file_consents.subject_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.file_consents.subject_id IS 'The person in the file this yes is theirs (00682, file_subjects); null for a yes kept before people were named, read as before.';
-
-
---
--- Name: COLUMN file_consents.evidence; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.file_consents.evidence IS 'Where it was said (00682): the message it was said in, who kept it. Never the person''s words.';
-
-
---
--- Name: file_subjects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.file_subjects (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    file_id uuid NOT NULL,
-    contact_id uuid,
-    name text NOT NULL,
-    label text NOT NULL,
-    how text NOT NULL,
-    named_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    asked_at timestamp with time zone,
-    asked_via text,
-    asked_uses text[] DEFAULT '{}'::text[] NOT NULL,
-    said_no_at timestamp with time zone,
-    CONSTRAINT file_subjects_asked_uses_check CHECK ((asked_uses <@ ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text, 'website'::text])),
-    CONSTRAINT file_subjects_asked_via_check CHECK (((asked_via IS NULL) OR ((char_length(asked_via) >= 1) AND (char_length(asked_via) <= 40)))),
-    CONSTRAINT file_subjects_asked_whole CHECK (((asked_at IS NULL) = (asked_via IS NULL))),
-    CONSTRAINT file_subjects_how_check CHECK ((how = ANY (ARRAY['owner_named'::text, 'person_said'::text]))),
-    CONSTRAINT file_subjects_label_check CHECK ((label = ANY (ARRAY['client'::text, 'staff'::text, 'other'::text]))),
-    CONSTRAINT file_subjects_name_check CHECK ((((char_length(name) >= 1) AND (char_length(name) <= 120)) AND (name = btrim(name))))
-);
-
-
---
--- Name: TABLE file_subjects; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.file_subjects IS 'A person in a file (00682; the content loop PRD''s 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.';
 
 
 --
@@ -47610,7 +47159,6 @@ CREATE TABLE public.files (
     origin_left_at timestamp with time zone,
     yes_for text[] DEFAULT '{}'::text[] NOT NULL,
     yes_back text[] DEFAULT '{}'::text[] NOT NULL,
-    subjects_state text DEFAULT 'not_asked'::text NOT NULL,
     CONSTRAINT files_copy_shape CHECK ((((copy_state = 'here'::text) OR ((kind = 'video'::text) AND (source = 'drive'::text))) AND ((copy_state <> ALL (ARRAY['away'::text, 'lost'::text])) OR (media_ref IS NULL)) AND ((copy_why IS NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text]))))),
     CONSTRAINT files_copy_state_check CHECK ((copy_state = ANY (ARRAY['here'::text, 'going'::text, 'away'::text, 'returning'::text, 'lost'::text]))),
     CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'connection'::text, 'cant_open'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
@@ -47627,10 +47175,9 @@ CREATE TABLE public.files (
     CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
     CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'instagram'::text, 'made'::text, 'drive'::text]))),
     CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
-    CONSTRAINT files_subjects_state_check CHECK ((subjects_state = ANY (ARRAY['not_asked'::text, 'none'::text, 'named'::text, 'unsure'::text]))),
     CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text]))),
-    CONSTRAINT files_yes_back_check CHECK (((yes_back <@ ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text, 'website'::text]) AND (NOT (yes_back && yes_for)))),
-    CONSTRAINT files_yes_for_check CHECK ((yes_for <@ ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text, 'website'::text]))
+    CONSTRAINT files_yes_back_check CHECK (((yes_back <@ ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text]) AND (NOT (yes_back && yes_for)))),
+    CONSTRAINT files_yes_for_check CHECK ((yes_for <@ ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text]))
 );
 
 
@@ -47877,13 +47424,6 @@ COMMENT ON COLUMN public.files.yes_for IS 'The uses this file has a yes for that
 --
 
 COMMENT ON COLUMN public.files.yes_back IS 'The uses whose every yes on this file was taken back, and none given again (00665, file_consents).';
-
-
---
--- Name: COLUMN files.subjects_state; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.files.subjects_state IS 'Whether the people in it are known (00682): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say).';
 
 
 --
@@ -53222,22 +52762,6 @@ ALTER TABLE ONLY public.file_consents
 
 
 --
--- Name: file_subjects file_subjects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_pkey PRIMARY KEY (id);
-
-
---
--- Name: file_subjects file_subjects_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_tenant_id_id_key UNIQUE (tenant_id, id);
-
-
---
 -- Name: files_let_go files_let_go_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -55433,13 +54957,6 @@ CREATE INDEX file_consents_said_by ON public.file_consents USING btree (said_by)
 
 
 --
--- Name: file_consents_subject; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX file_consents_subject ON public.file_consents USING btree (tenant_id, subject_id) WHERE (subject_id IS NOT NULL);
-
-
---
 -- Name: file_consents_taken_back_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55451,27 +54968,6 @@ CREATE INDEX file_consents_taken_back_by ON public.file_consents USING btree (ta
 --
 
 CREATE INDEX file_consents_thread ON public.file_consents USING btree (tenant_id, thread_id) WHERE (thread_id IS NOT NULL);
-
-
---
--- Name: file_subjects_contact; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX file_subjects_contact ON public.file_subjects USING btree (tenant_id, contact_id) WHERE (contact_id IS NOT NULL);
-
-
---
--- Name: file_subjects_named_by; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX file_subjects_named_by ON public.file_subjects USING btree (named_by) WHERE (named_by IS NOT NULL);
-
-
---
--- Name: file_subjects_one_name; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX file_subjects_one_name ON public.file_subjects USING btree (tenant_id, file_id, lower(name));
 
 
 --
@@ -57890,13 +57386,6 @@ CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.
 
 
 --
--- Name: contacts contacts_erase_takes_file_subjects; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER contacts_erase_takes_file_subjects AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.file_subjects_erase_on_contact();
-
-
---
 -- Name: contacts contacts_erase_takes_form_entries; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -58076,13 +57565,6 @@ CREATE TRIGGER events_outbox_copy AFTER INSERT ON public.events FOR EACH ROW EXE
 --
 
 CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_suggestions FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
-
-
---
--- Name: file_subjects file_subjects_gone; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER file_subjects_gone AFTER DELETE ON public.file_subjects FOR EACH ROW EXECUTE FUNCTION public.file_subjects_gone();
 
 
 --
@@ -60396,14 +59878,6 @@ ALTER TABLE ONLY public.file_consents
 
 
 --
--- Name: file_consents file_consents_subject_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_consents
-    ADD CONSTRAINT file_consents_subject_id_same_workspace FOREIGN KEY (tenant_id, subject_id) REFERENCES public.file_subjects(tenant_id, id) ON DELETE CASCADE;
-
-
---
 -- Name: file_consents file_consents_taken_back_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -60425,38 +59899,6 @@ ALTER TABLE ONLY public.file_consents
 
 ALTER TABLE ONLY public.file_consents
     ADD CONSTRAINT file_consents_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id);
-
-
---
--- Name: file_subjects file_subjects_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
-
-
---
--- Name: file_subjects file_subjects_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
-
-
---
--- Name: file_subjects file_subjects_named_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_named_by_fkey FOREIGN KEY (named_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-
-
---
--- Name: file_subjects file_subjects_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.file_subjects
-    ADD CONSTRAINT file_subjects_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -62937,21 +62379,6 @@ ALTER TABLE public.file_consents ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY file_consents_member_select ON public.file_consents FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
-
-
---
--- Name: file_subjects; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.file_subjects ENABLE ROW LEVEL SECURITY;
-
---
--- Name: file_subjects file_subjects_member_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY file_subjects_member_select ON public.file_subjects FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -66202,23 +65629,6 @@ GRANT ALL ON FUNCTION public.file_restore(p_tenant_id uuid, p_id uuid) TO servic
 
 
 --
--- Name: FUNCTION file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) TO authenticated;
-GRANT ALL ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) TO service_role;
-
-
---
--- Name: FUNCTION file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) TO service_role;
-
-
---
 -- Name: FUNCTION file_road_is_owners(p_source text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -66259,31 +65669,6 @@ GRANT ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part
 REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION file_subjects_erase_on_contact(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.file_subjects_erase_on_contact() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_subjects_erase_on_contact() TO service_role;
-
-
---
--- Name: FUNCTION file_subjects_gone(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.file_subjects_gone() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_subjects_gone() TO service_role;
-
-
---
--- Name: FUNCTION file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) TO authenticated;
-GRANT ALL ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) TO service_role;
 
 
 --
@@ -71355,42 +70740,6 @@ GRANT ALL ON FUNCTION public.stop_all_messages(p_tenant_id uuid, p_contact_id uu
 
 
 --
--- Name: FUNCTION subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) TO authenticated;
-GRANT ALL ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) TO service_role;
-
-
---
--- Name: FUNCTION subject_no_record(p_tenant_id uuid, p_subject_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) TO authenticated;
-GRANT ALL ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) TO service_role;
-
-
---
--- Name: FUNCTION subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) TO authenticated;
-GRANT ALL ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) TO service_role;
-
-
---
 -- Name: FUNCTION sweep_health(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -71895,14 +71244,6 @@ GRANT ALL ON FUNCTION public.workspace_tell_changes() TO service_role;
 
 REVOKE ALL ON FUNCTION public.workspace_tell_row_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_tell_row_change() TO service_role;
-
-
---
--- Name: FUNCTION yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) TO service_role;
 
 
 --
@@ -72641,14 +71982,6 @@ GRANT ALL ON TABLE public.file_consents TO service_role;
 
 
 --
--- Name: TABLE file_subjects; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT ON TABLE public.file_subjects TO authenticated;
-GRANT ALL ON TABLE public.file_subjects TO service_role;
-
-
---
 -- Name: TABLE files; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72863,13 +72196,6 @@ GRANT SELECT(yes_for) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(yes_back) ON TABLE public.files TO authenticated;
-
-
---
--- Name: COLUMN files.subjects_state; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT(subjects_state) ON TABLE public.files TO authenticated;
 
 
 --

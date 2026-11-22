@@ -177,7 +177,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     page: "Content",
     route: CONTENT_ROUTE,
     for: "The posts and videos made for the business, and the Library of its own photos and videos: a post or a video made, one put up on Instagram or Google, and photos and videos brought in from their website or Instagram by a link, or from a Google Drive folder that is watched from then on; and who in a photo or a video said yes to being shown, for posts, for ads, or taken back.",
-    verbs: ["post", "piece", "publish", "take_down", "bring_in", "file_yes", "file_people", "person_yes"],
+    verbs: ["post", "piece", "publish", "take_down", "bring_in", "file_yes"],
     pageOnly: [],
   },
   {

@@ -175,7 +175,7 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     sameSubject: false,
   },
   // A post a place leaves to its owner to delete is mended by the news that the piece is gone from every place it was
-  // asked down from (00683; the words are content/take-down.ts TAKE_DOWN_BELL, which a test holds to these).
+  // asked down from (00682; the words are content/take-down.ts TAKE_DOWN_BELL, which a test holds to these).
   {
     warns: { kind: "post_by_hand", title: /^Delete it in .+ · /u },
     by: { kind: "post_down", title: /^Taken down · /u },

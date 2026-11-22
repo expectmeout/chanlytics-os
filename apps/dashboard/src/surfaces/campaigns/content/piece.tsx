@@ -160,8 +160,6 @@ export function ContentPiece({
   // Where its owner said they posted it themselves: the page's, or its record's where the piece was read on its own.
   const byHand = made.by_hand ?? null;
   const acts = pieceActsOf({ ...hands, beside }, { drafts, presses });
-  // The person an ad waits for, where the owner named who is in it: Run as an ad's reason names them.
-  const adPerson = standing.askForAds();
   const shown = {
     made: { file, posts, by_hand: byHand },
     byHand: byHandPressOf(byHand, presses.change, flash),
@@ -176,17 +174,8 @@ export function ContentPiece({
     standing,
     // New ad's route drafts for whoever may approve: an operator and above (server/ads/draft.ts).
     runAsAd: {
-      line: runAsAdOf(
-        record.ad,
-        file,
-        canDo("approve"),
-        adPerson ? { name: adPerson.name, canBeAsked: adPerson.conversation !== null && canDo("settings") } : null,
-      ),
-      acts: runAsAdActsOf(file.id, navigate, {
-        ask: acts.onAsk,
-        makePost: acts.onMakePost,
-        askPerson: () => (adPerson ? standing.askPersonForAds(adPerson) : acts.onAsk()),
-      }),
+      line: runAsAdOf(record.ad, file, canDo("approve")),
+      acts: runAsAdActsOf(file.id, navigate, { ask: acts.onAsk, makePost: acts.onMakePost }),
     },
   };
   // A phone opens the canvas's viewer, full screen and dark, in the split's open slot; a desk the pane beside the grid.

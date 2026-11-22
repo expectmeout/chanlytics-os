@@ -1,19 +1,12 @@
 /**
- * Where a piece goes, a line a placement, and who is in it (the content loop PRD's 8.2, 8.3, 21.3 and 15.1; the journey
- * canvas, board Piece): each state in the owner's words with its one fix. "On Instagram" is said only once the account
- * was seen holding the post; a story says when it ended by itself; a post held for a person names them and asks them; a
- * take-down says what the place said and never that a post is down before it did; a reader is offered nothing to press.
+ * Where a piece goes, a line a placement (the content loop PRD's 8.2, 8.3, 21.3 and 15.1; the journey canvas, board
+ * Piece): each state in the owner's words with its one fix. "On Instagram" is said only once the account was seen
+ * holding the post; a story says when it ended by itself; a take-down says what the place said and never that a post is
+ * down before it did; a reader is offered nothing to press.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ON_INSTAGRAM,
-  TAKE_DOWN_WORDS,
-  personSaidOf,
-  personStandsOf,
-  personToAskOf,
-  takeDownWillOf,
-} from "@chanlytics/contracts";
+import { ON_INSTAGRAM, TAKE_DOWN_WORDS, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
@@ -43,22 +36,7 @@ const post = (over = {}) => ({
   created_at: ago(2 * HOUR),
   ...over,
 });
-const person = (over = {}) => ({
-  id: "subject-1",
-  file_id: "file-1",
-  name: "Paola Ruiz",
-  label: "client",
-  contact_id: "contact-1",
-  conversation: { id: "conv-1", channel: "whatsapp" },
-  yes: [],
-  took_back: [],
-  asked: null,
-  said_no_at: null,
-  answered: null,
-  ...over,
-});
 const known = (over = {}) => ({
-  people: null,
   takeDown: null,
   when: (iso) => `@${iso.slice(11, 16)}`,
   nowMs: NOW,
@@ -108,35 +86,6 @@ test("on its way: set for its time with its two acts, then each step as it is re
   assert.match(checking.note, /It won't post twice/);
   // A reader sees where it stands, and nothing to press.
   assert.deepEqual(one(post({ status: "queued", scheduled_for: ahead(3 * HOUR) }), { may: false }).acts, []);
-});
-
-test("held for a person: the line names them, its fix asks them, and the piece's one status says who", () => {
-  const paola = person();
-  const held = post({
-    status: "held",
-    held_why: "rights",
-    held_reason: "Paola Ruiz hasn't said yes.",
-    published_at: null,
-  });
-  const lines = goesLinesOf([held], known({ people: { state: "named", people: [paola] } }));
-  assert.equal(lines[0].said, "Paola Ruiz hasn't said yes to posts");
-  assert.equal(lines[0].tone, "you");
-  assert.deepEqual(acts(lines[0]), ["ask_person", "tell_ai"]);
-  assert.equal(lines[0].acts[0].person.id, "subject-1");
-  assert.equal(lines[0].acts[1].prompt, "Make it again without Paola Ruiz");
-  assert.deepEqual(goesPillOf(lines), { said: "Paola Ruiz hasn't said yes", tone: "you", moving: false });
-  // Someone who said no, or took their yes back, is not asked again from the line: the way on is another clip.
-  const no = one(held, { people: { state: "named", people: [person({ said_no_at: ago(MIN) })] } });
-  assert.equal(no.said, "Paola Ruiz said no to posts");
-  assert.deepEqual(acts(no), ["tell_ai"]);
-  const back = one(held, {
-    people: { state: "named", people: [person({ took_back: [{ use: "post", at: ago(MIN) }] })] },
-  });
-  assert.equal(back.said, "Paola Ruiz took back their yes to posts");
-  assert.deepEqual(acts(back), ["tell_ai"]);
-  // Nobody has said who is in it: the fix is to say so.
-  const unsure = one(held, { people: { state: "unsure", people: [] } });
-  assert.equal(unsure.said, GOES_WORDS.sayWho);
 });
 
 test("held since it was approved, for its reason, or by its place: each with its own way on, never post anyway", () => {
@@ -276,43 +225,4 @@ test("what the confirm says the press will do, a line a placement", () => {
       ["Google", "Chanlytics takes it down"],
     ],
   );
-});
-
-test("who is in it: where each person's yes for this use stands, in the owner's words", () => {
-  const when = (iso) => `@${iso.slice(11, 16)}`;
-  const channel = (via) => (via === "whatsapp" ? "WhatsApp" : via);
-  const line = (p, use = "post") => personSaidOf(p, personStandsOf(p, use), use, { when, channel });
-  assert.deepEqual(line(person()), { line: "Hasn't said yes to posts", tone: "you" });
-  const asked = person({ asked: { at: ago(HOUR), via: "whatsapp", uses: ["post"] } });
-  assert.equal(line(asked).line, "Asked @17:00 on WhatsApp · no answer yet");
-  const answered = person({ ...asked, answered: { at: ago(MIN), words: "Yes of course!!", message_id: "m1" } });
-  assert.deepEqual(personStandsOf(answered, "post"), {
-    is: "answered",
-    at: ago(MIN),
-    words: "Yes of course!!",
-    messageId: "m1",
-  });
-  const yes = person({ ...asked, yes: [{ use: "post", said_in: "message", at: ago(MIN), quote: "Yes of course!!" }] });
-  assert.deepEqual(line(yes), { line: "Said yes to posts · @17:59", tone: "ok" });
-  assert.equal(line(yes, "ad").line, "Hasn't said yes to ads", "a yes for posts never covers an ad");
-  const inPerson = person({ yes: [{ use: "post", said_in: "in_person", at: ago(MIN), quote: null }] });
-  assert.equal(line(inPerson).line, "Said yes to posts in person · @17:59");
-  const team = person({
-    label: "staff",
-    yes: [
-      { use: "post", said_in: "ai", at: ago(MIN), quote: null },
-      { use: "ad", said_in: "ai", at: ago(MIN), quote: null },
-    ],
-  });
-  assert.equal(line(team).line, "On your team · said yes to posts and ads");
-  assert.equal(line(person({ said_no_at: ago(MIN) })).line, "Said no · @17:59");
-  const back = person({ took_back: [{ use: "post", at: ago(MIN) }] });
-  assert.deepEqual(line(back), { line: "Took back their yes · @17:59", tone: "you" });
-  // Asked again since: the ask is what stands.
-  assert.equal(personStandsOf({ ...back, asked: { at: ago(0), via: "sms", uses: ["post"] } }, "post").is, "asked");
-  assert.equal(
-    personToAskOf({ state: "named", people: [yes, person({ id: "s2", name: "Maria" })] }, "post").name,
-    "Maria",
-  );
-  assert.equal(personToAskOf({ state: "named", people: [yes] }, "post"), null);
 });

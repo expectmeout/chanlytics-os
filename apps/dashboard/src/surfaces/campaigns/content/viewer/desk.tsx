@@ -30,7 +30,6 @@ import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
 import { WhereItGoes } from "./goes";
-import { WhoIsInIt } from "./people";
 import { byHandOffered, footStandingOf, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
@@ -375,7 +374,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
 
 /**
  * What the phone's one sheet holds, in the pane's body at rest and in the phone's order: posted by hand and the ad's
- * reason (out of the way while a question is asked), the line to AI, where it goes, who is in it, then its words.
+ * reason (out of the way while a question is asked), the line to AI, where it goes, then its words.
  */
 function DeskSheetAtRest(props: {
   hands: ViewerHands;
@@ -402,7 +401,6 @@ function DeskSheetAtRest(props: {
         </>
       )}
       <WhereItGoes lines={standing.lines} on={standing.goes} />
-      <WhoIsInIt people={standing.people} seen={standing.seen} use="post" clock={standing.clock} on={standing.who} />
       <ViewerFacts
         shown={props.details}
         may={hands.may}

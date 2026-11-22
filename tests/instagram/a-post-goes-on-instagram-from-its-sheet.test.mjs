@@ -76,8 +76,6 @@ const fileRow = (tenant, over = {}) => ({
   updated_at: "2026-11-01T12:00:00Z",
   kind: "image",
   seconds: null,
-  yes_for: [],
-  yes_back: [],
   ...over,
 });
 
@@ -114,7 +112,6 @@ function world({
   role = "owner",
   posts = [],
   file = {},
-  rights = { is: "ok" },
 } = {}) {
   const wordsKept = [];
   seq += 1;
@@ -139,8 +136,7 @@ function world({
       },
       {},
       {
-        // Who has not said yes (00682), and the words kept as the piece's next version (00681): asked by every press.
-        file_rights_gap: () => rights,
+        // The words kept as the piece's next version (00681): asked by every press.
         piece_words_keep: (a) => {
           wordsKept.push(a.p_caption);
           return { revision: 1, followed: 0 };
@@ -254,12 +250,7 @@ function world({
       updated_at: "2026-11-01T12:00:00Z",
     },
   ];
-  const service = fakeDb(
-    { tenant_channels: channels, files: kept, events: [], posts: rows, pieces },
-    {},
-    // What a piece was drawn from, read for who is in it (00682): nothing here names a photo's people.
-    { files_drawn_from: () => [] },
-  );
+  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows, pieces }, {}, {});
   // The approval reads each shape it sends, and sums its bytes (posts/approve.ts).
   service.storage = {
     from: () => ({ download: async () => ({ data: new Blob([`bytes of ${tenant}`]), error: null }) }),
@@ -540,23 +531,6 @@ test("an owner's own words are theirs: a day named in them is approved as typed,
     (e) => e.message === CONTENT_CHECK_WORDS.late("Thursday"),
   );
   assert.equal(late.begun.length, 0);
-});
-
-test("a person named in it who has not said yes stops the press by name, and nothing is kept or written", async () => {
-  const w = world({ rights: { is: "person", name: "Paola" } });
-  await assert.rejects(
-    route.POST.run(send(w, "POST", { as: "picture", caption: "New words." }), w.ctx),
-    (e) => e.message === "Paola hasn't said yes to being in posts. Ask them, or use another clip.",
-  );
-  assert.equal(w.begun.length, 0, "nothing is approved");
-  assert.deepEqual(w.wordsKept, [], "the words are kept only once the checks have passed");
-  assert.equal(w.kept[0].made.caption, null);
-  // Nobody sure who is in it: the same, in its own words.
-  const unsure = world({ rights: { is: "unsure" } });
-  await assert.rejects(
-    route.POST.run(send(unsure, "POST", { as: "story" }), unsure.ctx),
-    (e) => e.message === CONTENT_CHECK_WORDS.notYetSaid(null),
-  );
 });
 
 test("a made video goes as a reel, from its own file, and a picture never does", async () => {

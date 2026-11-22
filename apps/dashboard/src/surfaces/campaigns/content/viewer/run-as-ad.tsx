@@ -18,12 +18,11 @@ export type RunAsAdActs = Record<RunAsAdDoes, () => void> & { run: () => void };
 export function runAsAdActsOf(
   fileId: string,
   go: (route: string) => void,
-  piece: { ask: () => void; makePost: () => void; askPerson: () => void },
+  piece: { ask: () => void; makePost: () => void },
 ): RunAsAdActs {
   return {
     run: () => go(newAdFromRoute("piece", fileId)),
     yes: piece.ask,
-    ask_person: piece.askPerson,
     ask: piece.ask,
     post: piece.makePost,
     ads: () => go(ADS_ROUTE),

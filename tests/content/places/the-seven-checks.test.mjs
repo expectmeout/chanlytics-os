@@ -48,7 +48,6 @@ const refused = (facts) => {
   assert.equal(verdict.refusals.length, 1, "one refusal");
   return verdict.refusals[0];
 };
-const OK = { is: "ok" };
 
 test("authorization: whoever acts may still act for the business", () => {
   assert.equal(refused({ authorization: { may: true, approving: true } }), null);
@@ -60,19 +59,11 @@ test("authorization: whoever acts may still act for the business", () => {
   });
 });
 
-test("rights are per person: a yes taken back, a person who has not said yes by name, and nobody sure who is in it", () => {
-  assert.equal(refused({ rights: { takenBack: false, gap: OK } }), null);
-  assert.equal(refused({ rights: { takenBack: true, gap: OK } }).words, CONTENT_CHECK_WORDS.takenBack);
-  const paola = refused({ rights: { takenBack: false, gap: { is: "person", name: "Paola" } } });
-  assert.deepEqual(paola, {
-    check: "rights",
-    code: "rights",
-    words: "Paola hasn't said yes to being in posts. Ask them, or use another clip.",
-  });
-  assert.equal(
-    refused({ rights: { takenBack: false, gap: { is: "unsure" } } }).words,
-    CONTENT_CHECK_WORDS.notYetSaid(null),
-  );
+test("content rights read no yes: nothing said of a person, or of a file's yes, holds a post", () => {
+  // What a business adds is taken as cleared (Ruben, 22 November 2026): no moment hands the evaluator a yes, and facts
+  // of that shape, were they handed in, refuse nothing.
+  assert.deepEqual(evaluate({ rights: { takenBack: true, gap: { is: "person", name: "Paola" } } }), { ok: true });
+  assert.equal(refused({ rights: { takenBack: true, gap: { is: "unsure" } } }), null);
 });
 
 test("claims: AI's words are held to the owner's; the owner's own words are theirs", () => {
@@ -200,7 +191,6 @@ test("evaluate asks every check its facts reach and answers every refusal at onc
   assert.deepEqual(evaluate({}), { ok: true });
   const verdict = evaluate({
     authorization: { may: true, approving: true },
-    rights: { takenBack: false, gap: { is: "person", name: "Paola" } },
     publishing: place({ connection: "not_connected" }),
     automation: { stopped: true, pressedBy: "owner" },
     reason: reason({ intent: intent({ service: "Balayage" }) }),
@@ -208,12 +198,11 @@ test("evaluate asks every check its facts reach and answers every refusal at onc
   assert.equal(verdict.ok, false);
   assert.deepEqual(
     verdict.refusals.map((r) => r.check),
-    ["rights", "publishing", "automation", "reason"],
+    ["publishing", "automation", "reason"],
   );
   assert.equal(
     verdictWords(verdict),
     [
-      CONTENT_CHECK_WORDS.notYetSaid("Paola"),
       CONTENT_CHECK_WORDS.notConnected("instagram"),
       CONTENT_CHECK_WORDS.stopped,
       CONTENT_CHECK_WORDS.notAService("Balayage"),

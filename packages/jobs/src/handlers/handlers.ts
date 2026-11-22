@@ -480,7 +480,7 @@ async function postReconcile(ctx: JobContext, job: ClaimedJob): Promise<void | {
   return ctx.posts.reconcile(job, ctx.deadline);
 }
 
-/** post_take_down: a post asked down at its place (00683). payload: { action_id, attempt, by_hand? } */
+/** post_take_down: a post asked down at its place (00682). payload: { action_id, attempt, by_hand? } */
 async function postTakeDown(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts) throw new Error("post_take_down: this runtime holds no poster");
   return ctx.posts.takeDown(job, ctx.deadline);

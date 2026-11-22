@@ -252,7 +252,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   // A post set for its time did not go, or was held (00616): the row opens Content's Needs you, where it says why.
   "post_stopped",
   /**
-   * A take-down (00683; the content loop PRD's 8.3): every place a piece was asked down from says it is gone, or a
+   * A take-down (00682; the content loop PRD's 8.3): every place a piece was asked down from says it is gone, or a
    * place would not take it down for Chanlytics and its owner deletes it there. Each row opens the piece, at its lines.
    */
   "post_down",

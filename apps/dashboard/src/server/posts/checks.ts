@@ -1,7 +1,7 @@
 /**
  * The checks a placement is held to before it is approved (the content loop PRD's 6.1 and 6.2), read once for both moments
- * that come before a send: AI's card as it proposes one, and the owner's press. The facts are read here (who in the file
- * has not said yes, whether AI is paused, what the business says of itself now) and judged by the one evaluator
+ * that come before a send: AI's card as it proposes one, and the owner's press. The facts are read here (whether AI is
+ * paused, what the business says of itself now) and judged by the one evaluator
  * (packages/core content/policy); the send's own check reads them again at the edge. Every refusal comes at once, in the
  * owner's words with the one thing to do.
  */
@@ -18,7 +18,6 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { evaluate, verdictWords } from "@chanlytics/core";
-import { readRightsGap } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -30,15 +29,13 @@ export interface PlacementAsked {
   when: string | null;
 }
 
-/** What the checks read of the made file: what it is, and where its yes for posts stands on the file itself. */
+/** What the checks read of the made file: what it is, and how large. */
 export interface CheckedFile {
   id: string;
   kind: string;
   mime?: string | null | undefined;
   bytes: number | null;
   seconds: number | null;
-  yes_for?: readonly string[] | undefined;
-  yes_back?: readonly string[] | undefined;
 }
 
 /** What is being asked, and what its caller already read. */
@@ -82,12 +79,10 @@ export async function readPlacementRefusals(
   const { file, intent, zone } = placements;
   const nowMs = Date.now();
   const leans = !!intent?.offer || !!intent?.service;
-  const [gap, business] = await Promise.all([
-    readRightsGap(db, placements.tenantId, file.id),
-    leans ? placements.config().then((config) => businessSays(config, zone)) : { says: [], services: [] },
-  ]);
+  const business = leans
+    ? await placements.config().then((config) => businessSays(config, zone))
+    : { says: [], services: [] };
   const whole = evaluate({
-    rights: { takenBack: !file.yes_for?.includes("post") && !!file.yes_back?.includes("post"), gap },
     automation: { stopped: placements.stopped, pressedBy: "owner" },
     reason: {
       intent,

@@ -120,7 +120,7 @@ export function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDe
 }
 
 /**
- * Instagram's adapter for a post asked down (00683), or why the account cannot be asked from here: not connected, or
+ * Instagram's adapter for a post asked down (00682), or why the account cannot be asked from here: not connected, or
  * posting not allowed, and the take-down is the owner's to do in Instagram.
  */
 export async function takeDownPlaceFor(db: Db, post: PostRow): Promise<PlaceAdapter | { cant: string }> {

@@ -1,5 +1,5 @@
 /**
- * AI's card to take a piece down (00683; the content loop PRD's 12.1 act/take_down). Apart from the take-down's own
+ * AI's card to take a piece down (00682; the content loop PRD's 12.1 act/take_down). Apart from the take-down's own
  * words and rules (take-down.ts): the frame holds every card's spec, and a page that draws no piece carries none of them.
  */
 import { asText, type ProposalSpecAboveOperator } from "../../ask/proposals/spec";

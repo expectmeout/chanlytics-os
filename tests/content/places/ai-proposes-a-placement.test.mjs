@@ -1,7 +1,6 @@
 /**
  * AI proposes a placement (the content loop PRD's 6.2, the first of the three moments; propose_publish): the card is held
- * to the same checks the press makes, before it exists. A person named in it who has not said yes stops it by name, with
- * the ask offered; AI paused stops it. Words AI drafts that plainly name a day, an offer or a price say what they are
+ * to the same checks the press makes, before it exists. AI paused stops it. Words AI drafts that plainly name a day, an offer or a price say what they are
  * about, or that they date nothing, and the card carries it to the press. A fact is the owner's only in their own words in
  * this question: AI never states one for them. A made video goes as a reel, and a picture never does.
  */
@@ -50,7 +49,6 @@ async function proposed({
   input = {},
   question = "Put the Fridays post up.",
   caption = "Open late on Fridays.",
-  rights = { is: "ok" },
   stopped = false,
   video = false,
   posts = [],
@@ -126,8 +124,7 @@ async function proposed({
   setServiceClient(
     fakeDb({ tenant_channels: [channel], files: [file], events: [], posts: [], pieces: tables.pieces }, {}, {}),
   );
-  const doors = { file_rights_gap: () => rights };
-  const ctx = { supabase: fakeDb(tables, {}, doors), userId: USER, email: "ada@example.com", params: {} };
+  const ctx = { supabase: fakeDb(tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
   const tc = { ...newToolContext(ctx, tenant, "owner", "UTC", new Date()), question, askedEarlier: [], language: "en" };
   if (tool === "propose_take_down") return buildProposal(tc, tool, { file: "open-late-on-fridays" });
   return buildProposal(tc, "propose_publish", { file: "open-late-on-fridays", places: ["instagram"], ...input });
@@ -189,13 +186,6 @@ test("a fact is the owner's only in their own words in this question: AI never s
   });
   const payload = postPublishOf(cardOf(said).payload);
   assert.deepEqual(payload.facts, [{ says: "the 20% off still runs all week", until: "2099-11-30" }]);
-});
-
-test("a person named in it who has not said yes stops the card by name, and the ask is offered", async () => {
-  const out = await proposed({ rights: { is: "person", name: "Paola" } });
-  assert.equal(cardOf(out), null);
-  assert.match(saidTo(out), /Paola hasn't said yes to being in posts\. Ask them, or use another clip\./);
-  assert.match(saidTo(out), /keep_yes, action ask/);
 });
 
 test("AI paused stops the card, in the words that say how to go on", async () => {

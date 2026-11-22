@@ -1,7 +1,7 @@
 /**
  * The owner's approval of a made post or video for its placements (the content loop PRD's 3, 5.3 and 6.2, pass 1b): the
  * press that is the approval, on the member's own session. Before anything is written, the checks a press is held to
- * (posts/checks.ts): a person in it has not said yes, the place takes it, AI is not paused, its reason stands. Then the
+ * (posts/checks.ts): the place takes it, AI is not paused, its reason stands. No yes is read. Then the
  * words that go are kept on the piece (posts/caption.ts), and the exact thing approved is read: each shape a placement
  * sends, by its path in the file's folder and the full SHA-256 of its bytes, so the edge sends those bytes or none (00681
  * post_as_approved). One door writes it all. An owner's own words are never judged by a guess: what they type and press
@@ -79,8 +79,6 @@ function refusedFate(answer: PostsApproved): AppError {
   if (answer.fate === "gone") return new AppError("not_found", ON_INSTAGRAM.gone, 404);
   if (answer.fate === "not_a_post") return new AppError("validation", ON_INSTAGRAM.notAPost);
   if (answer.fate === "wrong_kind") return new AppError("validation", ON_INSTAGRAM.wrongKind);
-  if (answer.fate === "taken_back") return new AppError("conflict", CONTENT_CHECK_WORDS.takenBack, 409);
-  if (answer.fate === "rights") return new AppError("conflict", CONTENT_CHECK_WORDS.notYetSaid(answer.rightsName), 409);
   if (answer.fate === "changed") return new AppError("conflict", ON_INSTAGRAM.held.changed, 409);
   return new AppError("validation", CONTENT_CHECK_WORDS.afterItsDay);
 }

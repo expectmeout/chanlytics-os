@@ -1,5 +1,5 @@
 /**
- * The platform's page for a take-down a place never confirmed (ledger PAGES_THE_PLATFORM, tick.ts conclude; 00683, the
+ * The platform's page for a take-down a place never confirmed (ledger PAGES_THE_PLATFORM, tick.ts conclude; 00682, the
  * content loop PRD's 8.3). The owner asked for a post to come down, or a person took their yes back; the place was asked,
  * and asked again for a day, and never said. Nothing is the owner's to do: their piece says the place has not confirmed
  * it and that Chanlytics is on it, and the action stays pending. A place down for a day, a connection Meta refuses for

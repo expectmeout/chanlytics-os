@@ -222,7 +222,7 @@ const actsOf = (over = {}) => ({
 });
 /**
  * Where the piece stands beyond its composer (piece-standing.tsx usePieceStanding), at rest: no placement's line, so its
- * usual status says where it stands, nobody read as in it, and nothing to take down. A test of the lines hands its own.
+ * usual status says where it stands, and nothing to take down. A test of the lines hands its own.
  */
 const standingOf = (over = {}) => ({
   lines: [],
@@ -235,27 +235,12 @@ const standingOf = (over = {}) => ({
     about: ABOUT,
     move: noop,
     pull: noop,
-    askPerson: noop,
     approve: noop,
     words: noop,
     deleted: noop,
   },
-  who: {
-    busy: false,
-    may: true,
-    mayName: true,
-    about: ABOUT,
-    piece: "Saturdays fill first",
-    askPerson: noop,
-    said: noop,
-    noOne: noop,
-  },
-  people: null,
-  seen: null,
   clock: { day: (at) => at, ahead: (at) => at },
   takeDown: null,
-  askForAds: () => null,
-  askPersonForAds: noop,
   sheets: null,
   ...over,
 });
@@ -1091,81 +1076,13 @@ test("a pasted link is kept as an address a browser opens, with its https where 
   assert.equal(S.handLinkOf(`https://example.com/${"x".repeat(500)}`), null, "longer than a link is kept");
 });
 
-/* ------------------------------------------------- where it goes, who is in it, take down (the journey canvas, Piece) */
+/* ------------------------------------------------------------- where it goes, take down (the journey canvas, Piece) */
 
-const PAOLA = {
-  id: "eeeeeeee-0000-4000-8000-000000000001",
-  file_id: "ffffffff-0000-4000-8000-000000000009",
-  name: "Paola Ruiz",
-  label: "client",
-  contact_id: "cccccccc-0000-4000-8000-000000000001",
-  conversation: { id: "dddddddd-0000-4000-8000-000000000001", channel: "whatsapp" },
-  yes: [],
-  took_back: [],
-  asked: null,
-  said_no_at: null,
-  answered: null,
+/** The piece's standing as the hook builds it from its lines (the model's goesLinesOf), its presses noops. */
+const standingFrom = (posts, { takeDown = null, more = {} } = {}) => {
+  const lines = goesLinesOf(posts, { takeDown, when: (iso) => iso.slice(0, 10), nowMs: Date.now(), may: true });
+  return { lines, pill: goesPillOf(lines), ...more };
 };
-/** The piece's standing as the hook builds it from its lines (contracts goesLinesOf), its presses noops. */
-const standingFrom = (posts, { people = null, takeDown = null, more = {} } = {}) => {
-  const lines = goesLinesOf(posts, { people, takeDown, when: (iso) => iso.slice(0, 10), nowMs: Date.now(), may: true });
-  return { lines, pill: goesPillOf(lines), people, ...more };
-};
-
-test("a post held for a person: the row names them, Ask leads in coral, and their line offers the ask", () => {
-  const held = post("instagram", "held", { held_why: "rights", held_reason: "Paola Ruiz hasn't said yes." });
-  const people = { state: "named", people: [PAOLA] };
-  const standing = {
-    ...standingFrom([held], { people }),
-    lead: { words: "Ask Paola Ruiz", press: noop },
-  };
-  for (const html of both({ posts: [held], standing })) {
-    assert.equal(statusOf(html).tone, "need");
-    assert.equal(statusOf(html).said.replace(/&#x27;/g, "'"), "Paola Ruiz hasn't said yes");
-    assert.equal(saysOf(html, "cnv-next"), "Ask Paola Ruiz", "the one fix leads, in place of Post again");
-  }
-  // On a desk the rest of the sheet stands under the acts: its line, then who is in it.
-  const html = desk({ posts: [held], standing });
-  assert.match(
-    html,
-    /data-testid="cnv-goes-said-instagram-picture"[^>]*>.*Paola Ruiz hasn(&#x27;|')t said yes to posts/s,
-  );
-  assert.equal(count(html, "cnv-goes-ask-instagram-picture"), 1);
-  assert.match(html, /data-testid="cnv-who-said-[^"]+"[^>]*>Hasn(&#x27;|')t said yes to posts/);
-  assert.equal(count(html, `cnv-who-ask-${PAOLA.id}`), 1);
-  assert.equal(count(html, `cnv-who-in-person-${PAOLA.id}`), 1, "a yes said face to face is kept from here too");
-});
-
-test("what she wrote since the ask is the owner's to read: her words, That's a yes and That's a no", () => {
-  const asked = { at: "2026-11-30T15:12:00Z", via: "whatsapp", uses: ["post"] };
-  const answered = {
-    ...PAOLA,
-    asked,
-    answered: { at: "2026-11-30T15:40:00Z", words: "Yes of course!!", message_id: "m1" },
-  };
-  const standing = standingFrom([], { people: { state: "named", people: [answered] } });
-  const html = desk({ standing });
-  assert.match(html, /<q[^>]*>Yes of course!!<\/q>/, "her own words are the record");
-  assert.equal(count(html, `cnv-who-yes-${PAOLA.id}`), 1);
-  assert.equal(count(html, `cnv-who-no-${PAOLA.id}`), 1);
-  // A reader is told where it stands, and is offered nothing to keep.
-  const reader = desk({
-    may: false,
-    standing: { ...standing, who: { ...standingOf().who, may: false, mayName: false } },
-  });
-  assert.equal(count(reader, `cnv-who-yes-${PAOLA.id}`), 0);
-});
-
-test("nobody said who is in it: it is said to AI, or that no one is; nobody in it says so with Change", () => {
-  const unknown = desk({
-    standing: standingFrom([], { people: { state: "not_asked", people: [] }, more: { seen: 2 } }),
-  });
-  assert.match(unknown, /AI sees 2 people in it\. Who are they\?/);
-  assert.equal(count(unknown, "cnv-who-none-press"), 1);
-  const none = desk({ standing: standingFrom([], { people: { state: "none", people: [] } }) });
-  assert.match(none, /No one(&#x27;|')s in it/);
-  assert.equal(count(none, "cnv-who-change"), 1);
-});
 
 test("Take down rides the acts while something is up, and only then; a take-down's lines say what each place said", () => {
   const up = post("instagram", "published");

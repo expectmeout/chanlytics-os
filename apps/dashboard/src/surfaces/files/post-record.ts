@@ -10,7 +10,6 @@ import type {
   FilePosted,
   FileRecordDto,
   FileSound,
-  PiecePeopleDto,
   PiecePlan,
   PieceTakeDownDto,
   PostDto,
@@ -36,12 +35,8 @@ export function usePostRecord(file: FileDto, moved = "") {
   // A made piece's standing for an ad, where Ads is on: what Content's Run as an ad says. Kept with the file it was read
   // for, so the piece beside never says this one's word while its own record is on its way.
   const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
-  // A made piece's: who is in it, and its newest take-down (00682, 00683). Kept with the file they were read for.
-  const [standing, setStanding] = useState<{
-    id: string;
-    people: PiecePeopleDto | null;
-    takeDown: PieceTakeDownDto | null;
-  } | null>(null);
+  // A made piece's newest take-down (00682). Kept with the file it was read for.
+  const [standing, setStanding] = useState<{ id: string; takeDown: PieceTakeDownDto | null } | null>(null);
   // Read again when asked: a post on its way to Instagram says where it stands as it moves.
   const [asked, setAsked] = useState(0);
   const reread = useCallback(() => setAsked((n) => n + 1), []);
@@ -63,7 +58,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       setSound(data.sound ?? null);
       setVideo(data.video?.plan ?? null);
       setAd({ id: file.id, stands: data.ad ?? null });
-      setStanding({ id: file.id, people: data.people ?? null, takeDown: data.take_down ?? null });
+      setStanding({ id: file.id, takeDown: data.take_down ?? null });
     });
     return () => {
       live = false;
@@ -83,7 +78,6 @@ export function usePostRecord(file: FileDto, moved = "") {
     ad: adHere,
     /** Whether this file's record has been read: nothing is said of a place before it is. */
     read: here !== null,
-    people: here?.people ?? null,
     takeDown: here?.takeDown ?? null,
     reread,
   };

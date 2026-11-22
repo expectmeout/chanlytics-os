@@ -66,7 +66,7 @@ export interface ViewerHands {
   byHand: ByHandPress;
   /** "Run as an ad", or why not with its one act (run-as-ad.tsx); its line is null where it says nothing. */
   runAsAd: { line: RunAsAdLine | null; acts: RunAsAdActs };
-  /** Its placements' lines and their one status, who is in it, the ask and the take-down (piece-standing.tsx). */
+  /** Its placements' lines, their one status and the take-down (piece-standing.tsx). */
   standing: PieceStanding;
 }
 

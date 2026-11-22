@@ -328,15 +328,6 @@ test("what went up keeps the account it went to, and when Instagram was seen hol
   assert.equal(unseen.post().verified_at, null);
 });
 
-test("a person named in it with no yes for posts holds the post at its send, by name, and nothing is sent", async () => {
-  const w = world({ status: "preparing", asApproved: { is: "rights", name: "Paola" } });
-  assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "held" });
-  assert.equal(w.post().held_why, "rights");
-  assert.equal(w.post().held_reason, CONTENT_CHECK_WORDS.notYetSaid("Paola"));
-  assert.equal(w.post().held_reason, "Paola hasn't said yes to being in posts. Ask them, or use another clip.");
-  assert.equal(calls.length, 0);
-});
-
 test("a post that went up unseen is still posting, never on Instagram, and Instagram is asked for it again by its own id", async () => {
   meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];
   const w = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });

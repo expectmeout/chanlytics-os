@@ -11,7 +11,6 @@ import {
   recordOrNull,
   type FilePosted,
   type FileRecordDto,
-  type PiecePeopleDto,
   type PieceTakeDownDto,
   type PostDto,
   type PostPlan,
@@ -29,9 +28,8 @@ import {
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
 import { readInstagramPostable, instagramPostsOf } from "./instagram";
-import { fileMadeOf, readDrawnFrom } from "./made-as";
+import { fileMadeOf } from "./made-as";
 import { readPieceTakeDown } from "./take-down";
-import { readPiecePeople } from "@/server/files/people";
 import { log } from "@/server/shared/log";
 import { handPostOf, sentPostsOf } from "@/server/readers/content";
 import { fileDtoOf } from "@/server/readers/files";
@@ -124,21 +122,15 @@ export async function findNewestPostLook(tenantId: TenantId): Promise<PostLook |
 }
 
 /**
- * A made piece's standing beyond its posts (GET files/[id]; 00682, 00683): who is in it, in the piece and in each photo or
- * clip it was drawn from, and its newest take-down. Null for anything AI did not make.
+ * A made piece's standing beyond its posts (GET files/[id]; 00682): its newest take-down. Null for anything AI did not
+ * make.
  */
 export async function readPieceStanding(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   posts: readonly PostDto[],
-): Promise<{ people: PiecePeopleDto; take_down: PieceTakeDownDto | null } | null> {
+): Promise<{ take_down: PieceTakeDownDto | null } | null> {
   if (row.source !== "made") return null;
-  const drawn = await readDrawnFrom(ctx.supabase, member.tenantId, [row.id]);
-  const piece = { id: row.id, drawnFrom: (drawn.get(row.id) ?? []).map((from) => from.id) };
-  const [people, takeDown] = await Promise.all([
-    readPiecePeople(ctx, member, piece),
-    readPieceTakeDown(ctx, member, { ...piece, postIds: posts.map((p) => p.id) }),
-  ]);
-  return { people, take_down: takeDown };
+  return { take_down: await readPieceTakeDown(ctx, member, { id: row.id, postIds: posts.map((p) => p.id) }) };
 }

@@ -19,8 +19,10 @@
 --                          worth sending (good_until); the account it went to (account_id, since an account can leave a
 --                          workspace and another come, decision 0143); and why it was held or let go (held_why).
 --   post_approve           A member's press, with the settings permission: the approval and its placements in one
---                          transaction, with the piece, its version and its shapes where none were kept yet. post_begin
---                          stays for the code before this, which still calls it, and goes once nothing does.
+--                          transaction, with the piece, its version and its shapes where none were kept yet. It reads
+--                          no yes, for a person or for a file: what a business adds is taken as cleared (Ruben, 22
+--                          November 2026). post_begin stays for the code before this, which still calls it, and goes
+--                          once nothing does.
 --   approval_hash          SHA-256 of a snapshot's own text: the door takes it, and the check takes it again.
 --   post_as_approved       Right before a send: whether the placement still stands as approved (its approval stands,
 --                          its hash holds, its words and its shape's bytes are the approved ones), with the path of the
@@ -427,14 +429,6 @@ begin
   if v_file.source <> 'made' then
     return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
   end if;
-  -- A yes for posts taken back on it, or on what it was drawn from, and not given again on it (00665): nothing goes.
-  if not ('post' = any (v_file.yes_for))
-     and ('post' = any (v_file.yes_back)
-          or exists (select 1 from public.files s
-                      where s.tenant_id = p_tenant_id and 'post' = any (s.yes_back)
-                        and s.id::text = any (public.file_drawn_from(v_file.made)))) then
-    return jsonb_build_object('fate', 'taken_back', 'posts', '[]'::jsonb);
-  end if;
   -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
   for v_place in select * from jsonb_array_elements(v_places) loop
     if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google']) then
@@ -561,7 +555,7 @@ end $$;
 revoke all on function public.post_approve(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.post_approve(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.post_approve(uuid, uuid, jsonb) is
-  'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+  'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 /* --------------------------------------------------------------------------------------- 10. piece_words_keep -- */
 

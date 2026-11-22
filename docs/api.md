@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-456 handlers in 62 domains.
+453 handlers in 62 domains.
 
 ## activity
 
@@ -1330,56 +1330,6 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | --- | --- | --- | --- |
 | `post_id` | string (uuid) | yes |  |
 
-### `POST /api/v1/files/[id]/people`
-
-Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `state` | one of `"named"`, `"none"`, `"unsure"` | yes |  |
-| `people` | array of object | no | at most 20 |
-
-### `PUT /api/v1/files/[id]/people`
-
-Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `subject_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-| `via` | string | yes | at least 1 characters; at most 40 characters |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"`, `"website"` | yes | at least 1; at most 5 |
-
-### `PATCH /api/v1/files/[id]/people`
-
-Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
-
-One of 3 bodies.
-
-Body 1:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `subject_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-| `said` | `"yes"` | no |  |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"`, `"website"` | yes | at least 1; at most 5 |
-| `said_in` | one of `"ai"`, `"message"`, `"in_person"` | yes |  |
-| `message_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-
-Body 2:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `subject_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-| `said` | `"no"` | yes |  |
-
-Body 3:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `subject_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-| `said` | `"took_back"` | yes |  |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"`, `"website"` | no | at least 1; at most 5 |
-
 ### `GET /api/v1/files/[id]/play`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
@@ -1427,7 +1377,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"`, `"website"` | yes | at least 1; at most 5 |
+| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | yes | at least 1; at most 4 |
 | `who` | string | yes | at least 1 characters; at most 120 characters |
 | `thread_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
@@ -1437,7 +1387,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"`, `"website"` | no | at most 5 |
+| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | no | at most 4 |
 
 ### `POST /api/v1/files/keep`
 

@@ -10,7 +10,7 @@ import { sayDeletedByHand, takePieceDown } from "@/server/posts/take-down";
  * Whoever may post. Answers `{ moved: true }`; refused as late once a run has taken its job (Instagram is making it ready,
  * or it is being sent). One door for both places: a post moves by its own id.
  *
- * DELETE — Take down (00683; the content loop PRD's 8.3): the piece comes down everywhere. Each post of it that is up is
+ * DELETE — Take down (00682; the content loop PRD's 8.3): the piece comes down everywhere. Each post of it that is up is
  * asked down at its place, each one still waiting is let go, and every ad made here that shows it is paused. A post is
  * taken down only once its place said so, and the piece's record says where each stands. Never undone: it is posted
  * again as a new post. Answers `{ asked, cancelled, ads }`; refused where nothing of it is up, waiting or showing.

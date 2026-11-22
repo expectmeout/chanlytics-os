@@ -1,9 +1,8 @@
 /**
- * A post comes down, on a real database (00683; the content loop PRD's 5.3, 8.3 and 15.1), with real sessions: the owner's
+ * A post comes down, on a real database (00682; the content loop PRD's 5.3, 8.3 and 15.1), with real sessions: the owner's
  * press asks down what is up and lets go what waited, as one remediation with its job; a post is taken_down only once the
- * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place; a yes taken back,
- * for a file or for one person, holds what waits (rights) and asks down what is up; a person asked, and a no, are kept on
- * their row. A viewer may do none of it, and another workspace reads none of it.
+ * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
+ * none of it, and another workspace reads none of it.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -125,7 +124,6 @@ after(async () => {
   await db.from("remediations").delete().in("tenant_id", all);
   await db.from("posts").delete().in("tenant_id", all);
   await db.from("file_consents").delete().in("tenant_id", all);
-  await db.from("file_subjects").delete().in("tenant_id", all);
   await db.from("files").delete().in("tenant_id", all);
   await db.from("memberships").delete().in("tenant_id", all);
   await db.from("tenants").delete().in("id", all);
@@ -196,7 +194,7 @@ test(
     assert.equal(gone.fate, "kept");
     assert.deepEqual(gone.down, ["instagram"], "every place this take-down asked says done: said once, for the bell");
     assert.equal((await statusOf(up)).status, "taken_down");
-    // The bell takes the take-down's two kinds (00683).
+    // The bell takes the take-down's two kinds (00682).
     for (const kind of ["post_down", "post_by_hand"])
       ok(await db.from("notifications").insert({ tenant_id: A, kind, title: "A take-down", body: "" }), kind);
     assert.deepEqual(ok(await settle(action, "blocked", "late"), "again"), { fate: "settled", outcome: "done" });
@@ -207,91 +205,5 @@ test(
     );
     assert.equal(finished.cause, "owner_removed");
     assert.ok(finished.finished_at);
-  },
-);
-
-test(
-  "a yes taken back holds what waits and asks down what is up, for a file and for one person",
-  { skip },
-  async () => {
-    const photo = await file({ source: "upload", made: null });
-    const made = await file({ made: { from: { file_id: photo }, plan: { line: "Fresh cut" } } });
-    ok(
-      await as.owner.client.rpc("file_subjects_name", {
-        p_tenant_id: A,
-        p_file_id: photo,
-        p_state: "named",
-        p_people: [{ name: "Paola", label: "client" }],
-      }),
-      "Paola is in it",
-    );
-    const paola = ok(await db.from("file_subjects").select("id").eq("file_id", photo).single(), "her row").id;
-    // Asked, said no, then yes: each kept on her row.
-    ok(
-      await as.owner.client.rpc("subject_ask_record", {
-        p_tenant_id: A,
-        p_subject_id: paola,
-        p_via: "whatsapp",
-        p_uses: ["post"],
-      }),
-      "asked",
-    );
-    ok(await as.owner.client.rpc("subject_no_record", { p_tenant_id: A, p_subject_id: paola }), "a no");
-    let row = ok(
-      await db.from("file_subjects").select("asked_via, asked_uses, said_no_at").eq("id", paola).single(),
-      "row",
-    );
-    assert.deepEqual([row.asked_via, row.asked_uses], ["whatsapp", ["post"]]);
-    assert.ok(row.said_no_at);
-    assert.match(
-      (await as.viewer.client.rpc("subject_no_record", { p_tenant_id: A, p_subject_id: paola })).error?.message ?? "",
-      /Not yours to change/,
-    );
-    ok(
-      await as.owner.client.rpc("subject_yes_record", {
-        p_tenant_id: A,
-        p_subject_id: paola,
-        p_uses: ["post", "ad"],
-        p_said_in: "in_person",
-        p_evidence: {},
-      }),
-      "her yes",
-    );
-    row = ok(await db.from("file_subjects").select("said_no_at").eq("id", paola).single(), "row");
-    assert.equal(row.said_no_at, null, "a yes answers a no");
-    const waits = await post(made, "instagram", "story", "queued", {
-      scheduled_for: new Date(Date.now() + 86_400_000).toISOString(),
-    });
-    const up = await post(made, "instagram", "picture", "published");
-    const back = ok(
-      await as.owner.client.rpc("subject_yes_take_back", { p_tenant_id: A, p_subject_id: paola, p_uses: ["post"] }),
-      "her yes taken back",
-    );
-    assert.equal(back.fate, "taken_back");
-    assert.deepEqual(
-      back.held.map((h) => h.post_id),
-      [waits],
-    );
-    assert.deepEqual(await statusOf(waits), { status: "held", held_why: "rights" });
-    assert.deepEqual(
-      back.down.map((d) => [d.post_id, d.act, d.outcome]),
-      [[up, "take_down", "pending"]],
-    );
-    assert.deepEqual(ok(await db.from("files").select("yes_for").eq("id", photo).single(), "photo").yes_for, ["ad"]);
-    const again = ok(
-      await as.owner.client.rpc("subject_yes_take_back", { p_tenant_id: A, p_subject_id: paola, p_uses: ["post"] }),
-      "again",
-    );
-    assert.equal(again.fate, "none");
-    // The file's own door walks the same way: nothing new is started for a post already being asked down.
-    const whole = ok(
-      await as.owner.client.rpc("file_yes_take_back", { p_tenant_id: A, p_file_id: photo, p_uses: ["post", "ad"] }),
-      "the file's yes",
-    );
-    assert.deepEqual(whole.down, []);
-    assert.deepEqual(
-      whole.live.map((l) => l.post_id),
-      [up],
-    );
   },
 );

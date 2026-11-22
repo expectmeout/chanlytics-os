@@ -11,7 +11,6 @@ import {
   mayAct,
   placeAllows,
   reasonStands,
-  rightsFor,
   type PlaceAsked,
   type PolicyRefusal,
   type ReasonAsked,
@@ -20,7 +19,6 @@ import {
 /** The facts a moment read, one part a check; a part left out is a check that moment does not ask. */
 export interface PolicyFacts {
   authorization?: Parameters<typeof mayAct>[0];
-  rights?: Parameters<typeof rightsFor>[0];
   claims?: Parameters<typeof evaluateClaimPolicy>[0];
   publishing?: PlaceAsked;
   money?: Parameters<typeof budgetAllows>[0];
@@ -32,7 +30,10 @@ export type PolicyVerdict = { ok: true } | { ok: false; refusals: PolicyRefusal[
 
 const CHECKS: Readonly<{ [K in ContentCheck]: (facts: PolicyFacts) => PolicyRefusal | null }> = {
   authorization: (f) => (f.authorization ? mayAct(f.authorization) : null),
-  rights: (f) => (f.rights ? rightsFor(f.rights) : null),
+  // Content rights reads no yes, for a person or for a file: what a business adds is taken as cleared (Ruben, 22 Nov
+  // 2026). What is left of it has nothing to ask in this pass: a found file is never a post (the press refuses it), and
+  // a sound's licence arrives with the sound engine (PRD 6.1).
+  rights: () => null,
   claims: (f) => (f.claims ? evaluateClaimPolicy(f.claims) : null),
   publishing: (f) => (f.publishing ? placeAllows(f.publishing) : null),
   money: (f) => (f.money ? budgetAllows(f.money) : null),

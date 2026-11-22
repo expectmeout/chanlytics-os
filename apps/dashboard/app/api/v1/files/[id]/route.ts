@@ -10,7 +10,7 @@ import { readFileRecord, readPieceStanding } from "@/server/posts/record";
 /**
  * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
  * For a made piece, where Ads is on, it says too whether the piece may run as an ad (`ad`: Content's Run as an ad); and
- * for every made piece who is in it (`people`) and its newest take-down (`take_down`).
+ * for every made piece its newest take-down (`take_down`).
  *
  * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status?, caption?, posted? }`: what a person says of a file. What
  * they name and shelve stays when the look runs again. Who is in it is a person's word that no one is (a yes is POST
@@ -29,7 +29,7 @@ export const GET = read({
       readFileRecord(ctx, member, row),
       readPieceAd(readerContext(ctx, member), row),
     ]);
-    // Who is in a made piece, and its newest take-down (00682, 00683): read once its posts are known.
+    // A made piece's newest take-down (00682): read once its posts are known.
     const standing = await readPieceStanding(ctx, member, row, record.posts ?? []);
     return { ...record, ...(ad === null ? {} : { ad }), ...(standing ?? {}) };
   },

@@ -10,7 +10,6 @@
  */
 import { adDraftSpec } from "../../ads/draft-card";
 import { fileYesSpec } from "../../content/post-spec";
-import { filePeopleSpec, personYesSpec } from "../../content/placements/rights-spec";
 import { takeDownSpec } from "../../content/placements/take-down-spec";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
@@ -57,10 +56,7 @@ export const ASK_ONLY_SPECS = {
   ad_draft: adDraftSpec,
   // A yes for a photo or a video, said to AI, or one taken back (files/yes.ts).
   file_yes: fileYesSpec,
-  // Who is in a photo or a video, and one person's own yes (00682; content/rights-spec.ts).
-  file_people: filePeopleSpec,
-  person_yes: personYesSpec,
-  // A made piece taken down everywhere it is up (00683; content/take-down.ts).
+  // A made piece taken down everywhere it is up (00682; content/take-down.ts).
   take_down: takeDownSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,

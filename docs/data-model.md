@@ -59,9 +59,8 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/reports/screened.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
-| [`file_consents`](#file_consents) | `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
-| [`file_subjects`](#file_subjects) | `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
+| [`file_consents`](#file_consents) | none | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts` | on, 3 policies |
@@ -1563,7 +1562,7 @@ Foreign keys:
 
 A yes for one use of a file (00665; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.
 
-- Owned by: `packages/db/src/repositories/files/subjects.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1581,15 +1580,11 @@ A yes for one use of a file (00665; the content PRD's step L4): who said it, for
 | `taken_back_at` | timestamp with time zone | yes |  |  |
 | `taken_back_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
-| `subject_id` | uuid | yes |  | The person in the file this yes is theirs (00682, file_subjects); null for a yes kept before people were named, read as before. |
-| `scope` | jsonb | no | `'{}'::jsonb` |  |
-| `evidence` | jsonb | no | `'{}'::jsonb` | Where it was said (00682): the message it was said in, who kept it. Never the person's words. |
 
 Foreign keys:
 
 - `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
 - `said_by` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `subject_id` → [`file_subjects`](#file_subjects) (`tenant_id`, `id`), on delete cascade
 - `taken_back_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
@@ -1598,46 +1593,11 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `file_consents_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
-### file_subjects
-
-A person in a file (00682; the content loop PRD's 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.
-
-- Owned by: `packages/db/src/repositories/files/subjects.ts`
-- Primary key: `id`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no | `gen_random_uuid()` |  |
-| `tenant_id` | uuid | no |  |  |
-| `file_id` | uuid | no |  |  |
-| `contact_id` | uuid | yes |  |  |
-| `name` | text | no |  |  |
-| `label` | text | no |  |  |
-| `how` | text | no |  |  |
-| `named_by` | uuid | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `asked_at` | timestamp with time zone | yes |  |  |
-| `asked_via` | text | yes |  |  |
-| `asked_uses` | text[] | no | `'{}'::text[]` |  |
-| `said_no_at` | timestamp with time zone | yes |  |  |
-
-Foreign keys:
-
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
-- `named_by` → `auth.users` (`id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `file_subjects_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
 ### files
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/subjects.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1687,7 +1647,6 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
 | `yes_for` | text[] | no | `'{}'::text[]` | The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row. |
 | `yes_back` | text[] | no | `'{}'::text[]` | The uses whose every yes on this file was taken back, and none given again (00665, file_consents). |
-| `subjects_state` | text | no | `'not_asked'::text` | Whether the people in it are known (00682): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say). |
 
 Foreign keys:
 

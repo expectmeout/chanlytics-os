@@ -424,7 +424,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "attempt"],
     never: [],
   },
-  // A post asked down at its place (00683; the content loop PRD's 8.3): asking again is safe (a post already gone is
+  // A post asked down at its place (00682; the content loop PRD's 8.3): asking again is safe (a post already gone is
   // read as gone), nothing reaches a person, and one a place never answers is ours to chase, not the owner's.
   post_take_down: {
     speaks: false,

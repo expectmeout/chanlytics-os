@@ -204,7 +204,7 @@ export const JOB_KINDS = [
    */
   "post_google",
   /**
-   * A post asked down at its place (00683; the content loop PRD's 8.3), payload { action_id, attempt, by_hand? }, in the bulk
+   * A post asked down at its place (00682; the content loop PRD's 8.3), payload { action_id, attempt, by_hand? }, in the bulk
    * lane: one remediation action asked of the place, or, once the owner said they deleted it there, the place asked whether
    * it is gone. The post is taken down only when the place said so.
    */

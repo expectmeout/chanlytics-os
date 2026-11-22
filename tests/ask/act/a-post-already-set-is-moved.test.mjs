@@ -243,9 +243,7 @@ function askedToPublish(input, posts = []) {
     created_at: "2026-11-01T00:00:00Z",
   };
   setServiceClient(fakeDb({ tenant_channels: [channel], files: [file], events: [], posts: rows }, {}, {}));
-  // The card's checks ask who in it has not said yes (00682): nobody is named here.
-  const doors = { file_rights_gap: () => ({ is: "ok" }) };
-  const ctx = { supabase: fakeDb(tables, {}, doors), userId: USER, email: "ada@example.com", params: {} };
+  const ctx = { supabase: fakeDb(tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
   const tc = {
     ...newToolContext(ctx, tenant, "owner", "UTC", new Date()),
     question: "Move the Fridays post to that time.",

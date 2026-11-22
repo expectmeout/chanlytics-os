@@ -3263,14 +3263,11 @@ export type Database = {
       file_consents: {
         Row: {
           created_at: string
-          evidence: Json
           file_id: string
           id: string
           said_at: string
           said_by: string | null
           said_in: string
-          scope: Json
-          subject_id: string | null
           taken_back_at: string | null
           taken_back_by: string | null
           tenant_id: string
@@ -3280,14 +3277,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          evidence?: Json
           file_id: string
           id?: string
           said_at?: string
           said_by?: string | null
           said_in: string
-          scope?: Json
-          subject_id?: string | null
           taken_back_at?: string | null
           taken_back_by?: string | null
           tenant_id: string
@@ -3297,14 +3291,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          evidence?: Json
           file_id?: string
           id?: string
           said_at?: string
           said_by?: string | null
           said_in?: string
-          scope?: Json
-          subject_id?: string | null
           taken_back_at?: string | null
           taken_back_by?: string | null
           tenant_id?: string
@@ -3321,13 +3312,6 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "file_consents_subject_id_same_workspace"
-            columns: ["tenant_id", "subject_id"]
-            isOneToOne: false
-            referencedRelation: "file_subjects"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
             foreignKeyName: "file_consents_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -3340,76 +3324,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ask_threads"
             referencedColumns: ["tenant_id", "id"]
-          },
-        ]
-      }
-      file_subjects: {
-        Row: {
-          asked_at: string | null
-          asked_uses: string[]
-          asked_via: string | null
-          contact_id: string | null
-          created_at: string
-          file_id: string
-          how: string
-          id: string
-          label: string
-          name: string
-          named_by: string | null
-          said_no_at: string | null
-          tenant_id: string
-        }
-        Insert: {
-          asked_at?: string | null
-          asked_uses?: string[]
-          asked_via?: string | null
-          contact_id?: string | null
-          created_at?: string
-          file_id: string
-          how: string
-          id?: string
-          label: string
-          name: string
-          named_by?: string | null
-          said_no_at?: string | null
-          tenant_id: string
-        }
-        Update: {
-          asked_at?: string | null
-          asked_uses?: string[]
-          asked_via?: string | null
-          contact_id?: string | null
-          created_at?: string
-          file_id?: string
-          how?: string
-          id?: string
-          label?: string
-          name?: string
-          named_by?: string | null
-          said_no_at?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_subjects_contact_id_same_workspace"
-            columns: ["tenant_id", "contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "file_subjects_file_id_same_workspace"
-            columns: ["tenant_id", "file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "file_subjects_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -3452,7 +3366,6 @@ export type Database = {
           source: string
           source_ref: string | null
           status: string
-          subjects_state: string
           superseded_at: string | null
           tenant_id: string
           updated_at: string
@@ -3499,7 +3412,6 @@ export type Database = {
           source: string
           source_ref?: string | null
           status: string
-          subjects_state?: string
           superseded_at?: string | null
           tenant_id: string
           updated_at?: string
@@ -3546,7 +3458,6 @@ export type Database = {
           source?: string
           source_ref?: string | null
           status?: string
-          subjects_state?: string
           superseded_at?: string | null
           tenant_id?: string
           updated_at?: string
@@ -11071,14 +10982,6 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
-      file_rights_gap: {
-        Args: { p_file_id: string; p_tenant_id: string; p_use: string }
-        Returns: Json
-      }
-      file_rights_gap_of: {
-        Args: { p_file_id: string; p_tenant_id: string; p_use: string }
-        Returns: Json
-      }
       file_road_is_owners: { Args: { p_source: string }; Returns: boolean }
       file_road_is_watched: { Args: { p_source: string }; Returns: boolean }
       file_search_words: {
@@ -11104,15 +11007,6 @@ export type Database = {
       file_start: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
-      }
-      file_subjects_name: {
-        Args: {
-          p_file_id: string
-          p_people: Json
-          p_state: string
-          p_tenant_id: string
-        }
-        Returns: Json
       }
       file_twin_fate: {
         Args: {
@@ -14701,38 +14595,6 @@ export type Database = {
         }
         Returns: Json
       }
-      subject_ask_record: {
-        Args: {
-          p_subject_id: string
-          p_tenant_id: string
-          p_uses: string[]
-          p_via: string
-        }
-        Returns: Json
-      }
-      subject_no_record: {
-        Args: { p_subject_id: string; p_tenant_id: string }
-        Returns: Json
-      }
-      subject_yes_record: {
-        Args: {
-          p_evidence: Json
-          p_said_in: string
-          p_subject_id: string
-          p_tenant_id: string
-          p_uses: string[]
-        }
-        Returns: Json
-      }
-      subject_yes_take_back: {
-        Args: {
-          p_held?: string
-          p_subject_id: string
-          p_tenant_id: string
-          p_uses?: string[]
-        }
-        Returns: Json
-      }
       sweep_health: {
         Args: never
         Returns: {
@@ -14961,17 +14823,6 @@ export type Database = {
         }[]
       }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
-      yes_taken_back_walk: {
-        Args: {
-          p_actor: string
-          p_file_id: string
-          p_files: string[]
-          p_held: string
-          p_tenant_id: string
-          p_uses: string[]
-        }
-        Returns: Json
-      }
     }
     Enums: {
       [_ in never]: never

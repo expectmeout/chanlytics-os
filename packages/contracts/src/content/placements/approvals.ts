@@ -99,8 +99,6 @@ export function renditionShapeOf(place: PostPlace, kind: PostKind): RenditionSha
  */
 export type AsApproved =
   | { is: "stands"; path: string; intent: PieceIntent | null; facts: OwnersFact[] }
-  /** A person in its file has no yes for posts that stands, or the owner is not sure who is in it (00682). */
-  | { is: "rights"; name: string | null }
   | { is: "before" }
   | { is: "changed" };
 
@@ -157,17 +155,6 @@ export function pieceIntentOf(value: unknown): PieceIntent | null {
     offer: says ? { says, until: nonBlankOrNull(offer?.until) } : null,
     service: nonBlankOrNull(kept.service),
   };
-}
-
-/** Who stands between a file and a use (00682 file_rights_gap): nobody, nobody sure who is in it, or a person by name. */
-export type RightsGap = { is: "ok" } | { is: "unsure" } | { is: "person"; name: string };
-
-/** The gap as the database answers it; anything it cannot read stands in the way as "unsure", never as nobody. */
-export function rightsGapOf(value: unknown): RightsGap {
-  const kept = recordOrEmpty(value);
-  if (kept.is === "ok") return { is: "ok" };
-  const name = nonBlankOrNull(kept.name);
-  return kept.is === "person" && name ? { is: "person", name } : { is: "unsure" };
 }
 
 /** The facts an approval kept the owner saying, as the database keeps them. */

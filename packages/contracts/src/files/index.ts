@@ -221,7 +221,6 @@ export {
   fileYesSaidOf,
   fileYesTitleOf,
   fileYesUsesIn,
-  fileYesUsesSaid,
 } from "./yes";
 export type { FileUseStands, FileYesAd, FileYesFacts, FileYesPost, FileYesTakenBack } from "./yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";

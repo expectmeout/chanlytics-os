@@ -52,7 +52,7 @@ export async function tellPostMoved(db: Db, post: PostRow, moved: PostMoved): Pr
 }
 
 /**
- * A take-down's news, told on the bell (00683; the canvas's Today 6). A place that would not take a post down for
+ * A take-down's news, told on the bell (00682; the canvas's Today 6). A place that would not take a post down for
  * Chanlytics while the post is still up leaves it to the owner: told once, at the first answer, never again at each
  * "I deleted it" that found it still there (the piece's own line says that, to the person looking at it). And once every
  * place the piece was asked down from says done, that it is gone, which closes the first (contracts NOTICE_MENDS).

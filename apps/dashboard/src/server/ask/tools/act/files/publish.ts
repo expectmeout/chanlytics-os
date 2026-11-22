@@ -187,7 +187,7 @@ interface CardChecked {
 
 /**
  * The checks the card is held to as AI proposes it (the PRD's 6.2), the ones the press makes again and the send once
- * more: a person in it has not said yes, AI is paused, its reason does not stand. First the backstop on AI's own draft:
+ * more: AI is paused, its reason does not stand. First the backstop on AI's own draft:
  * words that plainly name a day, an offer or a price say what they are about. Why not, for the model, or null.
  */
 async function checksRefusal(toolContext: ToolContext, at: CardChecked): Promise<string | null> {
@@ -208,9 +208,7 @@ async function checksRefusal(toolContext: ToolContext, at: CardChecked): Promise
     stopped: await isSendingStopped(toolContext.ctx.supabase, toolContext.tenantId),
     config: () => load(toolContext.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
   });
-  return refused
-    ? `${refused} Say so in a few words with the one thing to do; where a person has not said yes, offer to draft the ask (keep_yes, action ask)`
-    : null;
+  return refused ? `${refused} Say so in a few words with the one thing to do.` : null;
 }
 
 /** The made post a call names and the places it asks for, or, in words for the model, why it cannot go as asked. */

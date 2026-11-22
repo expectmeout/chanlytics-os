@@ -109,7 +109,6 @@ export {
   pieceIntentOf,
   postAboutOf,
   renditionShapeOf,
-  rightsGapOf,
 } from "./placements/approvals";
 export type {
   AsApproved,
@@ -118,20 +117,11 @@ export type {
   PieceIntent,
   PostAbout,
   RevisionChange,
-  RightsGap,
   SnapshotPlacement,
   SnapshotRendition,
 } from "./placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
 export type { ContentCheck } from "./placements/check-words";
-export {
-  PERSON_ASK_WORDS,
-  personSaidOf,
-  personStandsOf,
-  personToAskOf,
-  PIECE_PEOPLE_WORDS,
-} from "./placements/piece-people";
-export type { PersonStands, PersonYesDto, PiecePeopleDto, PiecePersonDto } from "./placements/piece-people";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
@@ -148,7 +138,6 @@ export type {
   SentPlacement,
   TakeDownAnswer,
 } from "./placements/places";
-export { filePeopleSpec, personYesSpec } from "./placements/rights-spec";
 export {
   APPROVAL_SUBJECTS,
   APPROVAL_VOID_WHYS,
@@ -157,9 +146,6 @@ export {
   REMEDIATION_TARGETS,
   RENDITION_SHAPES,
   REVISION_MADE_BY,
-  SUBJECT_HOWS,
-  SUBJECT_LABELS,
-  SUBJECTS_STATES,
 } from "./placements/sets";
 export type {
   ApprovalVoidWhy,
@@ -168,8 +154,6 @@ export type {
   RemediationTarget,
   RenditionShape,
   RevisionMadeBy,
-  SubjectLabel,
-  SubjectsState,
 } from "./placements/sets";
 export {
   placementSaid,

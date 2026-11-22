@@ -246,9 +246,9 @@ const ANNOUNCES = {
   post_stopped:
     "Content's Needs you, which the row opens on the piece, reads the posts that stopped as it comes on screen, with why (00616).",
   post_down:
-    "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, and again every few seconds while a line still moves (00683).",
+    "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, and again every few seconds while a line still moves (00682).",
   post_by_hand:
-    "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, where the place's line has Open and I deleted it (00683).",
+    "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, where the place's line has Open and I deleted it (00682).",
   ad_account:
     "Campaigns › Ads, which the row opens, reads the ad account and its ads as it comes on screen and when the owner comes back to the tab; its card reads the account the same way (00653). The feed tells of ad_accounts, and the Ads page does not hear it yet: one already open reads again when it is next looked at.",
   ad_refused:

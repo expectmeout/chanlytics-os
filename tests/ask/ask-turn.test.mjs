@@ -506,9 +506,6 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "a viewer: the nine reads",
   );
   assert.deepEqual(acts("operator"), [
-    // Who is in a photo or a video, and the ask to one of them (00682): an operator's, as they add the footage. A yes
-    // itself is a partner's action of the same tool.
-    "keep_yes",
     "press_card",
     "propose_ad",
     "propose_call",
@@ -529,9 +526,10 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
   ]);
   assert.deepEqual(
     acts("partner").filter((n) => !acts("operator").includes(n)),
-    // A video made from the business's clips is a partner's to ask for, as a post is (decision 0122), photos and videos
-    // brought in from a link, as the Library's Keep is, and a post put up or taken down (00683).
+    // A video made from the business's clips is a partner's to ask for, as a post is (decision 0122), and photos and videos
+    // brought in from a link, as the Library's Keep is, a yes for a photo or a video (00665), and a post taken down (00682).
     [
+      "keep_yes",
       "propose_bring_in",
       "propose_lead_search",
       "propose_piece",

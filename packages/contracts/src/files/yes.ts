@@ -107,20 +107,14 @@ export interface FileYesPost {
   at: string | null;
 }
 
-const USE_WORDS: Record<FileYesUse, string> = {
-  post: "posts",
-  ad: "ads",
-  reply: "replies",
-  cold_email: "cold emails",
-  website: "the website",
-};
+const USE_WORDS: Record<FileYesUse, string> = { post: "posts", ad: "ads", reply: "replies", cold_email: "cold emails" };
 
 /** Words joined as a person lists them: "posts and ads", "Instagram and Google". */
 const wordsJoined = (words: readonly string[]): string =>
   words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}` : (words[0] ?? "");
 
 /** Uses in words: "posts and ads". */
-export const fileYesUsesSaid = (uses: readonly FileYesUse[]): string => wordsJoined(uses.map((use) => USE_WORDS[use]));
+const usesSaid = (uses: readonly FileYesUse[]): string => wordsJoined(uses.map((use) => USE_WORDS[use]));
 
 /** The two uses a picture is shown for, in the order the Library says them. */
 const SHOWN_FOR: readonly FileYesUse[] = ["post", "ad"];
@@ -138,8 +132,8 @@ export function fileYesSaidOf(file: FileYesFacts): { stands: string; needs: stri
   const ask = stands.find(({ at }) => at.is === "ask")?.at;
   const seen = ask?.is === "ask" ? ask.seen : null;
   const lines = [
-    yes.length ? `They said yes to ${fileYesUsesSaid(yes)}.` : null,
-    back.length ? `A yes to ${fileYesUsesSaid(back)} was taken back.` : null,
+    yes.length ? `They said yes to ${usesSaid(yes)}.` : null,
+    back.length ? `A yes to ${usesSaid(back)} was taken back.` : null,
   ].filter((line): line is string => line !== null);
   return { stands: lines.join(" ") || FILE_WORDS.whoAsk(seen), needs: missing.length ? neededFor(missing) : null };
 }
@@ -149,7 +143,7 @@ function neededFor(missing: readonly FileYesUse[]): string {
   const post = missing.includes("post");
   const ad = missing.includes("ad");
   const before = post && ad ? "is posted or runs as an ad" : post ? "is posted" : "runs as an ad";
-  return `Before it ${before}, they need to say yes to ${fileYesUsesSaid(missing)}.`;
+  return `Before it ${before}, they need to say yes to ${usesSaid(missing)}.`;
 }
 
 /** The AI line's own words on a file that shows someone: what to tell AI. */
@@ -211,8 +205,8 @@ function takenBackSaid(data: unknown): string {
 
 /** AI's card's title: who said yes to what, or which uses a yes is taken back for. */
 export function fileYesTitleOf(card: { who: string; uses: readonly FileYesUse[]; back: boolean }): string {
-  if (card.back) return card.uses.length ? `Take back the yes to ${fileYesUsesSaid(card.uses)}` : "Take back every yes";
-  return `${card.who} said yes to ${fileYesUsesSaid(card.uses)}`;
+  if (card.back) return card.uses.length ? `Take back the yes to ${usesSaid(card.uses)}` : "Take back every yes";
+  return `${card.who} said yes to ${usesSaid(card.uses)}`;
 }
 
 /**
@@ -225,6 +219,6 @@ export function fileYesReceiptOf(card: { back: boolean; who: string }, data: unk
   const kept = fileYesUsesIn(answer.kept);
   const person = card.who || "They";
   return kept.length
-    ? `Kept: ${person} said yes to ${fileYesUsesSaid(kept)}.`
-    : `Already kept: ${person} said yes to ${fileYesUsesSaid(fileYesUsesIn(answer.again))}.`;
+    ? `Kept: ${person} said yes to ${usesSaid(kept)}.`
+    : `Already kept: ${person} said yes to ${usesSaid(fileYesUsesIn(answer.again))}.`;
 }

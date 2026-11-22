@@ -1,16 +1,16 @@
--- 00683 · A post comes down (the content loop PRD v3.2, pass 1b, M3 for posts; sections 5.3, 8 and
--- 8.3; call 13).
+-- 00682 · A post comes down (the content loop PRD v3.2, pass 1b, M3 for posts; sections 5.3, 8 and
+-- 8.3).
 --
--- A post that was up could be taken off Google by its own press and nowhere else; a yes taken back held what waited
--- and answered what was up, for the owner to take down by hand. A take-down is a remediation (00676): a cause, and one
--- action for each thing it reached, pending until the place says, and a post is `taken_down` only once it did.
+-- A post that was up could be taken off Google by its own press and nowhere else. A take-down is a remediation
+-- (00676): a cause, and one action for each thing it reached, pending until the place says, and a post is `taken_down`
+-- only once it did. The one cause here is the owner's own press: nobody is asked for a yes, so none is taken back
+-- (Ruben, 22 November 2026).
 --
 --   notifications             Two kinds more on the bell: post_down (a piece gone from every place it was asked down
 --                             from) and post_by_hand (a place leaves a post to its owner to delete).
 --   remediation_actions       One index: the take-downs not finished, newest first, which Today's line reads.
 --   job_kinds                 post_take_down, in the bulk lane: one action asked of its place, or, after the owner said
 --                             they deleted it there themselves, the place asked whether it is gone.
---   file_yes_uses             Re-made: every use includes the website (00682).
 --   ads_remediate_files       Re-made: the owner's own take-down pauses the ads that show the piece too.
 --   posts_take_down_start     The walk, the service's: one remediation about a file; every post of the files named that
 --                             is up, or past holding on its way, gets a take_down action and its job; with p_cancel,
@@ -23,10 +23,6 @@
 --                             once every place the piece was asked down from says done, those places, for the bell.
 --   post_take_down_by_hand    A member's door (settings): "I deleted it". The action waits again, and the place is asked
 --                             whether the post is gone.
---   yes_taken_back_walk       What a yes taken back starts, once, for both doors: posts still waiting held (rights),
---                             posts up asked down, ads paused.
---   file_yes_take_back        Re-made over the walk: a post up is asked down, where it was only answered.
---   subject_yes_take_back     A member's door (settings): one person's own yes taken back, and the same walk.
 --
 -- Locks: notifications' kind check is re-made with two kinds added to those it holds (a brief ACCESS EXCLUSIVE, as 00676
 -- did, and a read of its rows to hold them to it); one small index on remediation_actions; one row into job_kinds. Three
@@ -76,25 +72,6 @@ insert into public.job_kinds (kind, lane, once_parts, once_kept) values
   ('post_take_down', 2, array['action_id', 'attempt'], false)
 on conflict (kind) do update
   set lane = excluded.lane, once_parts = excluded.once_parts, once_kept = excluded.once_kept;
-
-/* ---------------------------------------------------------------------------------- 2. every use, the website too -- */
-
-create or replace function public.file_yes_uses(p_uses text[], p_every boolean)
-returns text[]
-language sql
-immutable
-set search_path = public
-as $$
-  select case
-           when coalesce(cardinality(p_uses), 0) = 0 and p_every
-             then array['ad', 'cold_email', 'post', 'reply', 'website']
-           else coalesce((select array_agg(u order by u) from (select distinct u from unnest(p_uses) as u) d), '{}'::text[])
-         end;
-$$;
-revoke all on function public.file_yes_uses(text[], boolean) from public, anon, authenticated;
-grant execute on function public.file_yes_uses(text[], boolean) to service_role;
-comment on function public.file_yes_uses(text[], boolean) is
-  'The uses a door was handed, each once and in order; with none named and p_every, every use a yes can be for (00665, 00682: the website too).';
 
 /* ------------------------------------------------------------------------------- 3. the ads that show a piece -- */
 
@@ -172,7 +149,7 @@ end $$;
 revoke all on function public.ads_remediate_files(uuid, uuid, text, text, uuid[]) from public, anon, authenticated;
 grant execute on function public.ads_remediate_files(uuid, uuid, text, text, uuid[]) to service_role;
 comment on function public.ads_remediate_files(uuid, uuid, text, text, uuid[]) is
-  'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00683; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by yes_taken_back_walk and post_take_down_begin.';
+  'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00682; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by file_yes_take_back (00676) and post_take_down_begin.';
 
 /* ------------------------------------------------------------------------------------------------ 4. the walk -- */
 
@@ -189,8 +166,8 @@ declare
   v_action uuid;
   v_out    jsonb := '[]'::jsonb;
 begin
-  if p_cause not in ('yes_taken_back', 'person_erased', 'owner_removed') then
-    raise exception 'posts_take_down_start: a yes taken back, a person erased or a take-down' using errcode = '22023';
+  if p_cause is distinct from 'owner_removed' then
+    raise exception 'posts_take_down_start: the owner''s own take-down' using errcode = '22023';
   end if;
   for v_post in
     select * from public.posts p
@@ -242,7 +219,7 @@ end $$;
 revoke all on function public.posts_take_down_start(uuid, uuid, text, text, uuid[], boolean) from public, anon, authenticated;
 grant execute on function public.posts_take_down_start(uuid, uuid, text, text, uuid[], boolean) to service_role;
 comment on function public.posts_take_down_start(uuid, uuid, text, text, uuid[], boolean) is
-  'The walk a take-down starts on posts, the service''s (00683; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
+  'The walk a take-down starts on posts, the service''s (00682; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause (owner_removed: the one cause that takes a post down) about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
 
 create or replace function public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid)
 returns jsonb
@@ -277,7 +254,7 @@ end $$;
 revoke all on function public.post_take_down_begin(uuid, uuid) from public, anon;
 grant execute on function public.post_take_down_begin(uuid, uuid) to authenticated, service_role;
 comment on function public.post_take_down_begin(uuid, uuid) is
-  'A member''s door, with the settings permission (00683; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
+  'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
 
 create or replace function public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text)
 returns jsonb
@@ -331,7 +308,7 @@ end $$;
 revoke all on function public.post_take_down_settle(uuid, text, text) from public, anon, authenticated;
 grant execute on function public.post_take_down_settle(uuid, text, text) to service_role;
 comment on function public.post_take_down_settle(uuid, text, text) is
-  'The take-down job''s door (00683; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+  'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
 
 create or replace function public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid)
 returns jsonb
@@ -375,164 +352,4 @@ end $$;
 revoke all on function public.post_take_down_by_hand(uuid, uuid) from public, anon;
 grant execute on function public.post_take_down_by_hand(uuid, uuid) to authenticated, service_role;
 comment on function public.post_take_down_by_hand(uuid, uuid) is
-  'A member''s door, with the settings permission (00683; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
-
-/* ------------------------------------------------------------------------------------ 5. a yes taken back -- */
-
-create or replace function public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[],
-                                                      p_uses text[], p_held text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_held  jsonb := '[]'::jsonb;
-  v_live  jsonb := '[]'::jsonb;
-  v_down  jsonb := jsonb_build_object('remediation_id', null, 'actions', '[]'::jsonb);
-  v_ads   jsonb := '[]'::jsonb;
-begin
-  if 'post' = any (p_uses) then
-    -- 1. Every post of them still waiting is held, in this same transaction (the PRD's section 8).
-    with held as (
-      update public.posts p
-         set status = 'held', held_why = 'rights', updated_at = now(),
-             held_reason = left(coalesce(nullif(btrim(p_held), ''), 'Someone in it took back their yes.'), 300)
-       where p.tenant_id = p_tenant_id and p.file_id = any (p_files)
-         and p.status = any (array['queued', 'preparing'])
-      returning p.id, p.file_id, p.place, p.kind, p.scheduled_for
-    )
-    select coalesce(jsonb_agg(jsonb_build_object('post_id', h.id, 'file_id', h.file_id, 'place', h.place,
-                                                 'kind', h.kind, 'at', h.scheduled_for)
-                              order by h.scheduled_for, h.id), '[]'::jsonb)
-      into v_held
-      from held h;
-    -- 2. Every one already up, or past holding on its way: what it is, for the answer, then asked down at its place.
-    select coalesce(jsonb_agg(jsonb_build_object('post_id', p.id, 'file_id', p.file_id, 'place', p.place,
-                                                 'kind', p.kind, 'status', p.status, 'permalink', p.permalink,
-                                                 'at', coalesce(p.published_at, p.scheduled_for))
-                              order by coalesce(p.published_at, p.scheduled_for) desc, p.id), '[]'::jsonb)
-      into v_live
-      from public.posts p
-     where p.tenant_id = p_tenant_id and p.file_id = any (p_files)
-       and p.status = any (array['publishing', 'checking', 'published']);
-    v_down := public.posts_take_down_start(p_tenant_id, p_actor, 'yes_taken_back', p_file_id::text, p_files, false);
-  end if;
-  -- 3. G16 (the Ads plan): every ad made here that shows one of them is paused, in this same transaction, or cancelled
-  -- while it is set up, as a remediation, and the owner is told (00676). It runs again only with another picture.
-  if 'ad' = any (p_uses) then
-    v_ads := public.ads_remediate_files(p_tenant_id, p_actor, 'yes_taken_back', p_file_id::text, p_files);
-  end if;
-  return jsonb_build_object('held', v_held, 'live', v_live, 'down', v_down -> 'actions', 'ads', v_ads);
-end $$;
-revoke all on function public.yes_taken_back_walk(uuid, uuid, uuid, uuid[], text[], text) from public, anon, authenticated;
-grant execute on function public.yes_taken_back_walk(uuid, uuid, uuid, uuid[], text[], text) to service_role;
-comment on function public.yes_taken_back_walk(uuid, uuid, uuid, uuid[], text[], text) is
-  'What a yes taken back starts, the service''s, once for both doors (00683; the content loop PRD''s section 8): for posts, every post of p_files still waiting held (rights, with p_held''s words) and every one up asked down at its place (posts_take_down_start); for ads, every ad made here that shows one of them paused or cancelled (ads_remediate_files). Answers {held, live (posts up or on their way), down (the take-down actions), ads}.';
-
-create or replace function public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[] default null,
-                                                     p_held text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_actor uuid := auth.uid();
-  v_uses  text[] := public.file_yes_uses(p_uses, true);
-  v_files uuid[];
-  v_back  integer;
-  v_walk  jsonb;
-begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
-    raise exception 'A yes is for posts, ads, replies, cold emails or the website.' using errcode = '22023';
-  end if;
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
-  if not exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null)
-  then
-    raise exception 'That file is gone.' using errcode = 'P0002';
-  end if;
-  -- The file, and every piece drawn from it: a post's photo, a video's clips and photos (files.made names each).
-  select array_agg(f.id order by f.id) into v_files
-    from public.files f
-   where f.tenant_id = p_tenant_id and f.removed_at is null
-     and (f.id = p_file_id or (f.source = 'made' and p_file_id::text = any (public.file_drawn_from(f.made))));
-  update public.file_consents c
-     set taken_back_at = now(), taken_back_by = v_actor
-   where c.tenant_id = p_tenant_id and c.file_id = any (v_files) and c.use = any (v_uses) and c.taken_back_at is null;
-  get diagnostics v_back = row_count;
-  perform public.file_yes_restate(p_tenant_id, v_files);
-  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
-          jsonb_build_object('file_id', p_file_id, 'by', v_actor,
-                             'said', jsonb_build_object('taken_back', to_jsonb(v_uses))));
-  v_walk := public.yes_taken_back_walk(p_tenant_id, v_actor, p_file_id, v_files, v_uses, p_held);
-  return jsonb_build_object('taken_back', v_back, 'uses', to_jsonb(v_uses), 'files', to_jsonb(v_files)) || v_walk;
-end $$;
-revoke all on function public.file_yes_take_back(uuid, uuid, text[], text) from public, anon;
-grant execute on function public.file_yes_take_back(uuid, uuid, text[], text) to authenticated, service_role;
-comment on function public.file_yes_take_back(uuid, uuid, text[], text) is
-  'A member''s door, with the settings permission (00665, 00676, 00683; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, then what that starts (yes_taken_back_walk): every post of them still waiting held with p_held''s words, every one up asked down at its place, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), down (their take-down actions), ads ([{ad_id, name, act, outcome}])}.';
-
-create or replace function public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[] default null,
-                                                        p_held text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_actor   uuid := auth.uid();
-  v_uses    text[] := public.file_yes_uses(p_uses, true);
-  v_subject public.file_subjects;
-  v_files   uuid[];
-  v_back    integer;
-  v_walk    jsonb;
-begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
-    raise exception 'A yes is for posts, ads, replies, cold emails or the website.' using errcode = '22023';
-  end if;
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
-  select * into v_subject from public.file_subjects s where s.tenant_id = p_tenant_id and s.id = p_subject_id;
-  if not found then
-    return jsonb_build_object('fate', 'gone', 'taken_back', 0);
-  end if;
-  update public.file_consents c
-     set taken_back_at = now(), taken_back_by = v_actor
-   where c.tenant_id = p_tenant_id and c.subject_id = v_subject.id and c.use = any (v_uses) and c.taken_back_at is null;
-  get diagnostics v_back = row_count;
-  if v_back = 0 then
-    return jsonb_build_object('fate', 'none', 'taken_back', 0);
-  end if;
-  -- The file they are in, and every piece drawn from it.
-  select array_agg(f.id order by f.id) into v_files
-    from public.files f
-   where f.tenant_id = p_tenant_id and f.removed_at is null
-     and (f.id = v_subject.file_id
-          or (f.source = 'made' and v_subject.file_id::text = any (public.file_drawn_from(f.made))));
-  v_files := coalesce(v_files, array[v_subject.file_id]);
-  perform public.file_yes_restate(p_tenant_id, v_files);
-  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
-          jsonb_build_object('file_id', v_subject.file_id, 'by', v_actor,
-                             'said', jsonb_build_object('taken_back', to_jsonb(v_uses))));
-  v_walk := public.yes_taken_back_walk(p_tenant_id, v_actor, v_subject.file_id, v_files, v_uses, p_held);
-  return jsonb_build_object('fate', 'taken_back', 'taken_back', v_back, 'uses', to_jsonb(v_uses),
-                            'files', to_jsonb(v_files)) || v_walk;
-end $$;
-revoke all on function public.subject_yes_take_back(uuid, uuid, text[], text) from public, anon;
-grant execute on function public.subject_yes_take_back(uuid, uuid, text[], text) to authenticated, service_role;
-comment on function public.subject_yes_take_back(uuid, uuid, text[], text) is
-  'A member''s door, with the settings permission (00683; call 13): one person''s own yes for each use named (every use where none is) taken back, the file they are in and every piece drawn from it restated, then what that starts (yes_taken_back_walk): posts still waiting held, posts up asked down, ads paused. Answers {fate: taken_back, none (no yes of theirs stood), gone; taken_back; uses; files; held; live; down; ads}.';
+  'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';

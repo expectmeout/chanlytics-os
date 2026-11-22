@@ -81,16 +81,13 @@ export const FILE_WHO_IN_IT = ["not_asked", "no_one"] as const;
 
 export type FileWhoInIt = (typeof FILE_WHO_IN_IT)[number];
 
-/** What a yes for a file is for (00665 file_consents.use; 00682): a post, an ad, a reply, a cold email, the website. */
-export const FILE_YES_USES = ["post", "ad", "reply", "cold_email", "website"] as const;
+/** What a yes for a file is for (00665 file_consents.use): a post, an ad, a reply, a cold email. */
+export const FILE_YES_USES = ["post", "ad", "reply", "cold_email"] as const;
 
 export type FileYesUse = (typeof FILE_YES_USES)[number];
 
-/**
- * Where a yes was said: to AI, in a conversation; a tick given on the file before 00665 (D11); in a message the person
- * sent, or in person, to the owner (00682).
- */
-export const FILE_YES_SAID_IN = ["ai", "before", "message", "in_person"] as const;
+/** Where a yes was said: to AI, in a conversation, or a tick given on the file before 00665 (D11). */
+export const FILE_YES_SAID_IN = ["ai", "before"] as const;
 
 export const FILE_LOOK_STATUSES = ["waiting", "done", "refused", "failed"] as const;
 

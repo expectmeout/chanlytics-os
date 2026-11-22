@@ -565,11 +565,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
   "PATCH files/[id]/posts": postMoved,
-  // A piece asked down (00683): what waited is let go at once, and its posts move as each place answers.
+  // A piece asked down (00682): what waited is let go at once, and its posts move as each place answers.
   "DELETE files/[id]/posts": postMoved,
-  // Who is in a file, and what one of them answered (00682): a yes or one taken back moves its posts.
-  "POST files/[id]/people": filesAndContentIfDrawn,
-  "PATCH files/[id]/people": () => [...filesAndContentIfDrawn(), ...postMoved()],
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
@@ -709,10 +706,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
-  // A piece's own record (GET files/[id]) holds its take-down and who is in it, and the piece reads it again after its press.
+  // A piece's own record (GET files/[id]) holds its take-down, and the piece reads it again after its press.
   "PUT files/[id]/posts":
     "the owner's word that a post was deleted there: its place is asked, and the post moves only once it answers",
-  "PUT files/[id]/people": "that a person in a piece was asked: the piece reads its own record again after the press",
   // An ad account's card reads the account itself (surfaces/campaigns/ads/connect/use-account.ts): no surface holds it.
   // An ad's presses: the Ads page reads its own ads again once the press answers (surfaces/campaigns/ads/live).
   "POST ads/[id]/pause": "an owner paused an ad: the Ads page reads its ads again once the press answers",

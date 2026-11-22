@@ -179,7 +179,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   piece_make: { stopped: "Couldn't make a video", to: CONTENT_ROUTE },
   // A post on its way to Google at its time (00616): Content's Needs you holds it, and its piece says why.
   post_google: { stopped: "Couldn't post to Google", to: CONTENT_NEEDS_ROUTE },
-  // A post asked down at its place (00683). Not sent (kinds.ts: the platform's to chase): its piece says the place has
+  // A post asked down at its place (00682). Not sent (kinds.ts: the platform's to chase): its piece says the place has
   // not confirmed it, and that Chanlytics is on it.
   post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
@@ -355,7 +355,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A lead tried the preview they were sent: good news, and its row names the lead to open, with their number. */
   preview_tried: { icon: "users", tone: "ok", action: "Open the lead", to: "clients/leads", own: true },
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
-  // A take-down (00683): gone from every place it was asked down from is good news; one a place leaves to the owner is
+  // A take-down (00682): gone from every place it was asked down from is good news; one a place leaves to the owner is
   // a warning until it is gone. Each row opens the piece, where its lines say what each place answered.
   post_down: { icon: "check", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
   post_by_hand: { icon: "alert", tone: "warn", action: "Open the post", to: CONTENT_ROUTE, own: true },

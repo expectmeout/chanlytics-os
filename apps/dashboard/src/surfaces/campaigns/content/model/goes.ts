@@ -2,8 +2,8 @@
  * Where a piece goes, a line a placement (the content loop PRD's 8.2 and 21.3; the journey canvas, board Piece, cells 11
  * to 24): each place and kind the piece has a post at, where it stands there in the owner's words, whether it mends
  * itself, and the one thing to do. A post is "On Instagram" only once the account was seen holding it; a story says when
- * it ended by itself; a take-down says the place's answer and never guesses it. Pure: the posts, the people in the piece,
- * its take-down, a clock and now are handed in.
+ * it ended by itself; a take-down says the place's answer and never guesses it. Pure: the posts, its take-down, a clock
+ * and now are handed in.
  */
 import {
   DAY_MS,
@@ -12,15 +12,11 @@ import {
   POST_PLACE_SAID,
   POST_PULLABLE,
   TAKE_DOWN_WORDS,
-  personStandsOf,
-  personToAskOf,
   placementSaid,
   postCameDownAt,
   postComingDownOf,
   postStoppedWhyOf,
   postWaitsForItsTime,
-  type PiecePeopleDto,
-  type PiecePersonDto,
   type PieceTakeDownDto,
   type PostDto,
   type PostKind,
@@ -35,7 +31,6 @@ export type GoesAct =
   | { is: "see"; href: string }
   | { is: "move"; postId: string }
   | { is: "pull"; postId: string; says: string }
-  | { is: "ask_person"; person: PiecePersonDto }
   | { is: "tell_ai"; says: string; prompt: string }
   /** A line to AI the owner finishes: its hint, and what their words are begun with. */
   | { is: "say_ai"; hint: string; begin: string }
@@ -80,12 +75,6 @@ export const GOES_WORDS = {
   storyEnded: (place: PostPlace, when: string | null) =>
     when ? `Was on ${POST_PLACE_SAID[place]} for a day · ${when}` : `Was on ${POST_PLACE_SAID[place]} for a day`,
   seeIt: "See it",
-  hasntSaidYes: (name: string) => `${name} hasn't said yes to posts`,
-  saidNo: (name: string) => `${name} said no to posts`,
-  tookBack: (name: string) => `${name} took back their yes to posts`,
-  sayWho: "Say who's in it before it's posted",
-  sayWhoHint: "Say who's in it",
-  useAnother: "Use another clip",
   changed: "Changed since you approved it",
   lookAgain: "Look again",
   leaveOut: "Leave it out",
@@ -102,14 +91,11 @@ export const GOES_WORDS = {
   lateNote: "It was fixed after the day it was about.",
   /** What the line to AI is begun with. */
   ask: {
-    without: (name: string) => `Make it again without ${name}`,
-    whoIsIn: "Who's in it: ",
     stillSo: "It still stands: ",
     again: "Make it again",
   },
   /** The piece's one status, where every placement says the same or one leads. */
   pill: {
-    waitsFor: (name: string) => `${name} hasn't said yes`,
     changed: "Changed · approve it again",
     didnt: (place: PostPlace) => `Didn't post on ${POST_PLACE_SAID[place]}`,
     places: (words: string, n: number) => (n > 1 ? `${words} · ${n} places` : words),
@@ -118,7 +104,6 @@ export const GOES_WORDS = {
 
 /** What the lines read beside the posts. */
 interface GoesKnown {
-  people: PiecePeopleDto | null;
   takeDown: PieceTakeDownDto | null;
   /** A short moment, in the page's zone: "Sat 5:26 PM". */
   when: (iso: string) => string;
@@ -223,25 +208,6 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
   const mine = (acts: GoesAct[]): GoesAct[] => (known.may ? acts : []);
   const leave: GoesAct = { is: "pull", postId: post.id, says: GOES_WORDS.leaveOut };
   const words: GoesAct = { is: "words", says: GOES_WORDS.changeWords };
-  if (heldWhy === "rights") {
-    const person = personToAskOf(known.people, "post");
-    if (!person)
-      return lineSaysOf(GOES_WORDS.sayWho, "you", {
-        acts: mine([{ is: "say_ai", hint: GOES_WORDS.sayWhoHint, begin: GOES_WORDS.ask.whoIsIn }]),
-      });
-    const another: GoesAct = {
-      is: "tell_ai",
-      says: GOES_WORDS.useAnother,
-      prompt: GOES_WORDS.ask.without(person.name),
-    };
-    // Someone who said no, or took their yes back, is not asked again from here: the way on is another clip.
-    const stands = personStandsOf(person, "post").is;
-    if (stands === "no") return lineSaysOf(GOES_WORDS.saidNo(person.name), "you", { acts: mine([another]) });
-    if (stands === "took_back") return lineSaysOf(GOES_WORDS.tookBack(person.name), "you", { acts: mine([another]) });
-    return lineSaysOf(GOES_WORDS.hasntSaidYes(person.name), "you", {
-      acts: mine([{ is: "ask_person", person }, another]),
-    });
-  }
   if (heldWhy === "changed")
     return lineSaysOf(GOES_WORDS.changed, "you", { acts: mine([{ is: "approve", says: GOES_WORDS.lookAgain }]) });
   if (heldWhy === "disconnected" || heldWhy === "line_off" || heldWhy === "place")
@@ -316,15 +282,12 @@ export function goesLinesOf(posts: readonly PostDto[], known: GoesKnown): GoesLi
 const LEADS: readonly GoesTone[] = ["you", "live", "", "ok", "gone"];
 
 /**
- * The piece's status in one sentence, for its pill: the line that leads, short. A person's missing yes names them; a change
- * since the approval asks for it again; several placements set for the same thing say how many.
+ * The piece's status in one sentence, for its pill: the line that leads, short. A change since the approval asks for it
+ * again; several placements set for the same thing say how many.
  */
 export function goesPillOf(lines: readonly GoesLine[]): { said: string; tone: GoesTone; moving: boolean } | null {
   const lead = LEADS.flatMap((tone) => lines.filter((line) => line.tone === tone))[0];
   if (!lead) return null;
-  const asks = lead.acts.find((act) => act.is === "ask_person");
-  if (asks?.is === "ask_person")
-    return { said: GOES_WORDS.pill.waitsFor(asks.person.name), tone: "you", moving: false };
   if (lead.said === GOES_WORDS.changed) return { said: GOES_WORDS.pill.changed, tone: "you", moving: false };
   // A refusal's reason is its line's to say: the pill says where it did not go.
   if (lead.said.startsWith(GOES_WORDS.didnt(null)))

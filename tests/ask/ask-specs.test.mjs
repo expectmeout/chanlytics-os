@@ -129,9 +129,7 @@ const KINDS = [
   "ad_draft",
   // A yes for a photo or a video, kept or taken back (00665).
   "file_yes",
-  // Who is in a photo or a video, and one person's own yes (00682); a post taken down (00683).
-  "file_people",
-  "person_yes",
+  // A made piece taken down everywhere it is up (00682).
   "take_down",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
@@ -230,10 +228,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     ad_draft: "approve",
     // A yes for a photo or a video is the settings permission's, as every change to a file is.
     file_yes: "settings",
-    // Who is in it is an operator's to say, as they add the footage; a person's own yes and a take-down are the
-    // settings permission's.
-    file_people: "approve",
-    person_yes: "settings",
+    // A take-down is the settings permission's, as putting a post up is.
     take_down: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
@@ -732,25 +727,6 @@ const SHAPES = {
     }),
     card("file_yes", { file_id: FILE_ID, file: "chair-by-the-window", uses: [], back: true }),
   ],
-  file_people: [
-    card("file_people", {
-      file_id: FILE_ID,
-      file: "chair-by-the-window",
-      state: "named",
-      people: [{ name: "Ana Ruiz", label: "client" }],
-    }),
-    card("file_people", { file_id: FILE_ID, file: "chair-by-the-window", state: "none", people: [] }),
-  ],
-  person_yes: [
-    card("person_yes", {
-      file_id: FILE_ID,
-      file: "chair-by-the-window",
-      subject_id: FILE_ID,
-      who: "Ana Ruiz",
-      uses: ["post"],
-      said_in: "in_person",
-    }),
-  ],
   take_down: [card("take_down", { file_id: FILE_ID, file: "chair-by-the-window" })],
   piece: [
     card("piece", {
@@ -1051,8 +1027,6 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     bring_in: ["POST content/bring-in"],
     ad_draft: ["POST ads/draft"],
     file_yes: ["POST files/[id]/yes", "POST files/[id]/yes/back"],
-    file_people: ["POST files/[id]/people"],
-    person_yes: ["PATCH files/[id]/people"],
     take_down: ["DELETE files/[id]/posts"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
@@ -1105,7 +1079,6 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["person_merge", "owner"],
       ["person_mode", "owner"],
       ["person_mode_many", "owner"],
-      ["person_yes", "partner"],
       ["piece", "partner"],
       ["post", "partner"],
       ["publish", "partner"],

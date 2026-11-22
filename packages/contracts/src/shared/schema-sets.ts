@@ -63,9 +63,6 @@ import type {
   REMEDIATION_TARGETS,
   RENDITION_SHAPES,
   REVISION_MADE_BY,
-  SUBJECT_HOWS,
-  SUBJECT_LABELS,
-  SUBJECTS_STATES,
 } from "../content/placements/sets";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
@@ -189,9 +186,6 @@ export type SchemaAgreement = [
   // A yes for one use of a file, and where it was said (00665).
   Holds<Exactly<Of<typeof FILE_YES_USES>, SchemaSet<"file_consents.use">>>,
   Holds<Exactly<Of<typeof FILE_YES_SAID_IN>, SchemaSet<"file_consents.said_in">>>,
-  Holds<Exactly<Of<typeof SUBJECT_LABELS>, SchemaSet<"file_subjects.label">>>,
-  Holds<Exactly<Of<typeof SUBJECT_HOWS>, SchemaSet<"file_subjects.how">>>,
-  Holds<Exactly<Of<typeof SUBJECTS_STATES>, SchemaSet<"files.subjects_state">>>,
   // Where a watched clip's copy at the video platform stands, and why (00654).
   Holds<Exactly<Of<typeof FILE_COPY_STATES>, SchemaSet<"files.copy_state">>>,
   Holds<Exactly<Of<typeof FILE_COPY_WHYS>, SchemaSet<"files.copy_why">>>,

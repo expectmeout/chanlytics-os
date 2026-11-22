@@ -1,9 +1,9 @@
 /**
  * The recheck right before a place is asked anything (the content loop PRD's 6.2, third moment; 00611's recheck): one
  * reading for every place. Whoever approved it may still post for the business; the post was not deleted; everything is
- * not stopped; it still stands as approved (00681 post_as_approved: its words, its bytes, its version); every person in
- * it, or in what it was drawn from, has said yes (00682); and its reason still stands (PRD 6.1). Anything moved holds the
- * post in words and sends nothing. A post whose last moment passed is let go (`pulled`, held_why `late`) and is never
+ * not stopped; it still stands as approved (00681 post_as_approved: its words, its bytes, its version); and its reason
+ * still stands (PRD 6.1). No yes is read, for a person or for a file. Anything moved holds the post in words and sends
+ * nothing. A post whose last moment passed is let go (`pulled`, held_why `late`) and is never
  * sent late, by any road. The business's notes and services are read only where the piece's intent leans on one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -14,7 +14,6 @@ import {
   type AsApproved,
   type PostHeldWhy,
   type PostStatus,
-  type RightsGap,
 } from "@chanlytics/contracts";
 import { evaluate, type PolicyFacts } from "@chanlytics/core";
 import { findFileForWork, mayStillPost, movePost, readPostAsApproved, type PostRow } from "@chanlytics/db/files";
@@ -38,12 +37,6 @@ interface SendBytes {
 }
 
 const holdFor = (held: string, cause: PostHeldWhy): SendHold => ({ held, why: cause });
-
-/** Who has not said yes, as the send's own check answered it. */
-const gapOf = (approved: AsApproved): RightsGap => {
-  if (approved.is !== "rights") return { is: "ok" };
-  return approved.name ? { is: "person", name: approved.name } : { is: "unsure" };
-};
 
 /** The reason's facts as they stand this moment; none for a post that dates nothing and leans on nothing. */
 async function readReasonFacts(db: Db, post: PostRow, approved: AsApproved): Promise<PolicyFacts["reason"]> {
@@ -85,8 +78,8 @@ export async function readSendRecheck(
   const approved = await readPostAsApproved(db, post.id);
   if (approved.is === "changed") return holdFor(ON_INSTAGRAM.held.changed, "changed");
   const reason = await readReasonFacts(db, post, approved);
-  const verdict = evaluate({ rights: { takenBack: false, gap: gapOf(approved) }, ...(reason ? { reason } : {}) });
-  const [first] = verdict.ok ? [] : verdict.refusals;
+  const verdict = reason ? evaluate({ reason }) : null;
+  const [first] = !verdict || verdict.ok ? [] : verdict.refusals;
   if (first) return holdFor(first.words, first.code);
   return { path: approved.is === "stands" ? approved.path : null, made: file.made };
 }

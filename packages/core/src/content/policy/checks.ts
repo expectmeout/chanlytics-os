@@ -32,7 +32,6 @@ import {
   type PostHeldWhy,
   type PostKind,
   type PostPlace,
-  type RightsGap,
 } from "@chanlytics/contracts";
 
 /** One refusal: which check, its code (as the post keeps it when held), and the words with the one thing to do. */
@@ -52,17 +51,6 @@ export function mayAct(actor: { may: boolean; approving: boolean }): PolicyRefus
     "approver",
     actor.approving ? CONTENT_CHECK_WORDS.mayNot : ON_INSTAGRAM.held.approver,
   );
-}
-
-/**
- * Content rights (principle 6: per person, per use): no new use of a file whose yes was taken back and not given again,
- * and none while a person named in it, or in what it was drawn from, has no yes of their own, or nobody is sure who is
- * in it (00682 file_rights_gap).
- */
-export function rightsFor(files: { takenBack: boolean; gap: RightsGap }): PolicyRefusal | null {
-  if (files.takenBack) return refusal("rights", "rights", CONTENT_CHECK_WORDS.takenBack);
-  if (files.gap.is === "ok") return null;
-  return refusal("rights", "rights", CONTENT_CHECK_WORDS.notYetSaid(files.gap.is === "person" ? files.gap.name : null));
 }
 
 /** Claim evidence: words AI wrote are held to what the owner said (the caller's rule); the owner's own words are theirs. */

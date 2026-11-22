@@ -111,9 +111,8 @@ const TABLES = [
   "decisions",
   "escalations",
   "events",
-  // A yes for one use of a file, and who said it (00665); the people an owner named in a file (00682).
+  // A yes for one use of a file, and who said it (00665).
   "file_consents",
-  "file_subjects",
   // A business's files (00551): the rows here, and their bytes in the files bucket below.
   "files",
   "files_let_go",

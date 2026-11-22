@@ -104,8 +104,6 @@ const fileRow = (over = {}) => ({
   updated_at: "2026-11-01T12:00:00Z",
   kind: "image",
   seconds: null,
-  yes_for: [],
-  yes_back: [],
   ...over,
 });
 const postRow = (over = {}) =>
@@ -175,8 +173,7 @@ function world({
       {
         post_approve: doors.approve,
         post_pull: doors.pull,
-        // Who has not said yes (00682), and the words kept as the piece's next version (00681): asked by every press.
-        file_rights_gap: () => ({ is: "ok" }),
+        // The words kept as the piece's next version (00681): asked by every press.
         // As the door has it: every placement still queued, never a story, goes up with the new words.
         piece_words_keep: ({ p_file_id, p_caption }) => {
           const words = p_caption.trim() || null;
@@ -255,8 +252,6 @@ function placementDoors(posts, attempts) {
       return { fate: "pulled" };
     },
     service: {
-      // What a piece was drawn from, read for who is in it (00682): nothing here names a photo's people.
-      files_drawn_from: () => [],
       post_attempt_open: (a) => {
         const row = {
           id: `att-${attempts.length + 1}`,

@@ -1,12 +1,10 @@
 /**
  * Where a made piece stands, as its screens are handed it (piece-standing.tsx reads it once; the phone's viewer, the
- * desk's pane and the list of places draw from it): its lines, its one status, the act that leads, who is in it, and
- * the presses its lines and people offer. A type alone, so the parts that draw it and the hook that reads it lean one way.
+ * desk's pane and the list of places draw from it): its lines, its one status, the act that leads, and the presses
+ * its lines offer. A type alone, so the parts that draw it and the hook that reads it lean one way.
  */
 import type { ReactNode } from "react";
-import type { PiecePeopleDto, PiecePersonDto } from "@chanlytics/contracts";
 import type { GoesPresses } from "../viewer/goes";
-import type { WhoPresses } from "../viewer/people";
 import type { GoesLine, goesPillOf } from "./goes";
 import type { ViewerClock } from "./viewer-line";
 
@@ -24,16 +22,9 @@ export interface PieceStanding {
   /** A take-down is under way or waits for the owner: nothing leads with a new post meanwhile. */
   holdsLead: boolean;
   goes: GoesPresses;
-  who: WhoPresses;
-  people: PiecePeopleDto | null;
-  /** How many people the look counted in the file, where it counted any. */
-  seen: number | null;
   clock: ViewerClock & { zone: string };
   /** Take down, where something of it is up and this person may: opens its card. Null where it is not offered. */
   takeDown: (() => void) | null;
-  /** The person an ad waits for, and the ask that names ads too (Run as an ad's reason). */
-  askForAds: () => PiecePersonDto | null;
-  askPersonForAds: (person: PiecePersonDto) => void;
-  /** The two sheets a piece opens over itself: the ask a person is sent, and Take down's card. */
+  /** The sheet a piece opens over itself: Take down's card. */
   sheets: ReactNode;
 }

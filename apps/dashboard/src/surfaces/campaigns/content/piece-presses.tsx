@@ -22,7 +22,6 @@ import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post-v
 import { fileVerbs, postDoors, type FileChange } from "../../files/verbs";
 import type { PieceStanding } from "./model/standing";
 import { PostBoth, PostBothActs, usePostBoth, type PlaceDoors } from "./post-both";
-import { WhoIsInIt } from "./viewer/people";
 import { VideoAgain, VideoAgainActs, useVideoAgain } from "./video-again";
 import { pieceStandsAt, pieceTakesOf, type PieceTakes } from "./model/piece-open";
 import type { PieceOffers, PieceWont } from "./model/places";
@@ -321,7 +320,7 @@ type PieceDrafts = ReturnType<typeof usePieceDrafts>;
  * looks is Ask's) and a video's words end on the one line to Ask, which lets the draft go as it asks. `doors` are the doors
  * to a post that is up at a place (see it, take it down), drawn under that place in the composer's list; `facts` the piece's
  * own (its caption typed in place, what it was made from), under the list, so the list and its words are one sheet;
- * `standing` its placements' lines over the list and who is in it under it (piece-standing.tsx).
+ * `standing` its placements' lines over the list (piece-standing.tsx).
  */
 export function draftBody(
   drafts: PieceDrafts,
@@ -347,15 +346,6 @@ export function draftBody(
     return (
       <>
         <PostBoth both={drafts.both} doors={doors} standing={standing} />
-        {standing ? (
-          <WhoIsInIt
-            people={standing.people}
-            seen={standing.seen}
-            use="post"
-            clock={standing.clock}
-            on={standing.who}
-          />
-        ) : null}
         {facts}
       </>
     );

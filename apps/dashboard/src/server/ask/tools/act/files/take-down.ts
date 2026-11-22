@@ -9,7 +9,7 @@ import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 
 /**
- * A made piece taken down, asked of AI (00683; the content loop PRD's 8.3 and 12.1 act/take_down). The act never acts: it
+ * A made piece taken down, asked of AI (00682; the content loop PRD's 8.3 and 12.1 act/take_down). The act never acts: it
  * finds the piece, reads where it is up, and makes the card, which says what each place will be asked before the press,
  * as the piece's own Take down does. The press goes through the same door (DELETE files/[id]/posts): each place is asked,
  * and a post is down only once its place said so. Refused in a sentence where nothing of it is up or waiting.

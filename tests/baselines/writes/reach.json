@@ -1,7 +1,7 @@
 {
-  "rows": 188,
+  "rows": 186,
   "same": 10,
-  "differ": 178,
+  "differ": 176,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -374,19 +374,6 @@
       "tells": "files · notifications",
       "missing": {
         "notifications": "every page"
-      }
-    },
-    "PATCH files/[id]/people": {
-      "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · file_consents INSERT UPDATE · file_subjects UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE · source_items UPDATE",
-      "tells": "ad_accounts · ads · files · notifications",
-      "missing": {
-        "conversations": "conversations, inbox",
-        "inbox": "inbox",
-        "notifications": "every page",
-        "person": "clients/person",
-        "reports_people": "reports/people",
-        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
       }
     },
     "PATCH files/[id]/posts": {
@@ -1306,14 +1293,6 @@
       "tells": "files · notifications",
       "doors": "tenant_channels",
       "missing": {
-        "notifications": "every page"
-      }
-    },
-    "POST files/[id]/people": {
-      "changes": "file_subjects DELETE INSERT · files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
-      "tells": "files · notifications",
-      "missing": {
-        "calendar_runs": "calendar",
         "notifications": "every page"
       }
     },

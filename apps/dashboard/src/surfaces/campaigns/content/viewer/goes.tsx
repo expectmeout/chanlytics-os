@@ -1,18 +1,12 @@
 /**
  * Where it goes, a line a placement (the journey canvas, board Piece, cells 11 to 24; the content loop PRD's 8.2 and
  * 21.3): each place and kind the piece has a post at, where it stands there, and the one thing to do. What each line says
- * and offers is contracts' (content/goes.ts goesLinesOf), read from the piece's posts, the people in it and its take-down;
+ * and offers is contracts' (content/goes.ts goesLinesOf), read from the piece's posts and its take-down;
  * this draws it, and hands each press to the pane. A place that can still take a post keeps its switch in the list under
  * these (post-both-places.tsx). One thing moves: the ring of a line that mends itself.
  */
 import { useId } from "react";
-import {
-  CONNECTIONS_PAGE,
-  PIECE_PEOPLE_WORDS,
-  TAKE_DOWN_WORDS,
-  type PiecePersonDto,
-  type PostPlace,
-} from "@chanlytics/contracts";
+import { CONNECTIONS_PAGE, TAKE_DOWN_WORDS, type PostPlace } from "@chanlytics/contracts";
 import { GOES_WORDS, type GoesAct, type GoesLine } from "../model/goes";
 import { askAbout, routeDoor } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
@@ -31,8 +25,6 @@ export interface GoesPresses {
   move: (postId: string) => void;
   /** Don't post, Leave it out, Dismiss: the post is let go. */
   pull: (postId: string) => void;
-  /** Ask a person for their yes: the ask sheet. */
-  askPerson: (person: PiecePersonDto) => void;
   /** Look again, Try again: the places it can go, to approve it there once more. */
   approve: () => void;
   /** Change the words, Shorten it: the caption, where it is typed. */
@@ -83,8 +75,6 @@ function GoesActPress({ act, lead, on, at }: { act: GoesAct; lead: boolean; on: 
     return <GoesPress words={act.says} href={act.href} lead={lead} busy={false} testid={`cnv-goes-open-${at}`} />;
   if (act.is === "move") return press(GOES_WORDS.changeTime, () => on.move(act.postId), "move");
   if (act.is === "pull") return press(act.says, () => on.pull(act.postId), "pull");
-  if (act.is === "ask_person")
-    return press(PIECE_PEOPLE_WORDS.ask(act.person.name), () => on.askPerson(act.person), "ask");
   if (act.is === "tell_ai")
     return press(act.says, () => askAbout({ about: on.about, prompt: act.prompt, fresh: true }), "tell");
   if (act.is === "approve") return press(act.says, on.approve, "approve");
@@ -144,7 +134,7 @@ export function WhereItGoes({ lines, on }: { lines: readonly GoesLine[]; on: Goe
   const titleId = useId();
   if (lines.length === 0) return null;
   return (
-    <section className="cnv-who" aria-labelledby={titleId} data-testid="cnv-goes">
+    <section className="cnv-goes-part" aria-labelledby={titleId} data-testid="cnv-goes">
       <h3 className="cnv-sect" id={titleId}>
         {GOES_WORDS.title}
       </h3>

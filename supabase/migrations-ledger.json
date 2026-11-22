@@ -683,8 +683,7 @@
     "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571",
     "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
     "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75",
-    "00681_a_post_goes_up_on_the_new_records.sql": "d7eeb89bef3fe98cf023d37f343472b97766c8136308a5b66895afe4c6f6b56a",
-    "00682_a_person_in_a_file_says_yes.sql": "f09a6bbc9efad3d318262703a4c625a56c2f3d746186872cf56f7e5328e35ae2",
-    "00683_a_post_comes_down.sql": "f08670ca42c807b0428fd08f9bd48afc279076e88f94ca99ad0b86193eb955b0"
+    "00681_a_post_goes_up_on_the_new_records.sql": "6e273bfa90b2fa00a159b5ff7e19e271372931c9e7d07ff4cf331d6c8b65f091",
+    "00682_a_post_comes_down.sql": "536ca03032d26ad77155eaa7cc9a582d79b806f59f2cfd9bf38f61cf76c46f3c"
   }
 }

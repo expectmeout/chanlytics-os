@@ -1,5 +1,5 @@
 /**
- * post_take_down (00683; the content loop PRD's 5.3 and 8.3): one remediation action asked of its place, through the
+ * post_take_down (00682; the content loop PRD's 5.3 and 8.3): one remediation action asked of its place, through the
  * place's adapter, and what the place said kept by the action's own door. A post is taken down only when its place said
  * so. A place that cannot be asked, or that refuses, leaves the step to the owner in words (needs_person), with the
  * place's own link on the piece; a place that gives no answer is asked again, further apart each time, for a day, and
