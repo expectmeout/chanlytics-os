@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { A, consultForm, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
-import { requestCodeOf } from "@chanlytics/contracts";
+import { formTestPath, requestCodeOf } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -247,22 +247,27 @@ test("the sixth from one sender in ten minutes is held, not refused", async () =
   );
 });
 
-test("a test is its owner's alone: it tells nobody and has no person; anyone else's is a real request", async () => {
-  const member = async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: async () => ({
-            data: [{ tenant_id: A, role: "owner", tenants: { slug: "luma-salon" } }],
-            error: null,
-          }),
+/** The salon's owner, signed in: the session's client answers their one membership. */
+const member = async () => ({
+  auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        order: async () => ({
+          data: [{ tenant_id: A, role: "owner", tenants: { slug: "luma-salon" } }],
+          error: null,
         }),
       }),
     }),
-  });
+  }),
+});
+
+test("a test is its owner's alone: it tells nobody and has no person; anyone else's is a real request", async () => {
   const { tables } = world();
-  const drawn = await drawFormPage("luma-salon", "colour-consultation", new Request(`${ADDRESS}?test=1`), member);
+  // The address the Share part's Test opens (contracts' formTestPath), on the app's own site.
+  const testAddress = `https://app.chanlytics.com${formTestPath("luma-salon", "colour-consultation")}`;
+  assert.equal(testAddress, `${ADDRESS}?test=1`);
+  const drawn = await drawFormPage("luma-salon", "colour-consultation", new Request(testAddress), member);
   const page = await drawn.text();
   assert.match(page, /<p class="test"><b>A test\.<\/b> It tells nobody and counts nowhere\.<\/p>/);
   assert.match(page, /action="\/b\/luma-salon\/colour-consultation\?test=1"/);
@@ -281,6 +286,84 @@ test("a test is its owner's alone: it tells nobody and has no person; anyone els
   assert.equal(tables.form_entries[1].test, false);
   assert.equal(tables.events.length, 1);
   assert.equal((await get("?test=1").then((r) => r.text())).includes('class="test"'), false);
+});
+
+test("another request goes through the same link, and an owner's second test is still a test", async () => {
+  const { tables } = world();
+  const another = (html) => /<a class="more" href="([^"]+)">/.exec(html)?.[1].replaceAll("&amp;", "&");
+  const ago = { t: String(Date.now() - 10_000) };
+
+  // Opened through the link: the press for another request carries its code, and the form it opens carries it on.
+  const first = carriedOf(await get("?l=k7q2md").then((r) => r.text()));
+  const thanked = await send(ANA, { carried: { ...first, ...ago } }).then((r) => r.text());
+  assert.equal(another(thanked), "/b/luma-salon/colour-consultation?again=1&l=k7q2md");
+  const second = carriedOf(await get("?again=1&l=k7q2md").then((r) => r.text()));
+  assert.equal(second.l, "k7q2md");
+  await send({ ...ANA, "a.f2mail": "ana.two@example.com" }, { carried: { ...second, ...ago } });
+  assert.deepEqual(
+    tables.form_entries.map((e) => e.link_id),
+    [LINK, LINK],
+    "both requests name the place they came through",
+  );
+
+  // Its owner's test: the press keeps the mark, so the next one is a test too.
+  const tested = await send(ANA, { carried: { entry_id: "e-test" }, query: "?test=1", session: member });
+  assert.equal(another(await tested.text()), "/b/luma-salon/colour-consultation?again=1&test=1");
+  const marked = await drawFormPage(
+    "luma-salon",
+    "colour-consultation",
+    new Request(`${ADDRESS}?again=1&test=1`),
+    member,
+  );
+  assert.ok(
+    (await marked.text()).includes('<p class="test"><b>A test.</b>'),
+    "the form that press opens is still marked a test",
+  );
+
+  // Neither: the form's bare address, as before.
+  const plain = await send({ ...ANA, "a.f2mail": "ana.three@example.com" }, { carried: { entry_id: "e-plain" } });
+  assert.equal(another(await plain.text()), "/b/luma-salon/colour-consultation?again=1");
+});
+
+test("the business's own page is linked only where it opens: a record too thin to publish it gets no dead link", async () => {
+  // The salon's record names no street and no city, so /b/luma-salon is Not found (contracts' publishesBusinessPage).
+  world();
+  const thin = await get().then((r) => r.text());
+  assert.ok(thin.includes("<footer><span>Luma Salon</span></footer>"), "the form's foot names the business alone");
+  assert.equal(thin.includes('href="/b/luma-salon"'), false);
+  world({ state: "off" });
+  const closedThin = await get().then((r) => r.text());
+  assert.ok(
+    closedThin.includes('<div class="card"><b>Luma Salon</b><br>Hair colour, cuts and treatments</div>'),
+    "the closed page says who they are with no link",
+  );
+  assert.equal(closedThin.includes('href="/b/luma-salon"'), false);
+  // With no page and nothing said of what they do, there is no card: the page has named them already.
+  world({ state: "off", more: { business_records: [{ tenant_id: A, trade_name: "Luma Salon", country: "US" }] } });
+  assert.equal((await get().then((r) => r.text())).includes('class="card"'), false);
+
+  // A record that says who the business is and where: its page opens, and both link to it.
+  const record = {
+    tenant_id: A,
+    trade_name: "Luma Salon",
+    legal_name: "Luma Salon LLC",
+    street: "12 Example Street",
+    city: "Miami",
+    country: "US",
+    about: "Hair colour, cuts and treatments",
+  };
+  world({ more: { business_records: [record] } });
+  const linked = await get().then((r) => r.text());
+  assert.ok(
+    linked.includes('<footer><span>Luma Salon</span><a href="/b/luma-salon">Privacy and terms</a></footer>'),
+    "the form's foot links the page that opens",
+  );
+  world({ state: "off", more: { business_records: [record] } });
+  const closedLinked = await get().then((r) => r.text());
+  assert.ok(
+    closedLinked.includes('<div class="card"><b><a href="/b/luma-salon">Luma Salon</a></b>'),
+    "and so does the closed page",
+  );
 });
 
 test("a form that is off says it is closed, with a way to message the business; a draft's address opens nothing", async () => {

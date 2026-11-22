@@ -126,8 +126,8 @@ function styleOf(look: Pick<LinkPageLook, "accent">): string {
 export interface FormPageFrame {
   look: LinkPageLook;
   business: string;
-  /** The business's own page, which holds who they are and their terms. */
-  businessHref: string;
+  /** The business's own page, which holds who they are and their terms; null where it has none to open. */
+  businessHref: string | null;
   lang: string;
   heading: string;
   intro: string | null;
@@ -149,7 +149,9 @@ export function formDocument(frame: FormPageFrame, main: string): string {
 <style>${styleOf(frame.look)}</style></head><body>${
     frame.test ? `<p class="test"><b>A test.</b> It tells nobody and counts nowhere.</p>` : ""
   }<main>${main}</main>
-<footer><span>${escapeHtml(frame.business)}</span><a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.words.privacy)}</a></footer>
+<footer><span>${escapeHtml(frame.business)}</span>${
+    frame.businessHref ? `<a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.words.privacy)}</a>` : ""
+  }</footer>
 <script>${FORM_SCRIPT}</script></body></html>`;
 }
 
@@ -274,8 +276,8 @@ interface ThanksShown {
   phoneOnly: string | null;
   /** The address that opens the chat with their message ready, where the business has the chat and the form offers it. */
   chatHref: string | null;
-  /** The form's own address, for another request. */
-  formHref: string;
+  /** The address that opens the form for another request: through the same link, and a test where this one was. */
+  againHref: string;
 }
 
 /** The lines under the thank-you's heading: how they will be answered, by what they gave. */
@@ -317,7 +319,7 @@ export function thanksMain(frame: FormPageFrame, thanks: ThanksShown): string {
   const mark = businessMarkOf(frame.look, frame.business);
   const again = `${mark}<div class="done"><div class="tick">${TICK}</div><h1>${escapeHtml(words.sent_already)}</h1><p class="lead">${escapeHtml(
     fillWords(words.sent_lead, { business: frame.business }),
-  )}</p></div>${chat}<a class="more" href="${escapeHtml(thanks.formHref)}?again=1">${escapeHtml(words.send_another)}</a>`;
+  )}</p></div>${chat}<a class="more" href="${escapeHtml(thanks.againHref)}">${escapeHtml(words.send_another)}</a>`;
   return `${mark}<div class="done"><div class="tick">${TICK}</div><h1>${escapeHtml(head)}</h1><p class="lead">${road.lead}</p></div>${chat}${sub}<template data-again>${again}</template>`;
 }
 
@@ -328,9 +330,16 @@ export function closedMain(frame: FormPageFrame, chatHref: string | null, about:
   const chat = chatHref
     ? `<a class="go wa" href="${escapeHtml(chatHref)}" rel="noopener">${escapeHtml(fillWords(words.message_business, business))}</a>`
     : "";
+  // Who they are: their own page where it opens, and what they do where they said. With neither, the page has named
+  // them already, and a card would only say the name again.
+  const named = frame.businessHref
+    ? `<a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.business)}</a>`
+    : escapeHtml(frame.business);
+  const card =
+    frame.businessHref || about
+      ? `<div class="card"><b>${named}</b>${about ? `<br>${escapeHtml(about)}` : ""}</div>`
+      : "";
   return `${businessMarkOf(frame.look, frame.business)}<div class="done"><div class="tick">${SHUT}</div><h1>${escapeHtml(words.closed)}</h1><p class="lead">${escapeHtml(
     fillWords(words.closed_lead, business),
-  )}</p></div>${chat}<div class="card"><b><a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.business)}</a></b>${
-    about ? `<br>${escapeHtml(about)}` : ""
-  }</div>`;
+  )}</p></div>${chat}${card}`;
 }

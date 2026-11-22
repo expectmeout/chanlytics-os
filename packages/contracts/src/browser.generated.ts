@@ -338,7 +338,7 @@ export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS,
 export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesCountedOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
 export { FILE_YES_ASK, fileAdRightsOf, fileUseMay, fileUseOf, fileYesReceiptOf, fileYesSaidOf, fileYesTitleOf, fileYesUsesIn } from "./files/yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
-export { FORM_PARTS, FORMS_ROUTE, formsPlaceOf, formsRouteOf, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
+export { FORM_PARTS, formPagePath, FORMS_ROUTE, formsPlaceOf, formsRouteOf, formTestPath, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
 export { emailTypoFix } from "./forms/email-typo";
 export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS } from "./forms/limits";
 export { requestLines, throughPlace } from "./forms/request-words";
