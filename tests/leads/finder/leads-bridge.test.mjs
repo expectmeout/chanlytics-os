@@ -81,6 +81,7 @@ const {
   undoLeadOperation,
   warmLeadsView,
 } = await import("../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { keepLastOrder, lastOrderOf } = await import("../../../apps/dashboard/src/surfaces/leads/last-order.ts");
 const { exportLeadsFile } = await import("../../../apps/dashboard/src/surfaces/leads/export-walk.ts");
 const { leadsOverride } = await import("../../../apps/dashboard/src/surfaces/leads/override.ts");
 const { surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -1291,4 +1292,68 @@ test("the month's standing rides the surface, from the first page's own answer",
     { used: 263, left: 237, renewsOn: "Oct 1" },
     "what was last known, never a number the page made up",
   );
+});
+
+// Ruben's phone, 22 Nov 2026 (a screen recording read frame by frame): a refresh on People, then the Leads tab. The list
+// came in dimmed in the queue's order, stood 2.3 s, and was replaced by the same leads in his own order. The boot had read
+// Leads in the queue's order, the page asked in his, held nothing under that key and read the first page again under the
+// boot's rows. Nothing told the boot his order: the tab's cache keeps only what the frame's own reads publish, so the
+// snapshot handed the boot its own last order back. (The boot itself, in a module of its own: table/lead-boot-order.test.mjs.)
+test("REGRESSION: the view a boot reads is in the order the page last asked for on this device, over the snapshot's", () => {
+  const queue = { view: { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" } };
+  assert.deepEqual(
+    leadsBootView("clients", queue, { sort: "contacted", dir: "desc" }),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "contacted", dir: "desc" },
+    "REGRESSION: the boot read the queue again, which the page then did not ask for",
+  );
+  assert.deepEqual(
+    leadsBootView(`clients/leads:s-${SEARCH_ID}`, null, { sort: "rating", dir: "asc" }),
+    { searchId: SEARCH_ID, list: "all", cls: null, chips: {}, sort: "rating", dir: "asc" },
+    "the address's view, in that order",
+  );
+  assert.deepEqual(
+    leadsBootView("clients", queue, null),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" },
+    "a device the page has asked nothing on: the snapshot's order, as it was",
+  );
+  assert.deepEqual(
+    leadsBootView("clients", null, { sort: "pile", dir: "sideways" }),
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" },
+    "an order no view has is never sent",
+  );
+});
+
+test("the order the page asks in is kept on this device for the next load's boot, each workspace's apart", async () => {
+  wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: PAGE1 });
+  const ask = { searchId: null, list: "all", cls: null, chips: {}, q: "" };
+  await leadsView({ ...ask, sort: "rating", dir: "desc", pileList: null });
+  assert.deepEqual(lastOrderOf("harbor"), { sort: "rating", dir: "desc" }, "what the page asked, as it asked");
+  assert.equal(lastOrderOf("another-workspace"), null, "another workspace's Leads was never asked for here");
+  // The slot outlives a sign-out, as a saved view's copy does: it spells nobody's workspace, so it lists no one's clients.
+  assert.equal(
+    globalThis.localStorage.getItem("chanlytics-leads-order").includes("harbor"),
+    false,
+    "the workspace is kept as a word made from its name, never the name",
+  );
+  // A pass of the pile reads in the pile's own order, which no view opens in.
+  await leadsView({ ...ask, sort: "pile", dir: "asc", pileList: "a-list" });
+  assert.deepEqual(lastOrderOf("harbor"), { sort: "rating", dir: "desc" }, "the pile's order is no view's");
+  await leadsView({ ...ask, sort: "stage", dir: "asc", pileList: null });
+  assert.deepEqual(lastOrderOf("harbor"), { sort: "stage", dir: "asc" }, "the order asked last");
+});
+
+test("a device keeps the orders of the last twenty workspaces it asked in, and a slot it cannot read is nothing kept", () => {
+  // A partner walks many workspaces on one device: Harbor's, kept above, then twenty-one more.
+  for (let n = 1; n <= 21; n += 1) keepLastOrder(`partner-${n}`, { sort: "found", dir: "desc" });
+  assert.deepEqual(
+    [lastOrderOf("harbor"), lastOrderOf("partner-1")],
+    [null, null],
+    "the two asked in longest ago went",
+  );
+  assert.deepEqual(lastOrderOf("partner-2"), { sort: "found", dir: "desc" }, "the twentieth back is kept");
+  assert.deepEqual(lastOrderOf("partner-21"), { sort: "found", dir: "desc" }, "and the newest");
+  globalThis.localStorage.setItem("chanlytics-leads-order", "{ not what was written");
+  assert.equal(lastOrderOf("partner-21"), null, "a slot that does not parse says nothing");
+  keepLastOrder("partner-21", { sort: "city", dir: "asc" });
+  assert.deepEqual(lastOrderOf("partner-21"), { sort: "city", dir: "asc" }, "and the next ask is kept over it");
 });

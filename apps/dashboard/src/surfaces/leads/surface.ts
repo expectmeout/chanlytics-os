@@ -14,7 +14,6 @@
  * found first, where they append after what is already read.
  */
 import {
-  LEAD_VIEW_SORTS,
   MIN_MS,
   leadsRoute,
   parseLeadsRoute,
@@ -28,7 +27,6 @@ import {
   type LeadRowDto,
   type LeadSearchDto,
   type LeadSearchPlan,
-  type LeadSort,
   type LeadStageInput,
   type LeadSuggestionsDto,
   type LeadsBulkInput,
@@ -45,6 +43,7 @@ import { leadCall } from "./call";
 export type { LeadsSurface } from "./surface-types";
 import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
 import type { DraftData } from "./peek/types";
+import { keepLastOrder, lastOrderOf, viewOrderOf, type LeadViewOrder } from "./last-order";
 import { keptRows, leadRowsOf } from "./row-memo";
 import { oneOut } from "./one-out";
 import { queryOf } from "./view-query";
@@ -265,24 +264,25 @@ export async function warmLeadsView(to: string): Promise<void> {
 }
 
 /**
- * The view a cold boot reads: the one the address names (all leads, off the page), in the order this tab last read,
- * which the surface cache put back before anything mounted -- the view the page asks for as it mounts, so the two
- * are one read. The bridge started from its own default instead, so a refresh on a search's Needs review read all
- * 500 leads first and drew them over the restored rows of the view on screen. An order the server does not know is
- * never sent; the lead open over a view is no part of it.
+ * The view a cold boot reads: the one the address names (all leads, off the page), in the order the page last asked for
+ * on this device (`last`, last-order.ts) -- the view the page asks for as it mounts, so the two are one read. The bridge
+ * started from its own default instead, so a refresh on a search's Needs review read all 500 leads first and drew them
+ * over the restored rows of the view on screen. Where the page has asked for none here, the order the surface cache put
+ * back; it was the only order looked at, and it is the boot's own, since the cache keeps what the frame's reads publish
+ * and never the page's: a member in an order of their own had the queue read at every load, and Leads opened on those
+ * rows dimmed while the page read its own (22 Nov 2026). An order no view has is never sent; the lead open over a view is
+ * no part of it.
  */
-export function leadsBootView(route: string, restored: unknown): LeadsView {
+export function leadsBootView(route: string, restored: unknown, last: LeadViewOrder | null = null): LeadsView {
   const parsed = parseLeadsRoute(route || "");
   const was = (restored as { view?: { sort?: unknown; dir?: unknown } } | null | undefined)?.view;
-  const known =
-    !!was &&
-    typeof was === "object" &&
-    (LEAD_VIEW_SORTS as readonly unknown[]).includes(was.sort) &&
-    (was.dir === "asc" || was.dir === "desc");
+  const order =
+    (last && viewOrderOf(last.sort, last.dir)) ??
+    (was && typeof was === "object" ? viewOrderOf(was.sort, was.dir) : null);
   return {
     ...DEFAULT_VIEW,
     ...(parsed ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips } : {}),
-    ...(known ? { sort: was.sort as LeadSort, dir: was.dir as "asc" | "desc" } : {}),
+    ...order,
   };
 }
 
@@ -327,7 +327,8 @@ export async function applyLeads(): Promise<void> {
   // again when it is shown (staleView). The view on screen is read here.
   leadsChangeCount += 1;
   try {
-    if (!leadsLoaded) view = leadsBootView(routeOnScreen(), surfaceValue("leads"));
+    if (!leadsLoaded)
+      view = leadsBootView(routeOnScreen(), surfaceValue("leads"), lastOrderOf(getActiveWorkspace() ?? ""));
     await (leadsLoaded ? refreshView() : readView(view));
   } catch (e) {
     publishLeads(true);
@@ -349,6 +350,8 @@ export async function leadsView(to: string | Partial<LeadsView>): Promise<void> 
         dir: view.dir,
       }
     : { ...view, ...(to as Partial<LeadsView>) };
+  // The order the page asks in, kept for the next load's boot to read in (last-order.ts): the pile's own is no view's.
+  keepLastOrder(getActiveWorkspace() ?? "", view);
   await readView(view);
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
