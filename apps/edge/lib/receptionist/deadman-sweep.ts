@@ -2,7 +2,7 @@
  * The deadman sweep: an escalation nobody picked up, a message nobody answered, a reply nothing was sending.
  *
  * The route is api/cron/deadman.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks
- * the sweep key, then hands this its tick, so nothing below runs for a knock without the key.
+ * the sweep key, then hands runDeadmanTick its tick, so nothing below runs for a knock without the key.
  *
  * An escalation opens, the owner gets one email, and if that email is missed the conversation sits open indefinitely
  * with nothing to raise its hand. A customer waiting on a human is the one failure this product cannot be relaxed
@@ -36,6 +36,9 @@
  *      its escalation is left unstamped, so it is raised the moment somebody is on file; the platform hears of it
  *      through pageOperator (deadman_unaddressable:<tenant>, one page per workspace per pager window), which is not
  *      one email per tick.
+ *   5. keepRequestsOnTheClock (lib/receptionist/request-clock.ts), last and on its own (booking_request_clock_failed) and
+ *      inside its own line: a time a customer asked for that is two hours from running out nudges its owner once, and
+ *      one that ran out is handed to the ledger, where its job tells the customer (decision 0061, as amended).
  *
  * The DETECTION is a SQL sweep, so it notices an abandoned conversation regardless of which code path abandoned it,
  * including paths written later. The ALERT is here, because addressing a tenant correctly is real logic -- one
@@ -59,6 +62,7 @@ import { upsertEscalation } from "@chanlytics/jobs";
 import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "./stranded-runs.js";
 import { letQuietCallBacksGo } from "./quiet-call-backs.js";
+import { keepRequestsOnTheClock, lapseJobFor } from "./request-clock.js";
 import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
@@ -100,7 +104,24 @@ const WARN_BUDGET_MS = 35_000;
 /** And a page for a workspace nobody can be told about, after the last warning's mail; a page stamps when it sends. */
 const PAGE_BUDGET_MS = WARN_BUDGET_MS + NOTIFY_TIMEOUT_MS;
 
-export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Response> {
+export async function runDeadmanTick(tick: SweepTick): Promise<Response> {
+  const answer = await sweepDeadman(tick);
+  // A time a customer asked for has a clock (receptionist/request-clock.ts): last and on its own, so it never costs the
+  // watchdog above its tick, and inside its own line. The door's answer keeps its shape.
+  await keepRequestsOnTheClock({
+    db: tick.db,
+    L: tick.L,
+    started: tick.started,
+    notifyOnce,
+    loadTenantNotifications,
+    reachesTenant,
+    handToTheLedger: lapseJobFor(tick.db),
+  });
+  return answer;
+}
+
+/** The watchdog's own tick: parts 1 to 4 of the header. */
+async function sweepDeadman({ db, L, started }: SweepTick): Promise<Response> {
   // A customer's message the handler never finished with, and a queued reply
   // nothing is sending: accepted means recoverable, and until now neither had
   // anything to raise its hand (lib/unfinished.ts). Asked first and on its

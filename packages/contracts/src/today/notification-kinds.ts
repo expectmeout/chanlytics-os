@@ -62,6 +62,8 @@ const NOTIFICATION_DELIVERY = {
   member_joined: "bell",
   // A teammate who left: the same, the other way (00437).
   member_left: "bell",
+  // A time asked for that ran out, and AI told the customer (decision 0061): news, a line on the bell and no more.
+  booking_lapsed: "bell",
   // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
   note_to_keep: "bell",
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
@@ -385,6 +387,7 @@ export const BELL_LINE_KINDS = [
   "booking",
   "member_joined",
   "member_left",
+  "booking_lapsed",
   "note_to_keep",
   "ask_cards",
   "files_waiting",

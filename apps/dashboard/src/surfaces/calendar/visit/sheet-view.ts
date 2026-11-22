@@ -333,9 +333,11 @@ function footnoteOf(visitSheetInput: VisitSheetInput, nobody: boolean): string {
   if (block.request)
     return block.request.open
       ? BOOKING_REQUEST_WORDS.foot
-      : block.visit?.status === "cancelled"
-        ? BOOKING_REQUEST_WORDS.footCant
-        : BOOKING_REQUEST_WORDS.footBooked;
+      : block.request.lapsed
+        ? BOOKING_REQUEST_WORDS.footLapsed
+        : block.visit?.status === "cancelled"
+          ? BOOKING_REQUEST_WORDS.footCant
+          : BOOKING_REQUEST_WORDS.footBooked;
   const status = block.visit?.status;
   if (block.tool) {
     if (status === "proposed") return SHEET_WORDS.foot.requested(block.tool);

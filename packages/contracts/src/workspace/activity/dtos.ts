@@ -204,6 +204,7 @@ export const WORDS: Record<string, string> = {
   "appointment.booked": "A booking arrived by email",
   "appointment.moved": "A booking was changed by email",
   "appointment.cancelled": "A booking was cancelled by email",
+  "appointment.lapsed": "A time a customer asked for wasn't confirmed in time",
   "conversation.owner_replied": "The owner replied from the WhatsApp Business app, and AI stepped back",
   "billing.payment_failed": "A payment did not go through",
   "billing.paid": "A payment went through",

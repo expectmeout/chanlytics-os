@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 197 | 197 |
 | reader | 89 | 0 |
-| the server's | 421 | 353 |
+| the server's | 424 | 356 |
 | computed column | 3 | 0 |
 | trigger | 116 | 85 |
-| all | 826 | 635 |
+| all | 829 | 638 |
 
 ## Called by nothing
 
@@ -120,7 +120,10 @@ being read is dropped by a migration.
 | `billing_event_keep_amount` | the server's | the server | code `packages/db/src/repositories/billing/events.ts` | Keeps what an invoice event moved on its ledger row (K8), once: |
 | `billing_may_spend` | the server's | the server | SQL `lead_spend_refusal` | Whether this workspace may spend on the finder: |
 | `booking_request_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/calendar/booking-requests.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts` | The owner answers a booking the receptionist asked for (00443, decision 0061): |
+| `booking_request_lapse` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/lapses.ts` | A request AI took that ran out with no answer, closed (00679, decision 0061 as amended), in one transaction under its row's lock: |
+| `booking_request_nudged` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/lapses.ts` | Stamps that a request's owner was nudged it is about to run out (00679): |
 | `booking_request_open` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/rows.ts` | A booking the receptionist asks for (00443, decision 0061): |
+| `booking_requests_due` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/lapses.ts` | What the request clock is due to act on (00679, decision 0061): |
 | `calendar_grant_note` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | The calendar read through a connected mailbox (decision 0073, R20): |
 | `calendars_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out` | The workspaces with a calendar to read (a feed's link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each |
 | `calendars_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). |
@@ -204,7 +207,7 @@ being read is dropped by a migration.
 | `erasure_rekey` | the server's | the server | script `tooling/scripts/ops/erasure-rekey.mjs` |  |
 | `erasure_rekey_hashes` | the server's | the server | SQL `erasure_rekey` |  |
 | `escalation_closes_its_notices` | trigger | the server | trigger `escalation_closes_its_notices on escalations` | Closes the open handoff, deadman and call rows about a hold's thread when the hold goes open -> resolved, whoever resolves it (00421, through notifications_close_about); |
-| `escalation_open` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `booking_request_answer`, `booking_request_open` and 1 more | The one door a thread is handed to a person by (00388): |
+| `escalation_open` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `booking_request_answer`, `booking_request_lapse` and 2 more | The one door a thread is handed to a person by (00388): |
 | `escalations_guard` | trigger | a signed-in person, the server | trigger `escalations_guard on escalations` | open -> resolved, once. |
 | `escalations_note_change` | trigger | the server | trigger `escalations_note_change on escalations` | Writes escalation.changed { from, to } when a reason replaces another on an escalation (K4). |
 | `escalations_stamp_resolved` | trigger | a signed-in person, the server | trigger `escalations_stamp_resolved on escalations` | Stamps resolved_at once, when state goes from open to resolved, whoever writes it (K4). |
@@ -618,7 +621,7 @@ being read is dropped by a migration.
 | `put_google_credentials` | the server's | the server | code `packages/db/src/repositories/google/connection.ts` | Service-role only: stores a workspace's Google token in Vault under google-creds-<workspace> and points credentials_ref at it. |
 | `put_line_credentials` | the server's | the server | code `packages/db/src/repositories/lines/credentials.ts` | Service-role only: merges a line's provider secrets into Vault under line-creds-<line id>. |
 | `put_mailbox_credentials` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only: stores a connected mailbox's token in Vault under mailbox-creds-<id> and points credentials_ref at it. |
-| `queue_send` | the server's | the server | code `packages/db/src/repositories/jobs/jobs.ts` | A queued reply and its outbound_send job, written together or not at all (00527): |
+| `queue_send` | the server's | the server | code `packages/db/src/repositories/jobs/jobs.ts`; SQL `booking_request_lapse` | A queued reply and its outbound_send job, written together or not at all (00527): |
 | `reach_out_add` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/leads/search.ts` and 2 more; SQL `sequence_move` | An acting member adds leads (1 to lead_cap('list_rows')) to a list-fed reach-out (00426): |
 | `reach_out_again_count` | the server's | the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Who a sequence to leads would try again after p_days, and from when (00608, decision 0120): |
 | `reach_out_again_set` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Try again after p_days, or never (null) (00608, decision 0120): |

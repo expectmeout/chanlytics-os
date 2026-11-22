@@ -53,6 +53,7 @@ import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob, scheduleJobOnce } from "./schedule";
 import { settlePostJob } from "./settle-post";
+import { closeForAPerson } from "./settle-request";
 import type { TenantId } from "@chanlytics/contracts";
 
 export interface TerminalJob {
@@ -65,7 +66,18 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "file" | "draft" | "post";
+  what:
+    | "message"
+    | "broadcast"
+    | "email"
+    | "preview"
+    | "import"
+    | "notice"
+    | "delivery"
+    | "file"
+    | "draft"
+    | "post"
+    | "request";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -520,6 +532,16 @@ async function settleCopyReturn(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed }];
 }
 
+/**
+ * A time asked for that ran out, whose job will not finish (decision 0061, as amended): the request is closed for a
+ * person to reply to, with nothing sent, so it never waits on a run that will not come.
+ */
+async function settleLapse(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const appointmentId = idFrom(job.payload, "appointment_id");
+  if (!appointmentId) return [{ what: "request", changed: false, error: "no appointment on the job" }];
+  return [{ what: "request", changed: await closeForAPerson(db, job.tenant_id, appointmentId) }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
@@ -572,6 +594,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   source_walk: null,
   source_read: null,
   ad_read: null,
+  booking_lapse: settleLapse,
   canary: null,
 };
 
@@ -594,6 +617,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   post_publish: "post",
   post_reconcile: "post",
   post_google: "post",
+  booking_lapse: "request",
 };
 
 /**

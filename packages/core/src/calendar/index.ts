@@ -11,3 +11,5 @@ export type {
   NoticeOutcome,
   StoredAppointment,
 } from "./ports";
+export { lapseHoldOf, settleLapsedRequest } from "./request-lapse";
+export type { RequestLapsePorts } from "./request-lapse";
