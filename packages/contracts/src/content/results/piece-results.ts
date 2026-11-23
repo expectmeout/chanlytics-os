@@ -8,6 +8,7 @@
 import { clockTime } from "../../shared/clock";
 import { groupedPlural } from "../../shared/words";
 import { CREDIT_WINDOW_DAYS } from "./credit";
+import type { PostKind } from "../posts";
 import { nextObserveStep } from "./observe";
 import type {
   CreditClass,
@@ -113,11 +114,15 @@ const STEP_WORDS: Readonly<Record<TimedObserveStep, string>> = {
   "28d": "28 days",
 };
 
-/** When the numbers shown were read, and whether more come: the clock's next step, or none after a take-down's read. */
-function whenReadOf(step: ObserveStep | null): string {
+/**
+ * When the numbers shown were read, and whether more come: the clock's next step (a story's day read is taken before
+ * it ends, not at a day), or none after a take-down's read.
+ */
+function whenReadOf(step: ObserveStep | null, kind: PostKind): string {
   if (step === "last") return "Read just before you took it down.";
-  const next = nextObserveStep(step);
-  return next ? `Next at ${STEP_WORDS[next]}.` : "Read for the last time.";
+  const next = nextObserveStep(step, kind);
+  if (!next) return "Read for the last time.";
+  return kind === "story" && next === "1d" ? "Next before the story ends." : `Next at ${STEP_WORDS[next]}.`;
 }
 
 function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDid"] {
@@ -141,7 +146,7 @@ function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDi
     .filter((parts) => parts.length > 0)
     .map((parts) => parts.join(" · "));
   const comments = there.has("comments") ? "Comments as Instagram counts them, your own replies included. " : "";
-  return { lines, missing, fine: `${comments}${whenReadOf(lead.step)}` };
+  return { lines, missing, fine: `${comments}${whenReadOf(lead.step, lead.kind)}` };
 }
 
 const TOUCH_WORDS: Readonly<Record<BroughtPersonDto["touch"], (kind: string) => string>> = {

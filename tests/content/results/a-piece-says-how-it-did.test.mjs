@@ -30,6 +30,20 @@ test("one line of the place's numbers, comments as Instagram counts them, and wh
   assert.match(said.howItDid.fine, /Next at 3 days/);
 });
 
+test("a story's numbers are read once more before it ends, and that read is its last", () => {
+  const story = {
+    post_id: "p-story-read",
+    place: "instagram",
+    kind: "story",
+    step: "1h",
+    read_at: "2026-12-03T13:00:00Z",
+    numbers: [n("reach", 12), n("views", 20), n("shares", 1)],
+  };
+  assert.match(pieceResultsSaid({ posts: [story], ...empty }, TZ).howItDid.fine, /Next before the story ends\./);
+  const last = pieceResultsSaid({ posts: [{ ...story, step: "1d" }], ...empty }, TZ);
+  assert.match(last.howItDid.fine, /Read for the last time\./);
+});
+
 test("a story too few saw says why, a place with no numbers says not available, never a zero", () => {
   const story = {
     post_id: "p-story",

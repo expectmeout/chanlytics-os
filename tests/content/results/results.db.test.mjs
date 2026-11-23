@@ -53,7 +53,7 @@ async function member(name, tenant, role) {
   return { client, id: made.data.user.id };
 }
 
-async function post(fileId, kind, external) {
+async function post(fileId, kind, external, hoursAgo = 2) {
   const row = ok(
     await db
       .from("posts")
@@ -65,7 +65,7 @@ async function post(fileId, kind, external) {
         caption: "Forty-five minutes.",
         status: "published",
         external_id: external,
-        published_at: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+        published_at: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
         account_id: ACCOUNT,
       })
       .select("id")
@@ -265,6 +265,29 @@ test("a post's numbers are kept a read at a time, a missing one with no value", 
   );
   assert.equal(ok(await as.stranger.client.from("post_observations").select("id"), "a stranger").length, 0);
 });
+
+test(
+  "a story's last read is due 22 hours after it went up, and nothing of it once its day is over",
+  { skip },
+  async () => {
+    // Instagram answers for an ended story as for nothing (code 100, subcode 33): its last read is taken inside its day.
+    const file = ok(await db.from("files").select("id").eq("tenant_id", A).limit(1).single(), "the file").id;
+    const nearItsEnd = await post(file, "story", `story-near-${stamp}`, 22.5);
+    const young = await post(file, "story", `story-young-${stamp}`, 21);
+    const ended = await post(file, "story", `story-ended-${stamp}`, 25);
+    const reel = await post(file, "reel", `reel-older-${stamp}`, 4 * 24);
+    const due = ok(await db.rpc("post_observations_due", { p_limit: 5000 }), "what is due");
+    const stepsOf = (id) =>
+      due
+        .filter((d) => d.post_id === id)
+        .map((d) => d.step)
+        .sort();
+    assert.deepEqual(stepsOf(nearItsEnd), ["1d", "1h"]);
+    assert.deepEqual(stepsOf(young), ["1h"]);
+    assert.deepEqual(stepsOf(ended), [], "an ended story is asked nothing");
+    assert.deepEqual(stepsOf(reel), ["1d", "1h", "3d"], "a reel keeps every step");
+  },
+);
 
 test("a post's link is one, made by a member who may act, and an open counts", { skip }, async () => {
   const made = ok(await as.owner.client.rpc("post_link_make", { p_tenant_id: A, p_post_id: REEL }), "made");

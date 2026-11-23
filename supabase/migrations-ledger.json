@@ -92,8 +92,7 @@
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
-    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)",
-    "00705": "applied to production 23 Nov 2026 18:41Z from a draft not on main when pass 3 (00706) recorded above it (cm-story-last-read, #2544): its merge records it here in number order and drops this line"
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -708,6 +707,7 @@
     "00701_a_take_down_reads_a_post_s_last_numbers.sql": "360139ad33b55db3ca2a75c25fd92f11dc2e976404eb577912097f1140a7a8f5",
     "00703_a_form_on_their_own_website.sql": "19a9e5e51808179fd4ed273d16ffec2a5e53126a73def76b160c2dab249c482a",
     "00704_a_visit_a_form_asked_for_says_the_form.sql": "ff3ca5c81af0b3bce8df605264dccc16c2faad07127cba0636455eb6c849dcdd",
+    "00705_a_story_is_read_before_its_day_ends.sql": "5ade35d6a0ce4ad73b8ee5b6c7253f4d38fcd0c3a2dcb3f53b3ebd01041e7904",
     "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab"
   }
 }
