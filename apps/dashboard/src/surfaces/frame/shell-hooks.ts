@@ -67,7 +67,10 @@ export const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 
  * Ads' own first reads, asked as the settings read lands, came after a reopen had drawn the address from what the tab kept,
  * and took the page away for a beat and drew it again (the phone sweep of 22 Nov 2026). Derived every render.
  */
-function useSurfaceReady({ page, param, routeKey }: RouteAt, waitedOut: boolean): boolean {
+function useSurfaceReady(
+  { page, param, routeKey }: Pick<RouteAt, "page" | "param" | "routeKey">,
+  waitedOut: boolean,
+): boolean {
   const [drawnKey, setDrawnKey] = useState<string | null>(null);
   const drew = drawnKey === routeKey;
   const surfaceReady = routeReady(page, param) || ((waitedOut || drew) && routeReady(page, param, true));
