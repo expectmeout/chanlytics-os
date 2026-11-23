@@ -1,14 +1,13 @@
 /**
  * What a file is called and where it stands (contracts files/files.ts, decision 0099): a name is words a person could read,
- * in any language, that a door will take; its folder is its own; a file stands on one shelf; and who is in it is read from a
- * person's word and then the look's, so the page and Ask say the same of it.
+ * in any language, that a door will take; its folder is its own; and a file stands on one shelf.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { FILE_NAME_MAX, filePathOf, isFileMime } = await importSrc("packages/contracts/src/files/limits.ts");
-const { fileFolderOf, fileNameOf, fileSaidOf, inboxCleanOf, issuesSaidOf, shelfOf, whoStandsOf } = await importSrc(
+const { fileFolderOf, fileNameOf, fileSaidOf, inboxCleanOf, issuesSaidOf, shelfOf } = await importSrc(
   "packages/contracts/src/files/views.ts",
 );
 const { filesSayOf } = await importSrc("packages/contracts/src/files/files.ts");
@@ -123,34 +122,6 @@ test("the page counts what is kept, says what waits, and what AI has still to lo
   assert.equal(filesSayOf({ kept: 1, waiting: 0, looking: 0 }), "1 photo");
   assert.equal(filesSayOf({ kept: 2, waiting: 1, looking: 0 }), "2 photos, 1 waiting for you");
   assert.equal(filesSayOf({ kept: 1, waiting: 1, looking: 1 }), "1 photo, 1 waiting for you, AI is still looking at 1");
-});
-
-const file = (over) => ({ who_in_it: "not_asked", look_status: "done", people: null, ...over });
-
-test("who is in it: a person's word stands first, whatever the look saw; a yes is its own record (00665)", () => {
-  const seen = { people: { count: 3, recognizable: 3 } };
-  assert.deepEqual(whoStandsOf(file({ who_in_it: "no_one", ...seen })), { is: "said", who: "no_one" });
-  assert.deepEqual(
-    whoStandsOf(file({ yes_for: ["post", "ad"], ...seen })),
-    { is: "ask", seen: 3 },
-    "who is in it still",
-  );
-});
-
-test("who is in it: nothing is asked while the look is still looking, so no question flashes up and goes", () => {
-  assert.deepEqual(whoStandsOf(file({ look_status: "waiting" })), { is: "looking" });
-});
-
-test("who is in it: a look that saw no one who could be recognized leaves nothing to ask", () => {
-  assert.deepEqual(whoStandsOf(file({ people: { count: 0, recognizable: 0 } })), { is: "clear" });
-  assert.deepEqual(whoStandsOf(file({ people: { count: 1, recognizable: 0 } })), { is: "clear" }, "hair from behind");
-});
-
-test("who is in it: anyone who could be recognized is asked about, and a look that could not say asks with no number", () => {
-  assert.deepEqual(whoStandsOf(file({ people: { count: 2, recognizable: 1 } })), { is: "ask", seen: 2 });
-  assert.deepEqual(whoStandsOf(file({ look_status: "failed" })), { is: "ask", seen: null });
-  assert.deepEqual(whoStandsOf(file({ look_status: "refused" })), { is: "ask", seen: null });
-  assert.deepEqual(whoStandsOf(file({ people: null })), { is: "ask", seen: null });
 });
 
 test("the Inbox's one press takes what the look read and found nothing against", () => {

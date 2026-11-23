@@ -69,7 +69,6 @@ const plan = (over = {}) => ({
   words_hold: "all",
   end_line: "Same chair. New me.",
   language: "en",
-  people_agreed: true,
   ...over,
 });
 const clipRow = (over = {}) => ({
@@ -343,7 +342,6 @@ const blocksPlan = () => ({
   words_hold: "first",
   end_line: null,
   language: "en",
-  people_agreed: true,
 });
 
 test("each block is handed its own files: a clip's parts, a photo by a signed address, a clip's moment by the parts around it", async () => {

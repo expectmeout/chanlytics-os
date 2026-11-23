@@ -299,8 +299,6 @@ const OPERATOR_ACTS = [
  */
 const PARTNER_ACTS = [
   ...OPERATOR_ACTS,
-  // A yes for a photo or a video, kept or taken back (00665): a partner's, as every change to a file is.
-  "keep_yes",
   "propose_bring_in",
   "propose_lead_search",
   "propose_piece",
@@ -341,8 +339,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 30, 37, 37],
-    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down, bringing in what a link holds and a yes for a file too",
+    [14, 30, 36, 36],
+    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down and bringing in what a link holds too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),
@@ -753,7 +751,8 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
     await words("propose_sequence", { action: "moment", trigger: "never" }),
     // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them. 11
     // Oct 2026 (D2): the reminder the day before and the check after an appointment are, where a calendar is connected.
-    'propose_sequence: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"|"slot_opened"|"visit_soon"|"visit_missed"|"asked_no_booking"',
+    // 22 Nov 2026: and a deal marked won, with or without one.
+    'propose_sequence: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"|"slot_opened"|"visit_soon"|"visit_missed"|"asked_no_booking"|"deal_won"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const merge = await buildProposal(contextFor("owner").t, "propose_person", { action: "merge", contact_id: C1 });

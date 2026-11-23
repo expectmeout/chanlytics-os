@@ -8,19 +8,27 @@ import type { PlaybookTrigger } from "./kinds";
 import { triggerOf } from "./notices";
 
 /** The moments an occasion starts: their people are enrolled by what happened to them, never read by the hour. */
-export type OccasionTrigger = Extract<PlaybookTrigger, "visit_soon" | "visit_missed" | "asked_no_booking">;
+export type OccasionTrigger = Extract<PlaybookTrigger, "visit_soon" | "visit_missed" | "asked_no_booking" | "deal_won">;
 
 export function isOccasionTrigger(trigger: string | null | undefined): trigger is OccasionTrigger {
   return triggerOf(trigger ?? "")?.kind === "occasion";
 }
 
 /**
- * Whether a person holds one occasion of a moment at a time. A missed visit and an ask each start a conversation that
- * may run to later steps, so a second one while the first stands adds nothing; a visit's reminder is owed to every
- * visit, and someone with two booked gets two.
+ * Whether a person holds one occasion of a moment at a time. A missed visit, an ask and a deal won each start a
+ * conversation that may run to later steps, so a second one while the first stands adds nothing; a visit's reminder is
+ * owed to every visit, and someone with two booked gets two.
  */
 export function occasionIsSingle(trigger: OccasionTrigger): boolean {
   return trigger !== "visit_soon";
+}
+
+/**
+ * Whether an occasion's step goes at its sequence's hour: the day after an ask, and the day after a deal is marked won.
+ * The two about a visit go by the visit's own time, and keep no hour to set.
+ */
+export function occasionKeepsHour(trigger: string | null | undefined): boolean {
+  return trigger === "asked_no_booking" || trigger === "deal_won";
 }
 
 /**
@@ -99,6 +107,17 @@ export function occasionWords(
       pool: `whose ${words.one} was marked missed`,
       each: `each missed ${words.a} and has nothing booked next`,
       schedule: () => `When you mark ${words.a} missed · once per ${words.one}`,
+    };
+  // A deal marked won (22 Nov 2026): said as the deal's own act says it ("Mark as client"), and it names no appointment.
+  if (trigger === "deal_won")
+    return {
+      starts: "New client",
+      sentence: (at) => `The day after you mark someone as a client${at}`,
+      line: "Thank everyone who becomes a client",
+      who: "everyone you mark as a client",
+      pool: "marked as a client",
+      each: "each was marked as a client",
+      schedule: (at) => `The next day${at} · once per proposal`,
     };
   return {
     starts: "Asked, not booked",

@@ -107,7 +107,7 @@ export const footage: Reader<undefined, FootageDto> = {
       isDriveOffered(rc.tenantId),
       // The workspace's settings through their own reader, so a turn that reads both reads them once.
       load(rc, configReader, undefined).then((read) => read.data?.config ?? null),
-      listSourceConnectionsOf(db, rc.tenantId),
+      listSourceConnectionsOf(db, rc.tenantId, "watch"),
       listMediaSourcesOf(db, rc.tenantId),
     ]);
     // An account that reads comes before the word that one could not (a connect that works removes that row).

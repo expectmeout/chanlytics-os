@@ -52,6 +52,21 @@ Each is owed to one person, for one thing that happened to them, at a time of th
 - **An occasion is not counted before it happens.** The composer shows no "N people" for these moments: nobody is in one until something happens to them.
 - **Ask proposes them with no count.** Since 10 Nov 2026 (Ruben's "Yes, add them") each has a starter message (`two_hour_reminder`, `missed_visit`, `booking_follow_up`) and Ask's `propose_sequence` takes the three where a calendar is connected. Its card says who each reaches as it happens and counts nobody, and the moments read marks them `each_at_their_own_time`; Ask cannot say how many people one will reach in a week.
 
+## Amended 22 November 2026: a fourth moment, a deal marked won
+
+Accepted by Ruben on 22 November 2026 ("take all recommended calls and continue what can start", the two adds to the review ask). The only moment that came after something was a kept visit (decision 0123). A business that sells by proposal has deals and no visits, so it had no moment to thank a customer in, or to ask for a review.
+
+- **`deal_won`, an occasion's, under the follow-ups' row.** It is modelled on the thank-you after a kept visit: it thanks, may ask for a review, goes once for a deal, and only for a deal the record says is won. Nothing reads how the deal went beyond that, and no filter applies to a review ask alone.
+- **The deal's own event enrols.** `deal.won` is written with the fact by `deal_record`, and is delivered to `occasion_enrol` (`a_deal_marked_won_is_a_moment`). The door reads the deal's row as it stands: won, each campaign on the moment takes the person in, due the next day at the campaign's hour (contracts `wonThanksAt`), counted from the mark and never from the day the deal's sheet says they said yes.
+- **Once for a deal.** Its key is the deal alone (`won:<id>`), so a deal taken back and marked won again makes no second message. A deal's other moves enrol nobody and take nothing out: one taken back is found no longer won when its time comes (`occasionGone`: `not_won`, `deal_gone`), and one marked won again before then still goes.
+- **The send asks once more.** The person's row keeps the deal and that it is owed only while won; the batch reads each such deal's stage once (contracts `dealStillWon`), and one taken back, lost or ended since holds its person (`deal_changed`). A batch may wait half an hour for a stop, or days for its words' first approval.
+- **No calendar.** It is offered with or without one (`momentReadsCalendar`), and New draws it, as it draws the proposal follow-up, only where a deal was ever recorded.
+- **Two starters:** a thank-you (`new_client_thanks`), and the same with a review ask (`new_client_review`), offered only where a review link is on file. That link is the owner's own where they gave one on Settings › Details, else the Google listing's (contracts `reviewLinkFrom`), so a business with no listing has a review ask too.
+
+What it does not do: a deal back-dated when it is marked is still thanked the day after the mark; a deal taken back after its time has passed and marked won again later is not thanked (its row left for good); marking someone as a client does not yet say on the spot what follows, as marking a visit kept does (0123, point 6).
+
+Held by `tests/campaigns/occasions/a-deal-won-is-thanked.test.mjs`, `tests/broadcasts/core-broadcast.test.mjs` (the send's ask) and `tests/google/review-link.test.mjs` (the link).
+
 ## Deploy order
 
 00598 either way: it adds a table, functions and a job kind nothing calls. The build next. 00599 only once the build is live: it subscribes `occasion_enrol` and gives the clock the hand-out, and a build that knows neither would keep each delivery as an unknown kind (00456) and fail each job. Until 00599 is on, nothing is enrolled and nothing is handed out.

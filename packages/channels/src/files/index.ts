@@ -4,7 +4,7 @@
 export { driveSource, SourceKeyRefused, SourceUnanswered } from "./drive";
 export type { DriveFolderChoice, DriveFolderChoices, DrivePlace, DriveSource } from "./drive";
 export { readDriveBytes } from "./drive-bytes";
-export { DRIVE_READ_SCOPE, DRIVE_SCOPES, driveAuthorizeUrl, driveTokenRequest } from "./drive-sign-in";
+export { DRIVE_READ_SCOPE, driveAuthorizeUrl, driveScopeOfDoor, driveTokenRequest } from "./drive-sign-in";
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
 export { readRender, readRenderBytes, startRender, stopRender } from "./machine";

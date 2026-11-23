@@ -3,10 +3,13 @@
  * folder's clip keeps its original with its provider, so its copy at the platform can be let go and fetched again, and
  * a row then holds no id there. Everything that reads a video's copy asks here, by what it is for:
  *
- *   play, moment, piece, warm   want the copy. One that is here is used, and when is written (what is let go first is
- *                               what was used longest ago). One that is away is asked for: its return's job is put on
+ *   play, moment, piece, warm,  want the copy. One that is here is used, and when is written (what is let go first is
+ *   publish, ad                 what was used longest ago). One that is away is asked for: its return's job is put on
  *                               the ledger, held once per file, so a second asker joins the first's. One that is lost
- *                               says why, as a word of a closed set (contracts FILE_COPY_LOSSES).
+ *                               says why, as a word of a closed set (contracts FILE_COPY_LOSSES). A post set for later
+ *                               and an ad ask as Play does (the archive PRD, FR-6.2).
+ *   prefetch                    wants the copy too, and never says it was used: AI's early fetch of a clip its card
+ *                               names is not a use, so it keeps no clip ahead of one somebody played (A10).
  *   look, digest, upkeep        use a copy only where one is here, and never bring one back: a poster cut again, a
  *                               digest's late step, the sweep and a purge.
  *
@@ -31,11 +34,17 @@ import { COPY_RETURN, LET_GO } from "../takes/budgets.js";
 
 type Db = SupabaseClient<Database>;
 
-/** What a copy is asked for. */
-type CopyPurpose = "play" | "moment" | "piece" | "warm" | "look" | "digest" | "upkeep";
+/** The purposes that want the copy at the platform: one that is away is asked for, once for every asker. */
+const WANTING = ["play", "moment", "piece", "warm", "publish", "ad", "prefetch"] as const;
 
-/** The purposes that want the copy at the platform: one that is away is asked for. The rest only use one that is here. */
-const WANTING: ReadonlySet<CopyPurpose> = new Set(["play", "moment", "piece", "warm"]);
+/** What a copy is asked for: to have it at the platform, or only to use one that is here. */
+type CopyPurpose = (typeof WANTING)[number] | "look" | "digest" | "upkeep";
+
+/**
+ * The purposes that want a copy without saying it was used: what is let go first is what was used longest ago, and a
+ * clip AI fetched early for a card nobody pressed was not used.
+ */
+const UNMARKED: readonly CopyPurpose[] = ["prefetch"];
 
 /**
  * What the door reads of a row: the whole row serves, and so does a sweep's narrow read of one. Where a copy stands
@@ -94,12 +103,13 @@ export async function ensureCopyOf<Row extends CopyRow>(
   row: Row,
   purpose: CopyPurpose,
 ): Promise<CopyHeld<Row>> {
-  const wanted = WANTING.has(purpose);
+  // Wanted at the platform: one that is away is asked for. The rest only use one that is here.
+  const wanted = isOneOf(WANTING, purpose);
   const state = isOneOf(FILE_COPY_STATES, row.copy_state) ? row.copy_state : "here";
   if (state === "here") {
     if (!row.media_ref) return { copy: "none", row, mediaRef: null };
     // A use that could not be written is a line: the copy is here, and whoever asked is served.
-    if (wanted)
+    if (wanted && !UNMARKED.includes(purpose))
       await touchFileCopy(db, row.tenant_id, row.id, new Date(Date.now() - LET_GO.touchEveryMs)).catch(
         logAndGoOn("copy: say it was used"),
       );

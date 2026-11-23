@@ -6,6 +6,7 @@
 import {
   isOccasionTrigger,
   localDate,
+  occasionDeal,
   planRun,
   slotShort,
   triggerOf,
@@ -133,7 +134,8 @@ export const saidAtOf = (late: LateReminderRun | null, goesAt: Date): Date =>
 /**
  * The words an occasion's message keeps for its one person (0119): which occasion it answers, and for one about a visit
  * the visit's time or day as it reads at the moment the words are read, with what the send asks the record again by
- * (contracts appointmentHolds: the visit's key, its start, and when the run read it).
+ * (contracts appointmentHolds: the visit's key, its start, and when the run read it). One about a deal marked won keeps
+ * the deal and that it is owed only while won, which the send asks the deal's row by (contracts dealStillWon).
  */
 export function occasionFactsFor(
   run: Pick<BatchRun, "p"> & { ctx: Pick<RunContext, "tz" | "now"> },
@@ -142,8 +144,11 @@ export function occasionFactsFor(
 ): (person: PersonRowVM) => Record<string, string> {
   const { p: step, ctx } = run;
   const visit = occasion.visit;
+  // A deal marked won is thanked only while its row still says so (contracts dealStillWon, which the send asks by these).
+  const dealId = occasionDeal(occasion.occasion);
+  const about: Record<string, string> = dealId ? { deal: dealId, deal_was: "won" } : {};
   return (person) => {
-    const base = { occasion: occasion.occasion };
+    const base = { occasion: occasion.occasion, ...about };
     if (!visit) return base;
     const start = new Date(visit.startsAt).toISOString();
     const words = visitFactsFor(

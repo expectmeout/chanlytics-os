@@ -130,11 +130,13 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
       "visit_soon",
       "visit_missed",
       "asked_no_booking",
+      "deal_won",
     ],
   );
   assert.deepEqual(
     MOMENT_TRIGGERS.map((t) => t.kind),
-    // The last three are an occasion's (decision 0119): one person, at a time of their own.
+    // The last four are an occasion's (decision 0119; a deal marked won since 22 Nov 2026): one person, at a time of
+    // their own.
     [
       "list",
       "list",
@@ -146,6 +148,7 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
       "saved",
       "deal",
       "freed",
+      "occasion",
       "occasion",
       "occasion",
       "occasion",

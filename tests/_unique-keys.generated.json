@@ -488,6 +488,48 @@
       "where": null
     },
     {
+      "table": "archive_folders",
+      "name": "archive_folders_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "archive_folders",
+      "name": "archive_folders_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "archive_folders",
+      "name": "archive_folders_one_account",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "google_account"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ask_actions",
       "name": "ask_actions_pkey",
       "primary": true,
@@ -1216,8 +1258,8 @@
       "where": null
     },
     {
-      "table": "file_consents",
-      "name": "file_consents_pkey",
+      "table": "file_archive_parts",
+      "name": "file_archive_parts_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -1228,8 +1270,73 @@
       "where": null
     },
     {
-      "table": "file_consents",
-      "name": "file_consents_one_standing",
+      "table": "file_archive_parts",
+      "name": "file_archive_parts_one_a_copy",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "archive_id"
+        },
+        {
+          "column": "part"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_archives",
+      "name": "file_archives_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_archives",
+      "name": "file_archives_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_archives",
+      "name": "file_archives_one_shelf_copy",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "file_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "origin"
+        },
+        "right": {
+          "value": "shelf"
+        }
+      }
+    },
+    {
+      "table": "file_archives",
+      "name": "file_archives_one_copy_an_account",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -1240,17 +1347,19 @@
           "column": "file_id"
         },
         {
-          "column": "use"
+          "column": "origin"
         },
         {
-          "lower": {
-            "column": "who"
-          }
+          "column": "google_account"
         }
       ],
       "where": {
-        "isNull": {
-          "column": "taken_back_at"
+        "cmp": "<>",
+        "left": {
+          "column": "origin"
+        },
+        "right": {
+          "value": "shelf"
         }
       }
     },
@@ -4327,6 +4436,27 @@
       "where": null
     },
     {
+      "table": "source_connections",
+      "name": "source_connections_one_account_a_door",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "provider"
+        },
+        {
+          "column": "provider_account"
+        },
+        {
+          "column": "door"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "source_days",
       "name": "source_days_pkey",
       "primary": true,
@@ -4672,6 +4802,9 @@
     },
     "sequence_sends": {
       "round": 1
+    },
+    "source_connections": {
+      "door": "watch"
     }
   },
   "unmodelled": []

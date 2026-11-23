@@ -41,8 +41,9 @@ const OFFERED = (calendarOn) => PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t,
 
 test("which moments a new playbook may start from: none retired, the proposal's in every workspace, and of the two win-backs the one the workspace can read -- while a playbook already on any of them may exist and run (triggerOffered)", () => {
   // Without a calendar: the win-back by silence, and no appointment moment (D44). With one: by visits, and both.
-  // The proposal follow-up in its place in both; a reach-out's two steps are never moments.
-  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"]);
+  // The proposal follow-up in its place in both; a reach-out's two steps are never moments. A deal marked won (22 Nov
+  // 2026) is read off the deal, never the calendar, so it is offered either way: the one occasion's moment that is.
+  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting", "deal_won"]);
   assert.deepEqual(OFFERED(true), [
     "everyone_monthly",
     "visit_tomorrow",
@@ -55,6 +56,7 @@ test("which moments a new playbook may start from: none retired, the proposal's 
     "visit_soon",
     "visit_missed",
     "asked_no_booking",
+    "deal_won",
   ]);
   for (const calendarOn of [false, true]) {
     const here = OFFERED(calendarOn);
@@ -704,6 +706,7 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       "visit_soon",
       "visit_missed",
       "asked_no_booking",
+      "deal_won",
     ],
     number: true,
   });
@@ -716,7 +719,7 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       ["pb-own", false, "A list that couldn't be read", "today, within the hour", null],
       ["pb-quiet", false, "Win-back", "tomorrow 9:00 AM", null],
     ],
-    offered: ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"],
+    offered: ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting", "deal_won"],
     number: false,
   });
   // The rail counts its covered moments once, as numbers, and its words and the head's sentence say that count: the

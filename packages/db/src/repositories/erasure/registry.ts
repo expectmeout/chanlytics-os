@@ -255,6 +255,16 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(WITH_WORKSPACE, "name", "added_by"),
     ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "walk_page"),
   },
+  // Where a file's copies are (00686). The Google account whose Drive holds a copy is the member's who connected it,
+  // and leaves with the workspace, as a connection's does. Drive's ids for the folder and for a file in it, a piece's
+  // key on the shelf and its checksums name nobody (the states, origins, pieces and reasons are closed sets). A copy
+  // the owner saved to their own Drive is theirs to delete there: an erasure removes the file here, and its rows with it.
+  archive_folders: {
+    google_account: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "folder_id", "made_folder_id", "added_folder_id"),
+  },
+  file_archives: { google_account: WITH_WORKSPACE },
+  file_archive_parts: all(NOT_PERSONAL, "drive_file_id", "shelf_key", "md5", "sha256"),
   // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
   // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.
   business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),
@@ -482,22 +492,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
   // A video's (00556): what was heard of it can carry what a customer said in a clip, so it goes with the workspace; the video
   // platform's id for it and its error code are nobody's.
-  // A yes for one use of a file (00665): who said it, as the owner named them to AI. A person in a picture is not joined
-  // to People, so, as the picture itself, it leaves with the workspace; an erasure of a person has no key to it.
-  file_consents: { who: WITH_WORKSPACE },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
-    // The uses a file has a yes for, and those taken back (00665): words of a closed set, never a person's.
-    ...all(
-      NOT_PERSONAL,
-      "fingerprint",
-      "claude_copy",
-      "media_ref",
-      "media_error",
-      "picture_print",
-      "yes_back",
-      "yes_for",
-    ),
+    ...all(NOT_PERSONAL, "fingerprint", "claude_copy", "media_ref", "media_error", "picture_print"),
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },

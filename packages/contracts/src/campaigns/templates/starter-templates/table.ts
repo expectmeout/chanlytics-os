@@ -16,12 +16,106 @@ import {
   OFFER_ES,
   PROPOSAL,
   PROPOSAL_ES,
+  REVIEW,
+  REVIEW_ES,
   STOP_EN,
   STOP_ES,
   type StarterTemplate,
 } from "./shapes";
 import { RETIRED_STARTERS } from "./retired";
 import { VISIT_STARTERS } from "./visits";
+
+/**
+ * The starters about a person's own deal, once it is marked won (22 Nov 2026): the thank-you the day after, and the
+ * same with a review ask. What the day after a kept visit has (visits.ts), for a business that sells by proposal and has
+ * no visits. Here beside the proposal's own follow-up, which goes while the deal still waits.
+ */
+// screen-word: a message a customer reads, in the business's own voice, which docs/words.md does not bind ("Who reads it")
+const DEAL_STARTERS: readonly StarterTemplate[] = [
+  {
+    // About the deal they just agreed to, and nothing else: no offer, no price and no link, so it is utility and reaches
+    // a yes to texts, as How did it go does. It names no day: it goes the day after the deal is marked, whatever day
+    // they said yes. The moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "new_client_thanks",
+    name: "new_client_thanks",
+    title: "Thank you, new client",
+    purpose: "for the day after someone becomes a client",
+    category: "utility",
+    trigger: "deal_won",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for choosing {{2}}. If you have any questions as things get started, reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS],
+      },
+      es: {
+        body: "Hola {{1}}, gracias por elegir {{2}}. Si tienes alguna pregunta mientras empezamos, responde aquí.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES],
+      },
+    },
+    email: {
+      en_US: {
+        subject: "Thank you for choosing {{2}}",
+        body: "Hi {{1}},\n\nThank you for choosing {{2}}.\n\nIf you have any questions as things get started, just reply to this email.",
+      },
+      es: {
+        subject: "Gracias por elegir {{2}}",
+        body: "Hola {{1}}:\n\nGracias por elegir {{2}}.\n\nSi tienes alguna pregunta mientras empezamos, responde a este correo.",
+      },
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thank you for choosing {{2}}. If you have any questions as things get started, reply here.",
+      },
+      es: {
+        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
+        body: "Hola {{1}}, gracias por elegir {{2}}. Si tienes alguna pregunta, responde a este mensaje.",
+      },
+    },
+  },
+  {
+    // The same thank-you with a review ask, as the day after a visit has one (after_visit_review): the business's review
+    // link, its owner's own or its Google listing's (db reviewLinkOf). Offered only where there is one (startersOffered).
+    // It goes for every deal marked won, never for some of them: nothing here reads how the deal went.
+    key: "new_client_review",
+    name: "new_client_review",
+    title: "Thank you, with a review ask",
+    purpose: "for the day after someone becomes a client, asking for a review",
+    category: "utility",
+    trigger: "deal_won",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for choosing {{2}}. If you have a minute, a review helps others find us: {{3}}. If you have any questions, reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW],
+      },
+      es: {
+        body: "Hola {{1}}, gracias por elegir {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}. Si tienes alguna pregunta, responde aquí.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES],
+      },
+    },
+    email: {
+      en_US: {
+        subject: "Thank you for choosing {{2}}",
+        body: "Hi {{1}},\n\nThank you for choosing {{2}}. If you have a minute, a review helps others find us: {{3}}\n\nIf you have any questions, just reply to this email.",
+      },
+      es: {
+        subject: "Gracias por elegir {{2}}",
+        body: "Hola {{1}}:\n\nGracias por elegir {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}\n\nSi tienes alguna pregunta, responde a este correo.",
+      },
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thank you for choosing {{2}}. A review helps others find us: {{3}} Any questions, reply here.",
+      },
+      es: {
+        body: "Hola {{1}}, gracias por elegir {{2}}. Tu reseña ayuda a otros a encontrarnos: {{3}} Si tienes alguna pregunta, responde a este mensaje.",
+      },
+    },
+  },
+];
 
 export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
   /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
@@ -170,6 +264,8 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       },
     },
   },
+  // About a person's own deal, once it is marked won.
+  ...DEAL_STARTERS,
   {
     // A time a cancellation freed, offered to the people who asked and never booked (0082). About their own ask and
     // nothing else: no offer, no price and no link, so it is utility and reaches a yes to texts. Their reply opens

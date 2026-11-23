@@ -111,11 +111,13 @@ const TABLES = [
   "decisions",
   "escalations",
   "events",
-  // A yes for one use of a file, and who said it (00665).
-  "file_consents",
   // A business's files (00551): the rows here, and their bytes in the files bucket below.
   "files",
   "files_let_go",
+  // Where a file's copies are (00686): the folder a press saves into in the owner's Drive, each copy and its pieces.
+  "archive_folders",
+  "file_archives",
+  "file_archive_parts",
   // A website's form entries and its keys (00675).
   "form_entries",
   "form_keys",

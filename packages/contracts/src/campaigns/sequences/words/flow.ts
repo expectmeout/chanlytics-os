@@ -228,7 +228,7 @@ export function sequenceTwinOf(rows: readonly SequenceRowDto[], row: SequenceRow
 export function twinLineOf(row: Pick<SequenceRowDto, "first">): string {
   const trigger = row.first?.trigger;
   if (trigger === "visit_tomorrow" || trigger === "visit_soon") return "Two reminders go to each person";
-  if (trigger === "visited") return "Two thank-yous go to each person";
+  if (trigger === "visited" || trigger === "deal_won") return "Two thank-yous go to each person";
   return "Two messages go to each person";
 }
 

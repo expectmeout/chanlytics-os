@@ -47,7 +47,6 @@ test("a piece that may run offers one press, and it opens New ad drafted around 
 
 /** Why a piece may not run as an ad, as its line says it, by the picture rule's reason. */
 const W = {
-  person: "Someone in it hasn't said yes to ads",
   music: "It has music, which an ad can't carry yet",
   unheard: "It isn't heard yet, and an ad needs a video with no music",
   before_after: "It sets a before beside an after, which Meta turns down in ads",
@@ -60,8 +59,6 @@ test("a piece that may not run says why in one line with its one act, and is nev
   const post = CONTENT_SHEET_WORDS.video.picture;
   const ask = CONTENT_WORDS.piece.ask;
   const cases = [
-    // Someone shown: a yes is told to AI, about the piece.
-    [{ is: "wont", why: "person" }, PHOTO, W.person, "Tell AI who said yes", "AI asked about the piece"],
     // What a video's sound, shape or length stops, a picture post from its best moment does not.
     [{ is: "wont", why: "music" }, VIDEO, W.music, post, "a picture post asked for"],
     [{ is: "wont", why: "unheard" }, VIDEO, W.unheard, post, "a picture post asked for"],
@@ -101,7 +98,7 @@ test("nothing is said where the record says nothing, on a piece set aside, or to
 });
 
 test("its words follow docs/words.md: short, one sentence each, no full stop, and nobody called anything but AI", () => {
-  const issues = ["person", "music", "unheard", "before_after", "small", "shape", "length"];
+  const issues = ["music", "unheard", "before_after", "small", "shape", "length"];
   const lines = [
     runAsAdOf({ is: "may" }, PHOTO, true),
     runAsAdOf({ is: "no_account" }, PHOTO, true),
@@ -117,5 +114,15 @@ test("its words follow docs/words.md: short, one sentence each, no full stop, an
     assert.ok(said.length <= 70, `${said}: a line under the acts`);
     // "Ask about it" is Content's own press, a verb: AI is never called by another name.
     assert.doesNotMatch(said, /[.;—]|\b(?:we|us|our|assistant|agent|receptionist|Claude)\b/i, said);
+  }
+});
+
+test("who is in a piece is never a reason: footage a business provides is taken as cleared (Ruben, 22 Nov 2026)", () => {
+  const lines = ["music", "unheard", "before_after", "small", "shape", "length"].flatMap((why) =>
+    [VIDEO, PHOTO].map((file) => runAsAdOf({ is: "wont", why }, file, true)),
+  );
+  for (const line of lines) {
+    assert.doesNotMatch(line.said, /yes|someone|person|people/i, line.said);
+    assert.doesNotMatch(line.act.words, /yes|who/i, line.act.words);
   }
 });

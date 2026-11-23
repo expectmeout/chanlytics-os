@@ -191,6 +191,44 @@ test("REGRESSION: a calendar connected through a mailbox is a calendar: offering
   assert.ok(saysUnder({ calendar: undefined }, "confirm").includes(needs));
 });
 
+test("with a booking link, the menu says what that choice costs in results: once, under the link's own answer, whichever answer stands", () => {
+  // What can be counted where the booking is made on the business's own page (22 Nov 2026): a new person from an ad
+  // still counts as booked; nobody else can, since a booking read from the calendar does not say when it was made.
+  const costs = BOOKING_CHOICE_WORDS.linkCosts;
+  assert.equal(
+    costs,
+    "Only a new person from an ad counts as booked. For someone you knew, a post or a link, nobody can tell when they booked.",
+  );
+  assert.ok(costs.length <= 120, "one line a phone reads");
+  /** What the open menu says under each answer, the link's first. */
+  const menuSaid = () => {
+    press(byTestId(redrawTab(), "booking_choice-menu"));
+    const items = all(redrawTab(), (n) => n.props?.role === "menuitemradio").map(textOf);
+    return { link: items.find((t) => t.startsWith(BOOKING_CHOICE_WORDS.options.link.label)), items };
+  };
+  // The link is the choice in force. The row at rest states its answer and stops: a phone draws no hint under a row that
+  // has its fact (record.css), so a sentence there was read at a desk and never on a phone (the 22 Nov walk at 375).
+  const withLink = drawTab();
+  assert.equal(valueOf(withLink, "booking_choice"), BOOKING_CHOICE_WORDS.options.link.label);
+  assert.ok(!textOf(byTestId(withLink, "rec-row-booking_choice")).includes(costs), "nothing under the row at rest");
+  const standing = menuSaid();
+  assert.ok(standing.link.includes(BOOKING_CHOICE_WORDS.options.link.says), standing.link);
+  assert.ok(standing.link.includes(costs), "REGRESSION: an owner who books by link was never told, on a phone");
+  assert.equal(standing.items.filter((t) => t.includes(costs)).length, 1, "said once");
+
+  // Another choice in force: the link's answer says it the same, where it is weighed.
+  const policies = POLICIES();
+  policies.rows = policies.rows.map((r) => (r.class === "booking" ? { ...r, mode: "ask" } : r));
+  const confirming = drawTab({ policies, config: { features: { booking_requests: true } } });
+  assert.equal(valueOf(confirming, "booking_choice"), BOOKING_CHOICE_WORDS.options.confirm.label);
+  assert.ok(!textOf(byTestId(confirming, "rec-row-booking_choice")).includes(costs));
+  const weighed = menuSaid();
+  assert.ok(weighed.link.includes(BOOKING_CHOICE_WORDS.options.link.says), weighed.link);
+  assert.ok(weighed.link.includes(costs), weighed.link);
+  // The other two answers say only what they do: a time asked for here is made here, so every booking can be counted.
+  assert.equal(weighed.items.filter((t) => t.includes(costs)).length, 1);
+});
+
 test("a refused write stops the choice there: nothing after it is sent, and the refusal is said", async () => {
   saving();
   const asked = policyDoor({ ok: false, message: "Your role can't change autonomy." });

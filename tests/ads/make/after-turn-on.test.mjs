@@ -7,8 +7,8 @@
  * and Meta turned it down are each said in a word and a line, never a system's word. An ad made here reads as made
  * here, with this app's own presses, never "Made in Meta Ads Manager". Its drawer says where it shows. Paused, it turns
  * back on here with the most it can cost named; while AI is stopped it does not. While it is set up its owner may cancel
- * it (00676). Paused because someone in its picture took back their yes, it is never turned back on, here or in Meta's
- * door. On while AI can't answer the people it brings, it needs its owner, says why, and AI's line is its Pause.
+ * it (00676). Paused by a remediation of its picture, it is never turned back on, here or in Meta's door. On while
+ * AI can't answer the people it brings, it needs its owner, says why, and AI's line is its Pause.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -123,11 +123,11 @@ test("Setting up: said as it is; its owner may Cancel while Turn on's job makes 
   assert.equal(rowOf(cancelled).line, "Couldn't finish · it was cancelled. Nothing was spent");
 });
 
-test("paused because someone in its picture took back their yes: never turned back on here, nor sent to Meta to be", () => {
+test("paused by a remediation of its picture: never turned back on here, nor sent to Meta to be, and no yes is named", () => {
   const held = ad({ state: "paused", paused_by: "remediation", resume: { ok: false, why: "picture" } });
   assert.deepEqual(drawerOf(held).foot, {
     kind: "held",
-    head: "Someone in its picture took back their yes",
+    head: "Its picture can't run any more",
     body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
   });
   const row = {

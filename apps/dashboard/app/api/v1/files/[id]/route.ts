@@ -12,10 +12,10 @@ import { readFileRecord, readPieceStanding } from "@/server/posts/record";
  * For a made piece, where Ads is on, it says too whether the piece may run as an ad (`ad`: Content's Run as an ad); and
  * for every made piece its newest take-down (`take_down`).
  *
- * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status?, caption?, posted? }`: what a person says of a file. What
- * they name and shelve stays when the look runs again. Who is in it is a person's word that no one is (a yes is POST
- * files/:id/yes). A caption is a made piece's, written where it stands, and kept with how it was made. `posted` is their
- * word that they put a made piece up themselves (`{ link? }`), or that they did not after all (null).
+ * PATCH /api/v1/files/:id — `{ name?, shows?, status?, caption?, posted? }`: what a person says of a file. What they
+ * name and shelve stays when the look runs again. A caption is a made piece's, written where it stands, and kept with
+ * how it was made. `posted` is their word that they put a made piece up themselves (`{ link? }`), or that they did not
+ * after all (null).
  *
  * DELETE — it goes from every page at once, and its bytes, Anthropic's copy and its row by the file_purge job. Only its
  * fingerprint stays, so an import does not bring it back.
@@ -45,7 +45,6 @@ export const PATCH = write({
       .max(FILE_NAME_MAX * 2)
       .optional(),
     shows: z.enum(FILE_SHOWS).optional(),
-    who_in_it: z.enum(["no_one"]).optional(),
     status: z.enum(["filed", "set_aside"]).optional(),
     caption: z
       .string()

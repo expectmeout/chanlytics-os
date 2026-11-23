@@ -129,6 +129,18 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "occasion",
     hint: "The day after someone is sent your booking link and does not book",
   },
+  // A deal marked won (22 Nov 2026): the second moment that comes after something, for a business that sells by proposal
+  // and has no visits. Modelled on the thank-you after a kept visit: it thanks, may ask for a review, goes once for a
+  // deal, and only for a deal the record says is won. An occasion's (0119), enrolled by the deal's own event, with no
+  // calendar read (momentReadsCalendar), under the follow-ups' row: it is about the person's own deal.
+  {
+    id: "deal_won",
+    label: "After they become a client",
+    list: null,
+    cls: "follow_up",
+    kind: "occasion",
+    hint: "The day after you mark someone as a client",
+  },
   // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
   // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
   {

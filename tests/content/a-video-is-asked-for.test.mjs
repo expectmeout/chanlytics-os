@@ -394,7 +394,6 @@ test("the card is made by the call that carries the look's key: the plan its pre
     words_hold: "all",
     end_line: "Same chair. New me.",
     language: "en",
-    people_agreed: false,
     caption: null,
   });
   assert.equal(
@@ -469,12 +468,11 @@ test("the clips are held to what a video may be cut from, and the refusal names 
   );
 });
 
-test("a clip that shows someone recognizable waits for the owner's word that they agreed", async () => {
+test("a clip that shows someone recognizable is used as any other: nobody in it is asked (Ruben, 22 Nov 2026)", async () => {
   const seen = { clip: { look: { line: "x", people: { count: 1, recognizable: 1 } } } };
-  assert.match((await asked({}, seen)).refusal, /^block 1: its file shows someone recognizable/);
-  const agreed = await asked({ people_agreed: true }, seen);
-  assert.equal(agreed.proposal?.kind, "piece", agreed.result);
-  assert.equal(piecePlanOf(agreed.proposal.payload).people_agreed, true);
+  const made = await asked({}, seen);
+  assert.equal(made.proposal?.kind, "piece", made.result);
+  assert.equal("people_agreed" in piecePlanOf(made.proposal.payload), false, "the plan carries no word on who agreed");
 });
 
 test("a workspace that keeps no videos is offered none", async () => {
@@ -656,7 +654,6 @@ const PLAN = {
   words_hold: "all",
   end_line: null,
   language: "en",
-  people_agreed: false,
 };
 
 /** A plan in blocks: one of each kind, under opening words that leave with the first picture. */
@@ -674,7 +671,6 @@ const BLOCKS_PLAN = {
   words_hold: "first",
   end_line: null,
   language: "en",
-  people_agreed: false,
 };
 
 test("the stills of a plan in blocks are each block's own pictures: a clip's first frame, a photo, a pair's two, a quote's ground", async () => {
@@ -686,7 +682,6 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
     source: f.source,
     media_status: f.media_status,
     seconds: f.seconds,
-    people_unasked: false,
   }));
   const look = { accent: "#e8b84a", logo: false, name: "Harbor", book: null, address: null };
   const compiled = compilePiece(piecePlanOf(BLOCKS_PLAN), sources, look);
@@ -753,7 +748,6 @@ function pressed(plan, { fate = "begun", ...opts } = {}) {
     {},
     {
       piece_begin: (a) => (knocks.push(["piece_begin", a]), { fate, piece_id: fate === "busy" ? null : "pc-1" }),
-      file_yes_record: (a) => (knocks.push(["file_yes_record", a]), { kept: ["post"], again: [], ids: ["y1"] }),
     },
   );
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
@@ -867,23 +861,13 @@ test("a press is checked afresh: a clip gone since the card is refused in a pers
   assert.deepEqual(off.knocks, []);
 });
 
-test("the owner's word that those in the clips agreed is kept first as a yes for posts on each clip, through its own door", async () => {
-  const { knocks } = await pressed(
-    { ...PLAN, people_agreed: true },
-    { clip: { look: { people: { count: 1, recognizable: 1 } } } },
-  );
+test("a recognizable face never stops the press, and no yes is kept for it: the video is begun, through its one door", async () => {
+  const { knocks, refused } = await pressed(PLAN, { clip: { look: { people: { count: 1, recognizable: 1 } } } });
+  assert.equal(refused, undefined);
   assert.deepEqual(
     knocks.map(([door]) => door),
-    ["file_yes_record", "piece_begin"],
+    ["piece_begin"],
   );
-  assert.deepEqual(
-    [knocks[0][1].p_file_id, knocks[0][1].p_uses, knocks[0][1].p_who],
-    [CLIP, ["post"], "The people in it"],
-    "a yes for posts alone (00665): never for an ad",
-  );
-  // Without their word, a recognizable face stops the press too.
-  const unasked = await pressed(PLAN, { clip: { look: { people: { count: 1, recognizable: 1 } } } });
-  assert.equal(unasked.refused?.message, PIECE_WORDS.wont.people);
 });
 
 test("three being made is the most: a fourth press is told so, and can be pressed again", async () => {

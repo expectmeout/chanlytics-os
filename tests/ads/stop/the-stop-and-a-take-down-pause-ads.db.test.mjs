@@ -1,13 +1,15 @@
 /**
- * 00676 on a real Postgres: the stop pauses the ads made here, a yes taken back pauses the ad that shows the person, a
- * launch is cancelled while it is set up, and the bell rings for a launch that stopped, a switch never confirmed and a
- * running ad AI can't answer (the content loop PRD's 5.2, 5.3, 14.1 and pass 0, call 21; the Ads plan's G16 and 4.7).
+ * 00676 on a real Postgres, as 00687 left it: the stop pauses the ads made here, a take-down's walk pauses the ad that
+ * shows the file, a launch is cancelled while it is set up, and the bell rings for a launch that stopped, a switch never
+ * confirmed and a running ad AI can't answer (the content loop PRD's 5.2, 5.3, 14.1 and pass 0, call 21; the Ads plan's
+ * G16 and 4.7).
  *
  * What must hold. The stop pauses every ad made here that is on, by whoever stopped, each as the stop's; an ad made in
  * Meta and the owner's own pause are left; the owner is told on the bell and mailed. Turning them back on is the owner's
- * own press, never while AI is stopped, and only of the ads the stop paused. A yes for ads taken back pauses the ad that
- * shows the file in the same transaction, as a remediation whose action stays pending until Meta's word says paused, and
- * blocked where Meta refused; that ad is never turned back on. A cancel stops a launch, which keeps when it stopped; one
+ * own press, never while AI is stopped, and only of the ads the stop paused. The walk a take-down starts on ads
+ * (ads_remediate_files, the owner's own cause alone: nobody is asked for a yes, so none is taken back) pauses the ad that
+ * shows the file, as a remediation whose action stays pending until Meta's word says paused, and blocked where Meta
+ * refused; that ad is never turned back on. A cancel stops a launch, which keeps when it stopped; one
  * made all the same is paused at once. Runs against the database `supabase start` builds on this machine, never
  * production.
  */
@@ -87,7 +89,7 @@ async function adIn(ws, over = {}) {
   );
 }
 
-/** A workspace with a connected account, its owner and an operator, and a photo with a yes for ads. */
+/** A workspace with a connected account, its owner and an operator, and a photo its ads show. */
 async function workspace(tag) {
   const tenant = ok(
     await db
@@ -127,13 +129,18 @@ async function workspace(tag) {
       .select("id")
       .single(),
   ).id;
-  ok(
-    await db
-      .from("file_consents")
-      .insert({ tenant_id: tenant, file_id: photo, use: "ad", who: "Paola", said_in: "ai" }),
-  );
   return { tenant, account, owner, operator, photo };
 }
+
+/** The walk a take-down starts on ads (00682, 00687), as the service role calls it for the owner. */
+const walk = (ws, cause = "owner_removed") =>
+  db.rpc("ads_remediate_files", {
+    p_tenant_id: ws.tenant,
+    p_actor: ws.owner.id,
+    p_cause: cause,
+    p_subject_id: ws.photo,
+    p_files: [ws.photo],
+  });
 
 const adOf = async (id) => ok(await db.from("ads").select("*").eq("id", id).single());
 const rowsOf = async (table, tenant) => ok(await db.from(table).select("*").eq("tenant_id", tenant));
@@ -215,17 +222,20 @@ test(
 );
 
 test(
-  "a yes for ads taken back pauses the ad that shows the file, as a remediation settled by Meta's word",
+  "a take-down's walk pauses the ad that shows the file, as a remediation settled by Meta's word",
   { skip },
   async () => {
-    const ws = await workspace("yes");
+    const ws = await workspace("walk");
     const shows = await adIn(ws);
     const other = await adIn(ws, { approved: { picture: "00000000-0000-4000-8000-000000000009" } });
-    const answer = ok(
-      await ws.owner.client.rpc("file_yes_take_back", { p_tenant_id: ws.tenant, p_file_id: ws.photo, p_uses: ["ad"] }),
-    );
+    // The causes that left with the yes (00687) start nothing.
+    for (const cause of ["yes_taken_back", "person_erased"])
+      assert.equal((await walk(ws, cause)).error?.code, "22023", `${cause} is refused`);
+    assert.deepEqual(await rowsOf("remediations", ws.tenant), []);
+    assert.equal((await adOf(shows.id)).intent, "on");
+    const answer = ok(await walk(ws));
     assert.deepEqual(
-      answer.ads.map((ad) => [ad.ad_id, ad.act, ad.outcome]),
+      answer.map((ad) => [ad.ad_id, ad.act, ad.outcome]),
       [[shows.id, "pause", "pending"]],
     );
     assert.deepEqual([(await adOf(shows.id)).intent, (await adOf(shows.id)).paused_by], ["paused", "remediation"]);
@@ -233,7 +243,7 @@ test(
     const [remediation] = await rowsOf("remediations", ws.tenant);
     assert.deepEqual(
       [remediation.cause, remediation.subject_type, remediation.finished_at],
-      ["yes_taken_back", "file", null],
+      ["owner_removed", "file", null],
     );
     // Never turned back on with this picture.
     const resumed = ok(
@@ -266,7 +276,7 @@ test(
 test("a pause Meta refused leaves the action blocked in Meta's words, never done", { skip }, async () => {
   const ws = await workspace("refused");
   const shows = await adIn(ws);
-  ok(await ws.owner.client.rpc("file_yes_take_back", { p_tenant_id: ws.tenant, p_file_id: ws.photo, p_uses: ["ad"] }));
+  ok(await walk(ws));
   ok(await db.from("ads").update({ platform_issue: "This ad can't be paused right now." }).eq("id", shows.id));
   ok(
     await db.rpc("ad_told", {

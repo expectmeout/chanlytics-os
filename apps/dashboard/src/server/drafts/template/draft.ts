@@ -108,7 +108,7 @@ export function draftSystemPrompt(
       : "- This is a UTILITY template: a notice about the customer's own booking or account, with no promotional words at all.",
     "- Never quote or promise a price unless the brief states the exact words; never promise an appointment.",
     "",
-    "Slots and their sources. Use {{1}} for the customer's first name when a greeting fits (source first_name). Use a slot with source business_name for the business's name, booking_link for its booking link, and review_link, labelled “Review link”, for the link where a customer leaves it a review on Google, when the message needs them. Any other slot is typed text (source text) with a sensible label.",
+    "Slots and their sources. Use {{1}} for the customer's first name when a greeting fits (source first_name). Use a slot with source business_name for the business's name, booking_link for its booking link, and review_link, labelled “Review link”, for the link where a customer leaves it a review, when the message needs them. Any other slot is typed text (source text) with a sensible label.",
     "",
     "Answer with one JSON object and nothing else, no code fence:",
     '{"name": "short_snake_case_name", "body": "the message with {{1}} slots", "footer": "optional footer or null", "examples": ["one example per slot"], "variables": [{"position": 1, "label": "First name", "source": "first_name"}]}',
@@ -170,8 +170,8 @@ export async function workspaceFor(
 async function reviewLinkRule(ctx: RouteContext, tenantId: TenantId): Promise<string> {
   const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
   return link
-    ? "\nThe business's Google listing keeps a review link, so a review_link slot may be used."
-    : "\nThe business has no Google review link on file: do not use a review_link slot.";
+    ? "\nThe business has a review link on file, so a review_link slot may be used."
+    : "\nThe business has no review link on file: do not use a review_link slot.";
 }
 
 /**

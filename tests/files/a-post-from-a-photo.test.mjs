@@ -607,7 +607,6 @@ test("a card from the owner's words: the photo by its id, and the plan its Save 
     voice: "classic",
     layout: "over",
     language: "en",
-    people_agreed: false,
     at: null,
   });
 });
@@ -689,18 +688,11 @@ test("the act refuses what it should, each in words the model can act on", async
   assert.match((await asked({ line: "Free balayage" })).refusal, /^line: .*promise/);
 });
 
-test("someone recognizable waits for the owner's word, and that word goes with the card", async () => {
+test("someone recognizable is posted as any other photo: nobody in it is asked (Ruben, 22 Nov 2026)", async () => {
   const face = { look: { line: "A client in the chair.", people: { count: 1, recognizable: 1 } } };
-  const held = await asked({}, { file: face });
-  assert.match(held.refusal, /recognizable/);
-  const said = await asked({ people_agreed: true }, { file: face });
-  assert.equal(said.proposal.payload.people_agreed, true);
-  const agreed = await asked({}, { file: { ...face, yes_for: ["post"] } });
-  assert.equal(agreed.proposal?.kind, "post", "a yes for posts already kept (00665)");
-  // A yes for ads alone is not one for posts, and one taken back stops the post whatever the card says.
-  assert.match((await asked({}, { file: { ...face, yes_for: ["ad"] } })).refusal, /recognizable/);
-  const back = await asked({ people_agreed: true }, { file: { ...face, yes_back: ["post"] } });
-  assert.match(back.refusal, /took back their yes to posts/);
+  const made = await asked({}, { file: face });
+  assert.equal(made.proposal?.kind, "post", made.refusal ?? made.result);
+  assert.equal("people_agreed" in made.proposal.payload, false, "the card carries no word on who agreed");
 });
 
 /* ------------------------------------------------------------------- from a video */
@@ -789,7 +781,6 @@ test("a card's plan reads back the same, and what it does not hold it does not i
     voice: "modern",
     layout: "over",
     language: "es",
-    people_agreed: false,
     at: null,
   });
 });

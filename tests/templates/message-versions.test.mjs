@@ -258,7 +258,14 @@ test("the moments offered for a new playbook: no retired one, and one win-back, 
   const offered = (o) => PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, o)).map((t) => t.id);
   // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. The proposal
   // follow-up is every workspace's (0008, amended 18 Oct 2026).
-  assert.deepEqual(offered({ calendarOn: false }), ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"]);
+  // A deal marked won reads the deal, never the calendar (22 Nov 2026): offered either way.
+  assert.deepEqual(offered({ calendarOn: false }), [
+    "quiet_30",
+    "everyone_monthly",
+    "saved_list",
+    "proposal_waiting",
+    "deal_won",
+  ]);
   assert.deepEqual(offered({ calendarOn: true }), [
     "everyone_monthly",
     "visit_tomorrow",
@@ -273,6 +280,7 @@ test("the moments offered for a new playbook: no retired one, and one win-back, 
     "visit_soon",
     "visit_missed",
     "asked_no_booking",
+    "deal_won",
   ]);
   assert.deepEqual(Object.keys(MOMENTS_RETIRED), ["new_week", "phoned_only"]);
   // A playbook already made on a retired moment keeps running: the run asks triggerOffered, which they still pass.

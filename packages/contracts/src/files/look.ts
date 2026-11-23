@@ -136,7 +136,7 @@ This image is ${params.width}x${params.height} pixels. Catalog it:
 /** What is kept of an answer, on the file's row. `subject` is a share of the picture, [x1, y1, x2, y2] from 0 to 1. */
 export type FileLook = {
   line: string;
-  /** Who it counted; null where it could not say. contracts whoStandsOf reads this beside a person's word. */
+  /** Who it counted; null where it could not say. It describes the picture; nobody in it is asked (22 Nov 2026). */
   people: FilePeople | null;
   text_seen: string[];
   quality: { sharp: FileQuality | null; light: FileQuality | null };
