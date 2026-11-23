@@ -29664,93 +29664,47 @@ COMMENT ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no intege
 
 
 --
--- Name: post_begin(uuid, uuid, text, text, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: post_by_hand_bell_settle(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT 'press'::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) RETURNS integer
+    LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
 declare
-  v_actor uuid := auth.uid();
-  v_file  public.files;
-  v_busy  uuid;
-  v_id    uuid;
-  v_when  timestamptz := greatest(coalesce(p_when, now()), now());
-  -- A Google post for later than two minutes on waits for its job; one for now is the press's own call (contracts POST_SOON).
-  v_later boolean := p_place = 'google' and v_when > now() + interval '2 minutes';
+  v_closed integer := 0;
 begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
+  -- Still the owner's to delete at this place: a post of the piece that is up there, whose newest take-down a place
+  -- left to them.
+  if exists (
+    select 1 from public.posts q
+     where q.tenant_id = p_tenant_id and q.file_id = p_file_id and q.place = p_place and q.status = 'published'
+       and (select r.outcome from public.remediation_actions r
+             where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = q.id and r.act = 'take_down'
+             order by r.started_at desc, r.id desc
+             limit 1) = any (array['blocked', 'not_possible', 'needs_person'])
+  ) then
+    return 0;
   end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if p_place is null or p_place <> all (array['instagram', 'google']) then
-    raise exception 'No such place: %.', p_place using errcode = '22023';
-  end if;
-  -- A reel waits for a video's road to Instagram (decision 0121); Google takes a picture alone.
-  if p_kind is null or p_kind <> all (array['picture', 'story']) or (p_place = 'google' and p_kind <> 'picture') then
-    return jsonb_build_object('fate', 'not_yet', 'post_id', null);
-  end if;
-  if p_caption is not null and char_length(p_caption) > 2200 then
-    raise exception 'A caption is at most 2,200 characters.' using errcode = '22023';
-  end if;
-  -- contracts POST_AHEAD_DAYS_MAX.
-  if v_when > now() + interval '30 days' then
-    raise exception 'A post goes within thirty days.' using errcode = '22023';
-  end if;
-  -- One at a time per file, place and kind, as every door that names or files takes it (00551).
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
-  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
-  if not found or v_file.removed_at is not null then
-    return jsonb_build_object('fate', 'gone', 'post_id', null);
-  end if;
-  if v_file.source <> 'made' then
-    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
-  end if;
-  -- A Google press is one call: one that died between its placement and its answer stops holding the next press after ten
-  -- minutes, in the words the files sweep says it with (contracts FILE_WORDS.google.unknown). Whether it went up is still
-  -- the edge's events' to say.
-  update public.posts p
-     set status = 'failed', updated_at = now(),
-         error = jsonb_build_object('code', null, 'subcode', null, 'words',
-                                    'Google did not say whether this went up. Look on your profile before posting it again.')
-   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
-     and p.updated_at < now() - interval '10 minutes';
-  -- A post and a story wait apart (00620): busy is one of the same kind on its way at that place.
-  select p.id into v_busy from public.posts p
-   where p.file_id = p_file_id and p.place = p_place and p.kind = p_kind
-     and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
-  if found then
-    return jsonb_build_object('fate', 'busy', 'post_id', v_busy);
-  end if;
-  insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status)
-  values (p_tenant_id, p_file_id, p_place, p_kind,
-          case when p_kind = 'story' then null else nullif(btrim(p_caption), '') end,
-          v_when, v_actor, now(), coalesce(p_via, 'press'),
-          -- Google for now is asked by the press itself, in the same moment; for later, and Instagram's send, is a job.
-          case when p_place = 'google' and not v_later then 'publishing' else 'queued' end)
-  returning id into v_id;
-  if p_place = 'instagram' then
-    -- Ten minutes ahead of its time, so Instagram has made it ready by then. As text: a job's once-only key is made of strings.
-    insert into public.jobs (tenant_id, kind, due_at, payload)
-    values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
-            jsonb_build_object('post_id', v_id, 'attempt', '1'));
-  elsif v_later then
-    -- Google fetches the picture as it is asked, so the job is due at the post's own time.
-    insert into public.jobs (tenant_id, kind, due_at, payload)
-    values (p_tenant_id, 'post_google', v_when, jsonb_build_object('post_id', v_id, 'attempt', '1'));
-  end if;
-  return jsonb_build_object('fate', 'begun', 'post_id', v_id);
+  -- The line as apps/edge post-told.ts writes it, about the file: its words are contracts TAKE_DOWN_BELL.byHand, which
+  -- a test holds to this literal; a place the bell has no name for closes nothing.
+  update public.notifications n set closed_at = now()
+   where n.tenant_id = p_tenant_id and n.kind = 'post_by_hand'
+     and n.subject_type = 'file' and n.subject_id = p_file_id::text
+     and n.closed_at is null
+     and n.title like 'Delete it in '
+                      || case p_place when 'instagram' then 'Instagram' when 'google' then 'Google' end
+                      || ' · %';
+  get diagnostics v_closed = row_count;
+  return v_closed;
 end $$;
 
 
 --
--- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620, 00687): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, post_id}.';
+COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
 
 
 --
@@ -30118,16 +30072,9 @@ begin
      set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
    where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
      and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
-  -- The bell's line for this piece at this place (apps/edge post-told.ts: "Delete it in Instagram · <the piece>",
-  -- about the file) is closed here, for every device. Its words are contracts TAKE_DOWN_BELL.byHand, which a test
-  -- holds to this literal; a place the bell has no name for closes nothing.
-  update public.notifications n set closed_at = now()
-   where n.tenant_id = p_tenant_id and n.kind = 'post_by_hand'
-     and n.subject_type = 'file' and n.subject_id = v_post.file_id::text
-     and n.closed_at is null
-     and n.title like 'Delete it in '
-                      || case v_post.place when 'instagram' then 'Instagram' when 'google' then 'Google' end
-                      || ' · %';
+  -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
+  -- its owner (00698): a story of it still to delete keeps the line.
+  perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
   return v_answer;
 end $$;
 
@@ -30136,7 +30083,7 @@ end $$;
 -- Name: FUNCTION post_take_down_keep(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes, and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes once nothing of the piece there is left to its owner (00698), and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
 
 
 --
@@ -30180,6 +30127,11 @@ begin
                       where x.remediation_id = m.id and x.outcome = 'pending');
   select p.file_id, p.place into v_file, v_place from public.posts p
    where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- Gone from its place: where nothing else of the piece there is left to its owner, the bell's line for it ends
+  -- (00698). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
+  if p_outcome = 'done' then
+    perform public.post_by_hand_bell_settle(v_action.tenant_id, v_file, v_place);
+  end if;
   -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
   select jsonb_agg(distinct q.place) into v_places
     from public.remediation_actions x
@@ -30196,7 +30148,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}. Since 00698 a done also ends the bell''s line for the piece at that place, where nothing else of it there is left to its owner.';
 
 
 --
@@ -69239,12 +69191,11 @@ GRANT ALL ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no inte
 
 
 --
--- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO authenticated;
-GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO service_role;
+REVOKE ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) TO service_role;
 
 
 --

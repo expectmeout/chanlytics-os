@@ -109,11 +109,11 @@ export const POST_CAPTION_MAX = 2200;
 const HASHTAGS_MAX = 30;
 const MENTIONS_MAX = 20;
 
-/** How far ahead a post may be set to go (00611 post_begin). */
+/** How far ahead a post may be set to go (00681 post_approve). */
 export const POST_AHEAD_DAYS_MAX = 30;
 
 /**
- * A post set for no later than this from now goes as it is pressed; later, it waits for its time (00616 post_begin's own two
+ * A post set for no later than this from now goes as it is pressed; later, it waits for its time (00681 post_approve's own two
  * minutes). The one line every reader draws: the page, Today, Ask's card and the doors.
  */
 export const POST_SOON_MS = 2 * MIN_MS;
