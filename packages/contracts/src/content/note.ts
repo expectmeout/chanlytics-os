@@ -22,12 +22,13 @@ export const CONTENT_TODAY_DOWN = 2;
 
 /**
  * Where an open take-down stands for Today, from its action: the owner's to finish, late with no answer, or still being
- * asked, which Today does not name (null).
+ * asked, which Today does not name (null). A post its owner chose to leave up asks nothing of anyone (null).
  */
 export function contentDownOf(
   action: { outcome: string; started_at: string },
   nowMs: number,
 ): ContentDownDto["is"] | null {
+  if (action.outcome === "left_up") return null;
   if (action.outcome !== "pending") return "by_hand";
   return nowMs - Date.parse(action.started_at) > TAKE_DOWN_UNCONFIRMED_MS ? "unconfirmed" : null;
 }

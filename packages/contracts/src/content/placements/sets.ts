@@ -19,8 +19,11 @@ export type ApprovalVoidWhy = (typeof APPROVAL_VOID_WHYS)[number];
 export const REVISION_MADE_BY = ["ai", "owner", "operator"] as const;
 export type RevisionMadeBy = (typeof REVISION_MADE_BY)[number];
 
-/** What a remediation's action came to (00676 remediation_actions.outcome). */
-export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person"] as const;
+/**
+ * What a remediation's action came to (00676 remediation_actions.outcome). `left_up` is no place's answer: where a place
+ * left the delete to the owner, the owner chose to leave the post up (00688, "Keep it up").
+ */
+export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person", "left_up"] as const;
 export type RemediationOutcome = (typeof REMEDIATION_OUTCOMES)[number];
 
 /** What a remediation does to what it reached (00676 remediation_actions.act). */

@@ -197,10 +197,11 @@ export {
   beginPostTakeDown,
   findPieceTakeDown,
   findTakeDownAction,
+  keepPostUp,
   listTakeDownsOpen,
   markPostDeletedByHand,
   settlePostTakeDown,
   type TakeDownKept,
 } from "./take-down";
-export type { TakeDownBegun } from "./take-down";
+export type { PieceTakeDownKept, TakeDownBegun } from "./take-down";
 export { movePostTime } from "./waiting-posts";

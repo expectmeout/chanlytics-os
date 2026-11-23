@@ -49,16 +49,37 @@ export async function beginPostTakeDown(db: Db, tenantId: TenantId, fileId: stri
   };
 }
 
-/** "I deleted it" (post_take_down_by_hand), as the member: the place is asked whether the post is gone. */
+/**
+ * "I deleted it" (post_take_down_by_hand), as the member: the place is asked whether the post is gone. A post its owner
+ * chose to leave up is not asked about (left_up, 00688).
+ */
 export async function markPostDeletedByHand(
   db: Db,
   tenantId: TenantId,
   postId: string,
-): Promise<{ fate: "asking" | "done" | "unknown" }> {
+): Promise<{ fate: "asking" | "done" | "left_up" | "unknown" }> {
   const { data, error } = await db.rpc("post_take_down_by_hand", { p_tenant_id: tenantId, p_post_id: postId });
   if (error) throw new DbFailure(error, "post take down by hand");
   const fate = recordOrEmpty(data).fate;
-  return { fate: fate === "asking" || fate === "done" ? fate : "unknown" };
+  return { fate: fate === "asking" || fate === "done" || fate === "left_up" ? fate : "unknown" };
+}
+
+/** What "Keep it up" came to: the post is left up, its place is still being asked, it came down, or it is not up. */
+const KEEP_FATES = ["left_up", "asking", "done", "not_up"] as const;
+
+/**
+ * "Keep it up" (post_take_down_keep, 00688), as the member: of a post still up whose take-down a place left to its
+ * owner, the owner's word that it stays. Nothing is asked of the place.
+ */
+export async function keepPostUp(
+  db: Db,
+  tenantId: TenantId,
+  postId: string,
+): Promise<{ fate: (typeof KEEP_FATES)[number] | "unknown" }> {
+  const { data, error } = await db.rpc("post_take_down_keep", { p_tenant_id: tenantId, p_post_id: postId });
+  if (error) throw new DbFailure(error, "post take down keep");
+  const fate = recordOrEmpty(data).fate;
+  return { fate: isOneOf(KEEP_FATES, fate) ? fate : "unknown" };
 }
 
 /** One take-down action as its job reads it, under the service role; null where there is none by that id. */
@@ -109,7 +130,15 @@ export async function settlePostTakeDown(
   };
 }
 
-const actionDtoOf = (row: ActionRow): TakeDownActionDto[] =>
+/**
+ * A piece's newest take-down as its rows keep it: each action with the id of whoever left its post up, for the reader
+ * to name them (the dashboard's posts/take-down.ts reads the roster for it, and knows who is reading).
+ */
+export interface PieceTakeDownKept extends Omit<PieceTakeDownDto, "actions"> {
+  actions: (Omit<TakeDownActionDto, "left_up_by"> & { left_up_by: string | null })[];
+}
+
+const actionKeptOf = (row: ActionRow): PieceTakeDownKept["actions"] =>
   isOneOf(REMEDIATION_TARGETS, row.target_type) &&
   isOneOf(REMEDIATION_ACTS, row.act) &&
   isOneOf(REMEDIATION_OUTCOMES, row.outcome)
@@ -123,6 +152,7 @@ const actionDtoOf = (row: ActionRow): TakeDownActionDto[] =>
           said: row.said,
           started_at: row.started_at,
           finished_at: row.finished_at,
+          left_up_by: row.left_up_by,
           name: null,
         },
       ]
@@ -140,7 +170,7 @@ export async function findPieceTakeDown(
   db: Db,
   tenantId: TenantId,
   piece: { fileIds: readonly string[]; postIds: readonly string[] },
-): Promise<PieceTakeDownDto | null> {
+): Promise<PieceTakeDownKept | null> {
   if (piece.fileIds.length === 0) return null;
   const about = await db
     .from("remediations")
@@ -179,7 +209,7 @@ export async function findPieceTakeDown(
   const kept = actions.data
     .filter((a) => ids.has(a.remediation_id) && (a.target_type === "ad" || ours.has(a.target_id)))
     .sort((a, b) => a.started_at.localeCompare(b.started_at))
-    .flatMap(actionDtoOf);
+    .flatMap(actionKeptOf);
   return {
     cause: newest.cause,
     asked_at: newest.created_at,
@@ -204,8 +234,9 @@ interface TakeDownOpenRow {
 
 /**
  * The take-downs a workspace still waits on, newest first, under the caller's RLS: each action not done whose post is
- * still up, the newest of each post (00682's index reads the few there are). A post that came down since, by a later
- * take-down, is no longer one.
+ * still up, the newest of each post (00682's index, as 00688 re-made it, reads the few there are). A post that came
+ * down since, by a later take-down, is no longer one; nor is a post its owner chose to leave up, whose every ask says
+ * left_up and is never read here, however many there are.
  */
 export async function listTakeDownsOpen(db: Db, tenantId: TenantId, limit: number): Promise<TakeDownOpenRow[]> {
   const open = await db
@@ -215,6 +246,7 @@ export async function listTakeDownsOpen(db: Db, tenantId: TenantId, limit: numbe
     .eq("act", "take_down")
     .eq("target_type", "post")
     .neq("outcome", "done")
+    .neq("outcome", "left_up")
     .order("started_at", { ascending: false })
     .limit(limit);
   if (open.error) throw new DbFailure(open.error, "open take-downs");

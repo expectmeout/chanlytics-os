@@ -38,7 +38,9 @@ export type GoesAct =
   | { is: "words"; says: string }
   | { is: "connect" }
   | { is: "open_place"; says: string; href: string }
-  | { is: "deleted"; postId: string };
+  | { is: "deleted"; postId: string }
+  /** "Keep it up", of a post a place left to its owner to delete: it stays, on their word. */
+  | { is: "keep"; postId: string };
 
 /** One placement's line. */
 export interface GoesLine {
@@ -54,6 +56,8 @@ export interface GoesLine {
   /** Something is moving and mends itself: the line's one ring turns. */
   moving: boolean;
   acts: GoesAct[];
+  /** What the piece's one status says for this line, where that is not the line's own words; null where it is. */
+  status: string | null;
 }
 
 export const GOES_WORDS = {
@@ -120,13 +124,14 @@ const GOES_ORDER: readonly (readonly [PostPlace, PostKind])[] = [
   ["google", "picture"],
 ];
 
-type Said = Pick<GoesLine, "said" | "tone" | "note" | "moving" | "acts">;
+type Said = Pick<GoesLine, "said" | "tone" | "note" | "moving" | "acts" | "status">;
 const lineSaysOf = (line: string, tone: GoesTone, more: Partial<Said> = {}): Said => ({
   said: line,
   tone,
   note: null,
   moving: false,
   acts: [],
+  status: null,
   ...more,
 });
 
@@ -142,13 +147,15 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
     return lineSaysOf(TAKE_DOWN_WORDS.unconfirmed(place), "", {
       note: TAKE_DOWN_WORDS.unconfirmedNote(known.when(down.since)),
     });
-  // The place could not, or refused: the step by hand, with the place's own link, and the owner's word once it is done.
+  // The place could not, or refused: the step by hand, with the place's own link, and the owner's word once it is
+  // done; or their other choice, to keep it up (the canvas's Piece 34: the third press, after the two that finish it).
   const acts: GoesAct[] = known.may
     ? [
         ...(post.permalink
           ? [{ is: "open_place", says: TAKE_DOWN_WORDS.open(place), href: post.permalink } satisfies GoesAct]
           : []),
         { is: "deleted", postId: post.id },
+        { is: "keep", postId: post.id },
       ]
     : [];
   const stillUp = down.said === TAKE_DOWN_WORDS.stillUp(place);
@@ -164,12 +171,29 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
  */
 const POST_SEEN_WAIT_MS = 10 * MIN_MS;
 
-/** A post that is up: seen there, sent and not yet seen, or a story that ended by itself. */
+/**
+ * A post's take-down that its owner answered by leaving the post up, where a place had left the delete to them ("Keep
+ * it up", 00688): it holds who and when. Undefined where its take-down says anything else.
+ */
+const leftUpOf = (post: PostDto, takeDown: PieceTakeDownDto | null) =>
+  takeDown?.actions.find(
+    (a) => a.target === "post" && a.target_id === post.id && a.act === "take_down" && a.outcome === "left_up",
+  );
+
+/** A post that is up: seen there, sent and not yet seen, a story that ended by itself, or one kept up by choice. */
 function upSaid(post: PostDto, known: GoesKnown): Said {
   const at = post.published_at ? known.when(post.published_at) : null;
   const ended = post.kind === "story" && !!post.published_at && known.nowMs - Date.parse(post.published_at) > DAY_MS;
   if (ended) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
   const see: GoesAct[] = post.permalink ? [{ is: "see", href: post.permalink }] : [];
+  // Left up by its owner's own word, where a place would not take it down (the canvas's Piece 35): who kept it and
+  // when, in green, so a teammate reads a choice. The piece's one status says where it is: on the place.
+  const left = leftUpOf(post, known.takeDown);
+  if (left?.finished_at)
+    return lineSaysOf(TAKE_DOWN_WORDS.keptUp(left.left_up_by, known.when(left.finished_at)), "ok", {
+      acts: see,
+      status: GOES_WORDS.up(post.place, null),
+    });
   // Instagram's is said to be on the account only once the account was read holding it, and until then it is still
   // posting: no word between the two (PRD 8.2 as the canvas's call 7 took it). Past the time that read takes, nobody
   // can say it went up, and the line says so in the words a send with no answer always had.
@@ -292,9 +316,23 @@ export function goesPillOf(lines: readonly GoesLine[]): { said: string; tone: Go
   // A refusal's reason is its line's to say: the pill says where it did not go.
   if (lead.said.startsWith(GOES_WORDS.didnt(null)))
     return { said: GOES_WORDS.pill.didnt(lead.place), tone: "you", moving: false };
-  const same = lines.filter((line) => line.tone === lead.tone && line.said === lead.said).length;
+  // A line whose words are its own to say (a post kept up) gives the status the place it stands at.
+  const statusOf = (line: GoesLine): string => line.status ?? line.said;
+  const same = lines.filter((line) => line.tone === lead.tone && statusOf(line) === statusOf(lead)).length;
   const timed = lead.tone === "" ? lines.filter((line) => line.tone === "").length : same;
-  return { said: GOES_WORDS.pill.places(lead.said, timed), tone: lead.tone, moving: lead.moving };
+  return { said: GOES_WORDS.pill.places(statusOf(lead), timed), tone: lead.tone, moving: lead.moving };
+}
+
+/**
+ * Where a piece's take-down stands: still open (a place asked, or the owner's to finish), and whether a place is yet to
+ * answer. A post its owner chose to leave up is neither: nothing of it waits, and Take down is there again.
+ */
+export function takeDownStandsOf(takeDown: PieceTakeDownDto | null): { open: boolean; asking: boolean } {
+  const actions = takeDown?.actions.filter((a) => a.act === "take_down") ?? [];
+  return {
+    open: actions.some((a) => a.outcome !== "done" && a.outcome !== "left_up"),
+    asking: actions.some((a) => a.outcome === "pending"),
+  };
 }
 
 /** Whether a piece has anything a take-down would reach: a post up, or on its way up. */

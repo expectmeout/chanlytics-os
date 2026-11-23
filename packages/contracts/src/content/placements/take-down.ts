@@ -9,8 +9,8 @@ import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "..
 import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
 import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./take-down-late";
 
-/** What a take-down job's door answers a place can give: everything but still waiting. */
-export type TakeDownSettled = Exclude<RemediationOutcome, "pending">;
+/** What a take-down job's door answers a place can give: everything but still waiting, and the owner's own word. */
+export type TakeDownSettled = Exclude<RemediationOutcome, "pending" | "left_up">;
 
 /** One thing a take-down reached, as the piece's sheet draws it. */
 export interface TakeDownActionDto {
@@ -25,6 +25,12 @@ export interface TakeDownActionDto {
   /** When Chanlytics asked, and when the place said what came of it. */
   started_at: string;
   finished_at: string | null;
+  /**
+   * Who chose to leave the post up, on an action that says left_up (00688) and on no other, as its line names them
+   * (docs/words.md, "Who did it"): the member reading, or a teammate by the name the roster has; no name where they
+   * gave none or have left the workspace since. When is finished_at.
+   */
+  left_up_by: { you: boolean; name: string | null } | null;
   /** An ad's name, where the action is an ad's. */
   name: string | null;
 }
@@ -44,14 +50,17 @@ export type PostComingDown =
   | { is: "by_hand"; said: string | null }
   | { is: "refused"; said: string | null };
 
-/** Where a post stands in being taken down, from its newest action; null where none is, or it came down. */
+/**
+ * Where a post stands in being taken down, from its newest action; null where none is, it came down, or its owner
+ * chose to leave it up (its line says who kept it: the dashboard's model/goes.ts).
+ */
 export function postComingDownOf(
   post: Pick<PostDto, "id">,
   takeDown: PieceTakeDownDto | null,
   nowMs: number,
 ): PostComingDown | null {
   const action = takeDown?.actions.find((a) => a.target === "post" && a.target_id === post.id && a.act === "take_down");
-  if (!action || action.outcome === "done") return null;
+  if (!action || action.outcome === "done" || action.outcome === "left_up") return null;
   if (action.outcome === "pending")
     return nowMs - Date.parse(action.started_at) > TAKE_DOWN_UNCONFIRMED_MS
       ? { is: "unconfirmed", since: action.started_at }
@@ -108,6 +117,14 @@ export const TAKE_DOWN_WORDS = {
     `Open the ${kind} in ${POST_PLACE_SAID[place]}, then Delete. Chanlytics checks it's gone.`,
   open: (place: PostPlace) => `Open in ${POST_PLACE_SAID[place]}`,
   deleted: "I deleted it",
+  /** The third press where a place left the delete to the owner (the canvas's Piece 34): the post stays up. */
+  keep: "Keep it up",
+  /**
+   * A post its owner chose to leave up (Piece 35): who kept it and when, so a teammate reads a choice, never a failure.
+   * "Kept up by you · Fri 4:02 PM"; a teammate's reads "Kept up by Sofia".
+   */
+  keptUp: (by: TakeDownActionDto["left_up_by"], when: string | null) =>
+    `Kept up by ${by?.you ? "you" : by?.name || "a teammate"}${when ? ` · ${when}` : ""}`,
   checking: (place: PostPlace) => `Checking with ${POST_PLACE_SAID[place]}`,
   unconfirmed: takeDownUnconfirmedSaid,
   unconfirmedNote: (when: string) => `Asked ${when}. Chanlytics keeps checking and says here when it's gone.`,
