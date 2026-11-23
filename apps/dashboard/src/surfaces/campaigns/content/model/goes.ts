@@ -173,7 +173,7 @@ const POST_SEEN_WAIT_MS = 10 * MIN_MS;
 
 /**
  * A post's take-down that its owner answered by leaving the post up, where a place had left the delete to them ("Keep
- * it up", 00688): it holds who and when. Undefined where its take-down says anything else.
+ * it up", 00689): it holds who and when. Undefined where its take-down says anything else.
  */
 const leftUpOf = (post: PostDto, takeDown: PieceTakeDownDto | null) =>
   takeDown?.actions.find(

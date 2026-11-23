@@ -143,7 +143,7 @@ test("a post its owner chose to leave up is never named, whatever an older take-
     files: [piece(1), piece(2)],
     posts: [up(1, 1, "instagram"), up(2, 2, "google")],
     remediation_actions: [
-      // "Keep it up" answers every ask of that post a place left to the owner (00688).
+      // "Keep it up" answers every ask of that post a place left to the owner (00689).
       action(1, 1, "left_up", 2),
       action(3, 1, "left_up", 9),
       action(2, 2, "needs_person", 5),

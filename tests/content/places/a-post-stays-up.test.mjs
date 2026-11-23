@@ -1,5 +1,5 @@
 /**
- * "Keep it up" (the content loop PRD's 8.3, taken on 23 November 2026; 00688): where a place left a post to its owner to
+ * "Keep it up" (the content loop PRD's 8.3, taken on 23 November 2026; 00689): where a place left a post to its owner to
  * delete, the owner's word that it stays, through PUT files/[id]/posts run by route() over a database in memory. The
  * press goes through its own door on the member's session and asks nothing of the place; "I deleted it" keeps its
  * door, and a page that had not heard cannot undo the owner's word. A take-down job that arrives late for a post left
@@ -106,7 +106,7 @@ function world({ role = "owner", outcome = "needs_person" } = {}) {
     tables,
     {},
     {
-      // The door as 00688 writes it: said once, of a post still up that a place left to its owner.
+      // The door as 00689 writes it: said once, of a post still up that a place left to its owner.
       post_take_down_keep: ({ p_tenant_id, p_post_id }) => {
         doors.push(["post_take_down_keep", p_tenant_id, p_post_id]);
         if (action.target_id !== p_post_id) return { fate: "unknown" };
@@ -116,7 +116,7 @@ function world({ role = "owner", outcome = "needs_person" } = {}) {
           Object.assign(action, { outcome: "left_up", finished_at: NOW, left_up_by: USER });
         return { fate: "left_up", post_id: POST, file_id: FILE, place: "instagram" };
       },
-      // The door as 00688 re-made it: a post left up is not asked about.
+      // The door as 00689 re-made it: a post left up is not asked about.
       post_take_down_by_hand: ({ p_tenant_id, p_post_id }) => {
         doors.push(["post_take_down_by_hand", p_tenant_id, p_post_id]);
         if (action.target_id !== p_post_id) return { fate: "unknown" };
@@ -198,7 +198,7 @@ test("the bell's line for that place is closed by the door itself, by the words 
   assert.deepEqual(more, [], "one warning, and no other, ends with the owner's word");
   assert.equal(warns?.kind, "post_by_hand");
   assert.equal(warns.sameSubject, true, "one piece's word never closes another's line");
-  // post_take_down_keep (00688) closes the line in SQL, by its title: 'Delete it in ' || the place || ' · %'. The
+  // post_take_down_keep (00689) closes the line in SQL, by its title: 'Delete it in ' || the place || ' · %'. The
   // words and that literal agree, at either place and for a piece with no name.
   assert.equal(TAKE_DOWN_BELL.byHand("instagram", "The finish"), "Delete it in Instagram · The finish");
   assert.equal(TAKE_DOWN_BELL.byHand("google", ""), "Delete it in Google · A post");

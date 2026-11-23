@@ -16,7 +16,7 @@ import { sayOfPostByHand, takePieceDown } from "@/server/posts/take-down";
  * again as a new post. Answers `{ asked, cancelled, ads }`; refused where nothing of it is up, waiting or showing.
  *
  * PUT — `{ post_id }`: "I deleted it", of a post Chanlytics could not take down itself. The place is asked whether it is
- * gone, and the post is taken down once the place shows it is. With `keep: true` it is "Keep it up" (00688): the post
+ * gone, and the post is taken down once the place shows it is. With `keep: true` it is "Keep it up" (00689): the post
  * stays up on the owner's word, the reminder ends, and nothing is asked of the place until Take down is pressed again.
  * Answers `{ asking, left_up }`: where the post's take-down now stands.
  *

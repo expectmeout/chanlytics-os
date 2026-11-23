@@ -2,7 +2,7 @@
  * A post comes down, on a real database (00682; the content loop PRD's 5.3, 8.3 and 15.1), with real sessions: the owner's
  * press asks down what is up and lets go what waited, as one remediation with its job; a post is taken_down only once the
  * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
- * none of it, and another workspace reads none of it. And "Keep it up" (00688): a post a place left to its owner stays
+ * none of it, and another workspace reads none of it. And "Keep it up" (00689): a post a place left to its owner stays
  * up on the owner's word, with who and when, the bell's line for it closes, and nothing is asked of the place again.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.

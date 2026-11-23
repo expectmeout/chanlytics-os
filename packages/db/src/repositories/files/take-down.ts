@@ -51,7 +51,7 @@ export async function beginPostTakeDown(db: Db, tenantId: TenantId, fileId: stri
 
 /**
  * "I deleted it" (post_take_down_by_hand), as the member: the place is asked whether the post is gone. A post its owner
- * chose to leave up is not asked about (left_up, 00688).
+ * chose to leave up is not asked about (left_up, 00689).
  */
 export async function markPostDeletedByHand(
   db: Db,
@@ -68,7 +68,7 @@ export async function markPostDeletedByHand(
 const KEEP_FATES = ["left_up", "asking", "done", "not_up"] as const;
 
 /**
- * "Keep it up" (post_take_down_keep, 00688), as the member: of a post still up whose take-down a place left to its
+ * "Keep it up" (post_take_down_keep, 00689), as the member: of a post still up whose take-down a place left to its
  * owner, the owner's word that it stays. Nothing is asked of the place.
  */
 export async function keepPostUp(
@@ -234,7 +234,7 @@ interface TakeDownOpenRow {
 
 /**
  * The take-downs a workspace still waits on, newest first, under the caller's RLS: each action not done whose post is
- * still up, the newest of each post (00682's index, as 00688 re-made it, reads the few there are). A post that came
+ * still up, the newest of each post (00682's index, as 00689 re-made it, reads the few there are). A post that came
  * down since, by a later take-down, is no longer one; nor is a post its owner chose to leave up, whose every ask says
  * left_up and is never read here, however many there are.
  */

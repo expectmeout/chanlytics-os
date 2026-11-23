@@ -21,7 +21,7 @@ export type RevisionMadeBy = (typeof REVISION_MADE_BY)[number];
 
 /**
  * What a remediation's action came to (00676 remediation_actions.outcome). `left_up` is no place's answer: where a place
- * left the delete to the owner, the owner chose to leave the post up (00688, "Keep it up").
+ * left the delete to the owner, the owner chose to leave the post up (00689, "Keep it up").
  */
 export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person", "left_up"] as const;
 export type RemediationOutcome = (typeof REMEDIATION_OUTCOMES)[number];

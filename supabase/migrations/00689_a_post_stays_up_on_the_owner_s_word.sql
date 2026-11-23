@@ -1,4 +1,4 @@
--- 00688 · A post stays up on the owner's word (the content loop PRD v3.5, section 8.3: "Keep it up", taken on
+-- 00689 · A post stays up on the owner's word (the content loop PRD v3.5, section 8.3: "Keep it up", taken on
 -- 23 November 2026).
 --
 -- Where a place would not take a post down for Chanlytics, the delete is the owner's: the piece says so, the bell says
@@ -54,9 +54,9 @@ create index if not exists remediation_actions_take_downs_open
   where act = 'take_down' and outcome <> 'done' and outcome <> 'left_up';
 
 comment on column public.remediation_actions.left_up_by is
-  'Who chose to leave the post up, on an action that says left_up (00688; the content loop PRD''s 8.3, "Keep it up"). When is finished_at. Null on every other action, and once that member is gone.';
+  'Who chose to leave the post up, on an action that says left_up (00689; the content loop PRD''s 8.3, "Keep it up"). When is finished_at. Null on every other action, and once that member is gone.';
 comment on table public.remediation_actions is
-  'One action a remediation started on one thing it reached (00676; the content loop PRD''s 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place''s own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad''s is settled by ads_settle_remediation as its row learns what the platform holds. A post a place left to its owner to delete, which the owner chose to leave up, says left_up, with who (00688). Members read.';
+  'One action a remediation started on one thing it reached (00676; the content loop PRD''s 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place''s own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad''s is settled by ads_settle_remediation as its row learns what the platform holds. A post a place left to its owner to delete, which the owner chose to leave up, says left_up, with who (00689). Members read.';
 
 /* ---------------------------------------------------------------------------------- 1. post_take_down_keep -- */
 
@@ -129,7 +129,7 @@ end $$;
 revoke all on function public.post_take_down_keep(uuid, uuid) from public, anon;
 grant execute on function public.post_take_down_keep(uuid, uuid) to authenticated, service_role;
 comment on function public.post_take_down_keep(uuid, uuid) is
-  'A member''s door, with the settings permission (00688; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes, and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
+  'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes, and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
 
 /* ------------------------------------------------------------------------------- 2. post_take_down_by_hand -- */
 
@@ -163,7 +163,7 @@ begin
   if v_action.outcome = 'pending' then
     return jsonb_build_object('fate', 'asking');
   end if;
-  -- Left up by the owner's own word (00688): nothing is asked of the place until Take down is pressed again.
+  -- Left up by the owner's own word (00689): nothing is asked of the place until Take down is pressed again.
   if v_action.outcome = 'left_up' then
     return jsonb_build_object('fate', 'left_up');
   end if;
@@ -179,4 +179,4 @@ end $$;
 revoke all on function public.post_take_down_by_hand(uuid, uuid) from public, anon;
 grant execute on function public.post_take_down_by_hand(uuid, uuid) to authenticated, service_role;
 comment on function public.post_take_down_by_hand(uuid, uuid) is
-  'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), left_up (the owner chose to leave it up, 00688: nothing is asked), unknown}.';
+  'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), left_up (the owner chose to leave it up, 00689: nothing is asked), unknown}.';

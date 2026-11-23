@@ -26,7 +26,7 @@ export interface TakeDownActionDto {
   started_at: string;
   finished_at: string | null;
   /**
-   * Who chose to leave the post up, on an action that says left_up (00688) and on no other, as its line names them
+   * Who chose to leave the post up, on an action that says left_up (00689) and on no other, as its line names them
    * (docs/words.md, "Who did it"): the member reading, or a teammate by the name the roster has; no name where they
    * gave none or have left the workspace since. When is finished_at.
    */
