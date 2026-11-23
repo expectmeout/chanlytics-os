@@ -24,7 +24,10 @@ export type ParamSpec =
   | { kind: "first_name" }
   | { kind: "business_name" }
   | { kind: "booking_link" }
-  /** Where a customer leaves the business a review: the link its Google listing keeps (google_listings.new_review_uri). */
+  /**
+   * Where a customer leaves the business a review: the owner's own link if they gave one, else the link its Google
+   * listing keeps (contracts reviewLinkFrom; google_listings.new_review_uri).
+   */
   | { kind: "review_link" }
   /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
   | { kind: "visit_when" }
@@ -55,7 +58,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   first_name: "Each person's own · “there” when none is on file",
   business_name: "From Settings › Details",
   booking_link: "From Settings › Hours & booking",
-  review_link: "From your Google listing",
+  review_link: "From Settings › Details, else your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
@@ -131,9 +134,9 @@ export interface ParamFacts {
   businessName: string;
   bookingLink: string | null;
   /**
-   * The link the workspace's Google listing keeps for a review (00415), as a broadcast's send reads it; absent where
-   * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
-   * slotToWrite).
+   * The workspace's review link (db reviewLinkOf: the owner's own, else the one its Google listing keeps, 00415), as a
+   * broadcast's send reads it; absent where nothing fills a review slot: the Inbox and a call's booking link turn such
+   * a template away (inbox-templates slotToWrite).
    */
   reviewLink?: string | null;
   /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */

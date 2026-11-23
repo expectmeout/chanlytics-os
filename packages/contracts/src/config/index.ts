@@ -141,6 +141,13 @@ export {
 } from "./policy/reply-limits";
 export { promptBlocks } from "./prompt-blocks";
 export type { PromptBlockVM, PromptSource } from "./prompt-blocks";
+export {
+  ownReviewLinkOf,
+  REVIEW_LINK_ROW_WORDS,
+  reviewLinkFrom,
+  reviewLinkSaved,
+  whyNotAReviewLink,
+} from "./review-link";
 export { roleAtLeast } from "./roles";
 export {
   ALERT_ADDRESSES_MAX,

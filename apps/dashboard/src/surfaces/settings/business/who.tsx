@@ -21,53 +21,17 @@ import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
 import { BtRow } from "./gestures/row";
+import { btTextBox } from "./gestures/text-box";
+import type { BoxProps } from "./gestures/text-box";
 import { BtLogoRow } from "./logo/row";
 import { BtColourRow } from "./look/row";
+import { BtReviewLinkRow } from "./review-link/row";
 import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { setupVerbs } from "../../setup/surface";
 import { factsNow } from "./shell";
-
-/** What a row's box is handed to draw: the draft, its setter, what stops it, the field's own props, the row's gate. */
-interface BoxProps<D> {
-  draft: D;
-  set: (next: D) => void;
-  problem: ReactNode;
-  field: { id: string; label: ReactNode; "aria-labelledby"?: string; readOnly?: boolean };
-  gate?: Record<string, unknown> | null;
-  readOnly?: boolean;
-}
-
-/** What a text box says beside the field: only the words it has. */
-interface TextWords {
-  hint?: string;
-  placeholder: string;
-  inputMode?: "url" | "tel";
-  autoComplete?: string;
-}
-
-/**
- * The box for a row whose value is one line of text. Its hint says what the value is for, or what empty means, and
- * is drawn under the box only while the box is empty: that is when it is the one thing to read (the phone's rule for
- * a row's hint, record.css), and a filled row's editor keeps the row's one line, so nothing under it moves as the
- * value becomes its field. A problem is drawn whenever there is one; RecordField gives it the hint's place.
- */
-const btTextBox =
-  (words: TextWords) =>
-  ({ draft, set, problem, field }: BoxProps<string>) => (
-    <RecordField
-      {...field}
-      value={draft}
-      onChange={set}
-      problem={problem}
-      hint={draft ? null : words.hint || null}
-      placeholder={words.placeholder}
-      inputMode={words.inputMode}
-      autoComplete={words.autoComplete}
-    />
-  );
 
 /** The number the receptionist gives out, as its draft stores it: the line itself, or a number typed. */
 interface PublishedDraft {
@@ -567,6 +531,8 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       <BtAddressRow {...shared} />
 
       <BtWebsiteRow {...shared} />
+
+      <BtReviewLinkRow {...shared} />
 
       {/* The numbers, named for what each one does. They were one row called "Phone line" showing a typed string,
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers

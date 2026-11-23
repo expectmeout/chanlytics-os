@@ -150,13 +150,22 @@ export function BtBookingChoiceRow({
   // mailbox reads, as What it can do asks (can.tsx). The link alone was asked here until 13 Nov 2026.
   const calendar = BUSINESS_TAB.calendarFeedKeyOf(config) !== null;
   const facts = { switchOn, held, linkInChat, takes, calendar };
+  const current = bookingChoiceOf(facts);
+  // What booking with a link costs in results, said once where the owner chooses (contracts linkCosts): under the link's
+  // own answer in the menu, whichever answer stands. Never under the row: a phone draws no hint under a row that has
+  // its fact (record.css), so an owner who books by link would read it at a desk and never on a phone.
+  const link = BOOKING_CHOICE_WORDS.options.link;
+  const options = {
+    ...BOOKING_CHOICE_WORDS.options,
+    link: { ...link, says: `${link.says} ${BOOKING_CHOICE_WORDS.linkCosts}` },
+  };
   return (
     <ChoiceRow
       id="booking_choice"
       label={BOOKING_CHOICE_WORDS.label}
       choices={BOOKING_CHOICES}
-      current={bookingChoiceOf(facts)}
-      words={BOOKING_CHOICE_WORDS.options}
+      current={current}
+      words={options}
       needs={(c) => bookingChoiceNeeds(c, facts)}
       hint={heldDraftsLine(heldDraftsByClass(read.held).booking)}
       canEdit={canEdit}

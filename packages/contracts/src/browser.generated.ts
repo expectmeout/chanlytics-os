@@ -119,7 +119,7 @@ export { keptThanksAt, lateReminderAt } from "./campaigns/playbooks/late-reminde
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
 export { channelsGoesByWords, LIFECYCLE_TOAST, LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./campaigns/playbooks/lifecycle/words";
-export { ASK_REST_DAYS, askFollowUpAt, askOccasion, missedFollowUpAt, missedOccasion, OCCASION_LATE_MS, occasionAppointment, occasionEventOf, occasionGone, visitOccasion, visitOccasionsOf, visitSoonAt } from "./campaigns/playbooks/occasions";
+export { ASK_REST_DAYS, askFollowUpAt, askOccasion, dealIdsOf, dealStillWon, missedFollowUpAt, missedOccasion, OCCASION_LATE_MS, occasionAppointment, occasionDeal, occasionEventOf, occasionGone, visitOccasion, visitOccasionsOf, visitSoonAt, wonOccasion, wonThanksAt } from "./campaigns/playbooks/occasions";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./campaigns/playbooks/patch";
 export { FREED_TIME_NEEDS_WHEN, freedTimeFactsFor, LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./campaigns/playbooks/playbooks";
 export { enrolPurpose, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause } from "./campaigns/playbooks/purpose";
@@ -223,6 +223,7 @@ export { cannotSendLink, NO_LINK_DETAILS, NO_WAY_TO_SEND_LINK, offersBookingLink
 export { guardSpokenTurns, heldLine, namesMoney, priceBreach, priceFigures, replyWindow, spokenBreach, spokenBreachDetails, violatesNoPrices, WA_WINDOW_MS, waWindow } from "./config/policy/prices";
 export { ANSWER_WITHIN_HOURS_DEFAULT, answerWithinHoursOf, answerWithinMsOf, CALL_HEARTBEAT_MS, hardLimitsWords, isLiveCall, MEMBER_REPLY_STALE_MS, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, replyDelayMs, SEND_GRACE_MS, windowClockOf } from "./config/policy/reply-limits";
 export { promptBlocks } from "./config/prompt-blocks";
+export { ownReviewLinkOf, REVIEW_LINK_ROW_WORDS, reviewLinkFrom, reviewLinkSaved, whyNotAReviewLink } from "./config/review-link";
 export { roleAtLeast } from "./config/roles";
 export { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_REFUSED_WORDS, alertAddressesOf, memberGetsAlerts, withAlertAddress } from "./config/workspace-config/alerts";
 export { CONVERSATION_GAP_MS, CONVERSATION_UNDER_WAY, disclosureFacts } from "./config/workspace-config/assistant-disclosure";

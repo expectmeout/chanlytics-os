@@ -130,6 +130,8 @@ export interface Work {
   priors: Map<string, { id: string; sentAt: string | null }>;
   /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
   appointments: ReadonlyMap<string, AppointmentState>;
+  /** The stage of each deal a row of the batch was made for, by id (ports.dealStages): what such a row's send asks again. */
+  deals: ReadonlyMap<string, string>;
   /**
    * What the owner's calendar feed names now (ports.feed), asked once for the batch when a reminder in it was drawn for a
    * calendar event: null where there is no feed to ask (or nothing in the batch needs it), "unread" where it could not be
@@ -189,11 +191,16 @@ export async function batchSlots(
  * Why a person's own row holds them at the wire, or null: a send by hand left them out for the week's breath, in the run's
  * own write (contracts LEFT_OUT_FACTS: never sent, whatever the hold after the run wrote), or a reminder's visit no longer
  * stands (broadcast-feed.ts visitStands, handed in, and asked only of a person not left out: one the breath left out is
- * skipped even where the calendar could not be read).
+ * skipped even where the calendar could not be read), or the deal a thank-you is for is no longer won (contracts
+ * dealStillWon, handed in: one taken back, lost or ended since the run drew it; a row about no deal is not asked).
  */
-export function rowHold(recipient: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
+export function rowHold(
+  recipient: Pick<RecipientRow, "facts">,
+  record: { visitStands: () => boolean; dealWon: () => boolean },
+): string | null {
   if (leftOutByFacts(rowFacts(recipient))) return RECIPIENT_REASON_HEARD;
-  return visitStands() ? null : "appointment_changed";
+  if (!record.visitStands()) return "appointment_changed";
+  return record.dealWon() ? null : "deal_changed";
 }
 
 /**

@@ -42,6 +42,7 @@ export function newSequenceLine(trigger: string, word: AppointmentWord): string 
     case "visit_soon":
     case "visit_missed":
     case "asked_no_booking":
+    case "deal_won":
       return occasionWords(trigger, word).line;
     default:
       return null;

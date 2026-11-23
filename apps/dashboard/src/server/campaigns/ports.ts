@@ -63,8 +63,8 @@ export function templateValuePorts(ctx: RouteContext, tenantId: TenantId): Templ
       const config = await getStoredConfig(ctx.supabase, tenantId).catch(() => null);
       return parseTenantConfig(config)?.brain?.booking_link ?? null;
     },
-    // The link the workspace's Google listing keeps, read as the member reads the listing (its row policy). A read that
-    // fails throws: "Connect your Google listing" would be a wrong thing to tell someone whose listing is there.
+    // The workspace's review link (the owner's own, else the one its Google listing keeps), read as the member reads
+    // both. A read that fails throws: "none is on file" would be a wrong thing to tell someone whose link is there.
     reviewLink: () => reviewLinkOf(ctx.supabase, tenantId),
   };
 }

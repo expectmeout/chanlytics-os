@@ -292,6 +292,9 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
   // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
   appointment_changed: "their booking moved or was cancelled",
+  // The thank-you after a deal marked won, where the deal was taken back, lost or ended between the run and the send
+  // (contracts dealStillWon): held, never sent for a deal the record no longer says is won.
+  deal_changed: "no longer marked as a client",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs

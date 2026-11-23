@@ -23,6 +23,7 @@ import {
 import { carriedBy, nextBatch } from "../runner/batch-carry";
 import type { Database } from "@chanlytics/db/types";
 import { getAppointmentStates } from "@chanlytics/db/calendar";
+import { listDealStandings } from "@chanlytics/db/deals";
 import { findConfigRow, findWorkspaceNameZone, isSendingStopped } from "@chanlytics/db/workspace";
 import {
   recordCampaignMonthSent,
@@ -240,6 +241,7 @@ function peoplePorts(
   | "batch"
   | "contacts"
   | "appointments"
+  | "dealStages"
   | "feed"
   | "target"
   | "targetOfContact"
@@ -266,6 +268,9 @@ function peoplePorts(
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
     appointments: (keys) => getAppointmentStates(db, tenantId, keys),
+    // The stage of each deal a thank-you was made for (a deal marked won): it goes only while its deal is still won.
+    dealStages: async (ids) =>
+      new Map([...(await listDealStandings(db, tenantId, ids))].map(([id, deal]) => [id, deal.stage])),
     // And the owner's calendar feed beside it, which is newer than the record by up to the hourly sweep (S1-05): the edge
     // reads it (kept five minutes); a runtime without one sends on the record alone.
     ...(calendar ? { feed: () => calendar.feedNames(tenantId, new Date()) } : {}),

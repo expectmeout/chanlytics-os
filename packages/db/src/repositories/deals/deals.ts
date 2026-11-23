@@ -73,6 +73,33 @@ export async function openDealsOf(db: Db, tenantId: TenantId, contactId: Contact
   return (result.data ?? []).map((d) => ({ id: d.id, service: d.service }));
 }
 
+/** A deal as the record holds it now, for what is owed while it stands: whose it is, and the stage it is in. */
+export interface DealStanding {
+  contactId: ContactId;
+  stage: string;
+}
+
+/**
+ * Deals by id as the record holds them now, each with its person and its stage; one that is gone is absent. What the
+ * thank-you for a deal marked won asks before it is owed and again before it goes (contracts occasionGone,
+ * dealStillWon): the edge's enrolment and its run, and the send job, with the service role. A read that fails THROWS:
+ * "we could not read it" is never "it is still won".
+ */
+export async function listDealStandings(
+  db: Db,
+  tenantId: TenantId,
+  ids: readonly string[],
+): Promise<Map<string, DealStanding>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db
+    .from("deals")
+    .select("id, contact_id, stage")
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids]);
+  if (error) throw new DbFailure(error, "deals: how these deals stand");
+  return new Map(data.map((d) => [d.id, { contactId: d.contact_id, stage: d.stage }]));
+}
+
 /** What a move may name beside its stage: deal_record's own arguments, by their names without the `p_`. */
 export type DealMove = {
   deal_id?: string;

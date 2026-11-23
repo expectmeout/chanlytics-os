@@ -20,7 +20,8 @@ import { triggerOf } from "./triggers/notices";
  */
 export function messageAboutOfTrigger(trigger: string | null | undefined): MessageAbout {
   const kind = triggerOf(trigger ?? "")?.kind;
-  // An occasion's too (decision 0119): their own visit in two hours, the one they missed, the booking they asked about.
+  // An occasion's too (decision 0119): their own visit in two hours, the one they missed, the booking they asked about,
+  // the deal of theirs that was marked won.
   return kind === "visit" || kind === "deal" || kind === "freed" || kind === "occasion" ? "theirs" : "ours";
 }
 
