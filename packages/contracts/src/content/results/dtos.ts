@@ -1,5 +1,5 @@
 /**
- * What crosses the wire for a post's results (00692; the content loop PRD's 9.3, 12.1 and 21): the week's line Today's
+ * What crosses the wire for a post's results (00696; the content loop PRD's 9.3, 12.1 and 21): the week's line Today's
  * weekly card says, Reports' content section with its total, and a comment as Inbox shows it with its public answer. Each
  * a DTO the server fills from its readers and a page draws through contracts' words; snake_case, as the wire is.
  */

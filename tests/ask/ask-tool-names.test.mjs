@@ -1628,7 +1628,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 22 Nov 2026 (00680): and the form entries held for a look that nobody has looked at in three days, read beside
     // the requests nobody has answered (readers/forms.ts formRequestsOpen): one `form_entries` read more. Bytes
     // unchanged: this world has no form.
-    // 23 Nov 2026 (00692): and the comments on the posts that wait on the owner (readers/results.ts commentsWaiting): one
+    // 23 Nov 2026 (00696): and the comments on the posts that wait on the owner (readers/results.ts commentsWaiting): one
     // `touches` read more. Bytes unchanged: this world has no post.
     const held = ["form_entries.select", "touches.select"];
     const booked =

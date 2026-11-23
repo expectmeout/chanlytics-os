@@ -170,6 +170,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A watched clip's copy brought back (00654). Not sent (packages/jobs TOLD_ELSEWHERE): its file says it is away and
   // why on its own row, and whoever asked for it is answered there.
   copy_return: { stopped: "Couldn't bring a video back from your folder", to: CONTENT_LIBRARY_ROUTE },
+  // A made video's own file kept (00695). Not sent (packages/jobs TOLD_ELSEWHERE): the video plays as it did, and only
+  // its place among the videos that can step aside waits; Health reads the job's own lines.
+  file_shelve: { stopped: "Couldn't finish keeping a video you made", to: CONTENT_LIBRARY_ROUTE },
   // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.
   post_prepare: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
   post_publish: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
@@ -182,10 +185,10 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A post asked down at its place (00682). Not sent (kinds.ts: the platform's to chase): its piece says the place has
   // not confirmed it, and that Chanlytics is on it.
   post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
-  // A post's numbers (00692). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
+  // A post's numbers (00696). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
   // reads it again.
   post_observe: { stopped: "Couldn't read a post's numbers", to: CONTENT_ROUTE },
-  // A public answer to a comment (00692): its row in Inbox says it did not go, and Send is there again.
+  // A public answer to a comment (00696): its row in Inbox says it did not go, and Send is there again.
   comment_reply: { stopped: "Couldn't answer a comment", to: "inbox" },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "Couldn't run a campaign this hour", to: "today" },

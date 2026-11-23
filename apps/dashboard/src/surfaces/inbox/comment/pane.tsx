@@ -1,5 +1,5 @@
 /**
- * A comment on one of the business's posts, opened in the Inbox (00692; the content loop PRD's 9.2 and 12.4; the journey
+ * A comment on one of the business's posts, opened in the Inbox (00696; the content loop PRD's 9.2 and 12.4; the journey
  * canvas's Results board, cells 2 to 8, approved by Ruben on 23 Nov 2026): who commented and on which post, the post's
  * picture and caption, their words, and the business's public answer. AI drafts it knowing the post; the owner changes
  * it, asks AI to write it again, sends it, or leaves it. It stands where a conversation stands: beside the list on a

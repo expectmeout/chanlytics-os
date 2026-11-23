@@ -627,7 +627,7 @@ async function seed() {
     source: { page: "/b/seeded/request", from: WORDS },
     code: SHAPED["form_entries.code"],
   });
-  // Their comment on a post (00692): that it happened stays; what they wrote and their name there are emptied.
+  // Their comment on a post (00696): that it happened stays; what they wrote and their name there are emptied.
   await insert("touches", {
     tenant_id: T,
     subject_type: "post",

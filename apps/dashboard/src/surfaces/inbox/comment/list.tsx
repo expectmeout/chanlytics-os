@@ -1,5 +1,5 @@
 /**
- * Comments in the Inbox's list (00692; the content loop PRD's 9.2; the journey canvas's Results board, cell 1, approved
+ * Comments in the Inbox's list (00696; the content loop PRD's 9.2; the journey canvas's Results board, cell 1, approved
  * by Ruben on 23 Nov 2026). `inbox/comments` lists the comments on the business's posts and nothing else: a line that
  * says whose they are and the way back to every conversation, then a row each, the post's picture where a face would
  * stand, who wrote and on which post, what they wrote and where its answer stands. A comment is its own row, never a

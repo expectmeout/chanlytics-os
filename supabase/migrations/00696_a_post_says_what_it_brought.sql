@@ -1,4 +1,4 @@
--- 00692 · A post says what it brought (the content loop PRD v3.4, pass 2, M4; sections 5.2, 5.3, 9 and Appendix A).
+-- 00696 · A post says what it brought (the content loop PRD v3.4, pass 2, M4; sections 5.2, 5.3, 9 and Appendix A).
 --
 -- A post that went up said nothing back: its numbers were read by nobody, a comment on it was kept as a delivery and
 -- dropped, a reply to a story reached Inbox with nothing of the story on it, and no visit recorded what it answered.
@@ -88,7 +88,7 @@ grant select on public.post_observations to authenticated;
 grant all on public.post_observations to service_role;
 
 comment on table public.post_observations is
-  'A post''s numbers as its place gave them (00692; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
+  'A post''s numbers as its place gave them (00696; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
 
 /* ------------------------------------------------------------------------------------------ 2. touches -- */
 
@@ -142,7 +142,7 @@ grant select on public.touches to authenticated;
 grant all on public.touches to service_role;
 
 comment on table public.touches is
-  'A known person''s reply, comment, reply to a story or coded first message, about a post or through a link (00692; the content loop PRD''s Appendix A.1, A.3, A.5): one row per event, once per place by the place''s own id. Events, never edited, written by post_comment_keep and touches_keep. The business''s own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.';
+  'A known person''s reply, comment, reply to a story or coded first message, about a post or through a link (00696; the content loop PRD''s Appendix A.1, A.3, A.5): one row per event, once per place by the place''s own id. Events, never edited, written by post_comment_keep and touches_keep. The business''s own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.';
 
 create or replace function public.touches_erase_on_contact()
 returns trigger
@@ -162,7 +162,7 @@ end $$;
 
 revoke all on function public.touches_erase_on_contact() from public, anon, authenticated;
 comment on function public.touches_erase_on_contact() is
-  'A person erased (decision 0036; erase_contact keeps the person''s row as a tombstone, so no foreign key reaches this): their touches keep only that they happened, of what and when; who, where and what was said are emptied (00692).';
+  'A person erased (decision 0036; erase_contact keeps the person''s row as a tombstone, so no foreign key reaches this): their touches keep only that they happened, of what and when; who, where and what was said are emptied (00696).';
 
 drop trigger if exists contacts_erase_takes_touches on public.contacts;
 create trigger contacts_erase_takes_touches
@@ -186,7 +186,7 @@ end $$;
 
 revoke all on function public.touches_follow_merge() from public, anon, authenticated;
 comment on function public.touches_follow_merge() is
-  'When two records of one person are combined, the touches of the one merged away go to the one kept (00692; Appendix A.3): what a person answered is theirs, in the merge itself.';
+  'When two records of one person are combined, the touches of the one merged away go to the one kept (00696; Appendix A.3): what a person answered is theirs, in the merge itself.';
 
 drop trigger if exists contacts_merge_moves_touches on public.contacts;
 create trigger contacts_merge_moves_touches
@@ -213,7 +213,7 @@ end $$;
 revoke all on function public.touches_age_out(timestamptz) from public, anon, authenticated;
 grant execute on function public.touches_age_out(timestamptz) to service_role;
 comment on function public.touches_age_out(timestamptz) is
-  'Touches older than 180 days (or p_before) keep their counts only: who, where and what was said are emptied (00692; Appendix A.9, call 35). The touch that made a person stays while the person does. Answers how many it emptied. The service role''s, run by the health sweep.';
+  'Touches older than 180 days (or p_before) keep their counts only: who, where and what was said are emptied (00696; Appendix A.9, call 35). The touch that made a person stays while the person does. Answers how many it emptied. The service role''s, run by the health sweep.';
 
 /* ---------------------------------------------------------------------------- 3. a public answer to a comment -- */
 
@@ -258,7 +258,7 @@ grant select on public.comment_answers to authenticated;
 grant all on public.comment_answers to service_role;
 
 comment on table public.comment_answers is
-  'A public answer to a comment on a post, one per comment (00692; the content loop PRD''s 12.4): AI''s draft or why it could not answer safely, then the owner''s words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.';
+  'A public answer to a comment on a post, one per comment (00696; the content loop PRD''s 12.4): AI''s draft or why it could not answer safely, then the owner''s words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.';
 
 /* ------------------------------------------------------------------------------------------ 4. a post's link -- */
 
@@ -276,7 +276,7 @@ alter table public.links validate constraint links_lands_a_post;
 create unique index if not exists links_one_a_post on public.links (tenant_id, subject_id) where subject_type = 'post';
 
 comment on column public.links.lands is
-  'Where a post''s link lands (00692): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
+  'Where a post''s link lands (00696): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
 
 create or replace function public.link_open(p_code text, p_count boolean default true)
 returns jsonb
@@ -333,7 +333,7 @@ end $$;
 revoke all on function public.link_open(text, boolean) from public, anon, authenticated;
 grant execute on function public.link_open(text, boolean) to service_role;
 comment on function public.link_open(text, boolean) is
-  'A link opened by its code (00680, 00692): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace}; for a form its slug and state; for a post where it lands, its place, and the workspace''s own places it may land on: the Instagram account the post went to by username, the oldest WhatsApp number, the booking page), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
+  'A link opened by its code (00680, 00696): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace}; for a form its slug and state; for a post where it lands, its place, and the workspace''s own places it may land on: the Instagram account the post went to by username, the oldest WhatsApp number, the booking page), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
 
 create or replace function public.post_link_make(p_tenant_id uuid, p_post_id uuid)
 returns jsonb
@@ -378,7 +378,7 @@ end $$;
 revoke all on function public.post_link_make(uuid, uuid) from public, anon;
 grant execute on function public.post_link_make(uuid, uuid) to authenticated, service_role;
 comment on function public.post_link_make(uuid, uuid) is
-  'A post''s one link, made on first ask (00692; the content loop PRD''s 9.2, call 23): landing on a chat with the business carrying the post''s code, or on the booking page where the piece was made to send people there. Answers {link_id, code, lands, stopped, opens}. A member who may act (is_acting_member).';
+  'A post''s one link, made on first ask (00696; the content loop PRD''s 9.2, call 23): landing on a chat with the business carrying the post''s code, or on the booking page where the piece was made to send people there. Answers {link_id, code, lands, stopped, opens}. A member who may act (is_acting_member).';
 
 /* ------------------------------------------------------------------------- 5. what a visit answered -- */
 
@@ -397,7 +397,7 @@ create index if not exists appointments_through on public.appointments (tenant_i
   where through_type is not null;
 
 comment on column public.appointments.through_type is
-  'What the visit answered (00692; the content loop PRD''s 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this.';
+  'What the visit answered (00696; the content loop PRD''s 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this.';
 comment on column public.appointments.through_id is
   'The id of what the visit answered (through_type''s record), stamped with it.';
 
@@ -449,7 +449,7 @@ end $$;
 
 revoke all on function public.appointments_through_stamp() from public, anon, authenticated;
 comment on function public.appointments_through_stamp() is
-  'What a visit answered, stamped before it is written (00692; Appendix A.7, call 39): for a visit asked for (receptionist) or added by a member (person) in a conversation, the subject of the latest touch of that conversation in the 72 hours before (a post''s touch, or a message that came from an ad), provided no other visit was asked for or added there since that touch. One rule, the same whoever books; AI does not choose it. At the insert only.';
+  'What a visit answered, stamped before it is written (00696; Appendix A.7, call 39): for a visit asked for (receptionist) or added by a member (person) in a conversation, the subject of the latest touch of that conversation in the 72 hours before (a post''s touch, or a message that came from an ad), provided no other visit was asked for or added there since that touch. One rule, the same whoever books; AI does not choose it. At the insert only.';
 
 drop trigger if exists appointments_through_stamp on public.appointments;
 create trigger appointments_through_stamp
@@ -502,7 +502,7 @@ revoke all on function public.touches_keep(uuid, text, text, uuid, uuid, text, t
 grant execute on function public.touches_keep(uuid, text, text, uuid, uuid, text, text, timestamptz, uuid, uuid, boolean, jsonb)
   to service_role;
 comment on function public.touches_keep(uuid, text, text, uuid, uuid, text, text, timestamptz, uuid, uuid, boolean, jsonb) is
-  'A known person''s touch, kept once by the place''s own id (00692; Appendix A.5): {kept, touch_id}; kept false for one already there. Whether it made the person is said by the caller, or, for a touch on a message, read: they had written nothing before it. The service role''s: the edge''s inbound steps call it for a reply to a story and a coded first message.';
+  'A known person''s touch, kept once by the place''s own id (00696; Appendix A.5): {kept, touch_id}; kept false for one already there. Whether it made the person is said by the caller, or, for a touch on a message, read: they had written nothing before it. The service role''s: the edge''s inbound steps call it for a reply to a story and a coded first message.';
 
 create or replace function public.post_comment_keep(
   p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text,
@@ -564,7 +564,7 @@ revoke all on function public.post_comment_keep(uuid, text, text, text, text, te
 grant execute on function public.post_comment_keep(uuid, text, text, text, text, text, text, text, timestamptz)
   to service_role;
 comment on function public.post_comment_keep(uuid, text, text, text, text, text, text, text, timestamptz) is
-  'A person''s comment on a post Chanlytics sent (00692; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to, the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram), the comment kept once as a touch with its words and thread, and AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
+  'A person''s comment on a post Chanlytics sent (00696; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to, the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram), the comment kept once as a touch with its words and thread, and AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
 
 create or replace function public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text)
 returns boolean
@@ -601,7 +601,7 @@ end $$;
 revoke all on function public.post_own_comment_keep(uuid, text, text) from public, anon, authenticated;
 grant execute on function public.post_own_comment_keep(uuid, text, text) to service_role;
 comment on function public.post_own_comment_keep(uuid, text, text) is
-  'The business''s own comment, under a person''s comment kept here (00692): that comment is answered, by hand in the Instagram app. Our own answer delivered back changes nothing. True when it marked one. The service role''s.';
+  'The business''s own comment, under a person''s comment kept here (00696): that comment is answered, by hand in the Instagram app. Our own answer delivered back changes nothing. True when it marked one. The service role''s.';
 
 create or replace function public.post_observations_keep(
   p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer default 1)
@@ -635,7 +635,7 @@ end $$;
 revoke all on function public.post_observations_keep(uuid, uuid, text, jsonb, integer) from public, anon, authenticated;
 grant execute on function public.post_observations_keep(uuid, uuid, text, jsonb, integer) to service_role;
 comment on function public.post_observations_keep(uuid, uuid, text, jsonb, integer) is
-  'One read of a post''s numbers, every number at once (00692): [{metric, availability, value}], a value kept only where it was there. A read asked again at its step writes over itself. Answers the rows written; 0 for a post that is gone. The service role''s: post_observe''s.';
+  'One read of a post''s numbers, every number at once (00696): [{metric, availability, value}], a value kept only where it was there. A read asked again at its step writes over itself. Answers the rows written; 0 for a post that is gone. The service role''s: post_observe''s.';
 
 create or replace function public.post_observations_due(p_limit integer default 200)
 returns table (tenant_id uuid, post_id uuid, step text)
@@ -660,7 +660,7 @@ $$;
 revoke all on function public.post_observations_due(integer) from public, anon, authenticated;
 grant execute on function public.post_observations_due(integer) to service_role;
 comment on function public.post_observations_due(integer) is
-  'The reads of posts'' numbers that are due and not kept (00692; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
+  'The reads of posts'' numbers that are due and not kept (00696; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
 
 create index if not exists posts_published_lately on public.posts (published_at) where status = 'published';
 create index if not exists touches_to_age on public.touches (at) where emptied_at is null and not new_person;
@@ -691,7 +691,7 @@ end $$;
 revoke all on function public.comment_answer_draft_keep(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.comment_answer_draft_keep(uuid, uuid, text, text) to service_role;
 comment on function public.comment_answer_draft_keep(uuid, uuid, text, text) is
-  'AI''s draft of a public answer to a comment, or why it could not answer it safely (00692). Never over an answer that was sent or is on its way. True when it wrote. The service role''s: comment_reply''s.';
+  'AI''s draft of a public answer to a comment, or why it could not answer it safely (00696). Never over an answer that was sent or is on its way. True when it wrote. The service role''s: comment_reply''s.';
 
 create or replace function public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text)
 returns jsonb
@@ -733,7 +733,7 @@ end $$;
 revoke all on function public.comment_answer_send(uuid, uuid, text) from public, anon;
 grant execute on function public.comment_answer_send(uuid, uuid, text) to authenticated, service_role;
 comment on function public.comment_answer_send(uuid, uuid, text) is
-  'The owner''s words sent as the business''s public answer to a comment (00692; the content loop PRD''s 12.4, call 27): kept as on its way and its job written (comment_reply, step send), in one transaction. An answer on its way or sent is not sent twice. {sent, state}. A member who may act (is_acting_member).';
+  'The owner''s words sent as the business''s public answer to a comment (00696; the content loop PRD''s 12.4, call 27): kept as on its way and its job written (comment_reply, step send), in one transaction. An answer on its way or sent is not sent twice. {sent, state}. A member who may act (is_acting_member).';
 
 create or replace function public.comment_answer_settle(
   p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text)
@@ -756,7 +756,7 @@ end $$;
 revoke all on function public.comment_answer_settle(uuid, uuid, boolean, text, text) from public, anon, authenticated;
 grant execute on function public.comment_answer_settle(uuid, uuid, boolean, text, text) to service_role;
 comment on function public.comment_answer_settle(uuid, uuid, boolean, text, text) is
-  'What Instagram said of a public answer on its way (00692): sent with its id, or failed with the house''s words for why. Only an answer on its way is settled. True when it wrote. The service role''s: comment_reply''s.';
+  'What Instagram said of a public answer on its way (00696): sent with its id, or failed with the house''s words for why. Only an answer on its way is settled. True when it wrote. The service role''s: comment_reply''s.';
 
 create or replace function public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean)
 returns jsonb
@@ -798,7 +798,7 @@ end $$;
 revoke all on function public.comment_answer_leave(uuid, uuid, boolean) from public, anon;
 grant execute on function public.comment_answer_leave(uuid, uuid, boolean) to authenticated, service_role;
 comment on function public.comment_answer_leave(uuid, uuid, boolean) is
-  'A comment left unanswered by the owner, or answered after all (00692; the content loop PRD''s 12.4): left, it is no point on Today and nothing is posted under it; AI''s draft and its reason are kept, and come back. An answer on its way or up is not left. {state}: where it stands now, null for none. A member who may act (is_acting_member).';
+  'A comment left unanswered by the owner, or answered after all (00696; the content loop PRD''s 12.4): left, it is no point on Today and nothing is posted under it; AI''s draft and its reason are kept, and come back. An answer on its way or up is not left. {state}: where it stands now, null for none. A member who may act (is_acting_member).';
 
 /* ------------------------------------------------------------------------------------ 8. the job kinds -- */
 

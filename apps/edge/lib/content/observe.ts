@@ -1,5 +1,5 @@
 /**
- * post_observe (00692; the content loop PRD's 9.1): one read of a post's numbers at one step, through its place's
+ * post_observe (00696; the content loop PRD's 9.1): one read of a post's numbers at one step, through its place's
  * adapter, every number Chanlytics names kept at once (post_observations_keep). A place that gives no numbers for a post
  * (Google, until a listing proves it) writes every number unsupported; one that cannot be asked now (not connected, the
  * numbers line off) writes them failed, and the next step reads again. Asked by the health sweep for each read that is

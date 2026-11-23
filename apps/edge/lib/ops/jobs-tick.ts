@@ -29,6 +29,7 @@ import { historyImports } from "../imports/history-import.js";
 import { instagramReader } from "../imports/instagram-read.js";
 import { websiteReader } from "../imports/website-read.js";
 import { copyReturner } from "../files/copy/bring-back.js";
+import { shelver } from "../files/shelf/shelve.js";
 import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
@@ -163,6 +164,8 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   takes: sourceTaker(db),
   // A watched clip's copy brought back to the video platform (00654), by the same relay and the same grant's reader.
   copies: copyReturner(db),
+  // A made video's own file put on Chanlytics' shelf and checked there (00695), through the same relay.
+  shelf: shelver(db),
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.
   posts: {
@@ -175,14 +178,14 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
           ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
           : takeDownPlaceFor(db, post),
       ),
-    // A post's numbers read at one step (00692): Google's adapter gives none yet, so each reads unsupported there.
+    // A post's numbers read at one step (00696): Google's adapter gives none yet, so each reads unsupported there.
     observe: (job: ClaimedJob) =>
       readPostResults(db, job, (post) =>
         post.place === "google"
           ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
           : findResultsPlace(db, post, "insights"),
       ),
-    // A public answer to a comment (00692): AI's draft, or the owner's words posted under it on Instagram.
+    // A public answer to a comment (00696): AI's draft, or the owner's words posted under it on Instagram.
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
   // A lead's own receptionist built (decision 0079), its website read the same way.

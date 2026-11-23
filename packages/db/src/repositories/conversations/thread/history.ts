@@ -248,7 +248,7 @@ export interface LeadContext {
    * so every fake still compiles.
    */
   ad?: AdTapTold | null;
-  /** The post they answered in the last 72 hours (post-touch.ts, 00692), read as the ad is. Optional, as `ad`. */
+  /** The post they answered in the last 72 hours (post-touch.ts, 00696), read as the ad is. Optional, as `ad`. */
   post?: PostTouchTold | null;
 }
 

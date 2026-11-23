@@ -4,7 +4,7 @@ import { fileScope } from "@/server/files/file";
 import { makeLinkOfPost } from "@/server/content/post-link";
 
 /**
- * POST /api/v1/files/[id]/link: a post of this piece's one link, made on first ask (00692; the content loop PRD's 9.2,
+ * POST /api/v1/files/[id]/link: a post of this piece's one link, made on first ask (00696; the content loop PRD's 9.2,
  * call 23): it opens a chat with the business carrying the post's code ("Message us"), or the booking page where the
  * piece was made to send people there. Answers its address, where it lands and how often it was opened. An owner, an
  * operator or a partner.

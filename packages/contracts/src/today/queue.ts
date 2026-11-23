@@ -558,7 +558,7 @@ export function todayQueue(
   // Whoever asked through a form and has no answer yet (00680): people, in Need you's order with the rest. And each
   // form's entries held for a look, left three days: one quiet row a form, after everyone waiting (form-rows.ts).
   queueAll.push(...formRowsOf(todayFacts));
-  // Whoever commented on a post and waits on the owner's word: AI could not answer it, or the answer did not go (00692).
+  // Whoever commented on a post and waits on the owner's word: AI could not answer it, or the answer did not go (00696).
   queueAll.push(...commentRowsOf(todayFacts));
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
   for (const t of todayFacts.previewsTried) queueAll.push(triedRow(t, todayFacts));

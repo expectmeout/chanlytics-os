@@ -1,5 +1,5 @@
 /**
- * Inbox's comments' addresses (00692; the content loop PRD's 9.2): the comments on the business's posts, listed apart
+ * Inbox's comments' addresses (00696; the content loop PRD's 9.2): the comments on the business's posts, listed apart
  * from its conversations (`inbox/comments`), and one comment opened where it is answered (`inbox/cm-<touch id>`, as
  * `rq-<id>` names a form's request and `th-<id>` a conversation).
  *

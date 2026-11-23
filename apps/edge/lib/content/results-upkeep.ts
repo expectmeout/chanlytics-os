@@ -1,5 +1,5 @@
 /**
- * What keeps a post's results moving (00692; the content loop PRD's 9.1, Appendix A.9), each half hour from the health
+ * What keeps a post's results moving (00696; the content loop PRD's 9.1, Appendix A.9), each half hour from the health
  * sweep: a post_observe job for every read of a post's numbers that is due and not kept (an hour, a day, 3, 7 and 28
  * days after it went up), and touches past 180 days emptied to their counts. Nothing here reads a place: the jobs do.
  * A read due and missed is found again at the next pass, so a job lost between its fact and its write costs one pass.

@@ -1,5 +1,5 @@
 /**
- * The content domain: `@chanlytics/db/content`. What a post said back (00692, the content loop's pass 2): its numbers,
+ * The content domain: `@chanlytics/db/content`. What a post said back (00696, the content loop's pass 2): its numbers,
  * the people who answered it, a comment's public answer, a post's link, and the visits a touch may be put down to. Every
  * public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */

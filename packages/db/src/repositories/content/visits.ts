@@ -1,5 +1,5 @@
 /**
- * What the credit rule is handed (00692; the content loop PRD's 9.3, Appendix A.6, A.7): visits as creditOf reads them,
+ * What the credit rule is handed (00696; the content loop PRD's 9.3, Appendix A.6, A.7): visits as creditOf reads them,
  * each with what it answered when it was asked for (appointments.through_type, through_id), and a post's one link with
  * its opens. Bounded by window and workspace; a read that fails THROWS.
  */

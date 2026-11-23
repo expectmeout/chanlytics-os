@@ -11226,6 +11226,10 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: boolean
       }
+      file_copy_kept: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       file_copy_origin: {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: string
@@ -11258,6 +11262,10 @@ export type Database = {
       file_copy_settle: {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: Json
+      }
+      file_copy_shelved: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       file_copy_standing: {
         Args: { p_file_id: string; p_tenant_id: string }
@@ -11365,6 +11373,37 @@ export type Database = {
           p_sound_said: string
         }
         Returns: string
+      }
+      file_shelf_again: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      file_shelf_begin: {
+        Args: {
+          p_bytes: number
+          p_file_id: string
+          p_seconds_max: number
+          p_sha256: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      file_shelf_checked: {
+        Args: {
+          p_bytes: number
+          p_file_id: string
+          p_sha256: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      file_shelf_failed: {
+        Args: { p_file_id: string; p_tenant_id: string; p_why: string }
+        Returns: boolean
+      }
+      file_shelf_requeue: {
+        Args: { p_limit: number; p_stale_seconds: number }
+        Returns: number
       }
       file_sound_keep: {
         Args: {

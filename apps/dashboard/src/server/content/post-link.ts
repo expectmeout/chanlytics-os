@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * A post's one link, made on the owner's ask from the piece (00692; the content loop PRD's 9.2, call 23): it opens a
+ * A post's one link, made on the owner's ask from the piece (00696; the content loop PRD's 9.2, call 23): it opens a
  * chat with the business carrying the post's code, or the booking page where the piece was made to send people there.
  * Made by its door on the member's own session (post_link_make: a member who may act); the page draws its address from
  * its own origin (`/l/<code>`), as Forms' links are.

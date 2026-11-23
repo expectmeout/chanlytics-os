@@ -1,5 +1,5 @@
 /**
- * Where the comments on the business's posts stand in the Inbox's page (pages/inbox-page.tsx; 00692): `inbox/comments`
+ * Where the comments on the business's posts stand in the Inbox's page (pages/inbox-page.tsx; 00696): `inbox/comments`
  * lists them where the conversations are listed and opens none beside them; `inbox/cm-<id>` opens one where a conversation
  * stands (slot.tsx), the screen on a phone; Needs you holds the line that opens the list while any has AI's answer ready
  * (list.tsx). The page asks these and draws what they answer, so what a comment needs of the page is said here, once.

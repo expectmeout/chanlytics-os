@@ -1,5 +1,5 @@
 /**
- * Comments on the business's posts, as Inbox reads and answers them (00692; the content loop PRD's 9.2 and 12.4): the
+ * Comments on the business's posts, as Inbox reads and answers them (00696; the content loop PRD's 9.2 and 12.4): the
  * month's comments, one opened, the owner's presses (send their words as the public answer, leave it, answer it after
  * all), and AI asked to write the answer again as the owner says. Each answers as the typed client answers; the screen
  * says what came of it.

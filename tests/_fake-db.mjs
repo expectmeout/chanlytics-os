@@ -1037,6 +1037,7 @@ export const FAKE_JOB_KINDS = {
   video_digest: [2, ["file_id", "step"], false],
   source_take: [2, ["@tenant", "item_id", "try"], false],
   copy_return: [1, ["@tenant", "file_id"], false],
+  file_shelve: [2, ["@tenant", "file_id"], false],
   post_prepare: [2, ["post_id", "attempt"], false],
   post_publish: [2, ["post_id", "attempt"], false],
   post_reconcile: [2, ["post_id", "attempt"], false],

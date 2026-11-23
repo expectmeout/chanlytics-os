@@ -1,5 +1,5 @@
 /**
- * What a person says about a post, as Meta delivers it to the Instagram door (00692; the content loop PRD's 9.2,
+ * What a person says about a post, as Meta delivers it to the Instagram door (00696; the content loop PRD's 9.2,
  * Appendix A.3 to A.5; the first-post sitting's answers 5-6 and 6.2):
  *
  *   a comment        on a post Chanlytics sent, kept once with its person (found by the Instagram-scoped id a DM's sender

@@ -1,5 +1,5 @@
 /**
- * Today's rows for comments on the business's posts (00692; the content loop PRD's 12.4: a comment AI cannot answer safely
+ * Today's rows for comments on the business's posts (00696; the content loop PRD's 12.4: a comment AI cannot answer safely
  * is a point on Today, as a conversation that needs the owner is): one AI could not answer, and one whose answer did not
  * go or was never told, each opened where it is answered, in Inbox. A person waiting on a word, by Need you's order and
  * in its one count, as someone who asked through a form is. A comment with AI's answer ready waits in Inbox's comments,

@@ -1,5 +1,5 @@
 /**
- * The comments on the business's posts as the Inbox lists them (00692; the content loop PRD's 9.2): read where they are
+ * The comments on the business's posts as the Inbox lists them (00696; the content loop PRD's 9.2): read where they are
  * drawn (the comments' list, and Needs you's line that opens it), again when a comment's page presses, and again when
  * Needs you moves. A read that failed says so where it is drawn, and lists nothing in its place.
  */

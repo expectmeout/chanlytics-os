@@ -1,5 +1,5 @@
 /**
- * What a post says back, on a real database (00692; the content loop PRD's 5.3, 9 and 15.1), with real sessions: a
+ * What a post says back, on a real database (00696; the content loop PRD's 5.3, 9 and 15.1), with real sessions: a
  * comment on a post Chanlytics sent is kept once with its person and asks AI's draft; one on a post made by hand is
  * not kept; the owner's words go out as the public answer once, a viewer's and another workspace's never; one left
  * unanswered keeps AI's draft for an answer after all; a post's

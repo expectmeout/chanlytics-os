@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 205 | 205 |
-| reader | 95 | 0 |
-| the server's | 444 | 375 |
+| reader | 96 | 0 |
+| the server's | 450 | 381 |
 | computed column | 3 | 0 |
 | trigger | 123 | 91 |
-| all | 870 | 671 |
+| all | 877 | 677 |
 
 ## Called by nothing
 
@@ -108,7 +108,7 @@ being read is dropped by a migration.
 | `appointments_lead_stamp` | trigger | the server | trigger `appointments_lead_stamp on appointments` | A visit names the lead its person was made from (00426): |
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
-| `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00692; |
+| `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00696; |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
 | `approval_hash` | the server's | the server | SQL `piece_words_keep`, `post_approve` and 1 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
@@ -157,10 +157,10 @@ being read is dropped by a migration.
 | `claim_due_jobs` | the server's | the server | code `packages/db/src/repositories/jobs/ledger.ts`, `packages/jobs/src/runner/ledger.ts` | The only way a job becomes fired. |
 | `claim_reply_turn` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts` | The thread's reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; |
 | `clear_control_of_departed_member` | trigger | the server | trigger `memberships_clear_control on memberships` | A member removed from a workspace stops being responsible for its threads and stops holding any. |
-| `comment_answer_draft_keep` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | AI's draft of a public answer to a comment, or why it could not answer it safely (00692). |
-| `comment_answer_leave` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | A comment left unanswered by the owner, or answered after all (00692; |
-| `comment_answer_send` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | The owner's words sent as the business's public answer to a comment (00692; |
-| `comment_answer_settle` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | What Instagram said of a public answer on its way (00692): |
+| `comment_answer_draft_keep` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | AI's draft of a public answer to a comment, or why it could not answer it safely (00696). |
+| `comment_answer_leave` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | A comment left unanswered by the owner, or answered after all (00696; |
+| `comment_answer_send` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | The owner's words sent as the business's public answer to a comment (00696; |
+| `comment_answer_settle` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | What Instagram said of a public answer on its way (00696): |
 | `consent_channels_of` | reader | a signed-in person, the server | code `packages/contracts/src/consent/channels.ts`; SQL `events_keep_consent_channels`, `note_yes_on_channel` | The channels one yes covers (One message, every channel, step 2): |
 | `consent_channels_on_erase` | trigger | the server | trigger `contacts_erase_clears_consent_channels on contacts` | Before a person is erased (00101's rule: |
 | `consent_channels_union` | reader | a signed-in person, the server | SQL `events_keep_consent_channels`, `merge_people` | The channels of both lists, each once, in the order whatsapp, sms, email; |
@@ -240,12 +240,14 @@ being read is dropped by a migration.
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
 | `file_copy_comes_back` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 1 more | Whether a watched clip's copy can be fetched again by itself (00674, the content loop PRD's F1): |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
+| `file_copy_kept` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going is here again (00695): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
 | `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
 | `file_copy_return_failed` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A return that did not happen (00654): |
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
-| `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
-| `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
+| `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin`, `file_shelf_checked` and 1 more | A copy that is away or lost set to what its origins now say (00654): |
+| `file_copy_shelved` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 4 more | Whether a file's video has a checked copy on Chanlytics' own shelf (00695, the archive plan's B2): |
+| `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where something can give it back (00654; |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -262,6 +264,11 @@ being read is dropped by a migration.
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
 | `file_road_is_watched` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 6 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
+| `file_shelf_again` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy put back (00695): |
+| `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00695, the archive plan's B2). |
+| `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00695): |
+| `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00695): |
+| `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
@@ -443,7 +450,7 @@ being read is dropped by a migration.
 | `lines_sms_guard` | trigger | a signed-in person, the server | trigger `lines_sms_guard on lines` | sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. |
 | `lines_voice_guard` | trigger | a signed-in person, the server | trigger `lines_voice_guard on lines` | Forward moves only on voice_state: |
 | `link_code_new` | reader | a signed-in person, the server | in `CREATE TABLE public.links` | A link's code (00680): |
-| `link_open` | the server's | the server | code `packages/db/src/repositories/forms/links.ts` | A link opened by its code (00680, 00692): |
+| `link_open` | the server's | the server | code `packages/db/src/repositories/forms/links.ts` | A link opened by its code (00680, 00696): |
 | `llm_tokens_since` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's receptionist tokens (input and output of every usage.llm_tokens event; |
 | `lookup_user_for_invite` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | The user id behind an email, or null. |
 | `mailbox_capacity` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts`; SQL `outreach_mailbox_facts`, `sequence_claim_from` | A connected mailbox's day (00424): |
@@ -605,13 +612,13 @@ being read is dropped by a migration.
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
 | `post_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00611, 00616, 00620, 00687): |
-| `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00692; |
-| `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00692; |
+| `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00696; |
+| `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00696; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
-| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00692; |
-| `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00692): |
-| `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00692): |
+| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00696; |
+| `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00696): |
+| `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00696): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
 | `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00681, contracts renditionShapeOf): |
@@ -879,8 +886,8 @@ being read is dropped by a migration.
 | `tenants_zone_guard` | trigger | the server | trigger `tenants_zone_guard on tenants` | A workspace's zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: |
 | `touches_age_out` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | Touches older than 180 days (or p_before) keep their counts only: |
 | `touches_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_touches on contacts` | A person erased (decision 0036; |
-| `touches_follow_merge` | trigger | the server | trigger `contacts_merge_moves_touches on contacts` | When two records of one person are combined, the touches of the one merged away go to the one kept (00692; |
-| `touches_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts`; SQL `post_comment_keep` | A known person's touch, kept once by the place's own id (00692; |
+| `touches_follow_merge` | trigger | the server | trigger `contacts_merge_moves_touches on contacts` | When two records of one person are combined, the touches of the one merged away go to the one kept (00696; |
+| `touches_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts`; SQL `post_comment_keep` | A known person's touch, kept once by the place's own id (00696; |
 | `trial_use` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | What a workspace has used of what a trial includes (00512, decision 0090): |
 | `trigger_calendar_sweep` | the server's | the server | the clock, `calendar-people-sweep` | Asks the edge to read each workspace's calendar feed. |
 | `trigger_call_reconcile` | the server's | the server | the clock, `call-reconcile` | Asks the edge (api/cron/calls) to sweep when the calls table owes it work: |

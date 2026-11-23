@@ -123,6 +123,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "video_digest",
       "source_take",
       "copy_return",
+      "file_shelve",
       "post_prepare",
       "post_publish",
       "post_reconcile",

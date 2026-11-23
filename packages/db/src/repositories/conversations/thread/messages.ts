@@ -106,7 +106,7 @@ export function describeLead(
   if (links) bits.push(links);
   // The ad they tapped before they wrote (0049, call 12), last because it ends in a fence: what the ad said, as data.
   bits.push(...adTapFacts(lead.ad, channel));
-  // The post they answered (00692), last too: its words are the business's own as posted, fenced, never a source of price.
+  // The post they answered (00696), last too: its words are the business's own as posted, fenced, never a source of price.
   bits.push(...postTouchFacts(lead.post, channel));
   return bits.join(" ");
 }

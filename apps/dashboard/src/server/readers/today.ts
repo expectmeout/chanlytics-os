@@ -60,7 +60,7 @@ interface TodayRead {
   formRequests: FormOpenRequestDto[] | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same read); null: not read. */
   formHeld: FormHeldDto[] | null;
-  /** The comments on the business's posts that wait on the owner (00692); null where the read failed. */
+  /** The comments on the business's posts that wait on the owner (00696); null where the read failed. */
   comments: CommentRowDto[] | null;
   /** What Today says of AI beside the day (Working for you, W1 to W3): each part null where its read failed. */
   ai: TodayAiReadDto;

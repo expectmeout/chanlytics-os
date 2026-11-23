@@ -1,5 +1,5 @@
 /**
- * comment_reply (00692; the content loop PRD's 9.2 and 12.4, call 27): a public answer to a comment on a post. Step
+ * comment_reply (00696; the content loop PRD's 9.2 and 12.4, call 27): a public answer to a comment on a post. Step
  * `draft`, asked when the comment was kept: AI writes the answer knowing the post (one model call, purpose
  * comment_reply), held to the owner's word before anyone sees it (contracts commentDraftOf), and kept as a draft or as
  * a comment AI can't answer safely. Step `send`, asked by the owner's press: the owner's words posted under the comment

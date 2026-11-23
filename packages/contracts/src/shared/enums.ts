@@ -190,6 +190,9 @@ export const JOB_KINDS = [
   // A watched clip's copy brought back to the video platform from its folder (00654): payload { file_id }, once a file
   // while one waits or runs, so two askers join one job.
   "copy_return",
+  // A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2): payload
+  // { file_id }, once a file while one waits or runs. Written by the shelf's own doors, with the copy's row.
+  "file_shelve",
   /**
    * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
    * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;
@@ -210,13 +213,13 @@ export const JOB_KINDS = [
    */
   "post_take_down",
   /**
-   * A post's numbers read back from its place (00692; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
+   * A post's numbers read back from its place (00696; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
    * lane: one read at an hour, a day, 3, 7 or 28 days after it went up, every number at once, a missing one said and never
    * a zero. The health sweep asks one for each read that is due and not kept.
    */
   "post_observe",
   /**
-   * A public answer to a comment on a post (00692; the content loop PRD's 12.4), payload { touch_id, step, attempt? }, in
+   * A public answer to a comment on a post (00696; the content loop PRD's 12.4), payload { touch_id, step, attempt? }, in
    * the lane of someone waiting who is not a customer: step draft has AI write it (or say why it cannot, safely), step send
    * posts the owner's words under the comment as the business.
    */

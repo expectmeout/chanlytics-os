@@ -276,7 +276,7 @@ export const GATEWAY_PURPOSES = [
   // JSON route, counted apart from the drafts (00660).
   "yes_check",
   // A public answer to a comment written again as its owner asks (dashboard server/content/comment-rewrite.ts): the
-  // small JSON route, counted apart (00692).
+  // small JSON route, counted apart (00696).
   "comment_rewrite",
   // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
   "message_draft",

@@ -450,6 +450,13 @@ async function copyReturn(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
+/** file_shelve: a made video's own file put on Chanlytics' shelf and checked there (00695), through what the edge injects. payload: { file_id } */
+async function fileShelve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.shelf) throw new Error("file_shelve: this runtime holds no shelver");
+  const answer = await ctx.shelf.shelve(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
 async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
@@ -486,13 +493,13 @@ async function postTakeDown(ctx: JobContext, job: ClaimedJob): Promise<void | { 
   return ctx.posts.takeDown(job, ctx.deadline);
 }
 
-/** post_observe: a post's numbers read back from its place at one step (00692). payload: { post_id, step } */
+/** post_observe: a post's numbers read back from its place at one step (00696). payload: { post_id, step } */
 async function postObserve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts?.observe) throw new Error("post_observe: this runtime reads no post's numbers");
   return ctx.posts.observe(job, ctx.deadline);
 }
 
-/** comment_reply: a public answer to a comment, AI's draft or the owner's words sent (00692). payload: { touch_id, step, attempt? } */
+/** comment_reply: a public answer to a comment, AI's draft or the owner's words sent (00696). payload: { touch_id, step, attempt? } */
 async function commentReply(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts?.commentReply) throw new Error("comment_reply: this runtime answers no comment");
   return ctx.posts.commentReply(job, ctx.deadline);
@@ -611,6 +618,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   video_digest: videoDigest,
   source_take: sourceTake,
   copy_return: copyReturn,
+  file_shelve: fileShelve,
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,

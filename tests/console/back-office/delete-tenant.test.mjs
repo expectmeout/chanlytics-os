@@ -260,3 +260,94 @@ test("the media is counted in the dry run and removed only after the rows are go
   assert.ok(removed > script.indexOf('from("tenants").delete()'), "after the tenant delete");
   assert.ok(removed > script.indexOf("REFUSING TO REPORT SUCCESS"), "and after it is counted as done");
 });
+
+/* ------------------------------------------------------------------------------------------------- the shelf -- */
+
+// A workspace's videos on Chanlytics' own shelf (the archive plan's B2): a private bucket behind the relay, which no
+// cascade reaches. The relay's own handler answers here, over a bucket in memory.
+const { shelfRelay } = await import(pathToFileURL(path.join(ROOT, "tests/files/shelf/_shelf.mjs")).href);
+const relayTicket = await import(pathToFileURL(path.join(ROOT, "apps/relay/src/ticket.ts")).href);
+const SHELF_KEY = "ticket-key-for-this-file";
+const SHELF_URL = "https://relay.example";
+const SHELF_FILES = ["0b0e6c1e-6f0a-4b6e-9d3e-2a1f5c7d9e11", "3c2d1e0f-9a8b-4c7d-8e6f-5a4b3c2d1e0f"];
+
+test("a workspace's shelved videos are read off its pieces' keys, and a piece in the owner's Drive is not one", () => {
+  const parts = [
+    { shelf_key: `${T}/${SHELF_FILES[0]}/video`, drive_file_id: null },
+    { shelf_key: null, drive_file_id: "drive-file-1" },
+    { shelf_key: `${T}/${SHELF_FILES[1]}/video`, drive_file_id: null },
+    { shelf_key: "not a key", drive_file_id: null },
+  ];
+  assert.deepEqual(run.shelvedOf(parts), [
+    { tenant: T, file: SHELF_FILES[0] },
+    { tenant: T, file: SHELF_FILES[1] },
+  ]);
+  assert.deepEqual(run.shelvedOf(undefined), [], "a database older than the shelf has none");
+});
+
+test("the ticket this script signs is one the relay reads: to delete that workspace's one file, for minutes", async () => {
+  const now = Date.parse("2026-11-23T03:00:00Z");
+  const ticket = run.shelfDeleteTicket(SHELF_KEY, { tenant: T, file: SHELF_FILES[0] }, now);
+  assert.deepEqual(await relayTicket.readShelfTicket(SHELF_KEY, ticket, now), {
+    ok: true,
+    tenant: T,
+    file: SHELF_FILES[0],
+    use: "delete",
+    expiresAt: now / 1000 + 300,
+  });
+  assert.equal((await relayTicket.readShelfTicket("another-key", ticket, now)).ok, false);
+});
+
+test("each shelved video is taken off the shelf through the relay, and one that stays is counted", async () => {
+  const relay = shelfRelay({ relayUrl: SHELF_URL, ticketKey: SHELF_KEY, from: "", source: () => new Response(null) });
+  for (const file of SHELF_FILES)
+    relay.shelf.held.set(`${T}/${file}/video`, { bytes: Buffer.from("x"), sha256: "a".repeat(64) });
+  // Another workspace's video, under its own key: not this delete's to touch.
+  relay.shelf.held.set(`another-workspace/${SHELF_FILES[0]}/video`, {
+    bytes: Buffer.from("y"),
+    sha256: "b".repeat(64),
+  });
+  const videos = SHELF_FILES.map((file) => ({ tenant: T, file }));
+  const stayed = await run.removeShelved({ url: `${SHELF_URL}/`, ticketKey: SHELF_KEY }, videos, relay.answer);
+  assert.equal(stayed, 0);
+  assert.deepEqual([...relay.shelf.held.keys()], [`another-workspace/${SHELF_FILES[0]}/video`]);
+  assert.ok(
+    relay.asked.every((ask) => ask.method === "DELETE" && !ask.url.includes("ticket")),
+    "the ticket rides the header",
+  );
+  // Asked again, they are gone already: none stays. A relay that gives no answer leaves every one, and says how many.
+  assert.equal(await run.removeShelved({ url: SHELF_URL, ticketKey: SHELF_KEY }, videos, relay.answer), 0);
+  relay.state.down = true;
+  assert.equal(await run.removeShelved({ url: SHELF_URL, ticketKey: SHELF_KEY }, videos, relay.answer), 2);
+  // The wrong key removes nothing, and says so.
+  relay.state.down = false;
+  relay.shelf.held.set(`${T}/${SHELF_FILES[0]}/video`, { bytes: Buffer.from("x"), sha256: "a".repeat(64) });
+  assert.equal(await run.removeShelved({ url: SHELF_URL, ticketKey: "another-key" }, videos, relay.answer), 2);
+  assert.ok(relay.shelf.held.has(`${T}/${SHELF_FILES[0]}/video`));
+});
+
+test("a video being put on the shelf this minute holds the delete, and one left saving long ago does not", () => {
+  const now = Date.parse("2026-11-23T03:00:00Z");
+  const at = (secondsAgo) => new Date(now - secondsAgo * 1000).toISOString();
+  const copies = [
+    { origin: "shelf", state: "saving", updated_at: at(30) },
+    { origin: "shelf", state: "saving", updated_at: at(600) },
+    { origin: "shelf", state: "checked", updated_at: at(5) },
+    { origin: "saved", state: "saving", updated_at: at(5) },
+  ];
+  assert.deepEqual(run.shelvingNow(copies, now), [copies[0]]);
+  assert.deepEqual(run.shelvingNow(undefined, now), []);
+});
+
+test("the shelf is counted in the dry run, holds an apply that would strand it, and is emptied only after the rows are gone", () => {
+  const counted = script.indexOf('shelvedOf(byTable.get("file_archive_parts"))');
+  assert.ok(counted > -1, "the workspace's own shelved videos are read");
+  assert.ok(counted < script.indexOf("Dry run only. Re-run with --apply"), "before the dry run exits, so it is said");
+  assert.ok(
+    counted < script.indexOf("WOULD BE STRANDED OUTSIDE THE DATABASE"),
+    "and counted among what would be stranded",
+  );
+  const removed = script.indexOf("removeShelved(relay, shelved)");
+  assert.ok(removed > script.indexOf('from("tenants").delete()'), "after the tenant delete");
+  assert.ok(removed > script.indexOf("REFUSING TO REPORT SUCCESS"), "and after it is counted as done");
+});

@@ -270,7 +270,7 @@ before(async () => {
     snapshot: {},
     snapshot_hash: "b".repeat(64),
   });
-  // What a post said back (00692): its numbers, a person's touch of it, a comment's answer. Members read them, their
+  // What a post said back (00696): its numbers, a person's touch of it, a comment's answer. Members read them, their
   // doors write them.
   await seed("post_observations", {
     tenant_id: A,
@@ -966,7 +966,7 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
   ],
-  // What a post said back (00692): a member reads it, only its doors write it.
+  // What a post said back (00696): a member reads it, only its doors write it.
   post_observations: [
     "member",
     () => ({

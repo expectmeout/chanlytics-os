@@ -1,5 +1,5 @@
 /**
- * A public answer's job that ended for good (00692; the content loop PRD's 12.4): an answer never stays saying it is on
+ * A public answer's job that ended for good (00696; the content loop PRD's 12.4): an answer never stays saying it is on
  * its way. A send whose run died, or whose last try threw, may have put the answer up, so it is said so, and never sent
  * again by itself: the owner looks under the comment, and Send is there again. If Meta delivers the answer back, it reads
  * as answered (post_own_comment_keep). A draft that never came leaves nothing to settle: the comment says AI wrote none.

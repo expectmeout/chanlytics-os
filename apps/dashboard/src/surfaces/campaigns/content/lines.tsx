@@ -210,6 +210,7 @@ export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen
           folder,
           leaves: leavesOn(file, knownZone() ?? "UTC"),
           uploaded: file.owner_uploaded === true,
+          made: file.source === "made",
         });
         const seen = file.line ? `${what} · ${file.line.replace(/\.$/, "")}` : what;
         return (

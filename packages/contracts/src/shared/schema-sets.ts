@@ -234,7 +234,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
   Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
   Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,
-  // What a post said back (00692, the content loop's pass 2): its numbers, a person's touches, a public answer, a
+  // What a post said back (00696, the content loop's pass 2): its numbers, a person's touches, a public answer, a
   // post's link, and what a visit answered.
   Holds<Exactly<Of<typeof POST_METRICS>, SchemaSet<"post_observations.metric">>>,
   Holds<Exactly<Of<typeof METRIC_AVAILABILITY>, SchemaSet<"post_observations.availability">>>,

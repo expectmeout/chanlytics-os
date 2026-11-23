@@ -96,7 +96,7 @@ function opensInbox(param: string): Opened | null {
   // A request someone sent through a form, where it is answered (00680).
   const request = requestIdOf(param);
   if (request) return { ref: { kind: "request", id: request } };
-  // The comments on the business's posts, and one opened where it is answered (00692).
+  // The comments on the business's posts, and one opened where it is answered (00696).
   if (isCommentsParam(param) || commentIdOf(param)) return { view: "inbox/comments" };
   const id = inboxThread(param);
   return id !== null && RECORD_ID.test(id) ? { ref: { kind: "conversation", id } } : null;
