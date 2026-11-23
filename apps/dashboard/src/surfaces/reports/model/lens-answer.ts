@@ -37,6 +37,9 @@ export function lensAnswerOf(
       return deals?.present ? deals.headline : undefined;
     case "campaigns":
       return campaigns?.head ?? undefined;
+    case "content":
+      // The lens says its own sentence in its body (lenses/content.tsx), from its own read: the head is its name alone.
+      return undefined;
     case "ads":
       return ads?.head ?? undefined;
     case "reviews":

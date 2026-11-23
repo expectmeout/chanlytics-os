@@ -30,6 +30,7 @@ import { NEED_YOU_WORDS } from "../need-you/words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./clock";
 import { QUOTE_MAX, type EscalationRecord, type OwedThread, type TodayFacts } from "./facts";
+import { commentRowsOf } from "./comment-rows";
 import { formHeldPart, formRowsOf } from "./form-rows";
 import { say } from "./rows";
 import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from "./vm";
@@ -38,7 +39,14 @@ import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from
 const BOOKING_REASONS: ReadonlySet<string> = new Set(["booking_request", "booking_reply"]);
 
 /** The kinds of row that are a person waiting on one; a search and a call worth a listen wait elsewhere and are said apart. */
-const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "window", "reply", "form"]);
+const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set([
+  "handoff",
+  "callback",
+  "window",
+  "reply",
+  "form",
+  "comment",
+]);
 
 /**
  * Whether a row is a person, as the queue's rows go: the people past Need you's caps, which its foot says. Who needs you
@@ -50,9 +58,9 @@ export function isPersonRow(todayQueue: Pick<TodayQueueRowVM, "kind">): boolean 
 
 /**
  * The kinds of row that are a hold: a person who asked for a person (a handoff, a call-back, a reach-out's reply read),
- * and one who asked through a form, whom nobody has answered.
+ * one who asked through a form, whom nobody has answered, and one whose comment on a post waits on the owner's word.
  */
-const HOLD_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "reply", "form"]);
+const HOLD_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "reply", "form", "comment"]);
 
 /**
  * Whether a row is someone who needs you: a hold. The brief names these as needing you and the phone's widget names the
@@ -550,6 +558,8 @@ export function todayQueue(
   // Whoever asked through a form and has no answer yet (00680): people, in Need you's order with the rest. And each
   // form's entries held for a look, left three days: one quiet row a form, after everyone waiting (form-rows.ts).
   queueAll.push(...formRowsOf(todayFacts));
+  // Whoever commented on a post and waits on the owner's word: AI could not answer it, or the answer did not go (00699).
+  queueAll.push(...commentRowsOf(todayFacts));
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
   for (const t of todayFacts.previewsTried) queueAll.push(triedRow(t, todayFacts));
   // Need you's order (need-you/groups.ts needYouOrder): a clock near enough first (a reply that goes on its own in
@@ -559,7 +569,7 @@ export function todayQueue(
   // rest, so a week's old mail never takes the seats of the new asks.
   queueAll.sort(needYouOrder);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
-  const needN = countOf("handoff", "callback", "form");
+  const needN = countOf("handoff", "callback", "form", "comment");
   const winN = countOf("window");
   const earN = countOf("call");
   const searchN = countOf("search");

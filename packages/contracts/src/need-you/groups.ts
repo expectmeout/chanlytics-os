@@ -57,7 +57,8 @@ type GroupRow = Pick<TodayQueueRowVM, "kind" | "act" | "clock_ms" | "waitedMs" |
 
 /**
  * What a row asks of you: a call back, or a hold whose reason asks for one, is a call; a search waiting for an answer is
- * yours to approve, as a run is; every other person is a reply, someone who asked through a form among them. Null for
+ * yours to approve, as a run is; every other person is a reply, someone who asked through a form or commented on a post
+ * among them. Null for
  * what nobody waits on: a call worth a listen, a
  * lead who tried their preview, a step and a visit to mark (To do's).
  */
@@ -70,7 +71,8 @@ export function needYouVerbOf(todayQueue: Pick<TodayQueueRowVM, "kind" | "act">)
     todayQueue.kind === "window" ||
     todayQueue.kind === "reply" ||
     todayQueue.kind === "held" ||
-    todayQueue.kind === "form"
+    todayQueue.kind === "form" ||
+    todayQueue.kind === "comment"
   )
     return "reply";
   return null;

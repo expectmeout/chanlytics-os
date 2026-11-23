@@ -20,6 +20,7 @@
 import {
   calendarParamParts,
   canonicalRoute,
+  commentIdOf,
   CONTENT_ROUTE,
   contentPlaceOf,
   firstRunStepOf,
@@ -27,6 +28,7 @@ import {
   FIRST_RUN_ROUTE,
   FORMS_ROUTE,
   isAdsParam,
+  isCommentsParam,
   isFormsParam,
   parseAds,
   GET_YES_PARAM,
@@ -82,7 +84,10 @@ const alone =
   (param) =>
     param === "" ? { view } : null;
 
-/** What the Inbox's param opens: a thread by its conversation's id, a form's request, the door of a new conversation, or To send. */
+/**
+ * What the Inbox's param opens: a thread by its conversation's id, a form's request, the comments on the posts (one of them
+ * open or none), the door of a new conversation, or To send.
+ */
 function opensInbox(param: string): Opened | null {
   if (param === "") return { view: "inbox" };
   if (newConversationOf(param)) return { view: "inbox/new" };
@@ -91,6 +96,8 @@ function opensInbox(param: string): Opened | null {
   // A request someone sent through a form, where it is answered (00680).
   const request = requestIdOf(param);
   if (request) return { ref: { kind: "request", id: request } };
+  // The comments on the business's posts, and one opened where it is answered (00699).
+  if (isCommentsParam(param) || commentIdOf(param)) return { view: "inbox/comments" };
   const id = inboxThread(param);
   return id !== null && RECORD_ID.test(id) ? { ref: { kind: "conversation", id } } : null;
 }
@@ -270,7 +277,7 @@ function opensReports(param: string): Opened | null {
  * param after it. A page added to SURFACE_ROUTES is a row here in the same change, and the registry test fails without it.
  * The shapes each takes, after the page's word:
  *
- *   inbox          `th-<conversation>`, `new`, `new:<person>`, `to-send`
+ *   inbox          `th-<conversation>`, `new`, `new:<person>`, `to-send`, `rq-<request>`, `comments`, `cm-<comment>`
  *   conversations  `<tab>`, `<conversation>`, `cv-<call>`, and a row on its tab, `<tab>:<row>`
  *   live           `<call>`
  *   calendar       `<yyyy-mm-dd>`, `a-<visit>`, `<yyyy-mm-dd>:a-<visit>`

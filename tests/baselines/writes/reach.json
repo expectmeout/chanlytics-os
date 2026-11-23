@@ -1,7 +1,7 @@
 {
-  "rows": 184,
-  "same": 10,
-  "differ": 174,
+  "rows": 185,
+  "same": 7,
+  "differ": 178,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -35,15 +35,22 @@
       "changes": "files UPDATE · files_let_go INSERT · notifications INSERT UPDATE · posts UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "missing": {
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "DELETE files/[id]/google": {
       "changes": "posts UPDATE",
-      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications"
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "missing": {
+        "today": "today"
+      }
     },
     "DELETE files/[id]/instagram": {
-      "changes": "posts UPDATE"
+      "changes": "posts UPDATE",
+      "missing": {
+        "today": "today"
+      }
     },
     "DELETE files/[id]/posts": {
       "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE",
@@ -373,11 +380,15 @@
       "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_revisions INSERT · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "missing": {
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "PATCH files/[id]/posts": {
-      "changes": "posts UPDATE"
+      "changes": "posts UPDATE",
+      "missing": {
+        "today": "today"
+      }
     },
     "PATCH lead-searches/[id]": {
       "changes": "lead_searches UPDATE",
@@ -708,6 +719,12 @@
       "door": {
         "channels": "every page",
         "reports_campaigns": "reports, reports/campaigns"
+      }
+    },
+    "POST comments": {
+      "changes": "comment_answers DELETE INSERT UPDATE",
+      "extra": {
+        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
       }
     },
     "POST contacts": {
@@ -1286,7 +1303,8 @@
       "missing": {
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/[id]/google": {
@@ -1294,7 +1312,8 @@
       "tells": "files · notifications",
       "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
       "missing": {
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/[id]/instagram": {
@@ -1302,7 +1321,8 @@
       "tells": "files · notifications",
       "doors": "tenant_channels",
       "missing": {
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/[id]/restore": {
@@ -1310,7 +1330,8 @@
       "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/keep": {
@@ -1319,7 +1340,8 @@
       "missing": {
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/post": {
@@ -1328,7 +1350,8 @@
       "doors": "source_items",
       "missing": {
         "calendar_runs": "calendar",
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST files/video": {
@@ -2607,7 +2630,8 @@
       "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
-        "notifications": "every page"
+        "notifications": "every page",
+        "today": "today"
       }
     },
     "POST team/invite": {

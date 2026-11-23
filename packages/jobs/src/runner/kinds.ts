@@ -451,6 +451,32 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["action_id", "attempt"],
     never: [],
   },
+  // A post's numbers read back from its place (00699; the content loop PRD's 9.1): a read asked again writes over itself,
+  // nothing reaches a person, and a read that fails for good is said where it is read: the piece says the step's
+  // numbers could not be read, and the next step reads again (told elsewhere).
+  post_observe: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["post_id", "step"],
+    never: [],
+  },
+  // A public answer to a comment (00699; the content loop PRD's 12.4). Its send puts the business's words in public, so
+  // it is never run again after a claim that did not report back: the answer then says Instagram did not say, and the
+  // owner looks before sending again (settle-comment.ts). Its draft is a model call nobody sees until it is kept.
+  comment_reply: {
+    speaks: true,
+    retryWaitsMs: NO_FIELDS,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 25 * SECOND_MS,
+    ids: ["touch_id", "step"],
+    never: ["words", "text", "draft"],
+  },
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
   // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.

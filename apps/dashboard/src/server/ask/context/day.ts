@@ -78,6 +78,7 @@ export const readToday: Provider = async (rc, ctx) => {
     previewsTried,
     formRequests,
     formHeld,
+    comments,
   } = (await load(rc, todayReader, undefined)).data;
   const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, {
     runs,
@@ -85,6 +86,7 @@ export const readToday: Provider = async (rc, ctx) => {
     previewsTried,
     formRequests,
     formHeld,
+    comments,
   });
   // What the queue holds, and what waits with no row: the replies counting down and the runs waiting for a word.
   const parts = [...vm.queue.parts, todayDraftsSub(vm.needsYou?.sends ?? 0), todayRunsSub(vm.runs_waiting ?? 0)].filter(

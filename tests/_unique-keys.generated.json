@@ -819,6 +819,48 @@
       "where": null
     },
     {
+      "table": "comment_answers",
+      "name": "comment_answers_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "comment_answers",
+      "name": "comment_answers_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "comment_answers",
+      "name": "comment_answers_one_a_comment",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "touch_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "contact_identities",
       "name": "contact_identities_pkey",
       "primary": true,
@@ -2581,6 +2623,29 @@
       "where": null
     },
     {
+      "table": "links",
+      "name": "links_one_a_post",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "subject_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "subject_type"
+        },
+        "right": {
+          "value": "post"
+        }
+      }
+    },
+    {
       "table": "mailbox_connections",
       "name": "mailbox_connections_pkey",
       "primary": true,
@@ -3454,6 +3519,54 @@
         },
         {
           "column": "subject_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "post_id"
+        },
+        {
+          "column": "step"
+        },
+        {
+          "column": "metric"
         }
       ],
       "where": null
@@ -4668,6 +4781,51 @@
       "keys": [
         {
           "column": "slug"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "place"
+        },
+        {
+          "column": "provider_event_id"
         }
       ],
       "where": null

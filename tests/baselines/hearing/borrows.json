@@ -26,6 +26,7 @@
   "frame/topbar": "billing calendar live",
   "inbox": "broadcasts conversations inbox people reply_drafts settings",
   "inbox/call-back": "",
+  "inbox/comment": "",
   "inbox/dock": "reply_drafts",
   "inbox/model": "",
   "inbox/new-conversation": "people settings",

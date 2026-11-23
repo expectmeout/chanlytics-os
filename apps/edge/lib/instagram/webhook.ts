@@ -16,7 +16,9 @@
  *                     workspace's own hours, as a WhatsApp Business app echo does. A person nobody here holds has no
  *                     thread of ours to pause.
  *   an unsend         the person took the DM back: its words and attachment are no longer kept (00486 message_unsent).
- *   anything else     a reaction, a read, an edit: logged, and asks nothing of anyone.
+ *   about a post      a comment on one of the account's posts, the business's own comment answering one, or an ig.me
+ *                     link's code arriving alone (00699): post-said.ts.
+ *   anything else     a reaction, a read, an edit, a mention (the same comment again): logged, and asks nothing.
  *
  * The ack rule is WhatsApp's: a DM, an echo or an unsend the database did not take, or whose account could not be
  * routed, is not acknowledged (503, so Meta sends the delivery again, and every one of them is safe to receive twice:
@@ -57,6 +59,7 @@ import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import { getInstagramCredentials } from "./credentials.js";
 import { recordThenAnswerDm } from "./dm-answer.js";
+import { takeAboutAPost } from "./post-said.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -220,6 +223,19 @@ async function takeEcho(
 }
 
 /** A DM the person took back: no longer kept, its stored attachment removed. 1 when the write failed. */
+/** One routed event taken by what it is: a DM, the business's echo, an unsend, or something about a post. Unrecorded ones. */
+function takeEvent(
+  db: Db,
+  routed: RoutedChannel,
+  event: Exclude<InstagramEvent, { kind: "ignored" }>,
+  settleMs: number,
+): Promise<number> {
+  if (event.kind === "message") return takeMessage(db, routed, event);
+  if (event.kind === "echo") return takeEcho(db, routed, event, settleMs);
+  if (event.kind === "unsent") return takeUnsend(db, routed, event);
+  return takeAboutAPost(db, routed, event);
+}
+
 async function takeUnsend(
   db: Db,
   routed: RoutedChannel,
@@ -308,9 +324,7 @@ async function receiveWith(request: Request, settleMs: number): Promise<Response
       if (event.kind === "message") unroutableCounts.set(event.account, (unroutableCounts.get(event.account) ?? 0) + 1);
       continue;
     }
-    if (event.kind === "message") unrecorded += await takeMessage(db, verdict, event);
-    else if (event.kind === "echo") unrecorded += await takeEcho(db, verdict, event, settleMs);
-    else unrecorded += await takeUnsend(db, verdict, event);
+    unrecorded += await takeEvent(db, verdict, event, settleMs);
   }
   for (const [account, n] of unroutableCounts) await unroutable(db, account, n);
   if (unrecorded > 0) return json(503, { ok: false, unrecorded });

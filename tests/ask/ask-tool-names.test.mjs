@@ -1628,7 +1628,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 22 Nov 2026 (00680): and the form entries held for a look that nobody has looked at in three days, read beside
     // the requests nobody has answered (readers/forms.ts formRequestsOpen): one `form_entries` read more. Bytes
     // unchanged: this world has no form.
-    const held = ["form_entries.select"];
+    // 23 Nov 2026 (00699): and the comments on the posts that wait on the owner (readers/results.ts commentsWaiting): one
+    // `touches` read more. Bytes unchanged: this world has no post.
+    const held = ["form_entries.select", "touches.select"];
     const booked =
       old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select", ...ai, ...held] : [];
     const allowance = leadPlan && !want.isError ? ["rpc:lead_allowance"] : [];
