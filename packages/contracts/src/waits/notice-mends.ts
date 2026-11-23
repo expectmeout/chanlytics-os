@@ -183,7 +183,7 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     sameSubject: true,
   },
   // And by the owner's own word that the post stays up ("Keep it up"), or by the last post of the piece at that place
-  // deleted by hand beside one kept up. Closed in SQL (00694 post_by_hand_bell_settle, asked by post_take_down_keep and by
+  // deleted by hand beside one kept up. Closed in SQL (00697 post_by_hand_bell_settle, asked by post_take_down_keep and by
   // a done of post_take_down_settle), once nothing of the piece there is left to its owner: listed so the test holds the
   // SQL's literal to these words.
   {

@@ -137,11 +137,12 @@ function VideoWaits({ failed, name }: { failed: boolean; name: string }) {
 function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   if (file.media_status !== "ready") return <VideoWaits failed={file.media_status === "failed"} name={name} />;
   // A clip kept in Drive looks like any other; one coming back, or that can't, says so across its picture, in the words
-  // its row says on a phone (the canvas's Desk 2).
+  // its row says on a phone (the canvas's Desk 2). So does a video made here, in a video's own words.
   const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
     folder: heldFootage()?.folder?.name ?? null,
     leaves: leavesOn(file, knownZone() ?? "UTC"),
     uploaded: file.owner_uploaded === true,
+    made: file.source === "made",
   });
   return (
     <>

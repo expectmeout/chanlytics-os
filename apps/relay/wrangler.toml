@@ -15,6 +15,13 @@ enabled = false
 
 # Production's two secrets and its key door's address are set once, by hand (README.md): TICKET_KEY, KEY_DOOR_SECRET, KEY_DOOR_URL.
 
+# The shelf (the archive plan's B2, src/shelf.ts): the private bucket where a video Chanlytics made keeps its own copy.
+# Bound by name, to production's relay alone; the bucket has no public address and nothing public is ever set on it.
+# Where a pull may read from is set once, by hand, as the secrets are (README.md): SHELF_FROM.
+[[r2_buckets]]
+binding = "SHELF"
+bucket_name = "chanlytics-shelf"
+
 [env.proof]
 name = "chanlytics-footage-relay-proof"
 main = "proof/relay-with-breaks.ts"

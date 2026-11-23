@@ -5,7 +5,7 @@
  * but never what was sent or the container; the service role's doors are shut to a member, a send's row never changes once
  * finished, a move is a compare-and-set, and the two doors that write a move with its job write both or neither.
  *
- * The press is post_approve (00681), the one press there is since 00693 dropped the door before it: `begin` makes the
+ * The press is post_approve (00681), the one press there is since 00696 dropped the door before it: `begin` makes the
  * approval a page makes for one placement, and answers the post it began. What an approval keeps and holds a post to is
  * proved beside it, in tests/content/places/approvals.db.test.mjs.
  *
