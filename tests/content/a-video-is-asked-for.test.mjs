@@ -748,7 +748,6 @@ function pressed(plan, { fate = "begun", ...opts } = {}) {
     {},
     {
       piece_begin: (a) => (knocks.push(["piece_begin", a]), { fate, piece_id: fate === "busy" ? null : "pc-1" }),
-      file_yes_record: (a) => (knocks.push(["file_yes_record", a]), { kept: ["post"], again: [], ids: ["y1"] }),
     },
   );
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };

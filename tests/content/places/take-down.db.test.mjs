@@ -123,7 +123,6 @@ after(async () => {
   await db.from("jobs").delete().in("tenant_id", all);
   await db.from("remediations").delete().in("tenant_id", all);
   await db.from("posts").delete().in("tenant_id", all);
-  await db.from("file_consents").delete().in("tenant_id", all);
   await db.from("files").delete().in("tenant_id", all);
   await db.from("memberships").delete().in("tenant_id", all);
   await db.from("tenants").delete().in("id", all);
