@@ -16,6 +16,7 @@
  */
 import {
   CONTENT_CHECK_WORDS,
+  ON_FACEBOOK,
   ON_INSTAGRAM,
   PLACE_CAPABILITIES,
   capabilityStands,
@@ -107,8 +108,9 @@ function videoProblem(placement: PlaceAsked): string | null {
 
 /** Why the place does not take this kind of this file, in words; null where it does. */
 function kindProblem(placement: PlaceAsked): string | null {
-  if (placement.place === "instagram" && !instagramKindsFor(placement.fileKind).some((kind) => kind === placement.kind))
-    return ON_INSTAGRAM.wrongKind;
+  // A Page (pass 5) takes what Instagram takes: a picture as a post or a story, a video as a reel.
+  if (placement.place !== "google" && !instagramKindsFor(placement.fileKind).some((kind) => kind === placement.kind))
+    return placement.place === "facebook" ? ON_FACEBOOK.wrongKind : ON_INSTAGRAM.wrongKind;
   const google = placement.place === "google" && (placement.fileKind === "video" || placement.kind !== "picture");
   if (google || !capabilityStands(PLACE_CAPABILITIES[placement.place].formats[placement.kind]))
     return CONTENT_CHECK_WORDS.notTaken(placement.place, ON_INSTAGRAM.kind[placement.kind]);

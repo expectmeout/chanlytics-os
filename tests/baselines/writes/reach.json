@@ -1,7 +1,7 @@
 {
-  "rows": 192,
+  "rows": 194,
   "same": 10,
-  "differ": 182,
+  "differ": 184,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -40,6 +40,13 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
+        "today": "today"
+      }
+    },
+    "DELETE files/[id]/facebook": {
+      "changes": "posts UPDATE",
+      "missing": {
+        "content_week": "admin/content",
         "today": "today"
       }
     },
@@ -1373,6 +1380,16 @@
       "missing": {
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library, campaigns/content/week",
+        "content_week": "admin/content",
+        "notifications": "every page",
+        "today": "today"
+      }
+    },
+    "POST files/[id]/facebook": {
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "tenant_channels",
+      "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
         "today": "today"

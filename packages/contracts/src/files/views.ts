@@ -193,6 +193,12 @@ export interface FileRecordDto {
    */
   instagram: { can: InstagramPostable; posts: PostDto[] } | null;
   /**
+   * Whether it can go on the business's Facebook Page now (the content loop PRD's pass 5), and its posts there, newest
+   * first. Null or absent where Facebook is not offered to the workspace (the Meta link off, or the place not switched on),
+   * and from a server before it was answered.
+   */
+  facebook?: { can: InstagramPostable; posts: PostDto[] } | null;
+  /**
    * A made post's posts at every place, newest first, whatever the Meta link: where a piece read on its own stands (a link, the
    * bell's row), as the page that lists it says. Absent on anything but a made post, and from a server before it was answered.
    */

@@ -23,6 +23,13 @@ export type PlanStatus = (typeof PLAN_STATUSES)[number];
 export const SLOT_STATES = ["proposed", "blocked", "needs_footage", "approved", "removed", "posted"] as const;
 export type SlotState = (typeof SLOT_STATES)[number];
 
+/**
+ * The places a week is planned for (00706 plan_slots.place): Instagram and Google. A Facebook Page (the content loop's
+ * pass 5) is posted to by the owner's own press until a real Page has shown it works; the plan takes it then.
+ */
+export const PLAN_PLACES = ["instagram", "google"] as const;
+export type PlanPlace = (typeof PLAN_PLACES)[number];
+
 /** What an owner claims (owner_claims.kind): a price, an offer, a guarantee, or a fact they state ("Thursday still has openings"). */
 export const CLAIM_KINDS = ["price", "offer", "guarantee", "fact"] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];

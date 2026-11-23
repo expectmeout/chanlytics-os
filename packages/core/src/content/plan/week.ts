@@ -20,6 +20,7 @@ import {
   type Opportunity,
   type PostHeldWhy,
   type PostKind,
+  type PlanPlace,
   type PostPlace,
   type SlotScore,
   type SlotState,
@@ -63,7 +64,7 @@ export interface WeekAsked {
 /** One slot, as content_plan_write keeps it. */
 export interface DraftedSlot {
   creative: string;
-  place: PostPlace;
+  place: PlanPlace;
   kind: PostKind;
   at: string;
   title: string;
@@ -226,7 +227,7 @@ function openDays(given: WeekAsked): string[] {
 }
 
 /** The hour each kind goes up at, in the business's zone: a reel in the evening, a picture at midday, Google in the morning. */
-const HOUR_OF: Readonly<Record<PostPlace, Record<PostKind, number>>> = {
+const HOUR_OF: Readonly<Record<PlanPlace, Record<PostKind, number>>> = {
   instagram: { reel: 18, picture: 12, story: 17 },
   google: { reel: 10, picture: 10, story: 10 },
 };
@@ -262,8 +263,8 @@ function proposeVerdict(given: WeekAsked, place: PostPlace, kind: PostKind, file
 }
 
 /** The places a pick goes to, within what is left of the cadence for each. */
-function placesFor(candidate: Candidate, given: WeekAsked, left: Map<string, number>): PostPlace[] {
-  const out: PostPlace[] = [];
+function placesFor(candidate: Candidate, given: WeekAsked, left: Map<string, number>): PlanPlace[] {
+  const out: PlanPlace[] = [];
   if (connected(given, "instagram") && (left.get(`instagram:${candidate.kind}`) ?? 0) > 0) out.push("instagram");
   if (candidate.kind === "picture" && connected(given, "google") && (left.get("google:picture") ?? 0) > 0)
     out.push("google");
@@ -281,7 +282,7 @@ function cadenceLeft(given: WeekAsked): Map<string, number> {
 }
 
 /** The slots of one pick, one a place, each through the propose moment's checks. */
-function slotsOf(candidate: Candidate, given: WeekAsked, at: { day: string; places: PostPlace[]; creative: string }) {
+function slotsOf(candidate: Candidate, given: WeekAsked, at: { day: string; places: PlanPlace[]; creative: string }) {
   return at.places.map((place): DraftedSlot => {
     const verdict = proposeVerdict(given, place, candidate.kind, candidate.kind === "reel" ? "video" : "image");
     const [first] = verdict.ok ? [] : verdict.refusals;

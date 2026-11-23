@@ -30273,11 +30273,11 @@ begin
   end if;
   -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
   for v_place in select * from jsonb_array_elements(v_places) loop
-    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google']) then
+    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google', 'facebook']) then
       raise exception 'No such place: %.', v_place ->> 'place' using errcode = '22023';
     end if;
     if (case when v_file.kind = 'video'
-             then not (v_place ->> 'place' = 'instagram' and v_place ->> 'kind' = 'reel')
+             then not (v_place ->> 'place' in ('instagram', 'facebook') and v_place ->> 'kind' = 'reel')
              else (v_place ->> 'kind') is null or (v_place ->> 'kind') <> all (array['picture', 'story'])
                   or (v_place ->> 'place' = 'google' and v_place ->> 'kind' <> 'picture') end) then
       return jsonb_build_object('fate', 'wrong_kind', 'posts', '[]'::jsonb);
@@ -30380,8 +30380,8 @@ begin
             v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
             nullif(v_place ->> 'good_until', '')::timestamptz)
     returning id into v_id;
-    if v_place ->> 'place' = 'instagram' then
-      -- Ten minutes ahead of its time, so Instagram has made it ready by then; as text, as a job's key is made of strings.
+    if v_place ->> 'place' in ('instagram', 'facebook') then
+      -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
       insert into public.jobs (tenant_id, kind, due_at, payload)
       values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
               jsonb_build_object('post_id', v_id, 'attempt', '1'));
@@ -30400,7 +30400,7 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 
 --
@@ -30566,7 +30566,7 @@ begin
      and n.subject_type = 'file' and n.subject_id = p_file_id::text
      and n.closed_at is null
      and n.title like 'Delete it in '
-                      || case p_place when 'instagram' then 'Instagram' when 'google' then 'Google' end
+                      || case p_place when 'instagram' then 'Instagram' when 'google' then 'Google' when 'facebook' then 'Facebook' end
                       || ' · %';
   get diagnostics v_closed = row_count;
   return v_closed;
@@ -30577,7 +30577,7 @@ end $$;
 -- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
+COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00707; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
 
 
 --
@@ -30785,7 +30785,8 @@ begin
     select p.tenant_id, 'post_reconcile', now() + interval '2 minutes',
            jsonb_build_object('post_id', p.id, 'attempt', 'seen', 'seen', 'ask')
       from public.posts p
-     where p.id = p_post_id and p.place = 'instagram' and p.verified_at is null and p.external_id is not null
+     where p.id = p_post_id and p.place in ('instagram', 'facebook') and p.verified_at is null
+       and p.external_id is not null
     on conflict do nothing;
   end if;
   return v_moved;
@@ -30796,7 +30797,7 @@ end $$;
 -- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram or a Facebook Page (00707) unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 
 --
@@ -52684,7 +52685,7 @@ CREATE TABLE public.posts (
     CONSTRAINT posts_held_shape CHECK (((((status = 'held'::text) OR ((status = 'pulled'::text) AND (held_why = 'late'::text))) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)) AND ((held_why IS NULL) OR (status = ANY (ARRAY['held'::text, 'pulled'::text]))))),
     CONSTRAINT posts_held_why_check CHECK ((held_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text]))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
-    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'hand'::text]))),
+    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'facebook'::text, 'hand'::text]))),
     CONSTRAINT posts_revision_shape CHECK ((((revision IS NULL) OR (revision >= 1)) AND ((capability_edition IS NULL) OR (capability_edition >= 1)))),
     CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
     CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))

@@ -58,19 +58,13 @@ import type {
   FILE_WHO_IN_IT,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
-import type {
-  POST_HELD_WHYS,
-  POST_KINDS,
-  POST_PLACES,
-  POSTED_PLACES,
-  POST_STATUSES,
-  POST_VIAS,
-} from "../content/posts";
+import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
 import type {
   CLAIM_KINDS,
   CLAIM_SOURCES,
   CONTENT_GOALS,
   PLAN_ASKED_BY,
+  PLAN_PLACES,
   PLAN_STATUSES,
   SLOT_STATES,
 } from "../content/plan/sets";
@@ -266,7 +260,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PLAN_STATUSES>, SchemaSet<"content_plans.status">>>,
   Holds<Exactly<Of<typeof PLAN_ASKED_BY>, SchemaSet<"content_plans.asked_by">>>,
   Holds<Exactly<Of<typeof SLOT_STATES>, SchemaSet<"plan_slots.state">>>,
-  Holds<Exactly<Of<typeof POST_PLACES>, SchemaSet<"plan_slots.place">>>,
+  Holds<Exactly<Of<typeof PLAN_PLACES>, SchemaSet<"plan_slots.place">>>,
   Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"plan_slots.kind">>>,
   // A slot is held for what holds a post, or because what it was to be made into could not be (contracts SlotHeldWhy).
   Holds<Exactly<Of<typeof POST_HELD_WHYS> | "unmade", SchemaSet<"plan_slots.blocked_why">>>,

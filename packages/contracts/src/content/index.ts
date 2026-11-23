@@ -124,6 +124,14 @@ export type {
 } from "./placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
 export type { ContentCheck } from "./placements/check-words";
+export {
+  metaPageOf,
+  ON_FACEBOOK,
+  PAGE_POSTING_PERMISSIONS,
+  pagePostableOf,
+  placeSwitchedOn,
+} from "./placements/facebook";
+export type { FacebookRefusal, MetaPage } from "./placements/facebook";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
@@ -178,13 +186,22 @@ export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/
 export { takeDownSpec } from "./placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
 export type { OwnerClaim } from "./plan/claims";
-export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_STATUSES, SLOT_STATES } from "./plan/sets";
+export {
+  CLAIM_KINDS,
+  CLAIM_SOURCES,
+  CONTENT_GOALS,
+  PLAN_ASKED_BY,
+  PLAN_PLACES,
+  PLAN_STATUSES,
+  SLOT_STATES,
+} from "./plan/sets";
 export type {
   ClaimKind,
   ClaimSource,
   ContentGoal,
   OpportunityKind,
   PlanAskedBy,
+  PlanPlace,
   PlanStatus,
   SlotState,
 } from "./plan/sets";
