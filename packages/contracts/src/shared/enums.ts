@@ -213,7 +213,7 @@ export const JOB_KINDS = [
    */
   "post_take_down",
   /**
-   * A week of posts planned (00702; the content loop PRD's 10.2), payload { plan_id }, in the bulk lane: the reasons to
+   * A week of posts planned (00706; the content loop PRD's 10.2), payload { plan_id }, in the bulk lane: the reasons to
    * post now read, the candidates scored, the week picked within the cadence, worded by AI in one call (post_words) and
    * written ready, with nothing made. Begun by the weekly clock on Sunday evening in the business's zone, or by the
    * owner's ask.

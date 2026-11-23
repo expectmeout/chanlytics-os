@@ -119,7 +119,7 @@ export async function approvePlacements(
     config: () => getStoredConfig(ctx.supabase, member.tenantId),
   });
   if (refused) throw new AppError("validation", refused);
-  // A fact the owner stated is kept as their own claim (owner_claims, 00702; PRD 6.1), valid until its day ends: the
+  // A fact the owner stated is kept as their own claim (owner_claims, 00706; PRD 6.1), valid until its day ends: the
   // send's check reads it there, and an approval no longer carries it.
   await keepStatedFacts(ctx, member.tenantId, approval.facts);
   // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).

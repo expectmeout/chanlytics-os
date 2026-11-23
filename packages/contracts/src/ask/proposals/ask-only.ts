@@ -56,7 +56,7 @@ export const ASK_ONLY_SPECS = {
   ad_draft: adDraftSpec,
   // A made piece taken down everywhere it is up (00682; content/take-down.ts).
   take_down: takeDownSpec,
-  // A week of posts, and what a post may say (00702; content/plan/week-spec.ts).
+  // A week of posts, and what a post may say (00706; content/plan/week-spec.ts).
   week: planWeekSpec,
   claim: claimSpec,
   // People's and its lists'.

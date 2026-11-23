@@ -1,5 +1,5 @@
 /**
- * What an owner says of the business for its posts (00702; the content loop PRD's 5.3 and 21.1, Settings › Content): a
+ * What an owner says of the business for its posts (00706; the content loop PRD's 5.3 and 21.1, Settings › Content): a
  * claim kept or withdrawn (an offer, a price, a guarantee, a fact they state), what the posts are for, and how often they
  * go up, its quiet days and its languages. Each said to AI or edited in place on its Settings line; claims and goals go
  * through their doors on the member's own session, how often through the workspace's config, as Settings saves it.

@@ -1,5 +1,5 @@
 /**
- * A week of posts (00702; the content loop PRD's 5.3, 8.4 and 10.2): the owner's ask for a plan, the week approved in one
+ * A week of posts (00706; the content loop PRD's 5.3, 8.4 and 10.2): the owner's ask for a plan, the week approved in one
  * press and a slot set (each a door on the member's own session, which asks the settings permission itself); what the
  * plan job reads and writes under the service role; and the week as a page and AI read it.
  */

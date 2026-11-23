@@ -98,7 +98,7 @@ export async function readPlacementRefusals(
       atMs: latestOf(placements.placements, nowMs),
       nowMs,
       zone,
-      // An offer the owner keeps (owner_claims, 00702) is one the business says; a fact they stated stands to its day.
+      // An offer the owner keeps (owner_claims, 00706) is one the business says; a fact they stated stands to its day.
       says: [...business.says, ...offersOf(claims, today).map((offer) => offer.says)],
       services: business.services,
       facts: [...placements.facts, ...statedFactsOf(claims, today)],

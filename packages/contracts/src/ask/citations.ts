@@ -107,7 +107,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "start",
   "admin/workspace",
   "admin/hours",
-  // Settings › Content (00702): what the posts are for, how often, the quiet days, the offers.
+  // Settings › Content (00706): what the posts are for, how often, the quiet days, the offers.
   "admin/content",
   "admin/receptionist",
   // Cold email (decision 0113): a card of propose_settings' reach_out opens on its row.

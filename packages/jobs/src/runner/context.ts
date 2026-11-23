@@ -406,7 +406,7 @@ export interface JobContext {
     /** A public answer to a comment: AI's draft, or the owner's words posted under it (00699). */
     commentReply?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
-  /** A week of posts planned (00702; the content loop PRD's 10.2), as the edge holds it. INJECTED like the poster. */
+  /** A week of posts planned (00706; the content loop PRD's 10.2), as the edge holds it. INJECTED like the poster. */
   plans?: {
     plan: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };

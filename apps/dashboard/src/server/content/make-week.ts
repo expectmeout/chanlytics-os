@@ -1,5 +1,5 @@
 /**
- * A week's posts made after its approval (00702; the content loop PRD's 8.4 and 10.2; Ruben, 23 Nov 2026: made after the
+ * A week's posts made after its approval (00706; the content loop PRD's 8.4 and 10.2; Ruben, 23 Nov 2026: made after the
  * week is approved, so a week nobody approves makes nothing). The press answers at once, and each approved creative is
  * then made in turn by the code a member's own press runs, under the same member's session, with no AI conversation:
  *

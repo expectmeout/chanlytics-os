@@ -278,7 +278,7 @@ export function LibraryKinds({ phone, layout = null }: { phone: boolean; layout?
   );
 }
 
-/** Content's lists: the Week first where the workspace plans its weeks (00702; the boards' call 1), then Made and Library. */
+/** Content's lists: the Week first where the workspace plans its weeks (00706; the boards' call 1), then Made and Library. */
 const listsOf = (planned: boolean): readonly ContentList[] =>
   planned ? ["week", "made", "library"] : ["made", "library"];
 

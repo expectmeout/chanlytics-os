@@ -248,9 +248,9 @@ const ANNOUNCES = {
   post_down:
     "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, and again every few seconds while a line still moves (00682).",
   plan_ready:
-    "The Week, which the row opens, reads the week's plan and its slots as it comes on screen, and again when the owner comes back to the tab (00702).",
+    "The Week, which the row opens, reads the week's plan and its slots as it comes on screen, and again when the owner comes back to the tab (00706).",
   footage_ask:
-    "The Week, which the row opens, reads the week's plan with what it asks to be filmed at its foot as it comes on screen (00702).",
+    "The Week, which the row opens, reads the week's plan with what it asks to be filmed at its foot as it comes on screen (00706).",
   post_by_hand:
     "Campaigns › Content, which the row opens on the piece at its lines: the piece's record reads its posts and its take-down as it opens, where the place's line has Open and I deleted it (00682).",
   ad_account:

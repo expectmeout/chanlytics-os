@@ -1,5 +1,5 @@
 /**
- * AI's cards for a week of posts (00702; the content loop PRD's 12.1 act/plan and act/claims, 12.2 planWeekSpec and
+ * AI's cards for a week of posts (00706; the content loop PRD's 12.1 act/plan and act/claims, 12.2 planWeekSpec and
  * claimSpec). Apart from the Week's own words and rules: the frame holds every card's spec, and a page that draws no week
  * carries none of them. Each card does one thing, which its payload's `act` names, through the same doors the Week's and
  * Settings › Content's presses use.

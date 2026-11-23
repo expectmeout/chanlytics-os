@@ -78,7 +78,7 @@ export const PUSH_KINDS = [
   "form_request",
   // What Ask noticed this morning (D12, D20 of the answers canvas): one line a day at most, and each member may turn it off.
   "ask_cards",
-  // A week of posts ready, and what to film for it (00702): with every rung at "AI asks first" a week nobody opens never
+  // A week of posts ready, and what to film for it (00706): with every rung at "AI asks first" a week nobody opens never
   // posts, so the phone is told; what to film at most once a week.
   "plan_ready",
   "footage_ask",

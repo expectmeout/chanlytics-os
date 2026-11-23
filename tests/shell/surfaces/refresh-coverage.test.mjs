@@ -64,7 +64,7 @@ const PAGES = [
   "#/admin/files",
   // What Ask made and where each piece was posted, which Campaigns › Content alone draws.
   "#/campaigns/content",
-  // The Week (00702), where a week asked for, approved or changed is read again.
+  // The Week (00706), where a week asked for, approved or changed is read again.
   "#/campaigns/content:week",
 ];
 

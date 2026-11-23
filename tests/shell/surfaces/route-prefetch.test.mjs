@@ -157,7 +157,7 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     // which it never draws, its own read asked only once its code had come (the phone review of 15 Nov 2026).
     ["campaigns/content", "campaigns/content"],
     ["campaigns/content:library", "campaigns/content/library"],
-    // Its Week (00702), on the week's own read.
+    // Its Week (00706), on the week's own read.
     ["campaigns/content:week", "campaigns/content/week"],
     // Campaigns lands on Sequences' list, its own address, a group's and a campaign's alike, and opens on what Sequences does.
     ["campaigns", "campaigns"],
@@ -823,7 +823,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
       // What Ask made, which Campaigns › Content draws beside the settings read that says whether it is drawn.
       (await importSrc(`${S}/surfaces/campaigns/content/surface.ts`)).contentOverride,
-      // The Week, which Content's Week tab and Settings › Content draw (00702).
+      // The Week, which Content's Week tab and Settings › Content draw (00706).
       (await importSrc(`${S}/surfaces/campaigns/content/week/surface.ts`)).weekOverride,
       // Reports' lenses drawn from a read of their own, over the report's period.
       (await importSrc(`${S}/surfaces/reports/people-surface.ts`)).reportsPeopleOverride,
@@ -881,7 +881,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     // Content's Library (the content redesign's stage 2), once Settings › Files: the library's read, never Made's.
     "campaigns/content:library": ["files"],
     "campaigns/content/library": ["files"],
-    // Its Week (00702): the week's own read, never Made's.
+    // Its Week (00706): the week's own read, never Made's.
     "campaigns/content:week": ["content_week"],
     "campaigns/content/week": ["content_week"],
     // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's

@@ -45,7 +45,7 @@ export const SET_TABS: readonly SetTab[] = [
   DETAILS_TAB,
   // Every photo the business has (decision 0099), for what Ask makes with them.
   { id: "files", label: "Files", icon: "image", group: "Business" },
-  // What the business's posts are for, how often, the quiet days, the languages, the look, the offers (00702; the PRD's
+  // What the business's posts are for, how often, the quiet days, the languages, the look, the offers (00706; the PRD's
   // 21.1): seven sentences, each changed in place.
   { id: "content", label: "Content", icon: "content", group: "Business" },
   // When people can come, and how they book: what the Calendar's "Hours and rules" shows, kept in one place.

@@ -56,7 +56,7 @@ export interface ContentTodayDto {
    */
   down?: ContentDownDto[];
   /**
-   * The week's points (00702; the PRD's 12.5), where the workspace plans its weeks: the week ready to approve, with its
+   * The week's points (00706; the PRD's 12.5), where the workspace plans its weeks: the week ready to approve, with its
    * size and days, and what AI asks to be filmed. Each opens the Week. Absent from an older build's answer, and null
    * where nothing of the week waits on the owner.
    */

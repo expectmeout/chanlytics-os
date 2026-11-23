@@ -7040,7 +7040,7 @@ end $$;
 -- Name: FUNCTION content_goals_keep(p_tenant_id uuid, p_goals jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) IS 'What the posts are for, the whole set at once (00702): [{goal, detail, weight}], by a member with the settings permission; the set before stops standing. Answers the goals that stand.';
+COMMENT ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) IS 'What the posts are for, the whole set at once (00706): [{goal, detail, weight}], by a member with the settings permission; the set before stops standing. Answers the goals that stand.';
 
 
 --
@@ -7069,7 +7069,7 @@ end $$;
 -- Name: FUNCTION content_plan_ask(p_tenant_id uuid, p_week_of date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) IS 'The owner''s "plan the week" (00702; the content loop PRD''s 10.2: on the owner''s ask), by a member with the settings permission. Answers {fate: drafting | approved, plan_id}.';
+COMMENT ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) IS 'The owner''s "plan the week" (00706; the content loop PRD''s 10.2: on the owner''s ask), by a member with the settings permission. Answers {fate: drafting | approved, plan_id}.';
 
 
 --
@@ -7108,7 +7108,7 @@ end $$;
 -- Name: FUNCTION content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) IS 'A week''s plan begun (00702), and its content_plan job: a new plan drafting, or one not yet approved drafted again with its slots let go. Answers {fate: drafting | approved, plan_id}. Called by content_plan_ask and content_plans_hand_out, never directly.';
+COMMENT ON FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) IS 'A week''s plan begun (00706), and its content_plan job: a new plan drafting, or one not yet approved drafted again with its slots let go. Answers {fate: drafting | approved, plan_id}. Called by content_plan_ask and content_plans_hand_out, never directly.';
 
 
 --
@@ -7154,7 +7154,7 @@ end $$;
 -- Name: FUNCTION content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) IS 'The content_plan job''s write (00702): the slots it drafted ([{creative, place, kind, at, title, reason, file_id, intent, words, state, blocked_why, blocked_reason, ask, score}]), why the week is smaller than the cadence asks, and the plan ready. Only a plan still drafting takes it. Answers {fate: ready | gone | <status>, slots}. The service role''s.';
+COMMENT ON FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) IS 'The content_plan job''s write (00706): the slots it drafted ([{creative, place, kind, at, title, reason, file_id, intent, words, state, blocked_why, blocked_reason, ask, score}]), why the week is smaller than the cadence asks, and the plan ready. Only a plan still drafting takes it. Answers {fate: ready | gone | <status>, slots}. The service role''s.';
 
 
 --
@@ -7202,7 +7202,7 @@ end $$;
 -- Name: FUNCTION content_plans_hand_out(p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_plans_hand_out(p_spread_seconds integer) IS 'The weekly clock (00702; the content loop PRD''s 10.2, call 18): next week''s plan begun for each workspace whose features.content_plan is on, from Sunday 18:00 in its own zone, once; and each week that has passed marked done. Answers how many it began. The service role''s.';
+COMMENT ON FUNCTION public.content_plans_hand_out(p_spread_seconds integer) IS 'The weekly clock (00706; the content loop PRD''s 10.2, call 18): next week''s plan begun for each workspace whose features.content_plan is on, from Sunday 18:00 in its own zone, once; and each week that has passed marked done. Answers how many it began. The service role''s.';
 
 
 --
@@ -7262,7 +7262,7 @@ end $$;
 -- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00702; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | <status>}.';
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | <status>}.';
 
 
 --
@@ -11226,7 +11226,7 @@ end $$;
 -- Name: FUNCTION file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) IS 'A clip''s moments as read (00702; the content loop PRD''s 10.3): [{start_s, end_s, shows, faces, sharp, words, score, confidence, model_edition}] in place of those read before; a member''s correction stays. Answers how many it kept. The service role''s.';
+COMMENT ON FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) IS 'A clip''s moments as read (00706; the content loop PRD''s 10.3): [{start_s, end_s, shows, faces, sharp, words, score, confidence, model_edition}] in place of those read before; a member''s correction stays. Answers how many it kept. The service role''s.';
 
 
 --
@@ -24481,7 +24481,7 @@ end $$;
 -- Name: FUNCTION owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) IS 'A claim withdrawn (00702), by a member with the settings permission. True where one standing was withdrawn. What carries it is held at its send by the claims rule, never taken down by itself (PRD 5.3, claim_withdrawn).';
+COMMENT ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) IS 'A claim withdrawn (00706), by a member with the settings permission. True where one standing was withdrawn. What carries it is held at its send by the claims rule, never taken down by itself (PRD 5.3, claim_withdrawn).';
 
 
 --
@@ -24518,7 +24518,7 @@ end $$;
 -- Name: FUNCTION owner_claims_keep(p_tenant_id uuid, p_claim jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) IS 'A claim kept (00702): {kind, text, source, valid_until}, by a member with the settings permission (the business''s own words, as Settings › Business is). Answers the row. The table''s checks refuse a kind, a source or words out of shape, and a fact with no last day.';
+COMMENT ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) IS 'A claim kept (00706): {kind, text, source, valid_until}, by a member with the settings permission (the business''s own words, as Settings › Business is). Answers the row. The table''s checks refuse a kind, a source or words out of shape, and a fact with no last day.';
 
 
 --
@@ -28798,7 +28798,7 @@ end $$;
 -- Name: FUNCTION plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) IS 'What an approved slot was made into (00702; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}.';
+COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) IS 'What an approved slot was made into (00706; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}.';
 
 
 --
@@ -28874,7 +28874,7 @@ end $$;
 -- Name: FUNCTION plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) IS 'One slot of a week, by a member with the settings permission (00702): {to: removed} leaves it out, {to: proposed, file_id?} puts it back or returns a slot that asked for footage with the clip added, {to: at, at} moves it to a later time, {to: approved} approves one mended after the week was, or one that could not be made (its own approval of subject plan; it is made anew). A slot made into a post is the post''s. Answers {fate: done, slot_id, approval_id} or {fate: gone | posted | past | <state>}.';
+COMMENT ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) IS 'One slot of a week, by a member with the settings permission (00706): {to: removed} leaves it out, {to: proposed, file_id?} puts it back or returns a slot that asked for footage with the clip added, {to: at, at} moves it to a later time, {to: approved} approves one mended after the week was, or one that could not be made (its own approval of subject plan; it is made anew). A slot made into a post is the post''s. Answers {fate: done, slot_id, approval_id} or {fate: gone | posted | past | <state>}.';
 
 
 --
@@ -48398,7 +48398,7 @@ CREATE TABLE public.content_goals (
 -- Name: TABLE content_goals; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.content_goals IS 'What a business''s posts are for (00702; the content loop PRD''s 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.';
+COMMENT ON TABLE public.content_goals IS 'What a business''s posts are for (00706; the content loop PRD''s 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.';
 
 
 --
@@ -48430,7 +48430,7 @@ CREATE TABLE public.content_plans (
 -- Name: TABLE content_plans; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.content_plans IS 'A week of posts (00702; the content loop PRD''s 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.';
+COMMENT ON TABLE public.content_plans IS 'A week of posts (00706; the content loop PRD''s 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.';
 
 
 --
@@ -48963,7 +48963,7 @@ CREATE TABLE public.file_moments (
 -- Name: TABLE file_moments; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.file_moments IS 'A clip''s best moments (00702; the content loop PRD''s 5.3 and 10.3), written when a plan wants them: from the look''s own moments and the hearing''s words, with their score, confidence and the look''s edition; a member''s correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.';
+COMMENT ON TABLE public.file_moments IS 'A clip''s best moments (00706; the content loop PRD''s 5.3 and 10.3), written when a plan wants them: from the look''s own moments and the hearing''s words, with their score, confidence and the look''s edition; a member''s correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.';
 
 
 --
@@ -49335,7 +49335,7 @@ CREATE TABLE public.form_entries (
     CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
     CONSTRAINT form_entries_form_names_version CHECK (((form_id IS NULL) = (version_id IS NULL))),
     CONSTRAINT form_entries_held_says_why CHECK (((state = 'held'::text) = (held_why IS NOT NULL))),
-    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text])))),
+    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text, 'elsewhere'::text])))),
     CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
     CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
     CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
@@ -49420,7 +49420,7 @@ COMMENT ON COLUMN public.form_entries.test IS 'A test its owner sent: it tells n
 -- Name: COLUMN form_entries.held_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member).';
+COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form''s address and not from its own page (elsewhere, 00703).';
 
 
 --
@@ -51028,10 +51028,12 @@ CREATE TABLE public.links (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     stopped_at timestamp with time zone,
     lands text,
+    sites text[],
     CONSTRAINT links_code_check CHECK ((code ~ '^[a-hjkmnp-z2-9]{6}$'::text)),
     CONSTRAINT links_lands_a_post CHECK (((subject_type = 'post'::text) = (lands IS NOT NULL))),
     CONSTRAINT links_lands_check CHECK ((lands = ANY (ARRAY['chat'::text, 'booking'::text]))),
     CONSTRAINT links_place_check CHECK (((char_length(btrim(place)) >= 1) AND (char_length(btrim(place)) <= 60))),
+    CONSTRAINT links_sites_check CHECK (((sites IS NULL) OR ((cardinality(sites) <= 10) AND (array_position(sites, NULL::text) IS NULL) AND ((cardinality(sites) = 0) OR (array_to_string(sites, ' '::text) ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+( [a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+)*$'::text))))),
     CONSTRAINT links_subject_type_check CHECK ((subject_type = ANY (ARRAY['form'::text, 'post'::text])))
 );
 
@@ -51048,6 +51050,13 @@ COMMENT ON TABLE public.links IS 'A short link for one place a thing of the busi
 --
 
 COMMENT ON COLUMN public.links.lands IS 'Where a post''s link lands (00699): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
+
+
+--
+-- Name: COLUMN links.sites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.links.sites IS 'The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them.';
 
 
 --
@@ -51700,7 +51709,7 @@ CREATE TABLE public.owner_claims (
 -- Name: TABLE owner_claims; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.owner_claims IS 'What an owner claims (00702; the content loop PRD''s 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.';
+COMMENT ON TABLE public.owner_claims IS 'What an owner claims (00706; the content loop PRD''s 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.';
 
 
 --
@@ -52373,7 +52382,7 @@ CREATE TABLE public.plan_slots (
 -- Name: TABLE plan_slots; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.plan_slots IS 'One creative at one place in a week''s plan (00702; the content loop PRD''s 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.';
+COMMENT ON TABLE public.plan_slots IS 'One creative at one place in a week''s plan (00706; the content loop PRD''s 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.';
 
 
 --
@@ -57983,6 +57992,13 @@ CREATE INDEX link_days_workspace ON public.link_days USING btree (tenant_id, day
 --
 
 CREATE UNIQUE INDEX links_one_a_post ON public.links USING btree (tenant_id, subject_id) WHERE (subject_type = 'post'::text);
+
+
+--
+-- Name: links_one_website_a_form; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX links_one_website_a_form ON public.links USING btree (tenant_id, subject_type, subject_id) WHERE (sites IS NOT NULL);
 
 
 --
@@ -76106,6 +76122,13 @@ GRANT INSERT(created_by) ON TABLE public.links TO authenticated;
 --
 
 GRANT UPDATE(stopped_at) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.sites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(sites),UPDATE(sites) ON TABLE public.links TO authenticated;
 
 
 --

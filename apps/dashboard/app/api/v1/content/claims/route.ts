@@ -3,7 +3,7 @@ import { write, workspace } from "@/server/shared/route";
 import { claimInput, keepClaimFor, withdrawClaimFor } from "@/server/content/claims";
 
 /**
- * POST /api/v1/content/claims — `{ kind, text, source, valid_until? }`: what the owner claims, kept (00702; the content
+ * POST /api/v1/content/claims — `{ kind, text, source, valid_until? }`: what the owner claims, kept (00706; the content
  * loop PRD's 5.3): an offer, a price, a guarantee, or a fact they state until its day ends. What a post says is held to the
  * claims that stand (core evaluateClaimPolicy). Whoever may change the business's settings. Answers `{ claim }`.
  *

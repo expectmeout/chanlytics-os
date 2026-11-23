@@ -77,7 +77,7 @@ async function readReasonFacts(db: Db, post: PostRow, approved: AsApproved): Pro
     says: [
       ...notesInForce(profile?.notes, zone, new Date()).map((note) => `${note.title} ${note.text}`),
       ...services.map((service) => `${service.name} ${service.price_note ?? ""}`),
-      // An offer the owner keeps (owner_claims, 00702) is one the business says.
+      // An offer the owner keeps (owner_claims, 00706) is one the business says.
       ...offersOf(claims, today).map((offer) => offer.says),
     ],
     services: services.map((service) => service.name),

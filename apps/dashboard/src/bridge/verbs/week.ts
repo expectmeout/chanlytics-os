@@ -1,5 +1,5 @@
 /**
- * The Week's presses (00702; the content loop PRD's 21.2): plan this week now, approve it in one press, one row's change
+ * The Week's presses (00706; the content loop PRD's 21.2): plan this week now, approve it in one press, one row's change
  * (left out, approved by itself, Try again, a made reel's Approve), and what Settings › Content keeps. Each answers what
  * the route said, or its refusal in the owner's words; what it changed is read again by the refresh map.
  */

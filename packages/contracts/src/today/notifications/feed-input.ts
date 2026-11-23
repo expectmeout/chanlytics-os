@@ -258,7 +258,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   "post_down",
   "post_by_hand",
   /**
-   * A week of posts (00702; the content loop PRD's 12.5): ready for the owner's approval by Monday 8:00, and once a week
+   * A week of posts (00706; the content loop PRD's 12.5): ready for the owner's approval by Monday 8:00, and once a week
    * at most, what AI asks to be filmed for it. Each row opens the Week.
    */
   "plan_ready",

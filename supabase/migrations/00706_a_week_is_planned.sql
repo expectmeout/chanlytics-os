@@ -1,4 +1,4 @@
--- 00702 · A week is planned (the content loop PRD v3.5, pass 3, M5 and M6; sections 5.3, 6.1, 8.4, 10, 12.5 and 14.4).
+-- 00706 · A week is planned (the content loop PRD v3.5, pass 3, M5 and M6; sections 5.3, 6.1, 8.4, 10, 12.5 and 14.4).
 --
 -- Until now a post was made when someone asked for one. Now Chanlytics plans the week: on Sunday evening in the
 -- business's own zone it reads why to post now (open time, a new review, fresh footage, an offer, a new service), what the
@@ -75,7 +75,7 @@ grant select on public.owner_claims to authenticated;
 grant all on public.owner_claims to service_role;
 
 comment on table public.owner_claims is
-  'What an owner claims (00702; the content loop PRD''s 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.';
+  'What an owner claims (00706; the content loop PRD''s 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.';
 
 /* --------------------------------------------------------------------------------------------- 2. content_goals -- */
 
@@ -105,7 +105,7 @@ grant select on public.content_goals to authenticated;
 grant all on public.content_goals to service_role;
 
 comment on table public.content_goals is
-  'What a business''s posts are for (00702; the content loop PRD''s 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.';
+  'What a business''s posts are for (00706; the content loop PRD''s 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.';
 
 /* ------------------------------------------------------------------------------------- 3. content_plans, slots -- */
 
@@ -145,7 +145,7 @@ grant select on public.content_plans to authenticated;
 grant all on public.content_plans to service_role;
 
 comment on table public.content_plans is
-  'A week of posts (00702; the content loop PRD''s 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.';
+  'A week of posts (00706; the content loop PRD''s 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.';
 
 create table if not exists public.plan_slots (
   id              uuid primary key default gen_random_uuid(),
@@ -216,7 +216,7 @@ grant select on public.plan_slots to authenticated;
 grant all on public.plan_slots to service_role;
 
 comment on table public.plan_slots is
-  'One creative at one place in a week''s plan (00702; the content loop PRD''s 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.';
+  'One creative at one place in a week''s plan (00706; the content loop PRD''s 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.';
 
 /* ---------------------------------------------------------------------------------------------- 4. file_moments -- */
 
@@ -258,7 +258,7 @@ grant select on public.file_moments to authenticated;
 grant all on public.file_moments to service_role;
 
 comment on table public.file_moments is
-  'A clip''s best moments (00702; the content loop PRD''s 5.3 and 10.3), written when a plan wants them: from the look''s own moments and the hearing''s words, with their score, confidence and the look''s edition; a member''s correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.';
+  'A clip''s best moments (00706; the content loop PRD''s 5.3 and 10.3), written when a plan wants them: from the look''s own moments and the hearing''s words, with their score, confidence and the look''s edition; a member''s correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.';
 
 /* ---------------------------------------------------------------------------------- 5. the job kind, the notices -- */
 
@@ -321,7 +321,7 @@ end $$;
 revoke all on function public.owner_claims_keep(uuid, jsonb) from public, anon;
 grant execute on function public.owner_claims_keep(uuid, jsonb) to authenticated;
 comment on function public.owner_claims_keep(uuid, jsonb) is
-  'A claim kept (00702): {kind, text, source, valid_until}, by a member with the settings permission (the business''s own words, as Settings › Business is). Answers the row. The table''s checks refuse a kind, a source or words out of shape, and a fact with no last day.';
+  'A claim kept (00706): {kind, text, source, valid_until}, by a member with the settings permission (the business''s own words, as Settings › Business is). Answers the row. The table''s checks refuse a kind, a source or words out of shape, and a fact with no last day.';
 
 create or replace function public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid)
 returns boolean
@@ -346,7 +346,7 @@ end $$;
 revoke all on function public.owner_claim_withdraw(uuid, uuid) from public, anon;
 grant execute on function public.owner_claim_withdraw(uuid, uuid) to authenticated;
 comment on function public.owner_claim_withdraw(uuid, uuid) is
-  'A claim withdrawn (00702), by a member with the settings permission. True where one standing was withdrawn. What carries it is held at its send by the claims rule, never taken down by itself (PRD 5.3, claim_withdrawn).';
+  'A claim withdrawn (00706), by a member with the settings permission. True where one standing was withdrawn. What carries it is held at its send by the claims rule, never taken down by itself (PRD 5.3, claim_withdrawn).';
 
 create or replace function public.content_goals_keep(p_tenant_id uuid, p_goals jsonb)
 returns jsonb
@@ -380,7 +380,7 @@ end $$;
 revoke all on function public.content_goals_keep(uuid, jsonb) from public, anon;
 grant execute on function public.content_goals_keep(uuid, jsonb) to authenticated;
 comment on function public.content_goals_keep(uuid, jsonb) is
-  'What the posts are for, the whole set at once (00702): [{goal, detail, weight}], by a member with the settings permission; the set before stops standing. Answers the goals that stand.';
+  'What the posts are for, the whole set at once (00706): [{goal, detail, weight}], by a member with the settings permission; the set before stops standing. Answers the goals that stand.';
 
 /* ------------------------------------------------------------------------------------------------ 7. the plan -- */
 
@@ -416,7 +416,7 @@ begin
 end $$;
 revoke all on function public.content_plan_begin(uuid, date, text) from public, anon, authenticated;
 comment on function public.content_plan_begin(uuid, date, text) is
-  'A week''s plan begun (00702), and its content_plan job: a new plan drafting, or one not yet approved drafted again with its slots let go. Answers {fate: drafting | approved, plan_id}. Called by content_plan_ask and content_plans_hand_out, never directly.';
+  'A week''s plan begun (00706), and its content_plan job: a new plan drafting, or one not yet approved drafted again with its slots let go. Answers {fate: drafting | approved, plan_id}. Called by content_plan_ask and content_plans_hand_out, never directly.';
 
 create or replace function public.content_plan_ask(p_tenant_id uuid, p_week_of date)
 returns jsonb
@@ -439,7 +439,7 @@ end $$;
 revoke all on function public.content_plan_ask(uuid, date) from public, anon;
 grant execute on function public.content_plan_ask(uuid, date) to authenticated;
 comment on function public.content_plan_ask(uuid, date) is
-  'The owner''s "plan the week" (00702; the content loop PRD''s 10.2: on the owner''s ask), by a member with the settings permission. Answers {fate: drafting | approved, plan_id}.';
+  'The owner''s "plan the week" (00706; the content loop PRD''s 10.2: on the owner''s ask), by a member with the settings permission. Answers {fate: drafting | approved, plan_id}.';
 
 -- The weekly clock (call 18): every workspace whose canary switch is on, at or after Sunday 18:00 in its own zone, gets
 -- next week's plan drafting, once. Spread over the given seconds by a hash of the workspace.
@@ -483,7 +483,7 @@ end $$;
 revoke all on function public.content_plans_hand_out(integer) from public, anon, authenticated;
 grant execute on function public.content_plans_hand_out(integer) to service_role;
 comment on function public.content_plans_hand_out(integer) is
-  'The weekly clock (00702; the content loop PRD''s 10.2, call 18): next week''s plan begun for each workspace whose features.content_plan is on, from Sunday 18:00 in its own zone, once; and each week that has passed marked done. Answers how many it began. The service role''s.';
+  'The weekly clock (00706; the content loop PRD''s 10.2, call 18): next week''s plan begun for each workspace whose features.content_plan is on, from Sunday 18:00 in its own zone, once; and each week that has passed marked done. Answers how many it began. The service role''s.';
 
 -- The job's write: the slots it drafted, why it is smaller than the cadence asks, and the plan ready.
 create or replace function public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text)
@@ -524,7 +524,7 @@ end $$;
 revoke all on function public.content_plan_write(uuid, uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function public.content_plan_write(uuid, uuid, jsonb, text) to service_role;
 comment on function public.content_plan_write(uuid, uuid, jsonb, text) is
-  'The content_plan job''s write (00702): the slots it drafted ([{creative, place, kind, at, title, reason, file_id, intent, words, state, blocked_why, blocked_reason, ask, score}]), why the week is smaller than the cadence asks, and the plan ready. Only a plan still drafting takes it. Answers {fate: ready | gone | <status>, slots}. The service role''s.';
+  'The content_plan job''s write (00706): the slots it drafted ([{creative, place, kind, at, title, reason, file_id, intent, words, state, blocked_why, blocked_reason, ask, score}]), why the week is smaller than the cadence asks, and the plan ready. Only a plan still drafting takes it. Answers {fate: ready | gone | <status>, slots}. The service role''s.';
 
 /* ------------------------------------------------------------------------------------------ 8. the approval -- */
 
@@ -582,7 +582,7 @@ end $$;
 revoke all on function public.content_week_approve(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.content_week_approve(uuid, uuid, jsonb) to authenticated;
 comment on function public.content_week_approve(uuid, uuid, jsonb) is
-  'Approve the week (00702; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | <status>}.';
+  'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | <status>}.';
 
 -- One slot, by a member: left out, put back, moved to another time, or approved by itself once mended after the week
 -- was (PRD 8.4: a slot unblocked later asks its own approval).
@@ -654,7 +654,7 @@ end $$;
 revoke all on function public.plan_slot_set(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.plan_slot_set(uuid, uuid, jsonb) to authenticated;
 comment on function public.plan_slot_set(uuid, uuid, jsonb) is
-  'One slot of a week, by a member with the settings permission (00702): {to: removed} leaves it out, {to: proposed, file_id?} puts it back or returns a slot that asked for footage with the clip added, {to: at, at} moves it to a later time, {to: approved} approves one mended after the week was, or one that could not be made (its own approval of subject plan; it is made anew). A slot made into a post is the post''s. Answers {fate: done, slot_id, approval_id} or {fate: gone | posted | past | <state>}.';
+  'One slot of a week, by a member with the settings permission (00706): {to: removed} leaves it out, {to: proposed, file_id?} puts it back or returns a slot that asked for footage with the clip added, {to: at, at} moves it to a later time, {to: approved} approves one mended after the week was, or one that could not be made (its own approval of subject plan; it is made anew). A slot made into a post is the post''s. Answers {fate: done, slot_id, approval_id} or {fate: gone | posted | past | <state>}.';
 
 /* --------------------------------------------------------------------------------------------- 9. moments -- */
 
@@ -685,7 +685,7 @@ end $$;
 revoke all on function public.file_moments_keep(uuid, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.file_moments_keep(uuid, uuid, jsonb) to service_role;
 comment on function public.file_moments_keep(uuid, uuid, jsonb) is
-  'A clip''s moments as read (00702; the content loop PRD''s 10.3): [{start_s, end_s, shows, faces, sharp, words, score, confidence, model_edition}] in place of those read before; a member''s correction stays. Answers how many it kept. The service role''s.';
+  'A clip''s moments as read (00706; the content loop PRD''s 10.3): [{start_s, end_s, shows, faces, sharp, words, score, confidence, model_edition}] in place of those read before; a member''s correction stays. Answers how many it kept. The service role''s.';
 
 /* --------------------------------------------------------------------------------------------- 10. the making -- */
 
@@ -741,7 +741,7 @@ end $$;
 revoke all on function public.plan_slot_made(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.plan_slot_made(uuid, uuid, jsonb) to authenticated;
 comment on function public.plan_slot_made(uuid, uuid, jsonb) is
-  'What an approved slot was made into (00702; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}.';
+  'What an approved slot was made into (00706; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}.';
 
 -- ai_usage.purpose takes post_words and content_line: what writing a week's posts costs, and reading a line of Settings ›
 -- Content in the owner's words, each read apart (PRD 13). Re-made from the purposes it holds, so one another migration

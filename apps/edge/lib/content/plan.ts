@@ -1,5 +1,5 @@
 /**
- * content_plan: a week of posts planned (00702; the content loop PRD's 10.2), begun by the weekly clock on Sunday evening
+ * content_plan: a week of posts planned (00706; the content loop PRD's 10.2), begun by the weekly clock on Sunday evening
  * in the business's zone (content_plans_hand_out) or by the owner's ask. It reads why to post now (lib/opportunities: the
  * book's open time, new reviews, fresh footage, the offers that run, the services said to be new), what the posts are for
  * and how often, the footage the business added and what went out in the last three weeks; plans the week (core planWeek);

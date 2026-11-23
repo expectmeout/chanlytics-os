@@ -49,6 +49,7 @@ apps/dashboard/app/
   b/
   c/
   data-deletion/
+  f/
   l/
   login/
   p/

@@ -72,7 +72,7 @@ function DownLine({ down }: { down: ContentDownDto }) {
 }
 
 /**
- * The week's points (00702; the approved boards, Today 1 and the pass 3 rows): the week ready to approve, its size and
+ * The week's points (00706; the approved boards, Today 1 and the pass 3 rows): the week ready to approve, its size and
  * days under it, and what AI asks to be filmed. Each opens the Week, where it is approved or added; Today approves nothing.
  */
 function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {

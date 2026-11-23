@@ -80,7 +80,7 @@ const NOTIFICATION_DELIVERY = {
   // A piece taken down everywhere it was up, or one a place leaves to its owner to delete (00682): lines on the bell.
   post_down: "bell",
   post_by_hand: "bell",
-  // A week of posts ready (00702; the content loop PRD's 12.5, call 24): with every rung at "AI asks first" a week nobody
+  // A week of posts ready (00706; the content loop PRD's 12.5, call 24): with every rung at "AI asks first" a week nobody
   // opens never posts, so it is mailed once, as the business chooses, and the phone told. What to film is the bell and
   // the phone, once a week at most, never a mail.
   plan_ready: "email",

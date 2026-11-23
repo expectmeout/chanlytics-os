@@ -58,7 +58,7 @@ export interface FootageAsk {
 export type SlotHeldWhy = PostHeldWhy | "unmade";
 
 /**
- * The words AI wrote for a creative while drafting the week (00702 `plan_slots.words`), as the Week shows them and the
+ * The words AI wrote for a creative while drafting the week (00706 `plan_slots.words`), as the Week shows them and the
  * approval makes them: the picture's line and the small words over and under it, the caption that goes with it, and the
  * language they are in. A reel opens on its line.
  */

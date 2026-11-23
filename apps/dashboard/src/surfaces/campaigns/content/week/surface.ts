@@ -1,5 +1,5 @@
 /**
- * The Week, for Campaigns › Content's first tab and Settings › Content (00702; the content loop PRD's 21.1, 21.2): `GET
+ * The Week, for Campaigns › Content's first tab and Settings › Content (00706; the content loop PRD's 21.1, 21.2): `GET
  * content/plan`, read only where one of them is drawn, again when what it holds has aged, and after a press that changes
  * it (bridge/refresh-map.ts). What the plan job drafts and what the approval makes are told to no page: while the week is
  * drafted or made, the Week asks again (week.tsx).

@@ -18,7 +18,7 @@ import { approvalWords, propose, refuse } from "../../context/context";
 import { quotedInQuestion } from "../remember";
 
 /**
- * AI's cards for a week of posts (00702; the content loop PRD's 12.1 act/plan and act/claims), one tool with an action
+ * AI's cards for a week of posts (00706; the content loop PRD's 12.1 act/plan and act/claims), one tool with an action
  * each (the edge gateway takes forty tools, and the room under it is kept). The acts never act: each reads the week as the
  * Week does and makes the card, whose press goes through the Week's or Settings › Content's own door.
  */

@@ -54,7 +54,7 @@ export const SMALL_JSON_PURPOSES = [
   "person_draft",
   "sequence_draft",
   "yes_check",
-  // A line of Settings › Content in the owner's own words, read into what the week is planned by (00702).
+  // A line of Settings › Content in the owner's own words, read into what the week is planned by (00706).
   "content_line",
   "comment_rewrite",
 ] as const;
@@ -405,7 +405,7 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 8000,
   },
-  // A week's words (the content loop PRD's 10.2, 13; 00702): every creative's line and caption, in one call as the plan
+  // A week's words (the content loop PRD's 10.2, 13; 00706): every creative's line and caption, in one call as the plan
   // job drafts the week on Sunday evening, read in code (contracts content/plan slotWordsOf). Nobody waits on it, and a
   // week whose call fails is drafted without words and says so; a line of the ledger of its own.
   post_words: {

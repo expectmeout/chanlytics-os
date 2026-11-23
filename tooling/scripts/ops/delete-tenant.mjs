@@ -206,7 +206,7 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
-  // A week planned (00702): what the owner claims and what posts are for, the plans and their slots, a clip's moments.
+  // A week planned (00706): what the owner claims and what posts are for, the plans and their slots, a clip's moments.
   "owner_claims",
   "content_goals",
   "content_plans",

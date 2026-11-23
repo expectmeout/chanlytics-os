@@ -38,7 +38,7 @@ import { fileDtoOf } from "./files";
 import { sentPostsOf } from "./content";
 
 /**
- * A week of posts as the Week, Settings › Content and AI read it (00702; the content loop PRD's 10.1, 21.1, 21.2): the
+ * A week of posts as the Week, Settings › Content and AI read it (00706; the content loop PRD's 10.1, 21.1, 21.2): the
  * plan of the week asked for (this week, or the next from Sunday evening: contracts planWeekOf) with its slots in time
  * order, what the owner claims, what the posts are for, how often they go up; and why to post now, worked out by the one
  * reader in core (opportunitiesFrom) over the same facts the plan reads. One module, so the number AI says is the

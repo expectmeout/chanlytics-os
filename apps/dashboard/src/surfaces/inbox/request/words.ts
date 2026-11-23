@@ -66,6 +66,7 @@ export const REQUEST_WORDS = {
       too_fast: "It was filled in faster than a person can.",
       too_many: "The same sender sent several in a short time.",
       member: "Someone on the team said it wasn't a real request.",
+      elsewhere: "It was sent straight to the form's address, not from its page.",
     },
     letThrough: "Let it through",
     leave: "Leave it",

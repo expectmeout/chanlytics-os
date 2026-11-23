@@ -1702,7 +1702,7 @@ Body 4:
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
 
-One of 3 bodies.
+One of 5 bodies.
 
 Body 1:
 
@@ -1726,6 +1726,22 @@ Body 3:
 | --- | --- | --- | --- |
 | `act` | one of `"stop"`, `"start"` | yes |  |
 | `link_id` | string (uuid) | yes |  |
+
+Body 4:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_add"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `site` | string | yes | at least 1 characters; at most 200 characters |
+
+Body 5:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_remove"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `site` | string | yes | at least 1 characters; at most 200 characters |
 
 ### `GET /api/v1/forms/requests`
 

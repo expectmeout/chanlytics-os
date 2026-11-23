@@ -564,7 +564,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
   "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/google": postMoved,
-  // The Week and Settings › Content (00702): what a press there changes is the week's, and Made's once it is made.
+  // The Week and Settings › Content (00706): what a press there changes is the week's, and Made's once it is made.
   "POST content/plan": weekIfDrawn,
   "POST content/plan/approve": weekAndContentIfDrawn,
   "POST content/plan/slots": weekAndContentIfDrawn,

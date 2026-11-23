@@ -69,7 +69,7 @@ export async function ownersWords(toolContext: ToolContext, config: unknown): Pr
     listClaims(toolContext.ctx.supabase, toolContext.tenantId),
   ]);
   const settings = ownersSayings(parseTenantConfig(config)?.brain, toolContext.timezone, toolContext.now);
-  // What the owner claims and that stands today (owner_claims, 00702): an offer kept in Settings › Content is theirs to say.
+  // What the owner claims and that stands today (owner_claims, 00706): an offer kept in Settings › Content is theirs to say.
   const today = dayInZone(toolContext.timezone, toolContext.now.getTime()).key;
   return [ownersTyped(toolContext), ...settings, kept, saidWithClaims("", claims, today)].join("\n");
 }

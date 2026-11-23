@@ -270,7 +270,7 @@ before(async () => {
     snapshot: {},
     snapshot_hash: "b".repeat(64),
   });
-  // A week planned (00702): what the owner claims and what posts are for, a plan and a slot of it, a clip's moments.
+  // A week planned (00706): what the owner claims and what posts are for, a plan and a slot of it, a clip's moments.
   // Members read them, only their doors write them.
   await seed("owner_claims", { tenant_id: A, kind: "offer", text: "Seeded offer", source: "settings" });
   await seed("content_goals", { tenant_id: A, goal: "awareness" });
@@ -992,7 +992,7 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
   ],
-  // A week planned (00702): a member reads each, only their doors write them.
+  // A week planned (00706): a member reads each, only their doors write them.
   owner_claims: ["member", () => ({ tenant_id: A, kind: "price", text: "Stranger price", source: "said" })],
   content_goals: ["member", () => ({ tenant_id: A, goal: "reviews" })],
   content_plans: ["member", () => ({ tenant_id: A, week_of: "2026-11-30", asked_by: "clock" })],

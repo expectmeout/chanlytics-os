@@ -159,3 +159,21 @@ test("the lead map's bundle origin is allowed for connections and images; a same
     directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co" }))["connect-src"],
   );
 });
+
+test("a form framed on a business's own website names its sites as the only ancestors, and is the app's policy otherwise", async () => {
+  const { frameAncestorsOf } = await import("@chanlytics/contracts");
+  const app = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co" }));
+  const framed = directives(
+    contentSecurityPolicy({
+      supabaseUrl: "https://mwwy.supabase.co",
+      frameAncestors: frameAncestorsOf(["luma-salon.com"]),
+    }),
+  );
+  assert.deepEqual(framed["frame-ancestors"], ["https://luma-salon.com", "https://www.luma-salon.com"]);
+  assert.deepEqual({ ...framed, "frame-ancestors": null }, { ...app, "frame-ancestors": null }, "nothing else moves");
+  // No site listed, or none named: nobody may frame it, as every page of the app.
+  assert.deepEqual(directives(contentSecurityPolicy({ frameAncestors: frameAncestorsOf([]) }))["frame-ancestors"], [
+    "'none'",
+  ]);
+  assert.deepEqual(directives(contentSecurityPolicy({ frameAncestors: [] }))["frame-ancestors"], ["'none'"]);
+});

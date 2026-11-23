@@ -517,7 +517,7 @@ export const filesTool = defineActions({
         };
       },
     }),
-    // This week's posts and why to post now (00702): read/week.ts.
+    // This week's posts and why to post now (00706): read/week.ts.
     week: weekRead,
     reasons: reasonsRead,
   },

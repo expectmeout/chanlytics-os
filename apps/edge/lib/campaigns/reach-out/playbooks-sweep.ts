@@ -197,7 +197,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   } catch (e) {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
   }
-  // Next week's posts planned from Sunday 6 PM in each business's own zone, once, where its canary switch is on (00702;
+  // Next week's posts planned from Sunday 6 PM in each business's own zone, once, where its canary switch is on (00706;
   // the content loop PRD's 10.2): the hour's clock hands out the plan's job as it hands out a workspace's moments.
   try {
     out.plans = await handOutPlans(db, HAND_OUT_SPREAD_SECONDS);

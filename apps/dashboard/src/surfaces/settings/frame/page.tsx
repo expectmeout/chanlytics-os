@@ -92,7 +92,7 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
       {id === "integrations" && <PaneIntegrationsReal row={row} />}
-      {/* What the business's posts are for and say, seven sentences each changed in place (00702). */}
+      {/* What the business's posts are for and say, seven sentences each changed in place (00706). */}
       {id === "content" && <PaneContent flash={flash} />}
       {/* What Ask remembers about the business, and its journal (decision 0070). */}
       {id === "memory" && <PaneMemory flash={flash} />}

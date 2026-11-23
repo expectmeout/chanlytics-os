@@ -1281,7 +1281,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The Week's own records (00702: content_plans, plan_slots, owner_claims, content_goals) and what its read stands on beside them (the workspace's config with its content lines, its row's pause), none of which the feed tells a workspace of. The plan job's draft and the approval's making are told to no page: the Week asks again itself every five seconds while either moves (campaigns/content/week/week.tsx), and every press of the Week and of Settings › Content reads it again (bridge/refresh-map.ts weekIfDrawn).",
+      "why": "The Week's own records (00706: content_plans, plan_slots, owner_claims, content_goals) and what its read stands on beside them (the workspace's config with its content lines, its row's pause), none of which the feed tells a workspace of. The plan job's draft and the approval's making are told to no page: the Week asks again itself every five seconds while either moves (campaigns/content/week/week.tsx), and every press of the Week and of Settings › Content reads it again (bridge/refresh-map.ts weekIfDrawn).",
       "reads": {
         "content_week": [
           "content_goals",

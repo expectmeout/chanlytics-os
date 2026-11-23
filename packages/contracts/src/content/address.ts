@@ -79,7 +79,7 @@ export function contentPreviewOf(config: unknown): boolean {
 }
 
 /**
- * Whether a workspace plans its weeks (00702 features.content_plan, the canary's switch, PRD 16.3): the weekly clock drafts
+ * Whether a workspace plans its weeks (00706 features.content_plan, the canary's switch, PRD 16.3): the weekly clock drafts
  * its week, and Content draws the Week as its first tab. Off, or a config that says nothing, is no.
  */
 export function contentPlanOf(config: unknown): boolean {

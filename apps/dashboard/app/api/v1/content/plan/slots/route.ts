@@ -12,7 +12,7 @@ const SlotChangeInput = z.discriminatedUnion("to", [
 ]);
 
 /**
- * POST /api/v1/content/plan/slots — `{ slot_id, change }`: one slot of the Week (00702): left out, put back (with the clip
+ * POST /api/v1/content/plan/slots — `{ slot_id, change }`: one slot of the Week (00706): left out, put back (with the clip
  * added for an ask), moved to a later time, approved by itself once mended after the week was or made anew where it could
  * not be (Try again), or, a reel whose video is made, up at its time (`post`). A slot made into a post is the post's.
  * Whoever may approve a post. Answers `{ done, approval_id }`.

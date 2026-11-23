@@ -6,7 +6,7 @@ import { contentPlan } from "@/server/readers/plan";
 import { askPlanFor } from "@/server/content/plan";
 
 /**
- * GET /api/v1/content/plan — the Week (00702; the content loop PRD's 21.2): the plan of a week with its slots in time
+ * GET /api/v1/content/plan — the Week (00706; the content loop PRD's 21.2): the plan of a week with its slots in time
  * order, what the owner claims, what the posts are for, and how often they go up. `?week=` names the Monday; left out, the
  * week to plan now (this one, or the next from Sunday evening). Every member reads it. The body is its reader's
  * (readers/plan.ts).

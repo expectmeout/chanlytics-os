@@ -91,7 +91,10 @@
     "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00696 when the shelf's 00695 went on production above it, then to 00699 (23 Nov 2026)",
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
-    "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)"
+    "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)",
+    "00704": "applied to production 23 Nov 2026 18:09Z from a draft not on main when pass 3 (00706) recorded above it (#2543): its merge records it here in number order and drops this line",
+    "00705": "applied to production 23 Nov 2026 18:41Z from a draft not on main when pass 3 (00706) recorded above it (cm-story-last-read, #2544): its merge records it here in number order and drops this line"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -704,6 +707,7 @@
     "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
     "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103",
     "00701_a_take_down_reads_a_post_s_last_numbers.sql": "360139ad33b55db3ca2a75c25fd92f11dc2e976404eb577912097f1140a7a8f5",
-    "00702_a_week_is_planned.sql": "bc6f9a57d1958902c318545ff34564c21f62a6c5887a345a60c759a6dc2c8bb3"
+    "00703_a_form_on_their_own_website.sql": "19a9e5e51808179fd4ed273d16ffec2a5e53126a73def76b160c2dab249c482a",
+    "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab"
   }
 }

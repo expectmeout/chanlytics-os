@@ -15,7 +15,16 @@ export {
   setFormOn,
 } from "./forms";
 export type { FormRead, FormState, FormVersionRead } from "./forms";
-export { findLinkPlace, keepLink, listFormLinks, listWorkspaceFormLinks, makeFormLink, openLink } from "./links";
+export {
+  findLinkPlace,
+  findLinkSites,
+  keepLink,
+  listFormLinks,
+  listLinkEntrySites,
+  listWorkspaceFormLinks,
+  makeFormLink,
+  openLink,
+} from "./links";
 export type { LinkOpened, LinkRead } from "./links";
 export {
   addRequestCodeNumber,

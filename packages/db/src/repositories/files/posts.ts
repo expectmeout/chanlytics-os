@@ -299,7 +299,7 @@ export async function listPostsOfFiles(
   return data;
 }
 
-/** The posts a week's slots were made into, by their ids, under the member's session (the Week, 00702). */
+/** The posts a week's slots were made into, by their ids, under the member's session (the Week, 00706). */
 export async function listPostsByIds(
   db: Db,
   tenantId: TenantId,

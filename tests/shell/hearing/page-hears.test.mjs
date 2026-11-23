@@ -79,7 +79,7 @@ const ASKED_AT = {
   "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
   // Content's Library (the content redesign's stage 2): its family is the pane, its address a word after Content's.
   "campaigns/content/library": "campaigns/content:library",
-  // Its Week (00702), as the Library is.
+  // Its Week (00706), as the Library is.
   "campaigns/content/week": "campaigns/content:week",
 };
 const askedAt = (family) => ASKED_AT[family] ?? family;

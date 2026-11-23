@@ -1,5 +1,5 @@
 /**
- * A week of posts, as a member acts on it (00702; the content loop PRD's 8.4, 10.2 and 21.2): "plan the week" asks for it
+ * A week of posts, as a member acts on it (00706; the content loop PRD's 8.4, 10.2 and 21.2): "plan the week" asks for it
  * now, Approve the week approves every slot that is ready in one press, and a slot is left out, put back, moved or
  * approved by itself once mended. Each goes through its door on the member's own session, which asks the settings
  * permission itself. Before the week is approved, each slot is held to the checks a press is (posts/checks.ts's moment):

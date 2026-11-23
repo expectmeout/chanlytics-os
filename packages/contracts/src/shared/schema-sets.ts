@@ -261,7 +261,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LINK_SUBJECTS>, SchemaSet<"links.subject_type">>>,
   Holds<Exactly<Of<typeof VISIT_THROUGH_TYPES>, SchemaSet<"appointments.through_type">>>,
 
-  // A week planned (00702, the content loop's pass 3): what posts are for, a plan and its slots, what an owner claims.
+  // A week planned (00706, the content loop's pass 3): what posts are for, a plan and its slots, what an owner claims.
   Holds<Exactly<Of<typeof CONTENT_GOALS>, SchemaSet<"content_goals.goal">>>,
   Holds<Exactly<Of<typeof PLAN_STATUSES>, SchemaSet<"content_plans.status">>>,
   Holds<Exactly<Of<typeof PLAN_ASKED_BY>, SchemaSet<"content_plans.asked_by">>>,

@@ -1,5 +1,5 @@
 /**
- * What a week's plan reads of a workspace (00702; the content loop PRD's 10.1, 10.2), under the service role: the
+ * What a week's plan reads of a workspace (00706; the content loop PRD's 10.1, 10.2), under the service role: the
  * footage it could be made from, what went out in the last three weeks and why, the new reviews of four or five stars,
  * and the plans asked for. Each a narrow read with its bound; the reasons are worked out from them in core
  * (opportunities, content/plan), never here.

@@ -1,5 +1,5 @@
 /**
- * The Week (00702; the content loop PRD's 21.2; the approved boards, Week 1-12, canvas 1795421968-f15f): Campaigns ›
+ * The Week (00706; the content loop PRD's 21.2; the approved boards, Week 1-12, canvas 1795421968-f15f): Campaigns ›
  * Content's first tab where the workspace plans its weeks, this week as one list. Its head says the week's size and days,
  * how often it goes up and where, and holds its one act (Approve the week, Resume, Plan this week); the rows that need the
  * owner stand apart at the top with their one fix; what to film sits at the foot. A row opens its piece: the made one in

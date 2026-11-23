@@ -306,7 +306,7 @@ const PARTNER_ACTS = [
   "propose_publish",
   // A made piece taken down everywhere it is up (00682): a partner's, as putting one up is.
   "propose_take_down",
-  // A week of posts, and what a post may say (00702): a partner's, as approving a post is.
+  // A week of posts, and what a post may say (00706): a partner's, as approving a post is.
   "propose_week",
 ].sort();
 /** A role's reads and acts, sorted by name as the registry sorts them, the acts among the reads. */

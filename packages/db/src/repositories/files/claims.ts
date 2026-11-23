@@ -1,5 +1,5 @@
 /**
- * What an owner claims and what their posts are for (00702; the content loop PRD's 5.3): a claim kept or withdrawn and
+ * What an owner claims and what their posts are for (00706; the content loop PRD's 5.3): a claim kept or withdrawn and
  * the goals kept as a set (doors on the member's own session, which ask the settings permission themselves), and the
  * claims and goals read, by the member's session or the service role. A file's moments (10.3) are kept here too.
  */

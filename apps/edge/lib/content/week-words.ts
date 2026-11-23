@@ -1,5 +1,5 @@
 /**
- * A week's words (00702; the content loop PRD's 10.2, step 6): every creative's line and caption, written in one call as
+ * A week's words (00706; the content loop PRD's 10.2, step 6): every creative's line and caption, written in one call as
  * the plan job drafts the week, so the Week shows each post as it will go and the approval makes it as shown (Ruben, 23 Nov
  * 2026: the posts are made after the week is approved; the words, a few cents a week, are written while it is drafted).
  *

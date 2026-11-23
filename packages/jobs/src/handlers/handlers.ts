@@ -467,7 +467,7 @@ async function fileShelve(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
-/** content_plan: a week of posts planned (00702), through what the edge injects. payload: { plan_id } */
+/** content_plan: a week of posts planned (00706), through what the edge injects. payload: { plan_id } */
 async function contentPlan(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.plans) throw new Error("content_plan: this runtime holds no planner");
   return ctx.plans.plan(job, ctx.deadline);

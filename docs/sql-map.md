@@ -172,12 +172,12 @@ being read is dropped by a migration.
 | `contact_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | What the calling member has seen of the people named, in a workspace they belong to: |
 | `contact_stop_ends_offers_yes` | trigger | the server | trigger `contacts_stop_ends_offers_yes on contacts` | After a person's consent becomes opted_out while an answer about offers is a yes (00323): |
 | `contacts_before_erased` | trigger | a signed-in person, the server | trigger `contacts_before_erased on contacts` |  |
-| `content_goals_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | What the posts are for, the whole set at once (00702): |
-| `content_plan_ask` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | The owner's "plan the week" (00702; |
-| `content_plan_begin` | the server's | the server | SQL `content_plan_ask`, `content_plans_hand_out` | A week's plan begun (00702), and its content_plan job: |
-| `content_plan_write` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The content_plan job's write (00702): |
-| `content_plans_hand_out` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The weekly clock (00702; |
-| `content_week_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Approve the week (00702; |
+| `content_goals_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | What the posts are for, the whole set at once (00706): |
+| `content_plan_ask` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | The owner's "plan the week" (00706; |
+| `content_plan_begin` | the server's | the server | SQL `content_plan_ask`, `content_plans_hand_out` | A week's plan begun (00706), and its content_plan job: |
+| `content_plan_write` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The content_plan job's write (00706): |
+| `content_plans_hand_out` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The weekly clock (00706; |
+| `content_week_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Approve the week (00706; |
 | `conversation_draft_claim` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft says it is being written, once a message, kind and edition (00538, decision 0093): |
 | `conversation_draft_keep` | door | a signed-in person, the server | nothing at run time | Keep Ask's draft for a thread waiting on a person (decision 0071): |
 | `conversation_draft_write` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft kept (00538, decision 0093), only over a row for the same message: |
@@ -262,7 +262,7 @@ being read is dropped by a migration.
 | `file_media_failed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform could not read a video (00556): |
 | `file_media_processing` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's video's bytes have all gone (00556), with the add_files permission (00596: |
 | `file_media_ready` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform says a video is playable (00556): |
-| `file_moments_keep` | the server's | the server | code `packages/db/src/repositories/files/claims.ts` | A clip's moments as read (00702; |
+| `file_moments_keep` | the server's | the server | code `packages/db/src/repositories/files/claims.ts` | A clip's moments as read (00706; |
 | `file_printed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A picture's print kept and judged (00630): |
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
@@ -519,8 +519,8 @@ being read is dropped by a migration.
 | `outreach_lead_facts` | the server's | the server | SQL `outreach_mailbox_facts`, `reach_out_draft_facts` and 1 more | A cold email's facts about its lead: |
 | `outreach_mailbox_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | What the send door asks of a cold email (00424): |
 | `outreach_wrote_back` | the server's | the server | code `packages/contracts/src/campaigns/reach-out/replies/reading.ts`, `packages/contracts/src/campaigns/reach-out/rules.ts` and 1 more; SQL `outreach_lead_facts`, `reach_out_chain_report` and 2 more |  |
-| `owner_claim_withdraw` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim withdrawn (00702), by a member with the settings permission. |
-| `owner_claims_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim kept (00702): |
+| `owner_claim_withdraw` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim withdrawn (00706), by a member with the settings permission. |
+| `owner_claims_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim kept (00706): |
 | `page_freshness` | the server's | the server | nothing at run time | What tabs could not hear or read over the last p_days (00509; |
 | `page_speed` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Where the pages' time goes (00412): |
 | `page_spots` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | The elements that cost the most (00412): |
@@ -596,8 +596,8 @@ being read is dropped by a migration.
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's door, with the settings permission (00681; |
-| `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00702; |
-| `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00702): |
+| `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
+| `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00706): |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |

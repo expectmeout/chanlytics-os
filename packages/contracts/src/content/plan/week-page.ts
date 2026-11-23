@@ -1,5 +1,5 @@
 /**
- * The Week as its page reads it (00702; the content loop PRD's 21.2): the week's plan, with what it needs to draw each
+ * The Week as its page reads it (00706; the content loop PRD's 21.2): the week's plan, with what it needs to draw each
  * creative once (its footage's still, the piece it was made into, where that piece's posts stand), whether AI is paused,
  * which places take a post, and what Settings › Content says (what posts are for, how often, quiet days, languages, the
  * offers). One read, so the Week, Settings › Content and AI say the same numbers.

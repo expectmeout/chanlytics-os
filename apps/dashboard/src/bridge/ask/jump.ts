@@ -96,7 +96,7 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "every photo and clip the business keeps",
     also: ["files", "photos", "pictures", "images", "clips"],
   },
-  // Settings › Content (00702): what the business's posts are for, how often they go up, the quiet days, the languages,
+  // Settings › Content (00706): what the business's posts are for, how often they go up, the quiet days, the languages,
   // the offers they may say.
   {
     label: "Content settings",

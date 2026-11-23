@@ -451,7 +451,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["action_id", "attempt"],
     never: [],
   },
-  // A week of posts planned (00702; the content loop PRD's 10.2): it reads, scores and writes slots, asks AI for the
+  // A week of posts planned (00706; the content loop PRD's 10.2): it reads, scores and writes slots, asks AI for the
   // week's words in one call (post_words, bounded to its 40 seconds) and makes nothing; a plan no longer drafting takes
   // no second write, so a try again only drafts a week still drafting.
   content_plan: {

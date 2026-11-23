@@ -284,7 +284,7 @@ export const GATEWAY_PURPOSES = [
   "ad_draft",
   // A form drafted from its owner's sentence, by the form drafter skill (the Forms plan, 3.7): a craft call, counted apart.
   "form_draft",
-  // A line of Settings › Content in the owner's words, read into the week's plan (00702): the small JSON route.
+  // A line of Settings › Content in the owner's words, read into the week's plan (00706): the small JSON route.
   "content_line",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];

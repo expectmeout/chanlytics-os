@@ -6,7 +6,7 @@ import { contentPlan, opportunities } from "../../../readers/plan";
 import { readAction, type ToolContext } from "../context/tool-defs";
 
 /**
- * AI's reads of a week of posts (00702; the content loop PRD's 12.1 read/content_week and read/opportunities), two
+ * AI's reads of a week of posts (00706; the content loop PRD's 12.1 read/content_week and read/opportunities), two
  * actions of the files tool (the edge gateway takes forty tools, and the room under it is kept), through the readers the
  * Week and Settings › Content read, so what AI says is what the page shows. Read-only.
  */
