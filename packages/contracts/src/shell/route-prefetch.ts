@@ -14,6 +14,12 @@ const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 /** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
 export const PREFETCH_SLOT = "__prefetched";
 /**
+ * The mark the head leaves on the browser's own timeline for what a page's opening came to: GET open's last line (the
+ * dashboard's server/workspace/page-open.ts), how long the opening took and its database calls, kept as the mark's detail
+ * for the page's measures to read (client/page-speed.ts). A mark, and nothing more parked on the window.
+ */
+export const OPENING_MARK = "chanlytics-opening";
+/**
  * What each page opens on, by the shell's route: its own surface's first reads, in the order it asks for them, and on
  * Today what its first draw waits for (surface-registry ROUTE_WAITS: what stands above its queue or in it). Each is spelled as the client spells
  * it (client/api.ts urlFor: the path, the read's own query in its order, then the workspace), so the client's read
@@ -371,7 +377,11 @@ export function routePrefetchScript(): string {
     // unhandled rejection, and the page's own read that takes one still hears the refusal.
     "for(var i=0;i<u.length;i++)(function(x,y){var q=new Promise(function(a,b){R[y]=[a,b]});q.catch(function(){});f[x]=q})(u[i],k[i]);",
     'var E=function(){for(var y in R)if(R[y]){R[y][1](new Error("open"));R[y]=0}};',
-    'var L=function(z){if(!z)return;var m=JSON.parse(z),c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};' +
+    // The line that names no read is what the opening came to (OPENING_MARK): kept for the measures, where the browser keeps
+    // a mark's detail, and no read's answer.
+    "var L=function(z){if(!z)return;var m=JSON.parse(z);" +
+      `if(m.o){try{performance.mark(${JSON.stringify(OPENING_MARK)},{detail:m.o})}catch(e){}return}` +
+      'var c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};' +
       "for(var e in m.h||{})H[e]=m.h[e];c[0](new Response(JSON.stringify(m.b),{status:m.s,headers:H}))};",
     'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;' +
       'if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});' +

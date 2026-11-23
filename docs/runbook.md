@@ -1261,9 +1261,24 @@ page_spots(7, 50000);` for the elements.
    group "Chanlytics", with its detail. A dev build measures and draws them too, and sends nothing.
 3. **Read a route's answer**: its `Server-Timing` header says `auth`, `app`, `db` (with how many calls in `desc`)
    and each reader it read through (`read.<name>`), slowest first. The Network panel's Timing tab draws it.
-4. **An empty card** after the migration is applied means no page has been hidden since: open a workspace, switch
+4. **Read what a load asked for around its page** (the plan "Pages that open at once", piece 1). No card draws these
+   yet; they are in each report's `detail`. A load's READY says how many reads for other pages the app began before the
+   page was drawn (`ahead_n`), and its SETTLED the database calls the page's own reads came to (`open_db_n`). A page that
+   opens through one read (GET open) says that read's own count, which the read's last line carries and the log says read
+   by read (`page_opened`: `ms`, `db_ms`, `db_n`, and `reads`, each read's own ms by its route's words). As the service
+   role: `select page, count(*) as loads, percentile_cont(0.75) within group (order by (detail->>'ahead_n')::int) as
+ahead_p75 from page_vitals where metric = 'READY' and part is null and came_from is null and detail ? 'ahead_n' and at >
+now() - interval '7 days' group by page;`, and the same over `metric = 'SETTLED'` and `open_db_n`. The slowest loads,
+   beside the card's three in four: `select page, count(*) as loads, percentile_cont(0.95) within group (order by value)
+   as p95 from page_vitals where metric = 'READY' and part is null and came_from is null and device = 'phone' and at > now()
+   - interval '7 days' group by page;`.
+5. **Read why a phone drew no copy of its last screen**: the card's lines for the first paint count each reason. `none
+kept` is an open no copy could have stood for (a first visit, or one after the device's rows were cleared), and `a
+longer address` one no copy is of: neither is part of the share. `scrolled`, `something typed`, `something open`, `still
+reading` and `too long to keep` are why the screen last left kept none (contracts `FirstRowsUnkept`).
+6. **An empty card** after the migration is applied means no page has been hidden since: open a workspace, switch
    tabs, and read it again.
-5. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
+7. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
 ## When calls fail

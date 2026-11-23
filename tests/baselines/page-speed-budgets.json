@@ -1,20 +1,20 @@
 {
-  "note": "How long each page may take to be drawn with its rows (the shell's own READY, client/page-speed.ts), on a cold load in a fresh context and on a move from Today, as the nightly's check of production measures it (e2e/production/page-speed-budgets.spec.ts, four pages cold and the rest as moves; the page-open PRD of 3 Nov 2026, L9, NFR3). Set generous on 3 Nov 2026 before any nightly had measured them; each is lowered to the first week's p75 plus a fifth, and may only fall after that. That week is the first one read back from the nightly's log, where the spec says each reading since 11 Nov 2026 (`page-speed cold today: 1830 ms of 6000`): the nights before it passed and kept no number.",
+  "note": "How long each page may take to be drawn with its rows (the shell's own READY, client/page-speed.ts), on a cold load in a fresh context and on a move from Today, as the nightly's check of production measures it (e2e/production/page-speed-budgets.spec.ts, four pages cold and the rest as moves; the page-open PRD of 3 Nov 2026, L9, NFR3). Set generous on 3 Nov 2026 before any nightly had measured them, and lowered on 22 Nov 2026 from the nine nights the nightly's log holds, 14 to 22 Nov 2026 (`page-speed cold today: 2567 ms of 6000`; the plan 'Pages that open at once', piece 1). The four pages opened cold are at those nights' p75 plus a fifth, which every one of the nine nights is under: today 2745, inbox 2474, people 1230 and leads 1219 ms. A move is a tenth of a second on most nights and twice that on one, so p75 plus a fifth would have failed a night in nine for each: a move's line is the slowest of the nine nights plus a fifth (calendar 291, inbox 259, people 218 and reports 2323 ms). The other pages' cold lines are as they were set: the nightly opens none of them cold, and the field data holds their loads. Each line may only fall from here.",
   "cold": {
-    "today": 6000,
-    "inbox": 6000,
-    "people": 6000,
+    "today": 3300,
+    "inbox": 3000,
+    "people": 1500,
     "calendar": 6000,
-    "leads": 7000,
+    "leads": 1500,
     "campaigns": 7000,
     "reports": 7000,
     "live": 6000,
     "conversations": 6000
   },
   "move": {
-    "inbox": 3000,
-    "people": 3000,
-    "calendar": 3000,
-    "reports": 4000
+    "inbox": 350,
+    "people": 300,
+    "calendar": 350,
+    "reports": 2800
   }
 }
