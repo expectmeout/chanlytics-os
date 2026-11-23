@@ -13,6 +13,7 @@ import "../../files/files.css";
 import "./forms.css";
 import { formsPlaceOf, formsRouteOf, type FormPart, type FormsPlace } from "@chanlytics/contracts";
 import { navigate, replaceRoute } from "../../frame-verbs";
+import { PartShown } from "../parts/view-shown";
 import { useCampaignsToast } from "../home/route-toast";
 import { CmHead } from "../parts/head";
 import { CmSplit, type CmView } from "../parts/split";
@@ -40,6 +41,9 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
       view={view}
       list={
         <>
+          {/* Its first part (client/page-speed.ts, contracts PRIMARY_PART), said while it is the view shown: the list drawn with
+              its forms, or with what could not be read. */}
+          <PartShown page="forms" part="list" ready={!!list.dto || list.failed} />
           <CmHead title={W.tab} quiet allowance={false} />
           <FormsList
             dto={list.dto}

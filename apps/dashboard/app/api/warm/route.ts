@@ -20,7 +20,10 @@ import * as partner from "../v1/partner/route";
 import * as reachOuts from "../v1/reach-outs/route";
 import * as reachOutSources from "../v1/reach-outs/sources/route";
 import * as reports from "../v1/reports/route";
+import * as reportsCampaigns from "../v1/reports/campaigns/route";
+import * as reportsLedger from "../v1/reports/campaigns/ledger/route";
 import * as reportsPeople from "../v1/reports/people/route";
+import * as reportsReachOuts from "../v1/reports/reach-outs/route";
 import * as reportsReceptionist from "../v1/reports/receptionist/route";
 import * as reportsReviews from "../v1/reports/reviews/route";
 import * as sequences from "../v1/sequences/route";
@@ -58,7 +61,10 @@ const HELD = {
   "reach-outs": reachOuts,
   "reach-outs/sources": reachOutSources,
   reports,
+  "reports/campaigns": reportsCampaigns,
+  "reports/campaigns/ledger": reportsLedger,
   "reports/people": reportsPeople,
+  "reports/reach-outs": reportsReachOuts,
   "reports/receptionist": reportsReceptionist,
   "reports/reviews": reportsReviews,
   sequences,

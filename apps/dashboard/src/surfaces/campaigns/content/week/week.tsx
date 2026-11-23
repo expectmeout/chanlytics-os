@@ -28,6 +28,7 @@ import { navigate, refreshSurface, type FrameFlash } from "../../../frame-verbs"
 import { AskLooking } from "../../../files/looking";
 import { autonomyVerbs } from "../../../settings/autonomy/verbs";
 import { useSurface } from "../../../use-surface";
+import { PartShown } from "../../parts/view-shown";
 import { WeekPlanned } from "./planned";
 import { FilmRow, WeekRowView } from "./rows";
 
@@ -155,15 +156,24 @@ export function ContentWeek({
   flash: (f: FrameFlash) => void;
 }) {
   const held = useSurface("content_week");
+  // Its draw, said while its view is shown (use-surface.ts PartShown; client/page-speed.ts, contracts PRIMARY_PART).
+  const mark = <PartShown page="week" part="list" ready={held !== undefined} />;
   const dto = held?.dto;
   const view = useMemo(() => (dto ? weekViewOf(dto, Date.now()) : null), [dto]);
   useAsksWhileMoving(!!view && weekMoving(view));
   const { busy, onAct: act, onFix } = useWeekPresses(flash, onOpen);
-  if (!view || !dto) return null;
+  if (!view || !dto) return mark;
   const onAct = () => act(view, dto);
-  if (view.state === "unconnected") return <WeekFirstOpen />;
+  if (view.state === "unconnected")
+    return (
+      <>
+        {mark}
+        <WeekFirstOpen />
+      </>
+    );
   return (
     <div className="cwk" data-testid="content-week">
+      {mark}
       <WeekHead view={view} busy={busy} onAct={onAct} />
       {view.groups.map((group) => (
         <section key={group.name} className="cwk-group" data-tone={group.tone || undefined}>

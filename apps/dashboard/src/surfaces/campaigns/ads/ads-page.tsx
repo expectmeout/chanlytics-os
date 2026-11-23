@@ -29,6 +29,7 @@ import {
 } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import { type CmView, useCmPhone } from "../parts/split";
+import { PartShown } from "../parts/view-shown";
 import { useAdsConnection } from "./connect/use-card";
 import { CARD } from "./connect/words";
 import { useFirstTouch } from "./first-touch";
@@ -198,26 +199,33 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const touch = useFirstTouch(known && !held);
   useAskKnowsThePage();
   const connectWord = connect.vm?.button ?? null;
+  // Its first part (client/page-speed.ts, contracts PRIMARY_PART), said while it is the view shown: the page drawn as the one
+  // it is (nothing connected, or its ads), or with what could not be read.
+  const drawn = account.failed || (known && (!held || !!live.dto || live.failed));
+  const mark = view?.shown !== false ? <PartShown page="ads" part="page" ready={drawn} /> : null;
   if (held && live.dto)
     return (
-      <LiveAds
-        dto={live.dto}
-        address={address}
-        view={view}
-        phone={phone}
-        timezone={timezone}
-        card={connect.card}
-        connect={{ word: connectWord, press: account.connect }}
-        need={connect.vm?.need ?? null}
-        stop={connect.stop}
-        nav={{ push: nav.push, close: nav.close }}
-        again={() => {
-          live.again();
-          account.again();
-        }}
-        flash={flash}
-        toast={toastNode}
-      />
+      <>
+        {mark}
+        <LiveAds
+          dto={live.dto}
+          address={address}
+          view={view}
+          phone={phone}
+          timezone={timezone}
+          card={connect.card}
+          connect={{ word: connectWord, press: account.connect }}
+          need={connect.vm?.need ?? null}
+          stop={connect.stop}
+          nav={{ push: nav.push, close: nav.close }}
+          again={() => {
+            live.again();
+            account.again();
+          }}
+          flash={flash}
+          toast={toastNode}
+        />
+      </>
     );
   const vm = nothingConnectedOf(touch.firstTouch);
   const sentence = (
@@ -235,6 +243,7 @@ export function AdsPage({ param, view }: AdsPageProps) {
       data-phone={phone ? "true" : undefined}
       data-ad={address.ad ?? undefined}
     >
+      {mark}
       <CmHead
         title="Campaigns"
         quiet

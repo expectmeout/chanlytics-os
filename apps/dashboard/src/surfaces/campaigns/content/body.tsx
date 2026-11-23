@@ -51,6 +51,7 @@ import { GroupHead } from "../../kit/head/group-head";
 import { ContentLines, NeedsRows, PieceLines } from "./lines";
 import { QuietMore } from "./heads";
 import { ContentList } from "./list";
+import { PartShown } from "../parts/view-shown";
 import { madeFlatOf, madeGroupsOf, piecesUnder, type MadeGroup } from "./model/groups";
 import type { ContentLayout } from "./views";
 import { tileDayOf } from "./model/tile-day";
@@ -432,12 +433,26 @@ export function ContentBody({
   layout?: ContentLayout;
   desk?: boolean;
 }) {
+  // Made's draw, said while its view is shown (use-surface.ts PartShown; client/page-speed.ts, contracts PRIMARY_PART).
+  const mark = <PartShown page="content" part="body" ready={held !== undefined} />;
   if (held === undefined)
     return (
       <div className="route-reading" role="status" aria-busy="true">
+        {mark}
         {LIFECYCLE_WORDS.reading}
       </div>
     );
-  if (held === null) return <FailedRead kind="page" what={W.failedWhat} surface="content" testid="cnv-failed" />;
-  return <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos, openId, layout, desk }} />;
+  if (held === null)
+    return (
+      <>
+        {mark}
+        <FailedRead kind="page" what={W.failedWhat} surface="content" testid="cnv-failed" />
+      </>
+    );
+  return (
+    <>
+      {mark}
+      <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos, openId, layout, desk }} />
+    </>
+  );
 }

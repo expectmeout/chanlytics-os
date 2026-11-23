@@ -97,6 +97,15 @@ test("the seven are the table's seven, its devices its two, and a page is named 
   assert.equal(named({ pathname: "/w/acme/people/leads" }), "leads");
   assert.equal(named({ pathname: "/w/acme/people/leads:s-1:l-2" }), "leads");
   assert.equal(named({ pathname: "/w/acme/people/pipeline:v-board" }), "pipeline");
+  // Campaigns' views beside Sequences, each a page of its own: counted as Campaigns, a load of one waited for Sequences'
+  // list, which it never draws, and was never READY (the phone sweep of 22 Nov 2026).
+  assert.equal(named({ pathname: "/w/acme/campaigns" }), "campaigns");
+  assert.equal(named({ pathname: "/w/acme/campaigns/sequences/new" }), "campaigns");
+  assert.equal(named({ pathname: "/w/acme/campaigns/content" }), "content");
+  assert.equal(named({ pathname: "/w/acme/campaigns/content:library" }), "library");
+  assert.equal(named({ pathname: "/w/acme/campaigns/content:week" }), "week");
+  assert.equal(named({ pathname: "/w/acme/campaigns/ads:new" }), "ads");
+  assert.equal(named({ pathname: "/w/acme/campaigns/forms:f-1:share" }), "forms");
   assert.equal(named({ hash: "#/inbox" }), "inbox");
   assert.equal(named({ pathname: "/w/acme/inbox/th-1", hash: "" }), "inbox");
   assert.equal(named({ hash: "" }), "today");
