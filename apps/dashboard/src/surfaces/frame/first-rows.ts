@@ -7,7 +7,8 @@
  * (People's other scopes, under React's Activity), no id, which the app looks its own elements up by (the place a page's act is
  * drawn into), and no sidebar, which a phone's drawer draws again. Its test ids stay: the stylesheets draw by them (Today's setup
  * card, dashboard-a-v2.css), and no suite sees a copy but its own spec. It is only made of a page at rest: at its top, on its own
- * bare address, with nothing typed, picked or opened over it.
+ * bare address, with nothing typed, picked or opened over it. A screen left any other way keeps why in the copy's place, so the
+ * next load can say what it missed for (contracts FirstRowsUnkept).
  */
 import { useEffect } from "react";
 import {
@@ -17,6 +18,7 @@ import {
   FIRST_ROWS_END_ATTR,
   FIRST_ROWS_ID,
   FIRST_ROWS_MISS_ATTR,
+  FIRST_ROWS_MISSES,
   FIRST_ROWS_MOST_CHARS,
   FIRST_ROWS_PAGES,
   FIRST_ROWS_PART,
@@ -32,6 +34,7 @@ import {
   SECOND_MS,
   type FirstRowsEnd,
   type FirstRowsMiss,
+  type FirstRowsUnkept,
   type KeptFirstRows,
 } from "@chanlytics/contracts";
 import { deviceSealed } from "@/client/kept-on-device";
@@ -52,12 +55,12 @@ const LEFT_OUT = [
   '[style*="display: none"]',
 ].join(",");
 /**
- * A screen that is not at rest: a press, a pick or a read under way, something open over the page, or a reply counting down to going
- * out, whose seconds standing still would be untrue at any age (Today's row, the Inbox's). The copy from before it stays.
+ * A screen that is not at rest, in its two kinds, each said as its own word where it keeps no copy. One still reading: a press
+ * or a read under way. And one with something over the page or picked on it, or a reply counting down to going out, whose
+ * seconds standing still would be untrue at any age (Today's row, the Inbox's). The copy from before it stays.
  */
-const NOT_AT_REST = [
-  ".route-reading",
-  '[aria-busy="true"]',
+const STILL_READING = [".route-reading", '[aria-busy="true"]'].join(",");
+const SOMETHING_OPEN = [
   '[aria-modal="true"]',
   ".side-wrap.open",
   ".selected",
@@ -122,9 +125,11 @@ function stopArrivals(root: Element, copy: Element): void {
   if (getComputedStyle(root).animationName !== "none") (copy as HTMLElement).style.setProperty("animation", "none");
 }
 
-/** The screen as a copy holds it, or null where it is not at rest, or is too long to read before a first paint. */
-function copyOfScreen(root: Element, rows: string): string | null {
-  if (root.querySelector(NOT_AT_REST) || somethingTyped(root)) return null;
+/** The screen as a copy holds it; or why it holds none, where it is not at rest or is too long to read before a first paint. */
+function copyOfScreen(root: Element, rows: string): { html: string } | { why: FirstRowsUnkept } {
+  if (root.querySelector(STILL_READING)) return { why: "reading" };
+  if (root.querySelector(SOMETHING_OPEN)) return { why: "open" };
+  if (somethingTyped(root)) return { why: "typed" };
   const copy = root.cloneNode(true) as Element;
   stopArrivals(root, copy);
   keepCanvases(root, copy);
@@ -140,7 +145,39 @@ function copyOfScreen(root: Element, rows: string): string | null {
     n.removeAttribute("data-hover");
   }
   const html = copy.outerHTML;
-  return html.length <= FIRST_ROWS_MOST_CHARS ? html : null;
+  return html.length <= FIRST_ROWS_MOST_CHARS ? { html } : { why: "long" };
+}
+
+/** How much of a slot says what it holds: a copy writes when, its width and its stylesheets first (contracts KeptFirstRows). */
+const SLOT_HEAD = 160;
+
+/**
+ * Whether what stands in a slot may still be drawn by a load here: a copy kept at this width, under these stylesheets, inside
+ * its page's age. Nothing, a word in a copy's place, and a copy no load here could draw, may not. A slot whose head says none
+ * of it is not this code's to judge, and stands.
+ */
+function standsDrawable(had: string | null, sheets: string, oldestMs: number): boolean {
+  if (had === null) return false;
+  const head = had.slice(0, SLOT_HEAD);
+  if (head.includes('"why":')) return false;
+  const at = /"at":(\d+)/.exec(head)?.[1];
+  const width = /"width":(\d+)/.exec(head)?.[1];
+  const under = /"sheets":"([^"]*)"/.exec(head)?.[1];
+  if (at === undefined || width === undefined || under === undefined) return true;
+  const age = Date.now() - Number(at);
+  return Number(width) === innerWidth && under === sheets && age >= 0 && age < oldestMs;
+}
+
+/**
+ * No copy could be kept of the screen as it was left: why is kept in the copy's place, for the next load to say as its miss
+ * (contracts firstRowsScript). A copy that may still be drawn is never given up for it; one the next load could not draw is,
+ * or that load would say the old reason again (a deploy's, an age's) for a screen that was kept none for another.
+ */
+function keepWhy(slot: string, word: FirstRowsUnkept, sheets: string, oldestMs: number): void {
+  if (standsDrawable(localStorage.getItem(slot), sheets, oldestMs)) return;
+  // When first, as a copy says it: a slot's age is read from its head (client/kept-on-device.ts).
+  const unkept: { at: number; why: FirstRowsUnkept } = { at: Date.now(), why: word };
+  localStorage.setItem(slot, JSON.stringify(unkept));
 }
 
 /** The screen kept, where it is a page that keeps one and stands at rest. Never throws: a copy is an optimisation. */
@@ -151,18 +188,20 @@ function keepNow(): void {
     const page = at && FIRST_ROWS_PAGES[at.word];
     const sheets = document.documentElement.getAttribute(FIRST_ROWS_SHEETS_ATTR);
     if (!at || !page || !sheets || location.search || location.hash) return;
-    if (innerWidth > FIRST_ROWS_WIDEST_PX || scrollY > 2) return;
+    if (innerWidth > FIRST_ROWS_WIDEST_PX) return;
     const root = document.querySelector(FRAME);
-    const html = root && copyOfScreen(root, page.rows);
-    if (!html) return;
+    if (!root) return;
+    const slot = firstRowsSlot(at.workspace, at.word);
+    const screen = scrollY > 2 ? { why: "scrolled" as const } : copyOfScreen(root, page.rows);
+    if ("why" in screen) return keepWhy(slot, screen.why, sheets, page.oldestMs);
     const kept: KeptFirstRows = {
       at: Date.now(),
       width: innerWidth,
       sheets,
       vars: document.documentElement.style.cssText,
-      html,
+      html: screen.html,
     };
-    localStorage.setItem(firstRowsSlot(at.workspace, at.word), JSON.stringify(kept));
+    localStorage.setItem(slot, JSON.stringify(kept));
   } catch {
     /* storage refused or full: the next visit stands on its outline */
   }
@@ -274,7 +313,9 @@ function sayWhatTheDocumentDid(): void {
     if (!at || !page || window.innerWidth > FIRST_ROWS_WIDEST_PX || firstRowsStand(document)) return;
     const html = document.documentElement;
     if (html.getAttribute(FIRST_ROWS_END_ATTR)) return sayDrawn(at.word, "held-20s");
-    const why = (html.getAttribute(FIRST_ROWS_MISS_ATTR) ?? "none") as FirstRowsMiss;
+    // What the document stamped is a slot's text: held to the misses there are, and anything else is nothing kept.
+    const stamped = html.getAttribute(FIRST_ROWS_MISS_ATTR);
+    const why: FirstRowsMiss = FIRST_ROWS_MISSES.find((miss) => miss === stamped) ?? "none";
     say(page.page, firstRowsMissPart(why), 0, false);
   } catch {
     /* a document with nothing to say: a test's stand-in */

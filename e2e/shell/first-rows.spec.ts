@@ -76,8 +76,17 @@ test.describe("the rows a phone last showed", () => {
     await page.waitForLoadState("networkidle");
     await motionSettled(page);
     await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide")));
+    // A slot may hold why no copy was kept in a copy's place (contracts FirstRowsUnkept): a copy is one that holds the screen.
     await expect
-      .poll(() => page.evaluate((s) => Object.keys(localStorage).filter((k) => k.startsWith(s)).length, SLOT))
+      .poll(() =>
+        page.evaluate(
+          (s) =>
+            Object.keys(localStorage).filter(
+              (k) => k.startsWith(s) && (localStorage.getItem(k) ?? "").includes('"html"'),
+            ).length,
+          SLOT,
+        ),
+      )
       .toBeGreaterThan(0);
   }
 

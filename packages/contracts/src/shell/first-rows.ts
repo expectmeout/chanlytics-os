@@ -100,11 +100,24 @@ export interface KeptFirstRows {
  */
 export const FIRST_ROWS_PART = "first-rows";
 /**
- * Why a phone opened a page that keeps a copy with none drawn, each a part of its own at a value of 0: nothing kept; an address
- * with more after it; kept at another width; under other stylesheets, which a deploy changed; or past its age.
+ * Why a screen was left with no copy kept of it, where one could have been: it was scrolled, something was typed into it,
+ * something stood open or picked over it, it was still reading, or its first screen was too long to read before a paint.
+ * The frame keeps the word in the copy's place (the dashboard's surfaces/frame/first-rows.ts), and the next load's miss is
+ * that word. Until 22 Nov 2026 each of these left nothing, and the next load said `none`, as a first visit does: 43 of a
+ * week's 104 phone loads of Today, with no way to tell them apart (the plan "Pages that open at once", piece 1).
  */
-export const FIRST_ROWS_MISSES = ["none", "address", "width", "sheets", "aged"] as const;
+const FIRST_ROWS_UNKEPT = ["scrolled", "typed", "open", "reading", "long"] as const;
+/** One of them. A slot holds it in a copy's place as `{at, why}`: when first, as a copy says it, then the word. */
+export type FirstRowsUnkept = (typeof FIRST_ROWS_UNKEPT)[number];
+/**
+ * Why a phone opened a page that keeps a copy with none drawn, each a part of its own at a value of 0: nothing kept (a first
+ * visit, or one after the device's rows were cleared); an address with more after it; kept at another width; under other
+ * stylesheets, which a deploy changed; past its age; or why the screen last left kept none (FIRST_ROWS_UNKEPT).
+ */
+export const FIRST_ROWS_MISSES = ["none", "address", "width", "sheets", "aged", ...FIRST_ROWS_UNKEPT] as const;
 export type FirstRowsMiss = (typeof FIRST_ROWS_MISSES)[number];
+/** The misses of an open no copy could have stood for: no part of how often a copy was drawn where one could be. */
+export const FIRST_ROWS_NO_COPY: readonly FirstRowsMiss[] = ["none", "address"];
 /**
  * How a copy that was drawn ended, each a part of its own, its value how long it stood: its page's rows took its place; the frame
  * was on another route; the page could not be read; the frame's hold ran out; the document's did; or a screen came in the frame's
@@ -150,6 +163,9 @@ export function firstRowsScript(): string {
     `var P=m[2]||${JSON.stringify(BARE_WORD)},O=${JSON.stringify(Object.fromEntries(Object.entries(FIRST_ROWS_PAGES).map(([w, p]) => [w, p.oldestMs])))};`,
     `var r=localStorage.getItem(${JSON.stringify(FIRST_ROWS_SLOT)}+m[1]+":"+P);if(!r)return;`,
     "var k=JSON.parse(r),g=Date.now()-k.at;",
+    // A word in a copy's place: why the screen last left kept none, stamped as it is. The frame holds it to the words
+    // there are before it reports one (the dashboard's surfaces/frame/first-rows.ts): this script is in every document.
+    "if(k.why)return Z(k.why);",
     'if(k.width!==innerWidth)return Z("width");',
     'if(k.sheets!==String(n))return Z("sheets");',
     'if(!(g>=0&&g<O[P]))return Z("aged");',
