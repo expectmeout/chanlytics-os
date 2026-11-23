@@ -1,4 +1,5 @@
 import { globalSlot } from "@chanlytics/contracts";
+import { readShared } from "./read-once";
 /**
  * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
  *
@@ -37,6 +38,11 @@ export interface DbObserver {
    * a route's trace is held to (decision 0058, lane R7). Absent, nothing is noted.
    */
   touched?(table: string, how: string): void;
+  /**
+   * What stands for the request running now where its identical reads share one answer, or null where it shares none
+   * (packages/log sharedReads: a request that answers several reads as one says it does). Absent, nothing is shared.
+   */
+  sharedReads?(): object | null;
 }
 
 /** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
@@ -190,18 +196,23 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
       return call;
     }
     dbTouched(input, init);
-    const headers = new Headers(init?.headers);
-    headers.set(DB_REQUEST_HEADER, id);
-    const started = performance.now();
-    const call = send(input, { ...init, headers });
-    // Timed to its headers: what the request waited for before it could read the answer.
-    void call.then(
-      (answer) => {
-        dbTimed(performance.now() - started);
-        sayWhenAtCap(input, init, answer);
-      },
-      () => dbTimed(performance.now() - started),
-    );
-    return call;
+    const sendNamed = (): Promise<Response> => {
+      const headers = new Headers(init?.headers);
+      headers.set(DB_REQUEST_HEADER, id);
+      const started = performance.now();
+      const call = send(input, { ...init, headers });
+      // Timed to its headers: what the request waited for before it could read the answer.
+      void call.then(
+        (answer) => {
+          dbTimed(performance.now() - started);
+          sayWhenAtCap(input, init, answer);
+        },
+        () => dbTimed(performance.now() - started),
+      );
+      return call;
+    };
+    // A request that answers several reads as one asks each question once (read-once.ts); any other sends every call.
+    const scope = (observerSlot.get() ?? FALLBACK).sharedReads?.() ?? null;
+    return readShared(scope, { input, init, how: touchOfCall(input, init)?.how ?? null }, sendNamed);
   };
 }

@@ -527,7 +527,9 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   own (`PREFETCH_BESIDE`: Today and the Inbox) asks for its whole first screen as one streamed read instead
   (`apps/dashboard/app/api/v1/open/route.ts` over `apps/dashboard/src/server/workspace/page-open.ts`): its own reads,
   then the rest, each answered by its own route past one session check, one membership read and one readers' turn, and
-  parked for the page under the URL it reads it by (decision 0053, step 2). A record the address names rides with them:
+  parked for the page under the URL it reads it by (decision 0053, step 2). Within it the database is asked each question
+  once: a read of a table that another of its reads has already made is answered from that answer
+  (`packages/db/src/shared/read-once.ts`, turned on by the opening alone), never a function's call. A record the address names rides with them:
   a person's page reads the person, and the thread an Inbox address names has its person read in the stream's first tier
   (`THREAD_PERSON_READ`).
 - _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
