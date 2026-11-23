@@ -288,7 +288,7 @@ export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./c
 export { COMMENT_ANSWER_WORDS } from "./content/results/answer-words";
 export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./content/results/comment-address";
 export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./content/results/comment-answer";
-export { COMMENT_WORDS, commentPageSaid, commentRowSaid, commentStageOf, commentWho } from "./content/results/comment-said";
+export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./content/results/comment-stage";
 export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./content/results/credit";
 export { nextObserveStep, observeDueAt } from "./content/results/observe";
 export { pieceResultsSaid } from "./content/results/piece-results";

@@ -9,11 +9,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   COMMENT_ANSWER_WORDS,
-  COMMENT_WORDS,
   commentAddress,
   commentIdOf,
-  commentPageSaid,
-  commentRowSaid,
   commentStageOf,
   isCommentsParam,
   isPersonRow,
@@ -23,6 +20,10 @@ import {
   toTodayVM,
 } from "@chanlytics/contracts";
 import { NOW as WORLD_NOW, metrics } from "../../today/record/_world.mjs";
+
+// Inbox's words for a comment are the dashboard's own (its model folder): only Inbox says them.
+const { COMMENT_WORDS, commentPageSaid, commentRowSaid } =
+  await import("../../../apps/dashboard/src/surfaces/inbox/model/comment-said.ts");
 
 const ID = "6f0d8a52-5d0a-4c8e-9a43-1c2b3d4e5f60";
 const NOW = Date.parse("2026-11-23T03:30:00Z");

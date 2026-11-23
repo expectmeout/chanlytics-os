@@ -5,8 +5,8 @@
  * (list.tsx). The page asks these and draws what they answer, so what a comment needs of the page is said here, once.
  */
 import type { ReactNode } from "react";
-import { COMMENT_WORDS } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
+import { COMMENT_WORDS } from "../model/comment-said";
 import type { Flash } from "../shell";
 import { CommentsDoor, CommentsPart } from "./list";
 import { CommentSlot } from "./slot";

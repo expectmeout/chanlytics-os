@@ -8,17 +8,11 @@
  * has AI's answer ready to send; one AI can't answer, or whose answer didn't go, is Today's point, and in Needs you's rows.
  */
 import "./comment.css";
-import {
-  COMMENTS_ROUTE,
-  COMMENT_WORDS as W,
-  commentAddress,
-  commentRowSaid,
-  commentStageOf,
-  type CommentRowDto,
-} from "@chanlytics/contracts";
+import { COMMENTS_ROUTE, commentAddress, commentStageOf, type CommentRowDto } from "@chanlytics/contracts";
 import { knownZone } from "@/bridge/zone";
 import { routeDoor } from "../../frame-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { COMMENT_WORDS as W, commentRowSaid } from "../model/comment-said";
 import { commentStillOf } from "./still";
 import type { CommentsRead } from "./use-comments";
 

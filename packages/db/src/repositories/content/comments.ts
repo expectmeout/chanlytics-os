@@ -75,7 +75,8 @@ type CommentRow = {
   at: string;
   evidence: unknown;
   contacts: { display_name: string | null } | null;
-  comment_answers: AnswerRow[];
+  /** One answer a comment, or none: its key is unique (comment_answers_one_a_comment), so PostgREST embeds an object. */
+  comment_answers: AnswerRow | null;
 };
 
 function commentOf(row: CommentRow): CommentRead {
@@ -88,7 +89,7 @@ function commentOf(row: CommentRow): CommentRead {
     username: evidenceTextOf(evidence.username),
     words: evidenceTextOf(evidence.words),
     at: row.at,
-    answer: commentAnswerOf(row.comment_answers.at(0)),
+    answer: commentAnswerOf(row.comment_answers),
   };
 }
 
@@ -197,7 +198,7 @@ export async function findCommentForWork(db: Db, touchId: string): Promise<Comme
       accountId: post.data.account_id,
       status: post.data.status,
     },
-    answer: commentAnswerOf(data.comment_answers.at(0)),
+    answer: commentAnswerOf(data.comment_answers),
   };
 }
 

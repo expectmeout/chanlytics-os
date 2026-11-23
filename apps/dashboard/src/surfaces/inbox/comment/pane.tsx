@@ -3,7 +3,7 @@
  * canvas's Results board, cells 2 to 8, approved by Ruben on 23 Nov 2026): who commented and on which post, the post's
  * picture and caption, their words, and the business's public answer. AI drafts it knowing the post; the owner changes
  * it, asks AI to write it again, sends it, or leaves it. It stands where a conversation stands: beside the list on a
- * desk, the screen on a phone, under the same head. Every sentence is contracts' (commentPageSaid).
+ * desk, the screen on a phone, under the same head. Every sentence is its model's (model/comment-said.ts, commentPageSaid).
  *
  * The one moving thing is the line's ring while Instagram is asked; AI's three while it writes the answer again.
  */
@@ -11,14 +11,7 @@
 import "../../files/files.css";
 import "./comment.css";
 import { useState } from "react";
-import {
-  COMMENT_WORDS as W,
-  addressOf,
-  commentPageSaid,
-  commentWho,
-  type CommentPageSaid,
-  type CommentRowDto,
-} from "@chanlytics/contracts";
+import { addressOf, commentWho, type CommentRowDto } from "@chanlytics/contracts";
 import { knownZone } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
@@ -28,6 +21,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Panel } from "../../kit/panel/panel";
 import { AskLooking } from "../../files/looking";
 import { appNavigate, gate, type Flash } from "../shell";
+import { COMMENT_WORDS as W, commentPageSaid, type CommentPageSaid } from "../model/comment-said";
 import { IxWho, threadBack } from "../thread/who";
 import { commentStillOf } from "./still";
 import { useCommentPage, type CommentPage } from "./use-comment";

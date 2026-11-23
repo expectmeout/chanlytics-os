@@ -8,8 +8,9 @@
  * A press that fails says so in the Inbox's toast and changes nothing here.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { COMMENT_WORDS as W, SECOND_MS, commentStageOf, type CommentRowDto } from "@chanlytics/contracts";
+import { SECOND_MS, commentStageOf, type CommentRowDto } from "@chanlytics/contracts";
 import { leaveComment, readComment, rewriteComment, sendCommentAnswer } from "@/bridge/verbs/comments";
+import { COMMENT_WORDS as W } from "../model/comment-said";
 import type { Flash } from "../shell";
 import { commentsMoved } from "./use-comments";
 

@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { findComment, findCommentForWork, listComments } from "@chanlytics/db/content";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -198,6 +199,18 @@ test(
     assert.deepEqual(answer, { state: "sent", external_id: `answer-${stamp}` });
   },
 );
+
+test("a comment's one answer reads back through its repository, as PostgREST embeds it", { skip }, async () => {
+  // A comment has one answer (its key is unique), so the embed is an object, not a list: Inbox's list, its pane and
+  // the job's read each say the answer the owner sent.
+  const touch = ok(await db.from("touches").select("id").eq("tenant_id", A).limit(1).single(), "the touch").id;
+  const one = await findComment(as.owner.client, A, touch);
+  assert.equal(one?.answer?.state, "sent");
+  assert.equal(one?.answer?.words, "It's $45.");
+  const listed = (await listComments(as.owner.client, A, new Date(0).toISOString())).find((c) => c.touchId === touch);
+  assert.equal(listed?.answer?.state, "sent");
+  assert.equal((await findCommentForWork(db, touch))?.answer?.state, "sent");
+});
 
 test(
   "a comment left unanswered is no point and keeps AI's draft; answered after all, the draft comes back",

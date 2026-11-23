@@ -8,7 +8,7 @@
 import { formatWaited } from "../conversations/thread-clock";
 import { initialsOf } from "../conversations/thread-contact";
 import { commentAddress } from "../content/results/comment-address";
-import { COMMENT_WORDS, commentStageOf, commentWho } from "../content/results/comment-said";
+import { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "../content/results/comment-stage";
 import type { CommentRowDto } from "../content/results/dtos";
 import type { TodayFacts } from "./facts";
 import type { TodayQueueRowVM } from "./vm";
@@ -18,9 +18,9 @@ function commentRow(comment: CommentRowDto, todayFacts: TodayFacts): TodayQueueR
   const stage = commentStageOf(comment.answer);
   const status =
     stage === "cannot"
-      ? COMMENT_WORDS.today.status.cannot
+      ? COMMENT_POINT_WORDS.today.status.cannot
       : stage === "failed" || stage === "unknown"
-        ? COMMENT_WORDS.today.status.failed
+        ? COMMENT_POINT_WORDS.today.status.failed
         : null;
   if (!status) return null;
   const name = commentWho(comment);
@@ -36,12 +36,12 @@ function commentRow(comment: CommentRowDto, todayFacts: TodayFacts): TodayQueueR
     channel: "Instagram",
     via: comment.post.title,
     when: `waited ${formatWaited(waitedMs)}`,
-    sentence: comment.words || COMMENT_WORDS.noWords,
+    sentence: comment.words || COMMENT_POINT_WORDS.noWords,
     quoted: !!comment.words,
     status: [status],
     tone: "escalated",
     warn: stage !== "cannot",
-    cta: { label: COMMENT_WORDS.today.open, to: commentAddress(comment.touch_id) },
+    cta: { label: COMMENT_POINT_WORDS.today.open, to: commentAddress(comment.touch_id) },
     also: null,
     waitedMs,
   };

@@ -3,17 +3,25 @@
  * 12.5; the journey canvas's Results board, cells 1 to 8, approved by Ruben on 23 Nov 2026): who wrote, on which post,
  * what they wrote, and where its public answer stands with the one thing to do. AI drafts and the owner sends; a comment
  * AI can't answer safely says why, and is a point on Today; an answer whose outcome Instagram never told is never sent
- * twice blind. Pure: every sentence a page says of a comment is here.
+ * twice blind. Pure: every sentence Inbox says of a comment is here, and Today's point on one is contracts'
+ * (content/results/comment-stage.ts), which these words carry too.
  */
-import { clockShort, clockStamp } from "../../shared/clock";
-import { COMMENT_ANSWER_WORDS } from "./answer-words";
-import type { CommentAnswerDto, CommentRowDto } from "./dtos";
+import {
+  clockShort,
+  clockStamp,
+  COMMENT_ANSWER_WORDS,
+  COMMENT_POINT_WORDS,
+  commentStageOf,
+  commentWho,
+  type CommentAnswerDto,
+  type CommentRowDto,
+  type CommentStage,
+} from "@chanlytics/contracts";
 
-/** The words of a comment's row, its page and its line in the list. */
+/** The words of a comment's row, its page and its line in the list, and Today's point on it (comment-stage.ts). */
 export const COMMENT_WORDS = {
-  someone: "Someone on Instagram",
+  ...COMMENT_POINT_WORDS,
   aPost: "a post",
-  noWords: "A comment with no words.",
   commented: (words: string | null) => (words ? `Commented “${words}”` : "Commented"),
   head: (person: string) => `${person} commented`,
   on: (post: string, kind: string, at: string) => `On ${post} · Instagram ${kind} · ${at}`,
@@ -63,35 +71,12 @@ export const COMMENT_WORDS = {
     doorGo: "Show them",
     pick: "Open a comment to answer it",
   },
-  today: {
-    open: "Open",
-    status: { cannot: "AI can't answer it", failed: "Didn't go" },
-  },
 } as const;
-
-/**
- * Where a comment's answer stands, as its page draws it: none written yet, AI's draft, AI can't answer it, on its way,
- * up, answered in the Instagram app, refused, an outcome nobody told, or left unanswered.
- */
-export type CommentStage =
-  "none" | "drafted" | "cannot" | "sending" | "sent" | "by_hand" | "failed" | "unknown" | "left";
-
-/** The stage of a comment's answer. An answer that did not go and whose outcome is not known is told apart by its words. */
-export function commentStageOf(answer: CommentAnswerDto | null): CommentStage {
-  if (!answer) return "none";
-  if (answer.state === "sent") return answer.by_hand ? "by_hand" : "sent";
-  if (answer.state === "failed") return answer.said === COMMENT_ANSWER_WORDS.unknown ? "unknown" : "failed";
-  return answer.state;
-}
 
 const KIND_SAID: Readonly<Record<string, string>> = { reel: "reel", story: "story", picture: "post" };
 
-/** Who wrote it: their name where the person has one, else their handle, else someone. */
-export const commentWho = (row: Pick<CommentRowDto, "name" | "username">): string =>
-  row.name?.trim() || (row.username ? `@${row.username}` : COMMENT_WORDS.someone);
-
 /** A comment's row in Inbox's list: who and on which post, what they wrote and where its answer stands, and when. */
-export interface CommentRowSaid {
+interface CommentRowSaid {
   title: string;
   sub: string;
   when: string;
@@ -103,11 +88,11 @@ export interface CommentRowSaid {
 const STANDING: Readonly<Record<CommentStage, string>> = {
   none: "",
   drafted: "",
-  cannot: "AI can't answer it",
+  cannot: COMMENT_POINT_WORDS.today.status.cannot,
   sending: "Answering",
   sent: "Answered",
   by_hand: "Answered",
-  failed: "Didn't go",
+  failed: COMMENT_POINT_WORDS.today.status.failed,
   unknown: "Didn't say",
   left: "Left",
 };

@@ -4,8 +4,9 @@
  * so the Inbox every member opens pays nothing for it.
  */
 import { Suspense, lazy } from "react";
-import { COMMENTS_ROUTE, COMMENT_WORDS as W } from "@chanlytics/contracts";
+import { COMMENTS_ROUTE } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
+import { COMMENT_WORDS as W } from "../model/comment-said";
 import { appNavigate, type Flash } from "../shell";
 
 const CommentPane = lazy(() => import("./pane").then((m) => ({ default: m.CommentPane })));

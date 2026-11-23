@@ -1894,7 +1894,7 @@ export type Database = {
           {
             foreignKeyName: "comment_answers_touch_same_workspace"
             columns: ["tenant_id", "touch_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "touches"
             referencedColumns: ["tenant_id", "id"]
           },
