@@ -722,6 +722,8 @@ export type Database = {
           starts_at: string
           status: string
           tenant_id: string
+          through_id: string | null
+          through_type: string | null
           timezone: string
           title: string | null
           tool: string | null
@@ -757,6 +759,8 @@ export type Database = {
           starts_at: string
           status?: string
           tenant_id: string
+          through_id?: string | null
+          through_type?: string | null
           timezone: string
           title?: string | null
           tool?: string | null
@@ -792,6 +796,8 @@ export type Database = {
           starts_at?: string
           status?: string
           tenant_id?: string
+          through_id?: string | null
+          through_type?: string | null
           timezone?: string
           title?: string | null
           tool?: string | null
@@ -1827,6 +1833,72 @@ export type Database = {
           page?: string | null
         }
         Relationships: []
+      }
+      comment_answers: {
+        Row: {
+          by_hand: boolean
+          cannot_why: string | null
+          created_at: string
+          draft: string | null
+          external_id: string | null
+          id: string
+          said: string | null
+          sent_at: string | null
+          sent_by: string | null
+          state: string
+          tenant_id: string
+          touch_id: string
+          updated_at: string
+          words: string | null
+        }
+        Insert: {
+          by_hand?: boolean
+          cannot_why?: string | null
+          created_at?: string
+          draft?: string | null
+          external_id?: string | null
+          id?: string
+          said?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          state: string
+          tenant_id: string
+          touch_id: string
+          updated_at?: string
+          words?: string | null
+        }
+        Update: {
+          by_hand?: boolean
+          cannot_why?: string | null
+          created_at?: string
+          draft?: string | null
+          external_id?: string | null
+          id?: string
+          said?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          state?: string
+          tenant_id?: string
+          touch_id?: string
+          updated_at?: string
+          words?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_answers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comment_answers_touch_same_workspace"
+            columns: ["tenant_id", "touch_id"]
+            isOneToOne: true
+            referencedRelation: "touches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
       }
       contact_identities: {
         Row: {
@@ -5734,6 +5806,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          lands: string | null
           place: string
           printed: boolean
           sites: string[] | null
@@ -5747,6 +5820,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          lands?: string | null
           place: string
           printed?: boolean
           sites?: string[] | null
@@ -5760,6 +5834,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          lands?: string | null
           place?: string
           printed?: boolean
           sites?: string[] | null
@@ -7606,6 +7681,72 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_observations: {
+        Row: {
+          availability: string
+          definition_edition: number
+          id: string
+          metric: string
+          observed_at: string
+          paid_mixed: boolean
+          period_end: string
+          period_start: string
+          place: string
+          post_id: string
+          raw: Json
+          step: string
+          tenant_id: string
+          value: number | null
+        }
+        Insert: {
+          availability: string
+          definition_edition?: number
+          id?: string
+          metric: string
+          observed_at?: string
+          paid_mixed?: boolean
+          period_end: string
+          period_start: string
+          place: string
+          post_id: string
+          raw?: Json
+          step: string
+          tenant_id: string
+          value?: number | null
+        }
+        Update: {
+          availability?: string
+          definition_edition?: number
+          id?: string
+          metric?: string
+          observed_at?: string
+          paid_mixed?: boolean
+          period_end?: string
+          period_start?: string
+          place?: string
+          post_id?: string
+          raw?: Json
+          step?: string
+          tenant_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_observations_post_same_workspace"
+            columns: ["tenant_id", "post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "post_observations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -9825,6 +9966,89 @@ export type Database = {
         }
         Relationships: []
       }
+      touches: {
+        Row: {
+          at: string
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          emptied_at: string | null
+          evidence: Json
+          id: string
+          kind: string
+          message_id: string | null
+          new_person: boolean
+          place: string
+          provider_event_id: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Insert: {
+          at: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emptied_at?: string | null
+          evidence?: Json
+          id?: string
+          kind: string
+          message_id?: string | null
+          new_person?: boolean
+          place: string
+          provider_event_id: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Update: {
+          at?: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emptied_at?: string | null
+          evidence?: Json
+          id?: string
+          kind?: string
+          message_id?: string | null
+          new_person?: boolean
+          place?: string
+          provider_event_id?: string
+          subject_id?: string
+          subject_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "touches_contact_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_conversation_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_message_same_workspace"
+            columns: ["tenant_id", "message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_agents: {
         Row: {
           agent_id: string
@@ -10654,6 +10878,33 @@ export type Database = {
         Args: { p_conversation: string; p_message: string; p_tenant: string }
         Returns: boolean
       }
+      comment_answer_draft_keep: {
+        Args: {
+          p_cannot_why: string
+          p_draft: string
+          p_tenant_id: string
+          p_touch_id: string
+        }
+        Returns: boolean
+      }
+      comment_answer_leave: {
+        Args: { p_left: boolean; p_tenant_id: string; p_touch_id: string }
+        Returns: Json
+      }
+      comment_answer_send: {
+        Args: { p_tenant_id: string; p_touch_id: string; p_words: string }
+        Returns: Json
+      }
+      comment_answer_settle: {
+        Args: {
+          p_external_id: string
+          p_said: string
+          p_sent: boolean
+          p_tenant_id: string
+          p_touch_id: string
+        }
+        Returns: boolean
+      }
       consent_channels_of: {
         Args: { p_channel: string; p_purpose: string; p_source: string }
         Returns: string[]
@@ -11014,6 +11265,10 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: boolean
       }
+      file_copy_kept: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       file_copy_origin: {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: string
@@ -11046,6 +11301,10 @@ export type Database = {
       file_copy_settle: {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: Json
+      }
+      file_copy_shelved: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       file_copy_standing: {
         Args: { p_file_id: string; p_tenant_id: string }
@@ -11153,6 +11412,37 @@ export type Database = {
           p_sound_said: string
         }
         Returns: string
+      }
+      file_shelf_again: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      file_shelf_begin: {
+        Args: {
+          p_bytes: number
+          p_file_id: string
+          p_seconds_max: number
+          p_sha256: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      file_shelf_checked: {
+        Args: {
+          p_bytes: number
+          p_file_id: string
+          p_sha256: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      file_shelf_failed: {
+        Args: { p_file_id: string; p_tenant_id: string; p_why: string }
+        Returns: boolean
+      }
+      file_shelf_requeue: {
+        Args: { p_limit: number; p_stale_seconds: number }
+        Returns: number
       }
       file_sound_keep: {
         Args: {
@@ -13263,16 +13553,26 @@ export type Database = {
         }
         Returns: Json
       }
-      post_begin: {
+      post_by_hand_bell_settle: {
+        Args: { p_file_id: string; p_place: string; p_tenant_id: string }
+        Returns: number
+      }
+      post_comment_keep: {
         Args: {
-          p_caption: string
-          p_file_id: string
-          p_kind: string
-          p_place: string
+          p_account: string
+          p_at: string
+          p_comment_id: string
+          p_from: string
+          p_media_id: string
+          p_parent_id: string
           p_tenant_id: string
-          p_via?: string
-          p_when?: string
+          p_username: string
+          p_words: string
         }
+        Returns: Json
+      }
+      post_link_make: {
+        Args: { p_post_id: string; p_tenant_id: string }
         Returns: Json
       }
       post_move: { Args: { p_post_id: string; p_when: string }; Returns: Json }
@@ -13283,6 +13583,28 @@ export type Database = {
           p_post_id: string
           p_to: string
         }
+        Returns: boolean
+      }
+      post_observations_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          post_id: string
+          step: string
+          tenant_id: string
+        }[]
+      }
+      post_observations_keep: {
+        Args: {
+          p_definition_edition?: number
+          p_post_id: string
+          p_rows: Json
+          p_step: string
+          p_tenant_id: string
+        }
+        Returns: number
+      }
+      post_own_comment_keep: {
+        Args: { p_comment_id: string; p_parent_id: string; p_tenant_id: string }
         Returns: boolean
       }
       post_pull: { Args: { p_post_id: string }; Returns: Json }
@@ -14915,6 +15237,24 @@ export type Database = {
           updated_by: string
           version: number
         }[]
+      }
+      touches_age_out: { Args: { p_before?: string }; Returns: number }
+      touches_keep: {
+        Args: {
+          p_at: string
+          p_contact_id: string
+          p_conversation_id?: string
+          p_event_id: string
+          p_evidence?: Json
+          p_kind: string
+          p_message_id?: string
+          p_new_person?: boolean
+          p_place: string
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       trigger_calendar_sweep: { Args: never; Returns: number }

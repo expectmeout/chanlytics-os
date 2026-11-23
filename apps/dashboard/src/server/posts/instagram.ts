@@ -1,7 +1,7 @@
 /**
  * A made post on its way to the business's Instagram (decision 0121): a person's press, and only that, which is the approval
- * the placement records. The press writes the post and its first job through its door, on the member's own session (00611
- * post_begin), and answers at once; the edge makes it ready, rechecks right before the send, and sends it. Until the send,
+ * the placement records. The press writes the post and its first job through its door, on the member's own session (00681
+ * post_approve), and answers at once; the edge makes it ready, rechecks right before the send, and sends it. Until the send,
  * Don't post stops it. Offered only where the Meta link is switched on for the workspace and its account allows posting.
  */
 import "server-only";

@@ -12,6 +12,10 @@ export const takeDownPiece = (fileId: string) => api()("DELETE files/[id]/posts"
 export const markDeletedByHand = (fileId: string, postId: string) =>
   api()("PUT files/[id]/posts", { params: { id: fileId }, body: { post_id: postId } });
 
+/** A post of the piece's one link, made on first ask (00699): it opens a chat carrying the post's code, or its booking page. */
+export const makePiecePostLink = (fileId: string, postId: string) =>
+  api()("POST files/[id]/link", { params: { id: fileId }, body: { post_id: postId } });
+
 /** "Keep it up" (00689), of a post a place left to its owner to delete: it stays, and nothing more is asked. */
 export const keepPostUp = (fileId: string, postId: string) =>
   api()("PUT files/[id]/posts", { params: { id: fileId }, body: { post_id: postId, keep: true } });

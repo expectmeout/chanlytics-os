@@ -1,0 +1,49 @@
+/* Reports › Content (lens.tsx): where the lens's sentence, its lines and each post's line stand. Loaded with the lens,
+   which is fetched as it is drawn. Layout and the kit's tokens only; the figures are the page's strip (reports.css). */
+.rpt-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.rpt-content-head {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.rpt-content-line {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+.rpt-content-fine {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.rpt-content-posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rpt-content-posts li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.rpt-content-posts b {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.rpt-content-posts span {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}

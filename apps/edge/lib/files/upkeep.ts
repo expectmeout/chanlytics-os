@@ -20,11 +20,13 @@ import {
   fileFolderOf,
   recordOrNull,
   DbFailure,
+  type TenantId,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile } from "@chanlytics/channels/ai";
-import { deleteStreamVideo, readStreamVideo } from "@chanlytics/channels/files";
+import { deleteStreamVideo, readStreamVideo, removeFromShelf } from "@chanlytics/channels/files";
 import {
   filesBucket,
+  findShelfPart,
   findFileForWork,
   listFilesToLookAgain,
   listFilesToPurgeAgain,
@@ -44,6 +46,7 @@ import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import { ensureCopyOf } from "./copy/ensure.js";
 import { keepCopiesMoving } from "./copy/sweep.js";
+import { shelfOf } from "./shelf/shelve.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
 import { makePiece, tellPieceMoved } from "./piece-make.js";
@@ -61,6 +64,18 @@ const PURGE_AGAIN_AFTER_MS = HOUR_MS;
 const PURGE_AGAIN_UNTIL_MS = WEEK_MS;
 /** A video Stream has not answered for this long is asked after; one past a day is its purge's to let go. */
 const VIDEO_ASK_AFTER_MS = 2 * MIN_MS;
+
+/**
+ * A removed file's copy on Chanlytics' own shelf goes with it (the archive plan's B2), whatever state that copy's row
+ * is in: a removed video leaves nothing there. A shelf that will not say it let go is a throw, so the file's row, which
+ * is what names the copy, is held until it does.
+ */
+async function leaveTheShelf(db: Db, tenantId: TenantId, fileId: string): Promise<void> {
+  if (!(await findShelfPart(db, tenantId, fileId))) return;
+  const shelf = shelfOf();
+  if (!shelf || !(await removeFromShelf(shelf, { tenantId, fileId })))
+    throw new Error("file_purge: the shelf kept the video");
+}
 
 /**
  * file_purge: what a file left, let go. Throws when anything stays, so the ledger tries again. It also comes a day after every
@@ -93,6 +108,7 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
     if (!account) throw new Error("file_purge: no Stream key to let the video go");
     if (!(await deleteStreamVideo(account, held.mediaRef))) throw new Error("file_purge: Stream kept the video");
   }
+  await leaveTheShelf(db, job.tenant_id, fileId);
   const folder = fileFolderOf(job.tenant_id, fileId);
   const listed = await filesBucket(db).list(folder);
   if (listed.error) throw new DbFailure(listed.error, "file_purge");
@@ -164,7 +180,7 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
   return { asked: waiting.length, digests: stopped.length };
 }
 
-/** A Google post a press began and never heard back on, this long on, is failed in words: 00616 post_begin's own ten minutes. */
+/** A Google post a press began and never heard back on, this long on, is failed in words: 00681 post_approve's own ten minutes. */
 const GOOGLE_SILENT_AFTER_MS = 10 * MIN_MS;
 
 /**

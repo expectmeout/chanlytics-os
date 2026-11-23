@@ -21,6 +21,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
 import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
+import type { CommentRowDto } from "../content/results/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import { runDaysAt } from "../campaigns/playbooks/approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
@@ -66,6 +67,8 @@ interface TodayBeside {
   formRequests?: readonly FormOpenRequestDto[] | null;
   /** Each form's entries held for a look that nobody has looked at in three days (00680). Null or absent: not read. */
   formHeld?: readonly FormHeldDto[] | null;
+  /** The comments on the business's posts that wait on the owner (00699): each a row. Null or absent: not read. */
+  comments?: readonly CommentRowDto[] | null;
   /** How many things the members dealt with today (TodayVM.done_today). Null or absent: not read. */
   doneToday?: number | null;
   /** What the workspace calls an appointment (TodayVM.word). Null or absent: not read. */
@@ -100,6 +103,7 @@ export function toTodayVM(
     previewsTried: [...(beside.previewsTried ?? [])],
     formRequests: [...(beside.formRequests ?? [])],
     formHeld: [...(beside.formHeld ?? [])],
+    comments: [...(beside.comments ?? [])],
   });
   // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
   const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(result.tz, now)).length : null;

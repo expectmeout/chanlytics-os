@@ -10,11 +10,11 @@
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
     "@chanlytics/log": "workspace:*",
-    "@supabase/supabase-js": "^2.118.0"
+    "@supabase/supabase-js": "^2.119.2"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "next": "^16.4.5",
+    "next": "^16.4.6",
     "react": "^19.3.1",
     "stripe": "22.6.2",
     "typescript": "catalog:",

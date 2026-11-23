@@ -53,6 +53,7 @@ import { PeopleLens, usePeopleFold } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
 import { ReceptionistLens } from "./lenses/receptionist";
 import { ReviewsLens } from "./lenses/reviews";
+import { ContentLens } from "./lenses/content/lens";
 import { LensEmpty, type LensProps } from "./lenses/shared";
 import { backToShown, setReportRange } from "./period";
 import { PeriodPicker } from "./period-picker";
@@ -179,6 +180,8 @@ function lensBody(
       return <PipelineLens {...props} />;
     case "campaigns":
       return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} here={scope} />;
+    case "content":
+      return <ContentLens />;
     case "ads":
       if (!ads) return null;
       return <ads.Live dto={ads.live} failed={ads.failed} />;

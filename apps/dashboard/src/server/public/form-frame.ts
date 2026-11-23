@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * /f/<code>: a form framed in a business's own website (the Forms plan, F4 and 3.11; Ruben's call 15). The code is the
- * form's website link (00692: the one link that holds the sites the form may show on), and the page is the hosted form
+ * form's website link (00701: the one link that holds the sites the form may show on), and the page is the hosted form
  * whole, with its checks and its one write (form-page.ts), drawn at an address of its own that knows no session: no
  * cookie is read and no test is drawn. Its content policy names the link's sites, and only them, as the frame's
  * ancestors, so a copy of the lines on anyone else's page shows nothing: the list is held by the visitor's own browser.
@@ -16,7 +16,7 @@ import "server-only";
  * Cross-workspace: a code names one link, and the link its own workspace; nothing else is read.
  */
 import { frameAncestorsOf } from "@chanlytics/contracts";
-import { findLinkSites, openLink, type LinkOpened } from "@chanlytics/db/forms";
+import { findLinkSites, openLink } from "@chanlytics/db/forms";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contentSecurityPolicy } from "@/csp";
@@ -55,18 +55,21 @@ const nothingFramed = (status = 404) =>
     [],
   );
 
-/** The website link a code names, its form's address and its sites; null where the code opens no website's form. */
+/**
+ * The website link a code names, its form's address and its sites; null where the code opens no website's form (a
+ * post's link included: it lands on a chat or a booking page, never in a frame).
+ */
 async function findWebsiteFrame(
   db: Db,
   code: string,
   counted: boolean,
-): Promise<{ opened: LinkOpened; frame: FormFrameAt } | null> {
+): Promise<{ workspace: string; slug: string; frame: FormFrameAt } | null> {
   const opened = await openLink(db, code, counted);
-  if (!opened?.workspace || opened.stopped || !opened.subject.slug) return null;
+  if (!opened?.workspace || opened.stopped || opened.subject.type !== "form" || !opened.subject.slug) return null;
   const sites = await findLinkSites(db, opened.tenantId, opened.linkId);
   // A place that is not the website's has no frame: its code opens the form through /l/ alone.
   if (sites === null) return null;
-  return { opened, frame: { code: opened.code, sites } };
+  return { workspace: opened.workspace, slug: opened.subject.slug, frame: { code: opened.code, sites } };
 }
 
 /** A frame's page drawn, or its send taken: the hosted form at the frame's own address, under its own policy. */
@@ -83,11 +86,11 @@ async function answerFrame(code: string, request: Request, send: boolean): Promi
     return nothingFramed(503);
   }
   if (!found) return nothingFramed();
-  const { opened, frame } = found;
+  const { workspace, slug, frame } = found;
   // A frame knows no session: nobody is asked who is signed in, and no test is drawn.
   const answer = send
-    ? await takeFormPost(opened.workspace, opened.subject.slug ?? "", request, frame)
-    : await drawFormPage(opened.workspace, opened.subject.slug ?? "", request, frame);
+    ? await takeFormPost(workspace, slug, request, frame)
+    : await drawFormPage(workspace, slug, request, frame);
   return framed(answer, frame.sites);
 }
 

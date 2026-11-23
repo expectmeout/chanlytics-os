@@ -42,8 +42,9 @@ async function printedOf(code: string, request: Request): Promise<Printed | null
   const db = linkPageDb();
   if (!db || !LINK_CODE.test(clean)) return null;
   const opened = await openLink(db, clean, false);
-  if (!opened?.workspace || opened.stopped || !opened.subject.slug || opened.subject.state !== "live") return null;
-  const place = await findFormPlace(db, opened.workspace, opened.subject.slug);
+  const form = opened?.subject.type === "form" ? opened.subject : null;
+  if (!opened?.workspace || opened.stopped || !form?.slug || form.state !== "live") return null;
+  const place = await findFormPlace(db, opened.workspace, form.slug);
   const version = place?.form.liveVersionId
     ? await findFormVersion(db, place.tenantId, place.form.liveVersionId)
     : null;

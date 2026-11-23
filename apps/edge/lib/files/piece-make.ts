@@ -91,11 +91,14 @@ import {
 } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
-import { randomUUID } from "node:crypto";
+import { logAndGoOn } from "@chanlytics/log";
+import { createHash, randomUUID } from "node:crypto";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { ensureCopy } from "./copy/ensure.js";
+import { makeRoom } from "./copy/let-go.js";
+import { beginShelving } from "./shelf/shelve.js";
 import { streamKeys } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;
@@ -436,7 +439,7 @@ async function settleNotOurs(db: Db, piece: PieceRow, machine: RenderMachine, fi
 }
 
 /** The drawn video into the video platform, as a file made here. Its row first, so the platform's word finds it. */
-async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<void> {
+async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine, deadline: number): Promise<void> {
   const machine = machineOf(kept);
   const keys = streamKeys();
   if (!keys) throw new Error("piece_make: Stream is not configured here");
@@ -458,15 +461,21 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<v
     await machines.stop(machine);
     return endWith(db, piece, "store");
   }
-  const file = await beginPieceFile(db, {
-    pieceId: piece.id,
-    id,
-    mediaRef: reserved.mediaRef,
-    name: madeNameOf(plan),
-    bytes: bytes.length,
-    fingerprint: fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length),
-    seconds,
-  });
+  const begin = () =>
+    beginPieceFile(db, {
+      pieceId: piece.id,
+      id,
+      mediaRef: reserved.mediaRef,
+      name: madeNameOf(plan),
+      bytes: bytes.length,
+      fingerprint: fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length),
+      seconds,
+    });
+  let file = await begin();
+  // The videos are full: what can give its place back steps aside for this one, the least recently used first (a
+  // video with a copy on Chanlytics' own shelf, a watched folder's clip), and it is asked once more. Where nothing
+  // can, it ends as it did before.
+  if (file.fate === "minutes" && (await makeRoom(db, piece.tenant_id, seconds, deadline))) file = await begin();
   if (file.fate !== "kept" || file.file_id !== id) {
     // Not this reservation's row: the place reserved for nothing is let go, and what became of the video is said.
     await deleteStreamVideo(keys.account, reserved.mediaRef);
@@ -482,6 +491,14 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine): Promise<v
   // Its bytes all went: its row says so first, in one step with its machine let go, so nothing after this can throw it away.
   await markPieceSent(db, piece.id);
   await machines.stop(machine);
+  // Its copy on Chanlytics' own shelf is begun (the archive plan's B2), held to these very bytes: their SHA-256 is
+  // taken here, as they pass. Never the video's to fail: without a shelf copy it only keeps its place at the platform.
+  await beginShelving(db, {
+    tenantId: piece.tenant_id,
+    fileId: id,
+    bytes: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  }).catch(logAndGoOn("shelf: begin a made video's copy"));
   logger({ tenant_id: piece.tenant_id }).info("piece_drawn", {
     piece: piece.id,
     bytes: bytes.length,
@@ -501,7 +518,7 @@ async function wait(db: Db, piece: PieceRow, tick: number, deadline: number): Pr
     if (state.stage === "done") {
       // Not enough of this run left to send it: the next tick finds it done and sends it.
       if (deadline - Date.now() < FINISH_NEEDS_MS) return scheduleStep(db, piece, { step: "wait", tick: tick + 1 });
-      return keepDrawn(db, piece, kept);
+      return keepDrawn(db, piece, kept, deadline);
     }
     if (state.stage === "failed") return drawAgainOrEnd(db, piece, kept, state.error);
     if (state.stage === "gone") return drawAgainOrEnd(db, piece, kept, "the machine is gone");

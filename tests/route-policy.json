@@ -3224,6 +3224,62 @@
       "role": "partner",
       "rate": null,
       "spend": false
+    },
+    "GET comments/one": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET comments": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST comments": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "reply",
+      "spend": false
+    },
+    "POST comments/rewrite": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
+    "GET content/report": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET content/week": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST files/[id]/link": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET files/[id]/results": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
     }
   }
 }

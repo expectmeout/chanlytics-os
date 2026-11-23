@@ -26,7 +26,7 @@ function setAt(posts: readonly PostSet[], place: PostPlace, as: InstagramPostKin
         p.place === place &&
         p.kind === kind &&
         (p.status === "queued" || p.status === "preparing") &&
-        // Later than this a post waits for its time; sooner, it is going up now (contracts POST_SOON_MS, 00616 post_begin).
+        // Later than this a post waits for its time; sooner, it is going up now (contracts POST_SOON_MS, 00681 post_approve).
         Date.parse(p.scheduled_for) - nowMs > POST_SOON_MS,
     ) ?? null
   );

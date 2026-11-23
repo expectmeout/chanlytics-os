@@ -43,15 +43,83 @@
  * since the backup is already written and the script is idempotent; for a workspace too large to finish, run the same
  * two deletes from psql after `set statement_timeout = 0`.
  *
- * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * And its videos on Chanlytics' own shelf (the archive plan's B2): a private bucket behind the relay, where a video made
+ * here keeps a copy by a key that begins with the workspace's id. No cascade reaches it, so they are counted with the
+ * rest, named in the backup (file_archive_parts.shelf_key), and removed through the relay after the rows, under a
+ * ticket for each. An apply waits where one is being put there this very minute, so nothing lands after the workspace
+ * is gone.
+ *
+ * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY; and to empty what is outside the database, each for this run:
+ *      ANTHROPIC_API_KEY, CLOUDFLARE_ACCOUNT_ID with CLOUDFLARE_STREAM_API_TOKEN, FOOTAGE_RELAY_URL with FOOTAGE_TICKET_KEY
  * Usage:
  *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
  *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply
  */
 import { createClient } from "@supabase/supabase-js";
+import { createHmac } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+/** One video's removal from the shelf: a small call to the relay. */
+const SHELF_CALL_MS = 10_000;
+/** How long a shelf ticket made here runs: one call's worth, and some. */
+const SHELF_TICKET_S = 300;
+/**
+ * A put on the shelf ends within a minute of its start, stored whole or not at all (apps/relay/README.md). A copy
+ * still saving and touched within twice that may be landing right now.
+ */
+const SHELF_PUT_SETTLES_MS = 2 * 60_000;
+
+/**
+ * The shelf's ticket to take one workspace's one file off it, as the relay reads one (apps/relay/src/ticket.ts
+ * `readShelfTicket`): written out here because this script runs as plain Node and imports nothing of the app's. The
+ * test holds it to the relay's own reader.
+ */
+export function shelfDeleteTicket(ticketKey, video, nowMs = Date.now()) {
+  const claim = {
+    for: "shelf",
+    tenant: video.tenant,
+    file: video.file,
+    use: "delete",
+    exp: Math.floor(nowMs / 1000) + SHELF_TICKET_S,
+  };
+  const body = `v2.${Buffer.from(JSON.stringify(claim), "utf8").toString("base64url")}`;
+  return `${body}.${createHmac("sha256", ticketKey).update(body).digest().toString("base64url")}`;
+}
+
+/** The videos a workspace keeps on the shelf, read off its copies' pieces: each key is `<workspace>/<file>/video`. */
+export function shelvedOf(parts) {
+  return (parts ?? [])
+    .map((part) => /^([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/video$/.exec(String(part.shelf_key ?? "")))
+    .filter(Boolean)
+    .map(([, tenant, file]) => ({ tenant, file }));
+}
+
+/** The shelf copies that may be landing this minute: still saving, and touched within the time a put settles in. */
+export function shelvingNow(copies, nowMs = Date.now()) {
+  return (copies ?? []).filter(
+    (copy) =>
+      copy.origin === "shelf" &&
+      copy.state === "saving" &&
+      nowMs - Date.parse(copy.updated_at ?? copy.created_at ?? 0) < SHELF_PUT_SETTLES_MS,
+  );
+}
+
+/** Each video taken off the shelf through the relay, under a ticket of its own. Answers how many stayed. */
+export async function removeShelved(relay, videos, ask = fetch) {
+  let stayed = 0;
+  for (const video of videos) {
+    const res = await ask(`${relay.url.replace(/\/+$/, "")}/shelf/${encodeURIComponent(video.file)}/video`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${shelfDeleteTicket(relay.ticketKey, video)}` },
+      signal: AbortSignal.timeout(SHELF_CALL_MS),
+    }).catch(() => null);
+    // The shelf says 204 for one it let go and for one it never held.
+    if (res?.status !== 204) stayed++;
+  }
+  return stayed;
+}
 
 /** One copy's delete at Anthropic: a small call, with room for a slow answer. */
 const ANTHROPIC_CALL_MS = 10_000;
@@ -138,6 +206,11 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
+  // What a post said back (00699): its numbers by read, people's touches of a post or a link, and the public answers to
+  // comments.
+  "post_observations",
+  "touches",
+  "comment_answers",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",
@@ -487,6 +560,24 @@ async function main() {
       `${videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
     );
 
+  // Its videos on Chanlytics' own shelf (00695), by the keys on their pieces: removed there after the rows. Without the
+  // relay's address and the ticket's key for this run they stay there, private and unreachable, until removed by hand.
+  const shelved = shelvedOf(byTable.get("file_archive_parts"));
+  const relay = { url: process.env.FOOTAGE_RELAY_URL, ticketKey: process.env.FOOTAGE_TICKET_KEY };
+  if (shelved.length)
+    console.log(
+      `  ${"videos on the shelf".padEnd(22)} ${String(shelved.length).padStart(6)}   removed there after the rows`,
+    );
+  if (shelved.length && !(relay.url && relay.ticketKey))
+    orphans.push(
+      `${shelved.length} videos on Chanlytics' own shelf. Set FOOTAGE_RELAY_URL and FOOTAGE_TICKET_KEY for this run to remove them, or remove them there by the keys in the backup (file_archive_parts.shelf_key).`,
+    );
+  const landing = shelvingNow(byTable.get("file_archives"));
+  if (landing.length)
+    orphans.push(
+      `${landing.length} videos are being put on the shelf this minute. Run this again in two minutes, so nothing lands there after the workspace is gone.`,
+    );
+
   if (orphans.length) {
     console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
     for (const o of orphans) console.log(`  · ${o}`);
@@ -585,6 +676,17 @@ async function main() {
     console.log(`deleted ${videos.length - stayed} of ${videos.length} videos at Stream`);
     if (stayed) {
       console.error(`${stayed} videos stayed at Stream: delete them there by the ids in the backup (files.media_ref).`);
+      process.exitCode = 1;
+    }
+  }
+
+  if (shelved.length && relay.url && relay.ticketKey) {
+    const stayed = await removeShelved(relay, shelved);
+    console.log(`removed ${shelved.length - stayed} of ${shelved.length} videos from the shelf`);
+    if (stayed) {
+      console.error(
+        `${stayed} videos stayed on the shelf: remove them there by the keys in the backup (file_archive_parts.shelf_key).`,
+      );
       process.exitCode = 1;
     }
   }

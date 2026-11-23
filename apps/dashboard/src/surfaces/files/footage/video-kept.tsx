@@ -7,6 +7,9 @@
  * canvas's call 5). After the press the page waits and goes on by itself: it asks where the copy stands every few
  * seconds, which asks for nothing, and plays the clip the moment it is back. Every wait says that it ends by itself;
  * only a clip whose original is truly gone asks anything of its owner.
+ *
+ * A video made here that stepped aside is drawn the same way and said as any video (the archive PRD's section 8): its
+ * still with Play and its sound, and no word of where it is kept.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -41,10 +44,10 @@ interface CopyStanding {
 
 /**
  * What the page knows beside the clip's own row: its folder and account, where a watched folder was read, its day to
- * leave, and whether its owner added it. `addedHere` is the press of "Add the video again" that brought it back, which
- * the Library's row says only at its next read.
+ * leave, whether its owner added it, and whether it was made here. `addedHere` is the press of "Add the video again"
+ * that brought it back, which the Library's row says only at its next read.
  */
-function factsHere(file: Pick<FileDto, "origin_left_at" | "owner_uploaded">, addedHere: boolean): CopyFacts {
+function factsHere(file: Pick<FileDto, "origin_left_at" | "owner_uploaded" | "source">, addedHere: boolean): CopyFacts {
   const footage = heldFootage();
   const uploaded = addedHere || file.owner_uploaded === true;
   return {
@@ -53,6 +56,7 @@ function factsHere(file: Pick<FileDto, "origin_left_at" | "owner_uploaded">, add
     leaves: uploaded ? null : leavesOn(file, knownZone() ?? "UTC"),
     connected: !!footage?.account,
     uploaded,
+    made: file.source === "made",
   };
 }
 
@@ -203,6 +207,21 @@ function actButton(act: CopyAct, press: { play: () => void; again: () => void; b
   );
 }
 
+/**
+ * Where the video stands, said over its still: the ring where it is on its way by itself, its head, its line, and under
+ * them what can be pressed. A video made here that only stepped aside says nothing, so only its presses are drawn.
+ */
+function KeptWords(props: { mark: "play" | "ring" | "none"; head: string; line: string; children: ReactNode }) {
+  return (
+    <div className="fo-kept-words" role="status">
+      {props.mark === "ring" ? <span className="fo-kept-ring" aria-hidden="true" /> : null}
+      {props.head ? <b>{props.head}</b> : null}
+      {props.line ? <p>{props.line}</p> : null}
+      <div className="fo-kept-acts">{props.children}</div>
+    </div>
+  );
+}
+
 interface VideoKeptProps {
   file: FileDto;
   said: string;
@@ -237,7 +256,13 @@ export function VideoKept({ file, said, standing, asking, onPlay, onComing }: Vi
   if (!words) return null;
   const hasSound = !!file.sound_said && file.sound_said !== "no sound";
   return (
-    <div className="fo-kept" data-copy={standing.copy} data-testid="fo-kept">
+    <div
+      className="fo-kept"
+      data-copy={standing.copy}
+      // A video made here often opens on words of its own: a line said over it sets its still further back.
+      data-deep={file.source === "made" && words.head ? "true" : undefined}
+      data-testid="fo-kept"
+    >
       <LineFiles
         ref={picker}
         accept={FILE_PICKS_WITH_VIDEO}
@@ -251,21 +276,16 @@ export function VideoKept({ file, said, standing, asking, onPlay, onComing }: Vi
       {listening ? (
         <SoundOnly file={file} onVideo={words.act === "play" ? onPlay : null} />
       ) : (
-        <div className="fo-kept-words" role="status">
-          {words.mark === "ring" ? <span className="fo-kept-ring" aria-hidden="true" /> : null}
-          <b>{words.head}</b>
-          <p>{refused ?? words.body}</p>
-          <div className="fo-kept-acts">
-            {words.act
-              ? actButton(words.act, { play: onPlay, again: () => picker.current?.click(), busy: asking || adding })
-              : null}
-            {hasSound ? (
-              <Button size="sm" onClick={() => setListening(true)} data-testid="fo-kept-listen">
-                <Icon name="headphones" size={12} /> {W.listen}
-              </Button>
-            ) : null}
-          </div>
-        </div>
+        <KeptWords mark={words.mark} head={words.head} line={refused ?? words.body}>
+          {words.act
+            ? actButton(words.act, { play: onPlay, again: () => picker.current?.click(), busy: asking || adding })
+            : null}
+          {hasSound ? (
+            <Button size="sm" onClick={() => setListening(true)} data-testid="fo-kept-listen">
+              <Icon name="headphones" size={12} /> {W.listen}
+            </Button>
+          ) : null}
+        </KeptWords>
       )}
     </div>
   );

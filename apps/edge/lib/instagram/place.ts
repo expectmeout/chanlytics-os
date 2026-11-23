@@ -9,6 +9,7 @@
  * status, never at the call (metaContainerErrorOf).
  */
 import {
+  COMMENT_ANSWER_WORDS,
   ON_INSTAGRAM,
   PLACE_CAPABILITIES,
   type InstagramPostKind,
@@ -24,6 +25,8 @@ import {
   type SendOutcome,
   type SentPlacement,
   type TakeDownAnswer,
+  type CommentAnswerSent,
+  type ObservedPost,
 } from "@chanlytics/contracts";
 import {
   callInstagram,
@@ -48,6 +51,9 @@ import {
   type InstagramDeps,
   type MetaMedia,
   type MetaPoster,
+  instagramObservationsOf,
+  metaCommentReplyRequest,
+  metaInsightsRequest,
 } from "@chanlytics/channels/instagram";
 
 /** The longest one call to Instagram waits (KIND_POLICY longestCallMs is 20 s). */
@@ -186,6 +192,40 @@ async function takeDownOn({ poster, call }: PlaceHands, post: SentPlacement): Pr
   return { outcome: "needs_person", said: ON_INSTAGRAM.takeDown.byHand, kept };
 }
 
+/** A post's numbers read with the Meta link's token: only those its kind was proved to give, every other one said. */
+async function observeOn({ poster, call }: PlaceHands, post: SentPlacement): Promise<ObservedPost> {
+  if (!post.externalId)
+    return {
+      observations: instagramObservationsOf({ outcome: "unknown", json: null }, post.kind),
+      kept: { status: null, json: null },
+    };
+  const read = await call(metaInsightsRequest(poster, post.externalId, post.kind));
+  return { observations: instagramObservationsOf(read, post.kind), kept: answerKeptOf(read) };
+}
+
+/** A public answer under a comment, as the business: its id, Meta's refusal in words, or no answer (never sent twice). */
+async function answerCommentOn(
+  { poster, call }: PlaceHands,
+  commentId: string,
+  words: string,
+): Promise<CommentAnswerSent> {
+  const sent = await call(metaCommentReplyRequest(poster, commentId, words));
+  const kept = answerKeptOf(sent);
+  if (sent.outcome === "ok") {
+    const id = parseMetaCreatedId(sent.json);
+    return id ? { is: "sent", externalId: id, kept } : { is: "unknown", kept };
+  }
+  if (sent.outcome === "refused") {
+    const r = metaPostRefusalOf(sent, "picture");
+    return {
+      is: "refused",
+      refusal: { words: COMMENT_ANSWER_WORDS.refused, code: r.code, subcode: r.subcode, busy: false },
+      kept,
+    };
+  }
+  return { is: "unknown", kept };
+}
+
 /** Instagram's adapter, over the account the Meta link connected and its token. */
 export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}): PlaceAdapter {
   const hands: PlaceHands = {
@@ -202,5 +242,7 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
     publish: (post, ref) => publishOn(hands, post, ref),
     status: (post) => (post.externalId ? readById(hands, post, post.externalId) : readByListing(hands, post)),
     takeDown: (post) => takeDownOn(hands, post),
+    observe: (post) => observeOn(hands, post),
+    answerComment: (commentId, words) => answerCommentOn(hands, commentId, words),
   };
 }
