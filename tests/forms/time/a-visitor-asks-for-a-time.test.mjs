@@ -13,7 +13,7 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { A, consultForm, emailWire, formWorld } from "../_form-requests.mjs";
+import { A, consultForm, emailWire, FORM, formWorld } from "../_form-requests.mjs";
 import { formTimeDoors } from "./_doors.mjs";
 import { localToUtcMs } from "@chanlytics/contracts";
 
@@ -201,6 +201,7 @@ test("a time picked is the same request a chat opens: held for the business, in 
   assert.equal(visit.status, "proposed");
   assert.equal(visit.source, "receptionist");
   assert.equal(visit.conversation_id, null, "no thread, and so no hand-over");
+  assert.deepEqual([visit.through_type, visit.through_id], ["form", FORM], "and it says it answered the form");
   assert.equal(visit.service, "Balayage");
   assert.equal(Date.parse(visit.ends_at) - Date.parse(visit.starts_at), 2 * HOUR_MS, "a balayage takes two hours");
   const link = made.tables.form_entry_links.find((l) => l.kind === "visit");

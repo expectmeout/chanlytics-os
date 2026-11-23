@@ -701,6 +701,7 @@
     "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a",
     "00697_a_post_is_begun_by_its_approval_alone.sql": "e93917b7c99e47e97235df87cd0a81cd0c80015cb1274bc96c007678943c92c6",
     "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
-    "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627"
+    "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
+    "00700_a_visit_a_form_asked_for_says_the_form.sql": "cff0879689e43bb1bafe749f556e5db918caeb82f89aff799a73ab9dcbc56970"
   }
 }

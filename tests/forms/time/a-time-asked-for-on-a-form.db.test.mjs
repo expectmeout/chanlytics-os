@@ -1,13 +1,13 @@
 /**
  * A time asked for on a form on a real database (00691; the Forms plan, F3; decision 0061): form_time_request_take
  * keeps the entry as form_request_take does and, for one accepted with its person, opens the same request a chat opens
- * in the same transaction: a proposed visit, the receptionist's, held 23 hours at most and never past an hour before it,
- * in no thread and with no hand-over, the person's request before it let go (one a chat held leaves a reply owed
- * there), named from the entry by its visit link. Two people who ask for one time are two requests. The owner answers
- * it with the chat's own door (booking_request_answer); past its day Booked it is refused, and the request clock never
- * takes it up. form_booking_open counts a business's own booking page opened from a form. form_requests_open and
- * form_results say the time and the counts. A function body is what reading source cannot prove, so these run
- * against Postgres. Skipped without a local database; never production.
+ * in the same transaction: a proposed visit, the receptionist's, held 23 hours at most and never past an hour before
+ * it, in no thread and with no hand-over, the person's request before it let go (one a chat held leaves a reply owed
+ * there), named from the entry by its visit link, and saying it answered the form (00700: through_type form). Two
+ * people who ask for one time are two requests. The owner answers it with the chat's own door (booking_request_answer);
+ * past its day Booked it is refused, and the request clock never takes it up. form_booking_open counts a business's own
+ * booking page opened from a form. form_requests_open and form_results say the time and the counts. A function body is
+ * what reading source cannot prove, so these run against Postgres. Skipped without a local database; never production.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -155,6 +155,8 @@ test(
     assert.equal(visit.status, "proposed");
     assert.equal(visit.source, "receptionist");
     assert.equal(visit.conversation_id, null);
+    assert.equal(visit.through_type, "form", "it says it answered the form (00700)");
+    assert.equal(visit.through_id, formId);
     assert.equal(visit.service, "Balayage");
     assert.ok(Math.abs(Date.parse(visit.expires_at) - (Date.now() + 23 * HOUR_MS)) < 5 * 60_000, "held 23 hours");
     const holds = ok(await db.from("escalations").select("id").eq("tenant_id", tenantId), "holds");
