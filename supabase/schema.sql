@@ -48740,7 +48740,7 @@ CREATE TABLE public.form_entries (
     CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
     CONSTRAINT form_entries_form_names_version CHECK (((form_id IS NULL) = (version_id IS NULL))),
     CONSTRAINT form_entries_held_says_why CHECK (((state = 'held'::text) = (held_why IS NOT NULL))),
-    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text])))),
+    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text, 'elsewhere'::text])))),
     CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
     CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
     CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
@@ -48825,7 +48825,7 @@ COMMENT ON COLUMN public.form_entries.test IS 'A test its owner sent: it tells n
 -- Name: COLUMN form_entries.held_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member).';
+COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form''s address and not from its own page (elsewhere, 00703).';
 
 
 --
@@ -50433,10 +50433,12 @@ CREATE TABLE public.links (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     stopped_at timestamp with time zone,
     lands text,
+    sites text[],
     CONSTRAINT links_code_check CHECK ((code ~ '^[a-hjkmnp-z2-9]{6}$'::text)),
     CONSTRAINT links_lands_a_post CHECK (((subject_type = 'post'::text) = (lands IS NOT NULL))),
     CONSTRAINT links_lands_check CHECK ((lands = ANY (ARRAY['chat'::text, 'booking'::text]))),
     CONSTRAINT links_place_check CHECK (((char_length(btrim(place)) >= 1) AND (char_length(btrim(place)) <= 60))),
+    CONSTRAINT links_sites_check CHECK (((sites IS NULL) OR ((cardinality(sites) <= 10) AND (array_position(sites, NULL::text) IS NULL) AND ((cardinality(sites) = 0) OR (array_to_string(sites, ' '::text) ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+( [a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+)*$'::text))))),
     CONSTRAINT links_subject_type_check CHECK ((subject_type = ANY (ARRAY['form'::text, 'post'::text])))
 );
 
@@ -50453,6 +50455,13 @@ COMMENT ON TABLE public.links IS 'A short link for one place a thing of the busi
 --
 
 COMMENT ON COLUMN public.links.lands IS 'Where a post''s link lands (00699): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
+
+
+--
+-- Name: COLUMN links.sites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.links.sites IS 'The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them.';
 
 
 --
@@ -57180,6 +57189,13 @@ CREATE INDEX link_days_workspace ON public.link_days USING btree (tenant_id, day
 --
 
 CREATE UNIQUE INDEX links_one_a_post ON public.links USING btree (tenant_id, subject_id) WHERE (subject_type = 'post'::text);
+
+
+--
+-- Name: links_one_website_a_form; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX links_one_website_a_form ON public.links USING btree (tenant_id, subject_type, subject_id) WHERE (sites IS NOT NULL);
 
 
 --
@@ -74932,6 +74948,13 @@ GRANT INSERT(created_by) ON TABLE public.links TO authenticated;
 --
 
 GRANT UPDATE(stopped_at) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.sites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(sites),UPDATE(sites) ON TABLE public.links TO authenticated;
 
 
 --

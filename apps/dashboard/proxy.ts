@@ -100,11 +100,30 @@ const PUBLIC_PATHS = new Set([
  *           /signup is, and makes nothing. Making it theirs is not under the prefix: it is /api/v1/preview-claims,
  *           behind sign-in.
  *
+ *   /f/     a form framed in a business's own website (the Forms plan, F4). Like /l/ it is read by a short code
+ *           that says nothing by itself, and its send is the hosted form's own door with the hosted form's checks.
+ *           It knows no session: the proxy returns before one is read (below), and its content policy is its
+ *           route's, naming the sites the form may be framed on in place of 'none' (src/server/public/form-frame.ts).
+ *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/l/", "/preview/", "/api/v1/previews/"];
+const PUBLIC_PREFIXES = [
+  "/yes/",
+  "/b/",
+  "/.well-known/",
+  "/u/",
+  "/p/",
+  "/c/",
+  "/l/",
+  "/f/",
+  "/preview/",
+  "/api/v1/previews/",
+];
+
+/** A form framed in a business's own website: an address that knows no session, under its route's own policy. */
+const FRAMED_FORM = "/f/";
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a
@@ -152,6 +171,10 @@ export async function proxy(request: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   const moved = canonicalRedirect(request);
   if (moved) return moved;
+  // A form framed in a business's own website (the Forms plan, F4) knows no session: none is read or refreshed for it,
+  // since a frame on another site carries none, and its content policy is its route's own, which names the sites it
+  // may be framed on where every other answer says 'none'.
+  if (request.nextUrl.pathname.startsWith(FRAMED_FORM)) return NextResponse.next();
   // The policy composed in src/csp.ts, on the response so the browser
   // enforces it. Nothing rides on the request: the
   // nonce a request header would carry does not reach the render on Vercel

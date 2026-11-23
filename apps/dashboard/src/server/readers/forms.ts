@@ -13,6 +13,7 @@ import {
   formRequestNote,
   formTimeHolds,
   formTimeStatusOf,
+  isOnSite,
   MIN_MS,
   recordOrEmpty,
   requestLines,
@@ -43,6 +44,7 @@ import {
   listFormEntriesHeldBefore,
   listFormEntryLinks,
   listFormLinks,
+  listLinkEntrySites,
   listForms,
   listFormVersions,
   listOpenFormRequests,
@@ -156,6 +158,9 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
     const mine = results.places.filter((place) => place.formId === form.id);
     const sum = (pick: (place: (typeof mine)[number]) => number) =>
       mine.reduce((total, place) => total + pick(place), 0);
+    // The website (F4): when a request last came from each site the form may show on.
+    const website = links.find((link) => link.sites !== null);
+    const fromSites = website ? await listLinkEntrySites(db, rc.tenantId, website.id) : [];
     const linkRows: FormLinkDto[] = links.map((link) => {
       const brought = mine.find((place) => place.linkId === link.id);
       return {
@@ -167,6 +172,11 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
         opens: results.opens.get(link.id) ?? 0,
         requests: brought?.requests ?? 0,
         visits: brought?.visits ?? 0,
+        sites:
+          link.sites?.map((host) => ({
+            host,
+            last_entry_at: fromSites.find((entry) => isOnSite(entry.site, host))?.createdAt ?? null,
+          })) ?? null,
       };
     });
     const openIds = new Set(open.map((request) => request.id));

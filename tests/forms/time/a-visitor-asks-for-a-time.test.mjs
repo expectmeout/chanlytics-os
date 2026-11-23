@@ -141,7 +141,7 @@ const startOf = (slot) => {
   return localToUtcMs("America/New_York", y, m, d, hh, mm);
 };
 
-/** A send as the page's own form makes it, carrying what the page carried. */
+/** A send as the page's own form makes it, carrying what the page carried, from its own address (its Origin). */
 async function send(answers, carried) {
   // Ten seconds after the page was drawn: a person typing, never too fast.
   const body = new URLSearchParams({ ...carried, t: String(Date.now() - 10_000) });
@@ -151,7 +151,7 @@ async function send(answers, carried) {
     "colour-consultation",
     new Request(ADDRESS, {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: new URL(ADDRESS).origin },
       body,
     }),
     nobody,
