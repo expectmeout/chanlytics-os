@@ -27,4 +27,6 @@ export interface PieceStanding {
   takeDown: (() => void) | null;
   /** The sheet a piece opens over itself: Take down's card. */
   sheets: ReactNode;
+  /** What its results are read by (00692): the piece's file, and a post of it that went up, null before one did. */
+  results: { fileId: string; upPostId: string | null };
 }

@@ -1,0 +1,238 @@
+/* A comment opened in the Inbox (pane.tsx), and its row in the comments' list (list.tsx). Every control in it is the kit's,
+   and the pane and its head are the conversation's own (inbox.css .ix-thread-pane, .ix-th-head). These rules load with
+   the comment's page and the list, so no other page pays for them. */
+.ix-cm-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  overflow-y: auto;
+}
+.ix-cm-post {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+}
+.ix-cm-still {
+  display: block;
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-inset);
+  background: var(--face-fill);
+  object-fit: cover;
+}
+.ix-cm-caption {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+/* Their words, as their message would stand in a conversation. */
+.ix-cm-said {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--bubble-them-line);
+  border-radius: var(--radius-bubble);
+  background: var(--bubble-them-bg);
+  font-size: var(--text-md);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ix-cm-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ix-cm-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ix-cm-by-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--ink-muted);
+}
+/* AI's three at work stand in the line, at its size: Files places them on a tile's corner. */
+.ix-cm-by-ai .files-looking {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 13px;
+  height: 13px;
+}
+.ix-cm-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--warn-ink);
+  overflow-wrap: anywhere;
+}
+.ix-cm-sent-words {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ix-cm-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.ix-cm-line-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ix-cm-line-words b {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ix-cm-line[data-tone="you"] .ix-cm-line-words span {
+  color: var(--warn-ink);
+}
+.ix-cm-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: var(--radius-circle);
+  background: var(--ink-faint);
+}
+.ix-cm-line[data-tone="ok"] .ix-cm-dot {
+  background: var(--ok);
+}
+.ix-cm-line[data-tone="you"] .ix-cm-dot {
+  background: var(--warn);
+}
+/* The one thing that moves: the ring while Instagram is asked. */
+.ix-cm-dot[data-moving] {
+  width: 11px;
+  height: 11px;
+  margin-top: 3px;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  background: none;
+  animation: ix-cm-turn 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-cm-dot[data-moving] {
+    animation: none;
+    border-right-color: var(--accent);
+  }
+}
+@keyframes ix-cm-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.ix-cm-look {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+}
+.ix-cm-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.ix-cm-change {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.ix-cm-change > :first-child {
+  align-self: stretch;
+}
+
+/* The comments' list (list.tsx): a comment's row, the post's picture where a conversation's face stands. */
+.ix-cm-rows {
+  display: flex;
+  flex-direction: column;
+}
+.ix-cm-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-row);
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .ix-cm-row:hover {
+    background: var(--face-fill);
+  }
+}
+.ix-cm-row[data-open] {
+  background: var(--face-fill);
+}
+.ix-cm-row[data-quiet] .ix-cm-row-words {
+  opacity: 0.66;
+}
+.ix-cm-row .ix-cm-still {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+}
+.ix-cm-row-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ix-cm-row-words b,
+.ix-cm-row-words span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ix-cm-row-words b {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+.ix-cm-row-words span {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ix-cm-row-when {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+@media (max-width: 720px) {
+  .ix-cm-body {
+    padding: var(--space-3) var(--space-4) var(--space-6);
+  }
+}

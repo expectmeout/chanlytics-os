@@ -134,9 +134,24 @@ export interface LinkOpened {
   stopped: boolean;
   /** The workspace's own address, which its public pages stand under. */
   workspace: string;
-  /** What it opens: a form, with the form's own address and whether it is live. */
-  subject: { type: "form"; id: string; slug: string | null; state: string | null };
+  /**
+   * What it opens: a form, with the form's own address and whether it is live; or a post (00692), with where its link
+   * lands and the workspace's own places it may land on.
+   */
+  subject:
+    | { type: "form"; id: string; slug: string | null; state: string | null }
+    | {
+        type: "post";
+        id: string;
+        lands: "chat" | "booking";
+        place: string | null;
+        instagram: string | null;
+        whatsapp: string | null;
+        booking: string | null;
+      };
 }
+
+const linkTextOrNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
 
 /**
  * A link opened by its code (link_open): where it lands, with one more open on its day when `counted` (never for a
@@ -154,11 +169,22 @@ export async function openLink(db: Db, code: string, counted: boolean): Promise<
     code: typeof row.code === "string" ? row.code : code,
     stopped: row.stopped === true,
     workspace: typeof row.workspace === "string" ? row.workspace : "",
-    subject: {
-      type: "form",
-      id: row.subject_id,
-      slug: typeof row.slug === "string" ? row.slug : null,
-      state: typeof row.state === "string" ? row.state : null,
-    },
+    subject:
+      row.subject_type === "post"
+        ? {
+            type: "post",
+            id: row.subject_id,
+            lands: row.lands === "booking" ? "booking" : "chat",
+            place: linkTextOrNull(row.place),
+            instagram: linkTextOrNull(row.instagram),
+            whatsapp: linkTextOrNull(row.whatsapp),
+            booking: linkTextOrNull(row.booking),
+          }
+        : {
+            type: "form",
+            id: row.subject_id,
+            slug: linkTextOrNull(row.slug),
+            state: linkTextOrNull(row.state),
+          },
   };
 }

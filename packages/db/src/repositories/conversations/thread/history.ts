@@ -17,6 +17,7 @@ import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
 import { dbLog } from "../../../shared/observe";
 import { readAdTap, tappedMessageOf, type AdTapTold, type ThreadMoment } from "./ad-tap";
+import { readPostTouchWhen, type PostTouchTold } from "./post-touch";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
@@ -247,6 +248,8 @@ export interface LeadContext {
    * so every fake still compiles.
    */
   ad?: AdTapTold | null;
+  /** The post they answered in the last 72 hours (post-touch.ts, 00692), read as the ad is. Optional, as `ad`. */
+  post?: PostTouchTold | null;
 }
 
 /** The same answer for contacts.offers_asked_at or marketing_channels, on a database the migration that adds them has not reached. */
@@ -399,6 +402,7 @@ export async function readLeadContext(
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
     ad: await readAdTap(db, tenantId, tap),
+    post: await readPostTouchWhen(!!answering, db, tenantId, contact.id),
   };
 }
 

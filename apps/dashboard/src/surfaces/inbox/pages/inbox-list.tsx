@@ -95,6 +95,8 @@ interface InboxListProps {
   sendingIn?: (id: string) => number | null;
   /** A sequence's replies the address names (inbox-from.tsx): their line above the rows, which says what is not here. */
   fromLine?: ReactNode;
+  /** Needs you's line that opens the comments on the business's posts, while any has AI's answer ready (comment/list.tsx). */
+  commentsDoor?: ReactNode;
   /** Needs you's To send open under its row (`inbox/to-send`, inbox-runs.tsx). */
   toSendOpen?: boolean;
   /** The page's toast: what an Approve on a run's row says, with its Stop (inbox-runs.tsx). */
@@ -129,6 +131,7 @@ function listProps({
   density = "medium",
   sendingIn = () => null,
   fromLine = null,
+  commentsDoor = null,
   toSendOpen = false,
   flash = () => undefined,
   needsYou = null,
@@ -159,6 +162,7 @@ function listProps({
     density,
     sendingIn,
     fromLine,
+    commentsDoor,
     toSendOpen,
     flash,
   };
@@ -396,6 +400,7 @@ function threadsBody(
           {people.map((r) => doorRow(r, (to) => appNavigate(to)))}
         </div>
       )}
+      {besides && list.commentsDoor}
       {!list.fromLine && unreadEscalated()}
       {empty && !list.fromLine && !(besides && others) && emptyThreads(list)}
       {!empty && (

@@ -38,6 +38,7 @@ import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
+import { keepResultsMoving } from "../content/results-upkeep.js";
 import { readSitesAgain } from "../imports/sites-again.js";
 import { watchStream } from "../files/video-watch.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
@@ -197,8 +198,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   // The voice provider: its account's calls at once against its limit, and once a day every live agent against the
   // product's shell and settings (decision 0092).
   const voice = await watchVoice(db);
-  // A form entry its owner was told nothing of within ten minutes (00675), and held entries and tests past their days (00680).
-  const forms = await watchForms(db, Date.now());
+  // Forms' watch (00675, 00680); a post's numbers read at their steps, and touches aged to counts (00692).
+  const kept = { ...(await watchForms(db, Date.now())), ...(await keepResultsMoving(db)) };
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -225,7 +226,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     site_credits: siteCredits,
     voice_concurrency: voice.concurrency,
     voice_drifted: voice.drifted,
-    ...forms,
+    ...kept,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

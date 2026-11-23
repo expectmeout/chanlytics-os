@@ -137,6 +137,11 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
+  // What a post said back (00692): its numbers by read, people's touches of a post or a link, and the public answers to
+  // comments.
+  "post_observations",
+  "touches",
+  "comment_answers",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",

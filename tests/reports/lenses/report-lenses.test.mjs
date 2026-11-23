@@ -28,10 +28,10 @@ import { REVIEWS_NOW, reviewsDto } from "../_report-world.mjs";
 
 const OWNER = { role: "owner", adsOn: false };
 
-test("seven lenses in the strip's order, each with its words, and none for a lens that is not drawn", () => {
+test("eight lenses in the strip's order, each with its words, and none for a lens that is not drawn", () => {
   assert.deepEqual(
     REPORT_LENSES.map((l) => l.id),
-    ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
+    ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "ads", "reviews"],
   );
   for (const l of REPORT_LENSES) {
     assert.ok(l.label && l.sub, `${l.id}: the strip's word and the palette's sub-line`);
@@ -84,6 +84,7 @@ test("a lens is an address: the Overview is /reports, every other /reports/<lens
       "reports/people",
       "reports/pipeline",
       "reports/campaigns",
+      "reports/content",
       "reports/ads",
       "reports/reviews",
     ],
@@ -123,10 +124,10 @@ test("one review is an address of the Reviews lens: reports/reviews:<id>, the ro
   assert.equal(reviewRoute("r-ana"), lensRoute("reviews"));
 });
 
-test("Ads is shown where ads are on, and nowhere else; the other six, Pipeline among them (0008, amended 18 Oct 2026), are shown to every member", () => {
+test("Ads is shown where ads are on, and nowhere else; the other seven, Pipeline and Content among them (0008, amended 18 Oct 2026), are shown to every member", () => {
   const ids = (who) => lensesFor(who).map((l) => l.id);
   const WITHOUT_ADS = REPORT_LENSES.map((l) => l.id).filter((id) => id !== "ads");
-  assert.deepEqual(ids(OWNER), ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"]);
+  assert.deepEqual(ids(OWNER), ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "reviews"]);
   assert.deepEqual(ids(OWNER), WITHOUT_ADS);
   assert.deepEqual(
     ids({ role: "operator", adsOn: true }),
@@ -135,7 +136,7 @@ test("Ads is shown where ads are on, and nowhere else; the other six, Pipeline a
   );
   assert.deepEqual(
     ids({ ...OWNER, adsOn: true }),
-    ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
+    ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "ads", "reviews"],
     "ads on: Ads stands between Campaigns and Reviews",
   );
   assert.ok(lensIsShown("ads", { ...OWNER, adsOn: true }));
@@ -216,7 +217,15 @@ test("the palette and AI's page routes are the registry's: no lens spelled twice
   const every = labels({});
   assert.deepEqual(
     every.filter((l) => l.startsWith("Reports")),
-    ["Reports", "Reports › AI", "Reports › People", "Reports › Pipeline", "Reports › Campaigns", "Reports › Reviews"],
+    [
+      "Reports",
+      "Reports › AI",
+      "Reports › People",
+      "Reports › Pipeline",
+      "Reports › Campaigns",
+      "Reports › Content",
+      "Reports › Reviews",
+    ],
     "every workspace's lenses, Pipeline among them",
   );
   assert.ok(

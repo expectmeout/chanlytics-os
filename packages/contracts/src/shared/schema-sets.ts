@@ -70,6 +70,17 @@ import type {
   RENDITION_SHAPES,
   REVISION_MADE_BY,
 } from "../content/placements/sets";
+import type {
+  COMMENT_ANSWER_STATES,
+  LINK_LANDS,
+  LINK_SUBJECTS,
+  METRIC_AVAILABILITY,
+  OBSERVE_STEPS,
+  POST_METRICS,
+  TOUCH_KEPT_SUBJECTS,
+  TOUCH_KINDS,
+  VISIT_THROUGH_TYPES,
+} from "../content/results/sets";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -223,6 +234,17 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
   Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
   Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,
+  // What a post said back (00692, the content loop's pass 2): its numbers, a person's touches, a public answer, a
+  // post's link, and what a visit answered.
+  Holds<Exactly<Of<typeof POST_METRICS>, SchemaSet<"post_observations.metric">>>,
+  Holds<Exactly<Of<typeof METRIC_AVAILABILITY>, SchemaSet<"post_observations.availability">>>,
+  Holds<Exactly<Of<typeof OBSERVE_STEPS>, SchemaSet<"post_observations.step">>>,
+  Holds<Exactly<Of<typeof TOUCH_KINDS>, SchemaSet<"touches.kind">>>,
+  Holds<Exactly<Of<typeof TOUCH_KEPT_SUBJECTS>, SchemaSet<"touches.subject_type">>>,
+  Holds<Exactly<Of<typeof COMMENT_ANSWER_STATES>, SchemaSet<"comment_answers.state">>>,
+  Holds<Exactly<Of<typeof LINK_LANDS>, SchemaSet<"links.lands">>>,
+  Holds<Exactly<Of<typeof LINK_SUBJECTS>, SchemaSet<"links.subject_type">>>,
+  Holds<Exactly<Of<typeof VISIT_THROUGH_TYPES>, SchemaSet<"appointments.through_type">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

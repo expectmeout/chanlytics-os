@@ -64,12 +64,16 @@ export const ROUTES = {
   "GET channels/meta/callback": { method: "GET", path: "/api/v1/channels/meta/callback" },
   "GET channels/meta/connect": { method: "GET", path: "/api/v1/channels/meta/connect" },
   "GET channels/whatsapp/signup": { method: "GET", path: "/api/v1/channels/whatsapp/signup" },
+  "GET comments": { method: "GET", path: "/api/v1/comments" },
+  "GET comments/one": { method: "GET", path: "/api/v1/comments/one" },
   "GET consent/qr": { method: "GET", path: "/api/v1/consent/qr" },
   "GET contacts": { method: "GET", path: "/api/v1/contacts" },
   "GET contacts/[id]": { method: "GET", path: "/api/v1/contacts/[id]" },
   "GET contacts/export": { method: "GET", path: "/api/v1/contacts/export" },
   "GET content": { method: "GET", path: "/api/v1/content" },
   "GET content/note": { method: "GET", path: "/api/v1/content/note" },
+  "GET content/report": { method: "GET", path: "/api/v1/content/report" },
+  "GET content/week": { method: "GET", path: "/api/v1/content/week" },
   "GET conversations": { method: "GET", path: "/api/v1/conversations" },
   "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
@@ -80,6 +84,7 @@ export const ROUTES = {
   "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
   "GET files/[id]/copy": { method: "GET", path: "/api/v1/files/[id]/copy" },
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
+  "GET files/[id]/results": { method: "GET", path: "/api/v1/files/[id]/results" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
   "GET forms": { method: "GET", path: "/api/v1/forms" },
@@ -239,6 +244,8 @@ export const ROUTES = {
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
   "POST channels/whatsapp/standing": { method: "POST", path: "/api/v1/channels/whatsapp/standing" },
   "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
+  "POST comments": { method: "POST", path: "/api/v1/comments" },
+  "POST comments/rewrite": { method: "POST", path: "/api/v1/comments/rewrite" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/call": { method: "POST", path: "/api/v1/contacts/[id]/call" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
@@ -269,6 +276,7 @@ export const ROUTES = {
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
+  "POST files/[id]/link": { method: "POST", path: "/api/v1/files/[id]/link" },
   "POST files/[id]/restore": { method: "POST", path: "/api/v1/files/[id]/restore" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
   "POST files/post": { method: "POST", path: "/api/v1/files/post" },
@@ -519,12 +527,16 @@ export type Routes = {
   "GET channels/meta/callback": typeof import("../../app/api/v1/channels/meta/callback/route").GET;
   "GET channels/meta/connect": typeof import("../../app/api/v1/channels/meta/connect/route").GET;
   "GET channels/whatsapp/signup": typeof import("../../app/api/v1/channels/whatsapp/signup/route").GET;
+  "GET comments": typeof import("../../app/api/v1/comments/route").GET;
+  "GET comments/one": typeof import("../../app/api/v1/comments/one/route").GET;
   "GET consent/qr": typeof import("../../app/api/v1/consent/qr/route").GET;
   "GET contacts": typeof import("../../app/api/v1/contacts/route").GET;
   "GET contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").GET;
   "GET contacts/export": typeof import("../../app/api/v1/contacts/export/route").GET;
   "GET content": typeof import("../../app/api/v1/content/route").GET;
   "GET content/note": typeof import("../../app/api/v1/content/note/route").GET;
+  "GET content/report": typeof import("../../app/api/v1/content/report/route").GET;
+  "GET content/week": typeof import("../../app/api/v1/content/week/route").GET;
   "GET conversations": typeof import("../../app/api/v1/conversations/route").GET;
   "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
@@ -535,6 +547,7 @@ export type Routes = {
   "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
   "GET files/[id]/copy": typeof import("../../app/api/v1/files/[id]/copy/route").GET;
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
+  "GET files/[id]/results": typeof import("../../app/api/v1/files/[id]/results/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
   "GET forms": typeof import("../../app/api/v1/forms/route").GET;
@@ -694,6 +707,8 @@ export type Routes = {
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
   "POST channels/whatsapp/standing": typeof import("../../app/api/v1/channels/whatsapp/standing/route").POST;
   "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
+  "POST comments": typeof import("../../app/api/v1/comments/route").POST;
+  "POST comments/rewrite": typeof import("../../app/api/v1/comments/rewrite/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/call": typeof import("../../app/api/v1/contacts/[id]/call/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
@@ -724,6 +739,7 @@ export type Routes = {
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
+  "POST files/[id]/link": typeof import("../../app/api/v1/files/[id]/link/route").POST;
   "POST files/[id]/restore": typeof import("../../app/api/v1/files/[id]/restore/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
   "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;

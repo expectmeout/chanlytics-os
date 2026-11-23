@@ -37,6 +37,7 @@ test("the page takes the Overview's address and each lens's, and no other addres
     "reports/people",
     "reports/pipeline",
     "reports/campaigns",
+    "reports/content",
     "reports/ads",
     "reports/reviews",
   ])
@@ -97,6 +98,7 @@ test("on days a member picked every tab keeps them, so another lens is the same 
       ["people", `reports/people:${DAYS}`],
       ["pipeline", `reports/pipeline:${DAYS}`],
       ["campaigns", `reports/campaigns:${DAYS}`],
+      ["content", `reports/content:${DAYS}`],
       ["reviews", `reports/reviews:${DAYS}`],
     ],
     "REGRESSION: a move to another lens went back to the period, and the week picked was lost",
@@ -108,7 +110,15 @@ test("on days a member picked every tab keeps them, so another lens is the same 
   assert.equal(people.mount, "reports", "one mount, days or none: a pick never remounts the page");
   assert.deepEqual(
     chromeAt("people").views.tabs.map((t) => t.to),
-    ["reports", "reports/receptionist", "reports/people", "reports/pipeline", "reports/campaigns", "reports/reviews"],
+    [
+      "reports",
+      "reports/receptionist",
+      "reports/people",
+      "reports/pipeline",
+      "reports/campaigns",
+      "reports/content",
+      "reports/reviews",
+    ],
     "and with no days in the address, none in a tab's",
   );
 });
@@ -121,7 +131,7 @@ test("Ads is a tab where Ads is drawn here and nowhere else, between Campaigns a
     setSurfaceValue("settings", { settings: { ads: true } });
     assert.deepEqual(
       chromeAt(null).views.tabs.map((t) => t.id),
-      ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
+      ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "ads", "reviews"],
     );
     const ads = chromeAt(`ads:${DAYS}:platform:google`);
     assert.equal(ads.views.picked, "ads");
@@ -134,6 +144,7 @@ test("Ads is a tab where Ads is drawn here and nowhere else, between Campaigns a
         ["people", `reports/people:${DAYS}`],
         ["pipeline", `reports/pipeline:${DAYS}`],
         ["campaigns", `reports/campaigns:${DAYS}`],
+        ["content", `reports/content:${DAYS}`],
         ["ads", `reports/ads:${DAYS}`],
         ["reviews", `reports/reviews:${DAYS}`],
       ],
@@ -170,6 +181,7 @@ test("the strip is the frame's: the lens registry's tabs as links to each lens's
       { id: "people", label: "People", to: "reports/people", testid: "lens-people" },
       { id: "pipeline", label: "Pipeline", to: "reports/pipeline", testid: "lens-pipeline" },
       { id: "campaigns", label: "Campaigns", to: "reports/campaigns", testid: "lens-campaigns" },
+      { id: "content", label: "Content", to: "reports/content", testid: "lens-content" },
       { id: "reviews", label: "Reviews", to: "reports/reviews", testid: "lens-reviews" },
     ],
   });
@@ -209,6 +221,7 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
       ["lens-people", "/w/harbor/reports/people", undefined],
       ["lens-pipeline", "/w/harbor/reports/pipeline", undefined],
       ["lens-campaigns", "/w/harbor/reports/campaigns", undefined],
+      ["lens-content", "/w/harbor/reports/content", undefined],
       ["lens-reviews", "/w/harbor/reports/reviews", undefined],
     ],
   );
@@ -218,7 +231,7 @@ test("Pipeline is a tab in every workspace, in its place (0008, amended 18 Oct 2
   hold();
   assert.deepEqual(
     chromeAt(null).views.tabs.map((t) => t.id),
-    ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"],
+    ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "reviews"],
   );
   assert.equal(chromeAt("pipeline").views.picked, "pipeline");
   delete globalThis.__WORKSPACES;

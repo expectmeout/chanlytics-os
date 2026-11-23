@@ -155,5 +155,6 @@ export function usePieceStanding(
     /** Take down, where something of it is up and this person may: opens its card. Null where it is not offered. */
     takeDown: may && aiMade && takeDownOffered(posts) && !down.asking ? () => setTakingDown(true) : null,
     sheets,
+    results: { fileId: file.id, upPostId: aiMade ? (posts.find((p) => p.published_at)?.id ?? null) : null },
   };
 }

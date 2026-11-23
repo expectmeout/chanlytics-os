@@ -10,6 +10,7 @@
  * so does Campaigns', to one sequence (`reports/campaigns:2026-09-11~2026-10-10:seq:<id>`, below; its cards campaign-one.ts).
  */
 import { ADS_ROUTE, adsScopeKey, adsScopeOfKey } from "../ads/address";
+import { CONTENT_ROUTE } from "../content/address";
 import type { AdsScope } from "../ads/address";
 import { roleAtLeast } from "../config/roles";
 import type { Role } from "../config/workspace-config/role-perms";
@@ -102,6 +103,19 @@ export const REPORT_LENSES = [
       title: "Nothing went out",
       body: `No campaign run reached anyone between ${r.since} and ${r.until}, and nobody said yes or asked to stop.`,
       door: { label: "Open Campaigns", to: "campaigns/sequences" },
+    }),
+  },
+  {
+    // What the business's posts brought (00692; the content loop's pass 2): its own read, GET content/report.
+    id: "content",
+    label: "Content",
+    sub: "what your posts brought, and who booked",
+    shownWhen: "always",
+    role: "viewer",
+    empty: (r) => ({
+      title: "Nothing posted in these days",
+      body: `No post went up between ${r.since} and ${r.until}. Once one is up, what it brought shows here.`,
+      door: { label: "Open Content", to: CONTENT_ROUTE },
     }),
   },
   {

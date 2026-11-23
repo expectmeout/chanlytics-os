@@ -270,6 +270,30 @@ before(async () => {
     snapshot: {},
     snapshot_hash: "b".repeat(64),
   });
+  // What a post said back (00692): its numbers, a person's touch of it, a comment's answer. Members read them, their
+  // doors write them.
+  await seed("post_observations", {
+    tenant_id: A,
+    post_id: ctx.post,
+    place: "instagram",
+    step: "1h",
+    metric: "reach",
+    availability: "available",
+    value: 1,
+    period_start: new Date(0).toISOString(),
+    period_end: new Date().toISOString(),
+  });
+  ctx.touch = await seed("touches", {
+    tenant_id: A,
+    subject_type: "post",
+    subject_id: ctx.post,
+    kind: "comment",
+    contact_id: ctx.contact,
+    place: "instagram",
+    provider_event_id: "seeded-comment",
+    at: new Date().toISOString(),
+  });
+  await seed("comment_answers", { tenant_id: A, touch_id: ctx.touch, state: "drafted", draft: "Seeded." });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // A website's key and an entry it sent (00675): members read them, only their doors write them.
@@ -942,6 +966,35 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
   ],
+  // What a post said back (00692): a member reads it, only its doors write it.
+  post_observations: [
+    "member",
+    () => ({
+      tenant_id: A,
+      post_id: ctx.post,
+      place: "instagram",
+      step: "1d",
+      metric: "views",
+      availability: "available",
+      value: 9,
+      period_start: new Date(0).toISOString(),
+      period_end: new Date().toISOString(),
+    }),
+  ],
+  touches: [
+    "member",
+    () => ({
+      tenant_id: A,
+      subject_type: "post",
+      subject_id: ctx.post,
+      kind: "comment",
+      contact_id: ctx.contact,
+      place: "instagram",
+      provider_event_id: "a-strangers-comment",
+      at: new Date().toISOString(),
+    }),
+  ],
+  comment_answers: ["member", () => ({ tenant_id: A, touch_id: ctx.touch, state: "cannot", cannot_why: "Stranger." })],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
   // What Ask did and what it told (00574, 00575): a member reads them, a member who may act writes the record.

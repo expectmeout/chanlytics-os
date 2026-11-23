@@ -690,6 +690,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // second read of the listing. The bell's notices of the review are read by the verb (google.ts replyToReview), through the
   // notifications door. And Today is read again: "N done today" counts the answer (reply_review), which the feed cannot tell it.
   "POST google/reviews/[id]/reply": () => [reviewsOverride, todayOverride],
+  // A comment answered or left (00692): its point on Today goes, or comes back. The answer itself moves by its job,
+  // seconds later, and the comment reads itself again until Instagram has answered.
+  "POST comments": () => [todayOverride],
   // A held reply stopped (decision 0064, step 6): the review still waits, now with its words held for an OK, on the lens
   // that drew the Stop. The live feed tells the change to every tab (00462), and this tab reads the lens once, at once.
   "POST google/reviews/[id]/stop": () => [reviewsOverride],
@@ -703,6 +706,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // A post's link (00692) is drawn on the piece from the press's own answer: nothing else on screen holds it.
+  "POST files/[id]/link": "a post's link, made on first ask: the piece draws the answer, and no surface holds links",
+  // A comment's answer written again (00692) is handed back to the comment's box; nothing is kept until its Send.
+  "POST comments/rewrite": "a comment's answer written again, handed back to its box; its Send posts it",
   // A piece's own record (GET files/[id]) holds its take-down, and the piece reads it again after its press.
   "PUT files/[id]/posts":
     "the owner's word that a post was deleted there: its place is asked, and the post moves only once it answers",

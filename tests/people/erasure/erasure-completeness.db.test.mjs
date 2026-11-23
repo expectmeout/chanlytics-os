@@ -627,6 +627,18 @@ async function seed() {
     source: { page: "/b/seeded/request", from: WORDS },
     code: SHAPED["form_entries.code"],
   });
+  // Their comment on a post (00692): that it happened stays; what they wrote and their name there are emptied.
+  await insert("touches", {
+    tenant_id: T,
+    subject_type: "post",
+    subject_id: globalThis.crypto.randomUUID(),
+    kind: "comment",
+    contact_id: A,
+    place: "instagram",
+    provider_event_id: "seeded-comment-of-theirs",
+    at: new Date().toISOString(),
+    evidence: { words: WORDS, username: "ada.seeded" },
+  });
   // One held for a look (00680) has no person yet: the erasure finds it by the address or the number typed into it.
   await insert("form_entries", {
     tenant_id: T,

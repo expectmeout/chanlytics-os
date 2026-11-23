@@ -18,6 +18,7 @@ import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
 import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
+import type { CommentRowDto } from "../content/results/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./clock";
@@ -57,6 +58,8 @@ interface TodayInput {
   formRequests: FormOpenRequestDto[];
   /** Each form's entries held for a look that nobody has looked at in three days (00680); empty where none was read. */
   formHeld: FormHeldDto[];
+  /** The comments on the business's posts that wait on the owner (00692), newest first; empty where none was read. */
+  comments: CommentRowDto[];
 }
 
 /**

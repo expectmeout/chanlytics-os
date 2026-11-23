@@ -520,9 +520,10 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // happened to an entry (form_entry_links) is ids and a closed set alone.
   form_versions: { description: WITH_WORKSPACE },
   forms: all(WITH_WORKSPACE, "slug", "draft"),
-  // A link (00680): a code made at random, the kind of thing it opens, and where it is shared in the owner's own
-  // words for a place ("Google listing"), which leave with the workspace. A day of a link (link_days) is numbers alone.
-  links: { ...all(NOT_PERSONAL, "code", "subject_type"), place: WITH_WORKSPACE },
+  // A link (00680): a code made at random, and where it is shared in the owner's own words for a place ("Google
+  // listing"), which leave with the workspace. What it opens and where a post's lands are closed sets (00692). A day of a
+  // link (link_days) is numbers alone.
+  links: { code: NOT_PERSONAL, place: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),
@@ -594,6 +595,17 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   piece_revisions: { ...all(WITH_WORKSPACE, "plan", "captions"), changed: NOT_PERSONAL },
   // A shape as it is sent (00681): a path in the file's folder and its checksum, nobody's.
   piece_renditions: all(NOT_PERSONAL, "path", "checksum"),
+  // What a post said back (00692). A person's touch of a post keeps that it happened; what they wrote there (a comment's
+  // words, their name on Instagram) goes with them: emptied by their erasure (and by age, past 180 days,
+  // touches_age_out). The place's own id for it (a comment's id) is nobody's words, and keeps it once. A public answer to a comment is the business speaking in public: AI's draft, the owner's
+  // words, Instagram's id for it and the house's words for a refusal, kept with the workspace as a post's caption is. A
+  // post's numbers are numbers alone.
+  touches: { evidence: scrubbedBy("touches_trigger"), provider_event_id: NOT_PERSONAL },
+  comment_answers: {
+    ...all(WITH_WORKSPACE, "draft", "words", "cannot_why", "said"),
+    external_id: NOT_PERSONAL,
+  },
+  post_observations: { raw: NOT_PERSONAL },
   // What an owner approved (00681): the version, each shape by path and checksum, where, when, the business's own words and
   // any fact the owner stated, the business's record; its hash is nobody's.
   approvals: { snapshot: WITH_WORKSPACE, snapshot_hash: NOT_PERSONAL },
