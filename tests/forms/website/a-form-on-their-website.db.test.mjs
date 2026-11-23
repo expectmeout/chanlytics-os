@@ -1,5 +1,5 @@
 /**
- * A form on the business's own website on a real database (00701; the Forms plan, F4): the sites it may show on are
+ * A form on the business's own website on a real database (00703; the Forms plan, F4): the sites it may show on are
  * held on its website link (links.sites), each a host without a scheme, a path or a port, ten at most, one website link
  * a form, null on every other place. A member who may act adds and removes them under the table's row rules, as they
  * make and rename a link; a viewer and another workspace's member cannot. An entry sent straight to the form's address

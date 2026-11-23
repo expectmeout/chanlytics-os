@@ -20,7 +20,17 @@ import type { TenantId } from "@chanlytics/contracts";
  * `db` is the member's session. Null: no row, or not a member.
  */
 export async function findConfigRow(db: SupabaseClient<Database>, tenantId: TenantId): Promise<TenantConfigRow | null> {
-  const row = await getTenantConfigAsMember(db, tenantId);
+  return findStoredConfig(await getTenantConfigAsMember(db, tenantId), tenantId);
+}
+
+/**
+ * A row as a session read it, as the server holds it: read again with the service role where the address in it came back
+ * hidden (findConfigRow says why); as it came otherwise. Setup's rows carry the session's row (setup_rows, 00700).
+ */
+export async function findStoredConfig(
+  row: (TenantConfigRow & { feed_hidden?: boolean }) | null,
+  tenantId: TenantId,
+): Promise<TenantConfigRow | null> {
   return row?.feed_hidden ? getTenantConfig(serviceDb(), tenantId) : row;
 }
 

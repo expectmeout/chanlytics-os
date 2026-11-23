@@ -92,7 +92,8 @@
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
-    "00700": "claimed by the plan Pages that open at once, piece 2 (setup reads its rows at once, lane cm-leads-ahead), not on main when the Forms plan's F4 took 00701 above it (23 Nov 2026); the record drops this line once its file lands"
+    "00701": "claimed by pass 1b's last numbers before a take-down (lane cm-first-post, #2541), a draft not on main when the Forms plan's F4 took 00703 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week), not on main when the Forms plan's F4 took 00703 above it (23 Nov 2026); the record drops this line once its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -703,6 +704,7 @@
     "00697_a_post_is_begun_by_its_approval_alone.sql": "e93917b7c99e47e97235df87cd0a81cd0c80015cb1274bc96c007678943c92c6",
     "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
     "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
-    "00701_a_form_on_their_own_website.sql": "52aa9a0122916b2a2d7d60911f21bd456f691839c850bc5d0f90b318a6a4785e"
+    "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103",
+    "00703_a_form_on_their_own_website.sql": "19a9e5e51808179fd4ed273d16ffec2a5e53126a73def76b160c2dab249c482a"
   }
 }

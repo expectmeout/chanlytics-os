@@ -19,7 +19,7 @@ export interface LinkRead {
   printed: boolean;
   createdAt: string;
   stoppedAt: string | null;
-  /** The sites the form may show on, framed in their own page (00701): null for every place that is not the website. */
+  /** The sites the form may show on, framed in their own page (00703): null for every place that is not the website. */
   sites: string[] | null;
 }
 
@@ -133,7 +133,7 @@ export async function keepLink(
 }
 
 /**
- * The sites a link's form may show on, framed in their own page (00701), read for the framed address on the service
+ * The sites a link's form may show on, framed in their own page (00703), read for the framed address on the service
  * role: null for a link that is not a website's, or that the workspace does not hold.
  */
 export async function findLinkSites(db: Db, tenantId: TenantId, linkId: string): Promise<string[] | null> {

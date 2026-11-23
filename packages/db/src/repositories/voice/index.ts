@@ -5,7 +5,6 @@ export {
   CALL_COLUMNS,
   findCallRow,
   findLastCallIn,
-  findLastConnectedCallIn,
   listCallRows,
   markRecordingOpened,
   pageCallRows,
