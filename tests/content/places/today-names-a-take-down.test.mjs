@@ -131,6 +131,36 @@ test("where an open take-down stands for Today: the owner's, late, or still bein
     "unconfirmed",
     "past a day with no answer",
   );
+  assert.equal(
+    contentDownOf({ outcome: "left_up", started_at: begun(0) }, NOW),
+    null,
+    "left up by the owner's own word: nothing is asked of anyone",
+  );
+});
+
+test("a post its owner chose to leave up is never named, whatever an older take-down of it says", async () => {
+  const today = await read({
+    files: [piece(1), piece(2)],
+    posts: [up(1, 1, "instagram"), up(2, 2, "google")],
+    remediation_actions: [
+      // "Keep it up" answers every ask of that post a place left to the owner (00689).
+      action(1, 1, "left_up", 2),
+      action(3, 1, "left_up", 9),
+      action(2, 2, "needs_person", 5),
+    ],
+  });
+  assert.deepEqual(said(today.down), [["piece-2", "google", "by_hand"]]);
+});
+
+test("many posts left up never crowd out the one still to delete", async () => {
+  const kept = Array.from({ length: 12 }, (_, i) => i + 10);
+  const today = await read({
+    files: [piece(1), ...kept.map((n) => piece(n))],
+    posts: [up(1, 1, "instagram"), ...kept.map((n) => up(n, n, "instagram"))],
+    // Every one left up was begun after the one that still waits on its owner, so each is read before it.
+    remediation_actions: [action(1, 1, "needs_person", 48), ...kept.map((n) => action(n, n, "left_up", 1))],
+  });
+  assert.deepEqual(said(today.down), [["piece-1", "instagram", "by_hand"]]);
 });
 
 test("a post its place left to the owner is named with its piece, and one still being asked is not", async () => {

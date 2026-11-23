@@ -291,7 +291,7 @@ export const SCHEMA_SETS = {
   "push_devices.platform": ["ios", "android"],
   "rehearsals.kind": ["call", "typed", "call_review"],
   "remediation_actions.act": ["cancel", "pause", "take_down"],
-  "remediation_actions.outcome": ["done", "pending", "blocked", "not_possible", "needs_person"],
+  "remediation_actions.outcome": ["done", "pending", "blocked", "not_possible", "needs_person", "left_up"],
   "remediation_actions.target_type": ["post", "ad", "scheduled_post"],
   "remediations.cause": [
     "yes_taken_back", "person_erased", "owner_removed", "stop", "claim_withdrawn", "connection_lost",

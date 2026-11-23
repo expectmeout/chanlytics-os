@@ -8052,6 +8052,7 @@ export type Database = {
           act: string
           finished_at: string | null
           id: string
+          left_up_by: string | null
           outcome: string
           remediation_id: string
           said: string | null
@@ -8064,6 +8065,7 @@ export type Database = {
           act: string
           finished_at?: string | null
           id?: string
+          left_up_by?: string | null
           outcome: string
           remediation_id: string
           said?: string | null
@@ -8076,6 +8078,7 @@ export type Database = {
           act?: string
           finished_at?: string | null
           id?: string
+          left_up_by?: string | null
           outcome?: string
           remediation_id?: string
           said?: string | null
@@ -13230,6 +13233,10 @@ export type Database = {
         Returns: Json
       }
       post_take_down_by_hand: {
+        Args: { p_post_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_take_down_keep: {
         Args: { p_post_id: string; p_tenant_id: string }
         Returns: Json
       }

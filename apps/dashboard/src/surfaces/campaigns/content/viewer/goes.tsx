@@ -31,6 +31,8 @@ export interface GoesPresses {
   words: () => void;
   /** "I deleted it", of a post Chanlytics could not take down. */
   deleted: (postId: string) => void;
+  /** "Keep it up", of the same post: it stays, on the owner's word. */
+  keep: (postId: string) => void;
 }
 
 /** One press beside a line: quiet words the height of the line, or the small button of the line's one fix. */
@@ -80,6 +82,7 @@ function GoesActPress({ act, lead, on, at }: { act: GoesAct; lead: boolean; on: 
   if (act.is === "approve") return press(act.says, on.approve, "approve");
   if (act.is === "words") return press(act.says, on.words, "words");
   if (act.is === "deleted") return press(TAKE_DOWN_WORDS.deleted, () => on.deleted(act.postId), "deleted");
+  if (act.is === "keep") return press(TAKE_DOWN_WORDS.keep, () => on.keep(act.postId), "keep");
   if (act.is === "connect")
     return (
       <Button
