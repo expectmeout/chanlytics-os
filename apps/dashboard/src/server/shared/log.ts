@@ -1,5 +1,14 @@
 import "server-only";
-import { logger, noteTenant, noteTiming, noteTouch, requestId, withRequestId, type Logger } from "@chanlytics/log";
+import {
+  logger,
+  noteTenant,
+  noteTiming,
+  noteTouch,
+  requestId,
+  sharedReads,
+  withRequestId,
+  type Logger,
+} from "@chanlytics/log";
 import { observeDb } from "@chanlytics/db/shared";
 
 /**
@@ -250,7 +259,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "sequence_kept_draft_left",
   "settings_event_failed",
   "setup_offers_by_email_failed",
-  "setup_read_skipped",
   "setup_request_tell_failed",
   "signed_media_url_failed",
   "signed_media_url_refused",
@@ -308,10 +316,12 @@ export { withRequestId, requestId, noteTenant };
 
 // packages/db writes its lines through the one logger and names the request it writes for from the same store, and says
 // how long each of its calls took, which the request's answer says in Server-Timing as `db` (with-route.ts, decision 0053),
-// and what each touched, which a sample of answered lines says (with-route.ts touchedLine; decision 0058, lane R7).
+// and what each touched, which a sample of answered lines says (with-route.ts touchedLine; decision 0058, lane R7). And a
+// request that answers several reads as one (GET open says so, page-open.ts) has its identical reads answered once.
 observeDb({
   log: logger(),
   requestId,
   timed: (ms) => noteTiming("db", ms),
   touched: (table, how) => noteTouch(table, how),
+  sharedReads,
 });

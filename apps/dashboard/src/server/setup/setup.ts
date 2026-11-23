@@ -85,7 +85,7 @@ function conflictsSection(brain: SetupConfig["brain"], { channels, listing, line
   return factConflicts(
     resolveFacts(brain, {
       workspace: null,
-      channels: channels.data ?? [],
+      channels,
       listing: listing ? { name: listing.name, address: listing.address } : null,
       // A kept number that forwards to the line is the number to publish, not a conflict.
       forwarding: knownForwarding(lineRows),
@@ -105,14 +105,14 @@ function channelsSection({ channels, lastMsg, lastCall }: SetupReads): SetupDto[
   //
   // The same array goes to `resolveFacts` (conflictsSection), whose `activeChannel`
   // has always done this correctly. This is that rule, shared.
-  const byKind = (kind: string) => channelFor(channels.data ?? [], kind);
+  const byKind = (kind: string) => channelFor(channels, kind);
   const wa = byKind("whatsapp");
   const voice = byKind("voice");
   return { whatsapp: whatsappSection(wa, lastMsg), voice: voiceSection(voice, lastCall) };
 }
 
 /** A channel's row, as the workspace's channels are read. */
-type ChannelRow = NonNullable<SetupReads["channels"]["data"]>[number];
+type ChannelRow = SetupReads["channels"][number];
 
 function whatsappSection(wa: ChannelRow | null, lastMsg: SetupReads["lastMsg"]): SetupDto["channels"]["whatsapp"] {
   const waCfg = (wa?.config && typeof wa.config === "object" && !Array.isArray(wa.config) ? wa.config : {}) as Record<
@@ -124,7 +124,7 @@ function whatsappSection(wa: ChannelRow | null, lastMsg: SetupReads["lastMsg"]):
     active: wa?.status === "active",
     number: wa?.number_e164 ?? null,
     quality: typeof waCfg.quality_rating === "string" ? waCfg.quality_rating : null,
-    lastInboundAt: lastMsg.data?.channel_ts ?? lastMsg.data?.created_at ?? null,
+    lastInboundAt: lastMsg?.channel_ts ?? lastMsg?.created_at ?? null,
   };
 }
 
@@ -133,13 +133,13 @@ function voiceSection(voice: ChannelRow | null, lastCall: SetupReads["lastCall"]
     present: !!voice,
     active: voice?.status === "active",
     number: voice?.number_e164 ?? null,
-    lastInboundAt: lastCall.data?.started_at ?? null,
+    lastInboundAt: lastCall?.started_at ?? null,
   };
 }
 
 function templatesSection(templates: SetupReads["templates"]): SetupDto["templates"] {
-  const approved = (templates.data ?? []).filter((t) => t.meta_status === "approved" && !t.hidden_at);
-  const pending = (templates.data ?? []).filter((t) => t.meta_status === "pending" && !t.hidden_at);
+  const approved = templates.filter((t) => t.meta_status === "approved" && !t.hidden_at);
+  const pending = templates.filter((t) => t.meta_status === "pending" && !t.hidden_at);
   return {
     approved: approved.length,
     pending: pending.length,
@@ -201,9 +201,9 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
 
 function consentSection({ yes, offersReach, offersSaid, offersByEmail }: SetupReads): SetupDto["consent"] {
   return {
-    yes: yes.count ?? 0,
-    offers: offersReach.count ?? 0,
-    offersSaidYes: offersSaid.count ?? 0,
+    yes,
+    offers: offersReach,
+    offersSaidYes: offersSaid,
     // The address arm, only where offers by email can go and the database counted it.
     ...(offersByEmail === null ? {} : { offers_by_email: offersByEmail }),
   };
@@ -291,7 +291,7 @@ function readsSection(rows: NonNullable<SetupReads["reads"]>): NonNullable<Setup
 }
 
 function activationsSection(activations: SetupReads["activations"]): SetupDto["activations"] {
-  return (activations.data ?? []).map((a) => ({
+  return activations.map((a) => ({
     capability: a.capability,
     activated_at: a.activated_at,
     activated_by: a.activated_by,
@@ -324,7 +324,7 @@ export async function setupDtoFor(
     calendar: calendarSection(read.calendar, now),
     team: teamSection(read.team, config.cfg),
     consent: consentSection(read),
-    requests: requestsFrom(read.requested.data),
+    requests: requestsFrom(read.requested),
     lines: {
       rows: lineRows,
       ready: lineStatus.ready,
