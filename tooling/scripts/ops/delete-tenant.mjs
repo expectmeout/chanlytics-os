@@ -554,7 +554,7 @@ async function main() {
       `${videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
     );
 
-  // Its videos on Chanlytics' own shelf (00690), by the keys on their pieces: removed there after the rows. Without the
+  // Its videos on Chanlytics' own shelf (00695), by the keys on their pieces: removed there after the rows. Without the
   // relay's address and the ticket's key for this run they stay there, private and unreachable, until removed by hand.
   const shelved = shelvedOf(byTable.get("file_archive_parts"));
   const relay = { url: process.env.FOOTAGE_RELAY_URL, ticketKey: process.env.FOOTAGE_TICKET_KEY };

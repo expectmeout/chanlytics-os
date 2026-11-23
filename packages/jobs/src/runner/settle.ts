@@ -533,7 +533,7 @@ async function settleCopyReturn(db: Db, job: TerminalJob): Promise<Settled[]> {
 }
 
 /**
- * A made video's shelf copy whose job will not finish (00690): the copy stops saying it is on its way to the shelf.
+ * A made video's shelf copy whose job will not finish (00695): the copy stops saying it is on its way to the shelf.
  * It is failed as refused, which loses nothing: the video keeps its place at the video platform, its own file is
  * still there to put the copy from, and one already checked or failed is left, by the door's own guard.
  */

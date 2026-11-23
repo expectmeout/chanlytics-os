@@ -190,7 +190,7 @@ export const JOB_KINDS = [
   // A watched clip's copy brought back to the video platform from its folder (00654): payload { file_id }, once a file
   // while one waits or runs, so two askers join one job.
   "copy_return",
-  // A made video's own file put on Chanlytics' shelf and checked there (00690, the archive plan's B2): payload
+  // A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2): payload
   // { file_id }, once a file while one waits or runs. Written by the shelf's own doors, with the copy's row.
   "file_shelve",
   /**

@@ -1,5 +1,5 @@
 /**
- * file_shelve: a made video's own file put on Chanlytics' shelf and checked there (the archive plan's B2; 00690). A
+ * file_shelve: a made video's own file put on Chanlytics' shelf and checked there (the archive plan's B2; 00695). A
  * video made here held its place in a workspace's sixty minutes for good, since nothing could give it back. With a
  * checked copy on the shelf (a private bucket behind the relay) its copy at the video platform can be let go and
  * fetched again, as a watched folder's clip is.

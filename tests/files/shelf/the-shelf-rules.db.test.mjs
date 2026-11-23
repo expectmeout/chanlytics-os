@@ -1,5 +1,5 @@
 /**
- * The shelf's rules, on a real database (00690, the archive plan's B2): a made video's copy on the shelf is begun
+ * The shelf's rules, on a real database (00695, the archive plan's B2): a made video's copy on the shelf is begun
  * with its job in one step and within the shelf's room; it is checked only where the size and the SHA-256 are the
  * ones that were sent; a video may step aside behind a checked shelf copy and behind nothing less, never behind a
  * copy saved to the owner's Drive; a return from the shelf writes nothing on a provider's day; a copy found missing is
@@ -310,7 +310,7 @@ test("a video may step aside behind a checked shelf copy, and behind nothing les
     [shelf],
     "only the video with a checked shelf copy",
   );
-  // The answer the code live before 00690 reads keeps its shape.
+  // The answer the code live before 00695 reads keeps its shape.
   assert.deepEqual(Object.keys(went[0]).sort(), ["id", "media_ref", "seconds"]);
   for (const id of [saving, failed, none, upload, saved, picked]) assert.equal((await fileNow(id)).copy_state, "here");
 

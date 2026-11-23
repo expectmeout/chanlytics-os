@@ -364,7 +364,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id"],
     never: [],
   },
-  // A made video's own file put on Chanlytics' shelf and checked there (00690, the archive plan's B2). Safe to run again
+  // A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2). Safe to run again
   // at every step: a run begins by reading what the shelf holds and pulls nothing where that is the video's bytes, a pull
   // of the same bytes writes the same object, and the shelf itself refuses any other. A throw is the relay, the shelf or
   // the database not answering: two minutes, then ten. One that ends for good leaves the copy failed as refused

@@ -220,7 +220,7 @@ test(
       (await tryRow({ source: "drive", media_ref: `shape-${randomUUID()}`, copy_state: "away" })).error,
       "away never holds an id",
     );
-    // Any video's row may say its copy is away (00690): a made video steps aside behind its copy on the shelf. Which
+    // Any video's row may say its copy is away (00695): a made video steps aside behind its copy on the shelf. Which
     // video may is the doors' to say, never the row's (file_copy_shelved; tests/files/shelf/the-shelf-rules.db.test.mjs).
     for (const source of ["upload", "made", "instagram", "website"])
       ok(await tryRow({ source, media_ref: null, copy_state: "away" }), `${source}: the row allows it`);

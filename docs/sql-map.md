@@ -235,13 +235,13 @@ being read is dropped by a migration.
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
 | `file_copy_comes_back` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 1 more | Whether a watched clip's copy can be fetched again by itself (00674, the content loop PRD's F1): |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
-| `file_copy_kept` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going is here again (00690): |
+| `file_copy_kept` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going is here again (00695): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
 | `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
 | `file_copy_return_failed` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A return that did not happen (00654): |
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
 | `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin`, `file_shelf_checked` and 1 more | A copy that is away or lost set to what its origins now say (00654): |
-| `file_copy_shelved` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 4 more | Whether a file's video has a checked copy on Chanlytics' own shelf (00690, the archive plan's B2): |
+| `file_copy_shelved` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 4 more | Whether a file's video has a checked copy on Chanlytics' own shelf (00695, the archive plan's B2): |
 | `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where something can give it back (00654; |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
@@ -259,11 +259,11 @@ being read is dropped by a migration.
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
 | `file_road_is_watched` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 6 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
-| `file_shelf_again` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy put back (00690): |
-| `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00690, the archive plan's B2). |
-| `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00690): |
-| `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00690): |
-| `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00690), p_limit at most, for every workspace in one statement: |
+| `file_shelf_again` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy put back (00695): |
+| `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00695, the archive plan's B2). |
+| `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00695): |
+| `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00695): |
+| `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |

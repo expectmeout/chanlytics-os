@@ -59,7 +59,7 @@ $$;
 revoke all on function public.file_copy_shelved(uuid, uuid) from public, anon;
 grant execute on function public.file_copy_shelved(uuid, uuid) to authenticated, service_role;
 comment on function public.file_copy_shelved(uuid, uuid) is
-  'Whether a file''s video has a checked copy on Chanlytics'' own shelf (00690, the archive plan''s B2): a file_archives row of origin shelf that is checked, whose video piece is checked. The one place that says so: file_copy_standing, file_copy_settle, file_copies_let_go, file_copies_free_at, video_minutes_by_road and file_copy_return_begin ask it. A saved or a picked copy never counts. Runs as its caller: a member reads only their own workspace''s rows.';
+  'Whether a file''s video has a checked copy on Chanlytics'' own shelf (00695, the archive plan''s B2): a file_archives row of origin shelf that is checked, whose video piece is checked. The one place that says so: file_copy_standing, file_copy_settle, file_copies_let_go, file_copies_free_at, video_minutes_by_road and file_copy_return_begin ask it. A saved or a picked copy never counts. Runs as its caller: a member reads only their own workspace''s rows.';
 
 create or replace function public.file_copy_standing(p_tenant_id uuid, p_file_id uuid)
 returns text
@@ -68,7 +68,7 @@ stable
 set search_path to 'public'
 as $$
   select case
-    -- The shelf holds it (00690): it comes back from there, whatever became of a folder.
+    -- The shelf holds it (00695): it comes back from there, whatever became of a folder.
     when public.file_copy_shelved(p_tenant_id, p_file_id) then null
     -- Its shelf copy is on its way there, the first time or put back, or could not be put because the shelf gave no
     -- answer: the file it is put from is still Chanlytics' own, so it is not lost. Only a copy whose own file is
@@ -94,7 +94,7 @@ as $$
 $$;
 
 comment on function public.file_copy_standing(uuid, uuid) is
-  'Why a file''s copy cannot be fetched again, or null where something can give it back (00654; 00690 adds the shelf): null where the file has a checked copy on the shelf, one on its way there or being put back, or one the shelf would not take just now; null where a watched folder''s item holds it; else gone (seen in its provider''s bin), outside (moved out of the watched folder), not_found (its provider no longer shows it), no_access (its provider no longer lets it be read), no_origin (nothing holds it: no shelf copy can be put, and no watched folder has it). The one place that says so. Its doors''.';
+  'Why a file''s copy cannot be fetched again, or null where something can give it back (00654; 00695 adds the shelf): null where the file has a checked copy on the shelf, one on its way there or being put back, or one the shelf would not take just now; null where a watched folder''s item holds it; else gone (seen in its provider''s bin), outside (moved out of the watched folder), not_found (its provider no longer shows it), no_access (its provider no longer lets it be read), no_origin (nothing holds it: no shelf copy can be put, and no watched folder has it). The one place that says so. Its doors''.';
 
 create or replace function public.file_copy_settle(p_tenant_id uuid, p_file_id uuid)
 returns jsonb
@@ -122,7 +122,7 @@ begin
 end $$;
 
 comment on function public.file_copy_settle(uuid, uuid) is
-  'A copy that is away or lost set to what its origins now say (00654): lost with why where none can give it back, away again where one can. A wait''s own reason on an away copy is left. Answers {copy_state, copy_why, item_id: the watched item a return would read, shelf: whether the shelf holds a checked copy (00690), which a return reads first}. The service role''s.';
+  'A copy that is away or lost set to what its origins now say (00654): lost with why where none can give it back, away again where one can. A wait''s own reason on an away copy is left. Answers {copy_state, copy_why, item_id: the watched item a return would read, shelf: whether the shelf holds a checked copy (00695), which a return reads first}. The service role''s.';
 
 /* ------------------------------------------------------------------- 3. a shelved video steps aside, as a clip does -- */
 
@@ -153,7 +153,7 @@ begin
   with eligible as (
     -- Only what can come back is let go by itself: a watched folder's clip its owner did not also upload, that can
     -- be fetched again (00674: a folder being read, or one stopped whose account reads), or a video with a checked
-    -- copy on the shelf (00690); playable, looked at (or past the week a look is tried again in); named by no video
+    -- copy on the shelf (00695); playable, looked at (or past the week a look is tried again in); named by no video
     -- being made; and not used, or arrived, since the rest began.
     select f.id, f.seconds, coalesce(f.copy_used_at, f.ready_at, f.created_at) as used_at
       from public.files f
@@ -200,7 +200,7 @@ begin
 end $$;
 
 comment on function public.file_copies_let_go(uuid, numeric, timestamp with time zone, timestamp with time zone, integer) is
-  'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a copy something can give back: a watched folder''s clip its owner did not also upload that can be fetched again (file_copy_comes_back, 00674), or a video with a checked copy on the shelf (file_copy_shelved, 00690); playable, looked at, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload or a found video, nor a made video the shelf does not hold. Answers [{id, media_ref, seconds}]: the caller checks a shelved one''s copy on the shelf, deletes each at the video platform, then says so (file_copy_gone), or says it stayed (file_copy_kept). The service role''s.';
+  'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a copy something can give back: a watched folder''s clip its owner did not also upload that can be fetched again (file_copy_comes_back, 00674), or a video with a checked copy on the shelf (file_copy_shelved, 00695); playable, looked at, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload or a found video, nor a made video the shelf does not hold. Answers [{id, media_ref, seconds}]: the caller checks a shelved one''s copy on the shelf, deletes each at the video platform, then says so (file_copy_gone), or says it stayed (file_copy_kept). The service role''s.';
 
 create or replace function public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer)
 returns timestamp with time zone
@@ -229,7 +229,7 @@ as $$
 $$;
 
 comment on function public.file_copies_free_at(uuid, integer) is
-  'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads and found videos, clips that cannot be fetched again (file_copy_comes_back, 00674), or made videos the shelf does not hold (file_copy_shelved, 00690). A take that found the videos full waits until then. The service role''s.';
+  'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads and found videos, clips that cannot be fetched again (file_copy_comes_back, 00674), or made videos the shelf does not hold (file_copy_shelved, 00695). A take that found the videos full waits until then. The service role''s.';
 
 create or replace function public.video_minutes_by_road(p_tenant_id uuid)
 returns jsonb
@@ -279,7 +279,7 @@ end $$;
 revoke all on function public.file_copy_kept(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.file_copy_kept(uuid, uuid) to service_role;
 comment on function public.file_copy_kept(uuid, uuid) is
-  'A copy marked going is here again (00690): its copy on the shelf was not what it should be, or the shelf gave no answer, so nothing was deleted at the video platform and the video plays as it did. Only one that is going and still holds its id. Answers whether it was one. The service role''s.';
+  'A copy marked going is here again (00695): its copy on the shelf was not what it should be, or the shelf gave no answer, so nothing was deleted at the video platform and the video plays as it did. Only one that is going and still holds its id. Answers whether it was one. The service role''s.';
 
 /* ----------------------------------------------------------------- 4. a return from the shelf spends no provider's day -- */
 
@@ -339,7 +339,7 @@ begin
      where f.tenant_id = p_tenant_id and f.copy_returned_at >= v_from;
     v_shelf := public.file_copy_shelved(p_tenant_id, p_id);
     if v_shelf then
-      -- From the shelf (00690): Chanlytics' own, so nothing of a provider's day is asked or written. The workspace's
+      -- From the shelf (00695): Chanlytics' own, so nothing of a provider's day is asked or written. The workspace's
       -- own number of returns a day still binds.
       if v_returns + 1 > p_workspace_returns_max then
         update public.files f set copy_state = 'away', copy_why = 'budget', updated_at = now() where f.id = p_id;
@@ -373,7 +373,7 @@ begin
 end $$;
 
 comment on function public.file_copy_return_begin(uuid, uuid, bigint, bigint, integer, bigint, integer) is
-  'A copy''s return judged and begun in one place (00654, the footage sources plan''s Availability and D15). Answers {fate}: here or going (nothing to bring back now); returning (one is under way: a second asker joins it); lost, with why (nothing can give it back: written on the row); room, with seconds (the videos are full: the caller lets copies go and asks again); wait, with binds (units, platform_bytes or workspace_returns) and until (a day''s budget, a day as Google counts one); or go, with the copy marked returning so its length is held in the minutes before the video platform is asked. Every number is the caller''s setting; p_units is what the return will still spend at the provider. A return from the shelf (file_copy_shelved, 00690) spends nothing at a provider: only the workspace''s returns a day bind, and the day''s line is not written. A return whose job died before the platform was asked (returning, no id, untouched for p_stale_seconds) is begun again. The service role''s.';
+  'A copy''s return judged and begun in one place (00654, the footage sources plan''s Availability and D15). Answers {fate}: here or going (nothing to bring back now); returning (one is under way: a second asker joins it); lost, with why (nothing can give it back: written on the row); room, with seconds (the videos are full: the caller lets copies go and asks again); wait, with binds (units, platform_bytes or workspace_returns) and until (a day''s budget, a day as Google counts one); or go, with the copy marked returning so its length is held in the minutes before the video platform is asked. Every number is the caller''s setting; p_units is what the return will still spend at the provider. A return from the shelf (file_copy_shelved, 00695) spends nothing at a provider: only the workspace''s returns a day bind, and the day''s line is not written. A return whose job died before the platform was asked (returning, no id, untouched for p_stale_seconds) is begun again. The service role''s.';
 
 /* ------------------------------------------------------------------------------------------- 5. the shelf's doors -- */
 
@@ -441,7 +441,7 @@ end $$;
 revoke all on function public.file_shelf_begin(uuid, uuid, bigint, text, numeric) from public, anon, authenticated;
 grant execute on function public.file_shelf_begin(uuid, uuid, bigint, text, numeric) to service_role;
 comment on function public.file_shelf_begin(uuid, uuid, bigint, text, numeric) is
-  'A made video''s copy on the shelf begun (00690, the archive plan''s B2). Answers {fate}: none (no such video, removed, or not made here); kept, with state (it has a shelf copy already); full (the workspace''s shelved seconds and this video''s would pass p_seconds_max, the caller''s setting: contracts FILE_SHELF_MINUTES_MAX); or begun: the copy saving, its video piece with its key (workspace/file/video), the bytes and the SHA-256 taken as the video was made, and its file_shelve job, all in this one step. The service role''s.';
+  'A made video''s copy on the shelf begun (00695, the archive plan''s B2). Answers {fate}: none (no such video, removed, or not made here); kept, with state (it has a shelf copy already); full (the workspace''s shelved seconds and this video''s would pass p_seconds_max, the caller''s setting: contracts FILE_SHELF_MINUTES_MAX); or begun: the copy saving, its video piece with its key (workspace/file/video), the bytes and the SHA-256 taken as the video was made, and its file_shelve job, all in this one step. The service role''s.';
 
 create or replace function public.file_shelf_checked(
   p_tenant_id uuid,
@@ -494,7 +494,7 @@ end $$;
 revoke all on function public.file_shelf_checked(uuid, uuid, bigint, text) from public, anon, authenticated;
 grant execute on function public.file_shelf_checked(uuid, uuid, bigint, text) to service_role;
 comment on function public.file_shelf_checked(uuid, uuid, bigint, text) is
-  'What the shelf holds of a video compared with what was sent (00690): p_bytes and p_sha256 are the shelf''s own record. Equal to the piece''s own: the copy and its piece are checked, answers checked (and so again for one already checked). Anything else, a SHA-256 the shelf does not say among it: both failed, why mismatch, answers mismatch, and a copy that is away with nothing left to give it back is settled as lost. No copy saving: none. The service role''s.';
+  'What the shelf holds of a video compared with what was sent (00695): p_bytes and p_sha256 are the shelf''s own record. Equal to the piece''s own: the copy and its piece are checked, answers checked (and so again for one already checked). Anything else, a SHA-256 the shelf does not say among it: both failed, why mismatch, answers mismatch, and a copy that is away with nothing left to give it back is settled as lost. No copy saving: none. The service role''s.';
 
 create or replace function public.file_shelf_failed(p_tenant_id uuid, p_file_id uuid, p_why text)
 returns boolean
@@ -527,7 +527,7 @@ end $$;
 revoke all on function public.file_shelf_failed(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.file_shelf_failed(uuid, uuid, text) to service_role;
 comment on function public.file_shelf_failed(uuid, uuid, text) is
-  'A shelf copy that could not be put (00690): one saving is failed, with why: mismatch (the bytes it is put from are not the video''s), not_found (the file it is put from is gone) or refused (the shelf would not take it, or its job ended). The video keeps its place at the video platform and cannot step aside. A copy that is away is then settled: lost where nothing is left to give it back (mismatch, not_found), away still where the shelf only refused. Answers whether one was saving. The service role''s.';
+  'A shelf copy that could not be put (00695): one saving is failed, with why: mismatch (the bytes it is put from are not the video''s), not_found (the file it is put from is gone) or refused (the shelf would not take it, or its job ended). The video keeps its place at the video platform and cannot step aside. A copy that is away is then settled: lost where nothing is left to give it back (mismatch, not_found), away still where the shelf only refused. Answers whether one was saving. The service role''s.';
 
 create or replace function public.file_shelf_again(p_tenant_id uuid, p_file_id uuid)
 returns boolean
@@ -560,7 +560,7 @@ end $$;
 revoke all on function public.file_shelf_again(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.file_shelf_again(uuid, uuid) to service_role;
 comment on function public.file_shelf_again(uuid, uuid) is
-  'A shelf copy put back (00690): one that was checked and is found missing or wrong on the shelf, or one that failed, is saving again with its file_shelve job, in one step, its bytes and SHA-256 kept. Its video is not one that may step aside until it is checked again, and one that is away is not lost while this runs. Not for a removed file. Answers whether it was begun. The service role''s.';
+  'A shelf copy put back (00695): one that was checked and is found missing or wrong on the shelf, or one that failed, is saving again with its file_shelve job, in one step, its bytes and SHA-256 kept. Its video is not one that may step aside until it is checked again, and one that is away is not lost while this runs. Not for a removed file. Answers whether it was begun. The service role''s.';
 
 -- The copies left saving, found by how long: what the requeue below reads. Few rows at any time.
 create index if not exists file_archives_shelf_saving
@@ -602,4 +602,4 @@ end $$;
 revoke all on function public.file_shelf_requeue(integer, integer) from public, anon, authenticated;
 grant execute on function public.file_shelf_requeue(integer, integer) to service_role;
 comment on function public.file_shelf_requeue(integer, integer) is
-  'Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00690), p_limit at most, for every workspace in one statement: the floor under file_shelf_begin and file_shelf_again, which write the job themselves. One whose job is still on the ledger gets none (a job is held once a file). Answers how many jobs it wrote. The service role''s.';
+  'Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: the floor under file_shelf_begin and file_shelf_again, which write the job themselves. One whose job is still on the ledger gets none (a job is held once a file). Answers how many jobs it wrote. The service role''s.';

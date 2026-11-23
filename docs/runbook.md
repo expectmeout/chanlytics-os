@@ -980,7 +980,7 @@ a picture that could not be opened. Ask's `propose_post` card shows a real pictu
 `POST files/post`: `file_post_read_failed` is a photo Storage would not hand over, `file_post_store_failed` a shape that would not store
 (what did arrive is taken back), and `file_post_logo_failed` a business's mark that could not be read, which costs the mark and never the post.
 
-**A made video's second copy** (decision 0146, 00690; on `features.video_shelf`, off unless a workspace's config sets it). A video
+**A made video's second copy** (decision 0146, 00695; on `features.video_shelf`, off unless a workspace's config sets it). A video
 made here keeps a copy in a private R2 bucket, `chanlytics-shelf`, bound to the relay alone (`apps/relay/README.md`, "The shelf":
 the bucket, the binding, the `SHELF_FROM` secret and the order to deploy in). The edge reaches it through `FOOTAGE_RELAY_URL` and
 `FOOTAGE_TICKET_KEY`, the two a watched folder's clips already use; without them no copy is begun and nothing else changes. The

@@ -2,7 +2,7 @@
 
 **Status:** Decided by Ruben, 23 November 2026 (the archive plan's step B2, revision 2 of its build plan, with its
 requirements at version 1.1). Built with this note on the lane `files/a-made-video-keeps-a-copy-on-the-shelf`
-(migration 00690), waiting for his word to push; nothing of it is on production, and the bucket it needs is not made.
+(migration 00695), waiting for his word to push; nothing of it is on production, and the bucket it needs is not made.
 Written against main at `462e20d27a`. Builds on 0145 (a file says where its copies are) and 0099 (a business keeps its
 files).
 
@@ -68,7 +68,7 @@ files).
 - The app's side of the wire: `packages/channels/src/files/shelf.ts` (`putOnShelf`, `readShelfRecord`,
   `removeFromShelf`, `relayShelfAddress`) under a breaker of its own (`relay`), and the signer beside the clip's
   (`signShelfTicket`).
-- The rules: 00690. `file_shelf_begin` answers `none`, `kept`, `full` or `begun`; the shelf holds 300 minutes a
+- The rules: 00695. `file_shelf_begin` answers `none`, `kept`, `full` or `begun`; the shelf holds 300 minutes a
   workspace (`FILE_SHELF_MINUTES_MAX`, a guess until the walk's two numbers are read).
 - The job: `file_shelve` (twice, forty seconds a call, thirty-five for the pull), `apps/edge/lib/files/shelf/shelve.ts`.
   A mismatch is pulled once more where the call has the time; a second one fails the copy as `mismatch`, a kept file
@@ -98,7 +98,7 @@ files).
 ## Deploy order
 
 The bucket is made and the relay deployed with its binding and `SHELF_FROM` first; a relay with no bucket answers 503
-to a ticket that holds, and the app then begins no copy. 00690 is applied before the code that reads it; the code live
+to a ticket that holds, and the app then begins no copy. 00695 is applied before the code that reads it; the code live
 before it runs on it unchanged. After that, either app first. Nothing happens for any workspace until its switch is
 set.
 

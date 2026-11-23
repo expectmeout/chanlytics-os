@@ -268,7 +268,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "video_shelf",
     mechanism: "workspace_feature",
-    does: "A video made here keeps a checked copy on Chanlytics' own shelf (the archive plan's B2, 00690), so it gives up its place in the sixty minutes when room is needed and comes back on Play. Off, a made video holds its minutes as before. The test workspace's alone until a video an ad or a post set for later needs is kept (B5).",
+    does: "A video made here keeps a checked copy on Chanlytics' own shelf (the archive plan's B2, 00695), so it gives up its place in the sixty minutes when room is needed and comes back on Play. Off, a made video holds its minutes as before. The test workspace's alone until a video an ad or a post set for later needs is kept (B5).",
     owner: "Ruben",
     sunset: "2027-02-28",
   },

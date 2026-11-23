@@ -144,7 +144,7 @@ function world({
   shelf = null,
   full = null,
 } = {}) {
-  /** What the shelf's own door was asked (00690 file_shelf_begin); `shelf` is on, off, or broken. */
+  /** What the shelf's own door was asked (00695 file_shelf_begin); `shelf` is on, off, or broken. */
   const shelfAsked = [];
   const tables = {
     tenants: [{ id: T, name: "Harbor Studio" }],
@@ -242,7 +242,7 @@ function world({
         Object.assign(row(), { status: "failed", failed_why: a.p_why, machine: null });
         return true;
       },
-      // 00690: a made video's copy on the shelf begun, with its job, by the door itself (the shelf's own tests').
+      // 00695: a made video's copy on the shelf begun, with its job, by the door itself (the shelf's own tests').
       file_shelf_begin: (a) => {
         shelfAsked.push(a);
         if (shelf === "broken") throw new Error("the database gave no answer");

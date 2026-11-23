@@ -170,7 +170,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A watched clip's copy brought back (00654). Not sent (packages/jobs TOLD_ELSEWHERE): its file says it is away and
   // why on its own row, and whoever asked for it is answered there.
   copy_return: { stopped: "Couldn't bring a video back from your folder", to: CONTENT_LIBRARY_ROUTE },
-  // A made video's own file kept (00690). Not sent (packages/jobs TOLD_ELSEWHERE): the video plays as it did, and only
+  // A made video's own file kept (00695). Not sent (packages/jobs TOLD_ELSEWHERE): the video plays as it did, and only
   // its place among the videos that can step aside waits; Health reads the job's own lines.
   file_shelve: { stopped: "Couldn't finish keeping a video you made", to: CONTENT_LIBRARY_ROUTE },
   // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.

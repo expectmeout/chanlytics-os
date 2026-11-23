@@ -1,6 +1,6 @@
 /**
  * 00654's SQL as the copies' tests model it (the footage sources plan's P4, "Availability"): where a copy stands by
- * its origins, the letting go, a return's door and the seven-day cleanup, over tables in memory; and 00690's shelf
+ * its origins, the letting go, a return's door and the seven-day cleanup, over tables in memory; and 00695's shelf
  * beside them (the archive plan's B2): a made video's copy on Chanlytics' own shelf, begun with its job, checked, put
  * back, and counted among what can give a copy back. Pure: it imports
  * nothing of the edge. The takes' doors (tests/files/takes/_doors.mjs) stand beside these in one world, and count
@@ -45,7 +45,7 @@ export function copyDoors(tables, w) {
     originsOf(tenantId, fileId)
       .filter((i) => RETURNABLE.includes(i.state))
       .sort((a, b) => Number(b.state === "in") - Number(a.state === "in"))[0] ?? null;
-  // A file's shelf copy and its video's piece (00690): one a file at most.
+  // A file's shelf copy and its video's piece (00695): one a file at most.
   const shelfOf = (tenantId, fileId) =>
     tables.file_archives.find((a) => a.tenant_id === tenantId && a.file_id === fileId && a.origin === "shelf") ?? null;
   const pieceOf = (shelf) =>
@@ -89,7 +89,7 @@ export function copyDoors(tables, w) {
     );
   /**
    * A copy that could ever be let go: here, playable, and something can give it back: a watched clip its owner did
-   * not upload that can come back, or a video with a checked copy on the shelf (00690).
+   * not upload that can come back, or a video with a checked copy on the shelf (00695).
    */
   const mayEverGo = (f, tenantId) =>
     f.tenant_id === tenantId &&
@@ -256,7 +256,7 @@ export function copyDoors(tables, w) {
           (f) =>
             f.tenant_id === a.p_tenant_id && f.copy_returned_at && pacificDay(Date.parse(f.copy_returned_at)) === day,
         ).length;
-        // From the shelf (00690): nothing of a provider's day is asked or written; the workspace's own returns bind.
+        // From the shelf (00695): nothing of a provider's day is asked or written; the workspace's own returns bind.
         const spent = shelved(a.p_tenant_id, a.p_id) ? null : dayRow();
         const binds =
           spent && spent.units + a.p_units > a.p_units_max
@@ -302,7 +302,7 @@ export function copyDoors(tables, w) {
       tables.file_archive_parts = tables.file_archive_parts.filter((x) => !gone.has(x.archive_id));
       return null;
     },
-    // A copy marked going is here again (00690): its shelf copy was not what it should be, so nothing was deleted.
+    // A copy marked going is here again (00695): its shelf copy was not what it should be, so nothing was deleted.
     file_copy_kept: (a) => {
       w.asked.push({ door: "file_copy_kept", ...a });
       const row = fileOf(a.p_tenant_id, a.p_id);

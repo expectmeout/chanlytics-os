@@ -161,7 +161,7 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   takes: sourceTaker(db),
   // A watched clip's copy brought back to the video platform (00654), by the same relay and the same grant's reader.
   copies: copyReturner(db),
-  // A made video's own file put on Chanlytics' shelf and checked there (00690), through the same relay.
+  // A made video's own file put on Chanlytics' shelf and checked there (00695), through the same relay.
   shelf: shelver(db),
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.

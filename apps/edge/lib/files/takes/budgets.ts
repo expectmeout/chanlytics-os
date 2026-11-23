@@ -157,7 +157,7 @@ export const LET_GO = {
 } as const;
 
 /**
- * A made video's copy on Chanlytics' own shelf (the archive plan's B2; 00690): its job is written with its row, by the
+ * A made video's copy on Chanlytics' own shelf (the archive plan's B2; 00695): its job is written with its row, by the
  * door. The half-hourly pass is the floor under that: a copy still saving this long after it was last touched gets
  * its job again, a few a pass for every workspace together. Nothing should ever need it.
  */

@@ -13,7 +13,7 @@ export const FILES_MAX = 1000;
 export const FILES_PAGE = 60;
 
 /**
- * How many minutes of video a workspace keeps on Chanlytics' own shelf (the archive PRD 1.1, call A14; 00690
+ * How many minutes of video a workspace keeps on Chanlytics' own shelf (the archive PRD 1.1, call A14; 00695
  * file_shelf_begin, which is passed this): five times what plays at once. A video that does not fit is not shelved,
  * keeps its place at the video platform, and cannot step aside.
  */

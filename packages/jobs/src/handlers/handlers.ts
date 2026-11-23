@@ -450,7 +450,7 @@ async function copyReturn(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
-/** file_shelve: a made video's own file put on Chanlytics' shelf and checked there (00690), through what the edge injects. payload: { file_id } */
+/** file_shelve: a made video's own file put on Chanlytics' shelf and checked there (00695), through what the edge injects. payload: { file_id } */
 async function fileShelve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.shelf) throw new Error("file_shelve: this runtime holds no shelver");
   const answer = await ctx.shelf.shelve(job, ctx.deadline);

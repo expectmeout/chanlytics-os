@@ -1,6 +1,6 @@
 /**
  * The world the shelf's tests share (apps/edge/lib/files/shelf, the archive plan's B2): the copies' own world (its
- * database in memory with 00654's and 00690's doors, its pretend video platform and Drive) with the shelf beside it:
+ * database in memory with 00654's and 00695's doors, its pretend video platform and Drive) with the shelf beside it:
  * the relay's own handler over a bucket in memory, reached at the relay's address, and the files bucket a made video's
  * own file is kept in and pulled from. The real shelving, letting go, return and purge run over one set of tables.
  * Nothing here reaches a network.

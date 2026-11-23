@@ -34,7 +34,7 @@ interface CopyStanding {
   reason: FileCopyWhy | null;
   /** The origin that can give it back; null where none can. */
   itemId: string | null;
-  /** Whether Chanlytics' own shelf holds a checked copy (00690), which a return reads before any folder's item. */
+  /** Whether Chanlytics' own shelf holds a checked copy (00695), which a return reads before any folder's item. */
   shelf: boolean;
 }
 
@@ -42,7 +42,7 @@ const StandingAnswer = z.object({
   copy_state: z.string().nullable(),
   copy_why: z.string().nullable().optional(),
   item_id: z.string().nullable().optional(),
-  // Absent from a database older than 00690: no shelf there.
+  // Absent from a database older than 00695: no shelf there.
   shelf: z.boolean().optional(),
 });
 
@@ -154,7 +154,7 @@ export async function markCopyGone(db: Db, tenantId: TenantId, fileId: string): 
 }
 
 /**
- * A copy marked going is here again (file_copy_kept, 00690): its copy on the shelf was not what it should be, or the
+ * A copy marked going is here again (file_copy_kept, 00695): its copy on the shelf was not what it should be, or the
  * shelf gave no answer, so nothing was deleted at the video platform. Answers whether it was one.
  */
 export async function keepCopyHere(db: Db, tenantId: TenantId, fileId: string): Promise<boolean> {

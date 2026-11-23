@@ -379,7 +379,7 @@ export interface JobContext {
     bringBack: (job: ClaimedJob, deadline: number) => Promise<{ returned: string } | { skipped: string }>;
   };
   /**
-   * A made video's own file put on Chanlytics' shelf and checked there (00690, the archive plan's B2), as the edge
+   * A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2), as the edge
    * holds the relay's address and the ticket's key. INJECTED like the copies; a file_shelve job in a runtime without
    * it fails loudly. Answers `skipped` when there is nothing to put (the file is gone, or its copy is not saving),
    * and throws when the relay, the shelf or the database gave no answer.

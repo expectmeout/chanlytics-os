@@ -4,7 +4,7 @@
  * play, AI and a video being made asking at once are one return.
  *
  * What can give a copy back is asked in one order, written here and nowhere else (the archive PRD's FR-6.1): first
- * Chanlytics' own shelf, where a video made here keeps a checked copy (the archive plan's B2; 00690), then a watched
+ * Chanlytics' own shelf, where a video made here keeps a checked copy (the archive plan's B2; 00695), then a watched
  * folder's item. The shelf needs no key and spends nothing of a provider's day: the video platform fetches the copy
  * from the relay's address for the shelf, under a ticket that reads that one file. A shelf that does not hold the
  * video's bytes when it is asked puts the copy back from the video's own kept file (shelf/check.ts); the return then
