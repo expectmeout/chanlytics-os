@@ -399,7 +399,7 @@ test(
     assert.equal((await postOf(first.post_id)).permalink, "https://www.tiktok.com/@harbor/video/1");
     assert.ok((await report("owner", { p_link: "tiktok.com/x" })).error, "no https, no link");
     // It holds no place of ours: a press still sends the piece to Instagram.
-    assert.equal(ok(await begin("owner", fileId), "begin beside it").fate, "begun");
+    assert.equal(ok(await begin("owner", fileId), "begin beside it").fate, "approved");
     // Not posted after all: Don't post's door takes it back, and one said after is a new record.
     assert.deepEqual(ok(await as.owner.client.rpc("post_pull", { p_post_id: first.post_id }), "take back"), {
       fate: "pulled",
