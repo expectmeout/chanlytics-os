@@ -315,7 +315,7 @@ being read is dropped by a migration.
 | `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts`; SQL `form_time_request_take` | The hosted form door's one write (00680; |
 | `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's hosted forms nobody has answered (00680, 00691; |
 | `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's hosted forms brought over the last p_days (30; |
-| `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691; |
+| `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691, 00704; |
 | `form_turn` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
