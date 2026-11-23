@@ -22,7 +22,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { frameDrawn, installPageSpeed, type SpeedShell } from "@/client/page-speed";
+import { frameDrawn, hearPartReady, installPageSpeed, type SpeedShell } from "@/client/page-speed";
 import {
   FIRST_RUN_ROUTE,
   LIFECYCLE_WORDS,
@@ -120,7 +120,7 @@ import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
-import { type OpenHandoverDto, valueAt } from "@chanlytics/contracts";
+import { type OpenHandoverDto, PRIMARY_PART, valueAt, vitalsPageOf } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
 
 /**
@@ -147,6 +147,13 @@ function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace"
 // Before anything below asks for it: a boot is coming (workspace.ts bootComing), so what waits for the boot waits for the one
 // the runner starts in its effect, not for none.
 bootComing();
+// And the page on screen will say when it is drawn: what other pages read waits for that too (hearing/page-waits.ts). A
+// page with a first part (contracts PRIMARY_PART) is drawn once that part's rows are, the moment its READY is measured from:
+// its gate opened a beat before its rows were on the screen (the Calendar's board 0.15 s after its frame).
+drawComing();
+hearPartReady((page, part) => {
+  if (PRIMARY_PART[page] === part) pageDrawn();
+});
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
 // What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
@@ -370,6 +377,7 @@ import {
   reachFor,
   routeOnScreen,
 } from "./workspace";
+import { drawComing, pageDrawn } from "./hearing/page-waits";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 import { SeeOverMount } from "@/surfaces/see/see-mount";
 
@@ -484,7 +492,12 @@ function SpeedFrame({ route }: { route: string | null }) {
   useRouteMoved({ page, param });
   const [, statusMoved] = useState(0);
   useEffect(() => onSurfaceStatusChange(() => statusMoved((n) => n + 1)), []);
-  useLayoutEffect(() => frameDrawn());
+  useLayoutEffect(() => {
+    frameDrawn();
+    // Its gate open on a page with no first part of its own: the page is drawn, and the rest of the boot may go (workspace.ts
+    // pageDrawn). A page with one says it when that part's rows are drawn (hearPartReady, above).
+    if (routeGateOpen(page, param) && !PRIMARY_PART[vitalsPageOf(route ?? routeOnScreen())]) pageDrawn();
+  });
   return null;
 }
 
