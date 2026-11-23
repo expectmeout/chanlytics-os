@@ -9,8 +9,6 @@ import {
   AppError,
   ON_INSTAGRAM,
   intentOfAbout,
-  metaLinesOf,
-  recordOrEmpty,
   type InstagramPostable,
   type InstagramPostKind,
   type OwnersFact,
@@ -19,28 +17,12 @@ import {
   type PostPlace,
   type TenantId,
 } from "@chanlytics/contracts";
-import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import { listFilePosts, movePostTime, pullPost, type FileMemberRow, type MemberPostRow } from "@chanlytics/db/files";
-import { readMetaSwitch } from "@/server/connections/meta";
+import { readInstagramPostable } from "@/server/connections/meta";
 import { postDtoOf } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements } from "./approve";
-
-/**
- * Whether this workspace's Instagram takes a post now; null where the Meta link is not switched on, and nothing is offered.
- * A connection Meta no longer accepts (the daily check's `token_lapsed_at`) is not connected: a press there would only be
- * held a minute later, so it is not offered, and the sheet says to connect again.
- */
-export async function readInstagramPostable(tenantId: TenantId): Promise<InstagramPostable | null> {
-  if (!(await readMetaSwitch(tenantId))) return null;
-  const row = await findMetaInstagramRow(serviceDb(), tenantId);
-  if (!row) return "not_connected";
-  const config = recordOrEmpty(row.config);
-  if (config.token_lapsed_at) return "not_connected";
-  return metaLinesOf(config.scopes).publish ? "yes" : "line_off";
-}
 
 /** A file's posts on Instagram, newest first, as the sheet shows them, of the file's posts read under the member's session. */
 export const instagramPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>

@@ -31,7 +31,7 @@ import { findGoogleConnection } from "@chanlytics/db/google";
 import { findWorkspaceRuntimeRow, findWorkspaceZone } from "@chanlytics/db/workspace";
 import { loadFeed } from "../calendar/openings";
 import { recordBusy } from "../calendar/record-busy";
-import { readInstagramPostable } from "../posts/instagram";
+import { readInstagramPostable } from "../connections/meta";
 import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { fileDtoOf } from "./files";

@@ -31,7 +31,7 @@ import { filesNamedForAsk } from "../../../../readers/files";
 import { findConnection } from "../../../../connections/google";
 import { readPostCaption } from "../../../../posts/caption";
 import { readPlacementRefusals, type CheckedFile, type PlacementAsked } from "../../../../posts/checks";
-import { readInstagramPostable } from "../../../../posts/instagram";
+import { readInstagramPostable } from "../../../../connections/meta";
 import { readFilePosts } from "../../../../posts/record";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
