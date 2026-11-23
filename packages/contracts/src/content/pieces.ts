@@ -102,8 +102,6 @@ export type PiecePlan = {
   /** The end card's own line, over the business's name. */
   end_line: string | null;
   language: PieceLanguage;
-  /** The owner said in this thread that the people in the clips agreed: their word, kept on each file as the video is made. */
-  people_agreed: boolean;
   /**
    * The words a person pastes under the video when they post it (the content canvas: "Words to paste"), written by Ask with
    * it; none on a video made before Ask wrote them.
@@ -196,7 +194,6 @@ export function piecePlanOf(payload: Record<string, unknown>): PiecePlan {
     words_hold: payload.words_hold === "all" ? "all" : "first",
     end_line: nonBlankOrNull(payload.end_line),
     language: payload.language === "es" ? "es" : "en",
-    people_agreed: payload.people_agreed === true,
     caption: nonBlankOrNull(payload.caption),
   };
 }
@@ -263,7 +260,6 @@ export type PieceWont =
   | "past_end"
   | "block_length"
   | "length"
-  | "people"
   | "lines"
   | "opens_on_card"
   | "card"

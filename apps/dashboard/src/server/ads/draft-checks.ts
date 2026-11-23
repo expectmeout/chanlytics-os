@@ -7,7 +7,7 @@
  * draft says them. A draft says one at a time, the first, with its one act:
  *
  *   the ad account   the card's own checks (the account's standing, a payment method, the Page, its WhatsApp number)
- *   the picture      gone from Files, a person shown, music, a before and after, too small, the wrong shape or length
+ *   the picture      gone from Files, music, a before and after, too small, the wrong shape or length
  *   the words        about the reader, about how someone looks, a sure result, hurry, and anything else of the writer's
  *   a price          any price while AI never quotes one, or one Services does not say
  *   the amount       under Meta's least for the run, over the most the owner said, or not a whole amount

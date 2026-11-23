@@ -150,14 +150,13 @@ export const AdWordsBodySchema = z.discriminatedUnion("job", [
  * Why a draft cannot be written yet: the plan's four (G13), an ad account not ready to draft for, or AI stopped. A
  * WhatsApp chat AI could not answer says why (contracts ads/way-in.ts): no number connected (whatsapp), Meta's word on
  * the number not read yet (whatsapp_unread), Meta stopping it (whatsapp_blocked), or the workspace paused (paused). A
- * picture missing says which, so its line says what to do: there is none at all (picture_none); each shows someone,
- * or nobody has said who is in it (picture_person); each video has music, or was not heard yet (picture_music); none
- * is a size or shape an ad takes (picture); or the piece "Run as an ad" chose is no longer kept (picture_gone).
+ * picture missing says which, so its line says what to do: there is none at all (picture_none); each video has music,
+ * or was not heard yet (picture_music); none is a size or shape an ad takes (picture); or the piece "Run as an ad"
+ * chose is no longer kept (picture_gone).
  */
 export type AdCantDraft =
   | AdDraftMissing
   | "picture_none"
-  | "picture_person"
   | "picture_music"
   | "picture_gone"
   | "account"

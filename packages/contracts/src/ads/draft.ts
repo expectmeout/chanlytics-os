@@ -11,9 +11,9 @@
  *    shortest run for a total: here it is one whole day.
  *  - One picture is shown in every place, so it is the feed's shape (4:5 through square to 1.91:1, at least 600 pixels
  *    wide), which stories and Reels show whole. A video runs 3 to 60 seconds, inside every place's own limits.
- *  - A video with music runs as an ad only with a licence of the advertiser's own, and a person shown must have said
- *    yes to ads. Until Content answers both (its step L4), a draft offers only what shows nobody and has no music
- *    (the plan's G15).
+ *  - A video with music runs as an ad only with a licence of the advertiser's own. Until Content writes one (its step
+ *    L8), a draft offers only a video with no music (the plan's G15). Who is in a picture is no rule: footage a
+ *    business provides is taken as cleared, so nobody in it is asked (Ruben, 22 November 2026).
  *  - An ad about a job, housing, financial products, politics or gambling is declared to Meta, which then fixes the
  *    ages and refuses a small area. It is not run here in the first version (the plan's G7).
  *
@@ -62,12 +62,8 @@ export interface AdPicture {
   height: number;
   /** A video's length in seconds; null for a photo, or where it is not known. */
   seconds: number | null;
-  /**
-   * Content's answer to "may this run as an ad?" on the rights (contracts files/yes.ts fileAdRightsOf, the plan's 6.8
-   * join 1): null where it may, else why not, someone shown who has not said yes to ads, or music. Ads keeps no rule of
-   * its own on either.
-   */
-  rights: "person" | "music" | null;
+  /** Its rights (adRightsOf, the plan's 6.8 join 1): null where it may run, else `music`. */
+  rights: "music" | null;
   /** Whether it sets a before beside an after. */
   beforeAfter: boolean;
   /** Whether AI made it: offered before one the business only kept. */
@@ -85,8 +81,15 @@ const FEED_SHAPE = { tallest: (4 / 5) * 0.97, widest: 1.91 * 1.03 } as const;
 const PICTURE_MIN_WIDTH = 600;
 const VIDEO_SECONDS = { least: 3, most: 60 } as const;
 
+/**
+ * A picture's rights in an ad: a video with music, or one not heard yet (`music` null), runs only once its licence is
+ * written (the content PRD's step L8, not built), so it is `music`; anything else may run.
+ */
+export const adRightsOf = (kind: AdPicture["kind"], music: boolean | null): AdPicture["rights"] =>
+  kind === "video" && music !== false ? "music" : null;
+
 /** Why a picture is not offered for an ad. */
-export type AdPictureIssue = "person" | "music" | "before_after" | "small" | "shape" | "length";
+export type AdPictureIssue = "music" | "before_after" | "small" | "shape" | "length";
 
 /** What stops a picture from being offered for an ad; null where it is fine in ads. */
 export function adPictureIssue(adPicture: AdPicture): AdPictureIssue | null {

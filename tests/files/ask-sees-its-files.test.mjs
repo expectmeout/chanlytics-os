@@ -150,20 +150,14 @@ test("the line rides in the facts, and a workspace whose files could not be read
   assert.doesNotMatch(factsBlock({ ...facts, filesLine: null }), /Files:/);
 });
 
-test("who is in it is said as it stands, from the one place that reads a person's word beside the look's", () => {
-  const f = (over) => ({ who_in_it: "not_asked", look_status: "done", people: null, ...over });
+test("who is in it is said as the look counted it, to choose by: nobody in it is asked for a yes", () => {
+  const f = (over) => ({ look_status: "done", people: null, ...over });
   assert.equal(fileWhoSaid(f({ people: { count: 0, recognizable: 0 } })), "no people");
   assert.equal(fileWhoSaid(f({ people: { count: 1, recognizable: 0 } })), "1 person, none recognizable");
-  assert.equal(fileWhoSaid(f({ people: { count: 2, recognizable: 1 } })), "2 people, no yes kept");
-  // A yes for each use it was said for (00665): AI reads which, and that one for posts is not one for ads.
-  assert.equal(fileWhoSaid(f({ people: { count: 2, recognizable: 2 }, yes_for: ["post"] })), "2 people, yes to post");
-  assert.equal(
-    fileWhoSaid(f({ people: { count: 2, recognizable: 2 }, yes_for: ["post"], yes_back: ["ad"] })),
-    "2 people, yes to post, yes taken back for ad",
-  );
-  assert.equal(fileWhoSaid(f({ who_in_it: "no_one" })), "no one in it");
+  assert.equal(fileWhoSaid(f({ people: { count: 2, recognizable: 1 } })), "2 people");
   assert.equal(fileWhoSaid(f({ look_status: "waiting" })), "not looked at yet");
-  assert.equal(fileWhoSaid(f({ look_status: "failed" })), "people, no yes kept");
+  // A look that could not count says nothing of people, and never that a yes is missing (Ruben, 22 Nov 2026).
+  assert.equal(fileWhoSaid(f({ look_status: "failed" })), null);
 });
 
 test("a list answers one line a file, to choose by, and only what is kept unless a shelf is asked for", async () => {

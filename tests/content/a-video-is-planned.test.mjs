@@ -39,7 +39,6 @@ const clip = (over = {}) => ({
   source: "upload",
   media_status: "ready",
   seconds: 11.69,
-  people_unasked: false,
   ...over,
 });
 const plan = (over = {}) => ({
@@ -55,7 +54,6 @@ const plan = (over = {}) => ({
   words_hold: "all",
   end_line: "Same chair. New me.",
   language: "en",
-  people_agreed: false,
   ...over,
 });
 const look = (over = {}) => ({
@@ -198,12 +196,6 @@ test("a cut is drawn only from the business's own ready, kept video, and never f
   assert.deepEqual(wont(clip({ seconds: null })), { ok: false, wont: "not_ready", cut: 1 });
 });
 
-test("a clip that shows someone recognizable waits for the word that they agreed", () => {
-  const seen = [clip({ people_unasked: true })];
-  assert.deepEqual(compiled(plan(), seen), { ok: false, wont: "people", cut: 1 });
-  assert.equal(compiled(plan({ people_agreed: true }), seen).ok, true);
-});
-
 test("the opening words are one or two short lines", () => {
   assert.deepEqual(compiled(plan({ lines: [] })), { ok: false, wont: "lines" });
   assert.deepEqual(compiled(plan({ lines: ["One", "Two", "Three"] })), { ok: false, wont: "lines" });
@@ -262,7 +254,6 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     "end_line",
     "language",
     "lines",
-    "people_agreed",
     "shape",
     "words_at",
     "words_hold",
@@ -275,7 +266,6 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     words_hold: "first",
     end_line: null,
     language: "en",
-    people_agreed: false,
     caption: null,
   });
   // The words Ask wrote to paste under it (C3) ride with it; a video made before Ask wrote them has none, never made up.
@@ -296,7 +286,6 @@ test("every reason a plan is refused has its words for a person, in both languag
     "past_end",
     "block_length",
     "length",
-    "people",
     "lines",
     "opens_on_card",
     "card",
@@ -390,7 +379,6 @@ const HOOK_FIRST_PAYLOAD = {
   words_hold: "all",
   end_line: null,
   language: "en",
-  people_agreed: false,
 };
 const HOOK_FIRST_BEFORE = {
   width: 1080,
@@ -466,7 +454,6 @@ test("each kind of block is held to its own limits, and a refusal names its bloc
     words_hold: "first",
     end_line: null,
     language: "en",
-    people_agreed: false,
     ...over,
   });
   const cut = { is: "clip", file_id: CLIP, from: 0, to: 4, label: null };
@@ -483,7 +470,6 @@ test("each kind of block is held to its own limits, and a refusal names its bloc
   assert.deepEqual(wont(blocks([cut, still(3, { label: "x".repeat(23) }), still(3)])), ["label", 2]);
   assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ source: "made" })]), ["made", 2]);
   assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ status: "inbox" })]), ["unkept", 2]);
-  assert.deepEqual(wont(blocks([cut, still(3), still(3)]), [clip(), photo({ people_unasked: true })]), ["people", 2]);
   const card = { is: "words", lines: ["Three steps"], seconds: 2 };
   assert.deepEqual(wont(blocks([card, cut, still(3)])), ["opens_on_card", 1]);
   assert.equal(
@@ -526,7 +512,6 @@ test("a video of photos, cards and a pair compiles to what the template draws: f
       words_hold: "first",
       end_line: null,
       language: "es",
-      people_agreed: false,
     }),
     [clip(), photo()],
     look(),

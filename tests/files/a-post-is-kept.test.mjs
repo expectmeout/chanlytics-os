@@ -73,7 +73,6 @@ const PLAN = {
   voice: "classic",
   layout: "over",
   language: "en",
-  people_agreed: false,
 };
 
 /** The world: a member's database, and a service role whose Storage and door answer from memory. */
@@ -136,10 +135,6 @@ function world({
         file_change: (a) => {
           asked.changed.push(a);
           return null;
-        },
-        file_yes_record: (a) => {
-          asked.changed.push(a);
-          return { kept: ["post"], again: [], ids: ["y1"], yes_for: ["post"], yes_back: [] };
         },
       },
     ),
@@ -312,7 +307,7 @@ test("Save keeps a shape each in the file's folder, and the file by its door: wh
   assert.equal(door.p_look.line, 'A post saying "Come see the new floor.", made from storefront-dusk.');
   assert.deepEqual(door.p_look.text_seen, ["Newly renovated", "Come see the new floor."]);
   assert.deepEqual(door.p_look.people, { count: 0, recognizable: 0 }, "who is in it is the photo's");
-  assert.equal(door.p_who_in_it, "not_asked");
+  assert.equal(door.p_who_in_it, "not_asked", "who is in it is never asked: the door's word is the unasked one");
   assert.deepEqual(door.p_made, { from: F, plan: { ...PLAN, at: null } }, "a photo's plan names no moment of a video");
   assert.equal(door.p_actor, USER);
   assert.deepEqual(asked.removed, []);
@@ -356,24 +351,16 @@ test("a Save leaves its purge before anything travels, so a function that dies p
 
 test("a library at its cap is told so at the start, with nothing drawn, stored or changed", async () => {
   const { asked, ctx } = world({ capReached: true });
-  await assert.rejects(save.POST.run(post({ ...PLAN, people_agreed: true }), ctx), (e) => e.code === "validation");
+  await assert.rejects(save.POST.run(post(PLAN), ctx), (e) => e.code === "validation");
   assert.deepEqual([asked.downloaded, asked.uploaded, asked.changed, asked.made], [[], [], [], []]);
 });
 
-test("the owner's word that those in the photo agreed is kept as a yes for posts on the photo, never as the post's word", async () => {
+test("a photo of someone recognizable is kept as a post like any other, and no yes is asked or kept for it", async () => {
   const face = { line: "A client in the chair.", people: { count: 1, recognizable: 1 }, subject: [0.2, 0.2, 0.8, 0.8] };
   const { asked, ctx } = world({ rows: [fileRow({ look: face })] });
-  await save.POST.run(post({ ...PLAN, people_agreed: true }), ctx);
-  assert.deepEqual(
-    [asked.changed[0].p_file_id, asked.changed[0].p_uses, asked.changed[0].p_who],
-    [F, ["post"], "The people in it"],
-    "a yes for posts alone (00665): never for an ad",
-  );
-  assert.equal(asked.made[0].p_who_in_it, "not_asked", "the post keeps the photo's own word; the yes is the photo's");
-  // A photo nobody could recognize anyone in needs no yes: nothing is kept for it.
-  const clear = world();
-  await save.POST.run(post({ ...PLAN, people_agreed: true }), clear.ctx);
-  assert.deepEqual(clear.asked.changed, []);
+  await save.POST.run(post(PLAN), ctx);
+  assert.equal(asked.made.length, 1, "the post is kept");
+  assert.deepEqual(asked.changed, [], "nothing is said of the photo on the way");
 });
 
 /* ------------------------------------------------------------------------- as a file */
@@ -437,7 +424,6 @@ test("a video Ask made says the plan it was drawn by, so its words can be made a
     words_hold: "first",
     end_line: "Book your cut",
     language: "en",
-    people_agreed: false,
   };
   const piece = (over) => ({
     id: F,

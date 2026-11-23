@@ -69,6 +69,7 @@ export {
   adLeastTotal,
   adMostOf,
   adPictureIssue,
+  adRightsOf,
   adSpecialKinds,
 } from "./draft";
 export type {

@@ -12,7 +12,6 @@ import {
   pieceWordsIn,
   secondsOf,
   videoPreviewOf,
-  fileUseOf,
   type PiecePlan,
   type PieceWont,
 } from "@chanlytics/contracts";
@@ -50,10 +49,10 @@ import { ownersTyped, ownersWords } from "./post";
  *
  * How to arrange the blocks is advice, the video maker's guide (ask/skills/video/skill.ts): in the turn whose question asks
  * for a video, and read with the guide tool where it is not; this tool's own words say where, and carry none of it. Code
- * holds what code can: every file is the business's own and kept, each stretch is inside its clip, whoever
- * is in them agreed, the words can be drawn and promise nothing the owner has not, and a quote is a client's own words, found
- * in a review of four or five stars the workspace holds, or typed here by the owner, who said a client wrote them (contracts
- * compilePiece, post-check).
+ * holds what code can: every file is the business's own and kept, each stretch is inside its clip, the words can be
+ * drawn and promise nothing the owner has not, and a quote is a client's own words, found in a review of four or five
+ * stars the workspace holds, or typed here by the owner, who said a client wrote them (contracts compilePiece,
+ * post-check). Who is in a clip or a photo is never asked: footage a business provides is taken as cleared.
  */
 
 type Block = PiecePlan["blocks"][number];
@@ -170,10 +169,6 @@ const pieceInput = z.object({
     .describe(
       `The end card's one short line, at most ${PIECE_LIMITS.endLine} characters, or none; never a booking line: code adds their name, number and address.`,
     ),
-  people_agreed: z
-    .boolean()
-    .optional()
-    .describe("Only when the owner said in this conversation that the people shown agreed to be."),
   client_said: z
     .boolean()
     .optional()
@@ -217,8 +212,6 @@ const WONT_TO_MODEL: Readonly<Record<PieceWont, string>> = {
   past_end: "it runs past the end of its clip: open the clip again and choose seconds inside it",
   block_length: `it runs shorter or longer than its kind may: a clip's moment ${PIECE_LIMITS.cutMinS} to ${PIECE_LIMITS.cutMaxS} seconds, a photo ${PIECE_LIMITS.photoMinS} to ${PIECE_LIMITS.photoMaxS}, a pair ${PIECE_LIMITS.pairMinS} to ${PIECE_LIMITS.pairMaxS}, a words card ${PIECE_LIMITS.cardMinS} to ${PIECE_LIMITS.cardMaxS}, a quote ${PIECE_LIMITS.quoteMinS} to ${PIECE_LIMITS.quoteMaxS}`,
   length: `the blocks together run ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS} seconds`,
-  people:
-    "its file shows someone recognizable, and no yes to posts is kept for it. Ask the owner in a sentence; if they say yes, call again with people_agreed true",
   lines: `a video that opens on a picture has opening words: one or two lines of at most ${PIECE_LIMITS.line} characters each`,
   opens_on_card:
     "the opening words sit over a picture, and this video opens on a card: leave lines empty, or open on a clip, a photo or a pair",
@@ -233,23 +226,15 @@ function blockMomentOf(moment: z.infer<typeof time>): number | null {
   return second === null || second < 0 ? null : Math.round(second * 100) / 100;
 }
 
-/** A file whose yes to posts was taken back: no card made before or after brings it back but a new yes. */
-const PEOPLE_TAKEN_BACK =
-  "someone in its file took back their yes to posts. Use another file; if they say yes again, keep it with keep_yes first";
-
-/** What a block is built from: the files its plan names, and whether the owner said those in them agreed. */
+/** What a block is built from: the files its plan names. */
 interface Building {
   files: readonly FileForAsk[];
-  agreed: boolean;
 }
 
 /** A file by the name a block gives it, or why it can't be shown. */
 function fileFor(building: Building, name: string): FileForAsk | string {
   const file = filesNamed(building.files, [name]).found.at(0);
-  if (!file) return `no file named ${name}; names come from files with action list`;
-  const shown = fileUseOf("post", file).is;
-  if (shown === "taken_back") return PEOPLE_TAKEN_BACK;
-  return shown === "ask" && !building.agreed ? WONT_TO_MODEL.people : file;
+  return file ?? `no file named ${name}; names come from files with action list`;
 }
 
 /** A picture held still: a photo, or one moment of a clip, which `at` says. `field` is the input that names its file. */
@@ -474,7 +459,7 @@ async function planAsked(
   const { files } = await load(toolContext.rc, filesNamedForAsk, { names }).then((r) => r.data);
   // The language asked for, else the one asked in: a video made again in Spanish, asked in English, draws its own words in Spanish.
   const language = input.language ?? (toolContext.language === "es" ? "es" : "en");
-  const building: Building = { files, agreed: input.people_agreed === true };
+  const building: Building = { files };
   const blocks: Block[] = [];
   for (const [i, given] of input.blocks.entries()) {
     const block = blockFor(building, given);
@@ -490,7 +475,6 @@ async function planAsked(
     words_hold: input.words_hold,
     end_line: input.end_line?.trim() || null,
     language,
-    people_agreed: building.agreed,
     caption: input.caption?.trim() || null,
   };
 }

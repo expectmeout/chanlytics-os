@@ -204,5 +204,3 @@ export {
 } from "./take-down";
 export type { TakeDownBegun } from "./take-down";
 export { movePostTime } from "./waiting-posts";
-export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
-export type { FileYesKept } from "./yes";

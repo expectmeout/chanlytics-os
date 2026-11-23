@@ -1,31 +1,24 @@
 /**
  * Details, a sheet over the viewer (the content canvas, board PhView "details"): the words that go with it, what it was made
  * from with their pictures, and rows saying when Ask made it and a video's sound; no foot, since Change it is More's. A photo
- * of the Library keeps here its question of who is in it, which a post made from it needs answered first. Where a piece
- * stands at each place, and the doors to a post that is up (see it on Instagram, see it on Google or take it down), are the
- * status row's list alone (foot.tsx ViewerStatus, post-both.tsx): said once. Every line is the records': a video's words come
+ * of the Library keeps here the shelf it is on. Who is in it is never asked: footage a business provides is taken as
+ * cleared (Ruben, 22 Nov 2026). Where a piece stands at each place, and the doors to a post that is up (see it on
+ * Instagram, see it on Google or take it down), are the status row's list alone (foot.tsx ViewerStatus, post-both.tsx):
+ * said once. Every line is the records': a video's words come
  * with Ask's caption (Part D), and none is made up meanwhile.
  */
-import {
-  CONTENT_WORDS as W,
-  FILE_YES_ASK,
-  fileSaidOf,
-  fileViewOf,
-  fileYesSaidOf,
-  type FileDto,
-} from "@chanlytics/contracts";
+import { CONTENT_WORDS as W, fileViewOf } from "@chanlytics/contracts";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { FileChoices, FileWho } from "../../../files/file-fields";
+import { FileChoices } from "../../../files/file-fields";
 import type { FileChange } from "../../../files/verbs";
 import type { ViewerDetailsShown } from "../model/viewer-line";
-import { AskLine } from "../sheets/ask-change";
 import { CaptionInPlace } from "./caption";
 
 /** What Details holds, in the phone's sheet and under the acts in the desk's pane (desk.tsx). */
 interface ViewerFactsProps {
   shown: ViewerDetailsShown;
-  /** Whether this person may change it: who is in a photo is theirs to say, and its words theirs to edit. */
+  /** Whether this person may change it: a photo's shelf is theirs to say, and its words theirs to edit. */
   may: boolean;
   busy: boolean;
   say: (body: FileChange) => void;
@@ -63,19 +56,6 @@ function FactWords({
   );
 }
 
-/** Asking AI changes nothing on this sheet: the conversation opens beside it. */
-const STAYS_OPEN = (): void => undefined;
-
-/**
- * The line to AI on a photo or video of the Library that shows someone (00665): where a yes is said, or taken back, on the
- * file itself. AI keeps who said it and for what; nothing here is a press.
- */
-function YesToAi({ file }: { file: FileDto }) {
-  const about = { kind: "file", id: file.id, label: fileSaidOf(file.name) } as const;
-  const placeholder = fileYesSaidOf(file)?.needs ? FILE_YES_ASK.give : FILE_YES_ASK.takeBack;
-  return <AskLine about={about} onAsked={STAYS_OPEN} placeholder={placeholder} />;
-}
-
 /** What it was made from, its pictures small, and when, said once on one line. */
 function MadeLine({ shown }: { shown: ViewerDetailsShown }) {
   return (
@@ -97,7 +77,7 @@ function MadeLine({ shown }: { shown: ViewerDetailsShown }) {
 }
 
 /**
- * The words, what it was made from, who is in a photo, and its rows. A made piece's caption is the owner's to change where it
+ * The words, what it was made from, a photo's shelf, and its rows. A made piece's caption is the owner's to change where it
  * stands (caption.tsx); a reader's is words to read. Where it stands at each place, and the doors to a post that is up, are
  * the status row's and its list's alone (foot.tsx ViewerStatus, post-both.tsx), said once.
  */
@@ -124,13 +104,8 @@ export function ViewerFacts(props: ViewerFactsProps) {
           </div>
         </div>
       ) : null}
-      {/* Who is in a photo of the Library, asked before a post is made from it: the one question the canvas does not draw. */}
-      {file.source !== "made" && may ? (
-        <>
-          <FileChoices file={file} busy={props.busy} say={props.say} />
-          <FileWho file={file} busy={props.busy} say={props.say} tell={<YesToAi file={file} />} />
-        </>
-      ) : null}
+      {/* The shelf a photo of the Library is on, the owner's to say. */}
+      {file.source !== "made" && may ? <FileChoices file={file} busy={props.busy} say={props.say} /> : null}
       <dl className="cnv-fact-rows">
         {shown.facts.map((fact) => (
           <div key={fact.label} className="cnv-fact-row">

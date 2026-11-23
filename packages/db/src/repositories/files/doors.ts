@@ -109,7 +109,6 @@ export async function recordFileMade(
     width: number;
     height: number;
     look: Json;
-    whoInIt: string;
     made: Json;
     actor: string | null;
   },
@@ -123,7 +122,8 @@ export async function recordFileMade(
     p_width: args.width,
     p_height: args.height,
     p_look: args.look,
-    p_who_in_it: args.whoInIt,
+    // Who is in it is no longer asked or read (22 Nov 2026); the door still takes the column's word, so it is the unasked one.
+    p_who_in_it: "not_asked",
     p_made: args.made,
     ...(args.actor ? { p_actor: args.actor } : {}),
   });
@@ -139,7 +139,6 @@ export async function updateFileRow(
     id: string;
     name?: string | undefined;
     shows?: string | undefined;
-    whoInIt?: string | undefined;
     status?: "filed" | "set_aside" | undefined;
   },
 ) {
@@ -148,7 +147,6 @@ export async function updateFileRow(
     p_id: args.id,
     ...(args.name !== undefined ? { p_name: args.name } : {}),
     ...(args.shows !== undefined ? { p_shows: args.shows } : {}),
-    ...(args.whoInIt !== undefined ? { p_who_in_it: args.whoInIt } : {}),
     ...(args.status !== undefined ? { p_status: args.status } : {}),
   });
 }

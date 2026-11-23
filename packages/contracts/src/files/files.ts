@@ -1,7 +1,7 @@
 /** Files: files. */
 
 import type { FileDto, FileShelf, FilesTally } from "./views";
-import type { FileShows, FileSource, FileWhoInIt } from "./limits";
+import type { FileShows, FileSource } from "./limits";
 import { FILE_VIDEO_MINUTES_MAX } from "./kinds";
 import { VIDEO_TILE_WORDS } from "./tile-words";
 
@@ -148,14 +148,6 @@ export const FILE_WORDS = {
     graphic: "Flyer or graphic",
     other: "Something else",
   } satisfies Record<FileShows, string>,
-  who: {
-    not_asked: "Not asked",
-    no_one: "No one's in it",
-  } satisfies Record<FileWhoInIt, string>,
-  whoClear: "No one you could recognize",
-  whoAsk: (seen: number | null) =>
-    seen === null ? "Someone may be in it." : `AI saw ${seen} ${seen === 1 ? "person" : "people"}.`,
-  whoChange: "Change",
   sources: {
     upload: "Added by you",
     google_profile: "From your Google profile",
@@ -173,7 +165,6 @@ export const FILE_WORDS = {
   save: "Save",
   shelf: "Shows",
   shelfNone: "Not sorted yet",
-  who_label: "Who's in it",
   keep: "Keep it",
   setAside: "Set aside",
   putBack: "Put back",
