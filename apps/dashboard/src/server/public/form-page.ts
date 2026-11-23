@@ -32,6 +32,8 @@ import {
   publishesBusinessPage,
   readFormAnswers,
   SLUG,
+  formSlotWords,
+  formFramePath,
   sourceFromSeen,
   type FormDescription,
   type FormPageWords,
@@ -40,9 +42,8 @@ import {
 import {
   findFormBySlug,
   findFormVersion,
-  takeFormRequest,
-  type FormHeldWhy,
   type FormRequestTaken,
+  type FormRequestToTake,
   type FormRead,
 } from "@chanlytics/db/forms";
 import type { Database } from "@chanlytics/db/types";
@@ -52,9 +53,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { findEmailReady } from "../connections/email-readiness";
 import { log } from "../shared/log";
-import { takeRate } from "../shared/rate-limit";
-import { hashKey, ipOf } from "../shared/request-ip";
 import { activeNumberOf } from "./facts";
+import { judgeEntry } from "../forms/held";
 import {
   closedMain,
   formDocument,
@@ -63,7 +63,16 @@ import {
   type FieldShown,
   type FormPageFrame,
   type FormShown,
+  type TimeNotice,
 } from "./form-draw";
+import {
+  askedTimeOf,
+  askedTimeWords,
+  checkFormTime,
+  findFormTimes,
+  keepFormEntry,
+  type FormTimesShown,
+} from "./form-times";
 import { linkPageDb, linkPageLookOf, type LinkPageLook } from "./link-page";
 import { phoneFor } from "./phone-by-country";
 
@@ -73,8 +82,6 @@ type Db = SupabaseClient<Database>;
 const FORM_BODY_MAX = 24_000;
 /** What the answers themselves may hold, as the entry keeps them. */
 const MAX_ANSWERS = 16_000;
-/** Faster than this from the page's drawing to its send is no person typing. */
-const TOO_FAST_MS = 2_000;
 
 const HTML = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" };
 
@@ -98,7 +105,22 @@ interface FormPlace {
   path: string;
   /** The same address as its owner's Test opens it. */
   testPath: string;
+  /**
+   * Where the form is shown framed in a business's own page (F4): its website link's code, which every entry from the
+   * frame carries, and the sites it may show on. Such a place knows no session and draws no test.
+   */
+  frame?: FormFrameAt;
 }
+
+/** A website's frame of a form (form-frame.ts): its link's code and the sites it may show on. */
+export interface FormFrameAt {
+  code: string;
+  sites: string[];
+}
+
+/** The form at a website's frame (F4): the same form, drawn at the frame's own address and posting back to it. */
+const framedAt = (place: FormPlace, frame: FormFrameAt | undefined): FormPlace =>
+  frame ? { ...place, path: formFramePath(frame.code), testPath: formFramePath(frame.code), frame } : place;
 
 /** The form an address names, or null for an address that opens nothing: no such workspace, no such form, or a draft. */
 export async function findFormPlace(db: Db, slug: string, formSlug: string): Promise<FormPlace | null> {
@@ -142,6 +164,7 @@ function pageFrameOf(
     intro: described.intro ?? null,
     words: formPageWords(described),
     test,
+    framed: place.frame ? { sites: place.frame.sites } : null,
   };
 }
 
@@ -174,10 +197,11 @@ function pageQueryOf(request: Request): Record<string, string> {
 }
 
 /** What rides with the answers, unseen, as the page was drawn: the entry's id, the version, and where it came from. */
-function carriedOf(request: Request, versionId: string): Record<string, string> {
+function carriedOf(request: Request, versionId: string, frame: FormFrameAt | undefined): Record<string, string> {
   const query = pageQueryOf(request);
   const carried: Record<string, string> = { entry_id: randomUUID(), version: versionId, t: String(Date.now()) };
-  if (query.l) carried.l = query.l.slice(0, 12);
+  const link = frame?.code ?? query.l;
+  if (link) carried.l = link.slice(0, 12);
   const referrer = request.headers.get("referer");
   if (referrer) carried.site = referrer.slice(0, 500);
   for (const [name, value] of Object.entries(query))
@@ -189,17 +213,29 @@ function carriedOf(request: Request, versionId: string): Record<string, string> 
 type Session = () => Promise<Db>;
 
 /**
+ * How a page is asked for: at the form's own address, with the session a test is read from; or framed in a business's
+ * own website (F4, form-frame.ts), which knows no session at all.
+ */
+type AskedBy = Session | FormFrameAt;
+
+const frameAskedBy = (by: AskedBy): FormFrameAt | undefined => (typeof by === "function" ? undefined : by);
+
+/** The session to read a test from: none for a frame, whose place never asks (isTest). */
+const sessionOf = (by: AskedBy): Session =>
+  typeof by === "function" ? by : () => Promise.reject(new Error("a framed form reads no session"));
+
+/**
  * Whether this is a test its owner is sending: the address says so, and whoever is signed in may act in the workspace
  * (read under their own row rules; a viewer, a stranger and nobody signed in send a real entry like anyone).
  */
-async function isTest(request: Request, session: Session, slug: string): Promise<boolean> {
-  if (pageQueryOf(request).test !== "1") return false;
+async function isTest(request: Request, session: Session, place: FormPlace): Promise<boolean> {
+  if (place.frame || pageQueryOf(request).test !== "1") return false;
   try {
     const client = await session();
     const { data } = await client.auth.getUser();
     if (!data.user) return false;
     const mine = await listMyMemberships(client, data.user.id);
-    return (mine.data ?? []).some((member) => member.role !== "viewer" && member.tenants.slug === slug);
+    return (mine.data ?? []).some((member) => member.role !== "viewer" && member.tenants.slug === place.workspace.slug);
   } catch {
     // Who is signed in could not be read: not a test.
     return false;
@@ -209,25 +245,31 @@ async function isTest(request: Request, session: Session, slug: string): Promise
 /** Where the form posts: its own address, saying so when it is a test. */
 const actionOf = (place: FormPlace, test: boolean): string => (test ? place.testPath : place.path);
 
+/** How the form's when question asks for a time now (form-times.ts): only a form that has one asks the calendar. */
+const timesFor = (place: FormPlace, described: FormDescription): Promise<FormTimesShown | undefined> =>
+  described.fields.some((field) => field.kind === "when")
+    ? findFormTimes(place, new Date(), described.lang)
+    : Promise.resolve(undefined);
+
 /**
  * GET: the form as a visitor sees it, the closed page for one that is off, or nothing for an address that opens none.
- * `session` makes the signed-in person's own client: a member of this workspace alone may send a test.
+ * `by` is the session at the form's own address (a member of this workspace alone may send a test), or the website's
+ * frame it is drawn in, which knows none.
  */
-export async function drawFormPage(
-  slug: string,
-  formSlug: string,
-  request: Request,
-  session: Session,
-): Promise<Response> {
+export async function drawFormPage(slug: string, formSlug: string, request: Request, by: AskedBy): Promise<Response> {
   const db = linkPageDb();
   if (!db) return htmlPage(503, "");
-  const place = await findFormPlace(db, slug, formSlug);
-  if (!place) return nothingHere();
+  const found = await findFormPlace(db, slug, formSlug);
+  if (!found) return nothingHere();
+  const place = framedAt(found, frameAskedBy(by));
   if (place.form.state !== "live" || !place.form.liveVersionId) return closedPage(place, false);
   const version = await findFormVersion(db, place.tenantId, place.form.liveVersionId);
   if (!version?.description) return closedPage(place, false);
-  const carried = carriedOf(request, version.id);
-  const test = await isTest(request, session, place.workspace.slug);
+  const carried = carriedOf(request, version.id, place.frame);
+  const [test, times] = await Promise.all([
+    isTest(request, sessionOf(by), place),
+    timesFor(place, version.description),
+  ]);
   const frame = pageFrameOf(place, version.description, test);
   const main = formMain(frame, {
     description: version.description,
@@ -235,6 +277,7 @@ export async function drawFormPage(
     carried,
     shown: {},
     notice: null,
+    times,
   });
   return htmlPage(200, formDocument(frame, main));
 }
@@ -266,25 +309,6 @@ function rawAnswersOf(description: FormDescription, fields: Map<string, string[]
   return typed;
 }
 
-/** Why an entry is held for a look, or null for one that reads as a person's. */
-async function doubtOf(
-  request: Request,
-  fields: Map<string, string[]>,
-  formId: string,
-): Promise<Exclude<FormHeldWhy, "member"> | null> {
-  if (first(fields, "website")) return "hidden_field";
-  const drawn = Number(first(fields, "t"));
-  if (Number.isFinite(drawn) && drawn > 0 && Date.now() - drawn < TOO_FAST_MS) return "too_fast";
-  try {
-    await takeRate(`form:${formId}:${hashKey(ipOf(request))}`, "form_sender");
-    await takeRate(`form:${formId}`, "form_day");
-  } catch {
-    // Past a limit: kept for a look, never refused to the visitor.
-    return "too_many";
-  }
-  return null;
-}
-
 /** The fields redrawn with what was typed, what is wrong, and an address offered as a fix. */
 function shownFrom(
   description: FormDescription,
@@ -307,12 +331,14 @@ interface SendRead {
   against: { id: string; description: FormDescription };
   typed: Record<string, string | string[]>;
   test: boolean;
+  /** How the when question is drawn again: as open times where the page showed them (F3). */
+  times?: FormTimesShown;
 }
 
 /** The form's page again, with what is to be said: mistakes, a fix, or that the form changed. */
 function againPage(
   read: SendRead,
-  state: Partial<Pick<FormShown, "notice">> & {
+  state: Partial<Pick<FormShown, "notice" | "timeNotice">> & {
     problems?: Record<string, string>;
     fixes?: Record<string, string>;
     offered?: string[];
@@ -346,6 +372,8 @@ function againPage(
     carried,
     shown: shownFrom(against.description, typed, { problems: state.problems ?? {}, fixes: state.fixes ?? {} }),
     notice: state.notice ?? null,
+    times: read.times,
+    timeNotice: state.timeNotice ?? null,
   });
   return htmlPage(status, fragment ? main : formDocument(frame, main));
 }
@@ -412,7 +440,7 @@ const repliesByEmail = (place: FormPlace, email: string | null): Promise<boolean
 function thanksPage(
   read: SendRead,
   taken: FormRequestTaken,
-  reach: { name: string | null; email: string | null; phone: string | null; emailOpen: boolean },
+  reach: { name: string | null; email: string | null; phone: string | null; emailOpen: boolean; asked: string | null },
   fragment: boolean,
 ): Response {
   const { place, against } = read;
@@ -440,26 +468,93 @@ function thanksPage(
     phoneOnly: email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
     chatHref: message ? chatHrefOf(place.workspace, message) : null,
     againHref: againHrefOf(read),
+    asked: reach.asked,
   });
   return htmlPage(200, fragment ? main : formDocument(frame, main));
 }
 
-/**
- * POST: an entry taken. Answers the thank-you, the form again with what is wrong, or the closed page. `session`
- * makes the signed-in person's own client: a member of this workspace alone may send a test.
- */
-export async function takeFormPost(
-  slug: string,
-  formSlug: string,
+/** The form again with the time they picked let go: it was taken since, or is too short for the service they picked. */
+function timeGonePage(
+  read: SendRead,
+  picked: { slot: string; service: string | null },
+  lost: TimeNotice["why"],
+  fragment: boolean,
+): Response {
+  const when = read.against.description.fields.find((field) => field.kind === "when");
+  const typed = when ? { ...read.typed, [when.id]: "" } : read.typed;
+  const time = formSlotWords(picked.slot, read.against.description.lang);
+  return againPage({ ...read, typed }, { timeNotice: { why: lost, time, service: picked.service } }, 409, fragment);
+}
+
+/** The entry as the door keeps it: what was answered, who, where it came from, and whether it is a test or doubtful. */
+async function entryToKeep(
+  request: Request,
+  read: SendRead,
+  answered: ReturnType<typeof readFormAnswers>,
+): Promise<FormRequestToTake> {
+  const { place, fields } = read;
+  const entryId = first(fields, "entry_id") || randomUUID();
+  return {
+    tenantId: place.tenantId,
+    formId: place.form.id,
+    versionId: read.against.id,
+    ref: entryId.slice(0, 100),
+    answers: answered.answers,
+    reach: answered.reach,
+    words: createHash("sha256")
+      .update(JSON.stringify([place.form.id, answered.answers]))
+      .digest("hex"),
+    source: sourceFromSeen({
+      code: first(fields, "l") || null,
+      page: place.path,
+      referrer: first(fields, "site") || null,
+      labels: Object.fromEntries([...fields].map(([name, values]) => [name, values[0]])),
+      own: new URL(request.url).hostname,
+    }),
+    linkCode: first(fields, "l") || null,
+    test: read.test,
+    heldWhy: await judgeEntry(request, { hidden: first(fields, "website"), drawn: first(fields, "t") }, place.form.id),
+  };
+}
+
+/** What a send read as, once it was read against the version the visitor saw: or the page that says what is wrong. */
+async function readSend(
   request: Request,
   session: Session,
-): Promise<Response> {
+  sent: Pick<SendRead, "place" | "fields" | "against">,
+): Promise<{ read: SendRead; answered: ReturnType<typeof readFormAnswers> }> {
+  const { place, fields, against } = sent;
+  // How the page asked the when question: as open times (drawn so again, a picked time its answer), or as a way to
+  // the business's own booking page (asked nothing here), else as the form wrote it.
+  const shown = first(fields, "times");
+  const when = shown === "1" ? "times" : shown === "page" ? "page" : "asked";
+  const [test, times] = await Promise.all([
+    isTest(request, session, place),
+    when === "asked" ? Promise.resolve(undefined) : timesFor(place, against.description),
+  ]);
+  const read: SendRead = { place, fields, against, typed: rawAnswersOf(against.description, fields), test, times };
+  const answered = readFormAnswers(against.description, read.typed, phoneFor(place.workspace.record?.country), {
+    when,
+  });
+  return { read, answered };
+}
+
+/**
+ * POST: an entry taken. Answers the thank-you, the form again with what is wrong, or the closed page. `by` is the
+ * session at the form's own address (a member of this workspace alone may send a test), or the website's frame.
+ *
+ * A time picked from the open times (F3) is checked against the calendar as it stands now: one taken since, or too short
+ * for the service picked, draws the form again with what is open now and nothing lost; one still open is held for the
+ * business in the same write as the entry. Nothing here books it, and nothing says it is booked.
+ */
+export async function takeFormPost(slug: string, formSlug: string, request: Request, by: AskedBy): Promise<Response> {
   const fragment = request.headers.get("x-form") === "1";
   const db = linkPageDb();
   if (!db) return htmlPage(503, "");
   const fields = await postedFieldsOf(request);
-  const place = await findFormPlace(db, slug, formSlug);
-  if (!place) return nothingHere();
+  const found = await findFormPlace(db, slug, formSlug);
+  if (!found) return nothingHere();
+  const place = framedAt(found, frameAskedBy(by));
   if (place.form.state !== "live" || !place.form.liveVersionId) return closedPage(place, fragment);
   const live = await findFormVersion(db, place.tenantId, place.form.liveVersionId);
   if (!live?.description) return closedPage(place, fragment);
@@ -473,42 +568,23 @@ export async function takeFormPost(
   const saw = sawId && sawId !== live.id ? await findFormVersion(db, place.tenantId, sawId) : null;
   const against =
     saw?.description && saw.formId === place.form.id ? { id: saw.id, description: saw.description } : liveVersion;
-  const typed = rawAnswersOf(against.description, fields);
-  const read: SendRead = { place, fields, against, typed, test: await isTest(request, session, place.workspace.slug) };
-  const answered = readFormAnswers(against.description, typed, phoneFor(place.workspace.record?.country));
+  const { read, answered } = await readSend(request, sessionOf(by), { place, fields, against });
   if (Object.keys(answered.problems).length > 0)
     return againPage(read, { problems: problemWords(against.description, answered.problems) }, 422, fragment);
   if (JSON.stringify(answered.answers).length > MAX_ANSWERS)
     return againPage(read, { notice: "too_much" }, 413, fragment);
   const fixes = fixesOf(against.description, answered.answers, fields);
   if (Object.keys(fixes).length > 0) return againPage(read, { fixes, offered: Object.keys(fixes) }, 422, fragment);
+  const pickedTime = askedTimeOf(against.description, answered.answers, read.times?.way === "requests");
+  const open = pickedTime ? await checkFormTime(place, pickedTime, new Date()) : null;
+  if (pickedTime && open && !open.ok)
+    return timeGonePage(read, pickedTime, open.why === "too_short" ? "too_short" : "taken", fragment);
 
-  const entryId = first(fields, "entry_id") || randomUUID();
   // Asked beside the write, so the thank-you waits for one of them and not both.
   const emailOpen = repliesByEmail(place, answered.reach.email);
-  let taken: FormRequestTaken;
+  let kept: { taken: FormRequestTaken; held: boolean };
   try {
-    taken = await takeFormRequest(db, {
-      tenantId: place.tenantId,
-      formId: place.form.id,
-      versionId: against.id,
-      ref: entryId.slice(0, 100),
-      answers: answered.answers,
-      reach: answered.reach,
-      words: createHash("sha256")
-        .update(JSON.stringify([place.form.id, answered.answers]))
-        .digest("hex"),
-      source: sourceFromSeen({
-        code: first(fields, "l") || null,
-        page: place.path,
-        referrer: first(fields, "site") || null,
-        labels: Object.fromEntries([...fields].map(([name, values]) => [name, values[0]])),
-        own: new URL(request.url).hostname,
-      }),
-      linkCode: first(fields, "l") || null,
-      test: read.test,
-      heldWhy: await doubtOf(request, fields, place.form.id),
-    });
+    kept = await keepFormEntry(db, await entryToKeep(request, read, answered), open);
   } catch (e) {
     // Nothing was kept, so the visitor is not thanked: the page keeps what was typed and sends again.
     log.error("form_request_failed", {
@@ -518,11 +594,13 @@ export async function takeFormPost(
     });
     return againPage(read, { notice: "unsent" }, 503, fragment);
   }
+  const { taken } = kept;
   log.info("form_request_taken", {
     tenant_id: place.tenantId,
     form_id: place.form.id,
     outcome: taken.outcome,
     entry_id: taken.entryId,
+    time: kept.held ? "held" : pickedTime ? "asked" : "none",
   });
   if (taken.outcome === "closed") return closedPage(place, fragment);
   // The version is past its day: the live one, with what was typed carried over by its questions.
@@ -534,5 +612,10 @@ export async function takeFormPost(
     };
     return againPage(carriedOver, { notice: "changed" }, 422, fragment);
   }
-  return thanksPage(read, taken, { ...answered.reach, emailOpen: await emailOpen }, fragment);
+  const reach = {
+    ...answered.reach,
+    emailOpen: await emailOpen,
+    asked: askedTimeWords(read.against.description, pickedTime, open),
+  };
+  return thanksPage(read, taken, reach, fragment);
 }

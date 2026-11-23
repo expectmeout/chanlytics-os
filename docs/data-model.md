@@ -65,8 +65,9 @@ what the script writes.
 | [`file_archives`](#file_archives) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
-| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
-| [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts` | on, 3 policies |
+| [`form_days`](#form_days) | none | on, 1 policy |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
 | [`forms`](#forms) | `packages/db/src/repositories/forms/forms.ts` | on, 4 policies |
@@ -1777,11 +1778,35 @@ Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
+### form_days
+
+What a form brought by day (UTC) that is no entry (00691): how often the business's own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.
+
+- Owned by: none
+- Primary key: `form_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `form_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `booking_opens` | integer | no | `0` |  |
+
+Foreign keys:
+
+- `tenant_id`, `form_id` → [`forms`](#forms) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### form_entries
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
 
-- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1806,7 +1831,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `source` | jsonb | yes |  | Where the entry came from, in the one shape a website entry keeps (contracts EntrySource; the Ads tracking plan's T4): the link's code, the page, the site it came from and any campaign labels. Never a click id. |
 | `reach` | jsonb | yes |  | Who a hosted form's entry is about, as typed: {name, email, phone}. What a held entry is let through with, what a reply's address is compared with, and what an erased person's held entries are found by. |
 | `test` | boolean | no | `false` | A test its owner sent: it tells nobody, counts nowhere, has no person, and goes after 7 days. |
-| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member). |
+| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form's address and not from its own page (elsewhere, 00703). |
 | `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
 | `code_used_at` | timestamp with time zone | yes |  |  |
 
@@ -1827,7 +1852,7 @@ Foreign keys:
 
 What happened to one form entry (00680; the Forms plan, 3.1 and 3.5), each written by the act itself: reply (the message sent from the request), conversation (the conversation that arrived with its code, and the message that carried it), visit (a visit asked for from it), marked (a member's word that it was answered another way). Answered is read from here and never kept on the entry: a marked link, a conversation link, or a reply whose message did not fail and was not taken back. It names a message, a conversation or a visit, never a person, and goes with its entry.
 
-- Owned by: `packages/db/src/repositories/forms/requests.ts`
+- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -2831,6 +2856,7 @@ A short link for one place a thing of the business's is shared (00680; the conte
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `stopped_at` | timestamp with time zone | yes |  |  |
 | `lands` | text | yes |  | Where a post's link lands (00699): chat (a chat with the business carrying the post's code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form's. |
+| `sites` | text[] | yes |  | The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them. |
 
 Foreign keys:
 
@@ -3846,7 +3872,7 @@ Foreign keys:
 
 ### post_observations
 
-A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
+A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up, and at `last`, read by a take-down just before it asks the place (00701; 8.3), since a post's numbers end with it. Each is a running total since it went up; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
 
 - Owned by: `packages/db/src/repositories/content/observations.ts`
 - Primary key: `id`

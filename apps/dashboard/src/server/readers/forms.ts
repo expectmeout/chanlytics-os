@@ -11,6 +11,9 @@ import {
   DAY_MS,
   FORM_HELD_SAID_AFTER_DAYS,
   formRequestNote,
+  formTimeHolds,
+  formTimeStatusOf,
+  isOnSite,
   MIN_MS,
   recordOrEmpty,
   requestLines,
@@ -24,9 +27,11 @@ import {
   type FormListRowDto,
   type FormOpenRequestDto,
   type FormRequestDto,
+  type FormRequestTimeDto,
   type FormsDto,
   type FormSheetDto,
   type FormsReportDto,
+  type TenantId,
 } from "@chanlytics/contracts";
 import { findOldestActiveChannel } from "@chanlytics/db/channels";
 import {
@@ -39,14 +44,18 @@ import {
   listFormEntriesHeldBefore,
   listFormEntryLinks,
   listFormLinks,
+  listLinkEntrySites,
   listForms,
   listFormVersions,
   listOpenFormRequests,
   listWorkspaceFormLinks,
   readFormResults,
+  type FormEntryLink,
   type FormEntryRead,
   type FormRead,
+  type OpenFormRequestTime,
 } from "@chanlytics/db/forms";
+import { findBookingRequest, listAppointmentsBetween } from "@chanlytics/db/calendar";
 import { findPersonAddress } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
 import { findEmailReady } from "../connections/email-readiness";
@@ -149,6 +158,9 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
     const mine = results.places.filter((place) => place.formId === form.id);
     const sum = (pick: (place: (typeof mine)[number]) => number) =>
       mine.reduce((total, place) => total + pick(place), 0);
+    // The website (F4): when a request last came from each site the form may show on.
+    const website = links.find((link) => link.sites !== null);
+    const fromSites = website ? await listLinkEntrySites(db, rc.tenantId, website.id) : [];
     const linkRows: FormLinkDto[] = links.map((link) => {
       const brought = mine.find((place) => place.linkId === link.id);
       return {
@@ -160,6 +172,11 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
         opens: results.opens.get(link.id) ?? 0,
         requests: brought?.requests ?? 0,
         visits: brought?.visits ?? 0,
+        sites:
+          link.sites?.map((host) => ({
+            host,
+            last_entry_at: fromSites.find((entry) => isOnSite(entry.site, host))?.createdAt ?? null,
+          })) ?? null,
       };
     });
     const openIds = new Set(open.map((request) => request.id));
@@ -181,6 +198,8 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
         days: RESULT_DAYS,
         opens: linkRows.reduce((total, link) => total + link.opens, 0),
         requests: sum((place) => place.requests),
+        asked: sum((place) => place.asked),
+        booking_opens: results.bookingOpens.get(form.id) ?? 0,
         talked: sum((place) => place.talked),
         visits: sum((place) => place.visits),
         new_people: newPeople,
@@ -232,6 +251,8 @@ export const formsReport: Reader<undefined, FormsReportDto> = {
           results: {
             opens: own.reduce((total, link) => total + (results.opens.get(link.id) ?? 0), 0),
             requests: sum((place) => place.requests),
+            asked: sum((place) => place.asked),
+            booking_opens: results.bookingOpens.get(form.id) ?? 0,
             talked: sum((place) => place.talked),
             visits: sum((place) => place.visits),
             new_people: newPeople,
@@ -265,6 +286,22 @@ function requestWordsOf(described: FormDescription | null, answers: Record<strin
   return (wrote?.words ?? "").slice(0, ROW_WORDS_MAX);
 }
 
+/** The time an open request asked for, as Needs you says it: whether it still holds its time, from the clock now. */
+function openTimeOf(time: OpenFormRequestTime | null, now: Date): FormOpenRequestDto["time"] {
+  if (!time) return null;
+  const status = formTimeStatusOf(time.status);
+  return {
+    appointment_id: time.appointmentId,
+    starts_at: time.startsAt,
+    ends_at: time.endsAt,
+    service: time.service,
+    status,
+    expires_at: time.expiresAt,
+    holds: formTimeHolds({ status, expiresAt: time.expiresAt }, now.getTime()),
+    timezone: time.timezone,
+  };
+}
+
 /**
  * The requests nobody has answered, as Needs you lists them (form_requests_open: sixty days, the newest first): Today's
  * read carries them, so the page, the Inbox's tab, the one count and AI say the same people. Each is read against the
@@ -294,6 +331,7 @@ export const formRequestsOpen: Reader<undefined, { requests: FormOpenRequestDto[
       place: request.place,
       phone_only: !request.reach.email && !!request.reach.phone,
       unreached: request.unreached,
+      time: openTimeOf(request.time, rc.now),
     }));
     // Each form's held pile nobody has looked at, the oldest first: its heading as its newest visitor saw it.
     const piles = new Map<string, FormHeldDto>();
@@ -319,6 +357,60 @@ function answeredBy(
   const link = by("marked") ?? by("conversation") ?? by("reply");
   if (!link || link.kind === "visit") return null;
   return { how: link.kind, at: link.createdAt, conversation_id: link.conversationId };
+}
+
+/** The visit a request asked for: its newest visit link. */
+export const askedVisitOf = (links: readonly FormEntryLink[]): string | null =>
+  links.filter((link) => link.kind === "visit").at(-1)?.appointmentId ?? null;
+
+/**
+ * Who another visit at the same time is booked for since, where one is: what makes Can't lead. Only a booking stands in
+ * its way; another person's request takes no time from this one.
+ */
+async function takenByOf(
+  db: ReaderContext["ctx"]["supabase"],
+  tenantId: TenantId,
+  time: { id: string; startsAt: string; endsAt: string },
+): Promise<string | null> {
+  const rows = await listAppointmentsBetween(db, tenantId, time.startsAt, time.endsAt);
+  const startMs = Date.parse(time.startsAt);
+  const endMs = Date.parse(time.endsAt);
+  const other = rows.find(
+    (row) =>
+      row.id !== time.id &&
+      (row.status === "booked" || row.status === "kept") &&
+      Date.parse(row.starts_at) < endMs &&
+      Date.parse(row.ends_at) > startMs,
+  );
+  // Named as the visit names its client, or its title; a visit that names neither is said as taken, by nobody named.
+  return other ? other.client_name?.trim() || other.title?.trim() || "" : null;
+}
+
+/** The time a request asked for, as it stands now; null where it asked for none. */
+async function requestTimeOf(
+  db: ReaderContext["ctx"]["supabase"],
+  tenantId: TenantId,
+  links: readonly FormEntryLink[],
+  now: Date,
+): Promise<FormRequestTimeDto | null> {
+  const appointmentId = askedVisitOf(links);
+  if (!appointmentId) return null;
+  const visit = await findBookingRequest(db, tenantId, appointmentId);
+  if (!visit) return null;
+  const status = formTimeStatusOf(visit.status);
+  const holds = formTimeHolds({ status, expiresAt: visit.expiresAt }, now.getTime());
+  return {
+    appointment_id: visit.id,
+    starts_at: visit.startsAt,
+    ends_at: visit.endsAt,
+    service: visit.service,
+    status,
+    expires_at: visit.expiresAt,
+    holds,
+    timezone: visit.timezone,
+    // Only a time still waiting on its owner is in anyone's way.
+    taken_by: status === "proposed" ? await takenByOf(db, tenantId, visit) : null,
+  };
 }
 
 /** One request as Inbox answers it: what was asked, who, how they came, and where it stands. */
@@ -362,6 +454,7 @@ export const formRequest: Reader<{ id: string }, FormRequestDto> = {
       other_email: typed && person?.email && person.email.toLowerCase() !== typed ? typed : null,
       note: formRequestNote(described, answers),
       drafts: described.next.draft,
+      time: await requestTimeOf(db, rc.tenantId, links, rc.now),
     };
     return { data, rows: [], stamp: readerStamp() };
   },

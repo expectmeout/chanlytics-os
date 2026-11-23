@@ -39,6 +39,7 @@ import { writeForm } from "../ask/skills/form/write";
 import { findFormOrRefuse } from "../readers/forms";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
+import { applySitePress } from "./sites";
 import { getStoredConfig } from "../workspace/config-row";
 
 /** How long AI has to draft: inside the minute a route may run, with room to answer. */
@@ -239,6 +240,7 @@ export async function applyFormLinkPress(
   member: Member,
   press: FormLinkPress,
 ): Promise<{ link_id: string }> {
+  if (press.act === "site_add" || press.act === "site_remove") return applySitePress(ctx, member, press);
   if (press.act === "make") {
     await findFormOrRefuse({ ctx, tenantId: member.tenantId }, press.form_id);
     const created = await makeFormLink(ctx.supabase, {

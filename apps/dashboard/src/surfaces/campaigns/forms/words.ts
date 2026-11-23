@@ -136,6 +136,9 @@ export const FORMS_WORDS = {
     nothing: "Nothing yet",
     nothingBody: "Requests show here and in Inbox. Send a test to see one arrive.",
     opensNote: "Opens are counted, not people.",
+    /** A business that sends people to its own booking page (F3): what the form can say of it, and what it cannot. */
+    bookingOpens: (n: number) =>
+      `Your booking page was opened ${n === 1 ? "once" : `${n} times`} from it. Bookings made there can't be traced to the form.`,
     liveReady: "The link is ready.",
     offNote: "Its links land on the business's page and say it's closed.",
     draftNote: "Publish the form to get its link.",
@@ -147,11 +150,38 @@ export const FORMS_WORDS = {
     testAct: "Test",
     noName: "No name",
   },
+  /** The form on their own website (F4): under Share, beside the places it is shared. */
+  website: {
+    heading: "On your website",
+    add: "Add to your website",
+    addBody: "A few lines to paste. Your site holds no key.",
+    onSites: (n: number) => `On ${n === 1 ? "one site" : `${n} sites`} · a few lines to paste, no key`,
+    open: "Add",
+    show: "Show",
+    hide: "Hide",
+    first: "First, the site it will show on.",
+    firstNote: "Only the sites you list may show it, so a copy of the lines on anyone else's page shows nothing.",
+    paste: "Paste these lines where the form should show on your site.",
+    copy: "Copy the lines",
+    copied: "Copied",
+    sites: "Sites it may show on",
+    siteAdd: "Add a site, like yoursalon.com",
+    siteLabel: "A site the form may show on",
+    siteSend: "Add the site",
+    last: (ago: string) => `Last request from it ${ago}`,
+    nothingYet: "Nothing from it yet. Its first request shows here once the lines are on the site.",
+    noSites: "No site may show it now, so the lines show nothing anywhere.",
+    remove: "Remove",
+    removeLabel: (site: string) => `Remove ${site}`,
+    fine: "Browsers won't show the form on any other site. Requests sent from it count as from your website.",
+    linkWords: "Open the form",
+  },
   held: {
     hidden_field: "A part people cannot see was filled in",
     too_fast: "Filled in faster than a person can",
     too_many: "The same sender several times in a short while",
     member: "Someone said it wasn't a real request",
+    elsewhere: "Sent straight to the form, not from its page",
   } satisfies Record<EntryHeldWhyDto, string>,
   entry: {
     open: "Nobody has answered",
@@ -202,13 +232,18 @@ export const placeBrought = (place: { requests: number; visits: number }): strin
 
 /** The sentence of numbers under where a form is shared: opens, requests, conversations, visits; then who they were. */
 export function resultsWords(results: FormSheetDto["results"]): { line: string; who: string } | null {
-  if (results.opens === 0 && results.requests === 0) return null;
+  const bookingOpens = results.booking_opens ?? 0;
+  if (results.opens === 0 && results.requests === 0 && bookingOpens === 0) return null;
   const line = [
     `Opened ${pluralWords(results.opens, "time")}`,
     pluralWords(results.requests, "request"),
+    // The requests that asked for a time (F3), where any did.
+    results.asked ? `${results.asked} asked for a time` : "",
     pluralWords(results.talked, "conversation"),
     pluralWords(results.visits, "visit"),
-  ].join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const named = [
     results.new_people ? `${results.new_people} new ${results.new_people === 1 ? "person" : "people"}` : "",
     results.known_people ? `${results.known_people} already known` : "",
@@ -217,7 +252,7 @@ export function resultsWords(results: FormSheetDto["results"]): { line: string; 
     .filter(Boolean)
     .join(". ")
     .replace(/\.\.$/, ".");
-  return { line, who: named };
+  return { line, who: bookingOpens ? `${named} ${FORMS.share.bookingOpens(bookingOpens)}` : named };
 }
 
 /** An entry's own line in the sheet: where it stands, and the place it came through. */

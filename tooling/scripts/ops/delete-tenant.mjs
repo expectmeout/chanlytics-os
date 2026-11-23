@@ -190,7 +190,8 @@ const TABLES = [
   "form_entries",
   "form_keys",
   // A business's own forms (00680): each form and its versions, what happened to an entry, and its links with their
-  // days of opens.
+  // days of opens; and each form's days of its business's booking page opened from it (00691).
+  "form_days",
   "form_entry_links",
   "form_versions",
   "forms",

@@ -6,6 +6,9 @@
  * there (3.12). A field the version does not hold is dropped, never kept. A likely typo in an email address is offered to
  * the visitor as a fix (`emailTypoFix`), never refused: it may be right.
  *
+ * A "when" question shown as the business's open times (F3) is answered by a slot, or by nothing; one that sent them to
+ * the business's own booking page asks nothing here (`reading.when`).
+ *
  * Who the entry is about comes from the answers: the first short answer is their name, the first email field their
  * address, the first phone field their number. An entry with neither an address nor a number cannot be answered, and is
  * refused by the first of those fields. Pure.
@@ -14,6 +17,7 @@ import { z } from "zod";
 import { normalizePhone } from "../shared/phone";
 import { answerLimitOf, type FormDescription, type FormField } from "./shape";
 import { CHOICE_KINDS, FORM_LIMITS } from "./limits";
+import { isFormSlot } from "./times";
 
 /** One answer as kept: words, or the ids of the choices picked. */
 export type FormAnswer = string | string[];
@@ -38,6 +42,17 @@ const trimmedOf = (raw: unknown): string => (typeof raw === "string" ? raw.trim(
 function pickedOf(raw: unknown): string[] {
   const list = Array.isArray(raw) ? raw : [raw];
   return [...new Set(list.filter((id): id is string => typeof id === "string" && id.length > 0))];
+}
+
+/**
+ * How the "when" question was asked where the page drew it otherwise than the version wrote it (times.ts, F3):
+ * `times`, as the business's open times: a slot picked is its answer, and none picked is no answer and no mistake,
+ * whether the question is needed or not ("None of these work" is an answer too), and whether the slot is still open is
+ * the door's to check, against the openings as they stand; `page`, as a way to the business's own booking page, where
+ * it is answered and not here; `asked`, as the version wrote it.
+ */
+interface FormAnswersReading {
+  when: "times" | "page" | "asked";
 }
 
 /**
@@ -90,10 +105,16 @@ export function readFormAnswers(
   form: FormDescription,
   raw: Record<string, unknown>,
   phoneOf: (typed: string) => string | null = normalizePhone,
+  reading: FormAnswersReading = { when: "asked" },
 ): FormAnswersRead {
   const answers: Record<string, FormAnswer> = {};
   const problems: Record<string, FormProblem> = {};
   for (const field of form.fields) {
+    if (field.kind === "when" && reading.when !== "asked") {
+      const picked = raw[field.id];
+      if (reading.when === "times" && isFormSlot(picked)) answers[field.id] = picked;
+      continue;
+    }
     const read = readField(field, raw[field.id], phoneOf);
     if ("problem" in read) problems[field.id] = read.problem;
     else if (read.answer !== null) answers[field.id] = read.answer;

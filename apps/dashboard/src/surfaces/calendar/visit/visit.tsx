@@ -16,6 +16,7 @@
 import { useState, type ReactNode } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
+  BOOKING_REQUEST_REFUSALS,
   BOOKING_REQUEST_WORDS,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
@@ -31,6 +32,7 @@ import type { VisitCtx } from "./context";
 import { NextToMark } from "./next";
 import { VisitOutcome, sayHere } from "./outcome";
 import { commitVerb } from "@/bridge/verbs/commit";
+import { sendFormRequestPress } from "@/bridge/verbs/forms";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { Button } from "../../kit/button/button";
@@ -298,11 +300,26 @@ function handOff(c: VisitCtx, open: () => void): void {
 }
 
 /**
+ * A time asked for on a form, answered from its visit (00691): the same answer, on its request, which holds no thread.
+ * Either way the request is opened next, where its reply is drafted for the member to send.
+ */
+function answerFormVisit(c: VisitCtx, entryId: string, booked: boolean): void {
+  void sendFormRequestPress({ act: booked ? "book" : "cant", entry_id: entryId }).then((answer) => {
+    if (!answer?.ok) return c.flash(answer?.message ?? BOOKING_REQUEST_REFUSALS.none);
+    c.close();
+    navigate(addressOf({ kind: "request", id: entryId }));
+    return undefined;
+  });
+}
+
+/**
  * A time a customer picked by text, answered from its visit (decision 0061): Booked it opens their thread with the reply
  * drafted for the member to send; Can't leaves the thread waiting on their reply.
  */
 function answerVisit(c: VisitCtx, booked: boolean): void {
-  const threadId = c.block.request?.threadId;
+  const request = c.block.request;
+  if (request?.entryId && !request.threadId) return answerFormVisit(c, request.entryId, booked);
+  const threadId = request?.threadId;
   if (!threadId) return;
   void answerRequest(threadId, booked, c.block.person?.name ?? c.block.guess ?? "They").then((r) => {
     if (!r.ok) return c.flash(r.message);

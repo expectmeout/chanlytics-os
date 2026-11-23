@@ -312,6 +312,8 @@ before(async () => {
   await seed("form_versions", { tenant_id: A, form_id: ctx.form, n: 1, description: {} });
   ctx.link = await seed("links", { tenant_id: A, subject_type: "form", subject_id: ctx.form, place: "Seeded" });
   await seed("link_days", { tenant_id: A, link_id: ctx.link, day: "2026-11-20", opens: 1 }, null);
+  // A day of a form's business's booking page opened from it (00691): members read it, and only its door writes one.
+  await seed("form_days", { tenant_id: A, form_id: ctx.form, day: "2026-11-20", booking_opens: 1 }, null);
   // What happened to an entry (00680): a member's word that it was answered another way.
   await seed("form_entry_links", { tenant_id: A, entry_id: ctx.formEntry, kind: "marked", created_by: ctx.viewerId });
   // Keyed by their workspace and day, so no id to pick.
@@ -927,6 +929,7 @@ const TENANT_TABLES = {
     }),
   ],
   link_days: ["member", () => ({ tenant_id: A, link_id: ctx.link, day: "2026-11-21", opens: 1 })],
+  form_days: ["member", () => ({ tenant_id: A, form_id: ctx.form, day: "2026-11-21", booking_opens: 1 })],
   form_entry_links: [
     "member",
     () => ({

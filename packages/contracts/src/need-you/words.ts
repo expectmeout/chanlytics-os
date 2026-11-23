@@ -107,6 +107,13 @@ export const NEED_YOU_WORDS = {
     status: "Sent a request",
     /** A number alone: nothing can be texted to them first, so the request waits for their own message. */
     phoneOnly: "Phone only · waiting for their message",
+    /** A time asked for (F3), held for the owner: their Booked it or Can't, as for a time asked in a chat. */
+    timeHeld: "Booked it or Can't",
+    /** Past its day: it holds its time no longer, and is answered with what is open now. */
+    timeLapsed: "Not confirmed in time",
+    /** Answered, and the person not told yet. */
+    timeBooked: "Booked · tell them",
+    timeCant: "Couldn't take it · tell them",
   },
   /** A form's entries held for a look that nobody has looked at in three days (00680): Today's quiet row. */
   formHeld: {
