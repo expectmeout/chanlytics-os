@@ -74,14 +74,12 @@ export const FILE_LOOKS_LIKE = ["photo", "stock", "rendered", "design", "screens
 export type FileLooksLike = (typeof FILE_LOOKS_LIKE)[number];
 
 /*
- * Who is in a file, and a person's yes for one use of it (00665): the database's closed sets, held here only so the
- * schema's sets and these agree (shared/schema-sets.ts). Nothing reads or writes them since 22 November 2026, when
- * Ruben ruled that footage a business provides is taken as cleared, nobody in it is asked, and nothing waits for a
- * person's yes. The column, the table and their doors stay unread in the database until a migration drops them.
+ * Who is in a file: the database's closed set, held here only so the schema's set and this agree
+ * (shared/schema-sets.ts). No page and no AI reads the column since 22 November 2026, when Ruben ruled that footage a
+ * business provides is taken as cleared and nobody in it is asked; the yes kept for each use left the database with
+ * 00687. The column stays: three doors still write it.
  */
 export const FILE_WHO_IN_IT = ["not_asked", "no_one"] as const;
-export const FILE_YES_USES = ["post", "ad", "reply", "cold_email"] as const;
-export const FILE_YES_SAID_IN = ["ai", "before"] as const;
 
 export const FILE_LOOK_STATUSES = ["waiting", "done", "refused", "failed"] as const;
 
