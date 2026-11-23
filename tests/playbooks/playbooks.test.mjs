@@ -174,8 +174,11 @@ test("ten moments: People's lists and a cadence, two the calendar makes possible
       "visit_soon",
       "visit_missed",
       "asked_no_booking",
+      // A deal marked won (22 Nov 2026): an occasion's too, the day after the mark.
+      "deal_won",
     ],
   );
+  assert.deepEqual([triggerOf("deal_won").kind, triggerOf("deal_won").cls], ["occasion", "follow_up"]);
   assert.deepEqual(
     ["visit_soon", "visit_missed", "asked_no_booking"].map((id) => [triggerOf(id).kind, triggerOf(id).cls]),
     [
@@ -1018,7 +1021,8 @@ test("what a moment's message is about (decision D1): a visit's, a proposal's an
   for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting", "slot_opened"])
     assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
   // What an occasion starts is about the person's own visit or their own ask (decision 0119).
-  for (const trigger of ["visit_soon", "visit_missed", "asked_no_booking"])
+  // And about their own deal: the thank-you the day after it is won asks a yes to texts, never one to offers.
+  for (const trigger of ["visit_soon", "visit_missed", "asked_no_booking", "deal_won"])
     assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
   // Everything else is news the business chose to send, by whatever list or cadence.
   for (const trigger of ["everyone_monthly", "lapsed", "saved_list", "quiet_30", "new_week", "phoned_only"])

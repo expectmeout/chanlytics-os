@@ -103,7 +103,6 @@ export async function changeFile(
   input: {
     name?: string | undefined;
     shows?: FileShows | undefined;
-    who_in_it?: "no_one" | undefined;
     status?: "filed" | "set_aside" | undefined;
   },
 ): Promise<{ ok: true; stopped: PostPlace[] }> {
@@ -117,7 +116,6 @@ export async function changeFile(
     id: file.id,
     name,
     shows: input.shows,
-    whoInIt: input.who_in_it,
     status: input.status,
   });
   if (error) throw fileDoorRefusal(error);

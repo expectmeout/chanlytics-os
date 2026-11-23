@@ -468,7 +468,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
       "title",
       "external_id",
     ),
-    ...all(NOT_PERSONAL, "tool", "service", "staff", "price", "timezone"),
+    ...all(NOT_PERSONAL, "tool", "service", "staff", "price", "timezone", "worth_currency"),
   },
   appointment_notices: {
     subject: scrubbedBy("appointments_scrub"),

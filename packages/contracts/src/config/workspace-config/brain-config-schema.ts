@@ -34,6 +34,12 @@ export const BrainConfigSchema = z
      * offered one the same way (business-gap.ts BOOKING_LINK_ROW_WORDS).
      */
     booking_link: z.url().max(BOOKING_LINK_MAX).optional(),
+    /**
+     * Where a customer leaves the business a review, where its owner gave a link of their own (22 Nov 2026; Settings ›
+     * Details). Optional: without one a message's review link is the Google listing's (config/review-link.ts
+     * reviewLinkFrom). AI is told nothing of it: it fills a message's slot and nothing else.
+     */
+    review_link: z.url().max(BOOKING_LINK_MAX).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
     system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),

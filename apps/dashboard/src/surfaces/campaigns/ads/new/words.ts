@@ -230,10 +230,6 @@ export const PRICE_FAULT: Record<"never" | "differs", LineWords> = {
 };
 
 export const PICTURE_FAULT: Record<AdPictureIssue | "gone", LineWords> = {
-  person: {
-    title: "This picture shows a person who hasn't said yes to ads",
-    body: "A yes for posts doesn't cover an ad.",
-  },
   music: { title: "This video has music", body: "Music in an ad needs a licence of your own." },
   before_after: { title: "This picture sets a before beside an after", body: "Meta turns that down in many ads." },
   small: { title: "This picture is too small for an ad", body: "Meta needs it at least 600 pixels wide." },
@@ -351,12 +347,6 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     title: "First, a photo or a video",
     body: "An ad shows one of your own photos or videos, and the Library holds none yet.",
     small: "AI drafts the ad as soon as there is one.",
-    act: "Open Library",
-  },
-  picture_person: {
-    title: "First, a yes for ads",
-    body: "Each picture shows someone with no yes for ads yet. A yes for posts doesn't cover an ad.",
-    small: "In the Library, open a photo and tell AI who said yes, or add one with nobody in it.",
     act: "Open Library",
   },
   picture_music: {

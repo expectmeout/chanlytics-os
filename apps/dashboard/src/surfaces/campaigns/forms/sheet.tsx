@@ -28,6 +28,7 @@ import { gate } from "../../shell-doors";
 import { CmPane } from "../parts/split";
 import { FormPart as FormPartBody, asksAWayToAnswer } from "./fields-part";
 import { NextPart } from "./next-part";
+import { NoEmailNotice } from "./no-email";
 import { SayLine } from "./say-line";
 import { SharePart } from "./share-part";
 import { doFormPress, useDraftEditing, useFormSheet, type DraftEditing } from "./use-forms";
@@ -110,15 +111,21 @@ function StateMenu({ io }: { io: SheetIo }) {
   );
 }
 
-/** Publish, asked once: what goes live, and the one rule a customer may wonder about. AI never presses it. */
+/**
+ * Publish, asked once: what goes live, and the one rule a customer may wonder about. Where no reply by email can go
+ * yet it says so here too, with the way to connect it: the form still publishes, and its thank-you promises none.
+ * AI never presses it.
+ */
 function PublishAsk({
   heading,
+  email,
   open,
   busy,
   onClose,
   onPublish,
 }: {
   heading: string;
+  email: FormSheetDto["email"];
   open: boolean;
   busy: boolean;
   onClose: () => void;
@@ -145,7 +152,10 @@ function PublishAsk({
         </Button>
       }
     >
-      <p className="fmv-note">{W.publish.body}</p>
+      <div className="fmv-publish">
+        <p className="fmv-note">{W.publish.body}</p>
+        <NoEmailNotice email={email} testid="forms-publish-no-email" />
+      </div>
     </Sheet>
   );
 }
@@ -312,7 +322,7 @@ function SheetRead({
       {part === "form" ? (
         <FormPartBody formId={sheet.id} editing={editing} changed={sheet.changed} canChange={sheet.can_change} />
       ) : part === "next" ? (
-        <NextPart editing={editing} chat={sheet.chat} canChange={sheet.can_change} />
+        <NextPart editing={editing} chat={sheet.chat} email={sheet.email} canChange={sheet.can_change} />
       ) : (
         <SharePart
           sheet={sheet}
@@ -323,6 +333,7 @@ function SheetRead({
       )}
       <PublishAsk
         heading={editing.draft.heading}
+        email={sheet.email}
         open={asking}
         busy={publishing}
         onClose={() => setAsking(false)}

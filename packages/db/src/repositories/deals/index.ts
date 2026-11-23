@@ -5,9 +5,10 @@ export {
   DEAL_DTO_COLUMNS,
   getDealOnFile,
   listDealRowsOf,
+  listDealStandings,
   listYesesSince,
   openDealsOf,
   pageDealReport,
   recordDeal,
 } from "./deals";
-export type { DealMove, OpenDealRow, YesRow } from "./deals";
+export type { DealMove, DealStanding, OpenDealRow, YesRow } from "./deals";

@@ -15,6 +15,8 @@
  *                            that carries the link is not someone asking. Where the workspace's switch for the reply
  *                            in the open chat is on (decision 0135), earlier that day if that keeps it inside their
  *                            WhatsApp chat (chatClosesAt).
+ *   a deal marked won        Each sequence on `deal_won` takes the deal's person in for the next day at its hour
+ *                            (wonThanksAt), once for the deal, where the deal's row still says won (22 Nov 2026).
  *
  * Nothing is sent here. A row is kept once per sequence, person and occasion, for good (sequence_occasion_enrol), so a
  * second delivery of the event enrols nobody twice; the sequences' clock finds each row at its time and the job runs or
@@ -37,6 +39,8 @@ import {
   visitOccasion,
   visitOccasionsOf,
   visitSoonAt,
+  wonOccasion,
+  wonThanksAt,
   type ContactId,
   type OccasionEnrolment,
   type OccasionEvent,
@@ -53,6 +57,7 @@ import {
   type OccasionAppointment,
   type OccasionStep,
 } from "@chanlytics/db/campaigns";
+import { listDealStandings } from "@chanlytics/db/deals";
 import type { Database } from "@chanlytics/db/types";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 
@@ -222,6 +227,27 @@ async function enrolFromAsk(asked: Asked, messageId: string): Promise<OccasionEn
   return enrolled > 0 ? { enrolled, left: 0 } : { enrolled, left: 0, why: "already" };
 }
 
+/**
+ * A deal marked won: each sequence on `deal_won` takes its person in for the next day at the sequence's hour, once for
+ * the deal. Read as the deal's row stands now: one taken back before its event was delivered owes nothing, and one taken
+ * back after is found no longer won when its time comes (occasions/due.ts), so nothing leaves here.
+ */
+async function enrolFromDeal(turn: Asked, dealId: string): Promise<OccasionEnrolment> {
+  const { db, tenantId, now } = turn;
+  const steps = await listOccasionSteps(db, tenantId, ["deal_won"]);
+  if (steps.length === 0) return { enrolled: 0, left: 0, why: "no_step" };
+  const deal = (await listDealStandings(db, tenantId, [dealId])).get(dealId);
+  if (!deal) return { enrolled: 0, left: 0, why: "gone" };
+  if (deal.stage !== "won") return { enrolled: 0, left: 0, why: "not_owed" };
+  const tz = await zoneOf(turn);
+  const enrolled = await enrolIn(turn, steps, {
+    contactId: deal.contactId,
+    occasion: wonOccasion(dealId),
+    dueAt: (step) => wonThanksAt({ markedAt: now.getTime(), tz, runHour: step.runHour }),
+  });
+  return enrolled > 0 ? { enrolled, left: 0 } : { enrolled, left: 0, why: "already" };
+}
+
 /** Enrol whoever an event's occasion is owed to, in each sequence that starts on it: what came of it. */
 export async function enrolOccasions(
   db: Db,
@@ -230,7 +256,6 @@ export async function enrolOccasions(
   now: Date = new Date(),
 ): Promise<OccasionEnrolment> {
   const asked: Asked = { db, tenantId, now };
-  return event.about === "appointment"
-    ? enrolFromAppointment(asked, event.appointmentId)
-    : enrolFromAsk(asked, event.messageId);
+  if (event.about === "appointment") return enrolFromAppointment(asked, event.appointmentId);
+  return event.about === "deal" ? enrolFromDeal(asked, event.dealId) : enrolFromAsk(asked, event.messageId);
 }

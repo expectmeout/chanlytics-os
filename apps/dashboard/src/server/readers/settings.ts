@@ -35,7 +35,7 @@ import {
   firstNameOf,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countHeldForAddress, countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countHeldForAddress, countSentByStep, findReviewLink, findWorkspaceWords } from "@chanlytics/db/campaigns";
 import { countLeadSuppressions, findNewestSearchName } from "@chanlytics/db/leads";
 import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
@@ -132,7 +132,7 @@ type SettingsRead =
       prompt: PromptPreviewDto | null;
       updatedBy: string | null;
       updatedAt: string | null;
-      /** Whether the Google listing keeps a review link (db reviewLinkOf, 00415): never the link itself. */
+      /** Whether there is a review link, the owner's own or the Google listing's (db findReviewLink): never the link itself. */
       review_link: boolean;
       /** Whether this workspace makes previews for its leads (decision 0079): ours alone. */
       previews: boolean;
@@ -168,10 +168,11 @@ export const settings: Reader<undefined, SettingsRead> = {
       const visible = feedVisibleTo(rc.role, cfg);
       const [known, reviewLink, ads] = await Promise.all([
         getKnownFacts(rc.ctx, rc.tenantId),
-        // Whether the listing keeps a review link: the composers offer it to a review-link slot, and the review ask
-        // with it, only where it does, as they offer the booking link only where one is on file. A read that fails is
-        // none here, as a fact above is: the settings read never fails for it.
-        reviewLinkOf(rc.ctx.supabase, rc.tenantId).catch(() => null),
+        // Whether there is a review link, the owner's own (off the config this read already holds) or the listing's: the
+        // composers offer it to a review-link slot, and the review ask with it, only where there is one, as they offer
+        // the booking link only where one is on file. A read that fails is none here, as a fact above is: the settings
+        // read never fails for it.
+        findReviewLink(rc.ctx.supabase, rc.tenantId, row.config).catch(() => null),
         // Whether Campaigns › Ads is drawn here, asked beside them so the edge's word costs the read no wait of its own.
         adsShownHere(rc),
       ]);

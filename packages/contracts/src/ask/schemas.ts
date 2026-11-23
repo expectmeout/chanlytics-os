@@ -9,6 +9,7 @@ import { ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask";
 import { ASK_CONTEXT_ROW_KINDS, ASK_CONTEXT_MAX_ROWS } from "./context";
 import { ASK_GOAL_MAX, PROFILE_LIMITS, REACH_OUT_LIMITS, REPLY_OFFERS } from "../config/workspace-config/config-rules";
 import { REACH_OUT_REFUSAL_WORDS, reachOutSignatureProblem } from "../config/workspace-config/reach-out-schema";
+import { CURRENCY_CODE } from "../shared/identity";
 import { whyNotAHandoff } from "../shared/phone";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACES } from "../voice/phone-pace";
@@ -89,6 +90,21 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
     name: z.string().min(1).max(80),
     duration_min: z.number().int().min(1).max(1440).optional(),
     price_note: z.string().trim().min(1).max(PROFILE_LIMITS.servicePrice).optional(),
+  }),
+  // What a visit of each service is worth (the Ads tracking plan's T6): every amount AI read from the price notes, on
+  // one card the owner approves once. Whole minor units beside a currency, as Settings keep them (ServiceSchema).
+  z.object({
+    op: z.literal("set_service_amounts"),
+    amounts: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(PROFILE_LIMITS.serviceName),
+          amount_minor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+          currency: z.string().regex(CURRENCY_CODE),
+        }),
+      )
+      .min(1)
+      .max(PROFILE_LIMITS.services),
   }),
   // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
   z.object({ op: z.literal("set_goal"), goal: z.string().max(ASK_GOAL_MAX) }),

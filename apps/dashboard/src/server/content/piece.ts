@@ -25,7 +25,6 @@ import {
   postWordsIn,
   resolveFacts,
   videoPreviewOf,
-  fileUseOf,
   type PieceLookKept,
   type PiecePlan,
   type PieceRefused,
@@ -37,11 +36,9 @@ import { beginPiece, findFile, type FileMemberRow } from "@chanlytics/db/files";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import { asJson } from "@chanlytics/db/shared";
 import { postBandOf, postUndrawable } from "@/server/files/post-check";
-import { keepCardYes } from "@/server/files/yes";
 import { colourOnDark } from "@/server/posts/layout";
 import { postPhoneOf } from "@/server/posts/phone";
 import * as readers from "@/server/readers/facts";
-import { fileDtoOf } from "@/server/readers/files";
 import { getKnownFacts } from "@/server/readers/settings";
 import { load, readerContext } from "@/server/shared/reader";
 import type { Member } from "@/server/shared/route";
@@ -58,7 +55,6 @@ const planWords = {
   words_hold: z.enum(PIECE_WORDS_HOLDS),
   end_line: z.string().max(PIECE_LIMITS.endLine).nullable(),
   language: z.enum(["en", "es"]),
-  people_agreed: z.boolean(),
   // The words Ask wrote to go under the video where it is posted (C3): kept with the plan, read back as its words. None on a
   // card made before Ask wrote them.
   caption: z.string().max(PIECE_LIMITS.caption).nullable().optional(),
@@ -170,7 +166,6 @@ const pieceSourceOf = (file: FileMemberRow): PieceSource => ({
   source: file.source,
   media_status: file.media_status,
   seconds: file.seconds === null ? null : Number(file.seconds),
-  people_unasked: ["ask", "taken_back"].includes(fileUseOf("post", fileDtoOf(file)).is),
 });
 
 /** A plan that passed: the timeline it draws, the look it was drawn in, and its clips. */
@@ -182,8 +177,8 @@ export interface PieceChecked {
 
 /**
  * The plan checked against its files and the look as they now stand (contracts compilePiece): each clip is the workspace's own
- * ready, kept video and each photo its own kept photo, each stretch is inside its clip, and whoever is in them agreed. What
- * passed, or why it did not and which block it is about. Ask's act says the why to the model; a route says it to a person.
+ * ready, kept video and each photo its own kept photo, and each stretch is inside its clip. What passed, or why it did
+ * not and which block it is about. Ask's act says the why to the model; a route says it to a person.
  */
 export async function checkPieceClips(
   ctx: RouteContext,
@@ -243,8 +238,7 @@ export const pieceSecondsOf = (timeline: PieceTimeline): number =>
   Math.round((timeline.frames / PIECE_FRAME.fps) * 10) / 10;
 
 /**
- * POST files/video: the press. The plan is checked afresh, a person's word that those in the clips agreed is kept as a yes for
- * posts on each clip that needs one (files/yes.ts keepCardYes), and the video's row is written with the first step of the job
+ * POST files/video: the press. The plan is checked afresh, and the video's row is written with the first step of the job
  * that makes it. Kept once by the card's key.
  */
 export async function beginPieceFor(
@@ -255,7 +249,6 @@ export async function beginPieceFor(
   const { key, ...kept } = input;
   const plan = piecePlanOf(kept);
   const checked = await checkPiecePlan(ctx, member, plan);
-  if (plan.people_agreed) await keepCardYes(ctx, member, checked.files.map(fileDtoOf));
   const begun = await beginPiece(ctx.supabase, {
     tenantId: member.tenantId,
     // As its card sent it: a row holds either shape (00615), and every reader reads it as blocks.

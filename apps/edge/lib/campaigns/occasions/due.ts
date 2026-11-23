@@ -3,7 +3,8 @@
  * and handed the workspace a job (sequence_occasions), and the ledger gave it its turn.
  *
  * An occasion is one thing that happened to one person (a visit of theirs is two hours away, a visit was marked missed,
- * they were sent the booking link yesterday), and a sequence owes them its first step for it. Here each due one is run
+ * they were sent the booking link yesterday, a deal of theirs was marked won yesterday), and a sequence owes them its
+ * first step for it. Here each due one is run
  * or left, and its row says which, so nothing is asked twice:
  *
  *   left     its sequence, its step or the workspace was off when its time came; it was found more than a day late; what
@@ -29,6 +30,7 @@ import {
   isOccasionTrigger,
   leftBehindNotice,
   occasionAppointment,
+  occasionDeal,
   occasionGone,
   type OccasionTrigger,
   type TenantId,
@@ -44,6 +46,7 @@ import {
   type DueOccasion,
   type OccasionAppointment,
 } from "@chanlytics/db/campaigns";
+import { listDealStandings } from "@chanlytics/db/deals";
 import type { Database } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import { notifyOnce, type NotifyMessage } from "../../shared/alerts/notify.js";
@@ -173,9 +176,13 @@ async function standingOf(
 ): Promise<{ gone: string | null; appointment: OccasionAppointment | null }> {
   const appointmentId = occasionAppointment(row.occasion);
   const appointment = appointmentId ? await findOccasionAppointment(db, tenantId, appointmentId) : null;
-  // Whether they booked is asked only where it ends the occasion: a reminder is owed whatever else they hold.
+  // The deal a thank-you is for, as the record holds it now: owed only while it still says won.
+  const dealId = occasionDeal(row.occasion);
+  const deal = dealId ? ((await listDealStandings(db, tenantId, [dealId])).get(dealId) ?? null) : null;
+  // Whether they booked is asked only where it ends the occasion: a reminder is owed whatever else they hold, and so is
+  // the thank-you for a deal.
   const booked =
-    trigger === "visit_soon"
+    trigger === "visit_soon" || trigger === "deal_won"
       ? { ahead: false, since: false }
       : await findBookedSince(db, tenantId, {
           contactId: row.contactId,
@@ -190,8 +197,11 @@ async function standingOf(
       : null,
     bookedAhead: booked.ahead,
     bookedSince: booked.since,
+    deal: deal ? { stage: deal.stage } : null,
   });
   if (gone) return { gone, appointment };
+  // A deal that is another person's since (two records made one) is gone for this one, as a visit is.
+  if (deal && deal.contactId !== row.contactId) return { gone: "deal_gone", appointment };
   return { gone: appointment && appointment.contactId !== row.contactId ? "visit_gone" : null, appointment };
 }
 

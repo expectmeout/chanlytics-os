@@ -37,13 +37,16 @@ const inputs = (over = {}) => ({
   ...over,
 });
 
-test("5.1, a picture: only one that shows nobody, has no music, is no before and after, and is a shape Meta takes", () => {
-  assert.equal(C.adPictureIssue(picture()), null, "4:5, wide enough, nobody in it");
+test("5.1, a picture: only one with no music, no before and after, and a shape Meta takes", () => {
+  assert.equal(C.adPictureIssue(picture()), null, "4:5, wide enough");
   assert.equal(C.adPictureIssue(picture({ width: 1080, height: 1080 })), null, "square");
   assert.equal(C.adPictureIssue(picture({ width: 1200, height: 628 })), null, "1.91:1");
-  // Content's answer on the rights (its step L4, contracts files/yes.ts) comes first, as it said it: someone shown with no
-  // yes for ads, or music. Ads keeps no rule of its own on either (content/yes/a-person-with-no-recorded-yes.test.mjs).
-  assert.equal(C.adPictureIssue(picture({ rights: "person" })), "person");
+  // The rights come first: music, which needs its licence written (contracts adRightsOf). Who is in a picture is no rule:
+  // footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
+  assert.equal(C.adRightsOf("video", true), "music");
+  assert.equal(C.adRightsOf("video", null), "music", "not heard yet");
+  assert.equal(C.adRightsOf("video", false), null);
+  assert.equal(C.adRightsOf("photo", null), null);
   assert.equal(C.adPictureIssue(picture({ rights: "music" })), "music");
   assert.equal(C.adPictureIssue(picture({ beforeAfter: true })), "before_after");
   assert.equal(C.adPictureIssue(picture({ width: 480, height: 600 })), "small");
@@ -117,7 +120,7 @@ test("a draft says the one thing missing, in the order an owner can mend them (G
   assert.deepEqual(missing({ address: "  " }), { ok: false, missing: "address" });
   assert.deepEqual(missing({ whatsapp: false }), { ok: false, missing: "whatsapp" });
   assert.deepEqual(missing({ pictures: [] }), { ok: false, missing: "picture" });
-  assert.deepEqual(missing({ pictures: [picture({ rights: "person" })] }), { ok: false, missing: "picture" });
+  assert.deepEqual(missing({ pictures: [picture({ rights: "music" })] }), { ok: false, missing: "picture" });
 });
 
 test("the service: never one with an ad, never one with no picture fine in ads, then the most booked (G5)", () => {

@@ -32,6 +32,12 @@ export const KEPT_WITH_NO_CALLER = {
     "a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs",
   conversation_draft_keep:
     "Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own",
+  file_yes_record:
+    "a yes for one use of a file (00665), unread since 22 Nov 2026, when footage a business provides was taken as cleared and nobody in it asked: dropped with file_consents by a migration of its own; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs",
+  file_yes_take_back:
+    "a yes taken back (00665, 00676), unread since 22 Nov 2026 for the same reason as file_yes_record, and dropped with it; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs and tests/ads/stop/the-stop-and-a-yes-pause-ads.db.test.mjs",
+  files_drawn_from:
+    "what a made piece was drawn from (00665), read only to judge who was in it, so unread since 22 Nov 2026 and dropped with file_consents",
   erasure_digest_legacy:
     "the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs",
   page_freshness:

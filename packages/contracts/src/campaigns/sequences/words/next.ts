@@ -310,6 +310,7 @@ export function momentStartsSentence(trigger: string | null, hour: number | null
     case "visit_soon":
     case "visit_missed":
     case "asked_no_booking":
+    case "deal_won":
       return occasionWords(trigger, word).sentence(at); // each person's own time (decision 0119)
     default:
       return `At its moment${at}`;

@@ -2726,9 +2726,14 @@ CREATE FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer DEFAULT 
               from tenants t
              where t.id = p_tenant_id) e
   ),
+  -- The people an ad brought, read once: the counts and the worth below are of the same people.
+  brought as materialized (
+    select p.contact_id, p.first_at, p.ad_id, p.booked
+      from public.ad_people_in(p_tenant_id, p_days, p_end) p
+  ),
   by_ad as (
     select p.ad_id, count(*) as people, count(*) filter (where p.booked) as booked
-      from public.ad_people_in(p_tenant_id, p_days, p_end) p
+      from brought p
      group by p.ad_id
   ),
   -- What each ad's platform says it spent in the same days: the platform's half, in the account's own days.
@@ -2739,6 +2744,34 @@ CREATE FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer DEFAULT 
       from ad_days d, win w
      where d.tenant_id = p_tenant_id and d.day >= w.from_day and d.day <= w.to_day
      group by d.ad_id
+  ),
+  -- The visits that make an ad's people booked (ad_people_in's own rule, decision 0049, call 6), each with what it is
+  -- worth: its own stamp, or nothing, and it is left out.
+  visits as (
+    select p.ad_id, v.worth_minor as minor, v.worth_currency as currency
+      from brought p
+      join contacts c on c.id = p.contact_id and c.tenant_id = p_tenant_id
+      join appointments v
+        on v.tenant_id = p_tenant_id
+       and v.starts_at > p.first_at
+       and v.status not in ('cancelled', 'proposed')
+       and (v.contact_id = p.contact_id
+            or (v.contact_id is null
+                and ((v.client_phone is not null and v.client_phone = c.phone_e164)
+                     or (v.client_email is not null and lower(v.client_email) = lower(c.email)))))
+     where p.booked and p.ad_id is not null
+  ),
+  worth as (
+    select x.ad_id,
+           count(*) filter (where x.minor is not null) as visits,
+           count(*) filter (where x.minor is null) as left_out,
+           coalesce((select jsonb_agg(jsonb_build_object('currency', s.currency, 'minor', s.minor) order by s.currency)
+                       from (select y.currency, sum(y.minor)::bigint as minor
+                               from visits y
+                              where y.ad_id = x.ad_id and y.minor is not null
+                              group by y.currency) s), '[]'::jsonb) as sums
+      from visits x
+     group by x.ad_id
   )
   select jsonb_build_object(
            'from', w.from_day,
@@ -2753,7 +2786,11 @@ CREATE FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer DEFAULT 
                                        'ad_id', s.ad_id, 'spend_minor', s.spend_minor,
                                        'impressions', s.impressions, 'clicks', s.clicks,
                                        'platform_results', s.platform_results, 'settling', s.settling))
-                                from spent s), '[]'::jsonb))
+                                from spent s), '[]'::jsonb),
+           'worth', coalesce((select jsonb_agg(jsonb_build_object(
+                                       'ad_id', x.ad_id, 'sums', x.sums,
+                                       'visits', x.visits, 'left_out', x.left_out) order by x.ad_id)
+                                from worth x), '[]'::jsonb))
     from win w
 $$;
 
@@ -2762,7 +2799,7 @@ $$;
 -- Name: FUNCTION ads_page_counts(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) IS 'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; and spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling). The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';
+COMMENT ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) IS 'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling); and worth (00683; the Ads tracking plan''s T6), for each ad whose people booked, what their visits are worth: sums, one a currency and never across (call 9), visits, how many are in them, and left_out, how many have no amount. The visits are the ones that make its people booked (call 6), each at the worth stamped on it (appointments.worth_minor); one with none is left out, and counted. The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';
 
 
 --
@@ -3697,6 +3734,35 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in the appointments (decision 0036): the person''s visits keep their time and service and lose the client''s name, number, address and note; the notices that made them, and any whose subject names them, lose the name. Answers how many visits changed. Service role only.';
+
+
+--
+-- Name: appointments_worth_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_worth_stamp() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A visit keeps the worth it was booked at: only a change of its service stamps it again.
+  if tg_op = 'UPDATE' and NEW.service is not distinct from OLD.service then
+    return NEW;
+  end if;
+  NEW.worth_minor := null;
+  NEW.worth_currency := null;
+  select a.amount_minor, a.currency into NEW.worth_minor, NEW.worth_currency
+    from public.service_amounts(NEW.tenant_id) a
+   where a.key = public.service_key(NEW.service);
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_worth_stamp(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_worth_stamp() IS 'A visit is worth its service''s amount on the day it was booked (00683; the Ads tracking plan''s T6): appointments.worth_minor and worth_currency, filled before a visit is written from the amount its service has in the workspace''s settings then (service_amounts, found by service_key), and again only when the visit''s service changes. A request AI opens is written when it is asked for, so it is stamped then. Null where the service has no amount or the visit names none.';
 
 
 --
@@ -40489,7 +40555,7 @@ CREATE FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time 
    where s.state = 'running' and s.kind = p_kind
      -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour; nor does a
      -- step an occasion starts (0119), which runs for each person at their own time.
-     and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking')
+     and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking', 'deal_won')
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
      and t.sending_stopped_at is null
@@ -40825,6 +40891,58 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, every planned send whatever its day (decision 0098): those waiting for their owner or due within p_ahead_minutes first, and saying so (due_soon), each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone (00505: the check of a pressed rewrite). Service role only (0060).';
+
+
+--
+-- Name: service_amounts(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.service_amounts(p_tenant_id uuid) RETURNS TABLE(key text, amount_minor bigint, currency text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $_$
+  -- The first service of a name wins, as the list is read in its stored order.
+  select distinct on (public.service_key(s.item ->> 'name'))
+         public.service_key(s.item ->> 'name'), (s.item ->> 'amount_minor')::bigint, s.item ->> 'currency'
+    from tenant_config tc
+   cross join lateral jsonb_array_elements(
+           case when jsonb_typeof(tc.config -> 'brain' -> 'profile' -> 'services') = 'array'
+                then tc.config -> 'brain' -> 'profile' -> 'services' else '[]'::jsonb end
+         ) with ordinality as s(item, at)
+   where tc.tenant_id = p_tenant_id
+     and public.service_key(s.item ->> 'name') <> ''
+     -- An amount is the pair, each well formed (contracts serviceAmountOf): one alone is none.
+     and jsonb_typeof(s.item -> 'amount_minor') = 'number'
+     and (s.item ->> 'amount_minor') ~ '^[0-9]{1,15}$'
+     and (s.item ->> 'currency') ~ '^[A-Z]{3}$'
+   order by public.service_key(s.item ->> 'name'), s.at
+$_$;
+
+
+--
+-- Name: FUNCTION service_amounts(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.service_amounts(p_tenant_id uuid) IS 'The services of a workspace that have an amount (00683; the Ads tracking plan''s T6), read from its settings (tenant_config.config, brain.profile.services): each by its key (service_key), with amount_minor, a whole number of the currency''s minor units, and currency, ISO 4217. The pair alone is an amount: a service with a number and no currency, or a price note and no amount, is not here, and a note is never read for a number. The first of a name where two share one. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it, and the settings row is its owner''s alone to read.';
+
+
+--
+-- Name: service_key(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.service_key(p_name text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g'))
+$$;
+
+
+--
+-- Name: FUNCTION service_key(p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.service_key(p_name text) IS 'A service''s name as the owner reads it (00683): trimmed, its runs of space made one, lower case. How a visit finds its service among the workspace''s (service_amounts), as a settings change finds one by name (contracts settings-change.ts). Empty for no name. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it.';
 
 
 --
@@ -43847,6 +43965,38 @@ COMMENT ON FUNCTION public.tenant_config_version_moves() IS 'Before a change to 
 
 
 --
+-- Name: tenant_config_worth_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tenant_config_worth_stamp() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- Only a save that changed the services reaches the visits.
+  if (NEW.config #> '{brain,profile,services}') is not distinct from (OLD.config #> '{brain,profile,services}') then
+    return null;
+  end if;
+  update public.appointments v
+     set worth_minor = a.amount_minor, worth_currency = a.currency
+    from public.service_amounts(NEW.tenant_id) a
+   where v.tenant_id = NEW.tenant_id
+     and v.worth_minor is null
+     and v.service is not null
+     and v.starts_at > now() - interval '90 days'
+     and public.service_key(v.service) = a.key;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION tenant_config_worth_stamp(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.tenant_config_worth_stamp() IS 'The day a service is first given an amount, the visits already written for it take it (00683; the Ads tracking plan''s T6): after a save of the settings that changed the services, each visit of the workspace that has no worth, names a service that now has an amount (service_amounts, by service_key) and starts within the last ninety days, the longest window a page counts, is stamped with it. A visit that has a worth is never touched, so a changed amount moves no visit. SECURITY DEFINER, since a member writes no visit: it reads and writes the one workspace whose settings were saved, and no session may call it.';
+
+
+--
 -- Name: tenant_config_write(uuid, jsonb, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -45934,10 +46084,13 @@ CREATE TABLE public.appointments (
     nudged_at timestamp with time zone,
     lapsed_at timestamp with time zone,
     lapse_told boolean,
+    worth_minor bigint,
+    worth_currency text,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
     CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
-    CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text])))
+    CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text]))),
+    CONSTRAINT appointments_worth_check CHECK ((((worth_minor IS NULL) = (worth_currency IS NULL)) AND ((worth_minor IS NULL) OR ((worth_minor >= 0) AND (worth_currency ~ '^[A-Z]{3}$'::text)))))
 );
 
 
@@ -45988,6 +46141,20 @@ COMMENT ON COLUMN public.appointments.lapsed_at IS 'When a request AI took ran o
 --
 
 COMMENT ON COLUMN public.appointments.lapse_told IS 'Whether AI told the customer when their request ran out (00679): true, or false where the message could not go and the conversation waits on a person''s reply. Null for a row that never ran out through booking_request_lapse.';
+
+
+--
+-- Name: COLUMN appointments.worth_minor; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.worth_minor IS 'What the visit is worth (00683; the Ads tracking plan''s T6): its service''s amount when the visit was written, a whole number of worth_currency''s minor units, stamped by appointments_worth_stamp and never moved by a later change of the amount; stamped again only when the visit''s service changes. A visit written before its service had an amount takes the first one the service is given (tenant_config_worth_stamp). Null where its service has had none, or it names none: a sum then leaves it out and counts it (ads_page_counts).';
+
+
+--
+-- Name: COLUMN appointments.worth_currency; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.worth_currency IS 'The currency worth_minor is in, ISO 4217 (00683). Null exactly where worth_minor is.';
 
 
 --
@@ -48920,7 +49087,7 @@ CASE
     WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
     ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
 END),
-    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text, 'visit_soon'::text, 'visit_missed'::text, 'asked_no_booking'::text])))
+    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text, 'visit_soon'::text, 'visit_missed'::text, 'asked_no_booking'::text, 'deal_won'::text])))
 );
 
 
@@ -57450,7 +57617,14 @@ CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appoint
 -- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW WHEN ((NOT (new.arrived_at IS DISTINCT FROM old.arrived_at))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
+CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW WHEN (((NOT (new.arrived_at IS DISTINCT FROM old.arrived_at)) AND (NOT (((new.worth_minor IS DISTINCT FROM old.worth_minor) OR (new.worth_currency IS DISTINCT FROM old.worth_currency)) AND (NOT (new.service IS DISTINCT FROM old.service)))))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: appointments appointments_worth_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_worth_stamp BEFORE INSERT OR UPDATE OF service ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_worth_stamp();
 
 
 --
@@ -58515,6 +58689,13 @@ CREATE TRIGGER tenant_config_version_kept_first AFTER INSERT ON public.tenant_co
 --
 
 CREATE TRIGGER tenant_config_version_moves BEFORE UPDATE OF config, version ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_version_moves();
+
+
+--
+-- Name: tenant_config tenant_config_worth_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_worth_stamp AFTER UPDATE OF config ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_worth_stamp();
 
 
 --
@@ -64749,6 +64930,14 @@ GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id u
 
 
 --
+-- Name: FUNCTION appointments_worth_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_worth_stamp() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_worth_stamp() TO service_role;
+
+
+--
 -- Name: FUNCTION approval_hash(p_snapshot jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -70743,6 +70932,22 @@ GRANT ALL ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace
 
 
 --
+-- Name: FUNCTION service_amounts(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.service_amounts(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.service_amounts(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION service_key(p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.service_key(p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.service_key(p_name text) TO service_role;
+
+
+--
 -- Name: FUNCTION session_has_partner_seat(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -71291,6 +71496,14 @@ GRANT ALL ON FUNCTION public.tenant_config_version_keep() TO service_role;
 REVOKE ALL ON FUNCTION public.tenant_config_version_moves() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO authenticated;
 GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO service_role;
+
+
+--
+-- Name: FUNCTION tenant_config_worth_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.tenant_config_worth_stamp() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_worth_stamp() TO service_role;
 
 
 --

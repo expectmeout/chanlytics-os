@@ -562,6 +562,8 @@ test("a version that cannot be filed is said and stops nothing: the rest are fil
     const c = real();
     const rpc = c.supabase.rpc.bind(c.supabase);
     c.supabase.rpc = (name, args) => {
+      // The save door's calls alone are counted: the route also asks the config's door, for the owner's own review link.
+      if (name !== "save_template_version") return rpc(name, args);
       n += 1;
       if (n === 1) w.refuse.save = doorError("A subject is at most 60 characters.", "22023");
       else if (n === 2) w.refuse.save = doorError("canceling statement due to statement timeout", "57014");
@@ -1303,14 +1305,19 @@ test("the body takes `message` as the wire names it, and refuses one that is not
 
 /* ------------------------------ the review ask ------------------------------ */
 
-test("the starter set holds the review ask only where the workspace's Google listing keeps a review link, which its slot is filled from; asked for by its key without one, it is refused in the words a message's values are, and nothing is filed", async () => {
+test("the starter set holds a review ask only where the workspace has a review link (the owner's own, else its Google listing's), which its slot is filled from; asked for by its key without one, it is refused in the words a message's values are, and nothing is filed", async () => {
   const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
   const keysOf = (r) => [...new Set(r.results.map((x) => x.key))];
   const workspace = (google_listings) => ({ memberships: both("viewer", "operator"), templates: [], google_listings });
-  // No listing: every starter the workspace is offered, less the review ask (no number: emails and texts, Meta not asked).
+  // The two that ask for a review, each beside its moment's other starter: after a kept appointment, and after a deal
+  // is marked won (22 Nov 2026).
+  const ASKS = { after_visit_check: "after_visit_review", new_client_thanks: "new_client_review" };
+  // No listing: every starter the workspace is offered, less the review asks (no number: emails and texts, Meta not asked).
   const plain = await post(world(workspace([])), {});
-  assert.ok(keysOf(plain).includes("after_visit_check"), keysOf(plain).join());
-  assert.ok(!keysOf(plain).includes("after_visit_review"), keysOf(plain).join());
+  for (const [beside, ask] of Object.entries(ASKS)) {
+    assert.ok(keysOf(plain).includes(beside), keysOf(plain).join());
+    assert.ok(!keysOf(plain).includes(ask), keysOf(plain).join());
+  }
   // A listing with no Business Profile location bound keeps none either.
   const unbound = await post(world(workspace([rows.googleListing({ tenant_id: B, new_review_uri: null })])), {});
   assert.deepEqual(keysOf(unbound), keysOf(plain));
@@ -1319,17 +1326,20 @@ test("the starter set holds the review ask only where the workspace's Google lis
   const w = world(asked);
   await refused(post(w, { keys: ["after_visit_review"] }), "conflict", 409, TEMPLATE_VALUE_WORDS.noReviewLink);
   assert.deepEqual([w.calls, asked.templates], [[], []]);
-  // With one: the review ask beside the day after's other starter, its email and text versions written.
+  // With one: each review ask beside its moment's other starter, its email and text versions written.
   const link = "https://example.com/review/bayside";
   const linked = await post(world(workspace([rows.googleListing({ tenant_id: B, new_review_uri: link })])), {});
-  assert.deepEqual(
-    keysOf(linked),
-    keysOf(plain).flatMap((k) => (k === "after_visit_check" ? [k, "after_visit_review"] : [k])),
-  );
-  assert.deepEqual(
-    detailed(linked).find(([key]) => key === "after_visit_review"),
-    ["after_visit_review", "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
-  );
+  const withAsks = keysOf(plain).flatMap((k) => (ASKS[k] ? [k, ASKS[k]] : [k]));
+  assert.deepEqual(keysOf(linked), withAsks);
+  for (const ask of Object.values(ASKS))
+    assert.deepEqual(
+      detailed(linked).find(([key]) => key === ask),
+      [ask, "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
+    );
+  // The owner's own link and no Google listing at all (22 Nov 2026): the same set, where it held no review ask.
+  const own = rows.config({ tenant_id: B, config: { brain: { review_link: "https://example.com/review/own" } } });
+  const owned = await post(world({ ...workspace([]), tenant_config: [own] }), {});
+  assert.deepEqual(keysOf(owned), withAsks, "REGRESSION: a business with no Google listing was offered no review ask");
 });
 
 test("Start judges a sequence whole before it files a ready-made starter or the AI's words: refused for what its message takes, nothing is filed and nothing reaches WhatsApp; mended, it is filed and made (the review of 15 Nov 2026, C6)", async () => {

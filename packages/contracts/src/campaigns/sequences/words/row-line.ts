@@ -152,6 +152,8 @@ function startsWhenWords(row: Pick<SequenceRowDto, "starts" | "first">, word: Ap
       return "Sends once a month";
     case "proposal_waiting":
       return "Starts when a proposal waits";
+    case "deal_won":
+      return "Sends the day after someone becomes a client";
     case "slot_opened":
       return "Starts when a cancellation frees a time";
     default:

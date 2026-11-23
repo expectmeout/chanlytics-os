@@ -30,6 +30,7 @@ const NEW_JOURNEY_ORDER: readonly string[] = [
   "visited",
   "slot_opened",
   "proposal_waiting",
+  "deal_won",
   "lapsed",
   "quiet_30",
 ];
@@ -46,6 +47,7 @@ const NEW_BASICS_ORDER: readonly string[] = [
   "visit_missed",
   "slot_opened",
   "proposal_waiting",
+  "deal_won",
   "lapsed",
   "quiet_30",
 ];
@@ -139,6 +141,12 @@ export interface ReadyStart {
 }
 
 /**
+ * The moments that presume a business sends proposals: the follow-up while one waits, and the thank-you once one is won.
+ * Each is drawn only where a deal was ever recorded, or a sequence already stands on it (0008, amended 18 Oct 2026).
+ */
+const waitsOnADeal = (id: string): boolean => id === "proposal_waiting" || id === "deal_won";
+
+/**
  * Whether a moment waits on a calendar here: not offered now, and it would be with one connected (the house's one rule,
  * momentOffered). Never a win-back: where no calendar is, the one read by silence stands for both.
  */
@@ -189,7 +197,7 @@ function momentStarts(reads: ReadyReads): ReadyStart[] {
   return NEW_BASICS_ORDER.flatMap((id) => {
     const found = reads.moments.find((t) => t.id === id);
     if (!found || !found.offered || standsOn(reads.running, id)) return [];
-    if (id === "proposal_waiting" && !reads.hasDeals) return [];
+    if (waitsOnADeal(id) && !reads.hasDeals) return [];
     // A win-back nobody is in, where nobody can hear an offer yet, reaches no one: what it needs is One step away's.
     if (isWinBack(id) && !found.candidates && !reads.everyone) return [];
     return [momentStart(found, reads.word)];
@@ -283,8 +291,8 @@ export interface JourneyMoment {
 
 /**
  * The journey's moments in order. One a calendar would offer is drawn as waiting on it; any other not offered (the
- * win-back this workspace cannot read) only while a sequence stands on it; and a proposal's only where a deal was recorded
- * or a sequence stands on it.
+ * win-back this workspace cannot read) only while a sequence stands on it; and a proposal's two (waitsOnADeal) only where a
+ * deal was recorded or a sequence stands on it.
  */
 export function newJourneyOf(reads: ReadyReads): JourneyMoment[] {
   return NEW_JOURNEY_ORDER.flatMap((id) => {
@@ -294,7 +302,7 @@ export function newJourneyOf(reads: ReadyReads): JourneyMoment[] {
     const stands = twin && twin.first?.trigger === id ? twin : null;
     const needs = waitsOnCalendar(found) ? ("calendar" as const) : null;
     if (!found.offered && !stands && !needs) return [];
-    if (id === "proposal_waiting" && !reads.hasDeals && !stands) return [];
+    if (waitsOnADeal(id) && !reads.hasDeals && !stands) return [];
     return [
       {
         id,

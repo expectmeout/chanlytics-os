@@ -167,6 +167,18 @@ export interface AdLiveDto {
    * line of its own: never in `people`, `booked` or the cost of a booked person. Absent where the read of it failed.
    */
   back?: { people: number; booked: number };
+  /**
+   * What the visits its people booked are worth (the tracking plan's T6): a sum a currency, never across; how many
+   * visits are in them; and how many were left out, their service having no amount. The visits are the ones that make
+   * its people booked (decision 0049, call 6). Absent where the database is a deploy behind and sums none.
+   */
+  worth?: { sums: AdWorthSum[]; visits: number; left_out: number };
+}
+
+/** Visits' worth in one currency: a whole number of its minor units (money.ts), beside its ISO 4217 code. */
+export interface AdWorthSum {
+  currency: string;
+  minor: number;
 }
 
 /** The Ads page's read. */
@@ -352,7 +364,7 @@ export function adResumeRule(ad: AdResumeFacts, nowMs: number): AdResume {
   // An ad made here is paused by its own campaign, which holds nothing else: what the owner asked is what stands.
   const paused = ad.origin === "chanlytics" ? ad.intent === "paused" : ad.platform_state === "PAUSED";
   if (!paused) return { ok: false, why: "not_paused" };
-  // Paused because someone in its picture took back their yes: it runs again only with another picture (G16).
+  // Paused by a remediation of its picture (00676, G16): it runs again only with another picture.
   if (ad.paused_by === "remediation") return { ok: false, why: "picture" };
   if (ad.budget_kind !== "total") return { ok: false, why: "no_total" };
   if (ad.ends_at === null) return { ok: false, why: "no_end" };

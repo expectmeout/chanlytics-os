@@ -68,7 +68,7 @@ export {
   FILES_PAGE,
   isFileMime,
 } from "./limits";
-export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt, FileYesUse } from "./limits";
+export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,
@@ -199,7 +199,6 @@ export {
   shelfFilterOf,
   shelfOf,
   uploadNameOf,
-  whoStandsOf,
 } from "./views";
 export type {
   FileDto,
@@ -211,18 +210,6 @@ export type {
   FileShelfFilter,
   FilesPageDto,
   FilesTally,
-  FileWhoStands,
 } from "./views";
-export {
-  FILE_YES_ASK,
-  fileAdRightsOf,
-  fileUseMay,
-  fileUseOf,
-  fileYesReceiptOf,
-  fileYesSaidOf,
-  fileYesTitleOf,
-  fileYesUsesIn,
-} from "./yes";
-export type { FileUseStands, FileYesAd, FileYesFacts, FileYesPost, FileYesTakenBack } from "./yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";
 export type { ZoomBox, ZoomSize, ZoomWont } from "./zoom";

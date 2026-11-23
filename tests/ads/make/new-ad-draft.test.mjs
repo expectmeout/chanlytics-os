@@ -427,7 +427,7 @@ test("a WhatsApp chat AI couldn't answer is said for what it is: switched off, n
   assert.equal(await missing(world({ tables: { tenants: paused } })), "paused");
 });
 
-test("a folder of clips nobody has looked at, or a run of photos of people, never buries the one picture fine in ads", async () => {
+test("a folder of clips or photos nobody has looked at yet never buries the one picture fine in ads", async () => {
   // 20 Nov 2026: a Drive folder's clips, none looked at yet, pushed the one photo fine in ads out of the newest 24 read,
   // and every draft said a picture was missing. Many more than that now, and newer than the photo.
   const id = (n) => `f${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
@@ -447,33 +447,29 @@ test("a folder of clips nobody has looked at, or a run of photos of people, neve
       updated_at: newer(n),
     }),
   );
-  const people = Array.from({ length: 40 }, (_, n) =>
+  const unlooked = Array.from({ length: 40 }, (_, n) =>
     file(1, {
       id: id(200 + n),
       name: `team-${n}`,
-      look: { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] },
+      look: null,
+      look_status: "waiting",
       created_at: newer(n),
       updated_at: newer(n),
     }),
   );
-  const { answer } = await fresh(world({ tables: { files: [fine, ...clips, ...people] } }));
+  const { answer } = await fresh(world({ tables: { files: [fine, ...clips, ...unlooked] } }));
   assert.equal(answer.can, true, "a draft can be written");
   assert.equal(answer.draft.picture.id, FILE(1), "the one picture fine in ads, however many newer files there are");
 });
 
-test("only a picture whose people said yes to ads, and with no music, is offered, in a shape the feed takes: never one to crop (G15)", async () => {
+test("a picture with no music is offered, whoever is in it, in a shape the feed takes: never one to crop (G15)", async () => {
   const offeredOf = async (files) => {
     const { answer } = await fresh(world({ tables: { files } }));
     return answer.can ? answer.draft.picture.id : answer.missing;
   };
-  // A person shown, a yes for posts alone, a photo nobody has looked at, a story's tall shape, a small one: none.
+  // A photo nobody has looked at, a story's tall shape, a small one, a before and after: none.
   assert.equal(
     await offeredOf([
-      file(1, { look: { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] } }),
-      file(2, {
-        yes_for: ["post"],
-        look: { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] },
-      }),
       file(3, { look: null, look_status: "waiting" }),
       file(4, { width: 1080, height: 1920 }),
       file(5, { width: 400, height: 500 }),
@@ -481,21 +477,17 @@ test("only a picture whose people said yes to ads, and with no music, is offered
         look: { line: "A before and after of the salon.", people: { count: 0, recognizable: 0 }, issues: [] },
       }),
     ]),
-    "picture_person",
-    "someone shown, or nobody said who, is what to mend first",
+    "picture",
   );
-  // Each picture missing says which: none at all, someone in each, music in each, none that fits an ad.
+  // Each picture missing says which: none at all, music in each, none that fits an ad.
   assert.equal(await offeredOf([]), "picture_none");
   assert.equal(
     await offeredOf([file(4, { width: 1080, height: 1920 }), file(5, { width: 400, height: 500 })]),
     "picture",
   );
-  // A member's own word that nobody is in it is enough.
-  assert.equal(await offeredOf([file(1, { who_in_it: "no_one", look: null, look_status: "waiting" })]), FILE(1));
-  // Someone shown who said yes to ads (00665, Content's step L4): offered, as Content answers it; a yes taken back, not.
-  const said = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
-  assert.equal(await offeredOf([file(1, { look: said, yes_for: ["ad", "post"] })]), FILE(1));
-  assert.equal(await offeredOf([file(1, { look: said, yes_for: ["post"], yes_back: ["ad"] })]), "picture_person");
+  // Someone shown is offered as anyone else: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
+  const team = { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] };
+  assert.equal(await offeredOf([file(1, { look: team })]), FILE(1));
   // A video before a photo, where its sound was heard and holds no music; one with music is never offered.
   const video = (n, sound) =>
     file(n, { kind: "video", mime: "video/mp4", width: 1080, height: 1080, seconds: 20, media_status: "ready", sound });
@@ -1219,8 +1211,6 @@ const piece = (n, over = {}) =>
 /** A video AI made, ready to play. */
 const pieceVideo = (over = {}) =>
   piece(7, { kind: "video", mime: "video/mp4", seconds: 20, media_status: "ready", ...over });
-/** What a made piece was drawn from, as files_drawn_from answers it: the photo or the clips it shows. */
-const drawnFrom = (from) => ({ file_id: FILE(7), from_id: from });
 /** Someone at the chair, whom someone who knows them could recognize. */
 const AT_THE_CHAIR = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
 /** A video's sound, heard whole: with music, or with none. */
@@ -1235,11 +1225,8 @@ const HEARD = (music) => ({
   },
 });
 
-/**
- * A workspace whose made pieces say what they were drawn from. The service role reads that (files_drawn_from), so its
- * client is this workspace's database in memory, as the session's is.
- */
-function seatedMade(tables, drawn = [], role = "owner") {
+/** A workspace of made pieces: the service role's client is this workspace's database in memory, as the session's is. */
+function seatedMade(tables, role = "owner") {
   const who = seated(tables, role);
   const db = fakeDb(
     who.tables,
@@ -1247,7 +1234,6 @@ function seatedMade(tables, drawn = [], role = "owner") {
     {
       ads_page_counts: () => NO_COUNTS,
       ...draftDoors(who.tables, who.userId, who.keeps, who.writers),
-      files_drawn_from: ({ p_ids }) => drawn.filter((row) => p_ids.includes(row.file_id)),
     },
   );
   setServiceClient(db);
@@ -1326,19 +1312,13 @@ test("Run as an ad offers the service the piece is about, where its name says on
 });
 
 test("Run as an ad on a piece that may not run: the one thing missing for it, never another picture, and nothing kept", async () => {
-  const ranOn = async (files, drawn = [], tables = {}) => {
-    const who = seatedMade(world({ tables: { files: [file(1), ...files], ...tables } }), drawn);
+  const ranOn = async (files, tables = {}) => {
+    const who = seatedMade(world({ tables: { files: [file(1), ...files], ...tables } }));
     const answer = await draftAd(who.rc, { picture: FILE(7) });
     return { got: answer.can ? answer.draft.picture.id : answer.missing, kept: who.keeps.length };
   };
-  // Fine: drawn from a photo whose person said yes to ads.
-  const yes = file(2, { look: AT_THE_CHAIR, yes_for: ["ad", "post"] });
-  assert.deepEqual(await ranOn([piece(7), yes], [drawnFrom(FILE(2))]), { got: FILE(7), kept: 1 });
-  // Someone shown, on the piece or on the photo it was drawn from with a yes for posts alone. The front desk photo,
-  // fine in ads, stands beside it the whole time, and is never offered in its place.
-  assert.deepEqual(await ranOn([piece(7, { look: AT_THE_CHAIR })]), { got: "picture_person", kept: 0 });
-  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
-  assert.deepEqual(await ranOn([piece(7), postsOnly], [drawnFrom(FILE(2))]), { got: "picture_person", kept: 0 });
+  // Someone shown runs as anyone else: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
+  assert.deepEqual(await ranOn([piece(7, { look: AT_THE_CHAIR })]), { got: FILE(7), kept: 1 });
   // A video with music, or not heard yet; a quiet square one runs; a story's tall shape is not a feed's.
   assert.equal((await ranOn([pieceVideo({ sound: HEARD(true) })])).got, "picture_music");
   assert.equal((await ranOn([pieceVideo({ sound: null })])).got, "picture_music");
@@ -1348,28 +1328,20 @@ test("Run as an ad on a piece that may not run: the one thing missing for it, ne
   assert.equal((await ranOn([piece(7, { removed_at: "2026-11-19T14:00:00Z" })])).got, "picture_gone");
   assert.equal((await ranOn([piece(7, { status: "set_aside" })])).got, "picture_gone");
   assert.equal((await ranOn([])).got, "picture_gone");
-  assert.equal((await ranOn([piece(7)], [], { ad_accounts: [] })).got, "account");
+  assert.equal((await ranOn([piece(7)], { ad_accounts: [] })).got, "account");
 });
 
 test("a made piece says as it opens whether it may run as an ad: Content's one rule, where Ads is on and an account connected", async () => {
-  const standsOf = async (row, { drawn = [], others = [], tables = {} } = {}) => {
-    const who = seatedMade(world({ tables: { files: [row, ...others], ...tables } }), drawn);
+  const standsOf = async (row, { tables = {} } = {}) => {
+    const who = seatedMade(world({ tables: { files: [row], ...tables } }));
     return readPieceAd(
       who.rc,
       who.tables.files.find((one) => one.id === row.id),
     );
   };
   assert.deepEqual(await standsOf(piece(7)), { is: "may" });
-  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR })), { is: "wont", why: "person" });
-  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR, yes_for: ["ad"] })), { is: "may" });
-  assert.deepEqual(
-    await standsOf(piece(7), {
-      drawn: [drawnFrom(FILE(2))],
-      others: [file(2, { look: AT_THE_CHAIR, yes_for: ["post"] })],
-    }),
-    { is: "wont", why: "person" },
-    "a piece shows who its photo shows: a yes for posts doesn't cover an ad",
-  );
+  // Who is in it is never a reason (Ruben, 22 Nov 2026).
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR })), { is: "may" });
   // Music, and a video not heard yet: both held back, each said as what it is.
   assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(true) })), { is: "wont", why: "music" });
   assert.deepEqual(await standsOf(pieceVideo({ sound: null })), { is: "wont", why: "unheard" });
@@ -1397,8 +1369,8 @@ test("a made piece says as it opens whether it may run as an ad: Content's one r
 const ELSEWHERE = "99999999-9999-4999-8999-999999999999";
 
 /** AI's tool in a workspace of made pieces, the question asked about `about` (a file's id; Content's line on a piece). */
-function pieceToolOf(files, { drawn = [], about = FILE(7), question = "Run this as an ad" } = {}) {
-  const who = seatedMade(world({ tables: { files: [file(1), ...files] } }), drawn);
+function pieceToolOf(files, { about = FILE(7), question = "Run this as an ad" } = {}) {
+  const who = seatedMade(world({ tables: { files: [file(1), ...files] } }));
   return { who, tool: toolOf(null, "owner", question, { who, ...(about ? { about } : {}) }) };
 }
 
@@ -1417,14 +1389,13 @@ test("AI's tool asked about a made piece: a card drafted around it where Content
   assert.equal(named.proposal.title, "New ad for Consultation");
   assert.match(named.proposal.summary, /^Shows Post 7\. AI drafts it in New ad/);
   // Where it may not run: why, by Content's one rule, so AI says it; and no card.
-  const refusedFor = async (files, drawn = []) => {
-    const answer = await pieceToolOf(files, { drawn }).tool({});
+  const refusedFor = async (files) => {
+    const answer = await pieceToolOf(files).tool({});
     assert.equal(answer.proposal, null, "no card");
     return answer.refusal;
   };
-  assert.match(await refusedFor([piece(7, { look: AT_THE_CHAIR })]), /hasn't said yes to ads/);
-  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
-  assert.match(await refusedFor([piece(7), postsOnly], [drawnFrom(FILE(2))]), /hasn't said yes to ads/);
+  // Someone shown is no reason: AI drafts the card.
+  assert.ok((await pieceToolOf([piece(7, { look: AT_THE_CHAIR })]).tool({})).proposal, "someone at the chair runs");
   assert.match(await refusedFor([pieceVideo({ sound: HEARD(true) })]), /has music/);
   assert.match(await refusedFor([pieceVideo({ sound: null })]), /isn't heard yet/);
   assert.match(await refusedFor([piece(7, { width: 1080, height: 1920 })]), /shape doesn't fit/);

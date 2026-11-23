@@ -2916,6 +2916,83 @@ test("a reminder asks its appointment again at the send: one cancelled, or gone 
   );
 });
 
+/* ---------------------------------------------- a deal asked again (the thank-you for a deal marked won) */
+
+test("a thank-you for a deal marked won asks the deal again at the send: one taken back, lost, ended or gone holds its person (deal_changed) and nobody else; one still won goes; the stages are read once for the batch and only where a row names a deal; a read that fails leaves the batch queued, never sent on a guess", async () => {
+  // The slots are the reminder's here (the fakes' message): what is proved is the row's own hold, whatever its words.
+  const owed = (deal) => ({ ...VISIT, occasion: `won:${deal}`, deal, deal_was: "won" });
+  const people = (ids) =>
+    new Map(
+      ids.map((id) => [
+        id,
+        { ...reachable.k1, id, phone_e164: `+1347555010${id.slice(1)}`, display_name: `Person ${id}` },
+      ]),
+    );
+  const asked = [];
+  const { f } = world({
+    batch: [
+      on("sms", "k1", owed("taken-back")),
+      on("sms", "k2", owed("still-won")),
+      on("sms", "k3", owed("lost")),
+      on("sms", "k4", owed("ended")),
+      on("sms", "k5", owed("gone")),
+      on("sms", "k6", VISIT),
+    ],
+    dealStages: (ids) => {
+      asked.push(ids);
+      return new Map([
+        ["taken-back", "proposed"],
+        ["still-won", "won"],
+        ["lost", "lost"],
+        ["ended", "ended"],
+      ]);
+    },
+    contacts: people,
+  });
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(
+    asked,
+    [["taken-back", "still-won", "lost", "ended", "gone"]],
+    "one read, the batch's deals once each",
+  );
+  assert.deepEqual(
+    f.marks().filter(([, state]) => state !== "failed"),
+    [
+      ["k1", "skipped", "deal_changed"],
+      ["k2", "sent", null],
+      ["k3", "skipped", "deal_changed"],
+      ["k4", "skipped", "deal_changed"],
+      ["k5", "skipped", "deal_changed"],
+      ["k6", "sent", null],
+    ],
+  );
+  assert.equal(HELD_REASONS.deal_changed, "no longer marked as a client");
+
+  // No row names a deal: the deals are never read, so no other campaign's send depends on them.
+  const { f: none } = world({
+    batch: [on("sms", "k1"), on("sms", "k2")],
+    dealStages: new Error("the deals were read for a batch with no deal"),
+  });
+  await sendBroadcastBatch(none.ports, cmd());
+  assert.deepEqual(
+    none.marks().filter(([, s]) => s !== "failed"),
+    [
+      ["k1", "sent", null],
+      ["k2", "sent", null],
+    ],
+  );
+
+  // The stages could not be read: nobody is claimed, held or sent, and the batch is tried again.
+  const { f: unread } = world({
+    batch: [on("sms", "k1", owed("still-won")), on("sms", "k2", VISIT)],
+    dealStages: new Error("statement timeout"),
+    contacts: people,
+  });
+  await sendBroadcastBatch(unread.ports, cmd());
+  assert.deepEqual(unread.marks(), [], "we could not read it is never it is still won");
+  assert.deepEqual(sendsOf(unread), []);
+});
+
 /* ---------------------------------------------- the week's breath, at the wire (a send by hand) */
 
 test("a person a send by hand left out for the week's breath is skipped at the wire with its reason and sent nothing, whatever the hold after the run did; a row with no such mark is sent as before", async () => {

@@ -35,8 +35,6 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket, fileDoorRefusal } from "../files/file";
-import { keepCardYes } from "../files/yes";
-import { fileDtoOf } from "../readers/files";
 import { composePost } from "./compose";
 import { POST_SIZES } from "./layout";
 import { getMaterial, type PostMaterial } from "./material";
@@ -54,7 +52,6 @@ export const postPlanInput = z.object({
   voice: z.enum(POST_VOICES),
   layout: z.enum(POST_LAYOUTS).default("over"),
   language: z.enum(["en", "es"]),
-  people_agreed: z.boolean(),
   // A card made before a video's moment could be a post's photo names none, and is a photo's.
   at: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX).nullable().default(null),
 });
@@ -160,8 +157,7 @@ const letShapesGo = async (tenantId: TenantId, id: string): Promise<void> => {
 };
 
 /**
- * POST files/post: the post kept, a shape each, as a file like any other. The same picture pressed twice is the one file. A
- * person's word that those in the photo agreed is kept first, as a yes for posts on the photo (files/yes.ts keepCardYes).
+ * POST files/post: the post kept, a shape each, as a file like any other. The same picture pressed twice is the one file.
  */
 export async function makePost(
   ctx: RouteContext,
@@ -174,7 +170,6 @@ export async function makePost(
   // a function that dies between storing the shapes and the door below can't take them back itself.
   const started = await startFile(ctx.supabase, member.tenantId, id);
   if (started.error) throw fileDoorRefusal(started.error);
-  if (plan.people_agreed) await keepCardYes(ctx, member, [fileDtoOf(file)]);
   const material = await getMaterial(ctx, member, { file, at: plan.at });
   const [portrait, square, story, wide] = await Promise.all([
     postDrawn(plan, material, "portrait", false),
@@ -198,7 +193,6 @@ export async function makePost(
       text_seen: [plan.over, plan.line, plan.under].filter((w): w is string => !!w),
       ...(look?.people ? { people: asJson(look.people) } : {}),
     },
-    whoInIt: file.who_in_it,
     made: { from: file.id, plan },
     actor: ctx.userId,
   }).catch(async (e: unknown) => {

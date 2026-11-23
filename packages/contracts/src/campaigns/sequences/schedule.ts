@@ -11,6 +11,7 @@ import { appointmentWords, type AppointmentWord } from "../../journey/appointmen
 import { channelNeverCarries } from "../broadcasts/reach-for";
 import { enrolPurpose } from "../playbooks/purpose";
 import { triggerOf } from "../playbooks/triggers/notices";
+import { occasionKeepsHour } from "../playbooks/triggers/occasions";
 import { isOneOf } from "../../shared/unknown";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
@@ -107,8 +108,8 @@ const hourWords = (h: number): string => clockTime(Date.UTC(2026, 0, 1, h), "UTC
  * (`cadence`). A visit's, a proposal's and a list's sequence have neither: each visit, each proposal, once each. A freed
  * time's (`freed`, decision 0082) runs when a cancellation frees a time, never at an hour: it offers how many people each
  * time goes to, and says how far ahead it offers. One an occasion starts (0119) goes to one person at a time, so it keeps
- * no most-each-day (`cap`), and only the follow-up to an ask keeps an hour (`hour`: the next day's); the two about a
- * visit go by the visit's own time.
+ * no most-each-day (`cap`), and only the follow-up to an ask and the thank-you for a deal won keep an hour (`hour`: the
+ * next day's, contracts occasionKeepsHour); the two about a visit go by the visit's own time.
  */
 export function scheduleSettingsOf(row: Pick<SequenceRowDto, "first">): {
   gap: boolean;
@@ -123,7 +124,7 @@ export function scheduleSettingsOf(row: Pick<SequenceRowDto, "first">): {
     gap: kind === "list",
     every: kind === "cadence",
     freed: kind === "freed",
-    hour: kind !== "freed" && (!occasion || row.first?.trigger === "asked_no_booking"),
+    hour: kind !== "freed" && (!occasion || occasionKeepsHour(row.first?.trigger)),
     cap: !occasion,
   };
 }

@@ -223,6 +223,9 @@ function adOf(
       results: spend?.platform_results ?? null,
     },
     ...besideOf(row.id, at.beside),
+    // What its bookings are worth, summed with the counts (T6): none for an ad nobody booked from, and no claim at
+    // all from a database a deploy behind.
+    ...(counts?.worth ? { worth: counts.worth.get(row.id) ?? { sums: [], visits: 0, left_out: 0 } } : {}),
   };
 }
 

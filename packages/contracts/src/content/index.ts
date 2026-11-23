@@ -172,7 +172,6 @@ export type {
 } from "./placements/take-down";
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 export { takeDownSpec } from "./placements/take-down-spec";
-export { fileYesSpec } from "./post-spec";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,

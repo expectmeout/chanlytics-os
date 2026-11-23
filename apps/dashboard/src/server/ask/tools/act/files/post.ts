@@ -13,7 +13,6 @@ import {
   parseTenantConfig,
   postWordsIn,
   secondsOf,
-  fileUseOf,
   type PostPlan,
 } from "@chanlytics/contracts";
 import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
@@ -116,10 +115,6 @@ const postInput = z.object({
     .describe(
       "How the words stand with the photo: over it (the usual), left over it, on a band of their colour, or under it in a frame; band or frame where the photo is busy at both ends.",
     ),
-  people_agreed: z
-    .boolean()
-    .optional()
-    .describe("Only when the owner said in this conversation that the people in the photo agreed to be shown."),
   looked: z
     .string()
     .optional()
@@ -187,15 +182,6 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
   const at = file.kind === "video" && input.at !== undefined ? secondsOf(input.at) : null;
   const photoProblem = postPhotoProblem(file) ?? postMomentProblem(file, at);
   if (photoProblem) return refuse(`${input.file}: ${photoProblem}`);
-  const shown = fileUseOf("post", file).is;
-  if (shown === "taken_back")
-    return refuse(
-      `${input.file}: someone in it took back their yes to posts. Use another photo; if they say yes again, keep it with keep_yes first.`,
-    );
-  if (shown === "ask" && !input.people_agreed)
-    return refuse(
-      `${input.file} shows someone recognizable, and no yes to posts is kept for it. Ask the owner in a sentence; if they say yes, call again with people_agreed true.`,
-    );
   const words = { line: input.line.trim(), over: input.over?.trim() || null, under: input.under?.trim() || null };
   const wordsProblem = postPlanProblem(words, await ownersWords(toolContext, config));
   if (wordsProblem) return refuse(wordsProblem);
@@ -212,7 +198,6 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
     voice: input.voice,
     layout: input.layout ?? "over",
     language,
-    people_agreed: input.people_agreed === true,
     at: at === null ? null : Math.round(at * 100) / 100,
   };
   const key = postLookKeyOf(plan);

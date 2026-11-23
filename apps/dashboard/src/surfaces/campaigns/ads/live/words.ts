@@ -225,6 +225,21 @@ export const SHEET = {
   /** The people an ad brought back (T3): on a line of its own, never in the figures. */
   back: (o: { people: string; booked: number; from: "this ad" | "an ad" }) =>
     `${o.people} you already knew wrote again from ${o.from}. ${o.booked > 0 ? `${o.booked} booked after.` : "None booked after yet."}`,
+  /**
+   * What the bookings are worth beside what was spent (the tracking plan's T6), on one line: a sum a currency, said
+   * side by side and never added; a dash under five booked, as the cost of a booked person is.
+   */
+  worth: (o: { booked: readonly string[] | null; spent: string; soFar: boolean }) =>
+    `${o.booked === null ? "—" : `About ${o.booked.join(" and ")}`} booked for ${o.spent} spent${o.soFar ? " so far" : ""}`,
+  /**
+   * The visits the worth leaves out, and why, in the workspace's own word for one (docs/words.md: never a fixed
+   * "visit"): the owner gives a service its amount in Settings.
+   */
+  worthLeftOut: (n: number, word: { one: string; many: string }) =>
+    n === 1
+      ? `1 ${word.one} is left out: its service has no amount yet.`
+      : `${n} ${word.many} are left out: their service has no amount yet.`,
+  worthDoor: "Set amounts",
   people: "People it brought",
   nobody: "No one has written from this ad in the last 30 days.",
   bookedMark: "Booked",
@@ -265,7 +280,7 @@ export const SHEET = {
       body: "Meta stopped it on its last day. Give it a new end date in Meta to run it again.",
     },
     picture: {
-      head: "Someone in its picture took back their yes",
+      head: "Its picture can't run any more",
       body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
     },
   },

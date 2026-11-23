@@ -526,10 +526,12 @@ function clockOf(hhmm: string): string {
 
 /**
  * The block of the instructions each change writes (prompt-blocks.ts rows): It now reads draws that block. How it reaches
- * out's rows (decision 0113) write none, so none is named: a read of one finds no block.
+ * out's rows (decision 0113) write none, so none is named: a read of one finds no block. Nor do the services' amounts
+ * (the Ads tracking plan's T6): what a visit is worth is for a report, and AI is never told it.
  */
-export const FIX_BLOCK_OF: Record<Exclude<AskSettingsChange["op"], AskReachOutChange["op"]>, string> &
-  Partial<Record<AskReachOutChange["op"], string>> = {
+type WritesNoBlock = AskReachOutChange["op"] | "set_service_amounts";
+export const FIX_BLOCK_OF: Record<Exclude<AskSettingsChange["op"], WritesNoBlock>, string> &
+  Partial<Record<WritesNoBlock, string>> = {
   set_hours: "hours",
   add_closure: "closures",
   add_service: "services",

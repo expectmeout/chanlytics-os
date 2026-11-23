@@ -86,6 +86,14 @@ export interface FormSheetDto {
   held: FormEntryRowDto[];
   /** Whether the business has a chat a visitor can carry on in. */
   chat: boolean;
+  /**
+   * Whether a reply by email can go from this business now, as the send door answers it (campaigns channelsReady's
+   * email): the thank-you promises one only where it can, so the sheet says where it cannot. `why` is the door's own
+   * sentence; `connect`, that the business has the door that opens it (Settings › Connections); `unchecked`, that it
+   * could not be asked just now, which is not a no and is said of nothing. Absent on a read from before it, which is
+   * said of nothing too.
+   */
+  email?: { ready: boolean; why: string | null; connect: boolean; unchecked: boolean };
   can_change: boolean;
 }
 

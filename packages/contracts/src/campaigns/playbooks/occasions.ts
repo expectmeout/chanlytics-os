@@ -20,6 +20,7 @@ import type { OccasionTrigger } from "./triggers/occasions";
 const VISIT = "visit";
 const MISSED = "missed";
 const ASK = "ask";
+const WON = "won";
 
 /** What every occasion of one appointment's reminders starts with: how a move or a cancellation finds them. */
 export function visitOccasionsOf(appointmentId: string): string {
@@ -41,22 +42,42 @@ export function askOccasion(messageId: string): string {
   return `${ASK}:${messageId}`;
 }
 
-/** The appointment an occasion names on the record, or null for one that names none (an ask). */
+/**
+ * A deal won's occasion (22 Nov 2026): the deal alone, whatever day it was marked. So its thank-you goes once for a
+ * deal, and a deal taken back and marked won again makes no second one.
+ */
+export function wonOccasion(dealId: string): string {
+  return `${WON}:${dealId}`;
+}
+
+/** The appointment an occasion names on the record, or null for one that names none (an ask, a deal won). */
 export function occasionAppointment(occasion: string): string | null {
   const [kind, id] = occasion.split(":");
   return (kind === VISIT || kind === MISSED) && id ? id : null;
 }
 
+/** The deal an occasion names on the record, or null for one that names none. */
+export function occasionDeal(occasion: string): string | null {
+  const [kind, id] = occasion.split(":");
+  return kind === WON && id ? id : null;
+}
+
 /* ------------------------------ what one comes of ------------------------------ */
 
-/** What happened that an occasion may come of, as its event says it: an appointment's change, or the booking link sent. */
+/**
+ * What happened that an occasion may come of, as its event says it: an appointment's change, the booking link sent, or a
+ * deal marked won.
+ */
 export type OccasionEvent =
-  { about: "appointment"; appointmentId: string; change: string } | { about: "ask"; messageId: string };
+  | { about: "appointment"; appointmentId: string; change: string }
+  | { about: "ask"; messageId: string }
+  | { about: "deal"; dealId: string };
 
 /**
  * The thing an event says happened, where an occasion may come of it; null for every other event. An appointment's
- * change (`appointment.changed`, whichever door wrote it), or a message that left carrying the booking link
- * (`booking_link.sent`, 00313).
+ * change (`appointment.changed`, whichever door wrote it), a message that left carrying the booking link
+ * (`booking_link.sent`, 00313), or a deal marked won (`deal.won`, written with the fact by deal_record). A deal's other
+ * moves enrol nobody: one taken back is found no longer won when its time comes (occasionGone).
  */
 export function occasionEventOf(event: {
   kind: string;
@@ -71,6 +92,7 @@ export function occasionEventOf(event: {
   }
   if (event.kind === "booking_link.sent" && event.subject_type === "message")
     return { about: "ask", messageId: event.subject_id };
+  if (event.kind === "deal.won" && event.subject_type === "deal") return { about: "deal", dealId: event.subject_id };
   return null;
 }
 
@@ -135,12 +157,27 @@ export function askFollowUpAt(ask: {
   runHour: number;
   chatClosesAt: number | null;
 }): number {
-  const day = shiftKey(localDate(ask.tz, new Date(ask.askedAt)), 1);
-  const hour = Math.min(Math.max(ask.runHour, PLAYBOOK_HOURS.min), PLAYBOOK_HOURS.max);
-  const atHour = wallClockAt(ask.tz, day, hour, 0);
+  const { day, atHour } = nextDayAtHour(ask.askedAt, ask.tz, ask.runHour);
   if (ask.chatClosesAt === null) return atHour;
   const latest = Math.floor((ask.chatClosesAt - CHAT_ROOM_MS) / MIN_MS) * MIN_MS;
   return latest < atHour && latest >= wallClockAt(ask.tz, day, PLAYBOOK_HOURS.min, 0) ? latest : atHour;
+}
+
+/** The day after a moment by the business's clock, and the sequence's hour on it, kept inside the sending hours. */
+function nextDayAtHour(fromMs: number, tz: string, runHour: number): { day: string; atHour: number } {
+  const day = shiftKey(localDate(tz, new Date(fromMs)), 1);
+  const hour = Math.min(Math.max(runHour, PLAYBOOK_HOURS.min), PLAYBOOK_HOURS.max);
+  return { day, atHour: wallClockAt(tz, day, hour, 0) };
+}
+
+/**
+ * When the thank-you for a deal marked won goes (22 Nov 2026): the next day at the sequence's hour, by the business's
+ * clock, kept inside the sending hours, as the thank-you after a visit goes the day after it. Never the same day: a
+ * member who marked the wrong deal has the rest of the day to take it back, and nothing is sent. Counted from the mark,
+ * never from the day the deal's sheet says they said yes, which a member may set in the past.
+ */
+export function wonThanksAt(won: { markedAt: number; tz: string; runHour: number }): number {
+  return nextDayAtHour(won.markedAt, won.tz, won.runHour).atHour;
 }
 
 /** How long after a visit is marked missed its message waits: long enough to take a slip of the finger back. */
@@ -182,10 +219,13 @@ export interface OccasionFacts {
   bookedAhead: boolean;
   /** Whether an appointment of theirs was made since the occasion began. */
   bookedSince: boolean;
+  /** The deal the occasion names, as the record holds it now: absent or null where it names none, or the row is gone. */
+  deal?: { stage: string } | null;
 }
 
 /** Why an occasion's step is not sent, as its row keeps it (`sequence_occasions.why`). */
-export type OccasionGone = "visit_gone" | "visit_moved" | "visit_begun" | "not_missed" | "booked";
+export type OccasionGone =
+  "visit_gone" | "visit_moved" | "visit_begun" | "not_missed" | "booked" | "deal_gone" | "not_won";
 
 /**
  * Why an occasion's step is no longer owed when its time comes, or null where it is. The one reading of it, asked by the
@@ -194,9 +234,15 @@ export type OccasionGone = "visit_gone" | "visit_moved" | "visit_begun" | "not_m
  *   visit_soon        The appointment still stands, at the start the occasion was made for, and has not begun.
  *   visit_missed      It is still marked missed (a member may take the word back), and they have not booked again.
  *   asked_no_booking  They have not booked since, and nothing of theirs is booked ahead.
+ *   deal_won          The record still says the deal is won (a member may take the word back, or end it). Nothing else is
+ *                     asked: the thank-you is never chosen by how the deal went, or by what else the person holds.
  */
 export function occasionGone(trigger: OccasionTrigger, occasion: string, facts: OccasionFacts): OccasionGone | null {
   if (trigger === "asked_no_booking") return facts.bookedSince || facts.bookedAhead ? "booked" : null;
+  if (trigger === "deal_won") {
+    if (!facts.deal) return "deal_gone";
+    return facts.deal.stage === "won" ? null : "not_won";
+  }
   const appointment = facts.appointment;
   if (!appointment || appointment.vanished) return "visit_gone";
   if (trigger === "visit_missed") {
@@ -206,6 +252,33 @@ export function occasionGone(trigger: OccasionTrigger, occasion: string, facts: 
   if (appointment.status !== "booked") return "visit_gone";
   if (occasion !== visitOccasion(occasionAppointment(occasion) ?? "", appointment.startsAt)) return "visit_moved";
   return appointment.startsAt <= facts.nowMs ? "visit_begun" : null;
+}
+
+/* ------------------------------ a deal, asked once more at the send ------------------------------ */
+
+/** The deal a person's row was made for (its `deal` fact), where it is owed only while that deal is won (`deal_was`). */
+const dealOwedFor = (facts: Record<string, unknown>): string | null =>
+  typeof facts.deal === "string" && facts.deal_was === "won" ? facts.deal : null;
+
+/** The deals a batch's rows were made for, each once: what its send reads the stage of, in one read. */
+export function dealIdsOf(batch: readonly { facts: unknown }[]): string[] {
+  const ids = new Set<string>();
+  for (const row of batch) {
+    const id = dealOwedFor(recordOrEmpty(row.facts));
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
+/**
+ * Whether a row made for a deal won still goes, asked at the send as a visit's row is asked of its appointment (contracts
+ * appointmentHolds): only while the record says that deal is won. A batch may wait half an hour for a stop, or days for
+ * its words' first approval, and a deal taken back, lost or ended meanwhile is thanked for nothing. `stages` is each
+ * deal's stage as the record holds it now, by id; one it no longer holds is not won. A row about no deal always goes.
+ */
+export function dealStillWon(stages: ReadonlyMap<string, string>, facts: Record<string, unknown>): boolean {
+  const id = dealOwedFor(facts);
+  return id === null || stages.get(id) === "won";
 }
 
 /**

@@ -217,8 +217,6 @@ test("a clip its owner added never says it leaves, and coming back from what the
     owner_uploaded: true,
     shows: null,
     who_in_it: "not_asked",
-    yes_for: [],
-    yes_back: [],
     look: null,
     look_status: "done",
     created_at: "2026-11-19T12:00:00.000Z",

@@ -103,6 +103,7 @@ export {
   heldContactId,
   heldTenantId,
   isContactId,
+  isCurrencyCode,
   isTenantId,
   isUuid,
   SLUG,

@@ -12,7 +12,6 @@ import {
   postPlaceTakenOf,
   postStoppedWhyOf,
   postWaitsForItsTime,
-  whoStandsOf,
   type ContentMadeDto,
   type FileDto,
   type InstagramPostKind,
@@ -65,18 +64,15 @@ export type PieceNext =
   | { is: "none" };
 
 /** What the one next step reads of a file. */
-type PieceFile = Pick<
-  FileDto,
-  "kind" | "source" | "status" | "shows" | "media_status" | "who_in_it" | "look_status" | "people"
->;
+type PieceFile = Pick<FileDto, "kind" | "source" | "status" | "shows" | "media_status">;
 
 /**
  * A library file's next step, as Files' sheet offered it: kept, where it waits in the inbox; a post made from it, where one can
- * be and who is in it is settled; else nothing leads, and its details ask what is missing (who is in it).
+ * be; else nothing leads. Who is in it is never asked (Ruben, 22 Nov 2026).
  */
 function libraryNextOf(file: PieceFile): PieceNext {
   if (file.status === "inbox") return { is: "keep" };
-  if (!postPhotoWont(file) && whoStandsOf(file).is !== "ask") return { is: "make" };
+  if (!postPhotoWont(file)) return { is: "make" };
   return { is: "none" };
 }
 

@@ -252,6 +252,14 @@ export interface BroadcastBatchPorts {
    */
   appointments?(keys: string[]): Promise<Map<string, AppointmentState>>;
   /**
+   * The stage each of these deals is in now, by id, one read for the batch; a deal the record no longer holds is absent.
+   * Asked only of a batch whose rows were made for a deal marked won (contracts dealIdsOf), each of which goes only while
+   * its deal is still won (dealStillWon). THROWS when it cannot be read, and the batch waits, queued, as for any read it
+   * cannot make: nobody is thanked for a deal whose standing is not known. Absent where the runtime keeps no deals, where
+   * such a row is held: no stage is no longer won.
+   */
+  dealStages?(ids: string[]): Promise<ReadonlyMap<string, string>>;
+  /**
    * What the owner's calendar feed names now (the edge's feed, kept five minutes), asked beside the record because the
    * record is only as new as the hourly sweep: a visit cancelled in the calendar alone is still `booked` there, and its
    * reminder would go. Null where the workspace has no calendar feed (nothing to ask); absent where the runtime has none.

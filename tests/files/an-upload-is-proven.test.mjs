@@ -302,15 +302,19 @@ const row = (over = {}) => ({
   ...over,
 });
 
-test("a person says no one is in it, and never that nobody asked, nor a yes: a yes is kept for a use, said to AI (00665)", async () => {
+test("who is in a file is no word a person says of it: nobody in it is asked (Ruben, 22 Nov 2026)", async () => {
   service();
   const patch = (b) => new Request(`http://localhost/api/v1/x${inA}`, { method: "PATCH", body: JSON.stringify(b) });
-  const ctx = () => ctxFor({ files: [row()] }, { file_change: () => null }, { id: F });
-  // Said of a photo, nothing is let go: only a made piece set aside lets its waiting posts go (files/file.ts).
-  assert.deepEqual(await one.PATCH.run(patch({ who_in_it: "no_one" }), ctx()), { ok: true, stopped: [] });
-  await refused(one.PATCH.run(patch({ who_in_it: "agreed" }), ctx()), "validation");
-  await refused(one.PATCH.run(patch({ who_in_it: "not_asked" }), ctx()), "validation");
-  await refused(one.PATCH.run(patch({ ask_may_use: false, who_in_it: "maybe" }), ctx()), "validation");
+  const changed = [];
+  const ctx = () => ctxFor({ files: [row()] }, { file_change: (a) => (changed.push(a), null) }, { id: F });
+  // A word on who is in it, from a page a deploy behind, changes nothing and reaches no door.
+  for (const who of ["no_one", "agreed", "not_asked"])
+    assert.deepEqual(await one.PATCH.run(patch({ who_in_it: who }), ctx()), { ok: true, stopped: [] }, who);
+  assert.deepEqual(changed, []);
+  // A shelf said beside it is kept, and the door hears no word on who is in it.
+  await one.PATCH.run(patch({ shows: "work", who_in_it: "no_one" }), ctx());
+  assert.equal(changed.length, 1);
+  assert.equal("p_who_in_it" in changed[0], false);
 });
 
 const viewed = (q, file = row()) =>

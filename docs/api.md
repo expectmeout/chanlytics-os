@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-453 handlers in 62 domains.
+451 handlers in 62 domains.
 
 ## activity
 
@@ -1255,7 +1255,6 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | --- | --- | --- | --- |
 | `name` | string | no | at most 120 characters |
 | `shows` | one of `"storefront"`, `"interior"`, `"work"`, `"team"`, `"product"`, `"menu"`, `"logo"`, `"graphic"`, `"other"` | no |  |
-| `who_in_it` | one of `"no_one"` | no |  |
 | `status` | one of `"filed"`, `"set_aside"` | no |  |
 | `caption` | string | no | at most 4400 characters |
 | `posted` | object or null | no |  |
@@ -1371,24 +1370,6 @@ Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/view/route.ts`).
 
-### `POST /api/v1/files/[id]/yes`
-
-Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | yes | at least 1; at most 4 |
-| `who` | string | yes | at least 1 characters; at most 120 characters |
-| `thread_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-
-### `POST /api/v1/files/[id]/yes/back`
-
-Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | no | at most 4 |
-
 ### `POST /api/v1/files/keep`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
@@ -1413,7 +1394,6 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `at` | number or null | no |  |
 
 ### `POST /api/v1/files/post/preview`
@@ -1431,7 +1411,6 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `at` | number or null | no |  |
 | `shape` | one of `"portrait"`, `"square"`, `"story"`, `"wide"` | no |  |
 
@@ -1464,7 +1443,6 @@ Body 1:
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `caption` | string or null | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
@@ -1479,7 +1457,6 @@ Body 2:
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `caption` | string or null | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
@@ -1506,7 +1483,6 @@ Body 1:
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `caption` | string or null | no |  |
 
 Body 2:
@@ -1520,7 +1496,6 @@ Body 2:
 | `words_hold` | one of `"first"`, `"all"` | yes |  |
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
-| `people_agreed` | boolean | yes |  |
 | `caption` | string or null | no |  |
 
 ## forms
@@ -3207,7 +3182,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `rehearsal_id` | string (uuid) | yes |  |
-| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
+| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
 | `via` | one of `"rehearsal"`, `"call_review"` | yes |  |
 | `channel` | one of `"whatsapp"`, `"voice"` | yes |  |
 

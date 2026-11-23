@@ -215,8 +215,6 @@ const sourceFromFile = (file: FileForWork, seconds: number | null): PieceSource 
   source: file.source,
   media_status: file.media_status,
   seconds: seconds ?? (file.seconds === null ? null : Number(file.seconds)),
-  // Who is in a clip was settled at the press, where the owner's word is heard: nothing here can ask it again.
-  people_unasked: false,
 });
 
 /** What was read of a plan's files: each as the checker reads it, each clip's playback copy, each photo's address. */

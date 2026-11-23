@@ -530,7 +530,6 @@ test("what can be changed of a post: its words, its layout, its type, where the 
       voice: "classic",
       layout: "over",
       language: "en",
-      people_agreed: false,
     },
     hasPhone: false,
     change() {},
@@ -565,7 +564,6 @@ test("a picture is known by what can be seen of its plan and its shape: a space 
     voice: "classic",
     layout: "over",
     language: "en",
-    people_agreed: false,
   };
   assert.equal(S.drawnKeyOf({ ...plan, line: "Now booking " }, "portrait"), S.drawnKeyOf(plan, "portrait"));
   assert.equal(S.drawnKeyOf({ ...plan, over: " " }, "portrait"), S.drawnKeyOf(plan, "portrait"));

@@ -11,6 +11,7 @@
  * on Ads, never the other way (decision 0110).
  */
 import { addDays } from "../ads/ads";
+import type { AdWorthSum } from "../ads/live";
 import { REPORT_MIN_N } from "./tiles";
 
 /** How many days back a platform's day is still settling: its counts keep moving until it is older than this. */
@@ -42,6 +43,39 @@ export function adCostRule(figure: {
 }): AdCost {
   const eachMinor = figure.booked >= REPORT_MIN_N ? figure.spentMinor / figure.booked : null;
   return { eachMinor, soFar: eachMinor !== null && figure.days.some((day) => adDaySettling(day, figure.today)) };
+}
+
+/** What the rule says of the bookings a figure holds. */
+export interface AdWorth {
+  /** A sum a currency, by its code; none where no visit has an amount; null under REPORT_MIN_N booked: a dash. */
+  sums: AdWorthSum[] | null;
+  /** Whether it is said "so far": a sum is said, and a day still settling is in the figure. */
+  soFar: boolean;
+}
+
+/**
+ * What the bookings of one figure are worth, as one rule (the Ads tracking plan's T6 and its call 5), beside what the
+ * figure cost: the worth of the visits its people booked, each its service's amount on the day it was booked (00683
+ * appointments.worth_minor), under the cost's own floor and its own "so far". Money is never converted (decision 0049,
+ * call 9): amounts add within one currency, and two currencies are two sums. Which visits go in, and how many were left
+ * out for a service with no amount, are the read's (ads_page_counts): the rule adds what it is given.
+ */
+export function adWorthRule(figure: {
+  booked: number;
+  sums: readonly AdWorthSum[];
+  days: readonly string[];
+  today: string;
+}): AdWorth {
+  if (figure.booked < REPORT_MIN_N) return { sums: null, soFar: false };
+  const byCurrency = new Map<string, number>();
+  for (const sum of figure.sums) {
+    const code = sum.currency.toUpperCase();
+    byCurrency.set(code, (byCurrency.get(code) ?? 0) + sum.minor);
+  }
+  const sums = [...byCurrency]
+    .map(([currency, minor]) => ({ currency, minor }))
+    .sort((one, other) => one.currency.localeCompare(other.currency));
+  return { sums, soFar: sums.length > 0 && figure.days.some((day) => adDaySettling(day, figure.today)) };
 }
 
 /** Meta's count is said beside Chanlytics' once Meta has counted this many chats (the tracking plan's call 1). */

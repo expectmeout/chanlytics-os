@@ -73,20 +73,14 @@ export const FILE_LOOKS_LIKE = ["photo", "stock", "rendered", "design", "screens
 
 export type FileLooksLike = (typeof FILE_LOOKS_LIKE)[number];
 
-/**
- * A person's word on who is in a file: not asked, or no one (00665). A yes is a record of its own, for one use
- * (FILE_YES_USES, files/yes.ts).
+/*
+ * Who is in a file, and a person's yes for one use of it (00665): the database's closed sets, held here only so the
+ * schema's sets and these agree (shared/schema-sets.ts). Nothing reads or writes them since 22 November 2026, when
+ * Ruben ruled that footage a business provides is taken as cleared, nobody in it is asked, and nothing waits for a
+ * person's yes. The column, the table and their doors stay unread in the database until a migration drops them.
  */
 export const FILE_WHO_IN_IT = ["not_asked", "no_one"] as const;
-
-export type FileWhoInIt = (typeof FILE_WHO_IN_IT)[number];
-
-/** What a yes for a file is for (00665 file_consents.use): a post, an ad, a reply, a cold email. */
 export const FILE_YES_USES = ["post", "ad", "reply", "cold_email"] as const;
-
-export type FileYesUse = (typeof FILE_YES_USES)[number];
-
-/** Where a yes was said: to AI, in a conversation, or a tick given on the file before 00665 (D11). */
 export const FILE_YES_SAID_IN = ["ai", "before"] as const;
 
 export const FILE_LOOK_STATUSES = ["waiting", "done", "refused", "failed"] as const;

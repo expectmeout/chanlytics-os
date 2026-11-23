@@ -23,6 +23,7 @@ import type { FigureVM, SheetVM } from "./model";
 import type { AdChangeActs } from "./use-change";
 import { useAdPeople } from "./use-live";
 import { ADS_MANAGER, SHEET } from "./words";
+import { WorthLine } from "./worth-line";
 
 const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
@@ -265,11 +266,14 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
             label={SHEET.ours}
             figures={vm.ours}
             after={
-              vm.back ? (
-                <p className="ads-conn-says" data-testid="ads-live-back">
-                  {vm.back}
-                </p>
-              ) : null
+              <>
+                {vm.back ? (
+                  <p className="ads-conn-says" data-testid="ads-live-back">
+                    {vm.back}
+                  </p>
+                ) : null}
+                <WorthLine worth={vm.worth} className="ads-conn-says" testid="ads-live-worth" onGo={onGo} />
+              </>
             }
           />
           <Figures

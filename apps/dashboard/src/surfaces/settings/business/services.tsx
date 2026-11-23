@@ -25,15 +25,26 @@ import { RecordBox } from "../../kit/record/field";
 import { gate } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
 import { BtSheet } from "./gestures/fold";
+import { AMOUNT_WORDS, amountBoxOf } from "./model/service-amount";
 import type { Brain, Saver } from "./save";
 import { businessTabSave } from "./saver";
 
-/** A service's row in the sheet's draft: the minutes as its box holds them (a number as stored, a string as typed). */
+/**
+ * A service's row in the sheet's draft: the minutes as its box holds them (a number as stored, a string as typed), and
+ * its amount as Settings keep it with what is typed over it (fold-shapes.ts ServiceRow).
+ */
 interface ServiceRow {
   name?: string;
   duration_min?: number | string;
   price_note?: string;
+  amount?: string;
+  amount_minor?: number;
+  currency?: string;
 }
+
+/** The field keys a service's sentences are under: one for each of its boxes. */
+const btsKeysOf = (i: number): string[] =>
+  ["name", "duration_min", "price_note", "amount"].map((box) => `service-${i}-${box}`);
 
 /** What the sheet's strip, rows and foot are handed (gestures/ BtSheet's contract: a fold's body, and `will`). */
 type SheetFields = Parameters<ComponentProps<typeof BtSheet<ServiceRow[]>>["body"]>[0];
@@ -88,7 +99,7 @@ const btsServiceRows = (rows: SheetFields["rows"]) => {
     name: (i) => `service-${i}`,
     max,
     blank: () => ({ name: "" }),
-    keysOf: (i) => [`service-${i}-name`, `service-${i}-duration_min`, `service-${i}-price_note`],
+    keysOf: btsKeysOf,
     key: "services",
     full: btsFull(max),
   });
@@ -205,7 +216,7 @@ const btsLine = (x: ServiceRow, i: number, env: RowEnv) => (
   </button>
 );
 
-/** One service: its three boxes and a remove. */
+/** One service: its four boxes and a remove. */
 const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
   const { f, svc } = env;
   const n = i + 1;
@@ -268,6 +279,21 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
         problem={said(`service-${i}-price_note`)}
         readOnly={f.readOnly}
       />
+      {/* What one visit of it is worth (the Ads tracking plan's T6): exact text, a number with its currency. */}
+      <span className="bt-service-amount">
+        <RecordBox
+          id={`svc-${i}-amount`}
+          label={`Service ${n} amount`}
+          size="sm"
+          value={amountBoxOf(x)}
+          placeholder={AMOUNT_WORDS.hint}
+          onChange={(v) => setSvc("amount", v)}
+          problem={said(`service-${i}-amount`)}
+          readOnly={f.readOnly}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </span>
       <button
         type="button"
         className="btn btn-ghost btn-icon btn-sm"
@@ -302,8 +328,7 @@ const btsDrawn = (f: SheetFields, list: ServiceRow[], shows: (x: ServiceRow) => 
   // A row a phone draws open: one pressed open, one changed since the sheet opened (typed in, added, put back: rows()
   // makes a new row for each, so a row being typed in never folds away under the keys), or one with something wrong.
   const opened = new Set(f.opened || []);
-  const wrong = (i: number) =>
-    [`service-${i}-name`, `service-${i}-duration_min`, `service-${i}-price_note`].some((k) => !!f.problems[k]);
+  const wrong = (i: number) => btsKeysOf(i).some((k) => !!f.problems[k]);
   const pressed = (i: number) => env.pressed.opening === f.opening && env.pressed.at.includes(i);
   const isOpen = (x: ServiceRow, i: number) => pressed(i) || !opened.has(x) || wrong(i);
   // Whether a service needs a consultation first is contracts' one question (needsConsultation), the one the Calendar's
@@ -361,6 +386,7 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
           <span>Service</span>
           <span>Takes</span>
           <span>Price</span>
+          <span>{AMOUNT_WORDS.head}</span>
           <span />
         </div>
       ) : null}
@@ -374,6 +400,9 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
           the receptionist (the fitted sheets, 14 Oct 2026: four lines stood between the rows and Save). */}
       <p className="bt-fold-note" data-testid="rec-sheet-services-public">
         {BUSINESS_TAB.SERVICES_ON_PUBLIC_PAGE}
+      </p>
+      <p className="bt-fold-note" data-testid="rec-sheet-services-amount">
+        {AMOUNT_WORDS.note}
       </p>
     </div>
   );
