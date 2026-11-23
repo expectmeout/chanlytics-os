@@ -3871,7 +3871,7 @@ Foreign keys:
 
 ### post_observations
 
-A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
+A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up, and at `last`, read by a take-down just before it asks the place (00701; 8.3), since a post's numbers end with it. Each is a running total since it went up; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
 
 - Owned by: `packages/db/src/repositories/content/observations.ts`
 - Primary key: `id`
