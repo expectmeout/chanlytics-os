@@ -3691,6 +3691,42 @@ export type Database = {
           },
         ]
       }
+      form_days: {
+        Row: {
+          booking_opens: number
+          day: string
+          form_id: string
+          tenant_id: string
+        }
+        Insert: {
+          booking_opens?: number
+          day: string
+          form_id: string
+          tenant_id: string
+        }
+        Update: {
+          booking_opens?: number
+          day?: string
+          form_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_days_form_id_same_workspace"
+            columns: ["tenant_id", "form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_entries: {
         Row: {
           answers: Json
@@ -11560,6 +11596,10 @@ export type Database = {
         }
         Returns: number
       }
+      form_booking_open: {
+        Args: { p_form_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       form_code_link: {
         Args: {
           p_code: string
@@ -11640,6 +11680,26 @@ export type Database = {
       form_requests_open: { Args: { p_tenant_id: string }; Returns: Json }
       form_results: {
         Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
+      form_time_request_take: {
+        Args: {
+          p_answers: Json
+          p_ends_at: string
+          p_form_id: string
+          p_held_why?: string
+          p_link_code?: string
+          p_reach: Json
+          p_ref: string
+          p_service: string
+          p_source?: Json
+          p_starts_at: string
+          p_tenant_id: string
+          p_test?: boolean
+          p_timezone: string
+          p_version_id: string
+          p_words: string
+        }
         Returns: Json
       }
       form_turn: {

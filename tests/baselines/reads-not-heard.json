@@ -1165,6 +1165,26 @@
     },
     {
       "kind": "over-read",
+      "why": "The form request a time asked on a form was asked from (00691, the Forms plan's F3), named on its Calendar visit (calendar/week/items.ts withFormRequests over form_entry_links kind visit) so the visit's sheet answers it on the request. The link is written in the same statement as the visit (form_time_request_take) and never moves after, so the appointment these pages hear carries the read.",
+      "reads": {
+        "calendar": [
+          "form_entry_links"
+        ],
+        "setup": [
+          "form_entry_links"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
+        "setup": [
+          "appointments"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
       "why": "The threads set aside as not a customer's (00539), for Today's one line. A thread is set aside only with its draft row written, which the feed tells of, so a message on a thread need not read the drafts again.",
       "reads": {
         "reply_drafts": [

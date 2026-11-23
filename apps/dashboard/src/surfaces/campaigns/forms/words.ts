@@ -136,6 +136,9 @@ export const FORMS_WORDS = {
     nothing: "Nothing yet",
     nothingBody: "Requests show here and in Inbox. Send a test to see one arrive.",
     opensNote: "Opens are counted, not people.",
+    /** A business that sends people to its own booking page (F3): what the form can say of it, and what it cannot. */
+    bookingOpens: (n: number) =>
+      `Your booking page was opened ${n === 1 ? "once" : `${n} times`} from it. Bookings made there can't be traced to the form.`,
     liveReady: "The link is ready.",
     offNote: "Its links land on the business's page and say it's closed.",
     draftNote: "Publish the form to get its link.",
@@ -202,13 +205,18 @@ export const placeBrought = (place: { requests: number; visits: number }): strin
 
 /** The sentence of numbers under where a form is shared: opens, requests, conversations, visits; then who they were. */
 export function resultsWords(results: FormSheetDto["results"]): { line: string; who: string } | null {
-  if (results.opens === 0 && results.requests === 0) return null;
+  const bookingOpens = results.booking_opens ?? 0;
+  if (results.opens === 0 && results.requests === 0 && bookingOpens === 0) return null;
   const line = [
     `Opened ${pluralWords(results.opens, "time")}`,
     pluralWords(results.requests, "request"),
+    // The requests that asked for a time (F3), where any did.
+    results.asked ? `${results.asked} asked for a time` : "",
     pluralWords(results.talked, "conversation"),
     pluralWords(results.visits, "visit"),
-  ].join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const named = [
     results.new_people ? `${results.new_people} new ${results.new_people === 1 ? "person" : "people"}` : "",
     results.known_people ? `${results.known_people} already known` : "",
@@ -217,7 +225,7 @@ export function resultsWords(results: FormSheetDto["results"]): { line: string; 
     .filter(Boolean)
     .join(". ")
     .replace(/\.\.$/, ".");
-  return { line, who: named };
+  return { line, who: bookingOpens ? `${named} ${FORMS.share.bookingOpens(bookingOpens)}` : named };
 }
 
 /** An entry's own line in the sheet: where it stands, and the place it came through. */

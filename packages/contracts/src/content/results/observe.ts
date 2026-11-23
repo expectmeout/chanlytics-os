@@ -8,10 +8,10 @@
  */
 import { DAY_MS, HOUR_MS } from "../../shared/time";
 import type { PostKind } from "../posts";
-import { OBSERVE_STEPS, type MetricAvailability, type ObserveStep, type PostMetric } from "./sets";
+import { TIMED_OBSERVE_STEPS, type MetricAvailability, type PostMetric, type TimedObserveStep } from "./sets";
 
-/** How long after a post went up each step reads it. */
-const OBSERVE_STEP_MS: Readonly<Record<ObserveStep, number>> = {
+/** How long after a post went up each of the clock's steps reads it. */
+const OBSERVE_STEP_MS: Readonly<Record<TimedObserveStep, number>> = {
   "1h": HOUR_MS,
   "1d": DAY_MS,
   "3d": 3 * DAY_MS,
@@ -25,22 +25,25 @@ const OBSERVE_STEP_MS: Readonly<Record<ObserveStep, number>> = {
  */
 const STORY_DAY_READ_MS = 22 * HOUR_MS;
 
-/** The steps a story is read at: its hour, and its day before it ends. */
-const STORY_STEPS = ["1h", "1d"] as const satisfies readonly ObserveStep[];
+/** The clock's steps a story is read at: its hour, and its day before it ends. */
+const STORY_STEPS = ["1h", "1d"] as const satisfies readonly TimedObserveStep[];
 
-/** The steps a post of this kind is read at, in order. */
-function observeStepsOf(kind: PostKind): readonly [ObserveStep, ...ObserveStep[]] {
-  return kind === "story" ? STORY_STEPS : OBSERVE_STEPS;
+/** The clock's steps a post of this kind is read at, in order. */
+function observeStepsOf(kind: PostKind): readonly [TimedObserveStep, ...TimedObserveStep[]] {
+  return kind === "story" ? STORY_STEPS : TIMED_OBSERVE_STEPS;
 }
 
-/** When a step reads a post of this kind that went up at `publishedAt`. */
-export function observeDueAt(publishedAt: string, step: ObserveStep, kind: PostKind): string {
+/** When one of the clock's steps reads a post of this kind that went up at `publishedAt`. */
+export function observeDueAt(publishedAt: string, step: TimedObserveStep, kind: PostKind): string {
   const after = kind === "story" && step === "1d" ? STORY_DAY_READ_MS : OBSERVE_STEP_MS[step];
   return new Date(Date.parse(publishedAt) + after).toISOString();
 }
 
-/** The step after this one for a post of this kind, the first where none was read yet, or null once the last was. */
-export function nextObserveStep(step: ObserveStep | null, kind: PostKind): ObserveStep | null {
+/**
+ * The clock's step after this one for a post of this kind, the first where none was read yet, or null once its last
+ * was. The clock never asks for `last`: a take-down does.
+ */
+export function nextObserveStep(step: TimedObserveStep | null, kind: PostKind): TimedObserveStep | null {
   const steps = observeStepsOf(kind);
   if (step === null) return steps[0];
   const at = steps.indexOf(step);

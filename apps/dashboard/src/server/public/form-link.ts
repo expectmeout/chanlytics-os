@@ -28,6 +28,15 @@ const gone = () =>
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" },
   });
 
+/**
+ * Whether an open is a person's: a browser's GET, never a HEAD and never a chat app's or a crawler's fetch for its
+ * preview. Only such an open is counted, here and where a form sends someone to their business's booking page.
+ */
+export function aPersonOpens(request: Request): boolean {
+  const agent = request.headers.get("user-agent") ?? "";
+  return request.method === "GET" && agent.includes("Mozilla/") && !PREVIEWER.test(agent);
+}
+
 /** A booking page as kept in the business's settings, only where it is a web address. */
 const webAddress = (value: string | null): string | null => (value && /^https:\/\/\S+$/i.test(value) ? value : null);
 
@@ -59,8 +68,7 @@ export async function linkGet(code: string, request: Request): Promise<Response>
   const clean = code.trim().toLowerCase();
   const db = linkPageDb();
   if (!db || !CODE.test(clean)) return gone();
-  const agent = request.headers.get("user-agent") ?? "";
-  const counted = request.method === "GET" && agent.includes("Mozilla/") && !PREVIEWER.test(agent);
+  const counted = aPersonOpens(request);
   let opened: LinkOpened | null;
   try {
     opened = await openLink(db, clean, counted);

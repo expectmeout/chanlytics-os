@@ -45,6 +45,18 @@ export async function answerRequestOf(
 ): Promise<RequestAnswered> {
   const row = await openRequestOfThread(ctx.supabase, conversationId);
   if (!row) throw new AppError("validation", BOOKING_REQUEST_REFUSALS.none);
+  return answerRequestRow(ctx, row, booked);
+}
+
+/**
+ * One request answered, wherever it was asked for: a thread's (above), or a form's, which holds no thread and is
+ * answered on the request itself (server/forms/request-time.ts, the Forms plan's F3). The same door and the same words.
+ */
+export async function answerRequestRow(
+  ctx: Pick<RouteContext, "supabase" | "via">,
+  row: { id: string; starts_at: string; timezone: string; service: string | null },
+  booked: boolean,
+): Promise<RequestAnswered> {
   const startMs = Date.parse(row.starts_at);
   const { data, error } = await answerBookingRequest(ctx.supabase, {
     appointmentId: row.id,

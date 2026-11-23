@@ -45,4 +45,7 @@ export type {
   FormRequestToTake,
   HeldFormEntry,
   OpenFormRequest,
+  OpenFormRequestTime,
 } from "./requests";
+export { countFormBookingOpen, listFormEntriesOfVisits, takeFormTimeRequest } from "./times";
+export type { FormTimeAsked, FormTimeHeld } from "./times";
