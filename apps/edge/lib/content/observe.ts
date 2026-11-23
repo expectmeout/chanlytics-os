@@ -9,9 +9,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isOneOf,
+  OBSERVE_STEPS,
   POST_METRICS,
   POST_PLACES,
-  TIMED_OBSERVE_STEPS,
   type MetricAvailability,
   type Observation,
   type PlaceAdapter,
@@ -50,7 +50,7 @@ export async function readPostResults(
 ): Promise<void | { skipped: string }> {
   const postId = typeof job.payload.post_id === "string" ? job.payload.post_id : "";
   const step = job.payload.step;
-  if (!postId || !isOneOf(TIMED_OBSERVE_STEPS, step)) return { skipped: "unnamed" };
+  if (!postId || !isOneOf(OBSERVE_STEPS, step)) return { skipped: "unnamed" };
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
   // A post taken down, or never up, has no numbers to read now; what was read before it came down stays.

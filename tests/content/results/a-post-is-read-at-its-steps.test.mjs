@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextObserveStep, observeDueAt, OBSERVE_STEPS, POST_METRICS, TIMED_OBSERVE_STEPS } from "@chanlytics/contracts";
+import { nextObserveStep, observeDueAt, OBSERVE_STEPS, POST_METRICS } from "@chanlytics/contracts";
 import { instagramObservationsOf, metaInsightsRequest } from "../../../packages/channels/src/instagram/meta-results.ts";
 
 const UP = "2026-11-21T22:19:57.000Z";
@@ -14,7 +14,6 @@ const poster = { token: "token-x", appSecret: "secret-y", accountId: "1784140000
 const byMetric = (rows) => Object.fromEntries(rows.map((r) => [r.metric, r]));
 
 test("a post is read an hour, a day, 3, 7 and 28 days after it went up, and then no more", () => {
-  assert.deepEqual([...TIMED_OBSERVE_STEPS], ["1h", "1d", "3d", "7d", "28d"]);
   assert.equal(observeDueAt(UP, "1h"), "2026-11-21T23:19:57.000Z");
   assert.equal(observeDueAt(UP, "1d"), "2026-11-22T22:19:57.000Z");
   assert.equal(observeDueAt(UP, "28d"), "2026-12-19T22:19:57.000Z");
@@ -25,7 +24,7 @@ test("a post is read an hour, a day, 3, 7 and 28 days after it went up, and then
 });
 
 test("one more step, off the clock: the last numbers, read just before a take-down asks the place", () => {
-  assert.deepEqual([...OBSERVE_STEPS], [...TIMED_OBSERVE_STEPS, "last"]);
+  assert.deepEqual([...OBSERVE_STEPS], ["1h", "1d", "3d", "7d", "28d", "last"]);
   assert.equal(nextObserveStep("28d"), null, "the clock never asks for the last: a take-down does");
 });
 
