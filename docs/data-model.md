@@ -27,6 +27,7 @@ what the script writes.
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/counts.ts`, `packages/db/src/repositories/calendar/appointments/lapses.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`approvals`](#approvals) | none | on, 1 policy |
+| [`archive_folders`](#archive_folders) | none | on, 1 policy |
 | [`ask_actions`](#ask_actions) | `packages/db/src/repositories/ask/actions.ts` | on, 3 policies |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_memory_lines`](#ask_memory_lines) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
@@ -59,6 +60,8 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/reports/screened.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
+| [`file_archive_parts`](#file_archive_parts) | none | on, 1 policy |
+| [`file_archives`](#file_archives) | none | on, 1 policy |
 | [`file_consents`](#file_consents) | none | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
@@ -587,6 +590,37 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `approvals_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### archive_folders
+
+The one "Chanlytics" folder in an owner's Google Drive that a press to save writes into (the archive PRD 1.1, 00686): a workspace and a Google account, the folder's id and its two folders' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `google_account` | text | no |  |  |
+| `connection_id` | uuid | yes |  |  |
+| `folder_id` | text | no |  |  |
+| `made_folder_id` | text | no |  |  |
+| `added_folder_id` | text | no |  |  |
+| `state` | text | no | `'ready'::text` | ready: where it was left. missing: found in Google Drive's bin or gone. A missing folder is never made again by itself: the owner's next press to save asks first. |
+| `seen_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `connection_id` → [`source_connections`](#source_connections) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `archive_folders_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ask_actions
 
@@ -1559,6 +1593,71 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `fact_suggestions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### file_archive_parts
+
+One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo's or a picked file's own bytes (original), a post's four pictures (portrait, square, story, wide), or a video's file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `archive_id` | uuid | no |  |  |
+| `part` | text | no |  |  |
+| `drive_file_id` | text | yes |  |  |
+| `shelf_key` | text | yes |  | The piece's key on Chanlytics' own shelf. The service role's alone: no member reads it. |
+| `bytes` | bigint | no |  |  |
+| `md5` | text | yes |  |  |
+| `sha256` | text | yes |  |  |
+| `state` | text | no | `'saving'::text` |  |
+| `checked_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `archive_id` → [`file_archives`](#file_archives) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `file_archive_parts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### file_archives
+
+One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner's own Drive file a pick brought in. shelf: Chanlytics' own copy. A video's copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder's item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `file_id` | uuid | no |  |  |
+| `origin` | text | no |  |  |
+| `google_account` | text | yes |  |  |
+| `connection_id` | uuid | yes |  |  |
+| `state` | text | no | `'saving'::text` | saving: being sent. saved: every part is in place. checked: every part's size and checksum are the ones that were sent. failed: a part could not be sent, or did not match twice. gone: checked once, and since found in a bin or missing. |
+| `why` | text | yes |  | Why a copy failed or is gone, and null otherwise: drive_full, key_lost (Google no longer takes the key), other_account (another Google account is connected), mismatch (not the bytes that were sent), in_bin, not_found, folder_missing, refused. |
+| `checked_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `connection_id` → [`source_connections`](#source_connections) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `file_archives_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### file_consents
 
@@ -4564,6 +4663,7 @@ A provider account a business connected so its footage can be read where it alre
 | `connected_at` | timestamp with time zone | no | `now()` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `door` | text | no | `'watch'::text` | Which door this account's key opens (00686). watch: a folder the business chose is read, with the provider's wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace. |
 
 Foreign keys:
 

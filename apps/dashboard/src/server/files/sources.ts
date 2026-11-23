@@ -108,7 +108,7 @@ export async function startSourceConnect(ctx: RouteContext, member: Member): Pro
   const ready = await sourcesReadiness(member.tenantId);
   const secret = stateSecret();
   if (!ready.client || !secret) throw new AppError("conflict", connectStoppedOf("not_available").say, 409);
-  const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId);
+  const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId, "watch");
   const again = accounts.find((account) => account.health === "needs_reconnect") ?? null;
   const nonce = newNonce();
   const state = await signState(secret, {
@@ -121,6 +121,7 @@ export async function startSourceConnect(ctx: RouteContext, member: Member): Pro
   });
   const challenge = await makeMailboxPkceChallenge(await makeMailboxPkceVerifier(secret, nonce));
   const url = driveAuthorizeUrl({ clientId: ready.client.client_id, redirectUri: ready.client.redirect_uri }, state, {
+    door: "watch",
     loginHint: again?.email ?? null,
     challenge,
   });
@@ -233,7 +234,7 @@ function sourceRefusalOf(answer: SourcesAnswer, doing: string): AppError {
 
 /** The workspace's Google account that folders are read through, on the member's own read; null where none is connected. */
 async function connectionIdOf(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
-  const accounts = await listSourceConnectionsOf(ctx.supabase, tenantId);
+  const accounts = await listSourceConnectionsOf(ctx.supabase, tenantId, "watch");
   return readingAccountOf(accounts)?.id ?? null;
 }
 
@@ -357,7 +358,8 @@ export async function stopSourceWatch(ctx: RouteContext, member: Member): Promis
  * of the same Google account is connected here, and the sheet says so before the press.
  */
 export async function disconnectSource(ctx: RouteContext, member: Member): Promise<{ revoked: boolean }> {
-  const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId);
+  // The watched folder's accounts alone: a narrow key that chooses and saves is not this press's to end (00686).
+  const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId, "watch");
   let revoked = false;
   // Every account is let go, one failing or not, and the one that failed is named (the review of 20 Nov, finding 14):
   // stopping at the first left the rest connected with no word of which.

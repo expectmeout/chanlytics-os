@@ -13,6 +13,15 @@ export const SOURCE_PROVIDERS = ["google"] as const;
 
 export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
 
+/**
+ * Which door a connected account's key opens (source_connections.door; the archive PRD 1.1, principle 9): `watch`
+ * reads a folder the business chose, with the provider's wide read; `save` reaches only the files the business picked
+ * or the app made, with the narrow one. One row a door, so connecting one never touches the other.
+ */
+export const SOURCE_DOORS = ["save", "watch"] as const;
+
+export type SourceDoor = (typeof SOURCE_DOORS)[number];
+
 /** How a connected account stands (source_connections.health): its column comment says each. */
 export const SOURCE_CONNECTION_HEALTHS = ["ok", "needs_reconnect", "blocked_by_admin"] as const;
 

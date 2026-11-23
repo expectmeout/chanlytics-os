@@ -5,6 +5,13 @@
  * nothing can give one back.
  *
  * The closed sets a row holds, and nothing else: what a screen says of each is the screen's own.
+ *
+ * Below them, where a file's other copies are (the archive PRD 1.1, section 10; 00686). A video Chanlytics made, or
+ * one added from a phone, has a checked copy on Chanlytics' own shelf, so its copy at the platform can be let go
+ * and fetched again. A file the owner chose from their Google Drive keeps the Drive file it came from. A file the
+ * owner pressed "Save to Google Drive" on has a copy in their Drive, which is theirs: nothing reads it back, and a
+ * video comes back only from the shelf or from a picked file (the PRD's principle 11). Each set is held to its
+ * column in shared/schema-sets.ts; a set's own type arrives with its first reader.
  */
 
 /**
@@ -66,3 +73,46 @@ export type FileCopyWait = (typeof FILE_COPY_WAITS)[number];
 export type FileCopyLoss = (typeof FILE_COPY_LOSSES)[number];
 
 export type FileCopyWhy = (typeof FILE_COPY_WHYS)[number];
+
+/* ------------------------------------------------------------------------ where a file's other copies are -- */
+
+/** Whether the Chanlytics folder in an owner's Drive is where it was left (archive_folders.state). */
+export const ARCHIVE_FOLDER_STATES = ["ready", "missing"] as const;
+
+/**
+ * What a copy of a file is (file_archives.origin): one the owner saved to their Google Drive on a press (`saved`), the
+ * owner's own Drive file a pick brought in (`picked`), or Chanlytics' own copy on its shelf (`shelf`).
+ */
+export const FILE_ARCHIVE_ORIGINS = ["saved", "picked", "shelf"] as const;
+
+/**
+ * Where a copy stands (file_archives.state, and each part's): being sent; all of it in place; its size and checksum
+ * found equal to what was sent; not sent, or not equal twice; or checked once and since found in a bin or missing.
+ */
+export const FILE_ARCHIVE_STATES = ["saving", "saved", "checked", "failed", "gone"] as const;
+
+/** Why a copy failed or is gone (file_archives.why): the one list a file's sheet has words for. */
+export const FILE_ARCHIVE_WHYS = [
+  /** The owner's Google Drive has no room. */
+  "drive_full",
+  /** Google no longer takes the key: revoked, or unused too long. */
+  "key_lost",
+  /** Another Google account is connected than the one the copy is with. */
+  "other_account",
+  /** Its size or checksum is not what was sent. */
+  "mismatch",
+  /** It is in Google Drive's bin. */
+  "in_bin",
+  /** Its place no longer shows it at all. */
+  "not_found",
+  /** The Chanlytics folder is in the bin or gone. */
+  "folder_missing",
+  /** Its place would not take it or give it: no access, or an organisation's rule. */
+  "refused",
+] as const;
+
+/**
+ * One piece of a copy (file_archive_parts.part): a photo's or a picked file's own bytes, a post's four pictures, or a
+ * video's file.
+ */
+export const FILE_ARCHIVE_PARTS = ["original", "portrait", "square", "story", "wide", "video"] as const;

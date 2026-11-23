@@ -329,6 +329,47 @@ test(
     ok(await db.rpc("source_items_grace_end", { p_grace_seconds: WEEK_S, p_limit: 1_000 }), "the cleanup");
     assert.equal((await fileNow(away.file.id)).removed_at, null);
     assert.equal((await fileNow(here.file.id)).removed_at, null);
+    // The same account connected and its folder watched again (the archive plan's U9): the folder's read lists the
+    // clip, its take finds the file already in the Library by its fingerprint and ends with the item holding it, and
+    // the copy that was lost can come back.
+    const [connection] = ok(
+      await db
+        .from("source_connections")
+        .insert({
+          tenant_id: ws.T,
+          provider: "google",
+          provider_account: `copies-again-${stamp}`,
+          email: "sam@copies.example",
+        })
+        .select("id"),
+      "the account connected again",
+    );
+    const [source] = ok(
+      await db
+        .from("media_sources")
+        .insert({
+          tenant_id: ws.T,
+          connection_id: connection.id,
+          folder_id: `copies-folder-again-${stamp}`,
+          folder_name: "Clips",
+          state: "watching",
+        })
+        .select("id"),
+      "the folder watched again",
+    );
+    const listed = await origin({ ...ws, source: source.id }, null, { state: "listed" });
+    assert.equal((await fileNow(away.file.id)).copy_state, "lost", "listed, and nothing holds the file yet");
+    ok(
+      await db.from("source_items").update({ state: "in", file_id: away.file.id }).eq("id", listed.id),
+      "its take ends",
+    );
+    const back = await fileNow(away.file.id);
+    assert.deepEqual([back.copy_state, back.copy_why], ["away", null], "an item holds it again: it can come back");
+    assert.equal(
+      ok(await db.rpc("file_copy_origin", { p_tenant_id: ws.T, p_file_id: away.file.id }), "origin"),
+      listed.id,
+      "from the new item",
+    );
   },
 );
 

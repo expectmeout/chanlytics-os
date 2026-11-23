@@ -881,6 +881,63 @@ export type Database = {
           },
         ]
       }
+      archive_folders: {
+        Row: {
+          added_folder_id: string
+          connection_id: string | null
+          created_at: string
+          folder_id: string
+          google_account: string
+          id: string
+          made_folder_id: string
+          seen_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          added_folder_id: string
+          connection_id?: string | null
+          created_at?: string
+          folder_id: string
+          google_account: string
+          id?: string
+          made_folder_id: string
+          seen_at?: string | null
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          added_folder_id?: string
+          connection_id?: string | null
+          created_at?: string
+          folder_id?: string
+          google_account?: string
+          id?: string
+          made_folder_id?: string
+          seen_at?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archive_folders_connection_id_same_workspace"
+            columns: ["tenant_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "source_connections"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "archive_folders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_actions: {
         Row: {
           at: string
@@ -3259,6 +3316,133 @@ export type Database = {
           },
           {
             foreignKeyName: "fact_suggestions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_archive_parts: {
+        Row: {
+          archive_id: string
+          bytes: number
+          checked_at: string | null
+          created_at: string
+          drive_file_id: string | null
+          id: string
+          md5: string | null
+          part: string
+          sha256: string | null
+          shelf_key: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          archive_id: string
+          bytes: number
+          checked_at?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          id?: string
+          md5?: string | null
+          part: string
+          sha256?: string | null
+          shelf_key?: string | null
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          archive_id?: string
+          bytes?: number
+          checked_at?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          id?: string
+          md5?: string | null
+          part?: string
+          sha256?: string | null
+          shelf_key?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_archive_parts_archive_id_same_workspace"
+            columns: ["tenant_id", "archive_id"]
+            isOneToOne: false
+            referencedRelation: "file_archives"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_archive_parts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_archives: {
+        Row: {
+          checked_at: string | null
+          connection_id: string | null
+          created_at: string
+          file_id: string
+          google_account: string | null
+          id: string
+          origin: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          why: string | null
+        }
+        Insert: {
+          checked_at?: string | null
+          connection_id?: string | null
+          created_at?: string
+          file_id: string
+          google_account?: string | null
+          id?: string
+          origin: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+          why?: string | null
+        }
+        Update: {
+          checked_at?: string | null
+          connection_id?: string | null
+          created_at?: string
+          file_id?: string
+          google_account?: string | null
+          id?: string
+          origin?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          why?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_archives_connection_id_same_workspace"
+            columns: ["tenant_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "source_connections"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_archives_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_archives_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -9125,6 +9309,7 @@ export type Database = {
           connected_by: string | null
           created_at: string
           credentials_ref: string | null
+          door: string
           email: string | null
           health: string
           id: string
@@ -9139,6 +9324,7 @@ export type Database = {
           connected_by?: string | null
           created_at?: string
           credentials_ref?: string | null
+          door?: string
           email?: string | null
           health?: string
           id?: string
@@ -9153,6 +9339,7 @@ export type Database = {
           connected_by?: string | null
           created_at?: string
           credentials_ref?: string | null
+          door?: string
           email?: string | null
           health?: string
           id?: string

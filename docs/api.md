@@ -4487,6 +4487,7 @@ Read with GET; takes no body.
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `code` | string | no | at most 4096 characters |
 | `code_verifier` | string | no |  |
+| `door` | one of `"save"`, `"watch"` | no |  |
 | `connection_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `source_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `place` | one of `"mine"`, `"drives"`, `"shared"`, `"folder"` | no |  |
