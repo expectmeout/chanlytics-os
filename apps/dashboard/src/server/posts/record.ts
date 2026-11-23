@@ -27,7 +27,8 @@ import {
 } from "@chanlytics/db/files";
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
-import { readInstagramPostable, instagramPostsOf } from "./instagram";
+import { instagramPostsOf } from "./instagram";
+import { readInstagramPostable } from "@/server/connections/meta";
 import { fileMadeOf } from "./made-as";
 import { readPieceTakeDown } from "./take-down";
 import { log } from "@/server/shared/log";

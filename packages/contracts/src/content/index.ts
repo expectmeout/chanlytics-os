@@ -7,7 +7,9 @@ export {
   CONTENT_LIBRARY_ROUTE,
   CONTENT_ROUTE,
   CONTENT_VIEWS,
+  CONTENT_WEEK_ROUTE,
   contentPlaceOf,
+  contentPlanOf,
   contentPreviewOf,
   contentRouteOf,
   isContentParam,
@@ -174,6 +176,44 @@ export type {
 } from "./placements/take-down";
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 export { takeDownSpec } from "./placements/take-down-spec";
+export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
+export type { OwnerClaim } from "./plan/claims";
+export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_STATUSES, SLOT_STATES } from "./plan/sets";
+export type {
+  ClaimKind,
+  ClaimSource,
+  ContentGoal,
+  OpportunityKind,
+  PlanAskedBy,
+  PlanStatus,
+  SlotState,
+} from "./plan/sets";
+export { cadenceSaid, contentLinesOf } from "./plan/settings-lines";
+export type { ContentLineEdit, ContentLineView } from "./plan/settings-lines";
+export {
+  cadenceOf,
+  creativesOf,
+  FOOTAGE_ASKS_MOST,
+  planWeekOf,
+  SLOT_CAPTION_MAX,
+  slotWordsOf,
+  weekdayShortOf,
+  weekSizeSaid,
+} from "./plan/week";
+export type {
+  FootageAsk,
+  Opportunity,
+  PlanSlotDto,
+  ScorePart,
+  SlotHeldWhy,
+  SlotScore,
+  SlotWords,
+  WeekPlanDto,
+} from "./plan/week";
+export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";
+export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./plan/week-view";
+export type { WeekFix, WeekGroup, WeekMark, WeekRow, WeekState, WeekView } from "./plan/week-view";
+export { WEEK_WORDS, weekDaysSaid } from "./plan/words";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,

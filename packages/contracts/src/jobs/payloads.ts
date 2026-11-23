@@ -126,6 +126,7 @@ export const JOB_PAYLOADS = {
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string(), seen: z.string().optional() }),
   post_google: carrying({ post_id: z.string(), attempt: z.string() }),
   post_take_down: carrying({ action_id: z.string(), attempt: z.string(), by_hand: z.string().optional() }),
+  content_plan: carrying({ plan_id: z.string() }),
   post_observe: carrying({ post_id: z.string(), step: z.string() }),
   comment_reply: carrying({ touch_id: z.string(), step: z.string(), attempt: z.string().optional() }),
   piece_make: carrying({ piece_id: z.string(), step: z.string(), tick: z.string() }),

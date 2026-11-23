@@ -6,9 +6,9 @@
  * snapshot is the build's alone.
  */
 export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
-  alerts: "6ce0dd5829dcd4fe",
+  alerts: "5326e6e0f8580709",
   ask_memory: "ea7be04b7c170a76",
-  ask_morning: "271f9bb75a263ed5",
+  ask_morning: "e49234b1aece8958",
   audiences: "3cf311d9336ac944",
   billing: "9f5a6a4f8592c70a",
   broadcasts: "b6f49d12f80ff357",
@@ -16,6 +16,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   calendar_runs: "4859024c5ad61285",
   channels: "200700fcf97dd267",
   content: "20fc3f440553875e",
+  content_week: "a8a7dbdf13e6824c",
   conversations: "94d6c570292078a1",
   files: "732a41f0d258639d",
   google: "9d24a2f4070976f8",

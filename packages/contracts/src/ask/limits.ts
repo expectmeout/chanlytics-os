@@ -60,10 +60,12 @@ export const ASK_SPOKEN_TURN_BUDGET_MS = 45_000;
  * or a video kept, keep_yes, its words cut the same way, so it moved from 133,000; on 22 November with the content
  * loop's pass 1b, what a post's words are about on propose_publish, and propose_take_down, their words cut the same way,
  * so it moved from 135,000; 137,219 the same day with AI proposing what each service is worth, propose_settings' worth,
- * under the same ceiling; keep_yes left the same day with the yes for footage). The most it may grow to, never a
- * target: tests/ask/tools/ask-tools-size.test.mjs prints each role's.
+ * under the same ceiling; keep_yes left the same day with the yes for footage; 139,683 on 23 November with the content
+ * loop's pass 3, a week of posts read and changed by AI (files' week and reasons, propose_week), their words cut the same
+ * way, so it moved from 138,000, with room for pass 2's content lens of read_report, about 440 more). The most it may
+ * grow to, never a target: tests/ask/tools/ask-tools-size.test.mjs prints each role's.
  */
-export const ASK_TOOLS_CHARS_CEILING = 138_000;
+export const ASK_TOOLS_CHARS_CEILING = 141_000;
 
 /**
  * The most the owner's tools loaded on every question may be (the always-loaded core and the search tool), in characters:

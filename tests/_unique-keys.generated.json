@@ -986,6 +986,75 @@
       "where": null
     },
     {
+      "table": "content_goals",
+      "name": "content_goals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_goals",
+      "name": "content_goals_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_one_a_week",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "week_of"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "conversation_channel_state",
       "name": "conversation_channel_state_pkey",
       "primary": true,
@@ -1404,6 +1473,33 @@
           "value": "shelf"
         }
       }
+    },
+    {
+      "table": "file_moments",
+      "name": "file_moments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_moments",
+      "name": "file_moments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "files",
@@ -3078,6 +3174,33 @@
       "where": null
     },
     {
+      "table": "owner_claims",
+      "name": "owner_claims_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "owner_claims",
+      "name": "owner_claims_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "page_vitals",
       "name": "page_vitals_pkey",
       "primary": true,
@@ -3460,6 +3583,33 @@
           "value": "picture"
         }
       }
+    },
+    {
+      "table": "plan_slots",
+      "name": "plan_slots_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "plan_slots",
+      "name": "plan_slots_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "platform_acts",

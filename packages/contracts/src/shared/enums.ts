@@ -213,6 +213,13 @@ export const JOB_KINDS = [
    */
   "post_take_down",
   /**
+   * A week of posts planned (00706; the content loop PRD's 10.2), payload { plan_id }, in the bulk lane: the reasons to
+   * post now read, the candidates scored, the week picked within the cadence, worded by AI in one call (post_words) and
+   * written ready, with nothing made. Begun by the weekly clock on Sunday evening in the business's zone, or by the
+   * owner's ask.
+   */
+  "content_plan",
+  /**
    * A post's numbers read back from its place (00699; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
    * lane: one read at an hour, a day, 3, 7 or 28 days after it went up, every number at once, a missing one said and never
    * a zero. The health sweep asks one for each read that is due and not kept.

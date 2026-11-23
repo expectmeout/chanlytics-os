@@ -270,6 +270,29 @@ before(async () => {
     snapshot: {},
     snapshot_hash: "b".repeat(64),
   });
+  // A week planned (00706): what the owner claims and what posts are for, a plan and a slot of it, a clip's moments.
+  // Members read them, only their doors write them.
+  await seed("owner_claims", { tenant_id: A, kind: "offer", text: "Seeded offer", source: "settings" });
+  await seed("content_goals", { tenant_id: A, goal: "awareness" });
+  ctx.plan = await seed("content_plans", { tenant_id: A, week_of: "2026-11-23", asked_by: "owner" });
+  await seed("plan_slots", {
+    tenant_id: A,
+    plan_id: ctx.plan,
+    creative: ctx.piece,
+    place: "instagram",
+    kind: "reel",
+    at: "2026-11-24T23:00:00Z",
+    title: "Seeded slot",
+  });
+  await seed("file_moments", {
+    tenant_id: A,
+    file_id: ctx.file,
+    start_s: 1,
+    end_s: 3,
+    score: 0.9,
+    confidence: 0.6,
+    model_edition: 2,
+  });
   // What a post said back (00699): its numbers, a person's touch of it, a comment's answer. Members read them, their
   // doors write them.
   await seed("post_observations", {
@@ -968,6 +991,26 @@ const TENANT_TABLES = {
   approvals: [
     "member",
     () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
+  ],
+  // A week planned (00706): a member reads each, only their doors write them.
+  owner_claims: ["member", () => ({ tenant_id: A, kind: "price", text: "Stranger price", source: "said" })],
+  content_goals: ["member", () => ({ tenant_id: A, goal: "reviews" })],
+  content_plans: ["member", () => ({ tenant_id: A, week_of: "2026-11-30", asked_by: "clock" })],
+  plan_slots: [
+    "member",
+    () => ({
+      tenant_id: A,
+      plan_id: ctx.plan,
+      creative: ctx.piece,
+      place: "google",
+      kind: "picture",
+      at: "2026-11-25T15:00:00Z",
+      title: "Stranger slot",
+    }),
+  ],
+  file_moments: [
+    "member",
+    () => ({ tenant_id: A, file_id: ctx.file, start_s: 4, end_s: 6, score: 0.5, confidence: 0.5, model_edition: 2 }),
   ],
   // What a post said back (00699): a member reads it, only its doors write it.
   post_observations: [

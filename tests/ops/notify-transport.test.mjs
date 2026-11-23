@@ -649,6 +649,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     "number",
     // A customer asked to stop (decision 0048): a line on the bell, emailed only as the business chooses, never always.
     "opted_out",
+    // A week of posts ready (00706): mailed once, as the business chooses, so it reaches the owner by Monday 8:00.
+    "plan_ready",
     "playbook",
     "reach_out_replied",
     "sweep",
@@ -694,6 +696,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       // A piece taken down everywhere, or a post a place leaves to its owner to delete (00682): lines on the bell.
       "post_down",
       "post_by_hand",
+      // A week of posts (00706): ready, and what to film for it. plan_ready is also mailed, as the business chooses.
+      "footage_ask",
       // A lead tried the preview they were sent (00632): a line on the bell, written by the database.
       "preview_tried",
       "leads_ready",

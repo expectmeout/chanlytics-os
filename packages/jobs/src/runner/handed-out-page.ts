@@ -21,6 +21,7 @@ export const HANDED_OUT_KINDS = [
   "source_walk",
   "source_read",
   "ad_read",
+  "content_plan",
 ] as const satisfies readonly JobKind[];
 
 type HandedOutKind = (typeof HANDED_OUT_KINDS)[number];
@@ -35,6 +36,7 @@ const HANDED_OUT_WORDS: Record<HandedOutKind, string> = {
   source_walk: "watched folder's listing",
   source_read: "watched folder's read",
   ad_read: "ad account's read",
+  content_plan: "week of posts",
 };
 
 /** The pager's condition key: one page per window for every workspace whose job of this kind failed for good. */

@@ -27,7 +27,7 @@ import {
   type SnapshotRendition,
   type TenantId,
 } from "@chanlytics/contracts";
-import { approvePosts, type FileMemberRow, type PostsApproved } from "@chanlytics/db/files";
+import { approvePosts, keepClaim, type FileMemberRow, type PostsApproved } from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import { log } from "@/server/shared/log";
@@ -73,6 +73,16 @@ async function readShapes(tenantId: TenantId, row: FileMemberRow, shapes: readon
   );
 }
 
+/** Each fact the owner stated, kept as their claim on their own session, until its day ends. */
+async function keepStatedFacts(ctx: RouteContext, tenantId: TenantId, facts: readonly OwnersFact[]): Promise<void> {
+  // A press states one fact at most; a card a few (contracts OwnersFactSchema).
+  await Promise.all(
+    facts.map((fact) =>
+      keepClaim(ctx.supabase, tenantId, { kind: "fact", text: fact.says, source: "said", valid_until: fact.until }),
+    ),
+  );
+}
+
 /** A door's answer that approved nothing, in the owner's words. */
 function refusedFate(answer: PostsApproved): AppError {
   if (answer.fate === "busy") return new AppError("conflict", ON_INSTAGRAM.busy, 409);
@@ -109,6 +119,9 @@ export async function approvePlacements(
     config: () => getStoredConfig(ctx.supabase, member.tenantId),
   });
   if (refused) throw new AppError("validation", refused);
+  // A fact the owner stated is kept as their own claim (owner_claims, 00706; PRD 6.1), valid until its day ends: the
+  // send's check reads it there, and an approval no longer carries it.
+  await keepStatedFacts(ctx, member.tenantId, approval.facts);
   // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
   const words = approval.placements.map(placementWordsOf).find((w) => w !== null);
   if (words) await keepPostWords(ctx, member, row, words);
@@ -136,7 +149,7 @@ export async function approvePlacements(
     })),
     uses: ["post"],
     spend: null,
-    facts: approval.facts,
+    facts: [],
   };
   const answer = await approvePosts(ctx.supabase, {
     tenantId: member.tenantId,

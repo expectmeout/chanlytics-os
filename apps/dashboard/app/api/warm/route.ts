@@ -11,6 +11,7 @@ import * as instagramDoor from "../v1/channels/instagram/route";
 import * as metaDoor from "../v1/channels/meta/route";
 import * as whatsappDoor from "../v1/channels/whatsapp/signup/route";
 import * as content from "../v1/content/route";
+import * as contentPlan from "../v1/content/plan/route";
 import * as files from "../v1/files/route";
 import * as leadSearches from "../v1/lead-searches/route";
 import * as leads from "../v1/leads/route";
@@ -48,6 +49,7 @@ const HELD = {
   "channels/meta": metaDoor,
   "channels/whatsapp/signup": whatsappDoor,
   content,
+  "content/plan": contentPlan,
   files,
   "lead-searches": leadSearches,
   leads,

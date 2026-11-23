@@ -58,7 +58,22 @@ import type {
   FILE_WHO_IN_IT,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
-import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
+import type {
+  POST_HELD_WHYS,
+  POST_KINDS,
+  POST_PLACES,
+  POSTED_PLACES,
+  POST_STATUSES,
+  POST_VIAS,
+} from "../content/posts";
+import type {
+  CLAIM_KINDS,
+  CLAIM_SOURCES,
+  CONTENT_GOALS,
+  PLAN_ASKED_BY,
+  PLAN_STATUSES,
+  SLOT_STATES,
+} from "../content/plan/sets";
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
 import type {
@@ -245,6 +260,18 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LINK_LANDS>, SchemaSet<"links.lands">>>,
   Holds<Exactly<Of<typeof LINK_SUBJECTS>, SchemaSet<"links.subject_type">>>,
   Holds<Exactly<Of<typeof VISIT_THROUGH_TYPES>, SchemaSet<"appointments.through_type">>>,
+
+  // A week planned (00706, the content loop's pass 3): what posts are for, a plan and its slots, what an owner claims.
+  Holds<Exactly<Of<typeof CONTENT_GOALS>, SchemaSet<"content_goals.goal">>>,
+  Holds<Exactly<Of<typeof PLAN_STATUSES>, SchemaSet<"content_plans.status">>>,
+  Holds<Exactly<Of<typeof PLAN_ASKED_BY>, SchemaSet<"content_plans.asked_by">>>,
+  Holds<Exactly<Of<typeof SLOT_STATES>, SchemaSet<"plan_slots.state">>>,
+  Holds<Exactly<Of<typeof POST_PLACES>, SchemaSet<"plan_slots.place">>>,
+  Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"plan_slots.kind">>>,
+  // A slot is held for what holds a post, or because what it was to be made into could not be (contracts SlotHeldWhy).
+  Holds<Exactly<Of<typeof POST_HELD_WHYS> | "unmade", SchemaSet<"plan_slots.blocked_why">>>,
+  Holds<Exactly<Of<typeof CLAIM_KINDS>, SchemaSet<"owner_claims.kind">>>,
+  Holds<Exactly<Of<typeof CLAIM_SOURCES>, SchemaSet<"owner_claims.source">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

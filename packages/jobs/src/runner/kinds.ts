@@ -451,6 +451,19 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["action_id", "attempt"],
     never: [],
   },
+  // A week of posts planned (00706; the content loop PRD's 10.2): it reads, scores and writes slots, asks AI for the
+  // week's words in one call (post_words, bounded to its 40 seconds) and makes nothing; a plan no longer drafting takes
+  // no second write, so a try again only drafts a week still drafting.
+  content_plan: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 40 * SECOND_MS,
+    ids: ["plan_id"],
+    never: [],
+  },
   // A post's numbers read back from its place (00699; the content loop PRD's 9.1): a read asked again writes over itself,
   // nothing reaches a person, and a read that fails for good is said where it is read: the piece says the step's
   // numbers could not be read, and the next step reads again (told elsewhere).

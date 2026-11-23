@@ -1,0 +1,18 @@
+/* Settings › Content (pane.tsx): its lines, the Tell AI line on top, and an offer standing with its Withdraw. Layout here;
+   every value a token (tokens.css). */
+
+.cset {
+  display: grid;
+  gap: var(--space-1);
+}
+.cset > .cnv-ask-line {
+  margin-bottom: var(--space-3);
+}
+.cset-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: var(--text-base);
+}

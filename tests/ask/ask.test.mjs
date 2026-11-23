@@ -177,7 +177,7 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(
     askJump("set", index).map((j) => j.label),
-    ["Settings", "Setting up"],
+    ["Settings", "Setting up", "Content settings"],
   );
   assert.deepEqual(
     askJump("lea", index).map((j) => j.to),
@@ -234,6 +234,7 @@ const REACHED = {
   "admin/workspace": ["Settings", "admin/workspace"],
   "admin/hours": ["Hours & booking", "admin/hours"],
   "admin/files": ["Library", "campaigns/content:library"],
+  "admin/content": ["Content settings", "admin/content"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
   "admin/outreach": ["Cold email", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],
@@ -1146,7 +1147,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["files", ["list", "get", "view", "compare", "zoom", "listen"]],
+      ["files", ["list", "get", "view", "compare", "zoom", "listen", "week", "reasons"]],
       ["guide", []],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
@@ -1506,6 +1507,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
       ["propose_take_down", []],
       ["propose_thread_verb", []],
+      // A week of posts, and what a post may say (00706).
+      ["propose_week", ["plan", "approve", "slot", "aims", "claim", "withdraw"]],
       // A fact the person tells Ask to keep (decision 0070).
       ["remember", []],
     ],

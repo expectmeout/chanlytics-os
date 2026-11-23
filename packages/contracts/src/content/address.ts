@@ -18,8 +18,11 @@ export const isContentParam = (param: string | null | undefined): boolean => !!p
 export const CONTENT_VIEWS = ["all", "needs", "making", "scheduled", "posted", "aside"] as const;
 export type ContentView = (typeof CONTENT_VIEWS)[number];
 
-/** Content's two lists: what Ask made, and what it makes them from (the library, once Settings › Files). */
-export type ContentList = "made" | "library";
+/**
+ * Content's three lists: the week's posts (the content loop's pass 3, its first tab), what AI made, and what it makes them
+ * from (the library, once Settings › Files).
+ */
+export type ContentList = "week" | "made" | "library";
 
 /** Where Content stands: which list, the view of Made, and the piece that is open, by its file. */
 export interface ContentPlace {
@@ -30,8 +33,11 @@ export interface ContentPlace {
   post?: boolean;
 }
 
-/** The library's address: Content's second list, where Settings › Files now lands. */
+/** The library's address: Content's last list, where Settings › Files now lands. */
 export const CONTENT_LIBRARY_ROUTE = "campaigns/content:library";
+
+/** The Week's address: this week's posts as one list (the content loop PRD's 21.2), where its notices open. */
+export const CONTENT_WEEK_ROUTE = "campaigns/content:week";
 
 /**
  * A param of `campaigns` read as Content's place: `content`, then any of `library`, a view of Made, a file's id, in any order.
@@ -43,6 +49,7 @@ export function contentPlaceOf(param: string | null | undefined): ContentPlace |
   for (const part of param.split(":").slice(1)) {
     if (isUuid(part)) place.open = part;
     else if (part === "library") place.list = "library";
+    else if (part === "week") place.list = "week";
     else if (part === "post") place.post = true;
     else if (isOneOf(CONTENT_VIEWS, part)) place.view = part;
   }
@@ -53,7 +60,7 @@ export function contentPlaceOf(param: string | null | undefined): ContentPlace |
 export const contentRouteOf = (place: ContentPlace): string =>
   [
     CONTENT_ROUTE,
-    place.list === "library" ? "library" : null,
+    place.list === "library" || place.list === "week" ? place.list : null,
     place.list === "made" && place.view !== "all" ? place.view : null,
     place.open,
     place.open && place.post ? "post" : null,
@@ -69,4 +76,13 @@ export const contentRouteOf = (place: ContentPlace): string =>
 export function contentPreviewOf(config: unknown): boolean {
   const features = recordOrNull(recordOrNull(config)?.features);
   return features?.content_preview === true;
+}
+
+/**
+ * Whether a workspace plans its weeks (00706 features.content_plan, the canary's switch, PRD 16.3): the weekly clock drafts
+ * its week, and Content draws the Week as its first tab. Off, or a config that says nothing, is no.
+ */
+export function contentPlanOf(config: unknown): boolean {
+  const features = recordOrNull(recordOrNull(config)?.features);
+  return features?.content_plan === true;
 }

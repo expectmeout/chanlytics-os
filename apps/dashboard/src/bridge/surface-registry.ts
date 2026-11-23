@@ -107,6 +107,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/files": "real",
+  "admin/content": "real", // what is set for the posts, from GET content/plan (00706)
   "admin/activity": "real", // both ledgers, from GET /activity, owners only
   // The back office (gate 5, #300): every workspace sorted by who needs a
   // person, read from the guarded platform routes. It was never listed here,
@@ -159,6 +160,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
+  // Settings › Content (00706): its lines are the week's read's, drawn beside the settings read Settings' frame waits for.
+  "admin/content": "settings",
   // A pane drawn from none of it waits for who is looking alone: every pane waited for the settings read's four (the business
   // with its facts and its prompt, the team, the policies, every template with what sends it) and for nothing it drew itself
   // (the Settings load review, 28 Oct 2026). What it draws (ROUTE_DRAWS: Billing's plan, Connections' channels, Ask's memory,
@@ -214,6 +217,8 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
   // Content's Library (`content:library`, the content redesign's stage 2) is fed by the library's read, which Made never
   // reads: a screen of its own.
   if (page === "campaigns" && contentPlaceOf(first)?.list === "library") return "content/library";
+  // The Week (`content:week`, 00706) is fed by the week's own read, which Made never reads: a screen of its own too.
+  if (page === "campaigns" && contentPlaceOf(first)?.list === "week") return "content/week";
   // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), a message's address
   // (`campaigns/messages/<name>`, which opens it over the list), a campaign that lands on its sequence (`moment:<id>`).
   if (page === "campaigns" && first) return first.split(":")[0] || first;
@@ -593,7 +598,11 @@ export function routeSurfaceFor(page: string, param?: string | null): string | u
   // a real page is a jump for every workspace (Ask's palette), and only some have this one until the Ads read is wired (0049).
   // Content the same: the settings read says whether the workspace takes videos, which its words follow, and its own read is
   // drawn beside it (ROUTE_DRAWS).
-  if (page === "campaigns" && (pane === "ads" || pane === "content" || pane === "content/library")) return "settings";
+  if (
+    page === "campaigns" &&
+    (pane === "ads" || pane === "content" || pane === "content/library" || pane === "content/week")
+  )
+    return "settings";
   // A person's page reads its own person and says Reading… itself, so it never waits for the whole list: measured on
   // production (23 Sep 2026), a new tab held "Reading…" until People's 29 rows landed at 0.87 s and only then asked
   // for the person, whose page drew at 1.5 s. It waits for who is looking (the workspace surface, which carries __ME):

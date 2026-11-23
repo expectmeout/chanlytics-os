@@ -52,6 +52,7 @@ export * from "./inbound";
 export * from "./leads";
 export * from "./look";
 export * from "./messages";
+export * from "./opportunities";
 export { runEachAtOnce } from "./shared/each-at-once";
 export { bookingPageLinkedFrom, bookingPageOfSite } from "./website/booking-page";
 export { sitePagesLinkedFrom, sitePagesNamed } from "./website/site-pages";

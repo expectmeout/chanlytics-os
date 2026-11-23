@@ -170,9 +170,12 @@ export function ViewsRow<V extends string>({ label, choices, value, onChoose, te
   );
 }
 
-/** Made's five views, each with how many it holds, Needs you marked amber while it holds anything. */
-const madeChoicesOf = (tally: ContentTally | null): ViewChoice<ContentView>[] =>
-  CONTENT_VIEWS.filter((v) => v !== "aside").map((v) => ({
+/**
+ * Made's five views, each with how many it holds, Needs you marked amber while it holds anything. Where the Week stands
+ * beside Made (`planned`), Scheduled retires: what goes up when is the Week's to say, once (the PRD's 21.2).
+ */
+const madeChoicesOf = (tally: ContentTally | null, planned = false): ViewChoice<ContentView>[] =>
+  CONTENT_VIEWS.filter((v) => v !== "aside" && !(planned && v === "scheduled")).map((v) => ({
     value: v,
     label: VIEW_SAYS.name[v],
     count: tally ? contentViewCountOf(tally, v) : null,
@@ -185,17 +188,22 @@ export function ContentViews({
   tally,
   onView,
   layout = null,
+  planned = false,
 }: {
   view: ContentView;
   tally: ContentTally | null;
   onView: (view: ContentView) => void;
   layout?: LayoutHeld | null;
+  planned?: boolean;
 }) {
   // Set aside is no view of the five: it is named in the pill while it is shown, so the pill says where the list is.
   const choices: ViewChoice<ContentView>[] =
     view === "aside"
-      ? [...madeChoicesOf(tally), { value: "aside", label: VIEW_SAYS.name.aside, count: tally ? tally.aside : null }]
-      : madeChoicesOf(tally);
+      ? [
+          ...madeChoicesOf(tally, planned),
+          { value: "aside", label: VIEW_SAYS.name.aside, count: tally ? tally.aside : null },
+        ]
+      : madeChoicesOf(tally, planned);
   return (
     <ViewsPill
       label={VIEW_SAYS.label}
@@ -214,15 +222,17 @@ export function ContentViewRow({
   view,
   tally,
   onView,
+  planned = false,
 }: {
   view: ContentView;
   tally: ContentTally | null;
   onView: (view: ContentView) => void;
+  planned?: boolean;
 }) {
   return (
     <ViewsRow
       label={VIEW_SAYS.label}
-      choices={madeChoicesOf(tally)}
+      choices={madeChoicesOf(tally, planned)}
       value={view}
       onChoose={onView}
       testid="cnv-view-row"
@@ -268,7 +278,9 @@ export function LibraryKinds({ phone, layout = null }: { phone: boolean; layout?
   );
 }
 
-const CONTENT_LISTS: readonly ContentList[] = ["made", "library"];
+/** Content's lists: the Week first where the workspace plans its weeks (00706; the boards' call 1), then Made and Library. */
+const listsOf = (planned: boolean): readonly ContentList[] =>
+  planned ? ["week", "made", "library"] : ["made", "library"];
 
 /**
  * Content's two lists (the content redesign's stage 2): what Ask made, and the library it makes them from, which was Settings ›
@@ -280,18 +292,22 @@ export function ContentLists({
   list,
   tally,
   onList,
+  week = null,
 }: {
   list: ContentList;
   tally: ContentTally | null;
   onList: (list: ContentList) => void;
+  /** Where the workspace plans its weeks: how many the Week holds, once read (null before). */
+  week?: { count: number | null } | null;
 }) {
   const listSays = CONTENT_WORDS.lists;
-  const countOf = (each: ContentList) => (tally ? (each === "made" ? tally.made : tally.library) : undefined);
+  const countOf = (each: ContentList) =>
+    each === "week" ? (week?.count ?? undefined) : tally ? (each === "made" ? tally.made : tally.library) : undefined;
   // What waits on the owner in a list is marked beside its name, whichever list is shown (the kit's amber dot): a post
   // that stopped was said on Made alone, and photos found online on the Library alone. The Library's are theirs to keep
   // only where they may change the business's files.
   const needOf = (each: ContentList): string | undefined => {
-    if (!tally) return undefined;
+    if (!tally || each === "week") return undefined;
     if (each === "made") return tally.needs > 0 ? listSays.madeNeeds : undefined;
     return tally.waiting > 0 && canDo("settings") ? listSays.libraryWaits : undefined;
   };
@@ -300,8 +316,8 @@ export function ContentLists({
       label={listSays.label}
       className="cnv-lists"
       value={list}
-      onSelect={(id) => onList(id === "library" ? "library" : "made")}
-      tabs={CONTENT_LISTS.map((each) => ({
+      onSelect={(id) => onList(id === "library" ? "library" : id === "week" ? "week" : "made")}
+      tabs={listsOf(!!week).map((each) => ({
         id: each,
         label: listSays[each],
         count: countOf(each),

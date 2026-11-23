@@ -7,9 +7,12 @@
  */
 import "server-only";
 import {
+  dayInZone,
   goodUntilOf,
   notesInForce,
+  offersOf,
   parseTenantConfig,
+  statedFactsOf,
   type InstagramPostable,
   type OwnersFact,
   type PieceIntent,
@@ -18,6 +21,7 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { evaluate, verdictWords } from "@chanlytics/core";
+import { listClaims } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -79,9 +83,13 @@ export async function readPlacementRefusals(
   const { file, intent, zone } = placements;
   const nowMs = Date.now();
   const leans = !!intent?.offer || !!intent?.service;
-  const business = leans
-    ? await placements.config().then((config) => businessSays(config, zone))
-    : { says: [], services: [] };
+  const today = dayInZone(zone, nowMs).key;
+  const [business, claims] = leans
+    ? await Promise.all([
+        placements.config().then((config) => businessSays(config, zone)),
+        listClaims(db, placements.tenantId),
+      ])
+    : [{ says: [], services: [] }, []];
   const whole = evaluate({
     automation: { stopped: placements.stopped, pressedBy: "owner" },
     reason: {
@@ -90,8 +98,12 @@ export async function readPlacementRefusals(
       atMs: latestOf(placements.placements, nowMs),
       nowMs,
       zone,
-      ...business,
-      facts: placements.facts,
+      // An offer the owner keeps (owner_claims, 00706) is one the business says; a fact they stated stands to its day.
+      says: [...business.says, ...offersOf(claims, today).map((offer) => offer.says)],
+      services: business.services,
+      facts: [...placements.facts, ...statedFactsOf(claims, today)],
+      // The press reads no opportunities: a week's slot was made for one as it was planned, and the send asks again.
+      opportunities: null,
       moment: "before",
     },
   });
