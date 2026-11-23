@@ -24,6 +24,8 @@ export const PLACE_SAFE_AREAS: Readonly<Record<PostPlace, Partial<Record<PostKin
     story: { top: PIECE_FRAME.clearTop, bottom: PIECE_FRAME.clearBottom },
   },
   google: {},
+  // A Page's reel: held to the same bands until a phone's walk measures Facebook's own.
+  facebook: { reel: { top: PIECE_FRAME.clearTop, bottom: PIECE_FRAME.clearBottom } },
 };
 
 /** A word box as drawn: what it is, and its top and foot in the frame. */

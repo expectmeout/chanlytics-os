@@ -88,6 +88,18 @@ test("a video's sound is held to the house's loudness only where it was measured
   assert.equal(renditionRefusalOf("instagram", "reel", video({ sound, lufs: null })), null);
 });
 
+test("a Page's reel is a standing video of 3 to 90 seconds; its photo a JPEG or PNG up to 10 MB", () => {
+  assert.equal(renditionRefusalOf("facebook", "reel", video()), null);
+  assert.equal(renditionRefusalOf("facebook", "picture", picture()), null);
+  assert.equal(renditionRefusalOf("facebook", "story", picture({ format: "png", height: 1920 })), null);
+  assert.deepEqual(renditionRefusalOf("facebook", "reel", video({ seconds: 95 })), {
+    why: "length",
+    words: "Facebook's reel takes 3 seconds to 1 minute 30 seconds. This one is 1 minute 35 seconds.",
+  });
+  assert.equal(renditionRefusalOf("facebook", "reel", video({ width: 1080, height: 1350 })).why, "shape");
+  assert.equal(renditionRefusalOf("facebook", "story", video()).why, "medium", "no story of a video goes to a Page");
+});
+
 test("a kind a place does not take in a medium is said: Google takes no video, and nothing takes a picture as a reel", () => {
   assert.equal(renditionRefusalOf("google", "picture", video()).why, "medium");
   assert.equal(renditionRefusalOf("instagram", "reel", picture()).why, "medium");

@@ -5,7 +5,8 @@
  * rule. A refusal says, in the owner's words, what the place takes and what this one is.
  *
  * The numbers are the places' own pages (read 23 Nov 2026): Meta's IG User Media reference (image, story and reel
- * specifications) and Google's Business Profile photo guidelines. A rule a place states and a real account has shown it
+ * specifications), Meta's Pages guide for a Page's photos and reels (as pass 5 read it: v27.0), and Google's Business
+ * Profile photo guidelines. A limit a page does not state is not held. A rule a place states and a real account has shown it
  * does not hold to is left out (the first sitting, 21 Nov: Meta took a reel with an edit list and no sound track).
  * Loudness is the house's own (a video with sound is levelled to about -14 LUFS, where the phone apps play it), read only
  * where the machine measured it: a missing number is never a refusal.
@@ -33,7 +34,7 @@ export interface RenditionRule {
   codecs?: readonly NonNullable<MediaMeasured["codec"]>[];
   seconds?: readonly [number, number];
   bytesLeast?: number;
-  bytesMost: number;
+  bytesMost?: number;
   /** The shorter side's least, in pixels. */
   sideLeast?: number;
   /** Width over height, least and most. */
@@ -63,6 +64,23 @@ export const RENDITION_RULES: Readonly<
   google: {
     picture: { picture: { formats: ["jpeg", "png"], bytesLeast: 10 * 1024, bytesMost: 5 * MB, sideLeast: 250 } },
   },
+  // A Page's photo (a post, or a story made of one) and its reel: 9:16, 540x960 at least, 3 to 90 seconds, 24 to 60 frames
+  // a second. Its page states no size for a reel, and no story of a video is posted to a Page here.
+  facebook: {
+    picture: { picture: { formats: ["jpeg", "png"], bytesMost: 10 * MB } },
+    story: { picture: { formats: ["jpeg", "png"], bytesMost: 10 * MB } },
+    reel: {
+      video: {
+        formats: ["mp4", "mov"],
+        codecs: ["h264", "hevc"],
+        seconds: [3, 90],
+        fps: [24, 60],
+        sideLeast: 540,
+        ratio: [0.56, 0.57],
+        sound: META_SOUND,
+      },
+    },
+  },
 };
 
 /** The loudness a video with sound is levelled to, and what is near enough. */
@@ -78,7 +96,7 @@ export interface RenditionRefusal {
   words: string;
 }
 
-const PLACE_SAID: Record<PostPlace, string> = { instagram: "Instagram", google: "Google" };
+const PLACE_SAID: Record<PostPlace, string> = { instagram: "Instagram", google: "Google", facebook: "Facebook" };
 const KIND_SAID: Record<PostKind, string> = { picture: "post", story: "story", reel: "reel" };
 
 /** "2 seconds", "1 minute 30 seconds", "15 minutes". */
@@ -131,7 +149,7 @@ export function renditionRefusalOf(place: PostPlace, kind: PostKind, m: MediaMea
   if (!rule) return { why: "medium", words: `${PLACE_SAID[place]} can't take a ${m.media} as a ${KIND_SAID[kind]}.` };
   if (!rule.formats.includes(m.format))
     return { why: "format", words: `${said} takes ${rule.formats.map((f) => f.toUpperCase()).join(" or ")}.` };
-  if (m.bytes > rule.bytesMost)
+  if (rule.bytesMost !== undefined && m.bytes > rule.bytesMost)
     return { why: "size", words: `${said} takes up to ${sizeSaid(rule.bytesMost)}. This one is ${sizeSaid(m.bytes)}.` };
   if (rule.bytesLeast !== undefined && m.bytes < rule.bytesLeast)
     return {
@@ -143,6 +161,12 @@ export function renditionRefusalOf(place: PostPlace, kind: PostKind, m: MediaMea
     return { why: "small", words: `${said} takes a picture at least ${rule.sideLeast} pixels on each side.` };
   const ratio = m.width !== null && m.height ? m.width / m.height : null;
   if (outside(ratio, rule.ratio))
-    return { why: "shape", words: `${said} takes a picture from portrait (4:5) to wide (1.91:1).` };
+    return {
+      why: "shape",
+      words:
+        m.media === "video"
+          ? `${said} takes a standing video (9:16).`
+          : `${said} takes a picture from portrait (4:5) to wide (1.91:1).`,
+    };
   return m.media === "video" ? videoRefusalOf(m, rule, said) : null;
 }
