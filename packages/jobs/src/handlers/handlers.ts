@@ -51,6 +51,16 @@ import { runBookingLapse, readLapsedRequest } from "./booking-lapse";
 import { deliveryPage, deliveryPageKey } from "../runner/delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "../runner/context";
 import { emailIngest, lineProvision, outboundSend } from "./incoming-email";
+import {
+  commentReply,
+  pieceMake,
+  postGoogle,
+  postObserve,
+  postPrepare,
+  postPublish,
+  postReconcile,
+  postTakeDown,
+} from "./posts";
 
 export type { PushReceipt, PushPort, WebPushPort, JobContext, ClaimedJob } from "../runner/context";
 
@@ -450,40 +460,11 @@ async function copyReturn(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
-/** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
-async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
-  await ctx.files.piece(job, ctx.deadline);
-}
-
-/** post_prepare: a post made ready on Instagram (00611, decision 0121), through what the edge injects. payload: { post_id, attempt } */
-async function postPrepare(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
-  if (!ctx.posts) throw new Error("post_prepare: this runtime holds no poster");
-  return ctx.posts.prepare(job, ctx.deadline);
-}
-
-/** post_publish: a post sent, once, after the recheck (00611). payload: { post_id, attempt } */
-async function postPublish(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
-  if (!ctx.posts) throw new Error("post_publish: this runtime holds no poster");
-  return ctx.posts.publish(job, ctx.deadline);
-}
-
-/** post_google: a post on its way to Google at its time, sent once after the recheck (00616). payload: { post_id, attempt } */
-async function postGoogle(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
-  if (!ctx.posts) throw new Error("post_google: this runtime holds no poster");
-  return ctx.posts.google(job, ctx.deadline);
-}
-
-/** post_reconcile: Instagram asked what it has after a send with no answer (00611). payload: { post_id, attempt } */
-async function postReconcile(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
-  if (!ctx.posts) throw new Error("post_reconcile: this runtime holds no poster");
-  return ctx.posts.reconcile(job, ctx.deadline);
-}
-
-/** post_take_down: a post asked down at its place (00682). payload: { action_id, attempt, by_hand? } */
-async function postTakeDown(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
-  if (!ctx.posts) throw new Error("post_take_down: this runtime holds no poster");
-  return ctx.posts.takeDown(job, ctx.deadline);
+/** file_shelve: a made video's own file put on Chanlytics' shelf and checked there (00695), through what the edge injects. payload: { file_id } */
+async function fileShelve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.shelf) throw new Error("file_shelve: this runtime holds no shelver");
+  const answer = await ctx.shelf.shelve(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
 }
 
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
@@ -599,11 +580,14 @@ const HANDLERS: Record<JobKind, Handler> = {
   video_digest: videoDigest,
   source_take: sourceTake,
   copy_return: copyReturn,
+  file_shelve: fileShelve,
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,
   post_google: postGoogle,
   post_take_down: postTakeDown,
+  post_observe: postObserve,
+  comment_reply: commentReply,
   piece_make: pieceMake,
   campaign_moments: campaignMoments,
   reach_out_steps: reachOutSteps,

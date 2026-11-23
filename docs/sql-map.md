@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 201 | 201 |
-| reader | 96 | 0 |
-| the server's | 436 | 367 |
+| door | 204 | 204 |
+| reader | 97 | 0 |
+| the server's | 451 | 381 |
 | computed column | 3 | 0 |
-| trigger | 120 | 88 |
-| all | 856 | 656 |
+| trigger | 123 | 91 |
+| all | 878 | 676 |
 
 ## Called by nothing
 
@@ -39,7 +39,6 @@ being read is dropped by a migration.
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
-| `post_begin` | a member's press as 00616 kept a post, superseded by post_approve (00681) and kept for a dashboard a deploy behind, which still calls it between this migration and its code; dropped by a migration of its own once that code is live |
 | `resume_email_offers` | the back office turns a workspace's offers by email back on by hand once its list is fixed; the notice that stopped them says the statement (apps/edge/lib/email/offer-gates.ts) |
 | `sweep_schedules` | read by hand and by the sweep-health suites: every sweep's schedule as pg_cron holds it (00019) |
 | `workspace_days` | a member's rolled days of their own workspace (K10), for the back office's member view; proved by its database test |
@@ -108,6 +107,7 @@ being read is dropped by a migration.
 | `appointments_lead_stamp` | trigger | the server | trigger `appointments_lead_stamp on appointments` | A visit names the lead its person was made from (00426): |
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
+| `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00699; |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
 | `approval_hash` | the server's | the server | SQL `piece_words_keep`, `post_approve` and 1 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
@@ -156,6 +156,10 @@ being read is dropped by a migration.
 | `claim_due_jobs` | the server's | the server | code `packages/db/src/repositories/jobs/ledger.ts`, `packages/jobs/src/runner/ledger.ts` | The only way a job becomes fired. |
 | `claim_reply_turn` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts` | The thread's reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; |
 | `clear_control_of_departed_member` | trigger | the server | trigger `memberships_clear_control on memberships` | A member removed from a workspace stops being responsible for its threads and stops holding any. |
+| `comment_answer_draft_keep` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | AI's draft of a public answer to a comment, or why it could not answer it safely (00699). |
+| `comment_answer_leave` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | A comment left unanswered by the owner, or answered after all (00699; |
+| `comment_answer_send` | door | a signed-in person, the server | code `packages/db/src/repositories/content/comments.ts` | The owner's words sent as the business's public answer to a comment (00699; |
+| `comment_answer_settle` | the server's | the server | code `packages/db/src/repositories/content/comments.ts` | What Instagram said of a public answer on its way (00699): |
 | `consent_channels_of` | reader | a signed-in person, the server | code `packages/contracts/src/consent/channels.ts`; SQL `events_keep_consent_channels`, `note_yes_on_channel` | The channels one yes covers (One message, every channel, step 2): |
 | `consent_channels_on_erase` | trigger | the server | trigger `contacts_erase_clears_consent_channels on contacts` | Before a person is erased (00101's rule: |
 | `consent_channels_union` | reader | a signed-in person, the server | SQL `events_keep_consent_channels`, `merge_people` | The channels of both lists, each once, in the order whatsapp, sms, email; |
@@ -235,12 +239,14 @@ being read is dropped by a migration.
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
 | `file_copy_comes_back` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 1 more | Whether a watched clip's copy can be fetched again by itself (00674, the content loop PRD's F1): |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
+| `file_copy_kept` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going is here again (00695): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
 | `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
 | `file_copy_return_failed` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A return that did not happen (00654): |
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
-| `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
-| `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
+| `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin`, `file_shelf_checked` and 1 more | A copy that is away or lost set to what its origins now say (00654): |
+| `file_copy_shelved` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 4 more | Whether a file's video has a checked copy on Chanlytics' own shelf (00695, the archive plan's B2): |
+| `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where something can give it back (00654; |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -257,6 +263,11 @@ being read is dropped by a migration.
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
 | `file_road_is_watched` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 6 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
+| `file_shelf_again` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy put back (00695): |
+| `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00695, the archive plan's B2). |
+| `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00695): |
+| `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00695): |
+| `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
@@ -319,7 +330,7 @@ being read is dropped by a migration.
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
 | `instagram_account_connect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts` | Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). |
 | `instagram_account_disconnect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`; SQL `instagram_account_connect` | Service-role only: a workspace's Instagram account disconnected and let go (00677, decision 0143). |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 76 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 24 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 79 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 24 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
@@ -438,7 +449,7 @@ being read is dropped by a migration.
 | `lines_sms_guard` | trigger | a signed-in person, the server | trigger `lines_sms_guard on lines` | sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. |
 | `lines_voice_guard` | trigger | a signed-in person, the server | trigger `lines_voice_guard on lines` | Forward moves only on voice_state: |
 | `link_code_new` | reader | a signed-in person, the server | in `CREATE TABLE public.links` | A link's code (00680): |
-| `link_open` | the server's | the server | code `packages/db/src/repositories/forms/links.ts` | A link opened by its code (00680): |
+| `link_open` | the server's | the server | code `packages/db/src/repositories/forms/links.ts` | A link opened by its code (00680, 00699): |
 | `llm_tokens_since` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's receptionist tokens (input and output of every usage.llm_tokens event; |
 | `lookup_user_for_invite` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | The user id behind an email, or null. |
 | `mailbox_capacity` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts`; SQL `outreach_mailbox_facts`, `sequence_claim_from` | A connected mailbox's day (00424): |
@@ -563,7 +574,7 @@ being read is dropped by a migration.
 | `person_note_suggest` | the server's | the server | code `packages/db/src/repositories/facts/person-note-suggestions.ts`, `packages/db/src/repositories/people/notes.ts` | The receptionist suggests a note on a person after a call or a thread (0007), or what they asked on the business's website (00488). |
 | `person_notes_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_notes on contacts` | When a person is erased, every note on them goes, and the superseded contacts.notes field is cleared (0007). |
 | `person_notes_scrub` | the server's | the server | code `packages/db/src/repositories/people/pages.ts` | An erasure's hand in other people's notes (decision 0036): |
-| `person_set_first_touch` | the server's | the server | SQL `calls_note_first_touch`, `events_note_first_touch` and 1 more | A person's first touch (K3), written once: |
+| `person_set_first_touch` | the server's | the server | SQL `calls_note_first_touch`, `events_note_first_touch` and 2 more | A person's first touch (K3), written once: |
 | `person_signer_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_signers on contacts` | When a person is erased, the name a reply's reading found as its signer goes with them (0036, 0052). |
 | `person_step_from_playbook` | the server's | the server | SQL `reach_out_hand_run`, `reach_out_reply_apply` and 1 more | A dated step the product makes for the team on a person (Reach out Part 5, G11): |
 | `piece_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/pieces.ts` | A member's press, with the settings permission (00613, decision 0122; |
@@ -599,14 +610,20 @@ being read is dropped by a migration.
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00681; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00611, 00616, 00620, 00687): |
+| `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; |
+| `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00699; |
+| `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
+| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699; |
+| `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00699): |
+| `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00699): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
 | `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00681, contracts renditionShapeOf): |
 | `post_take_down_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00682; |
 | `post_take_down_by_hand` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00682; |
+| `post_take_down_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00689; |
 | `post_take_down_settle` | the server's | the server | code `packages/db/src/repositories/files/take-down.ts` | The take-down job's door (00682; |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682; |
@@ -717,7 +734,7 @@ being read is dropped by a migration.
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
 | `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ads_sweep_ask`, `ask_for_tick` and 20 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
-| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 10 more | The one door a person is resolved by (decision 0034): |
+| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 11 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
 | `run_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts`; SQL `playbook_totals` | Each named run's people by state (queued, sent, skipped, failed), its receipts (delivered; |
@@ -867,6 +884,10 @@ being read is dropped by a migration.
 | `tenant_config_worth_stamp` | trigger | the server | trigger `tenant_config_worth_stamp on tenant_config` | The day a service is first given an amount, the visits already written for it take it (00683; |
 | `tenant_config_write` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's versioned write of their workspace's configuration (00365): |
 | `tenants_zone_guard` | trigger | the server | trigger `tenants_zone_guard on tenants` | A workspace's zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: |
+| `touches_age_out` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | Touches older than 180 days (or p_before) keep their counts only: |
+| `touches_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_touches on contacts` | A person erased (decision 0036; |
+| `touches_follow_merge` | trigger | the server | trigger `contacts_merge_moves_touches on contacts` | When two records of one person are combined, the touches of the one merged away go to the one kept (00699; |
+| `touches_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts`; SQL `post_comment_keep` | A known person's touch, kept once by the place's own id (00699; |
 | `trial_use` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | What a workspace has used of what a trial includes (00512, decision 0090): |
 | `trigger_calendar_sweep` | the server's | the server | the clock, `calendar-people-sweep` | Asks the edge to read each workspace's calendar feed. |
 | `trigger_call_reconcile` | the server's | the server | the clock, `call-reconcile` | Asks the edge (api/cron/calls) to sweep when the calls table owes it work: |

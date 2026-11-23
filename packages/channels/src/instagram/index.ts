@@ -2,7 +2,7 @@
  * The instagram domain: `@chanlytics/channels/instagram`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export { inboundFromInstagram, instagramEventsOf } from "./events";
-export type { IgMessaging, IgReferral, InstagramEvent } from "./events";
+export type { IgMessaging, IgReferral, InstagramComment, InstagramEvent } from "./events";
 export {
   callInstagram,
   fetchLinkedMedia,
@@ -66,3 +66,4 @@ export {
   parseMetaPostLimit,
 } from "./meta-publish";
 export type { MetaContainerStatus, MetaMedia, MetaPoster, MetaPostRefusal } from "./meta-publish";
+export { instagramObservationsOf, metaCommentReplyRequest, metaInsightsRequest } from "./meta-results";

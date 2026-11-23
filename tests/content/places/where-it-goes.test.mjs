@@ -6,11 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_INSTAGRAM, TAKE_DOWN_WORDS, takeDownWillOf } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
   goesPillOf,
+  takeDownOffered,
+  takeDownStandsOf,
 } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/goes.ts";
 
 const NOW = Date.parse("2026-12-01T18:00:00Z");
@@ -170,8 +172,12 @@ test("a take-down says what the place said: asked, by hand with the place's link
   const byHand = one(up, down({ outcome: "needs_person", said: ON_INSTAGRAM.takeDown.byHand, finished_at: ago(0) }));
   assert.equal(byHand.said, "Chanlytics can't take this down from Instagram");
   assert.equal(byHand.note, "Open the reel in Instagram, then Delete. Chanlytics checks it's gone.");
-  assert.deepEqual(acts(byHand), ["open_place", "deleted"]);
+  // The two that finish it by hand, then the owner's other choice: Keep it up (the canvas's Piece 34).
+  assert.deepEqual(acts(byHand), ["open_place", "deleted", "keep"]);
   assert.equal(byHand.acts[0].href, up.permalink);
+  assert.deepEqual(byHand.acts[2], { is: "keep", postId: up.id });
+  const reader = one(up, { ...down({ outcome: "needs_person", finished_at: ago(0) }), may: false });
+  assert.deepEqual(reader.acts, [], "a reader is told where it stands, and offered none of the three");
   const stillUp = one(
     up,
     down({ outcome: "needs_person", said: TAKE_DOWN_WORDS.stillUp("instagram"), finished_at: ago(0) }),
@@ -183,6 +189,52 @@ test("a take-down says what the place said: asked, by hand with the place's link
   const gone = one({ ...up, status: "taken_down" }, down({ outcome: "done", finished_at: ago(0) }));
   assert.equal(gone.said, "Taken down · @18:00");
   assert.equal(gone.tone, "gone");
+});
+
+test("a post its owner chose to leave up says who kept it and when, in green, and nothing is to press for it", () => {
+  const up = post();
+  const leftUp = (by) => ({
+    cause: "owner_removed",
+    asked_at: ago(HOUR),
+    finished_at: ago(MIN),
+    actions: [
+      {
+        id: "action-1",
+        target: "post",
+        target_id: up.id,
+        act: "take_down",
+        outcome: "left_up",
+        said: ON_INSTAGRAM.takeDown.byHand,
+        started_at: ago(HOUR),
+        finished_at: ago(MIN),
+        left_up_by: by,
+        name: null,
+      },
+    ],
+  });
+  const mine = leftUp({ you: true, name: "Ada" });
+  assert.deepEqual(postComingDownOf(up, mine, NOW), null, "it is not coming down");
+  // The canvas's Piece 35: a choice, never a failure. The reader is "you"; a teammate is named.
+  const line = one(up, { takeDown: mine });
+  assert.equal(line.said, "Kept up by you · @17:59");
+  assert.equal(line.tone, "ok");
+  assert.equal(line.note, null);
+  assert.deepEqual(acts(line), ["see"], "neither Open in Instagram, I deleted it, nor Keep it up again");
+  assert.equal(one(up, { takeDown: leftUp({ you: false, name: "Sofia" }) }).said, "Kept up by Sofia · @17:59");
+  assert.equal(
+    one(up, { takeDown: leftUp({ you: false, name: null }) }).said,
+    "Kept up by a teammate · @17:59",
+    "a member who gave no name, or who has left since",
+  );
+  // The piece's one status says where it is: on Instagram. The choice is its line's to say.
+  assert.deepEqual(goesPillOf([line]), { said: "On Instagram", tone: "ok", moving: false });
+  // Nothing of it waits, so Take down is offered again and a new post may lead.
+  assert.deepEqual(takeDownStandsOf(mine), { open: false, asking: false });
+  assert.deepEqual(takeDownStandsOf(null), { open: false, asking: false });
+  const stillAsked = { ...mine, actions: [{ ...mine.actions[0], outcome: "pending", finished_at: null }] };
+  assert.deepEqual(takeDownStandsOf(stillAsked), { open: true, asking: true });
+  const byHand = { ...mine, actions: [{ ...mine.actions[0], outcome: "needs_person" }] };
+  assert.deepEqual(takeDownStandsOf(byHand), { open: true, asking: false });
 });
 
 test("the piece's one status leads with what needs the owner, then what moves, and counts what is set", () => {
@@ -225,4 +277,16 @@ test("what the confirm says the press will do, a line a placement", () => {
       ["Google", "Chanlytics takes it down"],
     ],
   );
+});
+
+test("Take down is offered only where something of the piece is up: never for a story that has run its day", () => {
+  const ended = post({ kind: "story", published_at: ago(25 * HOUR), verified_at: ago(25 * HOUR) });
+  const live = post({ kind: "story", published_at: ago(2 * HOUR), verified_at: ago(2 * HOUR) });
+  // The story's line already says it ended by itself, and a take-down asks nothing of it (00682): nothing to press.
+  assert.equal(one(ended).said, "Was on Instagram for a day · @17:00");
+  assert.equal(takeDownOffered([ended], NOW), false, "a story past its day is gone already");
+  assert.equal(takeDownOffered([live], NOW), true, "a story still in its day is up");
+  assert.equal(takeDownOffered([ended, post({ kind: "picture" })], NOW), true, "the post beside it is up");
+  assert.equal(takeDownOffered([post({ status: "publishing", published_at: null })], NOW), true, "on its way up");
+  assert.equal(takeDownOffered([post({ status: "taken_down" })], NOW), false);
 });

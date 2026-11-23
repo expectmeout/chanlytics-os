@@ -84,6 +84,10 @@ export const JOB_WRITERS = {
     lost: "an Instagram read asked for and never run: the page stops saying Looking after half an hour, and a link pasted again asks again",
   },
   "apps/edge/lib/imports/sites-again.ts|website_read": { clock: "health", why: "readSitesAgain, the clock's own work" },
+  "apps/edge/lib/content/results-upkeep.ts|post_observe": {
+    clock: "health",
+    why: "keepResultsMoving asks for every read of a post's numbers that is due and not kept, each half hour",
+  },
   "apps/edge/lib/imports/website-read.ts|website_read": {
     lost: "a website read asked for and never run: the business's site is not read until it is next asked or saved",
   },

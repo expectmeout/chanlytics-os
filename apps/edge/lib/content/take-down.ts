@@ -39,7 +39,8 @@ const attemptOf = (job: ClaimedJob): number => {
   return Number.isInteger(n) && n >= 1 ? n : 1;
 };
 
-const sentPlacementOf = (post: PostRow): SentPlacement => ({
+/** A post as its place's adapter is asked about it (its take-down here, its numbers in observe.ts). */
+export const sentPlacementOf = (post: PostRow): SentPlacement => ({
   postId: post.id,
   kind: post.kind === "story" || post.kind === "reel" ? post.kind : "picture",
   externalId: post.external_id,

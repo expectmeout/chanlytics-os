@@ -26,13 +26,14 @@ const proofOf = (poster: Pick<MetaPoster, "token" | "appSecret">): Record<string
   appsecret_proof: metaAppSecretProof(poster.token, poster.appSecret),
 });
 
-const readFrom = (path: string, params: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
+/** A read of the Graph, its token and proof in the address (a read carries no words). */
+export const readFrom = (path: string, params: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
   url: `${META_GRAPH}/${path}?${new URLSearchParams({ ...params, ...proofOf(poster) }).toString()}`,
   method: "GET",
 });
 
 /** A write's fields go in its body, so a caption never rides in an address a log may keep. */
-const writeTo = (path: string, fields: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
+export const writeTo = (path: string, fields: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
   url: `${META_GRAPH}/${path}`,
   method: "POST",
   headers: { "content-type": "application/x-www-form-urlencoded" },

@@ -166,7 +166,15 @@ export {
   textOrEmpty,
   valueAt,
 } from "./unknown";
-export { ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF } from "./words";
+export {
+  ANSWER_JSON_ONLY,
+  CONTROL_CHARS,
+  groupedPlural,
+  NUMBERED_SLOT,
+  plural,
+  TRY_AGAIN_IN_A_MINUTE,
+  VOICE_IS_OFF,
+} from "./words";
 export { capitalize, joinWords, possessive } from "./words";
 export {
   DAY_KEY,

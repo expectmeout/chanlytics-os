@@ -364,6 +364,21 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id"],
     never: [],
   },
+  // A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2). Safe to run again
+  // at every step: a run begins by reading what the shelf holds and pulls nothing where that is the video's bytes, a pull
+  // of the same bytes writes the same object, and the shelf itself refuses any other. A throw is the relay, the shelf or
+  // the database not answering: two minutes, then ten. One that ends for good leaves the copy failed as refused
+  // (settle.ts), the video keeps its place at the video platform, and nothing is lost. The longest call is the pull.
+  file_shelve: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 35 * SECOND_MS,
+    ids: ["file_id"],
+    never: [],
+  },
   // A video made from a business's clips (00613, decision 0122): each step is safe to run again (a machine started twice is
   // two drawings and one is let go; a file begun twice is the one row), and a step that must wait puts its own next tick on the
   // ledger, so a throw is a fault of ours: tried once more two minutes on, while the machine still holds what it drew, then
@@ -435,6 +450,32 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     longestCallMs: 25 * SECOND_MS,
     ids: ["action_id", "attempt"],
     never: [],
+  },
+  // A post's numbers read back from its place (00699; the content loop PRD's 9.1): a read asked again writes over itself,
+  // nothing reaches a person, and a read that fails for good is said where it is read: the piece says the step's
+  // numbers could not be read, and the next step reads again (told elsewhere).
+  post_observe: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["post_id", "step"],
+    never: [],
+  },
+  // A public answer to a comment (00699; the content loop PRD's 12.4). Its send puts the business's words in public, so
+  // it is never run again after a claim that did not report back: the answer then says Instagram did not say, and the
+  // owner looks before sending again (settle-comment.ts). Its draft is a model call nobody sees until it is kept.
+  comment_reply: {
+    speaks: true,
+    retryWaitsMs: NO_FIELDS,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 25 * SECOND_MS,
+    ids: ["touch_id", "step"],
+    never: ["words", "text", "draft"],
   },
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first

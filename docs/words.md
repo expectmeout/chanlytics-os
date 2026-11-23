@@ -149,6 +149,11 @@ Supabase, Vercel, Anthropic, Claude, ElevenLabs, MiniMax. Meta where the owner k
 (paused, refused, rejected, disabled, declined, approved, pending, in review) are said as what they mean for the owner,
 never as the provider's word.
 
+**Where a video is kept.** shelf, copy (of a file), cache, checksum, storage, and the video platform's name. A video
+made in Chanlytics or added from a phone is said as any video: it plays, or "Getting your video ready…", and no sentence
+of it names a place (`copy-words.ts`, held by `tests/files/screens/a-made-video-says-no-storage-word.test.mjs`). Only a
+video the owner keeps in their own Google Drive is said to be there, since that place is theirs.
+
 **Allowed:** what the owner typed or chose. The name of a service where the owner connects it, signs in to it, pays it
 or fixes something in it: Google, WhatsApp, Instagram, Facebook, Gmail, Outlook, Meta and Meta Ads Manager on Ads,
 Stripe on a receipt. The AI limit's own number in tokens ("250k") until AI has answered enough to say it in replies

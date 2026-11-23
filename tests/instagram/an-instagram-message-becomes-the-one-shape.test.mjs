@@ -44,6 +44,7 @@ test("a typed DM becomes the one shape: its wire, the person by their Instagram 
     media: null,
     consent: { optOut: false, optIn: false, optInMarketing: false },
     referral: null,
+    answered: null,
   });
 });
 

@@ -407,3 +407,33 @@
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
+
+/* How it did, What it brought and its link (00699): the place's numbers a line each, the people its posts brought as the
+   placements' lines are drawn, a small heading for each group, and a number the place gave none of said in the quiet ink. */
+.cnv-results {
+  gap: 4px;
+}
+.cnv-results-head {
+  margin-top: 12px;
+}
+.cnv-results-nums {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+}
+.cnv-results-nums[data-missing] {
+  color: var(--ink-dim);
+}
+.cnv-results-sub {
+  margin: 8px 0 2px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+/* A person the piece brought: their initials where a placement has its glyph, opening their page. */
+.cnv-brought {
+  grid-template-columns: 28px minmax(0, 1fr);
+  color: inherit;
+  text-decoration: none;
+}

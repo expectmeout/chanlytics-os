@@ -6,10 +6,10 @@
  * changes something reads the piece and the page again.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { SECOND_MS, TAKE_DOWN_WORDS, fileSaidOf, type PieceTakeDownDto, type PostDto } from "@chanlytics/contracts";
-import { goesLinesOf, goesPillOf, takeDownOffered, type GoesAct, type GoesLine } from "./model/goes";
+import { SECOND_MS, TAKE_DOWN_WORDS, fileSaidOf, type PostDto } from "@chanlytics/contracts";
+import { goesLinesOf, goesPillOf, takeDownOffered, takeDownStandsOf, type GoesAct, type GoesLine } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
-import { markDeletedByHand } from "@/bridge/verbs/pieces";
+import { keepPostUp, markDeletedByHand } from "@/bridge/verbs/pieces";
 import type { PieceStanding } from "./model/standing";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
 import { viewerClockOf } from "./viewer/clock";
@@ -58,15 +58,6 @@ function useRereadWhileMoving(moving: boolean, rereadRecord: () => void, rereadP
     }, MOVING_READ_MS);
     return () => clearInterval(timer);
   }, [moving, rereadRecord, rereadPage]);
-}
-
-/** Where a piece's take-down stands: still open (a place asked, or the owner's to finish), and whether a place is yet to answer. */
-function takeDownStandsOf(takeDown: PieceTakeDownDto | null): { open: boolean; asking: boolean } {
-  const actions = takeDown?.actions.filter((a) => a.act === "take_down") ?? [];
-  return {
-    open: actions.some((a) => a.outcome !== "done"),
-    asking: actions.some((a) => a.outcome === "pending"),
-  };
 }
 
 export function usePieceStanding(
@@ -126,6 +117,8 @@ export function usePieceStanding(
       focusCaption();
     },
     deleted: (postId) => void run(markDeletedByHand(file.id, postId)),
+    // Keep it up acts at once, with no card: nothing changes at the place, and the line says who kept it (Piece 34).
+    keep: (postId) => void run(keepPostUp(file.id, postId)),
   };
   // While a take-down is open nothing new is offered to go up; while a place is yet to answer, the press is not offered twice.
   const down = takeDownStandsOf(record.takeDown);
@@ -160,7 +153,8 @@ export function usePieceStanding(
     goes,
     clock,
     /** Take down, where something of it is up and this person may: opens its card. Null where it is not offered. */
-    takeDown: may && aiMade && takeDownOffered(posts) && !down.asking ? () => setTakingDown(true) : null,
+    takeDown: may && aiMade && takeDownOffered(posts, Date.now()) && !down.asking ? () => setTakingDown(true) : null,
     sheets,
+    results: { fileId: file.id, upPostId: aiMade ? (posts.find((p) => p.published_at)?.id ?? null) : null },
   };
 }

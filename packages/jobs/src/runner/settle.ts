@@ -37,7 +37,7 @@ import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
 import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
-import { endPiece, endSourceTake, failCopyReturn, keepFileLook } from "@chanlytics/db/files";
+import { endPiece, endSourceTake, failCopyReturn, failShelfCopy, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
 import {
@@ -53,6 +53,7 @@ import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob, scheduleJobOnce } from "./schedule";
 import { settlePostJob } from "./settle-post";
+import { settleCommentReplyJob } from "./settle-comment";
 import { closeForAPerson } from "./settle-request";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -77,6 +78,7 @@ export interface Settled {
     | "file"
     | "draft"
     | "post"
+    | "comment_answer"
     | "request";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
@@ -533,6 +535,17 @@ async function settleCopyReturn(db: Db, job: TerminalJob): Promise<Settled[]> {
 }
 
 /**
+ * A made video's shelf copy whose job will not finish (00695): the copy stops saying it is on its way to the shelf.
+ * It is failed as refused, which loses nothing: the video keeps its place at the video platform, its own file is
+ * still there to put the copy from, and one already checked or failed is left, by the door's own guard.
+ */
+async function settleFileShelve(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const fileId = idFrom(job.payload, "file_id");
+  if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  return [{ what: "file", changed: await failShelfCopy(db, { tenantId: job.tenant_id, fileId, why: "refused" }) }];
+}
+
+/**
  * A time asked for that ran out, whose job will not finish (decision 0061, as amended): the request is closed for a
  * person to reply to, with nothing sent, so it never waits on a run that will not come.
  */
@@ -547,6 +560,10 @@ type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Pro
 /** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
 const settlePost: Settler = async (db, job, certain, reason) => [
   { what: "post", changed: await settlePostJob(db, job, certain, reason) },
+];
+
+const settleCommentReply: Settler = async (db, job, certain, reason) => [
+  { what: "comment_answer", changed: await settleCommentReplyJob(db, job, certain, reason) },
 ];
 
 /**
@@ -568,11 +585,14 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   piece_make: settlePiece,
   source_take: settleSourceTake,
   copy_return: settleCopyReturn,
+  file_shelve: settleFileShelve,
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
   post_google: settlePost,
   post_take_down: null,
+  post_observe: null,
+  comment_reply: settleCommentReply,
   file_fetch: null,
   instagram_read: null,
   file_purge: null,
@@ -614,6 +634,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   piece_make: "file",
   source_take: "file",
   copy_return: "file",
+  file_shelve: "file",
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",

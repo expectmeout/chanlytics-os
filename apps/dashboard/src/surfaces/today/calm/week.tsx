@@ -7,11 +7,25 @@
  * week, on any of their devices, and never before what they set aside is read. Nothing where the days are not read, or
  * AI answered nothing in them: no number the data can't back.
  *
+ * Once a post went up in those seven days, the card says what the posts brought instead (the content loop's pass 2; the
+ * journey canvas's Today board, cell 4, approved by Ruben on 23 Nov 2026): the conversations they brought, and under it
+ * how many went up, how many people they reached and the bookings from a post and those it helped, as Reports' content
+ * section counts them (GET content/week, calm/content-week.ts), and its door is that section. That read is asked only
+ * where the card can be said, and kept in the tab, so a return says the posts' week at once; until it first lands, and
+ * where it fails, the card says AI's week, under the same name, so Got it puts either away.
+ *
  * A milestone works the same, once (22 Nov 2026): "AI's 100th booking for you." in the week it is reached, from the
  * count of AI's bookings the morning's read carries (contracts ask/memory/morning.ts), ahead of the week's
  * card and until Got it, which puts it away past the days it is news for. No door: no page holds that count.
  */
-import { DAY_MS, DEFAULT_TIMEZONE, dayInZone, shiftKey, type AskMorningDto } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  DEFAULT_TIMEZONE,
+  contentWeekSaid,
+  dayInZone,
+  shiftKey,
+  type AskMorningDto,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { AI_WORDS } from "../model/ai";
@@ -19,6 +33,7 @@ import { useRests } from "../need-you/rests";
 import { useTodayOnPhone } from "../phone";
 import { appNavigate, useToast, workspaceClock } from "../shell";
 import { useSurface } from "../../use-surface";
+import { useContentWeek } from "./content-week";
 import { useLastDays, type LastDays } from "./days";
 import { CardActs, Lead } from "./lead";
 
@@ -28,8 +43,9 @@ const WEEK_DAYS = 7;
 const WEEK_WORDS = AI_WORDS.week;
 const MILESTONE_WORDS = AI_WORDS.milestone;
 
-/** Where the week's numbers are held, each with what is behind it. */
+/** Where the week's numbers are held, each with what is behind it: Reports, and its content section for the posts'. */
 const REPORTS_ROUTE = "reports";
+const REPORTS_CONTENT_ROUTE = "reports/content";
 
 /** The Monday the business's week began on, and the next one, YYYY-MM-DD: the rest's id, and the day it runs to. */
 function mondays(): { began: string; next: string } {
@@ -118,8 +134,8 @@ function milestoneMoment(booked: AiBooked | null | undefined): TodayMoment | nul
   };
 }
 
-/** The week as the card says it: put away until the next Monday, its numbers Reports'. */
-const weekMoment = (words: WeekWords): TodayMoment => {
+/** The week as the card says it: put away until the next Monday, its numbers Reports' (or its content section's). */
+const weekMoment = (words: WeekWords, door: string): TodayMoment => {
   const { began, next } = mondays();
   return {
     id: `week:${began}`,
@@ -128,8 +144,8 @@ const weekMoment = (words: WeekWords): TodayMoment => {
     ...words,
     until: next,
     kept: WEEK_WORDS.kept,
-    door: REPORTS_ROUTE,
-    testid: "today-week",
+    door,
+    testid: door === REPORTS_CONTENT_ROUTE ? "today-week-posts" : "today-week",
   };
 };
 
@@ -141,10 +157,20 @@ export function useWeekMoment(): TodayMoment | null {
   const days = useLastDays(WEEK_DAYS);
   const history = useSurface("ask_morning")?.dto?.history ?? null;
   const { rests, known } = useRests();
+  const milestone = milestoneMoment(history?.booked_by_ai);
+  // The posts' week is read only where the week's card can be said: what was set aside is read, no milestone holds the
+  // card, and this week's is not put away.
+  const posts = useContentWeek(known && !(milestone && !rests(milestone.id)) && !rests(`week:${mondays().began}`));
   // Not before what the member set aside is read: a card they answered would show, then go.
   if (!known) return null;
-  const words = days ? weekWords(days) : null;
-  const moments = [milestoneMoment(history?.booked_by_ai), words ? weekMoment(words) : null];
+  const postsLine = posts ? contentWeekSaid(posts) : null;
+  const aiWords = days ? weekWords(days) : null;
+  const week = postsLine
+    ? weekMoment({ sentence: postsLine.title, sub: postsLine.line }, REPORTS_CONTENT_ROUTE)
+    : aiWords
+      ? weekMoment(aiWords, REPORTS_ROUTE)
+      : null;
+  const moments = [milestone, week];
   return moments.find((moment) => moment && !rests(moment.id)) ?? null;
 }
 

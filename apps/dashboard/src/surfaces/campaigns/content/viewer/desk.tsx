@@ -18,6 +18,7 @@ import { NameField } from "../../../files/file-fields";
 import { CmPane } from "../../parts/split";
 import { useSave } from "../piece-foot";
 import { draftBody, draftFoot } from "../piece-presses";
+import { PieceResults } from "./results";
 import { pieceNextOf } from "../model/piece-open";
 import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
@@ -401,6 +402,7 @@ function DeskSheetAtRest(props: {
         </>
       )}
       <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <PieceResults {...standing.results} />
       <ViewerFacts
         shown={props.details}
         may={hands.may}

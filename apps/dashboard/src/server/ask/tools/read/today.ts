@@ -31,6 +31,7 @@ async function getToday(toolContext: ToolContext): Promise<unknown> {
     previewsTried,
     formRequests,
     formHeld,
+    comments,
   } = (await load(toolContext.rc, today, undefined)).data;
   // The page's own builder, with the waiting searches the page passes (the queue reads them), and the runs waiting and
   // the threads of holds past the hundred beside it, so the head and the count are the badge's (the wiring's second
@@ -41,6 +42,7 @@ async function getToday(toolContext: ToolContext): Promise<unknown> {
     previewsTried,
     formRequests,
     formHeld,
+    comments,
   });
   const searchRows = vm.queue.rows.filter((r) => r.kind === "search");
   // A search waiting on its owner is a row a citation names (the queue's row id is `q-s-<search>`).

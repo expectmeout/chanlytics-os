@@ -125,6 +125,8 @@ export type { ContentCheck } from "./placements/check-words";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
+  CommentAnswerSent,
+  ObservedPost,
   PlaceAdapter,
   PlaceAnswerKept,
   PlaceCapabilities,
@@ -206,6 +208,54 @@ export type {
 } from "./posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
 export type { PostPublish } from "./publish";
+export { COMMENT_ANSWER_WORDS } from "./results/answer-words";
+export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./results/comment-address";
+export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./results/comment-answer";
+export type { CommentAnswerFacts, CommentToAnswer } from "./results/comment-answer";
+export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./results/comment-stage";
+export type { CommentStage } from "./results/comment-stage";
+export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./results/credit";
+export type { Credit, CreditSubject, CreditTouch, CreditVisit } from "./results/credit";
+export type { CommentAnswerDto, CommentRowDto, CommentsDto, ContentReportDto, ContentWeekDto } from "./results/dtos";
+export { nextObserveStep, observeDueAt } from "./results/observe";
+export type { Observation } from "./results/observe";
+export { pieceResultsSaid } from "./results/piece-results";
+export type {
+  BroughtPersonDto,
+  BroughtSaid,
+  PieceResultsDto,
+  PieceResultsSaid,
+  PostNumbersDto,
+} from "./results/piece-results";
+export { postChatLinkOf, postCodeIn } from "./results/post-code";
+export type { PostChatPlaces } from "./results/post-code";
+export {
+  COMMENT_ANSWER_STATES,
+  LINK_LANDS,
+  LINK_SUBJECTS,
+  METRIC_AVAILABILITY,
+  OBSERVE_STEPS,
+  POST_METRICS,
+  TOUCH_KEPT_SUBJECTS,
+  TOUCH_KINDS,
+  TOUCH_SUBJECTS,
+  VISIT_THROUGH_TYPES,
+} from "./results/sets";
+export type {
+  CommentAnswerState,
+  CreditClass,
+  LinkLands,
+  LinkSubject,
+  MetricAvailability,
+  ObserveStep,
+  PostMetric,
+  TouchKind,
+  TouchSubjectType,
+  VisitThroughType,
+} from "./results/sets";
+export { contentTotalsOf, contentWeekOf, contentWeekSaid } from "./results/totals";
+export type { ContentTotals, CountedBooking, PostReach, VisitCounted } from "./results/totals";
+export type { RecordedTouch, TouchHome } from "./results/touch";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./sources";
 export type {

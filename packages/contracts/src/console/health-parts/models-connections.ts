@@ -35,6 +35,8 @@ const PURPOSE_WORDS: Record<AiUsagePurpose | "ask_warm", string> = {
   preview_starters: "Writing a preview's first questions",
   ad_draft: "Writing an ad's words",
   form_draft: "Drafting a form",
+  comment_reply: "Answering comments on posts",
+  comment_rewrite: "Writing a comment's answer again",
   file_words: "Writing down what videos say",
   file_hear: "Listening to videos",
   lead_draft: "Writing a lead's first email",

@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchLinkedMedia } from "@chanlytics/channels/instagram";
 import { fetchMediaBytes, type WaMediaRef } from "@chanlytics/channels/whatsapp";
 import { isLinkedMedia, type InboundMessage } from "@chanlytics/channels/inbound";
+import { keepWhatItAnswered } from "../content/answered.js";
 import { publicFetcher } from "@chanlytics/channels/shared";
 import {
   ingestInbound,
@@ -252,6 +253,8 @@ export async function runPgIngest(
       conversationId: ingested.conversation_id,
       messageId: ingested.message_id,
     });
+    // What it answered of the business's own (00699): a story replied to, a post's code. Logs and never throws.
+    await keepWhatItAnswered(db, tenantId, ingested, inboundMessage);
     return ingested;
   } catch (e) {
     logger().error("ingest_pg_failed", { tenant_id: tenantId, message: inboundMessage.externalId, error: errField(e) });

@@ -12,7 +12,6 @@
  * a thread sits are rules.ts; holding every draft still counting down is hold-all.ts.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { EmptyState } from "../../kit/empty/empty";
 import { usePartShown, useSurface } from "../../use-surface";
 import { ThreadContext } from "./thread-context";
 import { SequenceRepliesLine, onlyThreadsOf, type SequenceRepliesRead } from "./inbox-from";
@@ -36,6 +35,15 @@ import { ixDrawnIn, ixSetAside, type IxNeedsYou } from "./needs-you-list";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { RequestSlot } from "../request/slot";
+import { missingThread, openingThread } from "../thread-notices";
+import {
+  CommentsInPane,
+  commentsDoorOf,
+  commentsLineOr,
+  threadsBeside,
+  useCommentsHere,
+  type CommentsHere,
+} from "../comment/in-inbox";
 import { canDo, gate, presenceAway } from "../shell";
 import { inboxData } from "../store";
 import { ThreadPane } from "../thread/thread-pane";
@@ -251,40 +259,8 @@ interface InboxProps {
   toSendOpen?: boolean;
   /** `inbox/rq-<id>`: a request someone sent through a form, drawn where a conversation is (request/pane.tsx). */
   request?: string | null;
-}
-
-/** A link to a thread outside the loaded list, while it is read by its id: say it is on its way, and open nobody else's in its place. */
-function openingThread() {
-  return (
-    <EmptyState
-      kind="page"
-      glyph="inbox"
-      title="Opening this conversation…"
-      body="It shows here as soon as it has been read."
-      testid="inbox-opening-thread"
-    />
-  );
-}
-
-/** A link to a thread outside the loaded list: say so in the pane, and open nobody else's conversation in its place. */
-function missingThread({ setActiveThreadId, setPhoneThreadOpen }: InboxRecord) {
-  return (
-    <EmptyState
-      kind="page"
-      glyph="inbox"
-      title="That conversation isn't among the newest shown here"
-      body="The Inbox loads the newest conversations first. Open the person in People to find this one."
-      action={{ label: "Open People", to: "clients" }}
-      also={{
-        label: "Show the Inbox",
-        onClick: () => {
-          setActiveThreadId(null);
-          setPhoneThreadOpen(false);
-        },
-      }}
-      testid="inbox-missing-thread"
-    />
-  );
+  /** `inbox/comments`, and `inbox/cm-<id>` with the one open: the comments on the business's posts (comment/list.tsx). */
+  comments?: { open: string | null } | null;
 }
 
 /**
@@ -413,6 +389,7 @@ const inboxPage = (
     replies,
     toSendOpen,
     request,
+    comments,
     root,
   }: {
     root: RefObject<HTMLDivElement | null>;
@@ -422,6 +399,7 @@ const inboxPage = (
     replies: SequenceRepliesRead | null;
     toSendOpen: boolean;
     request: string | null;
+    comments: CommentsHere;
   },
 ) => {
   const {
@@ -455,15 +433,18 @@ const inboxPage = (
   } = ix;
   // A real thread's person beside it on a wide desk (thread-context.tsx): who they are, from People's row. Never on a
   // phone, where the list and the thread take turns and the header's door is the way to them.
+  // A request or a comment stands in the pane in place of a conversation.
+  const elsewhere = !!request || comments.listed;
   const personThread =
-    !request && !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
+    !elsewhere && !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
       ? activeThread
       : null;
   const columns = personThread ? "with-context" : "";
+  // A request or a comment takes the screen on a phone as an open conversation does.
+  const takeover = phoneThreadOpen || !!request || !!comments.open;
 
   return (
-    // A request takes the screen on a phone as an open conversation does.
-    <div ref={root} className={`inbox ${columns}`} data-takeover={phoneThreadOpen || !!request || undefined}>
+    <div ref={root} className={`inbox ${columns}`} data-takeover={takeover || undefined}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -476,7 +457,7 @@ const inboxPage = (
         }}
         activeBucket={activeBucket}
         onBucketChange={handleBucket}
-        activeThreadId={request ? undefined : activeThread?.id}
+        activeThreadId={elsewhere ? undefined : activeThread?.id}
         onSelectThread={selectThread}
         selected={selected}
         onToggleSelect={toggleSelect}
@@ -489,7 +470,8 @@ const inboxPage = (
         stake={stake}
         density={density}
         sendingIn={vetoRemaining}
-        fromLine={replies ? <SequenceRepliesLine read={replies} held={threads} /> : null}
+        fromLine={commentsLineOr(comments, replies ? <SequenceRepliesLine read={replies} held={threads} /> : null)}
+        commentsDoor={commentsDoorOf(comments)}
         toSendOpen={toSendOpen}
         flash={ppFlash}
         needsYou={{
@@ -504,7 +486,9 @@ const inboxPage = (
       />
       {/* A request someone sent through a form stands where a conversation would (request/slot.tsx). */}
       <RequestSlot request={request} flash={ppFlash} />
-      {request
+      {/* A comment on a post stands there too (comment/slot.tsx); the comments' list with none open says how to open one. */}
+      <CommentsInPane here={comments} flash={ppFlash} phone={ixOnPhone()} />
+      {elsewhere
         ? null
         : ixOnPhone() && !phoneThreadOpen
           ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
@@ -517,7 +501,10 @@ const inboxPage = (
               // server will not give is said missing in the pane. Nobody else's conversation opens in its place.
               opening
               ? openingThread()
-              : missingThread(ix)
+              : missingThread(() => {
+                  ix.setActiveThreadId(null);
+                  ix.setPhoneThreadOpen(false);
+                })
             : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
               // seeded thread is the mockup's, and keeps this page's handlers.
               threadPane(ix, onOpenClient)}
@@ -554,6 +541,7 @@ export const Inbox = ({
   replies = null,
   toSendOpen = false,
   request = null,
+  comments = null,
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again; its list is the page's first part
   // (client/page-speed.ts), drawn once the Inbox's read is in, the empty Inbox included.
@@ -583,13 +571,16 @@ export const Inbox = ({
   const withReply = Object.assign(withThreadActs, inboxReply(withThreadActs));
   const withRealBulk = Object.assign(withReply, inboxRealBulk(withReply));
   const withBulkActs = Object.assign(withRealBulk, inboxBulkActs(withRealBulk));
-  const withScreen = Object.assign(withBulkActs, inboxOnScreen(withBulkActs, initialThreadId, onlyThreadsOf(replies)));
+  // The comments on the business's posts (comment/in-inbox.tsx): their list holds no conversation.
+  const here = useCommentsHere(comments);
+  const only = threadsBeside(here, onlyThreadsOf(replies));
+  const withScreen = Object.assign(withBulkActs, inboxOnScreen(withBulkActs, initialThreadId, only));
   useInboxKeys(withScreen);
   // The thread on screen is read (surfaces/seen.ts): beside the list on a desk, and on a phone while it is the screen.
   // A link's notice is nobody's thread. And a row opened or put back, here or in Conversations, draws the list again.
-  // With a request in the pane no conversation is on screen, so none is read by standing behind it.
+  // With a request or a comment in the pane no conversation is on screen, so none is read by standing behind it.
   const open =
-    !request && withScreen.activeThread && withScreen.activeThread.real && !withScreen.requestedMissing
+    !request && !here.listed && withScreen.activeThread && withScreen.activeThread.real && !withScreen.requestedMissing
       ? withScreen.activeThread
       : null;
   const reading = open && (!ixOnPhone() || withScreen.phoneThreadOpen) ? open : null;
@@ -619,5 +610,5 @@ export const Inbox = ({
       going: ixGoing,
     },
   );
-  return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, request, root });
+  return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, request, comments: here, root });
 };
