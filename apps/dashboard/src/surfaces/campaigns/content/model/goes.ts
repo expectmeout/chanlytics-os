@@ -180,11 +180,14 @@ const leftUpOf = (post: PostDto, takeDown: PieceTakeDownDto | null) =>
     (a) => a.target === "post" && a.target_id === post.id && a.act === "take_down" && a.outcome === "left_up",
   );
 
+/** A story that has run its day: gone from the place by itself, though its row still says it went up (Meta says nothing). */
+const storyRanItsDay = (post: Pick<PostDto, "kind" | "published_at">, nowMs: number): boolean =>
+  post.kind === "story" && !!post.published_at && nowMs - Date.parse(post.published_at) > DAY_MS;
+
 /** A post that is up: seen there, sent and not yet seen, a story that ended by itself, or one kept up by choice. */
 function upSaid(post: PostDto, known: GoesKnown): Said {
   const at = post.published_at ? known.when(post.published_at) : null;
-  const ended = post.kind === "story" && !!post.published_at && known.nowMs - Date.parse(post.published_at) > DAY_MS;
-  if (ended) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
+  if (storyRanItsDay(post, known.nowMs)) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
   const see: GoesAct[] = post.permalink ? [{ is: "see", href: post.permalink }] : [];
   // Left up by its owner's own word, where a place would not take it down (the canvas's Piece 35): who kept it and
   // when, in green, so a teammate reads a choice. The piece's one status says where it is: on the place.
@@ -335,6 +338,17 @@ export function takeDownStandsOf(takeDown: PieceTakeDownDto | null): { open: boo
   };
 }
 
-/** Whether a piece has anything a take-down would reach: a post up, or on its way up. */
-export const takeDownOffered = (posts: readonly Pick<PostDto, "status">[]): boolean =>
-  posts.some((post) => ["published", "publishing", "checking"].includes(post.status));
+/**
+ * Whether a piece has anything a take-down would reach: a post up, or on its way up. A story that has run its day is
+ * gone already, and a take-down asks nothing of it (00682), so it alone offers nothing to press.
+ */
+export const takeDownOffered = (
+  posts: readonly Pick<PostDto, "status" | "kind" | "published_at">[],
+  nowMs: number,
+): boolean =>
+  posts.some(
+    (post) =>
+      post.status === "publishing" ||
+      post.status === "checking" ||
+      (post.status === "published" && !storyRanItsDay(post, nowMs)),
+  );

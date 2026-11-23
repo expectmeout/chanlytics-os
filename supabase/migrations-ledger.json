@@ -89,8 +89,9 @@
     "00688": "claimed by the Forms plan's F3 (a time asked for on a form, lane cm-forms-time) and left empty: Keep it up went on production as 00689 above it before it was applied, so it was renumbered to 00691 (23 Nov 2026)",
     "00690": "claimed by the shelf (a made video keeps a copy, lane cm-archive-b2) and left empty: its file moved to 00695 when 00691 went on production above it (23 Nov 2026)",
     "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
-    "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
-    "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands"
+    "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
+    "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
+    "00696": "claimed by the content loop's pass 2 (a post says what it brought, lane cm-post-results, #2531), a draft not on main when pass 1b's follow-ups took 00697 above it (23 Nov 2026); the record drops this line once its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -697,6 +698,8 @@
     "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff",
     "00689_a_post_stays_up_on_the_owner_s_word.sql": "d6c796ea95d33635ec9d339b9060a3d6851b210d54ee5aa73167cb751d55b307",
     "00691_a_time_asked_for_on_a_form.sql": "4e87e1a4fdecec1623d3a3f2d7b64a963c5fe31bf8033a8285e8d830d8539e41",
-    "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a"
+    "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a",
+    "00697_a_post_is_begun_by_its_approval_alone.sql": "e93917b7c99e47e97235df87cd0a81cd0c80015cb1274bc96c007678943c92c6",
+    "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d"
   }
 }

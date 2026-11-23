@@ -13299,17 +13299,9 @@ export type Database = {
         }
         Returns: Json
       }
-      post_begin: {
-        Args: {
-          p_caption: string
-          p_file_id: string
-          p_kind: string
-          p_place: string
-          p_tenant_id: string
-          p_via?: string
-          p_when?: string
-        }
-        Returns: Json
+      post_by_hand_bell_settle: {
+        Args: { p_file_id: string; p_place: string; p_tenant_id: string }
+        Returns: number
       }
       post_move: { Args: { p_post_id: string; p_when: string }; Returns: Json }
       post_moved: {
