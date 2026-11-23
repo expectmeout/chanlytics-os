@@ -1364,45 +1364,6 @@
       }
     },
     {
-      "table": "file_consents",
-      "name": "file_consents_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "file_consents",
-      "name": "file_consents_one_standing",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "file_id"
-        },
-        {
-          "column": "use"
-        },
-        {
-          "lower": {
-            "column": "who"
-          }
-        }
-      ],
-      "where": {
-        "isNull": {
-          "column": "taken_back_at"
-        }
-      }
-    },
-    {
       "table": "files",
       "name": "files_pkey",
       "primary": true,

@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 203 | 203 |
+| door | 201 | 201 |
 | reader | 95 | 0 |
-| the server's | 440 | 367 |
+| the server's | 436 | 367 |
 | computed column | 3 | 0 |
 | trigger | 120 | 88 |
-| all | 861 | 658 |
+| all | 855 | 656 |
 
 ## Called by nothing
 
@@ -36,9 +36,6 @@ being read is dropped by a migration.
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
-| `file_yes_record` | a yes for one use of a file (00665), unread since 22 Nov 2026, when footage a business provides was taken as cleared and nobody in it asked: dropped with file_consents by a migration of its own; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs |
-| `file_yes_take_back` | a yes taken back (00665, 00676), unread since 22 Nov 2026 for the same reason as file_yes_record, and dropped with it; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs and tests/ads/stop/the-stop-and-a-yes-pause-ads.db.test.mjs |
-| `files_drawn_from` | what a made piece was drawn from (00665), read only to judge who was in it, so unread since 22 Nov 2026 and dropped with file_consents |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -97,7 +94,7 @@ being read is dropped by a migration.
 | `ads_paused_by_holds` | trigger | the server | trigger `ads_paused_by_holds on ads` | Trigger (00676): an ad that is not paused holds no paused_by: |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). |
-| `ads_remediate_files` | the server's | the server | SQL `file_yes_take_back`, `post_take_down_begin` | The walk a yes taken back, a person erased or the owner's own take-down starts on ads (00676, 00682; |
+| `ads_remediate_files` | the server's | the server | SQL `post_take_down_begin` | The walk the owner's own take-down starts on ads (00676, 00682, 00687; |
 | `ads_settle_remediation` | trigger | the server | trigger `ads_settle_remediation on ads` | Trigger (00676; the content loop PRD's 8.3): |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
@@ -140,7 +137,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 28 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 26 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -232,7 +229,7 @@ being read is dropped by a migration.
 | `fact_corrections` | the server's | the server | SQL `fact_candidates`, `trigger_notes_sweep` | The owner's corrections of the last three days not yet looked at (decision 0063), oldest first: |
 | `fact_suggest` | the server's | the server | code `packages/db/src/repositories/facts/suggestions.ts` | The note sweep suggests a note for the receptionist from an owner's correction (decision 0063): |
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
-| `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551, 00665): |
+| `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551, 00665, 00687): |
 | `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
 | `file_copies_free_at` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | When a copy that may not be let go yet could be (00654): |
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
@@ -244,7 +241,6 @@ being read is dropped by a migration.
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
 | `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
 | `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
-| `file_drawn_from` | the server's | the server | SQL `file_yes_take_back`, `files_drawn_from` and 1 more | The ids, as text, of every file a made piece's `made` names (00665): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -272,12 +268,7 @@ being read is dropped by a migration.
 | `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 3 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
-| `file_yes_record` | door | a signed-in person, the server | nothing at run time | A member's door, with the settings permission (00665): |
-| `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00665): |
-| `file_yes_take_back` | door | a signed-in person, the server | nothing at run time | A member's door, with the settings permission (00665, 00676; |
-| `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
-| `files_drawn_from` | the server's | the server | nothing at run time | The service role's read (00665): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612, 00668): |
 | `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
 | `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |
@@ -608,7 +599,7 @@ being read is dropped by a migration.
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00681; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00611, 00616, 00620, 00665): |
+| `post_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00611, 00616, 00620, 00687): |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
