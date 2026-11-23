@@ -1342,6 +1342,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `post_id` | string (uuid) | yes |  |
+| `keep` | `true` | no |  |
 
 ### `PATCH /api/v1/files/[id]/posts`
 

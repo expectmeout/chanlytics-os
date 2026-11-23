@@ -6,6 +6,7 @@
  * it names can import this client without a cycle.
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
+import { readBegins } from "../client/page-speed";
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { sealSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
@@ -196,7 +197,11 @@ export function serversClockOf(browserMs: number): number {
 
 export function api(): Api {
   instance ??= createApi({
-    fetch: (url, init) => window.fetch(url, init),
+    fetch: (url, init) => {
+      // A read leaving: a load counts those begun for other pages before its own was drawn (client/page-speed.ts).
+      if ((init.method ?? "GET") === "GET") readBegins(url);
+      return window.fetch(url, init);
+    },
     prefetched: (url) => takePrefetched(window, url),
     prefetchedFrom: pageBegan,
     workspace: getActiveWorkspace,

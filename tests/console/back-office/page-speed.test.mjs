@@ -7,12 +7,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
-import { PAGE_SPEED_MIN, PRIMARY_PART, pageSpeedWords } from "@chanlytics/contracts";
+import { PAGE_SPEED_MIN, PageVitalReport, PRIMARY_PART, pageSpeedWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { createPageSpeed, waitOf, readKeyOf, notACustomer } =
+const { createPageSpeed, readsBegun, saidOfWait, waitOf, readKeyOf, notACustomer } =
   await import("../../../apps/dashboard/src/client/page-speed-rules.ts");
 const { reportOf, detailOf } = await import("../../../apps/dashboard/src/client/field-data-reporter.ts");
 const { findPlatformSpeed } = await import("../../../apps/dashboard/src/server/console/vitals.ts");
@@ -318,6 +318,154 @@ const host = {
         : { page: "today", from: null },
 };
 
+/* ----------------------------- what a load asked for around its page ----------------------------- */
+
+/** What a read's answer said of its database calls (Server-Timing's `db`, the count in its description). */
+const calls = (n) => [{ name: "db", duration: n * 10, description: String(n) }];
+
+test("the reads the app begins are kept by their route's words and when, the latest few hundred", () => {
+  let now = 0;
+  const begun = readsBegun(() => now, 3);
+  now = 10;
+  begun.note("/api/v1/contacts?workspace=acme");
+  now = 20;
+  begun.note("/api/v1/contacts/5f0c1d2e-0000-4000-8000-000000000001/notes?workspace=acme");
+  begun.note("/_next/static/chunks/a.js");
+  assert.deepEqual(
+    begun.list,
+    [
+      { key: "contacts", at: 10 },
+      { key: "contacts/notes", at: 20 },
+    ],
+    "a read by its words, never an id or a workspace; what is no read of the app's is not kept",
+  );
+  now = 30;
+  begun.note("/api/v1/segments");
+  begun.note("/api/v1/views");
+  assert.deepEqual(
+    begun.list.map((b) => b.key),
+    ["contacts/notes", "segments", "views"],
+    "the oldest let go past what is held",
+  );
+});
+
+test("a load's READY counts the reads begun for other pages before its own was drawn", () => {
+  const own = new Set(["today", "workspaces", "open"]);
+  const begun = [
+    { key: "calls", at: 0 },
+    { key: "contacts", at: 100 },
+    // Its own, asked again by the page: no other page's.
+    { key: "today", at: 120 },
+    { key: "playbooks", at: 300 },
+    // Begun once the page was drawn: what the rule lets through.
+    { key: "segments", at: 900 },
+  ];
+  const ahead = (reads, from) =>
+    saidOfWait({ landed: [], begun: reads }, { own }, { from, to: 900, name: "READY", load: true }).ahead_n;
+  assert.equal(ahead(begun, 0), 3, "calls, contacts and playbooks");
+  assert.equal(ahead(begun, 200), 1, "only those inside the wait");
+  assert.equal(ahead([], 0), 0, "none begun is a count too");
+});
+
+test("SETTLED counts the database calls the page's own reads came to, and the opening's own count where it opened through one read", () => {
+  /** What a load's SETTLED says of its opening's calls, a second after it began. */
+  const opening = (reads, own, openCalls) =>
+    saidOfWait({ landed: reads, begun: [], openCalls }, { own }, { from: 0, to: 1000, name: "SETTLED", load: true })
+      ?.open_db_n;
+  const people = [
+    landed("read", "http://x/api/v1/contacts?workspace=acme", 500, 300, calls(19)),
+    landed("read", "http://x/api/v1/segments?workspace=acme", 600, 200, calls(3)),
+    // Another page's read, and one of its own that landed after: neither is counted.
+    landed("read", "http://x/api/v1/playbooks?workspace=acme", 700, 200, calls(28)),
+    landed("read", "http://x/api/v1/views?workspace=acme", 1500, 100, calls(2)),
+    landed("chunk", "http://x/_next/static/chunks/a.js", 400, 100),
+  ];
+  const own = new Set(["contacts", "segments", "views", "workspaces"]);
+  assert.equal(opening(people, own), 22);
+  assert.equal(opening(people, new Set(["views"])), undefined, "none of its own landed");
+  assert.equal(
+    opening([landed("read", "http://x/api/v1/contacts", 500, 300)], own),
+    undefined,
+    "a read that said no count leaves nothing to say",
+  );
+
+  // A page opened through one read: that read's head left before its reads ran, so its own count is the opening's.
+  const today = [
+    landed("read", "http://x/api/v1/open?route=today&workspace=acme", 800, 700, calls(2)),
+    landed("read", "http://x/api/v1/views?workspace=acme", 900, 100, calls(4)),
+  ];
+  const mine = new Set(["open", "views", "workspaces"]);
+  assert.equal(opening(today, mine, 180), 184, "the opening's count in place of the head's");
+  assert.equal(opening(today, mine), 6, "with none kept, what the head said");
+  assert.equal(opening([], mine, 180), 180, "kept before the read itself has landed");
+  assert.equal(
+    opening([landed("read", "http://x/api/v1/open", 800, 700, calls(20_000))], mine),
+    10_000,
+    "a great many is said as the table's most",
+  );
+});
+
+test("a report says its counts beside what its wait went on: a load's READY the reads begun ahead, a SETTLED the opening's calls", () => {
+  const seen = {
+    landed: [landed("read", "http://x/api/v1/open?route=today&workspace=acme", 800, 700, calls(2))],
+    begun: [
+      { key: "contacts", at: 100 },
+      { key: "playbooks", at: 5100 },
+    ],
+    openCalls: 180,
+  };
+  const page = { own: new Set(["open", "workspaces", "today"]) };
+  const ready = saidOfWait(seen, page, { from: 0, to: 900, name: "READY", load: true });
+  assert.equal(ready.wait, "open", "what the wait went on, as ever");
+  assert.equal(ready.ahead_n, 1);
+  assert.equal(ready.open_db_n, undefined, "the calls are SETTLED's to say, once every read is in");
+  const settled = saidOfWait(seen, page, { from: 0, to: 1200, name: "SETTLED", load: true });
+  assert.equal(settled.open_db_n, 180);
+  assert.equal(settled.ahead_n, undefined);
+
+  // A move: no reads counted ahead of it, and the opening's count is the load's alone.
+  assert.equal(
+    saidOfWait(seen, page, { from: 5000, to: 5300, name: "READY", load: false }),
+    undefined,
+    "nothing landed in it, and a move counts none ahead",
+  );
+  assert.equal(saidOfWait(seen, page, { from: 5000, to: 5300, name: "SETTLED", load: false }), undefined);
+  assert.deepEqual(
+    saidOfWait({ landed: [], begun: [] }, page, { from: 0, to: 900, name: "READY", load: true }),
+    { ahead_n: 0 },
+    "a load that began none says none: the number the rule is held to",
+  );
+});
+
+test("the rules say which report a wait is asked of, and whether the visit is a load", () => {
+  const asked = [];
+  const rig = speedRig((page, from, to, said) => void asked.push([page, said]));
+  rig.speed.begin("today", { from: null, at: 0, warm: false, cold: true });
+  rig.speed.partBegins({ page: "today", part: PRIMARY_PART.today, key: "", warm: false, changed: false }, 0);
+  rig.speed.partReady("today", PRIMARY_PART.today, "");
+  rig.paint(900);
+  rig.speed.settle("today");
+  rig.paint(1200);
+  rig.speed.begin("calendar", { from: "today", at: 2000, warm: false, cold: true });
+  rig.speed.partBegins({ page: "calendar", part: PRIMARY_PART.calendar, key: "", warm: false, changed: false }, 2000);
+  rig.speed.partReady("calendar", PRIMARY_PART.calendar, "");
+  rig.paint(2100);
+  assert.deepEqual(asked, [
+    ["today", { name: "READY", load: true }],
+    ["today", { name: "SETTLED", load: true }],
+    ["calendar", { name: "READY", load: false }],
+  ]);
+});
+
+test("a report may say the two counts, each a whole number that is not negative", () => {
+  const report = (detail) =>
+    PageVitalReport.safeParse({ id: "s1-1", name: "SETTLED", value: 1200, page: "today", detail }).success;
+  assert.ok(report({ open_db_n: 180, ahead_n: 22 }));
+  assert.ok(report({ open_db_n: 0, ahead_n: 0 }));
+  assert.ok(!report({ open_db_n: -1 }));
+  assert.ok(!report({ ahead_n: 2.5 }));
+});
+
 test("the browser's five as reports: a load's are its landing page's, a move's are the page it reached and the page it left", () => {
   assert.deepEqual(reportOf(metric({ name: "TTFB", value: 111 }), host), { id: "v6-1-2", name: "TTFB", value: 111 });
   const soft = metric({
@@ -586,8 +734,43 @@ test("the first paint warns under 8 in 10, and a page that never drew one says o
     vm.firstRows.map((l) => [l.label, l.tone, l.hint]),
     [
       ["People · 4 in 10", "warn", "Drew it in 300 ms · not drawn: too old 15 · 25 opens"],
-      ["Today · 0 in 10", "warn", "Not drawn: none kept 25 · 25 opens"],
+      ["Today · none kept", "warn", "Not drawn: none kept 25 · 25 opens"],
     ],
+  );
+});
+
+test("the first paint's share is of the opens where a copy could have been: an open with nothing kept is no miss", () => {
+  const vm = pageSpeedWords({
+    rows: [
+      firstPaint("inbox", "first-rows", 32, 300),
+      // A first open after signing in, and an address with more after it: no copy could have stood.
+      firstPaint("inbox", "first-rows-none", 18),
+      firstPaint("inbox", "first-rows-address", 2),
+      firstPaint("inbox", "first-rows-sheets", 4),
+      firstPaint("inbox", "first-rows-scrolled", 3),
+      firstPaint("inbox", "first-rows-open", 1),
+      firstPaint("people", "first-rows", 10, 300),
+      firstPaint("people", "first-rows-typed", 6),
+      firstPaint("people", "first-rows-reading", 5),
+      firstPaint("people", "first-rows-long", 4),
+    ],
+    spots: [],
+  });
+  assert.deepEqual(
+    vm.firstRows.map((l) => [l.label, l.tone, l.hint]),
+    [
+      [
+        "Inbox · 8 in 10",
+        "ok",
+        "Drew it in 300 ms · not drawn: none kept 18, styles changed 4, scrolled 3, a longer address 2, something open 1 · 60 opens",
+      ],
+      [
+        "People · 4 in 10",
+        "warn",
+        "Drew it in 300 ms · not drawn: something typed 6, still reading 5, too long to keep 4 · 25 opens",
+      ],
+    ],
+    "32 of the 40 opens that could have had one, never of all 60",
   );
 });
 

@@ -33,10 +33,19 @@ interface SpeedDeps {
   /** Calls back with the time just after the next frame is painted; never in a tab nothing paints. */
   afterPaint(fn: (at: number) => void): void;
   emit(report: SpeedReport): void;
-  /** What the page's wait between two times went on: the reads and chunks that landed in it (installPageSpeed's watch). */
-  waits(page: string, from: number, to: number): PageVitalDetailDto | undefined;
+  /**
+   * What the page's wait between two times went on: the reads and chunks that landed in it (installPageSpeed's watch), and
+   * the count the report it is asked of keeps of the load around it (saidOfWait).
+   */
+  waits(page: string, from: number, to: number, kind: WaitKind): PageVitalDetailDto | undefined;
   /** The same number, said in the browser's timeline (performance.measure), with the report itself. */
   measure?(name: string, start: number, end: number, report: SpeedReport): void;
+}
+
+/** Which report a wait is asked of: its metric, and whether its visit is a load (the document's own) or a move. */
+interface WaitKind {
+  name: "READY" | "SETTLED";
+  load: boolean;
 }
 
 /** A part of the page on screen beginning to show `key` (`""` for a part that shows one thing), with whether its rows
@@ -110,7 +119,7 @@ export function createPageSpeed(deps: SpeedDeps): PageSpeed {
     if (v.shown) return;
     v.shown = true;
     // What it waited on, held rows or not: a move whose rows were held can still wait for its page (the router's fetch).
-    const detail = deps.waits(v.page, v.at, at);
+    const detail = deps.waits(v.page, v.at, at, { name: "READY", load: v.from === null });
     say(
       {
         name: "READY",
@@ -193,7 +202,7 @@ export function createPageSpeed(deps: SpeedDeps): PageSpeed {
       if (!v.cold) return;
       deps.afterPaint((at) => {
         if (!live(v)) return;
-        const detail = deps.waits(v.page, v.at, at);
+        const detail = deps.waits(v.page, v.at, at, { name: "SETTLED", load: v.from === null });
         say(
           {
             name: "SETTLED",
@@ -336,4 +345,104 @@ export function waitOf(
   if (chunk) detail.chunk_ms = shareMs(chunk.duration);
   detail.render_ms = shareMs(to - Math.max(from, read?.end ?? from, chunk?.end ?? from));
   return detail;
+}
+
+/* --------------------------------- what a load asked for around its page --------------------------------- */
+
+/** A read the app itself began (bridge/api.ts): its route's words, and when on the page's clock. */
+interface Begun {
+  key: string;
+  at: number;
+}
+
+/** How many begun reads are held: the latest, which are the ones a load's first seconds can hold. */
+const BEGUN_HELD = 300;
+/** More reads begun ahead of a page than this is said as this many (contracts PageVitalDetail). */
+const AHEAD_CEILING = 1000;
+/** The one read a page may open through (GET open), by its route's word. */
+const OPEN_READ = "open";
+
+/**
+ * The reads the app begins, kept as each leaves: by its route's words alone (readKeyOf), and when. What is no read of the
+ * app's own is not kept. The reads the document's head started never pass here: they are the page's own, begun before any
+ * of this code ran.
+ */
+export function readsBegun(
+  now: () => number,
+  held = BEGUN_HELD,
+): { note(url: string): void; readonly list: readonly Begun[] } {
+  const list: Begun[] = [];
+  return {
+    list,
+    note(url) {
+      const key = readKeyOf(url);
+      if (!key) return;
+      list.push({ key, at: now() });
+      if (list.length > held) list.splice(0, list.length - held);
+    },
+  };
+}
+
+/**
+ * How many reads for other pages the app began inside a wait: from its start until the page was drawn, those that are none
+ * of the page's own (`own`, the reads it opens on). The number the page-first rule is held to, which is none (the plan
+ * "Pages that open at once", piece 3).
+ */
+function aheadOf(begun: readonly Begun[], from: number, to: number, own: ReadonlySet<string>): number {
+  return begun.filter((b) => b.at >= from && b.at < to && !own.has(b.key)).length;
+}
+
+/**
+ * The database calls a page's own reads came to inside a wait: each read's own count, as its answer said it (Server-Timing's
+ * `db`). A page opened through one read (GET open) is answered before its reads have run, so that read's head says almost
+ * none: the opening's own count (`openCalls`, the answer's last line, contracts OPENING_MARK) stands in its place, whether or
+ * not the read itself has landed yet. Undefined where no read of its own said a count.
+ */
+function openingCallsOf(
+  { landed, openCalls }: Pick<LoadSeen, "landed" | "openCalls">,
+  from: number,
+  to: number,
+  { own = new Set(), here }: WaitPage,
+): number | undefined {
+  let counted = openCalls !== undefined;
+  let total = openCalls ?? 0;
+  for (const l of landed) {
+    if (l.kind !== "read" || l.end <= from || l.end > to) continue;
+    const key = waitKeyOf(l.name, here);
+    if (!key || !own.has(key) || (key === OPEN_READ && openCalls !== undefined)) continue;
+    const calls = serverShareOf(l).db_n;
+    if (calls === undefined) continue;
+    counted = true;
+    total += calls;
+  }
+  return counted ? Math.min(DB_CALLS_CEILING, total) : undefined;
+}
+
+/** What the shell has seen of a load: what landed, the reads the app began, and the opening's own count of its calls. */
+interface LoadSeen {
+  landed: readonly Landed[];
+  begun: readonly Begun[];
+  /** The database calls GET open's last line said, where the page opened through it and the browser kept the mark. */
+  openCalls?: number | undefined;
+}
+
+/**
+ * What a report says beside its number: what its wait went on (waitOf), and the count that report keeps of the load around
+ * it. A load's READY, the reads begun for other pages before its page was drawn; a SETTLED, the database calls its own
+ * reads came to, with the opening's own count a load's alone. A move counts none ahead: what begins around it is the app
+ * at work, not a page waiting on its own.
+ */
+export function saidOfWait(
+  seen: LoadSeen,
+  page: WaitPage,
+  { from, to, name, load }: { from: number; to: number } & WaitKind,
+): PageVitalDetailDto | undefined {
+  const detail: PageVitalDetailDto = waitOf(seen.landed, from, to, page) ?? {};
+  if (name === "READY" && load)
+    detail.ahead_n = Math.min(AHEAD_CEILING, aheadOf(seen.begun, from, to, page.own ?? new Set()));
+  if (name === "SETTLED") {
+    const calls = openingCallsOf({ landed: seen.landed, openCalls: load ? seen.openCalls : undefined }, from, to, page);
+    if (calls !== undefined) detail.open_db_n = calls;
+  }
+  return Object.keys(detail).length ? detail : undefined;
 }

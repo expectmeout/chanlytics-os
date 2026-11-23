@@ -12,6 +12,7 @@ import {
   FIRST_ROWS_END_ATTR,
   FIRST_ROWS_ID,
   FIRST_ROWS_MISS_ATTR,
+  FIRST_ROWS_MOST_CHARS,
   FIRST_ROWS_SHEETS_ATTR,
   FIRST_ROWS_SLOT,
 } from "@chanlytics/contracts";
@@ -117,7 +118,18 @@ const heard = () => notes.map((n) => [n.page, n.part]);
 
 /** The page put away, as a phone's browser says so. */
 const putAway = () => globalThis.dispatchEvent({ type: "pagehide" });
-const copiesKept = () => [...onDevice.keys()].filter((k) => k.startsWith(FIRST_ROWS_SLOT));
+/** The slots that hold a copy of a screen: one that holds only why none was kept is no copy. */
+const copiesKept = () =>
+  [...onDevice.keys()].filter((k) => k.startsWith(FIRST_ROWS_SLOT) && "html" in JSON.parse(onDevice.get(k)));
+const INBOX_SLOT = `${FIRST_ROWS_SLOT}acme:inbox`;
+/** Why the Inbox's screen was last left with no copy, as its slot says it; undefined where it holds a copy or nothing. */
+const whyUnkept = () => JSON.parse(onDevice.get(INBOX_SLOT) ?? "{}").why;
+/** The screen put away scrolled down, as a person who read on leaves it. */
+const putAwayScrolled = () => {
+  globalThis.scrollY = 40;
+  putAway();
+  globalThis.scrollY = 0;
+};
 
 /** A load over a document as `over` stamps it: the parts the frame reports as it installs. */
 const installedOver = (word, over) => {
@@ -226,6 +238,15 @@ test("the frame says why none was drawn, on a phone at a page that keeps one", (
   assert.equal(notes[0].page, "today", "a workspace's own address is Today's");
 });
 
+test("a word the document stamped that is no miss the table knows is said as nothing kept", () => {
+  assert.deepEqual(installedOver(null, { miss: "scrolled" }), ["first-rows-scrolled"], "a word of the list, as it is");
+  assert.deepEqual(
+    installedOver(null, { miss: "anything else" }),
+    ["first-rows-none"],
+    "a slot is only text: a word out of the list would be a report the table refuses, lost in silence",
+  );
+});
+
 test("a load that could never have had a copy is no miss", () => {
   assert.deepEqual(installedOver(null, { path: "/w/acme/calendar" }), [], "a page that keeps none");
   assert.deepEqual(installedOver(null, { path: "/w/acme/inbox/th-1" }), [], "a thread's address");
@@ -303,6 +324,84 @@ test("a copy keeps the test ids a stylesheet draws by, and no id the app looks i
   SCREEN.cloneNode = clone;
   assert.ok(taken.has("id"), "a second #pg-act would take a page's act");
   assert.ok(!taken.has("data-testid"), "dashboard-a-v2.css draws Today's setup card by them");
+});
+
+test("a screen that keeps no copy says why in the copy's place: scrolled, typed in, open, still reading, or too long", () => {
+  stand(null);
+  fresh();
+  installFirstRows(globalThis);
+  /** The screen answering one of the frame's own questions as `selector` on it would, until put back. */
+  const holding = (selector) => {
+    const atRest = SCREEN.querySelector;
+    SCREEN.querySelector = (selectors) => (selectors.split(",").includes(selector) ? {} : null);
+    return () => (SCREEN.querySelector = atRest);
+  };
+  const states = {
+    scrolled: () => {
+      globalThis.scrollY = 40;
+      return () => (globalThis.scrollY = 0);
+    },
+    reading: () => holding(".route-reading"),
+    open: () => holding('[aria-modal="true"]'),
+    typed: () => {
+      const none = SCREEN.querySelectorAll;
+      SCREEN.querySelectorAll = (selectors) => (selectors.includes("textarea") ? [{ value: "ana" }] : []);
+      return () => (SCREEN.querySelectorAll = none);
+    },
+    long: () => {
+      const clone = SCREEN.cloneNode;
+      SCREEN.cloneNode = () => ({ ...clone(), outerHTML: "x".repeat(FIRST_ROWS_MOST_CHARS + 1) });
+      return () => (SCREEN.cloneNode = clone);
+    },
+  };
+  for (const [why, enter] of Object.entries(states)) {
+    onDevice.clear();
+    const leave = enter();
+    putAway();
+    leave();
+    assert.equal(whyUnkept(), why);
+    assert.deepEqual(copiesKept(), [], `${why}: and no copy`);
+    assert.ok(
+      onDevice.get(INBOX_SLOT).startsWith('{"at":'),
+      "when, first, as a copy says it: its age is read from its head",
+    );
+    putAway();
+    assert.equal(copiesKept().length, 1, "the same screen at rest keeps one, in the word's place");
+    assert.equal(whyUnkept(), undefined);
+  }
+});
+
+test("a copy that may still be drawn is never given up for a word", () => {
+  stand(null);
+  fresh();
+  installFirstRows(globalThis);
+  onDevice.clear();
+  putAway();
+  const kept = onDevice.get(INBOX_SLOT);
+  assert.equal(copiesKept().length, 1);
+  putAwayScrolled();
+  assert.equal(onDevice.get(INBOX_SLOT), kept, "scrolled this time: the copy from before stands");
+});
+
+test("a copy that could no longer be drawn gives way to the word: past its age, under other stylesheets, at another width", () => {
+  stand(null);
+  fresh();
+  installFirstRows(globalThis);
+  const standing = (over) =>
+    JSON.stringify({ at: Date.now() - 1000, width: 393, sheets: "1", vars: "", html: "<div>old</div>", ...over });
+  const stale = {
+    "past its age": { at: Date.now() - 2 * 24 * 60 * 60 * 1000 },
+    "other stylesheets": { sheets: "2" },
+    "another width": { width: 430 },
+  };
+  for (const [how, over] of Object.entries(stale)) {
+    onDevice.set(INBOX_SLOT, standing(over));
+    putAwayScrolled();
+    assert.equal(whyUnkept(), "scrolled", `${how}: the next load would have said the old reason again`);
+  }
+  onDevice.set(INBOX_SLOT, "not json");
+  putAwayScrolled();
+  assert.equal(onDevice.get(INBOX_SLOT), "not json", "a slot it cannot read is not its to judge");
 });
 
 // Last in the file: a seal is for the page's life, and each file runs in a process of its own.

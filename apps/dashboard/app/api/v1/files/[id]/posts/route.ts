@@ -2,7 +2,7 @@ import { z } from "zod";
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
 import { moveFilePost } from "@/server/posts/instagram";
-import { sayDeletedByHand, takePieceDown } from "@/server/posts/take-down";
+import { sayOfPostByHand, takePieceDown } from "@/server/posts/take-down";
 
 /**
  * PATCH /api/v1/files/:id/posts — `{ post_id, when }`: Change time (00621), for a post of this file still waiting for its time,
@@ -16,7 +16,9 @@ import { sayDeletedByHand, takePieceDown } from "@/server/posts/take-down";
  * again as a new post. Answers `{ asked, cancelled, ads }`; refused where nothing of it is up, waiting or showing.
  *
  * PUT — `{ post_id }`: "I deleted it", of a post Chanlytics could not take down itself. The place is asked whether it is
- * gone, and the post is taken down once the place shows it is. Answers `{ asking }`.
+ * gone, and the post is taken down once the place shows it is. With `keep: true` it is "Keep it up" (00689): the post
+ * stays up on the owner's word, the reminder ends, and nothing is asked of the place until Take down is pressed again.
+ * Answers `{ asking, left_up }`: where the post's take-down now stands.
  *
  * The handles are in src/server/posts/instagram.ts and src/server/posts/take-down.ts.
  */
@@ -39,6 +41,6 @@ export const PUT = write({
   scope: fileScope,
   role: "partner",
   rate: "settings",
-  input: z.strictObject({ post_id: z.uuid() }),
-  handle: ({ ctx, input, member, row }) => sayDeletedByHand(ctx, member, row, input),
+  input: z.strictObject({ post_id: z.uuid(), keep: z.literal(true).optional() }),
+  handle: ({ ctx, input, member, row }) => sayOfPostByHand(ctx, member, row, input),
 });
