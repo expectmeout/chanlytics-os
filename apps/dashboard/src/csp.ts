@@ -65,6 +65,11 @@ export interface CspInputs {
   dev?: boolean;
   /** Riding the report-only header: upgrade-insecure-requests is ignored there, and the browser says so on every page. */
   reportOnly?: boolean;
+  /**
+   * Who may show the page framed in theirs: nobody, for every page of the app; a form's own sites for its framed address
+   * (the Forms plan, F4: contracts frameAncestorsOf), which knows no session.
+   */
+  frameAncestors?: readonly string[];
 }
 
 const META = [
@@ -181,7 +186,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
     ["object-src", ["'none'"]],
     ["base-uri", ["'self'"]],
     ["form-action", ["'self'"]],
-    ["frame-ancestors", ["'none'"]],
+    ["frame-ancestors", o.frameAncestors?.length ? [...o.frameAncestors] : ["'none'"]],
   ];
   const parts = directives.map(([name, values]) => `${name} ${values.join(" ")}`);
   // A copy with its database on plain http (the nightly's own stack) has no https to be upgraded to: a picture's redirect

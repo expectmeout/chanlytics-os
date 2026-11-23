@@ -15,7 +15,7 @@ export type FormStateDto = "draft" | "live" | "off";
 export type EntryStandingDto = "open" | "answered" | "held" | "test";
 
 /** Why an entry is held, as the database keeps it. */
-export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member";
+export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
 
 /** A form as Campaigns › Forms lists it. */
 export interface FormListRowDto {
@@ -46,6 +46,11 @@ export interface FormLinkDto {
   opens: number;
   requests: number;
   visits: number;
+  /**
+   * The sites the form may show on, framed in their own page (F4), each with when a request last came from it: null for
+   * every place that is not the website.
+   */
+  sites: Array<{ host: string; last_entry_at: string | null }> | null;
 }
 
 /** One entry as the sheet lists it. */
@@ -241,6 +246,9 @@ export const FormLinkPress = z.discriminatedUnion("act", [
   z.strictObject({ act: z.literal("make"), form_id: z.uuid(), place: z.string().trim().min(1).max(60) }),
   z.strictObject({ act: z.literal("rename"), link_id: z.uuid(), place: z.string().trim().min(1).max(60) }),
   z.strictObject({ act: z.enum(["stop", "start"]), link_id: z.uuid() }),
+  // A site the form may show on, framed in their own page (F4): the first makes the form's website link.
+  z.strictObject({ act: z.literal("site_add"), form_id: z.uuid(), site: z.string().trim().min(1).max(200) }),
+  z.strictObject({ act: z.literal("site_remove"), form_id: z.uuid(), site: z.string().trim().min(1).max(200) }),
 ]);
 export type FormLinkPress = z.infer<typeof FormLinkPress>;
 

@@ -5809,6 +5809,7 @@ export type Database = {
           lands: string | null
           place: string
           printed: boolean
+          sites: string[] | null
           stopped_at: string | null
           subject_id: string
           subject_type: string
@@ -5822,6 +5823,7 @@ export type Database = {
           lands?: string | null
           place: string
           printed?: boolean
+          sites?: string[] | null
           stopped_at?: string | null
           subject_id: string
           subject_type: string
@@ -5835,6 +5837,7 @@ export type Database = {
           lands?: string | null
           place?: string
           printed?: boolean
+          sites?: string[] | null
           stopped_at?: string | null
           subject_id?: string
           subject_type?: string

@@ -66,7 +66,7 @@ what the script writes.
 | [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_days`](#form_days) | none | on, 1 policy |
-| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
@@ -1806,7 +1806,7 @@ Foreign keys:
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
 
-- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1831,7 +1831,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `source` | jsonb | yes |  | Where the entry came from, in the one shape a website entry keeps (contracts EntrySource; the Ads tracking plan's T4): the link's code, the page, the site it came from and any campaign labels. Never a click id. |
 | `reach` | jsonb | yes |  | Who a hosted form's entry is about, as typed: {name, email, phone}. What a held entry is let through with, what a reply's address is compared with, and what an erased person's held entries are found by. |
 | `test` | boolean | no | `false` | A test its owner sent: it tells nobody, counts nowhere, has no person, and goes after 7 days. |
-| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member). |
+| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form's address and not from its own page (elsewhere, 00703). |
 | `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
 | `code_used_at` | timestamp with time zone | yes |  |  |
 
@@ -2856,6 +2856,7 @@ A short link for one place a thing of the business's is shared (00680; the conte
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `stopped_at` | timestamp with time zone | yes |  |  |
 | `lands` | text | yes |  | Where a post's link lands (00699): chat (a chat with the business carrying the post's code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form's. |
+| `sites` | text[] | yes |  | The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them. |
 
 Foreign keys:
 

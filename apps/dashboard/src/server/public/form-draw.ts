@@ -18,6 +18,7 @@ import {
   escapeHtml,
   fillWords,
   FORM_LIMITS,
+  frameAncestorsOf,
   type FormDescription,
   type FormField,
   type FormPageWords,
@@ -115,6 +116,27 @@ m.addEventListener('change',function(e){var t=e.target,b=m.querySelector('.go[da
 if(b&&t.closest&&t.closest('[data-times]'))b.textContent=t.value?b.dataset.ask:b.dataset.plain});
 wire()})();`;
 
+/**
+ * The few lines a page framed in a business's own site adds (F4): it tells the page around it how tall it is, so the
+ * frame grows with the form and nothing scrolls inside it, and takes the campaign labels of that page's address from
+ * the small script beside the frame (/f/fit.js), only from a site the form may show on. Without either script the
+ * frame keeps its height and scrolls inside, and the form still sends.
+ */
+const frameScriptOf = (sites: readonly string[]): string =>
+  `(function(){if(parent===window)return;var S=${JSON.stringify(frameAncestorsOf(sites).filter((s) => s.startsWith("https://")))};
+function tell(){try{parent.postMessage({chanlytics:'form',height:Math.ceil(document.documentElement.getBoundingClientRect().height)},'*')}catch(e){}}
+if(window.ResizeObserver)new ResizeObserver(tell).observe(document.documentElement);else addEventListener('resize',tell);
+addEventListener('load',tell);tell();
+addEventListener('message',function(e){if(e.source!==parent||S.indexOf(e.origin)<0||!e.data||e.data.chanlytics!=='labels')return;
+var f=document.querySelector('main form'),l=e.data.labels||{};if(!f)return;
+['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(n){var v=l[n];
+if(typeof v!=='string'||!v||f.querySelector('[name="'+n+'"]'))return;var i=document.createElement('input');
+i.type='hidden';i.name=n;i.value=v.slice(0,120);f.appendChild(i)})})})();`;
+
+/** How a link that leaves the form opens: beside it where the form is framed in another site's page, else in place. */
+const outward = (frame: Pick<FormPageFrame, "framed">): string =>
+  frame.framed ? ` target="_blank" rel="noopener"` : "";
+
 const TICK = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 const SHUT = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/></svg>`;
 
@@ -144,6 +166,8 @@ export interface FormPageFrame {
   words: FormPageWords;
   /** A test its owner is sending: said in a band over the page. */
   test: boolean;
+  /** Framed in a business's own page (F4), and the sites it may show on: its links open beside it. */
+  framed: { sites: readonly string[] } | null;
 }
 
 /** The whole document around a page's main part: its head, what a pasted link shows, the footer and the script. */
@@ -160,9 +184,11 @@ export function formDocument(frame: FormPageFrame, main: string): string {
     frame.test ? `<p class="test"><b>A test.</b> It tells nobody and counts nowhere.</p>` : ""
   }<main>${main}</main>
 <footer><span>${escapeHtml(frame.business)}</span>${
-    frame.businessHref ? `<a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.words.privacy)}</a>` : ""
+    frame.businessHref
+      ? `<a href="${escapeHtml(frame.businessHref)}"${outward(frame)}>${escapeHtml(frame.words.privacy)}</a>`
+      : ""
   }</footer>
-<script>${FORM_SCRIPT}</script></body></html>`;
+<script>${FORM_SCRIPT}</script>${frame.framed ? `<script>${frameScriptOf(frame.framed.sites)}</script>` : ""}</body></html>`;
 }
 
 /** What a field shows of an earlier try: what was typed or picked, what is wrong, and an address offered as a fix. */
@@ -413,7 +439,7 @@ export function thanksMain(frame: FormPageFrame, thanks: ThanksShown): string {
   const head = thanks.name ? fillWords(words.thanks, { name: thanks.name }) : words.thanks_plain;
   const road = roadLines(frame, thanks);
   const chat = thanks.chatHref
-    ? `<a class="go wa" href="${escapeHtml(thanks.chatHref)}" rel="noopener">${escapeHtml(words.chat)}</a>`
+    ? `<a class="go wa" href="${escapeHtml(thanks.chatHref)}"${outward(frame) || ` rel="noopener"`}>${escapeHtml(words.chat)}</a>`
     : "";
   const sub = road.sub ? `<p class="sub">${road.sub}</p>` : "";
   const mark = businessMarkOf(frame.look, frame.business);
@@ -431,12 +457,12 @@ export function closedMain(frame: FormPageFrame, chatHref: string | null, about:
   const { words } = frame;
   const business = { business: frame.business };
   const chat = chatHref
-    ? `<a class="go wa" href="${escapeHtml(chatHref)}" rel="noopener">${escapeHtml(fillWords(words.message_business, business))}</a>`
+    ? `<a class="go wa" href="${escapeHtml(chatHref)}"${outward(frame) || ` rel="noopener"`}>${escapeHtml(fillWords(words.message_business, business))}</a>`
     : "";
   // Who they are: their own page where it opens, and what they do where they said. With neither, the page has named
   // them already, and a card would only say the name again.
   const named = frame.businessHref
-    ? `<a href="${escapeHtml(frame.businessHref)}">${escapeHtml(frame.business)}</a>`
+    ? `<a href="${escapeHtml(frame.businessHref)}"${outward(frame)}>${escapeHtml(frame.business)}</a>`
     : escapeHtml(frame.business);
   const card =
     frame.businessHref || about

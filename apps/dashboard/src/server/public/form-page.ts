@@ -33,6 +33,7 @@ import {
   readFormAnswers,
   SLUG,
   formSlotWords,
+  formFramePath,
   sourceFromSeen,
   type FormDescription,
   type FormPageWords,
@@ -41,7 +42,6 @@ import {
 import {
   findFormBySlug,
   findFormVersion,
-  type FormHeldWhy,
   type FormRequestTaken,
   type FormRequestToTake,
   type FormRead,
@@ -53,9 +53,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { findEmailReady } from "../connections/email-readiness";
 import { log } from "../shared/log";
-import { takeRate } from "../shared/rate-limit";
-import { hashKey, ipOf } from "../shared/request-ip";
 import { activeNumberOf } from "./facts";
+import { judgeEntry } from "../forms/held";
 import {
   closedMain,
   formDocument,
@@ -83,8 +82,6 @@ type Db = SupabaseClient<Database>;
 const FORM_BODY_MAX = 24_000;
 /** What the answers themselves may hold, as the entry keeps them. */
 const MAX_ANSWERS = 16_000;
-/** Faster than this from the page's drawing to its send is no person typing. */
-const TOO_FAST_MS = 2_000;
 
 const HTML = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" };
 
@@ -108,7 +105,22 @@ interface FormPlace {
   path: string;
   /** The same address as its owner's Test opens it. */
   testPath: string;
+  /**
+   * Where the form is shown framed in a business's own page (F4): its website link's code, which every entry from the
+   * frame carries, and the sites it may show on. Such a place knows no session and draws no test.
+   */
+  frame?: FormFrameAt;
 }
+
+/** A website's frame of a form (form-frame.ts): its link's code and the sites it may show on. */
+export interface FormFrameAt {
+  code: string;
+  sites: string[];
+}
+
+/** The form at a website's frame (F4): the same form, drawn at the frame's own address and posting back to it. */
+const framedAt = (place: FormPlace, frame: FormFrameAt | undefined): FormPlace =>
+  frame ? { ...place, path: formFramePath(frame.code), testPath: formFramePath(frame.code), frame } : place;
 
 /** The form an address names, or null for an address that opens nothing: no such workspace, no such form, or a draft. */
 export async function findFormPlace(db: Db, slug: string, formSlug: string): Promise<FormPlace | null> {
@@ -152,6 +164,7 @@ function pageFrameOf(
     intro: described.intro ?? null,
     words: formPageWords(described),
     test,
+    framed: place.frame ? { sites: place.frame.sites } : null,
   };
 }
 
@@ -184,10 +197,11 @@ function pageQueryOf(request: Request): Record<string, string> {
 }
 
 /** What rides with the answers, unseen, as the page was drawn: the entry's id, the version, and where it came from. */
-function carriedOf(request: Request, versionId: string): Record<string, string> {
+function carriedOf(request: Request, versionId: string, frame: FormFrameAt | undefined): Record<string, string> {
   const query = pageQueryOf(request);
   const carried: Record<string, string> = { entry_id: randomUUID(), version: versionId, t: String(Date.now()) };
-  if (query.l) carried.l = query.l.slice(0, 12);
+  const link = frame?.code ?? query.l;
+  if (link) carried.l = link.slice(0, 12);
   const referrer = request.headers.get("referer");
   if (referrer) carried.site = referrer.slice(0, 500);
   for (const [name, value] of Object.entries(query))
@@ -199,17 +213,29 @@ function carriedOf(request: Request, versionId: string): Record<string, string> 
 type Session = () => Promise<Db>;
 
 /**
+ * How a page is asked for: at the form's own address, with the session a test is read from; or framed in a business's
+ * own website (F4, form-frame.ts), which knows no session at all.
+ */
+type AskedBy = Session | FormFrameAt;
+
+const frameAskedBy = (by: AskedBy): FormFrameAt | undefined => (typeof by === "function" ? undefined : by);
+
+/** The session to read a test from: none for a frame, whose place never asks (isTest). */
+const sessionOf = (by: AskedBy): Session =>
+  typeof by === "function" ? by : () => Promise.reject(new Error("a framed form reads no session"));
+
+/**
  * Whether this is a test its owner is sending: the address says so, and whoever is signed in may act in the workspace
  * (read under their own row rules; a viewer, a stranger and nobody signed in send a real entry like anyone).
  */
-async function isTest(request: Request, session: Session, slug: string): Promise<boolean> {
-  if (pageQueryOf(request).test !== "1") return false;
+async function isTest(request: Request, session: Session, place: FormPlace): Promise<boolean> {
+  if (place.frame || pageQueryOf(request).test !== "1") return false;
   try {
     const client = await session();
     const { data } = await client.auth.getUser();
     if (!data.user) return false;
     const mine = await listMyMemberships(client, data.user.id);
-    return (mine.data ?? []).some((member) => member.role !== "viewer" && member.tenants.slug === slug);
+    return (mine.data ?? []).some((member) => member.role !== "viewer" && member.tenants.slug === place.workspace.slug);
   } catch {
     // Who is signed in could not be read: not a test.
     return false;
@@ -227,24 +253,21 @@ const timesFor = (place: FormPlace, described: FormDescription): Promise<FormTim
 
 /**
  * GET: the form as a visitor sees it, the closed page for one that is off, or nothing for an address that opens none.
- * `session` makes the signed-in person's own client: a member of this workspace alone may send a test.
+ * `by` is the session at the form's own address (a member of this workspace alone may send a test), or the website's
+ * frame it is drawn in, which knows none.
  */
-export async function drawFormPage(
-  slug: string,
-  formSlug: string,
-  request: Request,
-  session: Session,
-): Promise<Response> {
+export async function drawFormPage(slug: string, formSlug: string, request: Request, by: AskedBy): Promise<Response> {
   const db = linkPageDb();
   if (!db) return htmlPage(503, "");
-  const place = await findFormPlace(db, slug, formSlug);
-  if (!place) return nothingHere();
+  const found = await findFormPlace(db, slug, formSlug);
+  if (!found) return nothingHere();
+  const place = framedAt(found, frameAskedBy(by));
   if (place.form.state !== "live" || !place.form.liveVersionId) return closedPage(place, false);
   const version = await findFormVersion(db, place.tenantId, place.form.liveVersionId);
   if (!version?.description) return closedPage(place, false);
-  const carried = carriedOf(request, version.id);
+  const carried = carriedOf(request, version.id, place.frame);
   const [test, times] = await Promise.all([
-    isTest(request, session, place.workspace.slug),
+    isTest(request, sessionOf(by), place),
     timesFor(place, version.description),
   ]);
   const frame = pageFrameOf(place, version.description, test);
@@ -284,25 +307,6 @@ function rawAnswersOf(description: FormDescription, fields: Map<string, string[]
     typed[field.id] = fixed || (field.kind === "several" ? sent : (sent[0] ?? ""));
   }
   return typed;
-}
-
-/** Why an entry is held for a look, or null for one that reads as a person's. */
-async function doubtOf(
-  request: Request,
-  fields: Map<string, string[]>,
-  formId: string,
-): Promise<Exclude<FormHeldWhy, "member"> | null> {
-  if (first(fields, "website")) return "hidden_field";
-  const drawn = Number(first(fields, "t"));
-  if (Number.isFinite(drawn) && drawn > 0 && Date.now() - drawn < TOO_FAST_MS) return "too_fast";
-  try {
-    await takeRate(`form:${formId}:${hashKey(ipOf(request))}`, "form_sender");
-    await takeRate(`form:${formId}`, "form_day");
-  } catch {
-    // Past a limit: kept for a look, never refused to the visitor.
-    return "too_many";
-  }
-  return null;
 }
 
 /** The fields redrawn with what was typed, what is wrong, and an address offered as a fix. */
@@ -509,7 +513,7 @@ async function entryToKeep(
     }),
     linkCode: first(fields, "l") || null,
     test: read.test,
-    heldWhy: await doubtOf(request, fields, place.form.id),
+    heldWhy: await judgeEntry(request, { hidden: first(fields, "website"), drawn: first(fields, "t") }, place.form.id),
   };
 }
 
@@ -525,7 +529,7 @@ async function readSend(
   const shown = first(fields, "times");
   const when = shown === "1" ? "times" : shown === "page" ? "page" : "asked";
   const [test, times] = await Promise.all([
-    isTest(request, session, place.workspace.slug),
+    isTest(request, session, place),
     when === "asked" ? Promise.resolve(undefined) : timesFor(place, against.description),
   ]);
   const read: SendRead = { place, fields, against, typed: rawAnswersOf(against.description, fields), test, times };
@@ -536,25 +540,21 @@ async function readSend(
 }
 
 /**
- * POST: an entry taken. Answers the thank-you, the form again with what is wrong, or the closed page. `session`
- * makes the signed-in person's own client: a member of this workspace alone may send a test.
+ * POST: an entry taken. Answers the thank-you, the form again with what is wrong, or the closed page. `by` is the
+ * session at the form's own address (a member of this workspace alone may send a test), or the website's frame.
  *
  * A time picked from the open times (F3) is checked against the calendar as it stands now: one taken since, or too short
  * for the service picked, draws the form again with what is open now and nothing lost; one still open is held for the
  * business in the same write as the entry. Nothing here books it, and nothing says it is booked.
  */
-export async function takeFormPost(
-  slug: string,
-  formSlug: string,
-  request: Request,
-  session: Session,
-): Promise<Response> {
+export async function takeFormPost(slug: string, formSlug: string, request: Request, by: AskedBy): Promise<Response> {
   const fragment = request.headers.get("x-form") === "1";
   const db = linkPageDb();
   if (!db) return htmlPage(503, "");
   const fields = await postedFieldsOf(request);
-  const place = await findFormPlace(db, slug, formSlug);
-  if (!place) return nothingHere();
+  const found = await findFormPlace(db, slug, formSlug);
+  if (!found) return nothingHere();
+  const place = framedAt(found, frameAskedBy(by));
   if (place.form.state !== "live" || !place.form.liveVersionId) return closedPage(place, fragment);
   const live = await findFormVersion(db, place.tenantId, place.form.liveVersionId);
   if (!live?.description) return closedPage(place, fragment);
@@ -568,7 +568,7 @@ export async function takeFormPost(
   const saw = sawId && sawId !== live.id ? await findFormVersion(db, place.tenantId, sawId) : null;
   const against =
     saw?.description && saw.formId === place.form.id ? { id: saw.id, description: saw.description } : liveVersion;
-  const { read, answered } = await readSend(request, session, { place, fields, against });
+  const { read, answered } = await readSend(request, sessionOf(by), { place, fields, against });
   if (Object.keys(answered.problems).length > 0)
     return againPage(read, { problems: problemWords(against.description, answered.problems) }, 422, fragment);
   if (JSON.stringify(answered.answers).length > MAX_ANSWERS)

@@ -41,6 +41,15 @@ const SECURITY_HEADERS = [
   },
 ];
 
+/**
+ * A form framed in a business's own website (the Forms plan, F4): every header above but the two that refuse a frame.
+ * Its route names the sites that may frame it, in its own content policy (src/server/public/form-frame.ts), and the
+ * address knows no session, so the reason every other page refuses a frame does not hold there.
+ */
+const FRAMED_FORM_HEADERS = SECURITY_HEADERS.filter(
+  (header) => header.key !== "X-Frame-Options" && header.key !== "Content-Security-Policy",
+);
+
 /** Never stored, by any cache: a shared one, the browser's, or its back-button page cache. */
 const NO_STORE = [{ key: "Cache-Control", value: "private, no-store, max-age=0" }];
 
@@ -91,7 +100,9 @@ const nextConfig: NextConfig = {
   },
   headers() {
     return Promise.resolve([
-      { source: "/:path*", headers: SECURITY_HEADERS },
+      // Every address but a framed form's (/f/...), which takes the same headers less the two that refuse a frame.
+      { source: "/:path((?!f/).*)", headers: SECURITY_HEADERS },
+      { source: "/f/:path*", headers: FRAMED_FORM_HEADERS },
       {
         // The sign-in page must never sit in a shared or back-button cache: it
         // reflects the email being entered and its state decides what an
