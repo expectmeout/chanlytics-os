@@ -651,7 +651,10 @@ export function workspaceChannel() {
 /**
  * A config the settings save would accept, built by the same helpers. It takes videos (decision 0099, stage B): the nightly's
  * video journey (e2e/settings/files.spec.ts) runs only where `features.video_preview` is on, and this reset is what writes the
- * config each night, so a switch set on production by hand was gone by the next morning (10 Nov 2026).
+ * config each night, so a switch set on production by hand was gone by the next morning (10 Nov 2026). It keeps its made
+ * videos on Chanlytics' own shelf too (decision 0146, `features.video_shelf`): the test workspace is the one where the
+ * shelf is walked on production until it is offered to customers, and no nightly spec makes a real video, so it shelves
+ * nothing by itself.
  */
 export function workspaceConfig() {
   const brain = {
@@ -663,7 +666,7 @@ export function workspaceConfig() {
   const parsed = TenantConfigWriteSchema.safeParse({
     brain,
     notifications: { escalation_emails: [ALERT_INBOX] },
-    features: { video_preview: true },
+    features: { video_preview: true, video_shelf: true },
   });
   if (!parsed.success) {
     throw new Error(
