@@ -1,6 +1,8 @@
 /**
  * 00654's SQL as the copies' tests model it (the footage sources plan's P4, "Availability"): where a copy stands by
- * its origins, the letting go, a return's door and the seven-day cleanup, over tables in memory. Pure: it imports
+ * its origins, the letting go, a return's door and the seven-day cleanup, over tables in memory; and 00690's shelf
+ * beside them (the archive plan's B2): a made video's copy on Chanlytics' own shelf, begun with its job, checked, put
+ * back, and counted among what can give a copy back. Pure: it imports
  * nothing of the edge. The takes' doors (tests/files/takes/_doors.mjs) stand beside these in one world, and count
  * room the same way.
  *
@@ -30,6 +32,8 @@ export function copyDoors(tables, w) {
     "posts",
     "pieces",
     "events",
+    "file_archives",
+    "file_archive_parts",
   ])
     tables[name] ??= [];
   const now = () => new Date(w.nowMs).toISOString();
@@ -41,8 +45,26 @@ export function copyDoors(tables, w) {
     originsOf(tenantId, fileId)
       .filter((i) => RETURNABLE.includes(i.state))
       .sort((a, b) => Number(b.state === "in") - Number(a.state === "in"))[0] ?? null;
-  // file_copy_standing: null where an origin can give it back, else why none can.
+  // A file's shelf copy and its video's piece (00690): one a file at most.
+  const shelfOf = (tenantId, fileId) =>
+    tables.file_archives.find((a) => a.tenant_id === tenantId && a.file_id === fileId && a.origin === "shelf") ?? null;
+  const pieceOf = (shelf) =>
+    tables.file_archive_parts.find((p) => p.archive_id === shelf.id && p.part === "video") ?? null;
+  // file_copy_shelved: a shelf copy that is checked, its video's piece too. A saved or a picked copy never counts.
+  const shelved = (tenantId, fileId) => {
+    const shelf = shelfOf(tenantId, fileId);
+    return Boolean(shelf && shelf.state === "checked" && pieceOf(shelf)?.state === "checked");
+  };
+  // A copy on its way to the shelf, or one the shelf only refused: its own file is still there to put it from.
+  const shelfMayYet = (tenantId, fileId) => {
+    const shelf = shelfOf(tenantId, fileId);
+    return Boolean(
+      shelf && (["saving", "saved"].includes(shelf.state) || (shelf.state === "failed" && shelf.why === "refused")),
+    );
+  };
+  // file_copy_standing: null where the shelf or an origin can give it back, else why none can.
   const standingOf = (tenantId, fileId) => {
+    if (shelved(tenantId, fileId) || shelfMayYet(tenantId, fileId)) return null;
     if (originOf(tenantId, fileId)) return null;
     const stone = originsOf(tenantId, fileId)
       .filter((i) => TOMBSTONES.includes(i.state))
@@ -65,17 +87,21 @@ export function copyDoors(tables, w) {
         )
         .map((s) => s.id),
     );
-  /** A copy that could ever be let go: a watched clip its owner did not upload, here, playable, that can come back. */
+  /**
+   * A copy that could ever be let go: here, playable, and something can give it back: a watched clip its owner did
+   * not upload that can come back, or a video with a checked copy on the shelf (00690).
+   */
   const mayEverGo = (f, tenantId) =>
     f.tenant_id === tenantId &&
     f.kind === "video" &&
-    f.source === "drive" &&
-    !f.owner_uploaded &&
     !f.removed_at &&
     (f.copy_state ?? "here") === "here" &&
     f.media_status === "ready" &&
     f.media_ref &&
-    originsOf(f.tenant_id, f.id).some((i) => i.state === "in" && reading().has(i.source_id));
+    ((f.source === "drive" &&
+      !f.owner_uploaded &&
+      originsOf(f.tenant_id, f.id).some((i) => i.state === "in" && reading().has(i.source_id))) ||
+      shelved(f.tenant_id, f.id));
   const makingNames = (f) =>
     tables.pieces.some((p) => p.tenant_id === f.tenant_id && p.status === "making" && named(p.plan, f.id));
   /** file_was_used: a post of it, a video made or being made that names it, a file made from it. */
@@ -100,6 +126,35 @@ export function copyDoors(tables, w) {
     });
     tables.events.push({ tenant_id: file.tenant_id, kind: "file.removed", data: { file_id: file.id, why } });
   };
+  /** The shelf's job on the ledger, held once a file while one waits or runs (job_kinds: file_shelve). */
+  const writeShelveJob = (tenantId, fileId) => {
+    const live = tables.jobs.some(
+      (j) =>
+        j.kind === "file_shelve" &&
+        j.tenant_id === tenantId &&
+        j.payload?.file_id === fileId &&
+        ["scheduled", "fired"].includes(j.state),
+    );
+    if (live) return false;
+    tables.jobs.push({
+      id: randomUUID(),
+      tenant_id: tenantId,
+      kind: "file_shelve",
+      state: "scheduled",
+      due_at: now(),
+      payload: { file_id: fileId },
+    });
+    return true;
+  };
+  /** A copy that is away or lost, set to what its origins now say: what file_copy_settle writes. */
+  const settleRow = (tenantId, fileId) => {
+    const row = fileOf(tenantId, fileId);
+    if (!row) return null;
+    const lost = standingOf(tenantId, fileId);
+    if ((row.copy_state === "away" && lost) || (row.copy_state === "lost" && lost !== row.copy_why))
+      Object.assign(row, { copy_state: lost ? "lost" : "away", copy_why: lost, updated_at: now() });
+    return row;
+  };
   /** Held by its own road (an upload, a found road, its owner's upload of it) rather than only by a folder. */
   const heldByItsRoad = (file) => file.source !== "drive" || file.owner_uploaded === true;
   const dayRow = () => {
@@ -113,15 +168,13 @@ export function copyDoors(tables, w) {
   return {
     file_copy_settle: (a) => {
       w.asked.push({ door: "file_copy_settle", ...a });
-      const row = fileOf(a.p_tenant_id, a.p_file_id);
+      const row = settleRow(a.p_tenant_id, a.p_file_id);
       if (!row) return { copy_state: null };
-      const lost = standingOf(a.p_tenant_id, a.p_file_id);
-      if ((row.copy_state === "away" && lost) || (row.copy_state === "lost" && lost !== row.copy_why))
-        Object.assign(row, { copy_state: lost ? "lost" : "away", copy_why: lost, updated_at: now() });
       return {
         copy_state: row.copy_state ?? "here",
         copy_why: row.copy_why ?? null,
         item_id: originOf(a.p_tenant_id, a.p_file_id)?.id ?? null,
+        shelf: shelved(a.p_tenant_id, a.p_file_id),
       };
     },
     // By room (p_seconds) the least recently used first, as many as free what is short and none where all would not;
@@ -198,16 +251,17 @@ export function copyDoors(tables, w) {
           Object.assign(row, { copy_state: "away", copy_why: "room", updated_at: now() });
           return { fate: "room", seconds };
         }
-        const spent = dayRow();
         const day = pacificDay(w.nowMs);
         const today = tables.files.filter(
           (f) =>
             f.tenant_id === a.p_tenant_id && f.copy_returned_at && pacificDay(Date.parse(f.copy_returned_at)) === day,
         ).length;
+        // From the shelf (00690): nothing of a provider's day is asked or written; the workspace's own returns bind.
+        const spent = shelved(a.p_tenant_id, a.p_id) ? null : dayRow();
         const binds =
-          spent.units + a.p_units > a.p_units_max
+          spent && spent.units + a.p_units > a.p_units_max
             ? "units"
-            : spent.bytes + Number(row.bytes ?? 0) > a.p_platform_bytes_max
+            : spent && spent.bytes + Number(row.bytes ?? 0) > a.p_platform_bytes_max
               ? "platform_bytes"
               : today + 1 > a.p_workspace_returns_max
                 ? "workspace_returns"
@@ -216,8 +270,10 @@ export function copyDoors(tables, w) {
           Object.assign(row, { copy_state: "away", copy_why: "budget", updated_at: now() });
           return { fate: "wait", binds, until: nextPacificDay(w.nowMs).toISOString() };
         }
-        spent.bytes += Number(row.bytes ?? 0);
-        spent.returns += 1;
+        if (spent) {
+          spent.bytes += Number(row.bytes ?? 0);
+          spent.returns += 1;
+        }
         row.copy_returned_at = now();
       }
       Object.assign(row, { copy_state: "returning", copy_why: null, media_ref: null, updated_at: now() });
@@ -234,6 +290,130 @@ export function copyDoors(tables, w) {
       if (!row || row.copy_state !== "returning" || (row.media_ref ?? null) !== (a.p_media_ref ?? null)) return false;
       Object.assign(row, { copy_state: "away", copy_why: a.p_why, media_ref: null, updated_at: now() });
       return true;
+    },
+    // A removed file's row goes once its bytes have (00551), and its copies' rows with it (00686's cascade).
+    file_purged: (a) => {
+      w.asked.push({ door: "file_purged", ...a });
+      const at = tables.files.findIndex((f) => f.tenant_id === a.p_tenant_id && f.id === a.p_id && f.removed_at);
+      if (at < 0) return null;
+      tables.files.splice(at, 1);
+      const gone = new Set(tables.file_archives.filter((x) => x.file_id === a.p_id).map((x) => x.id));
+      tables.file_archives = tables.file_archives.filter((x) => !gone.has(x.id));
+      tables.file_archive_parts = tables.file_archive_parts.filter((x) => !gone.has(x.archive_id));
+      return null;
+    },
+    // A copy marked going is here again (00690): its shelf copy was not what it should be, so nothing was deleted.
+    file_copy_kept: (a) => {
+      w.asked.push({ door: "file_copy_kept", ...a });
+      const row = fileOf(a.p_tenant_id, a.p_id);
+      if (!row || row.copy_state !== "going" || !row.media_ref) return false;
+      Object.assign(row, { copy_state: "here", copy_why: null, updated_at: now() });
+      return true;
+    },
+    file_copy_shelved: (a) => shelved(a.p_tenant_id, a.p_file_id),
+    // A made video's shelf copy begun with its job, in one step, within the shelf's room.
+    file_shelf_begin: (a) => {
+      w.asked.push({ door: "file_shelf_begin", ...a });
+      const file = fileOf(a.p_tenant_id, a.p_file_id);
+      if (!file || file.removed_at || file.kind !== "video" || file.source !== "made") return { fate: "none" };
+      const held = shelfOf(a.p_tenant_id, a.p_file_id);
+      if (held) return { fate: "kept", state: held.state };
+      const used = tables.file_archives
+        .filter(
+          (x) =>
+            x.tenant_id === a.p_tenant_id && x.origin === "shelf" && ["saving", "saved", "checked"].includes(x.state),
+        )
+        .map((x) => fileOf(x.tenant_id, x.file_id))
+        .filter((f) => f && !f.removed_at)
+        .reduce((sum, f) => sum + Number(f.seconds ?? 0), 0);
+      if (used + Number(file.seconds ?? 0) > a.p_seconds_max) return { fate: "full" };
+      const id = randomUUID();
+      tables.file_archives.push({
+        id,
+        tenant_id: a.p_tenant_id,
+        file_id: file.id,
+        origin: "shelf",
+        state: "saving",
+        why: null,
+        checked_at: null,
+        updated_at: now(),
+      });
+      tables.file_archive_parts.push({
+        id: randomUUID(),
+        tenant_id: a.p_tenant_id,
+        archive_id: id,
+        part: "video",
+        shelf_key: `${a.p_tenant_id}/${file.id}/video`,
+        bytes: a.p_bytes,
+        sha256: a.p_sha256,
+        state: "saving",
+        checked_at: null,
+      });
+      writeShelveJob(a.p_tenant_id, file.id);
+      return { fate: "begun" };
+    },
+    // What the shelf holds against what was sent: checked where both are the same, a mismatch where not.
+    file_shelf_checked: (a) => {
+      w.asked.push({ door: "file_shelf_checked", ...a });
+      const shelf = shelfOf(a.p_tenant_id, a.p_file_id);
+      const piece = shelf ? pieceOf(shelf) : null;
+      if (!shelf || !piece) return "none";
+      const same =
+        a.p_bytes !== null &&
+        Number(a.p_bytes) === Number(piece.bytes) &&
+        a.p_sha256 !== null &&
+        a.p_sha256 === piece.sha256;
+      if (shelf.state === "checked") return same ? "checked" : "none";
+      if (!["saving", "saved"].includes(shelf.state)) return "none";
+      const state = same ? "checked" : "failed";
+      Object.assign(piece, { state, checked_at: same ? now() : null });
+      Object.assign(shelf, {
+        state,
+        why: same ? null : "mismatch",
+        checked_at: same ? now() : null,
+        updated_at: now(),
+      });
+      if (!same) settleRow(a.p_tenant_id, a.p_file_id);
+      return same ? "checked" : "mismatch";
+    },
+    file_shelf_failed: (a) => {
+      w.asked.push({ door: "file_shelf_failed", ...a });
+      if (!["mismatch", "not_found", "refused"].includes(a.p_why)) throw new Error("22023: a reason of another copy's");
+      const shelf = shelfOf(a.p_tenant_id, a.p_file_id);
+      if (!shelf || !["saving", "saved"].includes(shelf.state)) return false;
+      Object.assign(shelf, { state: "failed", why: a.p_why, checked_at: null, updated_at: now() });
+      Object.assign(pieceOf(shelf) ?? {}, { state: "failed", checked_at: null });
+      settleRow(a.p_tenant_id, a.p_file_id);
+      return true;
+    },
+    // A copy found missing or wrong, or one that failed, put back: saving again with its job, its bytes kept.
+    file_shelf_again: (a) => {
+      w.asked.push({ door: "file_shelf_again", ...a });
+      const shelf = shelfOf(a.p_tenant_id, a.p_file_id);
+      const file = fileOf(a.p_tenant_id, a.p_file_id);
+      if (!shelf || !["checked", "failed"].includes(shelf.state) || !file || file.removed_at) return false;
+      Object.assign(shelf, { state: "saving", why: null, checked_at: null, updated_at: now() });
+      Object.assign(pieceOf(shelf) ?? {}, { state: "saving", checked_at: null });
+      writeShelveJob(a.p_tenant_id, a.p_file_id);
+      return true;
+    },
+    // Copies left saving for a stale stretch get their job again, once a stretch; one with a job waiting gets none.
+    file_shelf_requeue: (a) => {
+      w.asked.push({ door: "file_shelf_requeue", ...a });
+      const stale = tables.file_archives
+        .filter(
+          (x) =>
+            x.origin === "shelf" &&
+            x.state === "saving" &&
+            Date.parse(x.updated_at ?? now()) < w.nowMs - a.p_stale_seconds * 1000,
+        )
+        .slice(0, Math.max(a.p_limit, 0));
+      let written = 0;
+      for (const shelf of stale) {
+        shelf.updated_at = now();
+        if (writeShelveJob(shelf.tenant_id, shelf.file_id)) written += 1;
+      }
+      return written;
     },
     // Tombstones only (gone, outside) past their grace, oldest first: the file leaves where nothing used it and no
     // other origin holds it, nothing goes to files_let_go, and the row is deleted.

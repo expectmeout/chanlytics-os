@@ -364,6 +364,21 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id"],
     never: [],
   },
+  // A made video's own file put on Chanlytics' shelf and checked there (00690, the archive plan's B2). Safe to run again
+  // at every step: a run begins by reading what the shelf holds and pulls nothing where that is the video's bytes, a pull
+  // of the same bytes writes the same object, and the shelf itself refuses any other. A throw is the relay, the shelf or
+  // the database not answering: two minutes, then ten. One that ends for good leaves the copy failed as refused
+  // (settle.ts), the video keeps its place at the video platform, and nothing is lost. The longest call is the pull.
+  file_shelve: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 35 * SECOND_MS,
+    ids: ["file_id"],
+    never: [],
+  },
   // A video made from a business's clips (00613, decision 0122): each step is safe to run again (a machine started twice is
   // two drawings and one is let go; a file begun twice is the one row), and a step that must wait puts its own next tick on the
   // ledger, so a throw is a fault of ours: tried once more two minutes on, while the machine still holds what it drew, then

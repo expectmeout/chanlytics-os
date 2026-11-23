@@ -326,6 +326,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   video_digest: "Making a video ready",
   source_take: "Bringing in a photo or a video from a business's folder",
   copy_return: "Bringing a video back from a business's folder",
+  file_shelve: "Keeping a made video's own file",
   post_prepare: "Making a post ready on Instagram",
   post_publish: "Posting on Instagram",
   post_reconcile: "Asking Instagram whether a post went up",

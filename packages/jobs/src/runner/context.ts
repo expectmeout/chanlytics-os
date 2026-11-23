@@ -379,6 +379,16 @@ export interface JobContext {
     bringBack: (job: ClaimedJob, deadline: number) => Promise<{ returned: string } | { skipped: string }>;
   };
   /**
+   * A made video's own file put on Chanlytics' shelf and checked there (00690, the archive plan's B2), as the edge
+   * holds the relay's address and the ticket's key. INJECTED like the copies; a file_shelve job in a runtime without
+   * it fails loudly. Answers `skipped` when there is nothing to put (the file is gone, or its copy is not saving),
+   * and throws when the relay, the shelf or the database gave no answer.
+   */
+  shelf?: {
+    /** One video's file put on the shelf and checked, or its copy failed with why. No pull starts after `deadline`. */
+    shelve: (job: ClaimedJob, deadline: number) => Promise<{ shelved: string } | { skipped: string }>;
+  };
+  /**
    * A post on its way to Instagram (00611, decision 0121), as the edge holds it: the business's token lives in the vault
    * there. INJECTED like the files; a post job in a runtime without it fails loudly. Each answers `skipped` when the post
    * is no longer where its job expects it (pulled, held, already up), and throws when a try is worth repeating.

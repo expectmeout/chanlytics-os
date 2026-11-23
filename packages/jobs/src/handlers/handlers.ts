@@ -450,6 +450,13 @@ async function copyReturn(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
+/** file_shelve: a made video's own file put on Chanlytics' shelf and checked there (00690), through what the edge injects. payload: { file_id } */
+async function fileShelve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.shelf) throw new Error("file_shelve: this runtime holds no shelver");
+  const answer = await ctx.shelf.shelve(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
 async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
@@ -599,6 +606,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   video_digest: videoDigest,
   source_take: sourceTake,
   copy_return: copyReturn,
+  file_shelve: fileShelve,
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,

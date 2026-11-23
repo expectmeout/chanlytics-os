@@ -90,3 +90,84 @@ export async function readTicket(signingKey: string, ticket: string | null, nowM
   if (left > TICKET_SECONDS_MAX) return { ok: false, reason: "too_long" };
   return { ok: true, item: claim.item, expiresAt: claim.exp };
 }
+
+/* ------------------------------------------------------------------------------------------ the shelf's ticket -- */
+
+/**
+ * The shelf's ticket (the archive plan's B2): a video Chanlytics made keeps a copy on a shelf of Chanlytics' own, and
+ * everything asked of that shelf rides one of these. It is a ticket of its own, apart from a clip's above: another
+ * version, and a claim that says it is the shelf's, whose workspace and which file, what may be done, when it ends,
+ * and for a put the very bytes that may be put. A clip's ticket opens nothing here, and this one no clip.
+ *
+ * `v2.<claim>.<signature>`: the claim is `{"for":"shelf","tenant":"…","file":"…","use":"…","exp":<unix seconds>}`, with
+ * `"bytes"` and `"sha256"` after them on a put and only there, in base64url; the signature an HMAC-SHA256 of
+ * `v2.<claim>` under the same ticket's key. The app signs it (packages/channels/src/files/relay-ticket.ts).
+ */
+const SHELF_TICKET_VERSION = "v2";
+const SHELF_USES = ["read", "put", "delete"] as const;
+/** What a shelf ticket may do: read a file's bytes or its record, put its bytes there, or take them off. */
+export type ShelfUse = (typeof SHELF_USES)[number];
+const SHA_256_HEX = /^[0-9a-f]{64}$/;
+
+/** What a shelf ticket says. `bytes` and `sha256` are a put's, and no other use names them. */
+export interface ShelfClaim {
+  tenant: string;
+  file: string;
+  use: ShelfUse;
+  expiresAt: number;
+  bytes?: number;
+  sha256?: string;
+}
+type ShelfTicketRead = ({ ok: true } & ShelfClaim) | { ok: false; reason: TicketRefusal };
+
+const isShelfUse = (value: unknown): value is ShelfUse => SHELF_USES.some((use) => use === value);
+
+/** A signed claim read as the shelf's, or null where it says too little, too much or something else. */
+function shelfClaimOf(text: string): ShelfClaim | null {
+  const bytes = bytesOfBase64Url(text);
+  if (!bytes) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoder.decode(bytes));
+  } catch {
+    // Signed, yet not JSON: no ticket of the shelf's.
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const claim: Record<string, unknown> = { ...parsed };
+  const { tenant, file, use, exp, bytes: size, sha256 } = claim;
+  if (claim.for !== "shelf" || !isShelfUse(use)) return null;
+  if (typeof tenant !== "string" || !ITEM.test(tenant) || typeof file !== "string" || !ITEM.test(file)) return null;
+  if (typeof exp !== "number" || !Number.isFinite(exp)) return null;
+  // A put names the very bytes it may put, and nothing else names any.
+  if (use !== "put") return size === undefined && sha256 === undefined ? { tenant, file, use, expiresAt: exp } : null;
+  if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1) return null;
+  if (typeof sha256 !== "string" || !SHA_256_HEX.test(sha256)) return null;
+  return { tenant, file, use, expiresAt: exp, bytes: size, sha256 };
+}
+
+/**
+ * What a shelf ticket says, once its signature holds and its time has not come. Checked as a clip's is: the
+ * signature before anything it signs is believed, by Web Crypto's own compare.
+ */
+export async function readShelfTicket(
+  signingKey: string,
+  ticket: string | null,
+  nowMs: number,
+): Promise<ShelfTicketRead> {
+  const [version, claimText, signatureText, ...rest] = (ticket ?? "").split(".");
+  if (version !== SHELF_TICKET_VERSION || !claimText || !signatureText || rest.length)
+    return { ok: false, reason: "malformed" };
+  const signature = bytesOfBase64Url(signatureText);
+  // No key to read by, or a signature that is no base64url: nothing here can be a ticket.
+  if (!signature || !signingKey) return { ok: false, reason: "malformed" };
+  const signed = encoder.encode(`${version}.${claimText}`);
+  if (!(await crypto.subtle.verify("HMAC", await hmacKeyOf(signingKey, "verify"), signature, signed)))
+    return { ok: false, reason: "signature" };
+  const claim = shelfClaimOf(claimText);
+  if (!claim) return { ok: false, reason: "malformed" };
+  const left = claim.expiresAt - Math.floor(nowMs / MS_IN_A_SECOND);
+  if (left <= 0) return { ok: false, reason: "expired" };
+  if (left > TICKET_SECONDS_MAX) return { ok: false, reason: "too_long" };
+  return { ok: true, ...claim };
+}

@@ -1,7 +1,16 @@
 /**
- * copy_return: a watched clip's copy brought back to the video platform (the footage sources plan, "Availability";
- * 00654). The door (ensure.ts) puts this job on the ledger when something wants a copy that is away, held once per
- * file, so play, AI and a video being made asking at once are one return.
+ * copy_return: a video's copy brought back to the video platform (the footage sources plan, "Availability"; 00654).
+ * The door (ensure.ts) puts this job on the ledger when something wants a copy that is away, held once per file, so
+ * play, AI and a video being made asking at once are one return.
+ *
+ * What can give a copy back is asked in one order, written here and nowhere else (the archive PRD's FR-6.1): first
+ * Chanlytics' own shelf, where a video made here keeps a checked copy (the archive plan's B2; 00690), then a watched
+ * folder's item. The shelf needs no key and spends nothing of a provider's day: the video platform fetches the copy
+ * from the relay's address for the shelf, under a ticket that reads that one file. A shelf that does not hold the
+ * video's bytes when it is asked puts the copy back from the video's own kept file (shelf/check.ts); the return then
+ * goes by a folder's item where one holds the file, and waits where none does.
+ *
+ * A watched clip's return, as before:
  *
  * It goes by the road the clip first came by: the video platform fetches it again from the relay's address, under a
  * ticket that names the clip's item, so its bytes never pass through the app. Before anything is asked of the
@@ -21,6 +30,7 @@ import {
   askStreamToFetch,
   deleteStreamVideo,
   relayClipAddress,
+  relayShelfAddress,
   signRelayTicket,
   type StreamVideo,
 } from "@chanlytics/channels/files";
@@ -51,6 +61,7 @@ import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger, type Logger } from "../../shared/log.js";
+import { askShelf } from "../shelf/check.js";
 import { COPY_RETURN, DRIVE_UNITS, RELAY_TICKET_MS, RETURN_BUDGETS, TAKE_BUDGETS } from "../takes/budgets.js";
 import { clearCopiesNamed, idOfCopyNamed } from "../takes/copies.js";
 import { countUnits, keepUnitsSpent, type UnitsSpent } from "../takes/ends.js";
@@ -69,15 +80,23 @@ const returnCopyName = (fileId: string): string => `${COPY_NAMED}${fileId}`;
 /** What became of a return, in a word for its job's line; or why it was not one to begin. */
 type ReturnEnd = { returned: string } | { skipped: string };
 
-/** One return: the file, the item its bytes are fetched from, and what its job runs with. */
+/** One return: the file, and what its job runs with. */
 interface Returning {
   db: Db;
   tenantId: TenantId;
   file: FileRow;
-  origin: SourceTakeItem;
   log: Logger;
   deadline: number;
   spent: UnitsSpent;
+}
+
+/** Where the video platform is sent for the copy: the address, and what stands behind it, for the return's lines. */
+interface FetchFrom {
+  /** The relay's address, with its ticket: made as the platform is asked, so a failure to make it ends the return. */
+  address: () => string;
+  origin: "shelf" | "watched";
+  /** The watched item the bytes are its provider's; none for the shelf. */
+  item?: string;
 }
 
 /** The copy stays away, and its row says why it could not come back just now. */
@@ -97,15 +116,17 @@ function sameBytes(origin: SourceTakeItem, record: SourceItemRecord): boolean {
   return origin.bytes === null || record.bytes === null || Number(origin.bytes) === record.bytes;
 }
 
-/** The return judged and begun, with room made for it once where the videos are full. */
-async function beginWithRoom(returning: Returning): Promise<CopyReturnBegun> {
+/**
+ * The return judged and begun, with room made for it once where the videos are full. `units` is what the return will
+ * still spend at a provider: the platform's own read of a folder's item through the relay, and nothing for the shelf.
+ */
+async function beginWithRoom(returning: Returning, units: number): Promise<CopyReturnBegun> {
   const { db, tenantId, file, deadline } = returning;
   const begin = () =>
     beginCopyReturn(db, {
       tenantId,
       fileId: file.id,
-      // What is still to be spent at the provider is the platform's own read through the relay: its record, its bytes.
-      units: DRIVE_UNITS.record + DRIVE_UNITS.download,
+      units,
       platformBytesMax: TAKE_BUDGETS.platformBytesADay,
       workspaceReturnsMax: RETURN_BUDGETS.workspaceReturnsADay,
       unitsMax: TAKE_BUDGETS.unitsADay,
@@ -134,22 +155,14 @@ function endNotBegun(returning: Returning, begun: Exclude<CopyReturnBegun, { fat
   return { skipped: `its copy is ${begun.fate}` };
 }
 
-/** The platform asked to fetch the clip again, and the id it gave kept on the row. The copy is `returning` throughout. */
-async function fetchAgain(returning: Returning, road: VideoRoad): Promise<ReturnEnd> {
-  const { db, tenantId, file, origin, log } = returning;
+/** The platform asked to fetch the copy again, and the id it gave kept on the row. The copy is `returning` throughout. */
+async function fetchAgain(returning: Returning, road: VideoRoad, from: FetchFrom): Promise<ReturnEnd> {
+  const { db, tenantId, file, log } = returning;
   const undo = (reason: FileCopyWait) => failCopyReturn(db, { tenantId, fileId: file.id, reason, mediaRef: null });
   try {
     // A copy an earlier return of this file left at the platform, with no row to hold it, goes first.
     await clearCopiesNamed(db, road.account, returnCopyName(file.id));
-    const ticket = signRelayTicket(road.ticketKey, {
-      item: origin.id,
-      expiresAt: Math.floor((Date.now() + RELAY_TICKET_MS) / SECOND_MS),
-    });
-    const extension = isVideoMime(file.mime) ? FILE_TYPES[file.mime] : FILE_TYPES["video/mp4"];
-    const fetched = await askStreamToFetch(road.account, {
-      url: relayClipAddress(road.relayUrl, { item: origin.id, ticket, extension }),
-      name: returnCopyName(file.id),
-    });
+    const fetched = await askStreamToFetch(road.account, { url: from.address(), name: returnCopyName(file.id) });
     if (!fetched.ok) {
       // Too many being prepared at once, or the account's own storage spent: nothing is wrong with this clip.
       if (fetched.busy || fetched.full) {
@@ -157,7 +170,7 @@ async function fetchAgain(returning: Returning, road: VideoRoad): Promise<Return
         // Only the platform's owner can mend its storage: one error line for Health; the business is told it takes longer.
         if (fetched.full) log.error("video_storage_full", { file: file.id, road: "return" });
         await undo(reason);
-        log.info("copy_return", { file: file.id, waits: reason });
+        log.info("copy_return", { file: file.id, origin: from.origin, waits: reason });
         return { returned: `waits:${reason}` };
       }
       // The address is ours, so a refusal of it is a fault of ours or the platform's bad minute: tried again.
@@ -168,7 +181,12 @@ async function fetchAgain(returning: Returning, road: VideoRoad): Promise<Return
       await deleteStreamVideo(road.account, fetched.mediaRef).catch(logAndGoOn("copy: let the copy go", false));
       return { skipped: "its return was ended meanwhile" };
     }
-    log.info("copy_return", { file: file.id, item: origin.id, took: "asked" });
+    log.info("copy_return", {
+      file: file.id,
+      origin: from.origin,
+      ...(from.item ? { item: from.item } : {}),
+      took: "asked",
+    });
     return { returned: "asked" };
   } catch (failure) {
     // Begun and not asked for: the file is away again at once, never left saying it is on its way.
@@ -177,22 +195,52 @@ async function fetchAgain(returning: Returning, road: VideoRoad): Promise<Return
   }
 }
 
+/** The ticket's end for a return's address: the platform fetches within minutes, and asks again after a break. */
+const ticketEnds = (): number => Math.floor((Date.now() + RELAY_TICKET_MS) / SECOND_MS);
+
+/**
+ * The return from Chanlytics' own shelf, which was just seen to hold the video's very bytes: begun with nothing to
+ * spend at a provider, and the platform sent to the relay's address for the shelf. No folder is opened and no key asked.
+ */
+async function returnFromShelf(returning: Returning): Promise<ReturnEnd> {
+  const { db, tenantId, file } = returning;
+  // Without the road nothing is asked of the platform: the workspace takes no videos, or this deployment has no relay.
+  const road = await findVideoRoad(db, tenantId);
+  if (!road) return leaveAway(returning, "videos_off");
+  const begun = await beginWithRoom(returning, 0);
+  if (begun.fate !== "go") return endNotBegun(returning, begun);
+  return fetchAgain(returning, road, {
+    address: () => relayShelfAddress(road, { tenantId, fileId: file.id }, ticketEnds()),
+    origin: "shelf",
+  });
+}
+
 /** The return under an hour's key: the item's own record read, the return begun, the platform asked. */
 async function returnOpened(
   returning: Returning,
+  origin: SourceTakeItem,
   road: VideoRoad,
   under: { accessToken: string; sync: TakeSync },
 ): Promise<ReturnEnd> {
-  const { origin, spent } = returning;
+  const { file, spent } = returning;
   // Counted as it is asked: a call that then throws was still made.
   countUnits(spent, DRIVE_UNITS.record);
   const read = await under.sync.record(under.accessToken, origin.provider_id);
   // Not now, gone or unreadable: where an item went is the sync's to say, and the copy then says it is lost.
   if (read.verdict !== "ok" || read.answer.trashed) return leaveAway(returning, "unreadable");
   if (!sameBytes(origin, read.answer)) return leaveAway(returning, "changed");
-  const begun = await beginWithRoom(returning);
+  // What is still to be spent at the provider is the platform's own read through the relay: its record, its bytes.
+  const begun = await beginWithRoom(returning, DRIVE_UNITS.record + DRIVE_UNITS.download);
   if (begun.fate !== "go") return endNotBegun(returning, begun);
-  return fetchAgain(returning, road);
+  return fetchAgain(returning, road, {
+    address: () => {
+      const ticket = signRelayTicket(road.ticketKey, { item: origin.id, expiresAt: ticketEnds() });
+      const extension = isVideoMime(file.mime) ? FILE_TYPES[file.mime] : FILE_TYPES["video/mp4"];
+      return relayClipAddress(road.relayUrl, { item: origin.id, ticket, extension });
+    },
+    origin: "watched",
+    item: origin.id,
+  });
 }
 
 async function bringCopyBack(
@@ -208,9 +256,18 @@ async function bringCopyBack(
   if (!standing) return { skipped: "no such video" };
   // Here already, being let go, or lost (its row now says why): nothing to bring back.
   if (standing.state !== "away" && standing.state !== "returning") return { skipped: `its copy is ${standing.state}` };
+  const returning: Returning = { db, tenantId, file, log, deadline: run.deadline, spent: run.spent };
+  // The shelf first, asked at this moment whether it holds the video's very bytes. A clip only a folder holds is not
+  // asked about: its row says the shelf has no copy of it, and a folder's item is there.
+  const shelf = standing.shelf || !standing.itemId ? await askShelf(db, { tenantId, fileId: file.id }, log) : "none";
+  if (shelf === "holds") return returnFromShelf(returning);
   const origin = standing.itemId ? await findSourceItem(db, tenantId, standing.itemId) : null;
-  if (!origin) return { skipped: "no origin holds it" };
-  const returning: Returning = { db, tenantId, file, origin, log, deadline: run.deadline, spent: run.spent };
+  if (!origin) {
+    // No folder holds it. Its shelf copy is on its way there or being put back, or the shelf gave no answer: it
+    // waits, and whoever asks next finds the shelf holding it. It is lost only once that has failed for good.
+    if (shelf === "put_back" || shelf === "unsure") return leaveAway(returning, "unreadable");
+    return { skipped: "no origin holds it" };
+  }
   // Without the road nothing is asked of the provider: the workspace takes no videos, or this deployment has no relay.
   const road = await findVideoRoad(db, tenantId);
   if (!road) return leaveAway(returning, "videos_off");
@@ -222,7 +279,7 @@ async function bringCopyBack(
     return { skipped: key.skipped };
   }
   try {
-    return await returnOpened(returning, road, { accessToken: key.accessToken, sync: run.sync });
+    return await returnOpened(returning, origin, road, { accessToken: key.accessToken, sync: run.sync });
   } catch (error) {
     // A key its provider refused is the sync's to settle; where the account is now signed out, the copy waits for
     // it to be connected again. Anything else is thrown on, and the ledger tries the job again.

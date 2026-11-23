@@ -11,17 +11,19 @@ export {
   findCopiesFreeAt,
   findReturnAnywhere,
   isCopyReturning,
+  keepCopyHere,
   keepCopyWait,
   keepReturningCopy,
   listCopiesAwaitingRoom,
   listCopiesMoving,
+  listVideoCopiesHere,
   markCopiesGoing,
   markCopyGone,
   markFilesSuperseded,
   settleFileCopy,
   touchFileCopy,
 } from "./copies";
-export type { CopyGoing, CopyMoving, CopyReturnBegun } from "./copies";
+export type { CopyGoing, CopyMoving, CopyReturnBegun, VideoCopyHere } from "./copies";
 export {
   beginFileVideo,
   deleteFileRow,
@@ -119,6 +121,14 @@ export type {
   PostRow,
 } from "./posts";
 export { listFilesUnprinted } from "./prints";
+export {
+  beginShelfCopy,
+  failShelfCopy,
+  findShelfPart,
+  markShelfChecked,
+  putShelfCopyBack,
+  requeueShelfCopies,
+} from "./shelf";
 export {
   askForListedItems,
   askForStoppedItems,

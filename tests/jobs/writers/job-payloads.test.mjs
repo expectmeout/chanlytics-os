@@ -102,6 +102,7 @@ test("the shapes writers hand over are what their kind says", () => {
     video_digest: { file_id: "f", step: "sheet", edition: "1" },
     source_take: { item_id: "i", try: "0" },
     copy_return: { file_id: "f" },
+    file_shelve: { file_id: "f" },
     post_prepare: { post_id: "p", attempt: "1" },
     post_publish: { post_id: "p", attempt: "1" },
     post_reconcile: { post_id: "p", attempt: "2" },

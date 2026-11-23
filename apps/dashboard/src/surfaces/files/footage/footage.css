@@ -188,6 +188,11 @@
   /* A still full of its own words (a review, a price board) must not read through the line laid over it. */
   text-shadow: var(--media-ink-shadow);
 }
+/* A video made here often opens on words of its own (a review, a price): what is said over it reads only with the
+   still further back. One with nothing said (its still and Play) keeps the lighter dim, as any video. */
+.fo-kept[data-deep] > .fo-kept-words {
+  background: var(--viewer-gone-dim);
+}
 /* A clip whose original is gone: the still steps further back, greyed, as the canvas's "gone" draws it. */
 .fo-kept[data-copy="lost"] > .fo-kept-words {
   background: var(--viewer-gone-dim);

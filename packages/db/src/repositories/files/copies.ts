@@ -34,12 +34,16 @@ interface CopyStanding {
   reason: FileCopyWhy | null;
   /** The origin that can give it back; null where none can. */
   itemId: string | null;
+  /** Whether Chanlytics' own shelf holds a checked copy (00690), which a return reads before any folder's item. */
+  shelf: boolean;
 }
 
 const StandingAnswer = z.object({
   copy_state: z.string().nullable(),
   copy_why: z.string().nullable().optional(),
   item_id: z.string().nullable().optional(),
+  // Absent from a database older than 00690: no shelf there.
+  shelf: z.boolean().optional(),
 });
 
 /**
@@ -55,6 +59,7 @@ export async function settleFileCopy(db: Db, tenantId: TenantId, fileId: string)
     state: answer.copy_state,
     reason: isOneOf(FILE_COPY_WHYS, answer.copy_why) ? answer.copy_why : null,
     itemId: answer.item_id ?? null,
+    shelf: answer.shelf === true,
   };
 }
 
@@ -145,6 +150,16 @@ export async function markFilesSuperseded(db: Db, tenantId: TenantId, fileIds: r
 export async function markCopyGone(db: Db, tenantId: TenantId, fileId: string): Promise<boolean> {
   const { data, error } = await db.rpc("file_copy_gone", { p_tenant_id: tenantId, p_id: fileId });
   if (error) throw new DbFailure(error, "cannot say the video's copy went");
+  return data === true;
+}
+
+/**
+ * A copy marked going is here again (file_copy_kept, 00690): its copy on the shelf was not what it should be, or the
+ * shelf gave no answer, so nothing was deleted at the video platform. Answers whether it was one.
+ */
+export async function keepCopyHere(db: Db, tenantId: TenantId, fileId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("file_copy_kept", { p_tenant_id: tenantId, p_id: fileId });
+  if (error) throw new DbFailure(error, "cannot say the video's copy stayed");
   return data === true;
 }
 
@@ -337,6 +352,31 @@ export async function listCopiesAwaitingRoom(
     .order("updated_at", { ascending: true })
     .limit(range.limit);
   if (error) throw new DbFailure(error, "cannot read the copies that wait for room");
+  return data;
+}
+
+/** A video whose copy is here and plays: what a let-go weighs, with the road it came by. Never its id at the platform. */
+export type VideoCopyHere = Pick<
+  Database["public"]["Tables"]["files"]["Row"],
+  "id" | "source" | "seconds" | "copy_used_at" | "ready_at" | "created_at"
+>;
+
+/**
+ * One workspace's videos whose copy is here and plays, the oldest file first: what the let-go's door weighs
+ * (file_copies_let_go), read for the tool that asks it by hand, so its dry run and its backup name them.
+ */
+export async function listVideoCopiesHere(db: Db, tenantId: TenantId, limit: number): Promise<VideoCopyHere[]> {
+  const { data, error } = await db
+    .from("files")
+    .select("id, source, seconds, copy_used_at, ready_at, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "video")
+    .eq("copy_state", "here")
+    .eq("media_status", "ready")
+    .is("removed_at", null)
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "cannot read the workspace's videos that are here");
   return data;
 }
 

@@ -1,4 +1,4 @@
-export { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./copy";
+export { FILE_ARCHIVE_STATES, FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./copy";
 export type { FileCopyLoss, FileCopyState, FileCopyWait, FileCopyWhy } from "./copy";
 export {
   FILE_BRING_IN_DOOR,
@@ -53,6 +53,7 @@ export {
   FILE_NAME_MAX,
   FILE_NAME_WORDS,
   FILE_PIXELS_MAX,
+  FILE_SHELF_MINUTES_MAX,
   FILE_SHOWS,
   FILE_SIDE_MIN,
   FILE_SOURCES,
@@ -179,6 +180,7 @@ export {
   videoSheetPlanOf,
   videoSheetSaidOf,
   videoSheetWhatOf,
+  videoShelfOf,
   videoSpanPlanOf,
   videoSpanWhatOf,
 } from "./video";

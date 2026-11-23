@@ -10,6 +10,8 @@
  *               an hour is given up.
  *   no room     asked for (Play, AI, a video being made) and the videos were full: asked for again here, so it
  *               comes back by itself once another copy makes room, and nobody is told to ask again.
+ *   the shelf   a made video's copy left saving for an hour (the archive plan's B2): its job is written again. The
+ *               doors that begin a copy write its job themselves, so this is only the floor under them.
  *   the grace   an item seen in its provider's bin, or moved out to a place its account can see, seven days ago: its
  *               Library file leaves only if nothing used it and no other origin holds it, and its row goes. One
  *               statement for every workspace (source_items_grace_end), which reads tombstones alone: a file with
@@ -26,6 +28,7 @@ import {
   listCopiesMoving,
   markFileMediaFailed,
   markFileMediaReady,
+  requeueShelfCopies,
   type CopyMoving,
 } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
@@ -33,7 +36,7 @@ import { scheduleJobOnce } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errField, logger } from "../../shared/log.js";
-import { COPY_RETURN, LET_GO, SOURCE_GRACE } from "../takes/budgets.js";
+import { COPY_RETURN, LET_GO, SHELF_REQUEUE, SOURCE_GRACE } from "../takes/budgets.js";
 import { streamAccount } from "../video-keys.js";
 import { hearCopyWord } from "./bring-back.js";
 import { ensureCopyOf } from "./ensure.js";
@@ -103,11 +106,14 @@ async function askAgainForRoom(db: Db, nowMs: number): Promise<number> {
   return waiting.length;
 }
 
-/** The pass. Answers how many copies it asked after, how many it asked for again, and what the cleanup did. */
+/**
+ * The pass. Answers how many copies it asked after, how many it asked for again, how many shelf copies it wrote a
+ * job for again, and what the cleanup did.
+ */
 export async function keepCopiesMoving(
   db: Db,
   nowMs: number,
-): Promise<{ copies: number; asked: number; removed: number; kept: number; cleared: number }> {
+): Promise<{ copies: number; asked: number; shelved: number; removed: number; kept: number; cleared: number }> {
   const log = logger({});
   const account = streamAccount();
   const moving = account
@@ -129,7 +135,17 @@ export async function keepCopiesMoving(
     log.error("files_sweep_failed", { part: "copies_room", error: errField(failure) });
     return 0;
   });
+  // A read that fails here is a line too: the cleanup below still runs.
+  const shelved = await requeueShelfCopies(db, {
+    staleSeconds: SHELF_REQUEUE.staleSeconds,
+    limit: SHELF_REQUEUE.aSweep,
+  }).catch((failure: unknown) => {
+    log.error("files_sweep_failed", { part: "shelf", error: errField(failure) });
+    return 0;
+  });
+  // One that needed the floor is a line: a copy's job should never go missing.
+  if (shelved > 0) log.warn("file_shelve_failed", { why: "left_saving", asked_again: shelved });
   const grace = await endSourceGrace(db, { graceSeconds: SOURCE_GRACE.seconds, limit: SOURCE_GRACE.aSweep });
   if (grace.cleared > 0) log.info("copy_grace", grace);
-  return { copies: moving.length, asked: askedAgain, ...grace };
+  return { copies: moving.length, asked: askedAgain, shelved, ...grace };
 }

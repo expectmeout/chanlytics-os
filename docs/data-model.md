@@ -60,8 +60,8 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/reports/screened.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
-| [`file_archive_parts`](#file_archive_parts) | none | on, 1 policy |
-| [`file_archives`](#file_archives) | none | on, 1 policy |
+| [`file_archive_parts`](#file_archive_parts) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
+| [`file_archives`](#file_archives) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
 | [`file_consents`](#file_consents) | none | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
@@ -1598,7 +1598,7 @@ Foreign keys:
 
 One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo's or a picked file's own bytes (original), a post's four pictures (portrait, square, story, wide), or a video's file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/shelf.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1631,7 +1631,7 @@ Foreign keys:
 
 One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner's own Drive file a pick brought in. shelf: Chanlytics' own copy. A video's copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder's item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/shelf.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

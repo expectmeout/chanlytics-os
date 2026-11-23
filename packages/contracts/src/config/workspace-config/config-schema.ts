@@ -115,6 +115,8 @@ export const FeaturesConfigSchema = z
     vision: z.boolean().optional(),
     /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
     video_preview: z.boolean().optional(),
+    /** A made video keeps a copy on Chanlytics' own shelf, and may step aside behind it (00690; contracts files/video.ts videoShelfOf). */
+    video_shelf: z.boolean().optional(),
     /** Connect Meta offered in this workspace (decision 0117), and so posting to Instagram; contracts content/address.ts contentPreviewOf. */
     content_preview: z.boolean().optional(),
     /**

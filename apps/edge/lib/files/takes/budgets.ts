@@ -157,6 +157,16 @@ export const LET_GO = {
 } as const;
 
 /**
+ * A made video's copy on Chanlytics' own shelf (the archive plan's B2; 00690): its job is written with its row, by the
+ * door. The half-hourly pass is the floor under that: a copy still saving this long after it was last touched gets
+ * its job again, a few a pass for every workspace together. Nothing should ever need it.
+ */
+export const SHELF_REQUEUE = {
+  staleSeconds: HOUR_MS / SECOND_MS,
+  aSweep: 100,
+} as const;
+
+/**
  * The seven-day cleanup (the plan's D3, as narrowed on 18 November): how long after an item was seen in its
  * provider's bin, or moved out to a place its account can see, its unused Library file leaves; and how many items
  * one half-hourly pass settles, for every workspace together.

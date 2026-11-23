@@ -12,6 +12,13 @@ export const FILES_MAX = 1000;
 /** How many of a shelf one read answers: a screen or two of tiles, and a person who scrolls reads the next. */
 export const FILES_PAGE = 60;
 
+/**
+ * How many minutes of video a workspace keeps on Chanlytics' own shelf (the archive PRD 1.1, call A14; 00690
+ * file_shelf_begin, which is passed this): five times what plays at once. A video that does not fit is not shelved,
+ * keeps its place at the video platform, and cannot step aside.
+ */
+export const FILE_SHELF_MINUTES_MAX = 300;
+
 /** The most one upload weighs: the bucket's own limit, and the most a signed resize takes as its source ("25MB", on Storage's page). */
 export const FILE_BYTES_MAX = 25_000_000;
 
