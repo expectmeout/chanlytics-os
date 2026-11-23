@@ -492,22 +492,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
   // A video's (00556): what was heard of it can carry what a customer said in a clip, so it goes with the workspace; the video
   // platform's id for it and its error code are nobody's.
-  // A yes for one use of a file (00665): who said it, as the owner named them to AI. A person in a picture is not joined
-  // to People, so, as the picture itself, it leaves with the workspace; an erasure of a person has no key to it.
-  file_consents: { who: WITH_WORKSPACE },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
-    // The uses a file has a yes for, and those taken back (00665): words of a closed set, never a person's.
-    ...all(
-      NOT_PERSONAL,
-      "fingerprint",
-      "claude_copy",
-      "media_ref",
-      "media_error",
-      "picture_print",
-      "yes_back",
-      "yes_for",
-    ),
+    ...all(NOT_PERSONAL, "fingerprint", "claude_copy", "media_ref", "media_error", "picture_print"),
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },
