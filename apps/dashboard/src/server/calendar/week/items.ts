@@ -48,6 +48,8 @@ import type { ParsedRead } from "../parsed-feed";
 import { log } from "@/server/shared/log";
 import { heldContactId, type ContactId, type TenantId } from "@chanlytics/contracts";
 import { listMissedFollowed } from "@chanlytics/db/campaigns";
+import { listFormEntriesOfVisits } from "@chanlytics/db/forms";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The calendar as the receptionist reads it, for one span of days.
@@ -268,7 +270,30 @@ export async function recordOverSpan(
   const missed = [...record.noted, ...record.feed].flatMap((r) =>
     r.status === "missed" && r.contact_id ? [{ appointmentId: r.id, contactId: heldContactId(r.contact_id) }] : [],
   );
-  return { rows: record.noted, marks: feedMarksOf(record.feed), leads, missed, notices };
+  return {
+    rows: await withFormRequests(ctx, tenantId, record.noted),
+    marks: feedMarksOf(record.feed),
+    leads,
+    missed,
+    notices,
+  };
+}
+
+/**
+ * A request with no thread is a form's (00691, the Forms plan's F3): each one named with the form request it was asked
+ * for from, where it is answered. A read that fails leaves them unnamed, and logged: the board still draws them.
+ */
+async function withFormRequests(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  rows: AppointmentRow[],
+): Promise<AppointmentLike[]> {
+  const formHeld = rows.filter((r) => r.source === "receptionist" && !r.conversation_id).map((r) => r.id);
+  if (!formHeld.length) return rows;
+  const entries = await listFormEntriesOfVisits(ctx.supabase, tenantId, formHeld).catch(
+    logAndGoOn("the form requests on the calendar", new Map<string, string>()),
+  );
+  return rows.map((r) => (entries.has(r.id) ? { ...r, form_entry_id: entries.get(r.id) ?? null } : r));
 }
 
 /** A visit said missed of someone on record, by its row and its person. */

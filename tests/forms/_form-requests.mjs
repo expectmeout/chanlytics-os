@@ -463,7 +463,8 @@ export const LINK = "22222222-2222-4222-8222-222222222222";
 /**
  * A salon with one form and one link to it, over a database in memory. `chat` is whether it has WhatsApp, `forgotten`
  * an address that asked to be forgotten, `state` the form's, `failing` a database that fails the door's write, `more`
- * tables and `rpcs` doors a suite adds. The person door is the suite's own: found by number or address, else made.
+ * tables and `rpcs` doors a suite adds (or a function that makes them over the world's own). The person door is the
+ * suite's own: found by number or address, else made.
  */
 export function formWorld({
   chat = true,
@@ -601,7 +602,8 @@ export function formWorld({
           },
         }
       : {}),
-    ...rpcs,
+    // A suite's own doors, or a function that makes them over these: `(tables, doors, clock)`.
+    ...(typeof rpcs === "function" ? rpcs(tables, doors, () => clock.now) : rpcs),
   });
   const db = fillingDefaults(plain, { code: doors.link_code_new, now: () => new Date(clock.now).toISOString() });
   return { db, tables, faults, resolved, clock };

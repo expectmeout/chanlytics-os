@@ -2,7 +2,8 @@ import "server-only";
 
 /**
  * A press on one request (00680; the Forms plan, 3.5): its reply sent, a member's word that it was answered another
- * way (and that word taken back), a request that is not a real one held, and a held entry let through.
+ * way (and that word taken back), a request that is not a real one held, a held entry let through, and the time it
+ * asked for answered Booked it or Can't (00691, F3: request-time.ts).
  *
  * The reply leaves by the doors every message leaves by: core's beginConversation opens the person's one thread where
  * they have none and queues the message as a reply is queued, with its seconds to take it back, and what the person
@@ -28,18 +29,28 @@ import {
 } from "@chanlytics/db/forms";
 import { findPersonAddress, setPersonEmail } from "@chanlytics/db/people";
 import { beginPorts } from "../new-conversation/ports";
+import { answerRequestTime } from "./request-time";
 import type { Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 
-/** What a press on a request answers: the message a reply queued, with how long it can be taken back, or nothing more. */
+/**
+ * What a press on a request answers: the message a reply queued, with how long it can be taken back; for Booked it, the
+ * reply it drafts from the visit's own words (F3); or nothing more.
+ */
 interface FormRequestPressed {
   message_id: string | null;
   cancelable_until: string | null;
   conversation_id: string | null;
+  reply: string | null;
 }
 
-const NOTHING_SENT: FormRequestPressed = { message_id: null, cancelable_until: null, conversation_id: null };
+const NOTHING_SENT: FormRequestPressed = {
+  message_id: null,
+  cancelable_until: null,
+  conversation_id: null,
+  reply: null,
+};
 
 /** The request a press names, or a refusal in the house's words. */
 async function requestOrRefuse(ctx: RouteContext, member: Member, entryId: string): Promise<FormEntryRead> {
@@ -114,6 +125,7 @@ async function sendReply(
     message_id: receipt.message_id,
     cancelable_until: receipt.cancelable_until,
     conversation_id: receipt.conversation_id,
+    reply: null,
   };
 }
 
@@ -127,6 +139,9 @@ export async function applyFormRequestPress(
   if (press.act === "reply") return sendReply(ctx, member, press, idempotencyKey);
   // Read under the member's own row rules first: a request of another workspace is not found, whatever follows.
   const entry = await requestOrRefuse(ctx, member, press.entry_id);
+  // The time it asked for, answered as a chat's is (F3): the door decides, and the decision is the member's.
+  if (press.act === "book" || press.act === "cant")
+    return { ...NOTHING_SENT, ...(await answerRequestTime(ctx, member, entry.id, press.act === "book")) };
   const marked = { tenantId: member.tenantId, entryId: entry.id };
   if (press.act === "mark") await markFormEntryAnswered(ctx.supabase, { ...marked, userId: ctx.userId });
   else if (press.act === "unmark") await removeFormEntryMark(ctx.supabase, marked);

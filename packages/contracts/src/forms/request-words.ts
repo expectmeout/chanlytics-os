@@ -3,11 +3,12 @@
  * reading of the answers (`requestLines`) feeds the request's page, the note on the person's page and the owner's
  * notice (people/doors/form-request.ts), so a request is never said three ways. A choice is said by its label as the
  * version the visitor saw named it; one the version does not name is said as it was kept, since the entry is what was
- * sent. Pure.
+ * sent; a time asked for from the business's open times is said as its day and hour, on the business's clock. Pure.
  */
 import type { FormAnswer } from "./answers";
 import type { FormDescription, FormField } from "./shape";
 import { CHOICE_KINDS, type FormFieldKind } from "./limits";
+import { isFormSlot, formSlotWords } from "./times";
 
 /** The two places every form has, as a sentence says them; any other is said in its owner's own words. */
 const OWN_PLACES: Record<string, string> = { "your link": "your link", "printed code": "the printed code" };
@@ -30,8 +31,9 @@ export interface RequestLine {
   words: string;
 }
 
-/** An answer in words: what was typed, or the labels of what was picked. */
+/** An answer in words: what was typed, the labels of what was picked, or a time asked for (F3) as its day and hour. */
 function answerWords(field: FormField, answer: unknown): string {
+  if (field.kind === "when" && isFormSlot(answer)) return formSlotWords(answer);
   const labelOf = (id: string) => field.choices?.find((choice) => choice.id === id)?.label ?? id;
   if (Array.isArray(answer))
     return answer

@@ -23,6 +23,7 @@ export type {
   FormOpenRequestDto,
   FormPressed,
   FormRequestDto,
+  FormRequestTimeDto,
   FormsDto,
   FormSheetDto,
   FormsReportDto,
@@ -41,3 +42,5 @@ export { answerLimitOf, FORM_PAGE_WORD_KEYS, FormDescription, formDescriptionPro
 export type { FormPageWordKey } from "./shape";
 export { Source, SOURCE_LABELS, sourceFromSeen, sourceInWords } from "./source";
 export type { SourceSeen } from "./source";
+export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./times";
+export type { FormTimeDay, FormTimeWay } from "./times";

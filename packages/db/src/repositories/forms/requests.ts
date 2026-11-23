@@ -75,6 +75,11 @@ export async function takeFormRequest(db: Db, entry: FormRequestToTake): Promise
     p_held_why: entry.heldWhy ?? undefined,
   });
   if (error) throw new DbFailure(error, "form_request_take");
+  return takenFrom(data);
+}
+
+/** What form_request_take answered (and form_time_request_take with it), read back. */
+export function takenFrom(data: unknown): FormRequestTaken {
   const row = recordOrEmpty(data);
   const outcome = row.outcome;
   if (outcome === "closed" || outcome === "forgotten") return { outcome, entryId: null, contactId: null };
@@ -126,6 +131,35 @@ export interface OpenFormRequest {
   heading: string | null;
   /** A reply to it failed to reach them. */
   unreached: boolean;
+  /** The time it asked for, as its visit stands now (00691, F3), or null where it asked for none. */
+  time: OpenFormRequestTime | null;
+}
+
+/** A time a request asked for, as its visit stands now. */
+export interface OpenFormRequestTime {
+  appointmentId: string;
+  startsAt: string;
+  endsAt: string;
+  service: string | null;
+  status: string;
+  expiresAt: string | null;
+  timezone: string;
+}
+
+/** The time a request asked for, read back; null where it asked for none. */
+function openTimeKept(kept: unknown): OpenFormRequestTime | null {
+  const row = recordOrEmpty(kept);
+  if (typeof row.appointment_id !== "string" || typeof row.starts_at !== "string" || typeof row.ends_at !== "string")
+    return null;
+  return {
+    appointmentId: row.appointment_id,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    service: keptText(row.service),
+    status: keptText(row.status) ?? "proposed",
+    expiresAt: keptText(row.expires_at),
+    timezone: keptText(row.timezone) ?? "UTC",
+  };
 }
 
 /** The requests of a workspace's forms nobody has answered, newest first (form_requests_open). */
@@ -149,6 +183,7 @@ export async function listOpenFormRequests(db: Db, tenantId: TenantId): Promise<
         place: keptText(row.place),
         heading: keptText(row.heading),
         unreached: row.unreached === true,
+        time: openTimeKept(row.time),
       },
     ];
   });
@@ -372,6 +407,8 @@ export interface FormPlaceResult {
   /** The people who asked: one person with two requests is one. */
   people: number;
   newPeople: number;
+  /** The requests that asked for a time (00691, F3). */
+  asked: number;
 }
 
 /** What a workspace's forms brought over the last `days`, by place, and each link's opens (form_results). */
@@ -379,7 +416,7 @@ export async function readFormResults(
   db: Db,
   tenantId: TenantId,
   days: number,
-): Promise<{ places: FormPlaceResult[]; opens: Map<string, number> }> {
+): Promise<{ places: FormPlaceResult[]; opens: Map<string, number>; bookingOpens: Map<string, number> }> {
   const { data, error } = await db.rpc("form_results", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new DbFailure(error, "form_results");
   const row = recordOrEmpty(data);
@@ -396,15 +433,21 @@ export async function readFormResults(
         visits: count(place.visits),
         people: count(place.people),
         newPeople: count(place.new_people),
+        asked: count(place.asked),
       },
     ];
   });
-  const opens = new Map<string, number>();
-  for (const line of Array.isArray(row.opens) ? row.opens : []) {
-    const open = recordOrEmpty(line);
-    if (typeof open.link_id === "string") opens.set(open.link_id, count(open.opens));
-  }
-  return { places, opens };
+  const countsBy = (lines: unknown, key: "link_id" | "form_id") => {
+    const by = new Map<string, number>();
+    for (const line of Array.isArray(lines) ? lines : []) {
+      const open = recordOrEmpty(line);
+      const id = open[key];
+      if (typeof id === "string") by.set(id, count(open.opens));
+    }
+    return by;
+  };
+  // Each link's opens; and each form's business's own booking page, opened from it (00691).
+  return { places, opens: countsBy(row.opens, "link_id"), bookingOpens: countsBy(row.booking_opens, "form_id") };
 }
 
 /**

@@ -65,8 +65,9 @@ what the script writes.
 | [`file_archives`](#file_archives) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
+| [`form_days`](#form_days) | none | on, 1 policy |
 | [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
-| [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts` | on, 3 policies |
+| [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
 | [`forms`](#forms) | `packages/db/src/repositories/forms/forms.ts` | on, 4 policies |
@@ -1777,6 +1778,30 @@ Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
+### form_days
+
+What a form brought by day (UTC) that is no entry (00691): how often the business's own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.
+
+- Owned by: none
+- Primary key: `form_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `form_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `booking_opens` | integer | no | `0` |  |
+
+Foreign keys:
+
+- `tenant_id`, `form_id` → [`forms`](#forms) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### form_entries
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
@@ -1827,7 +1852,7 @@ Foreign keys:
 
 What happened to one form entry (00680; the Forms plan, 3.1 and 3.5), each written by the act itself: reply (the message sent from the request), conversation (the conversation that arrived with its code, and the message that carried it), visit (a visit asked for from it), marked (a member's word that it was answered another way). Answered is read from here and never kept on the entry: a marked link, a conversation link, or a reply whose message did not fail and was not taken back. It names a message, a conversation or a visit, never a person, and goes with its entry.
 
-- Owned by: `packages/db/src/repositories/forms/requests.ts`
+- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
