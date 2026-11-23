@@ -23,9 +23,10 @@ const draft = (over = {}) => ({ instagram: true, google: true, as: "picture", ..
 const WORDS = "Saturdays fill first.";
 
 test("it begins with every place that can take it switched on, on Instagram as a post, and holds no time", () => {
-  assert.deepEqual(postBothBegins({ instagram: true, google: false }), {
+  assert.deepEqual(postBothBegins({ instagram: true, google: false, facebook: true }), {
     instagram: true,
     google: false,
+    facebook: true,
     as: "picture",
   });
 });
@@ -109,13 +110,13 @@ test("a place holds one post at a time, and Google holds a piece once: the page'
 
 test("Instagram takes one of each kind at a time: a story beside a post that waits, and each keeps its Don't post", () => {
   const CONNECTED = { instagram: true, google: true, onGoogle: false };
-  assert.deepEqual(pieceTakesOf([], CONNECTED), { instagram: true, google: true });
+  assert.deepEqual(pieceTakesOf([], CONNECTED), { instagram: true, google: true, facebook: false });
   assert.deepEqual(instagramKindsFree([]), ["picture", "story"]);
   // A post set for Saturday on Instagram: its story can still go (00620), a second post cannot. The row keeps the waiting
   // post's Don't post on its line, and its end is the switch for the kind that is free.
   const waiting = [waits("instagram")];
   const takes = pieceTakesOf(waiting, CONNECTED);
-  assert.deepEqual(takes, { instagram: true, google: true });
+  assert.deepEqual(takes, { instagram: true, google: true, facebook: false });
   assert.deepEqual(instagramKindsFree(waiting), ["story"]);
   assert.equal(instagramAsOf(instagramKindsFree(waiting), "picture"), "story", "posted as the kind that can go");
   assert.equal(instagramAsOf(["picture", "story"], "story"), "story", "the kind wanted, where it can go");
@@ -219,4 +220,35 @@ test("a place the workspace is not offered is left out, unless the piece already
     ],
     "a post that went up while it was offered is still the piece's",
   );
+});
+
+test("a Page is offered only where the link keeps one it may post to, and takes one of each kind at a time", () => {
+  const PAGE = { instagram: true, google: true, onGoogle: false, facebook: true };
+  assert.equal(pieceTakesOf([], { ...PAGE, facebook: false }).facebook, false, "no Page it may post to takes none");
+  assert.equal(pieceTakesOf([], PAGE).facebook, true);
+  // A picture set for its time on the Page: its story can still go there, as on Instagram (00620).
+  const waiting = [waits("facebook", { id: "fb-later" })];
+  assert.equal(pieceTakesOf(waiting, PAGE).facebook, true);
+  const both = [waits("facebook", { id: "fb-later" }), waits("facebook", { id: "fb-story", kind: "story" })];
+  assert.equal(pieceTakesOf(both, PAGE).facebook, false, "both kinds on their way: nothing more goes there");
+  // A video goes to a Page as a reel, the one way it can.
+  assert.equal(pieceTakesOf([], { ...PAGE, fileKind: "video" }).facebook, true);
+  // Listed only where offered, after Instagram and Google, unless the piece already stands there.
+  const offered = { ...CAN, takes: { ...CAN.takes, facebook: true }, offers: { ...CAN.offers, facebook: true } };
+  assert.deepEqual(
+    placesOf([], offered, NOW).map((at) => at.place),
+    ["instagram", "google", "facebook"],
+  );
+  assert.deepEqual(
+    placesOf([], CAN, NOW).map((at) => at.place),
+    ["instagram", "google"],
+  );
+  assert.deepEqual(
+    placesOf([post("facebook", "published")], CAN, NOW).map((at) => at.place),
+    ["instagram", "google", "facebook"],
+    "a post that went up on the Page while it was offered is still the piece's",
+  );
+  // One composer: Post sends to the Page with the others, and nothing switched on anywhere cannot be sent.
+  assert.equal(postBothProblemOf(draft({ instagram: false, google: false, facebook: true }), WORDS), null);
+  assert.equal(postBothProblemOf(draft({ instagram: false, google: false, facebook: false }), WORDS), W.post.nowhere);
 });

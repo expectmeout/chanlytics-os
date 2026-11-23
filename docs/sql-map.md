@@ -608,11 +608,11 @@ being read is dropped by a migration.
 | `playbook_totals` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Each moment playbook's runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history run |
 | `policy_change` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's change to their workspace's own policy row for a class, as one write (00624): |
 | `post_again` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post's first attempt never landed (00611): |
-| `post_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's press, with the settings permission (00681; |
+| `post_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's press, with the settings permission (00681, 00702 for a Facebook Page; |
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00681; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; |
+| `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00702; |
 | `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00699; |
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |

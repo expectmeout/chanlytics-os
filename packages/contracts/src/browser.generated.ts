@@ -278,6 +278,7 @@ export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
 export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } from "./content/pieces";
 export { goodUntilOf, intentOfAbout, ownersFactsOf, pieceIntentOf, postAboutOf, renditionShapeOf } from "./content/placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./content/placements/check-words";
+export { metaPageOf, ON_FACEBOOK, PAGE_POSTING_PERMISSIONS, pagePostableOf, placeSwitchedOn } from "./content/placements/facebook";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./content/placements/places";
 export { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS, RENDITION_SHAPES, REVISION_MADE_BY } from "./content/placements/sets";
 export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_DOWN_WORDS, takeDownWillOf } from "./content/placements/take-down";

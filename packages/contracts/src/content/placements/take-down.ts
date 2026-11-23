@@ -75,7 +75,7 @@ export const postCameDownAt = (post: Pick<PostDto, "id">, takeDown: PieceTakeDow
 
 /** What a place's kind is called in a list: "Instagram reel", "Instagram story", "Instagram post", "Google". */
 export const placementSaid = (place: PostPlace, kind: PostKind): string =>
-  place === "instagram" ? `Instagram ${kind === "picture" ? "post" : kind}` : POST_PLACE_SAID[place];
+  place === "google" ? POST_PLACE_SAID[place] : `${POST_PLACE_SAID[place]} ${kind === "picture" ? "post" : kind}`;
 
 /** One line of the confirm: a placement, or the ad that shows the piece, and what the press does to it. */
 export interface TakeDownWill {

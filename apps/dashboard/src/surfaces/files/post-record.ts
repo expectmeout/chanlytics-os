@@ -28,6 +28,8 @@ export function usePostRecord(file: FileDto, moved = "") {
   const [posted, setPosted] = useState<FilePosted | null>(null);
   const [sound, setSound] = useState<FileSound | null>(null);
   const [instagram, setInstagram] = useState<FileRecordDto["instagram"]>(null);
+  // A Page's, where Facebook is offered to the workspace (pass 5); null where it is not, or from a server before it.
+  const [facebook, setFacebook] = useState<FileRecordDto["facebook"]>(null);
   // Every post of it at every place, newest first: a piece read on its own (a link, the bell) knows its Google post too.
   const [posts, setPosts] = useState<PostDto[] | null>(null);
   // A video Ask made: the plan it was drawn by, which Campaigns › Content makes it again from.
@@ -53,6 +55,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       setConnected(data.google?.connected ?? false);
       setPosted(data.google?.posted ?? null);
       setInstagram(data.instagram ?? null);
+      setFacebook(data.facebook ?? null);
       // A server from before every place's posts were answered: Instagram's are all it knows.
       setPosts(data.posts ?? data.instagram?.posts ?? null);
       setSound(data.sound ?? null);
@@ -73,6 +76,7 @@ export function usePostRecord(file: FileDto, moved = "") {
     setPosted,
     sound,
     instagram,
+    facebook,
     posts,
     video,
     ad: adHere,

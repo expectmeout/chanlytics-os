@@ -6,7 +6,6 @@ import {
   INSTAGRAM_POST_KINDS,
   POST_AHEAD_DAYS_MAX,
   POST_PLACE_SAID,
-  POST_PLACES,
   POST_SOON_MS,
   PostAboutSchema,
   clockWhen,
@@ -48,9 +47,15 @@ import { movesOf } from "./publish-move";
  * the post as it is pressed, so the post says what went.
  */
 
+/**
+ * The places AI's card may propose. A Facebook Page (pass 5) is pressed by the owner alone until a real Page has shown it
+ * works; the card takes it then, with its words and its tool's frozen bytes moved in the same change.
+ */
+const CARD_PLACES = ["instagram", "google"] as const satisfies readonly PostPlace[];
+
 const publishInput = z.object({
   file: z.string().min(1).max(120).optional().describe("Its name as files says it; left out, the question's post."),
-  places: z.array(z.enum(POST_PLACES)).min(1),
+  places: z.array(z.enum(CARD_PLACES)).min(1),
   as: z
     .enum(INSTAGRAM_POST_KINDS)
     .optional()
@@ -220,7 +225,7 @@ async function findPostAsked(toolContext: ToolContext, input: PublishInput) {
   if (!file) return { refused: `no file named ${named}; names come from files with action list` };
   if (file.source !== "made")
     return { refused: `${file.name} is not a post made here. A photo is made into a post first, with propose_post` };
-  const places = POST_PLACES.filter((place) => input.places.includes(place));
+  const places = CARD_PLACES.filter((place) => input.places.includes(place));
   const shapeRefused = kindRefusal(file.kind, places, input.as);
   if (shapeRefused) return { refused: shapeRefused };
   for (const place of places) {

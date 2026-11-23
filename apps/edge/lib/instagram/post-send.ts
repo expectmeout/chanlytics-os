@@ -16,7 +16,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend } from "@chanlytics/contracts";
-import type { MetaPoster } from "@chanlytics/channels/instagram";
 import {
   closePostAttempt,
   findPostForWork,
@@ -31,14 +30,14 @@ import { markSpoke, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
+import type { Posting } from "../content/posting.js";
 import {
   HOLDABLE,
   beginSecondAttempt,
   findOnTheAccount,
-  findPoster,
   instagramKindOf,
   keepPublished,
-  placeFor,
+  postingOf,
   postJobOf,
   preparePost,
   refusalKept,
@@ -49,16 +48,16 @@ import {
 type Db = SupabaseClient<Database>;
 
 /** The recheck: why the post may not go now, in the owner's words, or the poster it goes through. */
-async function recheck(db: Db, post: PostRow): Promise<{ poster: MetaPoster } | SendHold> {
+async function recheck(db: Db, post: PostRow, deps: PostDeps): Promise<Posting | SendHold> {
   const bytes = await readSendRecheck(db, post, { approver: true });
   if ("held" in bytes) return bytes;
-  return findPoster(db, post.tenant_id);
+  return postingOf(db, post, deps);
 }
 
 /** One send in hand: the post, who posts it, which attempt, and the row the send is kept on. */
 interface Sending {
   post: PostRow;
-  poster: MetaPoster;
+  posting: Posting;
   place: PlaceAdapter;
   attempt: 1 | 2;
   attemptId: string;
@@ -85,13 +84,12 @@ async function refusedSend(
   db: Db,
   at: Sending,
   sent: Extract<Awaited<ReturnType<PlaceAdapter["publish"]>>, { is: "refused" }>,
-  deps: PostDeps,
 ): Promise<void> {
   const { post } = at;
   if (at.attempt === 2) {
     const state = await at.place.preparedState?.(at.containerId, instagramKindOf(post));
     if (state?.is === "published") {
-      const found = await findOnTheAccount(db, { post, poster: at.poster }, deps).catch(
+      const found = await findOnTheAccount(db, { post, posting: at.posting }).catch(
         logAndGoOn("post's address after a second send found it up", null),
       );
       await closePostAttempt(db, {
@@ -104,7 +102,7 @@ async function refusedSend(
       await keepPublished(db, post, {
         from: ["publishing"],
         media: found,
-        accountId: at.poster.accountId,
+        accountId: at.posting.accountId,
         seen: found !== null,
       });
       return;
@@ -134,10 +132,10 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   if (!post) return { skipped: "gone" };
   if (post.status !== "preparing" || !post.container_id) return { skipped: post.status };
   instagramKindOf(post);
-  const posting = await recheck(db, post);
+  const posting = await recheck(db, post, deps);
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   if (!(await movePost(db, { postId: post.id, from: ["preparing"], to: "publishing" }))) return { skipped: "moved" };
-  const place = placeFor(db, post, posting.poster, deps);
+  const { place } = posting;
   const opened = await openPostAttempt(db, {
     postId: post.id,
     attemptNo: attempt,
@@ -149,9 +147,8 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   if (sent.is === "refused")
     return refusedSend(
       db,
-      { post, poster: posting.poster, place, attempt, attemptId: opened.id, containerId: post.container_id },
+      { post, posting, place, attempt, attemptId: opened.id, containerId: post.container_id },
       sent,
-      deps,
     );
   if (sent.is === "unknown") {
     // No answer proves nothing: Checking, and Instagram is asked what it has before anything is sent again.
@@ -175,7 +172,7 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   await keepPublished(db, post, {
     from: ["publishing"],
     media: sent.media,
-    accountId: posting.poster.accountId,
+    accountId: posting.accountId,
     seen: sent.seen,
   });
   // Up, and not read back: the move itself wrote the job that asks for it again in two minutes (00681 post_moved), so it
@@ -189,9 +186,9 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
  */
 async function verifyPublished(db: Db, post: PostRow, deps: PostDeps): Promise<void | { skipped: string }> {
   if (post.verified_at || !post.external_id) return { skipped: "seen" };
-  const posting = await findPoster(db, post.tenant_id);
-  if ("held" in posting) throw new Error(`post ${post.id}: Instagram cannot be asked (${posting.held})`);
-  const state = await placeFor(db, post, posting.poster, deps).status?.({
+  const posting = await postingOf(db, post, deps);
+  if ("held" in posting) throw new Error(`post ${post.id}: ${post.place} cannot be asked (${posting.held})`);
+  const state = await posting.place.status?.({
     postId: post.id,
     kind: instagramKindOf(post),
     externalId: post.external_id,
@@ -219,10 +216,10 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
   if (!post) return { skipped: "gone" };
   if (post.status === "published" && job.payload.seen === "ask") return verifyPublished(db, post, deps);
   if (post.status !== "checking" || !post.container_id) return { skipped: post.status };
-  const posting = await findPoster(db, job.tenant_id);
-  // Instagram cannot be asked: the job comes back, and past its last try the post says to look at the account.
-  if ("held" in posting) throw new Error(`post ${post.id}: Instagram cannot be asked (${posting.held})`);
-  const place = placeFor(db, post, posting.poster, deps);
+  const posting = await postingOf(db, post, deps);
+  // The place cannot be asked: the job comes back, and past its last try the post says to look at the account.
+  if ("held" in posting) throw new Error(`post ${post.id}: ${post.place} cannot be asked (${posting.held})`);
+  const { place } = posting;
   const state = await place.preparedState?.(post.container_id, instagramKindOf(post));
   if (!state || state.is === "unknown" || state.is === "gone")
     throw new Error(`post ${post.id}: the container could not be read`);
@@ -233,7 +230,7 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
     request: { container_id: post.container_id },
   });
   // Published, the account's list is only for its address: one that cannot be read leaves the post up without it.
-  const looking = findOnTheAccount(db, { post, poster: posting.poster }, deps);
+  const looking = findOnTheAccount(db, { post, posting });
   const found =
     state.is === "published"
       ? await looking.catch(logAndGoOn("post's address after a send with no answer", null))
@@ -251,7 +248,7 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
     await keepPublished(db, post, {
       from: ["checking"],
       media: found,
-      accountId: posting.poster.accountId,
+      accountId: posting.accountId,
       seen: found !== null,
     });
     return;

@@ -14,7 +14,10 @@ import { Icon } from "../../../kit/icon/icon";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 
 /** Each place's mark, wherever a placement is drawn: the list, its lines and the foot. */
-export const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
+export const PLACE_GLYPH = { instagram: "instagram", google: "place", facebook: "facebook" } as const satisfies Record<
+  PostPlace,
+  string
+>;
 
 /** What a line's presses do, each the pane's own. */
 export interface GoesPresses {

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-459 handlers in 63 domains.
+461 handlers in 63 domains.
 
 ## activity
 
@@ -1349,6 +1349,26 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `name` | string | yes | at most 255 characters |
 | `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"`, `"video/mp4"`, `"video/quicktime"`, `"video/webm"` | yes |  |
+
+### `POST /api/v1/files/[id]/facebook`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_facebook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `as` | one of `"picture"`, `"story"`, `"reel"` | yes |  |
+| `caption` | string | no | at most 2200 characters |
+| `when` | string (date-time) | no |  |
+| `about` | object | no |  |
+| `facts` | array of object | no | at most 5 |
+
+### `DELETE /api/v1/files/[id]/facebook`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_facebook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/files/[id]/google`
 

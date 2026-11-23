@@ -34,6 +34,7 @@ import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
 import { takeDownPlaceFor } from "../instagram/post-ready.js";
+import { findPagePosting } from "../facebook/posting.js";
 import { sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
 import { takePostDown } from "../content/take-down.js";
@@ -148,6 +149,9 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]):
   return new Set(ours.filter((t): t is TenantId => t !== null));
 }
 
+/** Who posts at each place besides Instagram, for the post jobs and the take-down: a Page through the Meta link. */
+const POSTING_AT = { postingAt: { facebook: findPagePosting } };
+
 /**
  * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
  * its calendar, WhatsApp's), with the grants that live here, the business's website read for Check (R10), and a lead's
@@ -169,14 +173,15 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.
   posts: {
-    ...postJobs(db),
+    // A Page's posts go through the same jobs, its own poster found by the Meta link's Page (pass 5).
+    ...postJobs(db, POSTING_AT),
     google: (job: ClaimedJob) => sendGooglePost(db, job),
     // A post asked down where it is up (00682), each place through its own adapter.
     takeDown: (job: ClaimedJob) =>
       takePostDown(db, job, (post) =>
         post.place === "google"
           ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
-          : takeDownPlaceFor(db, post),
+          : takeDownPlaceFor(db, post, POSTING_AT),
       ),
     // A post's numbers read at one step (00699): Google's adapter gives none yet, so each reads unsupported there.
     observe: (job: ClaimedJob) =>

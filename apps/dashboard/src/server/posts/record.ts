@@ -28,6 +28,7 @@ import {
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
 import { readInstagramPostable, instagramPostsOf } from "./instagram";
+import { facebookPostsOf, readFacebookPostable } from "./facebook";
 import { fileMadeOf } from "./made-as";
 import { readPieceTakeDown } from "./take-down";
 import { log } from "@/server/shared/log";
@@ -47,12 +48,13 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   const file = fileDtoOf(row);
   if (row.kind === "video") {
     const ours = row.source === "made";
-    const [sound, plan, posts, can] = await Promise.all([
+    const [sound, plan, posts, can, page] = await Promise.all([
       readFileSound(ctx.supabase, row.id),
       ours ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
-      // A made video's posts: its reel on Instagram (00681), and the one its owner put up by hand.
+      // A made video's posts: its reel on Instagram (00681) and on a Page (pass 5), and the one its owner put up by hand.
       ours ? listFilePosts(ctx.supabase, member.tenantId, row.id) : [],
       ours ? readInstagramPostable(member.tenantId) : null,
+      ours ? readFacebookPostable(member.tenantId) : null,
     ]);
     const drawnBy = recordOrNull(plan);
     return {
@@ -61,6 +63,7 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
       // Google takes no video from here (contracts PLACE_CAPABILITIES).
       google: null,
       instagram: can === null ? null : { can, posts: instagramPostsOf(posts) },
+      facebook: page === null ? null : { can: page, posts: facebookPostsOf(posts) },
       ...(ours ? { posts: sentPostsOf(posts) } : {}),
       by_hand: handPostOf(posts),
       sound: fileSoundOf(sound),
@@ -68,17 +71,19 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
     };
   }
   if (row.source !== "made") return { file, made: null, google: null, instagram: null };
-  const [kept, connection, posts, can] = await Promise.all([
+  const [kept, connection, posts, can, page] = await Promise.all([
     getFileMade(serviceDb(), member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
     listFilePosts(ctx.supabase, member.tenantId, row.id),
     readInstagramPostable(member.tenantId),
+    readFacebookPostable(member.tenantId),
   ]);
   const google = { connected: !!connection?.location_name, posted: await onGoogle(member, row.id, posts) };
   const instagram = can === null ? null : { can, posts: instagramPostsOf(posts) };
+  const facebook = page === null ? null : { can: page, posts: facebookPostsOf(posts) };
   // Every place's, whatever the Meta link, so a piece read on its own stands where the page that lists it says; and apart
   // from them the one its owner put up by hand.
-  const placed = { google, instagram, posts: sentPostsOf(posts), by_hand: handPostOf(posts) };
+  const placed = { google, instagram, facebook, posts: sentPostsOf(posts), by_hand: handPostOf(posts) };
   const created = recordOrNull(kept);
   if (!created) return { file, made: null, ...placed };
   // Read under the caller's RLS: a photo removed since, or one they can't see, is no photo to name.

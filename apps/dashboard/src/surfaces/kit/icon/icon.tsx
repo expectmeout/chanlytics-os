@@ -191,6 +191,13 @@ const GLYPHS: Record<string, Drawing> = {
       <rect fill="currentColor" stroke="none" x="8.13" y="8.13" width="6.4" height="6.4" rx="1.66" />
     </svg>
   ),
+  /** A Page's mark: a rounded square holding an f. */
+  facebook: (p) => (
+    <svg {...p}>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="3" />
+      <path d="M10 5.5H9.25A1.25 1.25 0 0 0 8 6.75V13.5M6.25 8.75h3.5" />
+    </svg>
+  ),
   instagram: (p) => (
     <svg {...p}>
       <rect x="2.5" y="2.5" width="11" height="11" rx="3" />

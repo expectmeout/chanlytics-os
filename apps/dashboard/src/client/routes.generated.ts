@@ -7,6 +7,7 @@ export const ROUTES = {
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
   "DELETE files/[id]": { method: "DELETE", path: "/api/v1/files/[id]" },
+  "DELETE files/[id]/facebook": { method: "DELETE", path: "/api/v1/files/[id]/facebook" },
   "DELETE files/[id]/google": { method: "DELETE", path: "/api/v1/files/[id]/google" },
   "DELETE files/[id]/instagram": { method: "DELETE", path: "/api/v1/files/[id]/instagram" },
   "DELETE files/[id]/posts": { method: "DELETE", path: "/api/v1/files/[id]/posts" },
@@ -274,6 +275,7 @@ export const ROUTES = {
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
+  "POST files/[id]/facebook": { method: "POST", path: "/api/v1/files/[id]/facebook" },
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
   "POST files/[id]/link": { method: "POST", path: "/api/v1/files/[id]/link" },
@@ -470,6 +472,7 @@ export type Routes = {
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
   "DELETE files/[id]": typeof import("../../app/api/v1/files/[id]/route").DELETE;
+  "DELETE files/[id]/facebook": typeof import("../../app/api/v1/files/[id]/facebook/route").DELETE;
   "DELETE files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").DELETE;
   "DELETE files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").DELETE;
   "DELETE files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").DELETE;
@@ -737,6 +740,7 @@ export type Routes = {
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
+  "POST files/[id]/facebook": typeof import("../../app/api/v1/files/[id]/facebook/route").POST;
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
   "POST files/[id]/link": typeof import("../../app/api/v1/files/[id]/link/route").POST;

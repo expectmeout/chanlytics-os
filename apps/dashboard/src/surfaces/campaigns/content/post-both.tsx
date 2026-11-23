@@ -86,7 +86,9 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
   const mover = usePostMove({ id, posts: piece.posts }, { done, flash, refused: setRefused });
   const change = (to: Partial<PostBothDraft>) => setHeld((d) => (d ? { ...d, ...to } : d));
   // What a person who may post can send to now: a reader's list switches nothing.
-  const open: PieceTakes | null = takes ? { instagram: may && takes.instagram, google: may && takes.google } : null;
+  const open: PieceTakes | null = takes
+    ? { instagram: may && takes.instagram, google: may && takes.google, facebook: may && takes.facebook }
+    : null;
   // What Instagram can take now: one of each kind at a time (00620), so a story while a post waits, and the other way round.
   const kinds = instagramKindsFree(piece.posts, fileKind);
   // The list opened over a draft, once the piece's record is read and its places are known: armed, or to be read.
@@ -104,6 +106,7 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
           as: instagramAsOf(kinds, held.as),
           instagram: held.instagram && open.instagram,
           google: held.google && open.google,
+          facebook: held.facebook && open.facebook,
         }
       : held;
   const words = (caption ?? "").trim();
@@ -124,11 +127,11 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
       return;
     }
     // What was sent is off now: a second press sends only what was refused.
-    setHeld((now) => (now ? { ...now, instagram: !!no.instagram, google: !!no.google } : now));
+    setHeld((now) => (now ? { ...now, instagram: !!no.instagram, google: !!no.google, facebook: !!no.facebook } : now));
     if (sent.length > 0) done(sent);
   };
   // Something is switched on to send: only then does the list draw its caption and its send.
-  const sending = !!draft && (draft.instagram || draft.google);
+  const sending = !!draft && (draft.instagram || draft.google || draft.facebook);
   const problem = draft && sending ? postBothProblemOf(draft, words) : null;
   return {
     open: draft !== null,
@@ -163,7 +166,8 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
      * Opened to be read, with no place switched on: where the piece waits for something a new post would not mend (a
      * person's yes, its connection, AI paused), so Post is never armed beside the line that says why it cannot go.
      */
-    look: () => openWith(() => ({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false })),
+    look: () =>
+      openWith(() => ({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false, facebook: false })),
     cancel: () => {
       setRefused({});
       mover.stop();
@@ -207,7 +211,7 @@ function readerMisses(
   if (places.some((at) => at.pull || at.letGo || at.waitsToo?.pull)) return true;
   if (!both.could) return false;
   const armed = postBothOpening(both.could, both.posts, Date.now(), both.fileKind);
-  return armed.instagram || armed.google;
+  return armed.instagram || armed.google || armed.facebook;
 }
 
 /**

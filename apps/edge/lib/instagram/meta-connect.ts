@@ -43,6 +43,7 @@ import {
   type MetaApp,
   type MetaTokenFacts,
 } from "@chanlytics/channels/meta";
+import { postablePageIdsOf, readLinkedPage } from "@chanlytics/channels/facebook";
 import { recordActivation } from "@chanlytics/db/events";
 import { findInstagramAccountRow } from "@chanlytics/db/channels";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
@@ -232,6 +233,13 @@ async function connectThroughMeta(
     return refuse(503, "channel_read_failed");
   }
   const oldToken = await oldLoginToken(db, before);
+  // The Page the sign-in shared to post to, if it shared one (pass 5): kept on the row, read best effort, never a refusal.
+  const page = await readLinkedPage({
+    token,
+    appSecret: app.clientSecret,
+    accountId: account.id,
+    pageIds: postablePageIdsOf(facts.accountsByScope),
+  });
   // 2. Its events reach this app's webhook, for what its permissions allow.
   const unsubscribed = await subscribeThroughMeta(log, app, { id: account.id, token, scopes: facts.scopes });
   if (unsubscribed) return unsubscribed;
@@ -259,6 +267,7 @@ async function connectThroughMeta(
       business_id: businessId,
       scopes: facts.scopes,
       token_checked_at: now,
+      ...(page ? { page: { id: page.id, name: page.name } } : {}),
     },
     secret,
   });
@@ -266,7 +275,12 @@ async function connectThroughMeta(
   if (oldToken) await dropOldLogin(log, oldToken, account.id);
   // The workspace's first line that answers, the funnel's first milestone, whichever wire it is.
   await recordActivation(db, tenantId, "line_live", "instagram").catch(logAndGoOn("record the line live", false));
-  log.info("meta_connected", { channel_id: row.channelId, username: account.username, scopes: facts.scopes.length });
+  log.info("meta_connected", {
+    channel_id: row.channelId,
+    username: account.username,
+    scopes: facts.scopes.length,
+    page: page !== null,
+  });
   return json(200, { ok: true, channel_id: row.channelId, account_id: account.id, username: account.username });
 }
 
