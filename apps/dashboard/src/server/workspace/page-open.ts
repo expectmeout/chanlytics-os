@@ -1,6 +1,6 @@
 import "server-only";
 import { ok, openReads } from "@chanlytics/contracts";
-import { requestTimings } from "@chanlytics/log";
+import { requestTimings, shareReads } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
 import { answerOfThrow, shareMembership, type RouteContext } from "@/server/shared/with-route";
 import { shareTurn } from "@/server/shared/reader";
@@ -15,6 +15,11 @@ import { shareTurn } from "@/server/shared/reader";
  * all of them (shareMembership), and the readers sharing one turn (shareTurn). Each read is still answered by its own
  * route, as that route's GET runs it (`run`: its scope, role, rate and query), so its answer is the JSON its own request
  * would have carried, byte for byte, and its refusal the same code, status and sentence (answerOfThrow).
+ *
+ * And the database is asked each question once (shareReads; packages/db read-once.ts). The readers a turn shares are
+ * shared by name, but most of what the reads ask is asked beneath them: of the 115 reads of a table Today's opening made,
+ * eighteen asked exactly what another read had asked a moment before (23 Nov 2026: the channels' state three times, the
+ * mailboxes three). Every read here is a GET's, so an answer the request has is the answer the same question would get.
  *
  * In two tiers, as the boot reads them: who is looking and the page's own first, then what it draws beside them once
  * those are in, so the heavy reads of other pages never crowd the page's own (measured 25 Sep 2026: a page's read took
@@ -72,6 +77,7 @@ export function openPage(
 ): Response {
   shareMembership(ctx);
   shareTurn(ctx);
+  shareReads();
   const workspace = new URL(req.url).searchParams.get("workspace") ?? "";
   const encoder = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({

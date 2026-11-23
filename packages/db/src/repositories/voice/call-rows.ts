@@ -66,17 +66,5 @@ export const findLastCallIn = async (db: Db, tenantId: TenantId) =>
     .limit(1)
     .maybeSingle();
 
-/** When the workspace's newest inbound call that connected started, or none: a dial that never connected tests nothing. */
-export const findLastConnectedCallIn = async (db: Db, tenantId: TenantId) =>
-  db
-    .from("calls")
-    .select("started_at")
-    .eq("tenant_id", tenantId)
-    .eq("direction", "inbound")
-    .neq("status", "not_connected")
-    .order("started_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-
 /** A recording's opening kept on its call (recording_opened). */
 export const markRecordingOpened = async (db: Db, callId: string) => db.rpc("recording_opened", { p_call_id: callId });

@@ -13,6 +13,8 @@ export {
   requestTenant,
   requestTimings,
   requestTouches,
+  sharedReads,
+  shareReads,
   withRequestId,
 } from "./request";
 export type { RequestTiming } from "./request";

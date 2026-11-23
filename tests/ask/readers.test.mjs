@@ -5611,7 +5611,7 @@ test("connections, for the page: GET setup answers its reader's payload over set
     "setupDtoFor's own answer for a member, and the role riding along so the page knows who may act",
   );
   assert.deepEqual(askedWith(ctx), askedWith(direct), "setupDtoFor's own reads, in its order, on the member's session");
-  assert.ok(asked(ctx).includes("rpc:team_roster"), "the roster through its door: a member's");
+  assert.ok(asked(ctx).includes("rpc:setup_rows"), "Setup's rows in one call, the roster among them: a member's");
   assert.ok(!asked(ctx).includes("memberships.select"), "never the back office's plain counts");
   assert.deepEqual(asked(routed), ["memberships.select", ...asked(ctx)], "the workspace's door, then the same reads");
   const viewer = await kernel.load(memberIn(worldCtx(w), B, "viewer", NOW), connections, undefined);

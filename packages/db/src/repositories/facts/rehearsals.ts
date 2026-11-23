@@ -220,28 +220,6 @@ export async function getRehearsalSpokenMs(
   return { spentMs, running };
 }
 
-/**
- * The rehearsals reviewed and the changes kept from them, and when the newest was made (decision 0073: the first run's
- * Rehearse is done at the first review, and "Trained: n things" counts the keeps). Read under the member's session.
- */
-export async function findRehearsalTally(
-  db: Db,
-  tenantId: TenantId,
-): Promise<{ reviewed: number; kept: number; last_at: string | null }> {
-  const { data, error } = await tenantDb(db, tenantId)
-    .from("rehearsals")
-    .select("created_at, reviewed_at, fixes")
-    .order("created_at", { ascending: false })
-    .limit(500);
-  if (error) throw new DbFailure(error, "cannot read the rehearsals");
-  const rows = data ?? [];
-  return {
-    reviewed: rows.filter((r) => r.reviewed_at !== null).length,
-    kept: rows.reduce((n, r) => n + (Array.isArray(r.fixes) ? r.fixes.length : 0), 0),
-    last_at: rows[0]?.created_at ?? null,
-  };
-}
-
 /** A spoken rehearsal, as its call is made: before the token is answered, so its tools and its webhooks find it. */
 /**
  * The call id a workspace's start holds while it asks the provider: one a workspace, so a second start at the same

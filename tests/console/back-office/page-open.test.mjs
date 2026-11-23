@@ -297,3 +297,28 @@ test("GET open takes the pages it opens, the periods Reports offers and the thre
     "a thread is a conversation's id, never a word of the address",
   );
 });
+
+test("an opening's reads ask the database each question once, and a request that is no opening asks every time", async () => {
+  const { namedFetch } = await import("@chanlytics/db/shared");
+  const sent = [];
+  const db = namedFetch(async (url) => {
+    sent.push(String(url));
+    return new Response('[{"id":"l1"}]', { status: 200 });
+  });
+  const lines = "https://db.example.com/rest/v1/lines?select=id";
+  // Every read of the opening asks for the workspace's lines, as three of Today's asked for its channels' state.
+  const routeOf = () => ({ run: async () => ({ lines: await (await db(lines)).json() }) });
+  const answered = await withRequestId("rq-shares", () =>
+    linesOf(openPage(ctxFor(), openReq(), { page: "today", period: null, thread: null }, routeOf)),
+  );
+  assert.equal(sent.length, 1, "one call for all of them");
+  assert.ok(
+    readsIn(answered).every((l) => l.b.data.lines[0].id === "l1"),
+    "and each read has the whole answer",
+  );
+  await withRequestId("rq-alone", async () => {
+    await db(lines);
+    await db(lines);
+  });
+  assert.equal(sent.length, 3, "a request that answers one read asks as it always did");
+});

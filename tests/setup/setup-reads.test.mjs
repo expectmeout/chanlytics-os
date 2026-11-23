@@ -1,5 +1,6 @@
 /**
- * What Setup reads to say where a workspace stands, and when (server/setup/setup.ts): one wave, and nothing twice.
+ * What Setup reads to say where a workspace stands, and when (server/setup/setup.ts): one wave, and nothing twice. Its
+ * rows are one call (setup_rows, 00700: 24 until 23 Nov 2026), and what is not a row of the workspace's is asked beside it.
  *
  * Three things it did until 9 Oct 2026, each run here through the real assembly over a database in memory, with the
  * edge and the calendar's feed scripted:
@@ -96,19 +97,14 @@ function network({ wire = Promise.resolve() } = {}) {
   forgetFeeds();
   return calls;
 }
-/** A database whose reads of one table are not answered until `open()`. */
-function heldAt(db, table) {
+/** A database whose call of one function is not answered until `open()`. */
+function heldAt(db, fn) {
   let open;
   const gate = new Promise((go) => (open = go));
-  const from = db.from.bind(db);
-  db.from = (t) => {
-    const q = from(t);
-    if (t !== table) return q;
-    for (const answer of ["then", "single", "maybeSingle"]) {
-      const was = q[answer].bind(q);
-      q[answer] = (...args) => gate.then(() => was(...args));
-    }
-    return q;
+  const rpc = db.rpc.bind(db);
+  db.rpc = (name, args) => {
+    const call = rpc(name, args);
+    return name === fn ? { then: (ok, no) => gate.then(() => call).then(ok, no) } : call;
   };
   return open;
 }
@@ -118,10 +114,10 @@ const idle = async () => {
 };
 
 // First in the file: the edge's answer is kept by the deployment once it is a yes, and this is the asking of it.
-test("whether the email wire can send is asked of the edge with Setup's first reads, not after the last of them: with one of those reads still out, the edge has been asked; and its slow answer holds no read of Setup's back", async () => {
-  // A read of Setup's first wave is out, and the edge has already been asked.
+test("whether the email wire can send is asked of the edge with Setup's first reads, not after the last of them: with its rows still out, the edge has been asked; and its slow answer holds no read of Setup's back", async () => {
+  // Setup's rows are out, and the edge has already been asked.
   const db = fakeDb(tables(), {}, doors());
-  const open = heldAt(db, "tenant_channels");
+  const open = heldAt(db, "setup_rows");
   let release;
   const calls = network({ wire: new Promise((go) => (release = go)) });
   let answered = false;
@@ -136,7 +132,7 @@ test("whether the email wire can send is asked of the edge with Setup's first re
   open();
   await idle();
   assert.equal(answered, false, "Setup waits for the offers' count, which waits for the edge");
-  for (const read of ["tenant_config.select", "tenant_channels.select", "templates.select", "contacts.select"])
+  for (const read of ["rpc:setup_rows", "mailbox_connections.select"])
     assert.ok(asked(db).includes(read), `${read} did not wait for the edge`);
   assert.ok(!asked(db).includes("rpc:offers_email_reach"), "the count is asked for once the edge says offers can go");
   release();
@@ -148,7 +144,7 @@ test("whether the email wire can send is asked of the edge with Setup's first re
   );
 });
 
-test("Setup's calendar row says whether the link reads, and reads nobody for it: no one in People, the settings once (Setup's own read of them) and the workspace's row once", async () => {
+test("Setup's calendar row says whether the link reads, and reads nobody for it: no one in People, the settings from Setup's own rows and the workspace's row once", async () => {
   const db = fakeDb(tables(), {}, doors());
   network();
   const setup = await setupDtoFor(db, T, { kind: "back_office" }, NOW);
@@ -162,32 +158,39 @@ test("Setup's calendar row says whether the link reads, and reads nobody for it:
     !reads.includes("rpc:people_list") && !reads.includes("policies.select"),
     "REGRESSION: every Setup of a workspace with a calendar link read everyone in People, to match a week nobody is shown",
   );
-  assert.equal(
-    reads.filter((r) => r === "tenant_config.select").length,
-    1,
-    "REGRESSION: the calendar's lookup read the settings Setup had just read",
-  );
+  assert.equal(reads.filter((r) => r === "rpc:setup_rows").length, 1, "Setup's rows, once");
+  assert.ok(!reads.includes("tenant_config.select"), "REGRESSION: the calendar's lookup read the settings again");
   assert.equal(reads.filter((r) => r === "tenants.select").length, 1, "the zone, beside the settings");
   assert.ok(!reads.includes("appointments.select"), "and nothing of the record's visits: where it stands, no more");
 });
 
-test("the workspace's mailbox is read once for the three that want it: the email line, the address the booking tool's emails go to, and the offers' count", async () => {
+test("the workspace's mailbox comes with Setup's rows for the three that want it: the email line, the address the booking tool's emails go to, and the offers' count", async () => {
   const db = fakeDb(tables(), {}, doors());
   network();
   const setup = await setupDtoFor(db, T, { kind: "back_office" }, NOW);
   assert.equal(
     asked(db).filter((r) => r === "mailboxes.select").length,
-    1,
-    "REGRESSION: one row, read three times on every Setup",
+    0,
+    "REGRESSION: one row, read again beside the rows that carry it",
   );
   assert.equal(setup.email.mailbox.address, "harbor@mail.example.com", "the email line's");
   assert.equal(setup.calendar.emails.address, true, "the notices' address");
   assert.equal(setup.consent.offers_by_email, 12, "and the offers' count's, whose pause it holds");
 
-  // A mailbox that cannot be read fails Setup, as it did: the email line is not "none" because a read failed.
-  const down = fakeDb(tables(), { "mailboxes.select": { message: "permission denied" } }, doors());
+  // Rows that cannot be read fail Setup, as a mailbox that could not be read did: the email line is not "none" because a
+  // read failed.
+  const down = fakeDb(
+    tables(),
+    {},
+    {
+      ...doors(),
+      setup_rows: () => {
+        throw Object.assign(new Error("permission denied for table mailboxes"), { code: "42501" });
+      },
+    },
+  );
   network();
-  await assert.rejects(setupDtoFor(down, T, { kind: "back_office" }, NOW), /mailbox: permission denied/);
+  await assert.rejects(setupDtoFor(down, T, { kind: "back_office" }, NOW), /permission denied for table mailboxes/);
 
   // No mailbox made: the line says so, the notices offer the address the name would give, and no offer is counted.
   const none = fakeDb({ ...tables(), mailboxes: [] }, {}, doors());
@@ -197,5 +200,48 @@ test("the workspace's mailbox is read once for the three that want it: the email
     [bare.email.mailbox, bare.calendar.emails.address, bare.consent.offers_by_email],
     [null, false, undefined],
   );
-  assert.equal(asked(none).filter((r) => r === "mailboxes.select").length, 1);
+  assert.equal(asked(none).filter((r) => r === "mailboxes.select").length, 0);
+});
+
+test("Setup's rows are one call as the caller (setup_rows, 00700): a member's asks for the roster, the back office's counts its members; the imports' counts read as numbers; a refusal fails the read", async () => {
+  const { readSetupRows } = await import("@chanlytics/db/workspace");
+  const db = fakeDb(
+    {
+      ...tables(),
+      memberships: [
+        { tenant_id: T, user_id: "u1", role: "owner" },
+        { tenant_id: T, user_id: "u2", role: "partner" },
+      ],
+      imports: [{ tenant_id: T, source: "clients_file", state: "done", counts: { added: 4, said: "four" } }],
+      setup_choices: [{ tenant_id: T, phone: null, whatsapp: "own", marks: ["channels-seen"], version: 2 }],
+    },
+    {},
+    { team_roster: () => [{ membership_id: "m1", member_user_id: "u1", email: "o@example.com", role: "owner" }] },
+  );
+  const member = await readSetupRows(db, T, true);
+  assert.deepEqual(
+    db.seen,
+    [{ rpc: "setup_rows", args: { p_tenant_id: T, p_roster: true } }],
+    "one call, nothing else",
+  );
+  assert.deepEqual([member.roster.length, member.members], [1, null], "the roster, no count beside it");
+  const office = await readSetupRows(db, T, false);
+  assert.deepEqual(
+    [office.roster, office.members],
+    [null, 1],
+    "no roster asked for, the members counted, the partner aside",
+  );
+  assert.deepEqual(member.imports[0].counts, { added: 4 }, "a count that is no number is left out, never read as one");
+  assert.deepEqual(member.choices, { phone: null, whatsapp: "own", marks: ["channels-seen"], version: 2 });
+
+  const refused = fakeDb(
+    tables(),
+    {},
+    {
+      setup_rows: () => {
+        throw Object.assign(new Error("Not a member of this workspace."), { code: "42501" });
+      },
+    },
+  );
+  await assert.rejects(readSetupRows(refused, T, true), (e) => e.code === "42501" && /Not a member/.test(e.message));
 });
