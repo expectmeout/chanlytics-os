@@ -24,7 +24,7 @@ import { holderName } from "../holder-names";
 import { keepSavedView, peopleGoing, peopleLoaded } from "./surface";
 import { declareReads, personRouteId } from "@/bridge/surface-registry";
 import { isLiveCallTurn } from "@/bridge/surface-realtime";
-import { bootWaitsFor } from "@/bridge/surface-runner";
+import { bootWaitsFor } from "@/bridge/hearing/page-waits";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 

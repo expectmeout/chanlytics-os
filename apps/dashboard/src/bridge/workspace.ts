@@ -27,6 +27,7 @@ import {
   workspacePath,
 } from "@chanlytics/contracts";
 import { LAST_WORKSPACE_STORAGE } from "@/frame-boot";
+import { publicEnv } from "@/lib/public-env";
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";
@@ -378,17 +379,21 @@ export function warmsOnItsOwn(): boolean {
   return !(link && (link.saveData || /(^|-)2g$/.test(link.effectiveType ?? "")));
 }
 
+/** A part of the runner's boot something may wait for: what afterBoot answers for it now, and what settles the one coming. */
+interface BootWait {
+  now: Promise<void>;
+  /** What settles the part the shell said is coming (bootComing), until the last boot started lets it go (bootStarted). */
+  due: (() => void) | null;
+}
 /**
  * The runner's boot (surface-runner.ts), settled once its last surface is in, whether each read worked or not; settled at
  * once where no boot is coming (a test's stand-in window, a page with no shell).
  */
-let boot: Promise<void> = Promise.resolve();
-/** What settles the boot the shell said is coming, until the runner starts it (bootComing). */
-let bootDue: (() => void) | null = null;
+const boot: BootWait = { now: Promise.resolve(), due: null };
 /** The boot's first pass, the page's own surfaces and its own read (surface-runner.ts): what afterBoot("page") answers. */
-let pagesOwn: Promise<void> = Promise.resolve();
-/** What settles the first pass the shell said is coming, until the runner starts it. */
-let pagesOwnDue: (() => void) | null = null;
+const pagesOwn: BootWait = { now: Promise.resolve(), due: null };
+/** How many boots have started: the last is the one what waits is let go by (bootStarted). */
+let bootsStarted = 0;
 
 /**
  * Said at the shell's module scope, before anything asks afterBoot: a boot is coming. What waits for the boot then waits
@@ -398,10 +403,46 @@ let pagesOwnDue: (() => void) | null = null;
  * stream was still answering, and took 1.6 s each in that crowd (the Today load review, 27 Oct 2026).
  */
 export function bootComing(): void {
-  if (bootDue) return;
-  boot = new Promise<void>((settle) => (bootDue = settle));
-  pagesOwn = new Promise<void>((settle) => (pagesOwnDue = settle));
+  if (boot.due) return;
+  boot.now = new Promise<void>((settle) => (boot.due = settle));
+  pagesOwn.now = new Promise<void>((settle) => (pagesOwn.due = settle));
 }
+
+/**
+ * Whether the page on screen goes first (the plan "Pages that open at once", piece 3): what other pages read waits for it
+ * to be drawn, not only for its own reads. On unless NEXT_PUBLIC_PAGE_FIRST says off (lib/public-env.ts).
+ */
+export const pageFirst = (): boolean => publicEnv.NEXT_PUBLIC_PAGE_FIRST !== "off";
+
+/** Settled once the page on screen is drawn (pageDrawn); at once where nobody said a draw is coming (drawComing). */
+const drawn: BootWait = { now: Promise.resolve(), due: null };
+
+/**
+ * Said at the shell's module scope with bootComing: the page on screen will say when it is drawn. Until then, what other
+ * pages read waits (surface-runner.ts), as does what is read ahead for a press (afterBoot("page")): on a first open the
+ * page's reads were in while its code still loaded, and People and Campaigns began about twenty reads for other pages
+ * before they drew (the phone sweep of 22 Nov 2026). Nothing waits where the switch is off.
+ */
+export function drawComing(): void {
+  if (drawn.due || !pageFirst()) return;
+  drawn.now = new Promise<void>((settle) => (drawn.due = settle));
+}
+
+/**
+ * The page on screen is drawn: the frame committed with its gate open on it (FrameApp). What waited for it goes once that
+ * frame is painted, never in it: begun in the commit, the rest's twenty reads went out before the browser had put the page
+ * on the screen (the local sweep of 23 Nov 2026), and a load's READY counted them as begun ahead of it.
+ */
+export function pageDrawn(): void {
+  const due = drawn.due;
+  if (!due) return;
+  drawn.due = null;
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(due, 0));
+  else due();
+}
+
+/** Settled once the page on screen is drawn, or at once where no draw is coming. */
+export const afterDrawn = (): Promise<void> => drawn.now;
 
 /** A promise's settling, landed or not. */
 const settledOf = (p: Promise<unknown>): Promise<void> =>
@@ -413,18 +454,33 @@ const settledOf = (p: Promise<unknown>): Promise<void> =>
 /**
  * The runner's boot, from its start to its last surface in (surface-runner.ts): what afterBoot answers from now on; and its
  * first pass, the page's own (`pageIn`), what afterBoot("page") answers. A boot with no first pass of its own says the whole.
+ *
+ * What waited for the boot the shell said was coming is let go by the last boot started, never by one a later boot replaced:
+ * a stopped runner's boot ends at once, the page's draw unwaited. In development React mounts the frame twice, and the first
+ * runner, stopped at once, let Today's reads go ahead of the Calendar's draw and the Inbox's (the local sweep of 23 Nov 2026).
  */
 export function bootStarted(booted: Promise<unknown>, pageIn: Promise<unknown> = booted): void {
-  const settled = settledOf(booted);
-  const due = bootDue;
-  bootDue = null;
-  boot = settled;
-  if (due) void settled.then(due);
-  const ownIn = settledOf(pageIn);
-  const ownDue = pagesOwnDue;
-  pagesOwnDue = null;
-  pagesOwn = ownIn;
-  if (ownDue) void ownIn.then(ownDue);
+  const turn = ++bootsStarted;
+  answerFrom(boot, settledOf(booted), turn);
+  answerFrom(pagesOwn, settledOf(pageIn), turn);
+}
+
+/**
+ * `wait` answers this boot's `part` from now on; what waited on the one coming goes once `part` settles, unless a later boot
+ * has started by then (bootStarted).
+ */
+function answerFrom(wait: BootWait, part: Promise<void>, turn: number): void {
+  if (!wait.due) {
+    wait.now = part;
+    return;
+  }
+  void part.then(() => {
+    if (turn !== bootsStarted) return;
+    const due = wait.due;
+    wait.due = null;
+    wait.now = part;
+    due?.();
+  });
 }
 
 /**
@@ -439,7 +495,7 @@ export function bootStarted(booted: Promise<unknown>, pageIn: Promise<unknown> =
  * re-measure of 16 Nov 2026).
  */
 export function afterBoot(part: "all" | "page" = "all"): Promise<void> {
-  return part === "page" ? pagesOwn : boot;
+  return (part === "page" ? pagesOwn : boot).now;
 }
 
 /** How long an idle page may wait before something is fetched ahead of need: after the page's own reads and code. */
@@ -464,7 +520,7 @@ export function aheadWhenIdle(
   if (!how.everyLine && !warmsOnItsOwn()) return () => undefined;
   let stop: (() => void) | null = null;
   let cancelled = false;
-  void boot.then(() => {
+  void boot.now.then(() => {
     if (!cancelled) stop = whenIdle(fn, waitMs);
   });
   return () => {

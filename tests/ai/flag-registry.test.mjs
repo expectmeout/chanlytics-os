@@ -14,7 +14,10 @@ import { FLAGS, FLAG_MECHANISMS, daysToSunset } from "../../apps/edge/lib/shared
 import { ROOT, readRaw, importSrc } from "../_source.mjs";
 
 const envSource = readRaw("apps/edge/lib/shared/env.ts");
-const dashboardEnv = readRaw("apps/dashboard/src/server/shared/env.ts");
+/** The dashboard's two readers of the environment: the server's, and the browser's public one (its NEXT_PUBLIC_ switches). */
+const dashboardEnv = ["apps/dashboard/src/server/shared/env.ts", "apps/dashboard/src/lib/public-env.ts"]
+  .map(readRaw)
+  .join(" ");
 const { LOG_EVENTS } = await importSrc("apps/edge/lib/shared/log-events.ts");
 /** The e2e specs' sources: a switch a spec reads from its own environment is read there. */
 const specs = (function walk(dir) {
