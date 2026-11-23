@@ -283,7 +283,7 @@ export const SCHEMA_SETS = {
     "reach", "views", "likes", "comments", "saves", "shares", "link_opens", "profile_visits", "follows",
   ],
   "post_observations.place": ["instagram", "google"],
-  "post_observations.step": ["1h", "1d", "3d", "7d", "28d"],
+  "post_observations.step": ["1h", "1d", "3d", "7d", "28d", "last"],
   "posts.held_why": [
     "approver", "disconnected", "line_off", "removed", "stopped", "changed", "rights", "claim", "place",
     "money", "reason_passed", "late",

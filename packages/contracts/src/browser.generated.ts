@@ -293,7 +293,7 @@ export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./content/res
 export { nextObserveStep, observeDueAt } from "./content/results/observe";
 export { pieceResultsSaid } from "./content/results/piece-results";
 export { postChatLinkOf, postCodeIn } from "./content/results/post-code";
-export { COMMENT_ANSWER_STATES, LINK_LANDS, LINK_SUBJECTS, METRIC_AVAILABILITY, OBSERVE_STEPS, POST_METRICS, TOUCH_KEPT_SUBJECTS, TOUCH_KINDS, TOUCH_SUBJECTS, VISIT_THROUGH_TYPES } from "./content/results/sets";
+export { COMMENT_ANSWER_STATES, LINK_LANDS, LINK_SUBJECTS, METRIC_AVAILABILITY, OBSERVE_STEPS, POST_METRICS, TIMED_OBSERVE_STEPS, TOUCH_KEPT_SUBJECTS, TOUCH_KINDS, TOUCH_SUBJECTS, VISIT_THROUGH_TYPES } from "./content/results/sets";
 export { contentTotalsOf, contentWeekOf, contentWeekSaid } from "./content/results/totals";
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./content/sources";
