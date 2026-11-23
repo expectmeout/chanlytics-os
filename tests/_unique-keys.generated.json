@@ -2646,6 +2646,28 @@
       }
     },
     {
+      "table": "links",
+      "name": "links_one_website_a_form",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "subject_type"
+        },
+        {
+          "column": "subject_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "sites"
+        }
+      }
+    },
+    {
       "table": "mailbox_connections",
       "name": "mailbox_connections_pkey",
       "primary": true,
