@@ -1,5 +1,5 @@
 /**
- * What a person's message answered, kept beside it once it has landed (00696; the content loop PRD's 9.2, Appendix A.4,
+ * What a person's message answered, kept beside it once it has landed (00699; the content loop PRD's 9.2, Appendix A.4,
  * A.5): a reply to one of the business's stories (Instagram names the story by the id the post keeps), an ig.me link's
  * code riding the message, or a post's code in a WhatsApp message's words. Each is a touch of the post, in the person's
  * thread, kept once by the message's own id, so the visit they ask for next records what it answered and AI's reply

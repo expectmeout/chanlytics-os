@@ -213,13 +213,13 @@ export const JOB_KINDS = [
    */
   "post_take_down",
   /**
-   * A post's numbers read back from its place (00696; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
+   * A post's numbers read back from its place (00699; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
    * lane: one read at an hour, a day, 3, 7 or 28 days after it went up, every number at once, a missing one said and never
    * a zero. The health sweep asks one for each read that is due and not kept.
    */
   "post_observe",
   /**
-   * A public answer to a comment on a post (00696; the content loop PRD's 12.4), payload { touch_id, step, attempt? }, in
+   * A public answer to a comment on a post (00699; the content loop PRD's 12.4), payload { touch_id, step, attempt? }, in
    * the lane of someone waiting who is not a customer: step draft has AI write it (or say why it cannot, safely), step send
    * posts the owner's words under the comment as the business.
    */

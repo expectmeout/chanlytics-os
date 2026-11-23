@@ -1,5 +1,5 @@
 /**
- * Reports › Content (00696; the content loop PRD's 9.3 and Appendix A.8; the journey canvas's Results board, cells 12
+ * Reports › Content (00699; the content loop PRD's 9.3 and Appendix A.8; the journey canvas's Results board, cells 12
  * and 13, approved by Ruben on 23 Nov 2026): what the business's posts brought over the window Reports shows. One
  * sentence; four figures, a reach no place gave said as not given; every booking counted once by its state, new people
  * and known apart; what "it helped" means; and each post's own line. Its own read (GET content/report, over the same

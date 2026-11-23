@@ -5,7 +5,7 @@ import { commentOne } from "@/server/readers/results";
 
 /**
  * GET /api/v1/comments/one?id=<touch id>: one comment on a post, with the post it is under and its public answer
- * (00696). Any member. The body is its reader's (readers/results.ts commentOne).
+ * (00699). Any member. The body is its reader's (readers/results.ts commentOne).
  */
 export const GET = read({
   scope: workspace,

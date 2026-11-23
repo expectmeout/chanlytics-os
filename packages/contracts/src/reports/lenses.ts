@@ -106,7 +106,7 @@ export const REPORT_LENSES = [
     }),
   },
   {
-    // What the business's posts brought (00696; the content loop's pass 2): its own read, GET content/report.
+    // What the business's posts brought (00699; the content loop's pass 2): its own read, GET content/report.
     id: "content",
     label: "Content",
     sub: "what your posts brought, and who booked",

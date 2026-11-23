@@ -205,7 +205,7 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
-  // What a post said back (00696): its numbers by read, people's touches of a post or a link, and the public answers to
+  // What a post said back (00699): its numbers by read, people's touches of a post or a link, and the public answers to
   // comments.
   "post_observations",
   "touches",

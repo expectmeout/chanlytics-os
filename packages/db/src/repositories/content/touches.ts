@@ -1,5 +1,5 @@
 /**
- * The shared record's touches (00696; the content loop PRD's Appendix A.1, A.2, A.5): kept once by the place's own id
+ * The shared record's touches (00699; the content loop PRD's Appendix A.1, A.2, A.5): kept once by the place's own id
  * (the edge's doors), and read through one shape over every home (contracts RecordedTouch): touches, and ad_entries for a
  * message that came from an ad. Each read is bounded by its window and its workspace; doubles across homes are removed by
  * the message's id. A read that fails THROWS.

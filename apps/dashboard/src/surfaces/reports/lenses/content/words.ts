@@ -1,5 +1,5 @@
 /**
- * Reports' Content lens, as the page says it (00696; the content loop PRD's 9.3 and Appendix A.8; the journey canvas's
+ * Reports' Content lens, as the page says it (00699; the content loop PRD's 9.3 and Appendix A.8; the journey canvas's
  * Results board, cells 12 and 13, approved by Ruben on 23 Nov 2026): one sentence of what the window's posts brought;
  * four figures (posts up, reached as the places report it, conversations, booked); every booking counted once by its
  * state, new people and known ones apart; what the counts mean; and each post's own line. A reach no place gave is said

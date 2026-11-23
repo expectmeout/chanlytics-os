@@ -144,7 +144,10 @@ const silent = (why = "this case must not reach a provider") =>
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
+// Every module is imported before the first test: Node's runner runs a file's top-level `after` hooks once the tests
+// registered so far are done, so an import awaited between two tests took the wire down under the rest (23 Nov 2026).
+const { setPg, pg } = await import(at("apps/edge/lib/shared/pg.ts"));
+const { googleReader } = await import(at("apps/edge/lib/google/sweep.ts"));
 const { SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS, RECORDING_DEFER_LIMIT_MS, copyRecording } = await import(
   at("apps/edge/lib/voice/call-recording.ts")
 );
@@ -1429,9 +1432,6 @@ test("calls: a purge the bucket refuses marks nothing and stops no other leg, th
 });
 
 /* ----------------------------------------------------------------- google */
-
-const { googleReader } = await import(at("apps/edge/lib/google/sweep.ts"));
-const { pg } = await import(at("apps/edge/lib/shared/pg.ts"));
 
 /**
  * The clock's knock, then what it handed out, run as the ledger runs it (decision 0115): each google_read in the order written,

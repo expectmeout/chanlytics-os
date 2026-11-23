@@ -1,5 +1,5 @@
 /**
- * A comment as Inbox lists it and opens it, and as Today points to it (00696; the content loop PRD's 9.2, 12.4 and
+ * A comment as Inbox lists it and opens it, and as Today points to it (00699; the content loop PRD's 9.2, 12.4 and
  * 12.5; the journey canvas's Results board, cells 1 to 8, approved by Ruben on 23 Nov 2026): who wrote, on which post,
  * what they wrote, and where its public answer stands with the one thing to do. AI drafts and the owner sends; a comment
  * AI can't answer safely says why, and is a point on Today; an answer whose outcome Instagram never told is never sent

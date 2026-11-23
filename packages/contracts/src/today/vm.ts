@@ -116,7 +116,7 @@ export interface TodayQueueRowVM {
     // A form's entries held for a look that nobody has looked at in three days (00680): nobody waiting, one door, the
     // form's held pile.
     | "form_held"
-    // A comment on a post that AI could not answer safely, or whose answer did not go (00696): a person waiting on a
+    // A comment on a post that AI could not answer safely, or whose answer did not go (00699): a person waiting on a
     // word, opened where it is answered, in the Inbox.
     | "comment";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
@@ -470,7 +470,7 @@ export interface TodayReadDto {
   form_requests?: FormOpenRequestDto[] | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same reader); absent before 00680. */
   form_held?: FormHeldDto[] | null;
-  /** The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting); absent before 00696. */
+  /** The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting); absent before 00699. */
   comments?: CommentRowDto[] | null;
   /** How many things the members dealt with since the business's midnight, by Need you's door. */
   done_today: number | null;

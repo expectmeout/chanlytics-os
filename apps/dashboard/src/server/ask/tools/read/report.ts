@@ -551,7 +551,7 @@ async function getReport(
   };
 }
 
-/** The Content lens (00696): Reports' content section over the same window as the rest. */
+/** The Content lens (00699): Reports' content section over the same window as the rest. */
 async function contentSaid(toolContext: ToolContext, window: ReportWindow): Promise<unknown> {
   const read = await readUnlessNotFound(load(toolContext.rc, contentReport, window));
   return read ? read.data : { error: "the content numbers could not be read just now" };

@@ -135,7 +135,7 @@ export interface LinkOpened {
   /** The workspace's own address, which its public pages stand under. */
   workspace: string;
   /**
-   * What it opens: a form, with the form's own address and whether it is live; or a post (00696), with where its link
+   * What it opens: a form, with the form's own address and whether it is live; or a post (00699), with where its link
    * lands and the workspace's own places it may land on.
    */
   subject:

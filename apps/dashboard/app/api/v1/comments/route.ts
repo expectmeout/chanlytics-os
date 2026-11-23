@@ -6,7 +6,7 @@ import { sendCommentPress } from "@/server/content/comment-press";
 
 /**
  * GET /api/v1/comments: the comments on the business's posts, newest first, a month back, each naming its post and with
- * its public answer (00696; the content loop PRD's 9.2). Any member. The body is its reader's (readers/results.ts).
+ * its public answer (00699; the content loop PRD's 9.2). Any member. The body is its reader's (readers/results.ts).
  */
 export const GET = read({
   scope: workspace,
@@ -14,7 +14,7 @@ export const GET = read({
 });
 
 /**
- * POST /api/v1/comments: a press on one comment (00696; the content loop PRD's 12.4, call 27: AI drafts, the owner
+ * POST /api/v1/comments: a press on one comment (00699; the content loop PRD's 12.4, call 27: AI drafts, the owner
  * sends). `send`: the owner's words as the business's public answer, kept as on its way and posted by its job, once; an
  * answer on its way or up is not sent twice. `leave`: left unanswered, no point on Today. `back`: answered after all,
  * with AI's draft back. An owner, an operator or a partner, as a reply in Inbox is.

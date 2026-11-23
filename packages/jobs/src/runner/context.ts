@@ -401,9 +401,9 @@ export interface JobContext {
     google: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
     /** A post asked down at its place, or the place asked whether it is gone (00682). */
     takeDown: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
-    /** A post's numbers read back from its place at one step (00696). */
+    /** A post's numbers read back from its place at one step (00699). */
     observe?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
-    /** A public answer to a comment: AI's draft, or the owner's words posted under it (00696). */
+    /** A public answer to a comment: AI's draft, or the owner's words posted under it (00699). */
     commentReply?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**

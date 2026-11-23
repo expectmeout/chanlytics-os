@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * The owner's presses on a comment (00696; the content loop PRD's 12.4, call 27), each on their own session through its
+ * The owner's presses on a comment (00699; the content loop PRD's 12.4, call 27), each on their own session through its
  * door. Send: their words posted as the business's public answer, kept as on its way with the job that posts it, once
  * (comment_answer_send); an answer on its way or up is not sent twice, and the press answers where it stands. The owner's
  * own typed words are theirs: no check refuses them by a guess at what they mean. Leave it: no answer, and no point on

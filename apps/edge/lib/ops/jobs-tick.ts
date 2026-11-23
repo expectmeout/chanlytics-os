@@ -178,14 +178,14 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
           ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
           : takeDownPlaceFor(db, post),
       ),
-    // A post's numbers read at one step (00696): Google's adapter gives none yet, so each reads unsupported there.
+    // A post's numbers read at one step (00699): Google's adapter gives none yet, so each reads unsupported there.
     observe: (job: ClaimedJob) =>
       readPostResults(db, job, (post) =>
         post.place === "google"
           ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
           : findResultsPlace(db, post, "insights"),
       ),
-    // A public answer to a comment (00696): AI's draft, or the owner's words posted under it on Instagram.
+    // A public answer to a comment (00699): AI's draft, or the owner's words posted under it on Instagram.
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
   // A lead's own receptionist built (decision 0079), its website read the same way.

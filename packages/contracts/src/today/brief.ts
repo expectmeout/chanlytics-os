@@ -67,7 +67,7 @@ interface TodayBeside {
   formRequests?: readonly FormOpenRequestDto[] | null;
   /** Each form's entries held for a look that nobody has looked at in three days (00680). Null or absent: not read. */
   formHeld?: readonly FormHeldDto[] | null;
-  /** The comments on the business's posts that wait on the owner (00696): each a row. Null or absent: not read. */
+  /** The comments on the business's posts that wait on the owner (00699): each a row. Null or absent: not read. */
   comments?: readonly CommentRowDto[] | null;
   /** How many things the members dealt with today (TodayVM.done_today). Null or absent: not read. */
   doneToday?: number | null;

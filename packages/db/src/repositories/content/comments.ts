@@ -1,5 +1,5 @@
 /**
- * A comment on a post and its public answer (00696; the content loop PRD's 9.2 and 12.4): the comments Inbox lists, one
+ * A comment on a post and its public answer (00699; the content loop PRD's 9.2 and 12.4): the comments Inbox lists, one
  * comment opened, the answer's life (AI's draft or why it could not, the owner's words on their way, what Instagram
  * said), and what the job reads to draft and to send. A member reads under the tables' row rules; the job and the edge
  * write through their doors on the service role. A read that fails THROWS.

@@ -1,5 +1,5 @@
 /**
- * What the business's posts brought in the last seven days, as Today's weekly card says it (00696; the content loop
+ * What the business's posts brought in the last seven days, as Today's weekly card says it (00699; the content loop
  * PRD's 9.3 and 12.5; the journey canvas's Today board, cell 4, approved by Ruben on 23 Nov 2026): GET content/week, the
  * same count Reports' content section makes. Asked only where the card can be said (week.tsx), once the page has
  * drawn, and kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads again behind it.

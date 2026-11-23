@@ -185,10 +185,10 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A post asked down at its place (00682). Not sent (kinds.ts: the platform's to chase): its piece says the place has
   // not confirmed it, and that Chanlytics is on it.
   post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
-  // A post's numbers (00696). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
+  // A post's numbers (00699). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
   // reads it again.
   post_observe: { stopped: "Couldn't read a post's numbers", to: CONTENT_ROUTE },
-  // A public answer to a comment (00696): its row in Inbox says it did not go, and Send is there again.
+  // A public answer to a comment (00699): its row in Inbox says it did not go, and Send is there again.
   comment_reply: { stopped: "Couldn't answer a comment", to: "inbox" },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "Couldn't run a campaign this hour", to: "today" },

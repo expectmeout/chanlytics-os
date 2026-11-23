@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * /l/<code>: a short link to one place a form is shared (00680; the content loop PRD's Appendix A), or to a post (00696).
+ * /l/<code>: a short link to one place a form is shared (00680; the content loop PRD's Appendix A), or to a post (00699).
  * It counts the open for its day and goes on: to the form, carrying its code so the entry that follows says which place
  * it came through; for a post, to a chat with the business carrying the post's code, or to its booking page.
  * An open is a count, never a visitor: no cookie is left and no address is kept. A chat app that fetches the address
@@ -33,7 +33,7 @@ const webAddress = (value: string | null): string | null => (value && /^https:\/
 
 /**
  * Where an opened link lands: its form with the code; a post's chat with the business carrying the post's code (on the
- * post's own place where it is Instagram), or its booking page (00696); or the business's page where the link, the form
+ * post's own place where it is Instagram), or its booking page (00699); or the business's page where the link, the form
  * or the place to land is not there.
  */
 function landingOf(opened: LinkOpened, carried: URLSearchParams): string {

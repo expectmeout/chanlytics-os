@@ -549,7 +549,7 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 | `lapse_told` | boolean | yes |  | Whether AI told the customer when their request ran out (00679): true, or false where the message could not go and the conversation waits on a person's reply. Null for a row that never ran out through booking_request_lapse. |
 | `worth_minor` | bigint | yes |  | What the visit is worth (00683; the Ads tracking plan's T6): its service's amount when the visit was written, a whole number of worth_currency's minor units, stamped by appointments_worth_stamp and never moved by a later change of the amount; stamped again only when the visit's service changes. A visit written before its service had an amount takes the first one the service is given (tenant_config_worth_stamp). Null where its service has had none, or it names none: a sum then leaves it out and counts it (ads_page_counts). |
 | `worth_currency` | text | yes |  | The currency worth_minor is in, ISO 4217 (00683). Null exactly where worth_minor is. |
-| `through_type` | text | yes |  | What the visit answered (00696; the content loop PRD's 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this. |
+| `through_type` | text | yes |  | What the visit answered (00699; the content loop PRD's 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this. |
 | `through_id` | uuid | yes |  | The id of what the visit answered (through_type's record), stamped with it. |
 
 Foreign keys:
@@ -1125,7 +1125,7 @@ What a page hit in a member's browser, as the boundary that caught it reported i
 
 ### comment_answers
 
-A public answer to a comment on a post, one per comment (00696; the content loop PRD's 12.4): AI's draft or why it could not answer safely, then the owner's words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.
+A public answer to a comment on a post, one per comment (00699; the content loop PRD's 12.4): AI's draft or why it could not answer safely, then the owner's words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.
 
 - Owned by: none
 - Primary key: `id`
@@ -2830,7 +2830,7 @@ A short link for one place a thing of the business's is shared (00680; the conte
 | `created_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `stopped_at` | timestamp with time zone | yes |  |  |
-| `lands` | text | yes |  | Where a post's link lands (00696): chat (a chat with the business carrying the post's code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form's. |
+| `lands` | text | yes |  | Where a post's link lands (00699): chat (a chat with the business carrying the post's code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form's. |
 
 Foreign keys:
 
@@ -3846,7 +3846,7 @@ Foreign keys:
 
 ### post_observations
 
-A post's numbers as its place gave them (00696; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
+A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
 
 - Owned by: `packages/db/src/repositories/content/observations.ts`
 - Primary key: `id`
@@ -4976,7 +4976,7 @@ Foreign keys:
 
 ### touches
 
-A known person's reply, comment, reply to a story or coded first message, about a post or through a link (00696; the content loop PRD's Appendix A.1, A.3, A.5): one row per event, once per place by the place's own id. Events, never edited, written by post_comment_keep and touches_keep. The business's own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.
+A known person's reply, comment, reply to a story or coded first message, about a post or through a link (00699; the content loop PRD's Appendix A.1, A.3, A.5): one row per event, once per place by the place's own id. Events, never edited, written by post_comment_keep and touches_keep. The business's own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.
 
 - Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`
 - Primary key: `id`

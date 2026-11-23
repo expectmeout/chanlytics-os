@@ -1376,7 +1376,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting over touches and comment_answers, with the posts they are under, 00696): Today's point for a comment AI can't answer safely, or whose answer didn't go. The feed tells none of these: a comment arrives by Meta's delivery and AI drafts it by its job seconds later, so a notice for each would be one for each comment. Today reads them with its other reads each time it hears its own records (heardWith), a press on a comment reads Today again (POST comments), and a comment waits a week, so the row is a read behind at most.",
+      "why": "The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting over touches and comment_answers, with the posts they are under, 00699): Today's point for a comment AI can't answer safely, or whose answer didn't go. The feed tells none of these: a comment arrives by Meta's delivery and AI drafts it by its job seconds later, so a notice for each would be one for each comment. Today reads them with its other reads each time it hears its own records (heardWith), a press on a comment reads Today again (POST comments), and a comment waits a week, so the row is a read behind at most.",
       "reads": {
         "today": [
           "comment_answers",
@@ -1394,7 +1394,7 @@
     {
       "kind": "over-read",
       "field": null,
-      "why": "The pieces' files of the posts that waiting comments are under (readers/results.ts commentsWaiting, readCommentPosts, 00696): only each file's name, said as the post's title beside the comment on Today's row. It rides with the comments it names, which Today reads with its other reads (heardWith); a renamed piece is said by its new name at the next read.",
+      "why": "The pieces' files of the posts that waiting comments are under (readers/results.ts commentsWaiting, readCommentPosts, 00699): only each file's name, said as the post's title beside the comment on Today's row. It rides with the comments it names, which Today reads with its other reads (heardWith); a renamed piece is said by its new name at the next read.",
       "reads": {
         "today": [
           "files"

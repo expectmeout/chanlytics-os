@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * What a business's posts said back, as its screens and AI read it (00696; the content loop PRD's 9 and 12.1): a
+ * What a business's posts said back, as its screens and AI read it (00699; the content loop PRD's 9 and 12.1): a
  * piece's numbers and what it brought, the week's line, Reports' content section, and the comments Inbox lists. Each is
  * read on the member's own session, under the tables' row rules, and worked out when read: nothing is kept, and the
  * credit is the one rule's (contracts creditOf). AI's report read asks these same readers, so the number AI says is the

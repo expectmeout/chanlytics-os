@@ -17,7 +17,7 @@
  *                     thread of ours to pause.
  *   an unsend         the person took the DM back: its words and attachment are no longer kept (00486 message_unsent).
  *   about a post      a comment on one of the account's posts, the business's own comment answering one, or an ig.me
- *                     link's code arriving alone (00696): post-said.ts.
+ *                     link's code arriving alone (00699): post-said.ts.
  *   anything else     a reaction, a read, an edit, a mention (the same comment again): logged, and asks nothing.
  *
  * The ack rule is WhatsApp's: a DM, an echo or an unsend the database did not take, or whose account could not be

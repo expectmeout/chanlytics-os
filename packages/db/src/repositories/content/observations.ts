@@ -1,5 +1,5 @@
 /**
- * A post's numbers as its place gave them (00696; the content loop PRD's 9.1): one read at each step, every number at
+ * A post's numbers as its place gave them (00699; the content loop PRD's 9.1): one read at each step, every number at
  * once, kept by post_observations_keep; the reads that are due, for the health sweep; and the newest of each number per
  * post, for the piece and Reports. A number a place did not give is kept with why, and read back as missing, never zero.
  * A read that fails THROWS.

@@ -121,7 +121,7 @@ export async function markPostUnanswered(db: Db, postId: string, attempt: 1 | 2)
 
 /**
  * Google posts a press began and never heard back on (the press's own call died with its function): publishing, and not moved
- * since `before`. For the service role, across workspaces: the files sweep fails each in words, as 00616 post_begin does for
+ * since `before`. For the service role, across workspaces: the files sweep fails each in words, as 00681 post_approve does for
  * the next press of the same file, so it stops saying Posting and waits for the owner. Oldest first, `limit` at most.
  */
 export async function listPostsSilent(db: Db, args: { before: string; limit: number }): Promise<{ id: string }[]> {
@@ -356,7 +356,7 @@ export async function listPostsInSpan(
 }
 
 /**
- * Where a post that waits for its time stands: queued, and in Instagram's last ten minutes preparing (00611 post_begin's job is
+ * Where a post that waits for its time stands: queued, and in Instagram's last ten minutes preparing (00681 post_approve's job is
  * due then), still waiting for its time as the page says it (contracts postWaitsForItsTime).
  */
 const TIMED_STATUSES = ["queued", "preparing"] as const;

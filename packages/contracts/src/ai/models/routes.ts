@@ -45,7 +45,7 @@ export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
  * line of the ledger of its own (ai_usage.purpose, 00658), so what each costs is read apart and never summed as one (the AI
  * audit, 20 Nov 2026): a lead's email, a list from the owner's words, a message to a person, a campaign's steps, the
  * check that reads whether a person's words are a yes to a card, and a public answer to a comment written again as its
- * owner asks (00696). The route stays one: these share its model and its bound.
+ * owner asks (00699). The route stays one: these share its model and its bound.
  */
 export const SMALL_JSON_PURPOSES = [
   "lead_draft",
@@ -402,7 +402,7 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 8000,
   },
-  // A public answer to a comment on a post (00696; the content loop PRD's 12.4): a few sentences in the business's name
+  // A public answer to a comment on a post (00699; the content loop PRD's 12.4): a few sentences in the business's name
   // under its own post, drafted when the comment arrives for the owner to send. A fast model, as a review's reply is.
   comment_reply: {
     attributed: "workspace",

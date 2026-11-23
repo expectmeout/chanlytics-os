@@ -521,7 +521,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   form_versions: { description: WITH_WORKSPACE },
   forms: all(WITH_WORKSPACE, "slug", "draft"),
   // A link (00680): a code made at random, and where it is shared in the owner's own words for a place ("Google
-  // listing"), which leave with the workspace. What it opens and where a post's lands are closed sets (00696). A day of a
+  // listing"), which leave with the workspace. What it opens and where a post's lands are closed sets (00699). A day of a
   // link (link_days) is numbers alone.
   links: { code: NOT_PERSONAL, place: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
@@ -595,7 +595,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   piece_revisions: { ...all(WITH_WORKSPACE, "plan", "captions"), changed: NOT_PERSONAL },
   // A shape as it is sent (00681): a path in the file's folder and its checksum, nobody's.
   piece_renditions: all(NOT_PERSONAL, "path", "checksum"),
-  // What a post said back (00696). A person's touch of a post keeps that it happened; what they wrote there (a comment's
+  // What a post said back (00699). A person's touch of a post keeps that it happened; what they wrote there (a comment's
   // words, their name on Instagram) goes with them: emptied by their erasure (and by age, past 180 days,
   // touches_age_out). The place's own id for it (a comment's id) is nobody's words, and keeps it once. A public answer to a comment is the business speaking in public: AI's draft, the owner's
   // words, Instagram's id for it and the house's words for a refusal, kept with the workspace as a post's caption is. A

@@ -1,5 +1,5 @@
 /**
- * Reports › Content, as the lens says it (00696; the journey canvas's Results board, cells 12 and 13): one sentence of
+ * Reports › Content, as the lens says it (00699; the journey canvas's Results board, cells 12 and 13): one sentence of
  * what the window's posts brought, four figures (a reach no place gave said as not given, never 0), every booking
  * counted once by its state in the workspace's own word for one, new people and known apart, what "it helped" means, and
  * each post's own line. A window with nothing posted says so, and draws no row of zeros.

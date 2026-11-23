@@ -1,5 +1,5 @@
 /**
- * Instagram's adapter for what a post says back (00696; the content loop PRD's pass 2): its numbers, read with the
+ * Instagram's adapter for what a post says back (00699; the content loop PRD's pass 2): its numbers, read with the
  * Meta link's `insights` line, and a public answer under a comment, posted with its `comments` line. Asked of the account
  * the post went to (posts.account_id), and only while that account is the workspace's, connected, with the line on: a
  * post of an account that has since left is asked nothing from here, and that is said, never guessed.

@@ -1,10 +1,10 @@
 /**
- * The post a person answered before they wrote, as AI is told it (00696; the content loop PRD's 9.2, point 2: "AI
+ * The post a person answered before they wrote, as AI is told it (00699; the content loop PRD's 9.2, point 2: "AI
  * answers knowing which post the person saw"). Without it, someone who replies to a reel with "how much?" is answered by
  * an AI that does not know the reel. As an ad's tap is told (ad-tap.ts), and beside it:
  *
  *   - which touch (readPostTouch): the person's newest touch of a post in the last 72 hours (a reply to a story, a
- *     comment, a message from a post's link), the window a visit's stamp reads too (00696 appointments_through_stamp).
+ *     comment, a message from a post's link), the window a visit's stamp reads too (00699 appointments_through_stamp).
  *     One read, by the person, bounded by the window; a person who touched no post costs that read alone.
  *   - what is told of it: the kind of post and its caption, one line, cut to its bound, and how they reached it.
  *   - how it is said (postTouchFacts): inside a fence, with the rule beside it. The caption is the business's own words

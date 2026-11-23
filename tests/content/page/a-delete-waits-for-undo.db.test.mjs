@@ -101,6 +101,10 @@ after(async () => {
   if (skip) return;
   await db.from("jobs").delete().eq("tenant_id", A);
   await db.from("posts").delete().eq("tenant_id", A);
+  await db.from("approvals").delete().eq("tenant_id", A);
+  await db.from("piece_renditions").delete().eq("tenant_id", A);
+  await db.from("piece_revisions").delete().eq("tenant_id", A);
+  await db.from("pieces").delete().eq("tenant_id", A);
   await db.from("notifications").delete().eq("tenant_id", A);
   await db.from("files_let_go").delete().eq("tenant_id", A);
   await db.from("files").delete().eq("tenant_id", A);
@@ -157,24 +161,44 @@ test("a purge a run has taken can't be undone, and whoever may not delete may no
   assert.ok((await fileOf(kept)).removed_at);
 });
 
+/**
+ * The owner's press for Google (post_approve, 00681; the one press there is since 00697): the approval a page makes for
+ * the one placement, answered as a call is, its data `{ fate, post_id }`.
+ */
+async function pressForGoogle(fileId, when) {
+  const caption = "Open late this Saturday.";
+  const path = `${A}/${fileId}/original.jpg`;
+  const checksum = "a".repeat(64);
+  const answer = await as.owner.client.rpc("post_approve", {
+    p_tenant_id: A,
+    p_file_id: fileId,
+    p_approval: {
+      snapshot: {
+        revision: null,
+        renditions: [{ shape: "google", file_id: fileId, path, checksum }],
+        placements: [{ place: "google", kind: "picture", at: when, caption }],
+        uses: ["post"],
+        spend: null,
+        facts: [],
+      },
+      intent: null,
+      renditions: [{ shape: "google", path, checksum, bytes: 1000 }],
+      placements: [{ place: "google", kind: "picture", at: when, caption, capability_edition: 1 }],
+      via: "press",
+    },
+  });
+  if (answer.error || !answer.data) return answer;
+  return { ...answer, data: { fate: answer.data.fate, post_id: answer.data.posts?.[0]?.post_id } };
+}
+
 test(
   "a Google post for later waits with its job due at its time; one for now is the press's own call",
   { skip },
   async () => {
     const later = await file({ source: "made" });
     const when = new Date(Date.now() + 24 * 60 * MINUTE).toISOString();
-    const begun = ok(
-      await as.owner.client.rpc("post_begin", {
-        p_tenant_id: A,
-        p_file_id: later,
-        p_place: "google",
-        p_kind: "picture",
-        p_caption: "Open late this Saturday.",
-        p_when: when,
-      }),
-      "later",
-    );
-    assert.equal(begun.fate, "begun");
+    const begun = ok(await pressForGoogle(later, when), "later");
+    assert.equal(begun.fate, "approved");
     const post = ok(await db.from("posts").select("status, scheduled_for").eq("id", begun.post_id).single(), "post");
     assert.equal(post.status, "queued");
     const jobs = ok(
@@ -189,16 +213,7 @@ test(
     assert.equal(ok(await as.owner.client.rpc("post_pull", { p_post_id: begun.post_id }), "pull").fate, "pulled");
 
     const now = await file({ source: "made" });
-    const pressed = ok(
-      await as.owner.client.rpc("post_begin", {
-        p_tenant_id: A,
-        p_file_id: now,
-        p_place: "google",
-        p_kind: "picture",
-        p_caption: "Open late this Saturday.",
-      }),
-      "now",
-    );
+    const pressed = ok(await pressForGoogle(now, null), "now");
     const sent = ok(await db.from("posts").select("status").eq("id", pressed.post_id).single(), "post");
     assert.equal(sent.status, "publishing", "the press asks Google itself");
     const none = ok(

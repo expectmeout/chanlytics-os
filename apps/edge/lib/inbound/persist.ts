@@ -253,7 +253,7 @@ export async function runPgIngest(
       conversationId: ingested.conversation_id,
       messageId: ingested.message_id,
     });
-    // What it answered of the business's own (00696): a story replied to, a post's code. Logs and never throws.
+    // What it answered of the business's own (00699): a story replied to, a post's code. Logs and never throws.
     await keepWhatItAnswered(db, tenantId, ingested, inboundMessage);
     return ingested;
   } catch (e) {

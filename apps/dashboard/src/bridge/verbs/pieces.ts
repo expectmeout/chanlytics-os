@@ -12,7 +12,7 @@ export const takeDownPiece = (fileId: string) => api()("DELETE files/[id]/posts"
 export const markDeletedByHand = (fileId: string, postId: string) =>
   api()("PUT files/[id]/posts", { params: { id: fileId }, body: { post_id: postId } });
 
-/** A post of the piece's one link, made on first ask (00696): it opens a chat carrying the post's code, or its booking page. */
+/** A post of the piece's one link, made on first ask (00699): it opens a chat carrying the post's code, or its booking page. */
 export const makePiecePostLink = (fileId: string, postId: string) =>
   api()("POST files/[id]/link", { params: { id: fileId }, body: { post_id: postId } });
 

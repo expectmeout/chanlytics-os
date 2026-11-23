@@ -1,5 +1,5 @@
 /**
- * One comment as the Inbox answers it (00696; the content loop PRD's 12.4): its read, the answer's box, and the owner's
+ * One comment as the Inbox answers it (00699; the content loop PRD's 12.4): its read, the answer's box, and the owner's
  * presses. The comment is read as its page opens, again after each press, and again every few seconds while its answer
  * is on its way, until Instagram has said (its job posts it once, and settles it within a minute or says it was never
  * told). The box starts from AI's draft or the words last sent, and holds what the owner types while the tab lives, by the
