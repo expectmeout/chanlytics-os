@@ -8,6 +8,7 @@
 import { clockTime } from "../../shared/clock";
 import { groupedPlural } from "../../shared/words";
 import { CREDIT_WINDOW_DAYS } from "./credit";
+import type { PostKind } from "../posts";
 import { nextObserveStep } from "./observe";
 import type { CreditClass, LinkLands, MetricAvailability, ObserveStep, PostMetric, TouchKind } from "./sets";
 
@@ -105,6 +106,11 @@ const STEP_WORDS: Readonly<Record<ObserveStep, string>> = {
   "28d": "28 days",
 };
 
+/** When the numbers are read next: a story's day read is taken before it ends, not at a day. */
+function nextReadWords(step: ObserveStep, kind: PostKind): string {
+  return kind === "story" && step === "1d" ? "Next before the story ends." : `Next at ${STEP_WORDS[step]}.`;
+}
+
 function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDid"] {
   const lead = leading(posts);
   const missing = posts.flatMap((post) => missingOf(post) ?? []);
@@ -125,9 +131,9 @@ function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDi
   )
     .filter((parts) => parts.length > 0)
     .map((parts) => parts.join(" · "));
-  const next = nextObserveStep(lead.step);
+  const next = nextObserveStep(lead.step, lead.kind);
   const comments = there.has("comments") ? "Comments as Instagram counts them, your own replies included. " : "";
-  return { lines, missing, fine: `${comments}${next ? `Next at ${STEP_WORDS[next]}.` : "Read for the last time."}` };
+  return { lines, missing, fine: `${comments}${next ? nextReadWords(next, lead.kind) : "Read for the last time."}` };
 }
 
 const TOUCH_WORDS: Readonly<Record<BroughtPersonDto["touch"], (kind: string) => string>> = {

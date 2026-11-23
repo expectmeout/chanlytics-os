@@ -92,7 +92,12 @@
     "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00696 when the shelf's 00695 went on production above it, then to 00699 (23 Nov 2026)",
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
-    "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)"
+    "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
+    "00700": "the plan 'Pages that open at once', piece 2 (lane cm-leads-ahead, #2538): applied and merged 23 Nov 2026, its file not in this branch's base when pass 2's story read took 00705 above it; the record drops this line once its file lands",
+    "00701": "claimed by pass 1b's take-down last numbers (lane cm-first-post, #2541), a draft not on main when pass 2's story read took 00705 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00702": "claimed by the content loop's pass 3, a week planned (lane cm-plan-week), a draft not on main when pass 2's story read took 00705 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00703": "claimed by the Forms plan's F4, a form on their own website (lane cm-forms-website), a draft not on main when pass 2's story read took 00705 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00704": "claimed by the Forms plan's F3 last line, a visit a form asked for says the form (lane cm-forms-stamp), a draft not on main when pass 2's story read took 00705 above it (23 Nov 2026); the record drops this line once its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -701,6 +706,7 @@
     "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a",
     "00697_a_post_is_begun_by_its_approval_alone.sql": "e93917b7c99e47e97235df87cd0a81cd0c80015cb1274bc96c007678943c92c6",
     "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
-    "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627"
+    "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
+    "00705_a_story_is_read_before_its_day_ends.sql": "5ade35d6a0ce4ad73b8ee5b6c7253f4d38fcd0c3a2dcb3f53b3ebd01041e7904"
   }
 }

@@ -30161,14 +30161,18 @@ CREATE FUNCTION public.post_observations_due(p_limit integer DEFAULT 200) RETURN
     AS $$
   select p.tenant_id, p.id, s.step
     from public.posts p
-    cross join (values ('1h', interval '1 hour'), ('1d', interval '1 day'), ('3d', interval '3 days'),
-                       ('7d', interval '7 days'), ('28d', interval '28 days')) as s(step, after)
+    cross join (values ('1h', interval '1 hour', interval '1 hour'),
+                       ('1d', interval '1 day', interval '22 hours'),
+                       ('3d', interval '3 days', null),
+                       ('7d', interval '7 days', null),
+                       ('28d', interval '28 days', null)) as s(step, after, story_after)
    where p.status = 'published' and p.place in ('instagram', 'google') and p.published_at is not null
      and p.published_at > now() - interval '29 days'
-     and p.published_at + s.after <= now()
+     and (p.kind <> 'story' or (s.story_after is not null and p.published_at + interval '1 day' > now()))
+     and p.published_at + case when p.kind = 'story' then s.story_after else s.after end <= now()
      and not exists (select 1 from public.post_observations o
                       where o.tenant_id = p.tenant_id and o.post_id = p.id and o.step = s.step)
-   order by p.published_at + s.after
+   order by p.published_at + case when p.kind = 'story' then s.story_after else s.after end
    limit greatest(1, least(coalesce(p_limit, 200), 1000));
 $$;
 
@@ -30177,7 +30181,7 @@ $$;
 -- Name: FUNCTION post_observations_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
+COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699, 00702; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. A story is read at its hour and at 22 hours, and asked nothing once its day is over, since Instagram has no numbers for an ended story. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
 
 
 --

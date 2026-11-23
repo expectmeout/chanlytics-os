@@ -290,7 +290,7 @@ export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./
 export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./content/results/comment-answer";
 export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./content/results/comment-stage";
 export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./content/results/credit";
-export { nextObserveStep, observeDueAt } from "./content/results/observe";
+export { nextObserveStep, observeDueAt, observeStepsOf } from "./content/results/observe";
 export { pieceResultsSaid } from "./content/results/piece-results";
 export { postChatLinkOf, postCodeIn } from "./content/results/post-code";
 export { COMMENT_ANSWER_STATES, LINK_LANDS, LINK_SUBJECTS, METRIC_AVAILABILITY, OBSERVE_STEPS, POST_METRICS, TOUCH_KEPT_SUBJECTS, TOUCH_KINDS, TOUCH_SUBJECTS, VISIT_THROUGH_TYPES } from "./content/results/sets";

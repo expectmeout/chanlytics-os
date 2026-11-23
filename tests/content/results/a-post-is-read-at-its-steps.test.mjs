@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextObserveStep, observeDueAt, OBSERVE_STEPS, POST_METRICS } from "@chanlytics/contracts";
+import { nextObserveStep, observeDueAt, observeStepsOf, OBSERVE_STEPS, POST_METRICS } from "@chanlytics/contracts";
 import { instagramObservationsOf, metaInsightsRequest } from "../../../packages/channels/src/instagram/meta-results.ts";
 
 const UP = "2026-11-21T22:19:57.000Z";
@@ -15,13 +15,27 @@ const byMetric = (rows) => Object.fromEntries(rows.map((r) => [r.metric, r]));
 
 test("a post is read an hour, a day, 3, 7 and 28 days after it went up, and then no more", () => {
   assert.deepEqual([...OBSERVE_STEPS], ["1h", "1d", "3d", "7d", "28d"]);
-  assert.equal(observeDueAt(UP, "1h"), "2026-11-21T23:19:57.000Z");
-  assert.equal(observeDueAt(UP, "1d"), "2026-11-22T22:19:57.000Z");
-  assert.equal(observeDueAt(UP, "28d"), "2026-12-19T22:19:57.000Z");
-  assert.equal(nextObserveStep(null), "1h");
-  assert.equal(nextObserveStep("1h"), "1d");
-  assert.equal(nextObserveStep("7d"), "28d");
-  assert.equal(nextObserveStep("28d"), null);
+  assert.equal(observeDueAt(UP, "1h", "picture"), "2026-11-21T23:19:57.000Z");
+  assert.equal(observeDueAt(UP, "1d", "reel"), "2026-11-22T22:19:57.000Z");
+  assert.equal(observeDueAt(UP, "28d", "picture"), "2026-12-19T22:19:57.000Z");
+  assert.equal(nextObserveStep(null, "picture"), "1h");
+  assert.equal(nextObserveStep("1h", "reel"), "1d");
+  assert.equal(nextObserveStep("1d", "picture"), "3d");
+  assert.equal(nextObserveStep("7d", "reel"), "28d");
+  assert.equal(nextObserveStep("28d", "picture"), null);
+});
+
+test("a story is read at an hour and once more before its day is out, and never after: an ended story has no numbers", () => {
+  assert.deepEqual([...observeStepsOf("story")], ["1h", "1d"]);
+  assert.deepEqual([...observeStepsOf("reel")], [...OBSERVE_STEPS]);
+  assert.equal(observeDueAt(UP, "1h", "story"), "2026-11-21T23:19:57.000Z");
+  assert.equal(
+    observeDueAt(UP, "1d", "story"),
+    "2026-11-22T20:19:57.000Z",
+    "22 hours on: four of the half-hour sweep's passes are left before it ends",
+  );
+  assert.equal(nextObserveStep("1h", "story"), "1d");
+  assert.equal(nextObserveStep("1d", "story"), null, "its day's read is its last");
 });
 
 test("Instagram is asked only the numbers it proved for the kind: a story is not asked for likes", () => {
