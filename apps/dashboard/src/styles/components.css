@@ -657,7 +657,13 @@
    (Today's, in the page's own scroll: shell-chrome.tsx glassHead "inside") stays as it stood. The whole view faded, so the
    greeting went out and came in again as Today was read (Ruben, 31 Oct 2026). */
 .route-view[data-landed] { animation: none; }
-.route-view[data-landed] > :not(.pg-slot) { animation: route-in 240ms var(--ease-out); }
+/* Where they stand: risen 4px and settling, the page's first rows came in under the reading view's place and moved as a thumb
+   reached for them (Today's settle, the phone sweep of 22 Nov 2026). A page that lands has no way it came from to rise out of. */
+.route-view[data-landed] > :not(.pg-slot) { animation: route-landed 240ms var(--ease-out); }
+@keyframes route-landed {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 /* Its leaving, the way it came (a still copy plays it: kit/motion/leaving.ts leaveOverlay). A copy that kept route-in as its own
    animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
 @keyframes route-out {
@@ -3156,21 +3162,19 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
      files, so a new page could not see the others: Sequences' row stood 16px under People's and the Inbox's until its
      rule was written. The Calendar's 14px is another matter, its own head under the strip (calendar.css).
 
-     People's and Campaigns' are named by the strip the slot holds (shell-chrome.tsx `data-strip`), which stands from the
-     first draw, while the page is read: named by the page's root, People's slot stood 16px taller over Reading… and the
-     list came in 16px higher (the People load review, 28 Oct 2026); and a person's page carried back to its list shows
-     the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's. The Inbox's three
-     views and Reports are named by their roots, the frame not naming the Inbox's strip: not while a thread has the
-     screen (data-takeover; the slot is away then, mobile.css), and again while it is carried back. What differs between
-     two views of one strip goes with the page, never on the frame: the three keep the same 4, so a view arriving from
-     another is not drawn 4px high until the copy of the one leaving is taken away (view-deck.ts keeps it in .main;
-     Ruben, 8 Oct 2026), and Live's page adds 4 of its own (live.css). */
+     Each is named by the strip the slot holds (shell-chrome.tsx `data-strip`: a page's own views, or the Inbox's group),
+     which stands from the first draw, while the page is read: named by the page's root, People's slot stood 16px taller
+     over Reading… and the list came in 16px higher (the People load review, 28 Oct 2026), and the Inbox's 12px taller,
+     its find row and its list nudged up a frame after they came (the phone sweep of 22 Nov 2026). A person's page carried
+     back to its list shows the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's;
+     while a thread has the screen the slot is away (data-takeover, mobile.css). What differs between two views of one
+     strip goes with the page, never on the frame: the Inbox's three keep the same 4, so a view arriving from another is
+     not drawn 4px high until the copy of the one leaving is taken away (view-deck.ts keeps it in .main; Ruben, 8 Oct
+     2026), and Live's page adds 4 of its own (live.css). */
   .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) {
     padding-bottom: 0;
   }
-  .main:has(> .main-scroll > :is(.inbox, .conversations):not([data-takeover])) .pg-slot,
-  :root[data-carrying] .main:has(> .main-scroll > :is(.inbox, .conversations)) .pg-slot,
-  .main:has(> .main-scroll > :is(.live-monitor, .rpt)) .pg-slot {
+  .pg-slot:is([data-strip="inbox"], [data-strip="reports"]) {
     padding-bottom: 4px;
   }
   /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under
@@ -3267,8 +3271,11 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
      pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
      drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). The period is a capsule
      with its word now (reports.css), one width whichever word it says, which is what the place keeps; on a row too short
-     for the word it is the circle's 36 and the place keeps that. */
+     for the word it is the circle's 36 and the place keeps that. That width is its widest word's: at 6.5rem the place
+     was 88px on the phone's 13.5px, every word is wider (91 to 115px: "Today", "30 days", "Yesterday"), and the strip
+     beside it slid 14px as "30 days" came (the phone sweep of 22 Nov 2026). The capsule reads the same width. */
   .pg-slot[data-strip="reports"] > .pg-act-slot {
+    --rpt-when-w: 8.75rem;
     min-width: var(--rpt-when-w);
     min-height: var(--control-h-lg);
   }

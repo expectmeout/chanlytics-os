@@ -96,7 +96,7 @@
    bare glyph said nothing of what it held). It was the kit's outlined button, which the touch floor drew 36px wide and 44
    tall beside a strip of another glass (Ruben, 7 Oct 2026). It keeps one width whichever word it says, the width the
    frame holds for it before it is drawn (components.css `--rpt-when-w`), so the strip beside it never moves as it lands. */
-.rpt-period > .rpt-when-open { flex: none; gap: var(--space-2); min-width: var(--rpt-when-w, 6.5rem); height: var(--control-h-lg); padding: 0 var(--space-4) 0 var(--space-3); border: 0; border-radius: var(--radius-full); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink-muted); }
+.rpt-period > .rpt-when-open { flex: none; justify-content: center; gap: var(--space-2); min-width: var(--rpt-when-w, 6.5rem); height: var(--control-h-lg); padding: 0 var(--space-4) 0 var(--space-3); border: 0; border-radius: var(--radius-full); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink-muted); }
 .rpt-period > .rpt-when-open[aria-expanded="true"] { background: var(--selected-fill); color: var(--ink); }
 /* The picked fill under a pointer that hovers, and only there: a touch screen keeps :hover on the last thing tapped, so
    the button closed by a second tap wore the picked fill until something else was tapped, and a swipe across the page

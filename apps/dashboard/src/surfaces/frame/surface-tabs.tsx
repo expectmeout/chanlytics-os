@@ -98,6 +98,16 @@ const stTabsOf = (page: string, own: SurfaceViews | null): [string | null, reado
   return found ? [found[0], found[1].tabs] : [null, []];
 };
 
+/**
+ * Whose strip of views a page stands under, as the frame's head slot says it (shell-chrome.tsx `data-strip`): the page's own
+ * views, or its group's (the Inbox's Needs you, Conversations and Live); null where it draws one view or none. Said from the
+ * first draw, so the room under the strip is the page's while the page is still read.
+ */
+export function stripNameOf(page: string, views: SurfaceViews | null | undefined): string | null {
+  const [name, tabs] = stTabsOf(page, views && views.tabs.length > 1 ? views : null);
+  return tabs.length > 1 ? name : null;
+}
+
 // surface:live moves the Live tab's pulse. A call's ending is a row on the live feed, and the verdict thread's news is the
 // bell's: neither has an event of its own. The Needs-you badge is the count's hook, which no event feeds.
 function useLiveRedraws() {

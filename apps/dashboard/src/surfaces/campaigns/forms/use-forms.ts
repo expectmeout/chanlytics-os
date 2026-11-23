@@ -18,6 +18,8 @@ import type {
   FormSheetDto,
 } from "@chanlytics/contracts";
 import { readFormSheet, readForms, sendFormLinkPress, sendFormPress, sendFormRequestPress } from "@/bridge/verbs/forms";
+import { getActiveWorkspace } from "@/bridge/workspace";
+import { formsOpenedOn } from "./opening";
 import { FORMS_WORDS as W } from "./words";
 
 /** A read's standing: what it holds, and whether it failed with nothing known. */
@@ -27,15 +29,21 @@ interface ReadOf<T> {
   again: () => Promise<void>;
 }
 
-/** A read made as its part is drawn and again when the tab is come back to. `key` names what is read: null reads nothing. */
-function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>): ReadOf<T> {
-  const [state, setState] = useState<{ key: string | null; dto: T | null; failed: boolean }>({
+/**
+ * A read made as its part is drawn and again when the tab is come back to. `key` names what is read: null reads nothing.
+ * `first`, where a load read it a moment before the part was drawn (./opening.ts), is what the part is first drawn from, and
+ * stands for the read its drawing would make.
+ */
+function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>, first?: () => T | null): ReadOf<T> {
+  const [state, setState] = useState<{ key: string | null; dto: T | null; failed: boolean }>(() => ({
     key,
-    dto: null,
+    dto: first?.() ?? null,
     failed: false,
-  });
+  }));
   const live = useRef(true);
-  const known = useRef<{ key: string | null; dto: T | null }>({ key, dto: null });
+  const known = useRef<{ key: string | null; dto: T | null }>({ key, dto: state.dto });
+  // The first answer, held: the mount's read is not made again for it (the next is a press's, or a return to the tab's).
+  const firstHeld = useRef(state.dto !== null);
   const again = useCallback(async () => {
     if (key === null) return;
     try {
@@ -49,7 +57,8 @@ function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>): 
   }, [key, reader]);
   useEffect(() => {
     live.current = true;
-    void again();
+    if (firstHeld.current) firstHeld.current = false;
+    else void again();
     const back = () => {
       if (document.visibilityState === "visible") void again();
     };
@@ -65,9 +74,11 @@ function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>): 
 }
 
 const readList = () => readForms();
+/** The list a load that opened on Forms read with its first draw (./opening.ts), where it is this workspace's and recent. */
+const listOpenedOn = () => formsOpenedOn(Date.now(), getActiveWorkspace());
 
 /** The list of forms. */
-export const useFormsList = (): ReadOf<FormsDto> => useReadOf("forms", readList);
+export const useFormsList = (): ReadOf<FormsDto> => useReadOf("forms", readList, listOpenedOn);
 
 /** One form's sheet; nothing is read while none is open. */
 export const useFormSheet = (formId: string | null): ReadOf<FormSheetDto> => useReadOf(formId, readFormSheet);

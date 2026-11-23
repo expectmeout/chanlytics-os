@@ -1,7 +1,7 @@
 /**
  * Campaigns' code that no page's first load carries, each a chunk of its own, fetched once for the tab by whichever asks
  * first:
- *   - Sequences, the page Campaigns lands on (route.tsx);
+ *   - Sequences, the page Campaigns lands on (route.tsx), and its other views: Content, Ads and Forms;
  *   - a message's own pane (parts/message-in-place.tsx), which the sheet over a page (surfaces/see), a step's own sheet and
  *     Sequences' step editor draw.
  * Each is asked for ahead of the press: as a pointer or a thumb reaches a door to the page that draws it (FrameApp's reach,
@@ -9,28 +9,29 @@
  * its read and its code). The Inbox's code comes with the boot and its rows are read at boot, so its page arrives drawn;
  * Campaigns' page waited at the press for its chunks, the sheets' and the Library's among them, which only a sheet or an
  * edit draws, and for its list (local production builds, 18-19 Oct 2026: 427-591 ms on a desk against the Inbox's 109-121).
+ * A load that opens on a view fetches its code beside the frame's own, and its first draw waits for it (./opening.ts).
  */
-import { lazy } from "react";
 import type { ReactNode } from "react";
 import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
 import { codeOnce, type CodeOnce } from "@/lib/code-once";
-import { useCode } from "@/lib/use-code";
+import { partNow, useCode } from "@/lib/use-code";
 import { FailedRead } from "../../kit/empty/empty";
 import type { MessageInPlaceProps } from "../parts/message-in-place";
 import { messagePaneContext } from "../parts/message-pane";
 import { HomeReading } from "./failed";
 
-const sequences = codeOnce(() => import("../sequences/sequences-page"));
+export const sequencesCode = codeOnce(() => import("../sequences/sequences-page"));
 const pane = codeOnce(() => import("../parts/message-in-place"));
+/** Content's code, Ads' and Forms': each a chunk of its own, fetched where its view is drawn (route.tsx). */
+export const contentCode = codeOnce(() => import("../content/page"));
+export const adsCode = codeOnce(() => import("../ads/ads-page"));
+export const formsCode = codeOnce(() => import("../forms/page"));
 
-const PageWhenRead = lazy(() => sequences().then((m) => ({ default: m.SequencesPage })));
-
-/**
- * Sequences' page as a mount draws it: the component itself where the code is in, which draws at once and never suspends,
- * else the lazy part. Asked once per mount (the caller's state), so a mount never swaps one for the other and loses what
- * it holds.
- */
-export const sequencesPageNow = () => sequences.now()?.SequencesPage ?? PageWhenRead;
+/** Each view's page as a mount draws it (lib/use-code.ts partNow): the page itself where its code is in, else the lazy part. */
+export const sequencesPageNow = partNow(sequencesCode, (m) => m.SequencesPage);
+export const contentPageNow = partNow(contentCode, (m) => m.ContentPage);
+export const adsPageNow = partNow(adsCode, (m) => m.AdsPage);
+export const formsPageNow = partNow(formsCode, (m) => m.FormsPage);
 
 /**
  * A part held in a chunk, as a component draws it (lib/use-code.ts): the part itself where the chunk is in, else null
@@ -71,7 +72,7 @@ const OPENS_A_MESSAGE = /^campaigns\/(messages\/[^/]+|message:)/;
 
 /** A route somebody is reaching for: the code it draws, fetched now. A fetch that fails is the page's to ask again. */
 export function warmCampaignsCode(route: string): void {
-  if (DRAWS_SEQUENCES.test(route)) sequences.warm();
+  if (DRAWS_SEQUENCES.test(route)) sequencesCode.warm();
   if (OPENS_A_MESSAGE.test(route)) pane.warm();
 }
 

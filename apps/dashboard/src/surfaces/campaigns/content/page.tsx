@@ -21,7 +21,7 @@ import "../../files/files.css";
 import "../../files/post.css";
 import "./content.css";
 import "./sheets/sheets.css";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CONTENT_WORDS as W,
   DAY_MS,
@@ -77,11 +77,9 @@ import {
   type ContentLayout,
 } from "./views";
 import { pieceBesideOf } from "./model/piece-open";
+import { libraryNow } from "./library-code";
 import { ContentWeek, WeekPlannedOpen } from "./week/week";
 import { surfaceValue } from "../../surface-values";
-
-/** The library, Files' own: a chunk of its own, asked for the first time Library is shown. */
-const ContentLibrary = lazy(() => import("./library"));
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
 const CONTENT_FOLLOW_MS = 5 * SECOND_MS;
@@ -419,6 +417,8 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
   const place: ContentPlace = contentPlaceOf(route.split("/")[1]) ?? { list: "made", view: "all", open: null };
   const library = place.list === "library";
   const week = place.list === "week";
+  // The Library's code, taken once for the mount (library-code.ts): itself where a load opened on it, else the lazy part.
+  const [ContentLibrary] = useState(libraryNow);
   const held = useSurface("content");
   const config = useSurface("settings")?.settings?.config;
   const videos = videoPreviewOf(config);

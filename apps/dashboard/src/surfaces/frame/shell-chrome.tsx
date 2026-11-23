@@ -29,7 +29,7 @@ import { ShortcutsSheet } from "./shortcuts";
 import { focusPage } from "./shell-hooks";
 import { NAV_ROUTE, shellAddress } from "./shell-routes";
 import { Sidebar } from "./sidebar/sidebar";
-import { SurfaceTabs, stripSwipe, stripViewRef } from "./surface-tabs";
+import { SurfaceTabs, stripNameOf, stripSwipe, stripViewRef } from "./surface-tabs";
 import { Topbar } from "./topbar/topbar";
 
 // ---- Error state --------------------------------------------------------
@@ -175,14 +175,23 @@ interface HeadAt {
 }
 
 /**
- * The slot of the frame's head, which says whose strip of views it holds (`data-strip`): the page's, or, while a thumb
- * carries a row's page back to the list held under it, the list's, as the strip it holds then is (surface-tabs.tsx).
+ * The slot of the frame's head, which says whose strip of views it holds (`data-strip`): the page's own or its group's
+ * (surface-tabs.tsx stripNameOf), or, while a thumb carries a row's page back to the list held under it, the list's, as the
+ * strip it holds then is.
  */
-function PageSlot({ views, children }: { views: SurfaceViews | null | undefined; children: ReactNode }) {
+function PageSlot({
+  page,
+  views,
+  children,
+}: {
+  page: string;
+  views: SurfaceViews | null | undefined;
+  children: ReactNode;
+}) {
   const under = useHeadUnder();
-  const held = under ? under.strip && under.strip.views : views;
+  const held = under ? under.strip : { page, views };
   return (
-    <div className="pg-slot" data-strip={held && held.tabs.length > 1 ? held.name : undefined}>
+    <div className="pg-slot" data-strip={(held && stripNameOf(held.page, held.views)) ?? undefined}>
       {children}
     </div>
   );
@@ -199,7 +208,7 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
   if (!glass) return where === "over" ? <Strip page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
-    <PageSlot views={views}>
+    <PageSlot page={page} views={views}>
       {/* Told as it is drawn, so the head is drawn into it in the same commit (frame-head.tsx headSlotDrawn). */}
       <div className="pg-head-slot" id="pg-head" ref={headSlotDrawn} />
       <Strip page={page} param={param} views={views} onNavigate={navigate} />

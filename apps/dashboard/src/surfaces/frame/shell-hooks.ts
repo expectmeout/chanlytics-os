@@ -64,6 +64,8 @@ export const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 
 export function useRouteGate({ page, param, routeKey }: RouteAt) {
   const [timedOutKey, setTimedOutKey] = useState<string | null>(null);
   const [waitedOutKey, setWaitedOutKey] = useState<string | null>(null);
+  // The address whose page this gate has drawn: a wait said after that draw holds nothing (below).
+  const [drawnKey, setDrawnKey] = useState<string | null>(null);
   const [readyTick, setReadyTick] = useState(0);
   const arm = () => {
     if (routeReady(page, param)) return undefined;
@@ -99,8 +101,14 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
   void readyTick;
   const routeWaitedOut = waitedOutKey === routeKey;
   // A band the page waits for beside its own surface (Today's setup, above its queue) holds the first draw so it never lands
-  // above content already drawn; once the page's own surface is in, only for so long.
-  const surfaceReady = routeReady(page, param) || (routeWaitedOut && routeReady(page, param, true));
+  // above content already drawn; once the page's own surface is in, only for so long. And only the first draw: a wait said
+  // once the page was drawn (Ads' own first reads, asked as the settings read lands, after a reopen had drawn the address
+  // from what the tab kept) took the page away for a beat and drew it again (the phone sweep of 22 Nov 2026).
+  const drewHere = drawnKey === routeKey;
+  const surfaceReady = routeReady(page, param) || ((routeWaitedOut || drewHere) && routeReady(page, param, true));
+  useEffect(() => {
+    if (surfaceReady && !drewHere) setDrawnKey(routeKey);
+  }, [surfaceReady, drewHere, routeKey]);
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || timedOutKey === routeKey);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
   const surfaceState = frameSurfaceState();

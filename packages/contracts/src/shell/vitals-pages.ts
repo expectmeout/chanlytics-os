@@ -49,10 +49,23 @@ const PEOPLE_SCOPES: ReadonlyArray<readonly [RegExp, string]> = [
 ];
 
 /**
+ * Campaigns' views beside Sequences, each a page of its own in the field data, as People's scopes are: what is drawn differs,
+ * and so does its time. Counted as Campaigns, a load of one waited for Sequences' list (its first part), which it never
+ * draws, and was never READY (the phone sweep of 22 Nov 2026). Sequences, and the addresses that land on it, are Campaigns.
+ */
+const CAMPAIGNS_VIEWS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^content:library(:|$)/, "library"],
+  [/^content:week(:|$)/, "week"],
+  [/^content(:|$)/, "content"],
+  [/^ads(:|$)/, "ads"],
+  [/^forms(:|$)/, "forms"],
+];
+
+/**
  * The page a report is of, from the shell's route (address.ts routeOfAddress): its first segment in the product's
  * word (contracts ROUTE_WORDS: "settings" for "admin", "people" for "clients"), People's scopes by their own names
- * ("leads", "pipeline", "person" for "clients/<id>"), Today for the workspace's own address, and "other" for a route
- * the table would refuse.
+ * ("leads", "pipeline", "person" for "clients/<id>"), Campaigns' views by theirs ("content", "library", "ads", "forms"),
+ * Today for the workspace's own address, and "other" for a route the table would refuse.
  */
 export function vitalsPageOf(route: string): string {
   const path = (route ?? "").split("?")[0] ?? "";
@@ -61,6 +74,8 @@ export function vitalsPageOf(route: string): string {
   const rest = at < 0 ? "" : path.slice(at + 1);
   if (head === "") return "today";
   if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  const view = head === "campaigns" ? CAMPAIGNS_VIEWS.find(([test]) => test.test(rest))?.[1] : undefined;
+  if (view) return view;
   // Messages is a view of Campaigns (`campaigns/messages`, 19 Oct 2026) and keeps the page name its field data has always had.
   if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
   const word = ROUTE_WORDS[head] ?? head;
@@ -85,4 +100,11 @@ export const PRIMARY_PART: Readonly<Record<string, string>> = {
   campaigns: "list",
   // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
   templates: "list",
+  // Campaigns' other views, each drawn as it is shown (CAMPAIGNS_VIEWS): Made's pieces, the Library's files, the Week's plan,
+  // the page Ads is (its ads, or nothing connected), the forms.
+  content: "body",
+  library: "library",
+  week: "list",
+  ads: "page",
+  forms: "list",
 };
