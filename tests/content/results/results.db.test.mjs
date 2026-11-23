@@ -326,7 +326,8 @@ test("an erased person's touches keep only that they happened, of what and when"
     await db.from("touches").select("contact_id").eq("tenant_id", A).limit(1).single(),
     "who",
   ).contact_id;
-  ok(await db.rpc("erase_contact", { p_contact_id: person }), "the erasure");
+  // An owner's press erases at once; the service role only finishes an erasure an owner began (erasing_since).
+  ok(await as.owner.client.rpc("erase_contact", { p_contact_id: person }), "the owner's erasure");
   const left = ok(
     await db.from("touches").select("contact_id, evidence, emptied_at, kind, subject_id").eq("tenant_id", A),
     "what is left",
