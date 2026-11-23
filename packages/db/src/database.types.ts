@@ -11270,7 +11270,12 @@ export type Database = {
         Returns: Json
       }
       content_plan_write: {
-        Args: { p_fewer: string; p_plan_id: string; p_slots: Json; p_tenant_id: string }
+        Args: {
+          p_fewer: string
+          p_plan_id: string
+          p_slots: Json
+          p_tenant_id: string
+        }
         Returns: Json
       }
       content_plans_hand_out: {
