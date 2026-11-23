@@ -86,7 +86,12 @@
     "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
     "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)",
     "00685": "claimed by the Ads tracking plan's T6 and left empty: the lane renumbered down to 00683 before anything was applied, 22 Nov 2026",
-    "00688": "claimed by the Forms plan's F3 (a time asked for on a form, lane cm-forms-time), a draft not on main when Keep it up took 00689 above it (23 Nov 2026); the record drops this line once its file lands"
+    "00688": "claimed by the Forms plan's F3 (a time asked for on a form, lane cm-forms-time), a draft not on main when Keep it up took 00689 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00690": "claimed by the shelf (a made video keeps a copy, lane cm-archive-b2) and left empty: its file moved to 00695 when 00691 went on production above it (23 Nov 2026)",
+    "00691": "a time asked for on a form (lane cm-forms-time, #2529): applied on production 23 Nov 2026, its file not on main when the shelf took 00695 above it; the record drops this line once its file lands",
+    "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -691,6 +696,7 @@
     "00684_a_deal_marked_won_is_a_moment.sql": "b3dd58f808da2b4796e3d3f73ab254959311c6e8e440dc7344f57b8b6fbc0e3a",
     "00686_a_file_says_where_its_copies_are.sql": "daf097e1a71b1fa3561737bc4738a788d9edab56d5bed6cbd50fe8c5a6aa239d",
     "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff",
-    "00689_a_post_stays_up_on_the_owner_s_word.sql": "d6c796ea95d33635ec9d339b9060a3d6851b210d54ee5aa73167cb751d55b307"
+    "00689_a_post_stays_up_on_the_owner_s_word.sql": "d6c796ea95d33635ec9d339b9060a3d6851b210d54ee5aa73167cb751d55b307",
+    "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a"
   }
 }

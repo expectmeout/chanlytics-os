@@ -8,7 +8,7 @@
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
@@ -134,8 +134,25 @@ const MEDIA = [
 let storageFails = false;
 
 /** A world: the tables, the doors the job knocks on as the database answers them, the bucket, the web, and a machine. */
-function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true, master = MASTER, twin = null } = {}) {
+function world({
+  piece = pieceRow(),
+  clip = clipRow(),
+  photos = [],
+  image = true,
+  master = MASTER,
+  twin = null,
+  shelf = null,
+  full = null,
+} = {}) {
+  /** What the shelf's own door was asked (00695 file_shelf_begin); `shelf` is on, off, or broken. */
+  const shelfAsked = [];
   const tables = {
+    tenants: [{ id: T, name: "Harbor Studio" }],
+    tenant_config: [
+      { tenant_id: T, config: { features: { video_preview: true, video_shelf: shelf !== "off" && shelf !== null } } },
+    ],
+    file_archives: [],
+    file_archive_parts: [],
     pieces: [piece],
     files: [...(clip ? [clip] : []), ...photos],
     piece_images: image
@@ -161,8 +178,20 @@ function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true
         row().stage = a.p_stage;
         return true;
       },
+      // The videos are full (`full`): what may go is marked going, as 00654's door marks it, and its going frees the room.
+      file_copies_let_go: (a) => {
+        if (!full) return [];
+        full.askedFor = a.p_seconds;
+        return full.mayGo.map((copy) => ({ ...copy }));
+      },
+      file_copy_gone: (a) => {
+        full.went.push(a.p_id);
+        if (full.went.length === full.mayGo.length) full.left = false;
+        return true;
+      },
       piece_file_begin: (a) => {
         if (row().status !== "making") return { fate: "ended", file_id: null };
+        if (full?.left) return { fate: "minutes", file_id: null };
         if (row().file_id) {
           // Asked again: the file the row holds, and when it was begun.
           const held = tables.files.find((f) => f.id === row().file_id);
@@ -213,6 +242,12 @@ function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true
         Object.assign(row(), { status: "failed", failed_why: a.p_why, machine: null });
         return true;
       },
+      // 00695: a made video's copy on the shelf begun, with its job, by the door itself (the shelf's own tests').
+      file_shelf_begin: (a) => {
+        shelfAsked.push(a);
+        if (shelf === "broken") throw new Error("the database gave no answer");
+        return { fate: "begun" };
+      },
       // 00654: where a watched clip's copy stands, as its row says it (its origins are the copies' own tests').
       file_copy_settle: (a) => {
         const file = tables.files.find((f) => f.id === a.p_file_id);
@@ -249,6 +284,8 @@ function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true
       web.reserved = { bytes: init.headers["upload-length"] };
       return new Response(null, { status: 201, headers: { location: UPLOAD_URL, "stream-media-id": MADE_UID } });
     }
+    // A copy let go to make room is deleted at the video platform, and so is a place reserved for nothing.
+    if (url.startsWith(`${STREAM_API}/`) && init?.method === "DELETE") return new Response(null, { status: 200 });
     if (url === UPLOAD_URL) {
       web.sent = { bytes: init.body.length, offset: init.headers["upload-offset"] };
       return new Response(null, { status: 204 });
@@ -266,7 +303,7 @@ function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true
     stop: async (m) => void machine.stopped.push(m.name),
     pause: async () => void machine.pauses++,
   });
-  return { db, tables, web, machine, row, kept, signed };
+  return { db, tables, web, machine, row, kept, signed, shelfAsked };
 }
 
 const job = (step, tick = "1") => ({
@@ -561,6 +598,89 @@ test("a drawing done is sent into the video platform as a file made here, and th
   // Still being made: the platform's word that it can be played is what makes it made.
   assert.equal(row().status, "making");
   assert.deepEqual(tables.jobs, []);
+});
+
+test("as a made video is sent its copy on the shelf is begun, held to the very bytes that went, and is never the video's to fail", async () => {
+  // A deployment with a relay, as production's is: the shelf's own tests run the job that follows.
+  Object.assign(process.env, { FOOTAGE_RELAY_URL: "https://relay.example", FOOTAGE_TICKET_KEY: "ticket-key" });
+  try {
+    const sent = async (shelf) => {
+      const w = world({ piece: pieceRow({ machine: drawing() }), shelf });
+      w.machine.states = [{ stage: "done", bytes: 4096 }];
+      const { lines } = await linesOf(() => makePiece(w.db, job("wait"), soon()));
+      return { ...w, lines, made: w.tables.files.find((f) => f.source === "made") };
+    };
+    const on = await sent("on");
+    assert.deepEqual(on.shelfAsked, [
+      {
+        p_tenant_id: T,
+        p_file_id: on.made.id,
+        p_bytes: 4096,
+        // The SHA-256 of the bytes the machine drew: the ones kept for Download and sent to the platform.
+        p_sha256: createHash("sha256").update(on.machine.video).digest("hex"),
+        p_seconds_max: 300 * 60,
+      },
+    ]);
+    assert.equal(on.made.media_status, "processing", "begun after its bytes all went");
+    // A workspace whose switch is off is not asked for a shelf copy at all.
+    const off = await sent("off");
+    assert.deepEqual(off.shelfAsked, []);
+    assert.equal(off.made.media_status, "processing");
+    // The door not answering is a line, and the video is sent and its machine let go all the same.
+    const broken = await sent("broken");
+    assert.equal(broken.shelfAsked.length, 1);
+    assert.equal(broken.made.media_status, "processing");
+    assert.equal(broken.row().machine, null);
+    assert.deepEqual(broken.machine.stopped, ["machine-1"]);
+    assert.ok(
+      broken.lines.some((line) => line.event === "piece_drawn"),
+      "its drawing is still said",
+    );
+  } finally {
+    delete process.env.FOOTAGE_RELAY_URL;
+    delete process.env.FOOTAGE_TICKET_KEY;
+  }
+  // A deployment with no relay has no shelf: nothing is asked.
+  const none = world({ piece: pieceRow({ machine: drawing() }), shelf: "on" });
+  none.machine.states = [{ stage: "done", bytes: 4096 }];
+  await makePiece(none.db, job("wait"), soon());
+  assert.deepEqual(none.shelfAsked, []);
+});
+
+test("a video made where the minutes are full has what can step aside make room for it, and ends as before where nothing can", async () => {
+  const drawn = async (full) => {
+    const w = world({ piece: pieceRow({ machine: drawing() }), full });
+    w.machine.states = [{ stage: "done", bytes: 4096 }];
+    await makePiece(w.db, job("wait"), soon());
+    return { ...w, made: w.tables.files.find((f) => f.source === "made") };
+  };
+  // Two older videos may go (the database says which): each is deleted at the platform, and the new one is kept.
+  const room = {
+    left: true,
+    went: [],
+    mayGo: [
+      { id: "older-1", media_ref: "a".repeat(32), seconds: 30 },
+      { id: "older-2", media_ref: "b".repeat(32), seconds: 30 },
+    ],
+  };
+  const kept = await drawn(room);
+  assert.equal(room.askedFor, 10.33, "room for the new video's own length");
+  assert.deepEqual(room.went, ["older-1", "older-2"]);
+  assert.deepEqual(
+    kept.web.asked.filter((asked) => asked.startsWith("DELETE")),
+    [`DELETE ${STREAM_API}/${"a".repeat(32)}`, `DELETE ${STREAM_API}/${"b".repeat(32)}`],
+  );
+  assert.ok(kept.made, "the new video has its row");
+  assert.equal(kept.made.media_status, "processing");
+  assert.equal(kept.row().status, "making");
+  // Nothing may go: the video ends as not stored, as it did before there was a shelf, and its place is let go.
+  const none = await drawn({ left: true, went: [], mayGo: [] });
+  assert.equal(none.made, undefined);
+  assert.deepEqual([none.row().status, none.row().failed_why], ["failed", "store"]);
+  assert.deepEqual(
+    none.web.asked.filter((asked) => asked.startsWith("DELETE")),
+    [`DELETE ${STREAM_API}/${MADE_UID}`],
+  );
 });
 
 test("a drawing that fails is tried once more from the start, on a fresh machine", async () => {

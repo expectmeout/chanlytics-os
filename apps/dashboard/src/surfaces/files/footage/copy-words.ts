@@ -4,6 +4,10 @@
  * lately gives up its place and its original stays in Drive. Its picture, its sound and what AI wrote never leave, so
  * every state here is said over the clip's own still, with listening beside it.
  *
+ * A video made here can step aside too (the archive PRD's section 8). Its owner never chose where it is kept, so none
+ * of its sentences names a place: its still with Play while it is aside, "Getting your video ready…" while it comes
+ * back, and for whatever stands in its way, what happens next and the one thing to do.
+ *
  * One sentence for each word of the closed sets (contracts files/copy.ts): what is happening, whether it ends by itself, and the one
  * thing to do. Never a code and never the provider's wording. Pure.
  */
@@ -39,6 +43,8 @@ export interface CopyFacts {
   connected: boolean;
   /** Whether its owner added the clip themselves (FileDto owner_uploaded): on its way back, it comes from what they added. */
   uploaded: boolean;
+  /** Whether the video was made here (FileDto source `made`): it is said as any video is, and never by where it is kept. */
+  made: boolean;
 }
 
 export const COPY_WORDS = {
@@ -65,6 +71,8 @@ export const COPY_WORDS = {
     moved: (folder: string | null, leaves: string | null) =>
       `Moved out of ${folder ? `“${folder}”` : "its folder"}${leaves ? ` · leaves ${leaves}` : ""}`,
     notFound: "Can't be found in Drive",
+    /** A video made here that can't come back. */
+    cantPlay: "Can't be played",
   },
 } as const;
 
@@ -101,6 +109,71 @@ const SLOW: CopySaid = {
   mends: true,
 };
 
+const ROOM: CopySaid = {
+  mark: "ring",
+  head: "Waiting for room",
+  // Never "within the hour": where the owner's own videos fill the minutes, nothing steps aside by itself (the
+  // review's finding 2; the folder's line says "Videos are full" then, call 3).
+  body: `Videos hold ${FILE_VIDEO_MINUTES_MAX} minutes at a time. This one plays as soon as there is room.`,
+  act: null,
+  mends: true,
+};
+
+const VIDEOS_OFF: CopySaid = {
+  mark: "none",
+  head: "Videos aren't on for this workspace yet",
+  body: "Its picture and its sound are here.",
+  act: null,
+  mends: false,
+};
+
+/** A video made here, aside and not asked for: its still and Play, as any video. Nothing is said. */
+const MADE_ASIDE: CopySaid = { mark: "play", head: "", body: "", act: "play", mends: false };
+
+const MADE_RETURNING: CopySaid = {
+  mark: "ring",
+  head: "Getting your video ready…",
+  body: "It plays by itself, here or when you come back.",
+  act: null,
+  mends: true,
+};
+
+const MADE_TOMORROW: CopySaid = {
+  mark: "none",
+  head: "It plays again tomorrow",
+  body: `${FOOTAGE_NUMBERS.returnsADay} videos a day can be made ready again, and today's are used.`,
+  act: null,
+  mends: false,
+};
+
+/** It did not come back this time. Nothing asks again until the next press, so none of it says anything keeps trying. */
+const MADE_NOT_NOW: CopySaid = {
+  mark: "play",
+  head: "This video isn't ready just now",
+  body: "Its picture and its sound are here. Play to try again.",
+  act: "play",
+  mends: false,
+};
+
+/** It can't come back: said once. No act until a new version can be made from its plan (the PRD's A7, not built). */
+const MADE_LOST: CopySaid = {
+  mark: "none",
+  head: "This video can't be played",
+  body: "Its picture and words stay.",
+  act: null,
+  mends: false,
+};
+
+/** What a video made here says where it is not at hand: never where it is kept, and never a clip's reason. */
+function madeSaidOf(copy: Exclude<FileCopyState, "here">, reason: FileCopyWhy | null): CopySaid {
+  if (copy === "returning" || copy === "going") return MADE_RETURNING;
+  if (copy === "lost") return MADE_LOST;
+  if (reason === null) return MADE_ASIDE;
+  if (reason === "room") return ROOM;
+  if (reason === "budget") return MADE_TOMORROW;
+  return reason === "videos_off" ? VIDEOS_OFF : MADE_NOT_NOW;
+}
+
 const leavesNote = (leaves: string | null): string =>
   leaves ? ` It leaves your Library on ${leaves} unless a post used it.` : "";
 
@@ -108,15 +181,7 @@ const leavesNote = (leaves: string | null): string =>
 function waitSaidOf(reason: FileCopyWhy, facts: CopyFacts): CopySaid {
   switch (reason) {
     case "room":
-      return {
-        mark: "ring",
-        head: "Waiting for room",
-        // Never "within the hour": where the owner's own videos fill the minutes, nothing steps aside by itself (the
-        // review's finding 2; the folder's line says "Videos are full" then, call 3).
-        body: `Videos hold ${FILE_VIDEO_MINUTES_MAX} minutes at a time. This one plays as soon as there is room.`,
-        act: null,
-        mends: true,
-      };
+      return ROOM;
     case "budget":
       return {
         mark: "none",
@@ -153,13 +218,7 @@ function waitSaidOf(reason: FileCopyWhy, facts: CopyFacts): CopySaid {
         mends: false,
       };
     case "videos_off":
-      return {
-        mark: "none",
-        head: "Videos aren't on for this workspace yet",
-        body: "Its picture and its sound are here.",
-        act: null,
-        mends: false,
-      };
+      return VIDEOS_OFF;
     case "changed":
       return {
         mark: "none",
@@ -234,6 +293,7 @@ function lossSaidOf(reason: FileCopyWhy | null, facts: CopyFacts): CopySaid {
  */
 export function copySaidOf(copy: FileCopyState, reason: FileCopyWhy | null, facts: CopyFacts): CopySaid | null {
   if (copy === "here") return null;
+  if (facts.made) return madeSaidOf(copy, reason);
   if (copy === "returning" || copy === "going") return facts.uploaded ? FROM_UPLOAD : RETURNING;
   if (copy === "lost") return lossSaidOf(reason, facts);
   return reason ? waitSaidOf(reason, facts) : KEPT_IN_DRIVE;
@@ -260,16 +320,20 @@ export const rowReasonOf = (file: Pick<FileDto, "copy_why" | "origin_left" | "ow
 
 /**
  * A row's one line for a clip that is coming back or can't, or a file whose original left its folder ("Deleted in Drive
- * · leaves Nov 26", the canvas's Removed board); null for every other, which reads as any file does.
+ * · leaves Nov 26", the canvas's Removed board); null for every other, which reads as any file does. A video made here
+ * says the Library's own words while it comes back, and that it can't be played where it can't.
  * `alone` says the line stands for the whole row's line; otherwise it follows what the clip is ("Clip · 0:32 · …").
  */
 export function copyRowLineOf(
   copy: FileCopyState,
   reason: FileCopyWhy | null,
-  facts: Pick<CopyFacts, "folder" | "leaves" | "uploaded">,
+  facts: Pick<CopyFacts, "folder" | "leaves" | "uploaded" | "made">,
 ): { line: string; tone: "live" | "you"; alone: boolean } | null {
-  if (copy === "returning" || copy === "going")
-    return { line: facts.uploaded ? COPY_WORDS.row.fromUpload : COPY_WORDS.row.returning, tone: "live", alone: true };
+  if (copy === "returning" || copy === "going") {
+    const ready = facts.uploaded || facts.made;
+    return { line: ready ? COPY_WORDS.row.fromUpload : COPY_WORDS.row.returning, tone: "live", alone: true };
+  }
+  if (facts.made) return copy === "lost" ? { line: COPY_WORDS.row.cantPlay, tone: "you", alone: false } : null;
   if (copy !== "lost" && reason !== "gone" && reason !== "outside") return null;
   if (reason === "gone") return { line: COPY_WORDS.row.binned(facts.leaves), tone: "you", alone: true };
   if (reason === "outside") return { line: COPY_WORDS.row.moved(facts.folder, facts.leaves), tone: "you", alone: true };
