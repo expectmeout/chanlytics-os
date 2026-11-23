@@ -13217,12 +13217,15 @@ begin
         || ': reply to them');
     end if;
   end loop;
+  -- What the visit answered is the form (00699's through_type): stamped here, since a form's request has no
+  -- conversation for appointments_through_stamp to read, and a visit is stamped at its insert alone.
   insert into public.appointments (tenant_id, contact_id, conversation_id, source, status, starts_at, ends_at,
-                                   title, service, client_name, client_phone, client_email, timezone, expires_at)
+                                   title, service, client_name, client_phone, client_email, timezone, expires_at,
+                                   through_type, through_id)
   values (p_tenant_id, v_contact.id, null, 'receptionist', 'proposed', p_starts_at, p_ends_at, v_service, v_service,
           coalesce(nullif(btrim(coalesce(v_contact.display_name, '')), ''),
                    nullif(btrim(coalesce(v_contact.wa_profile_name, '')), '')),
-          v_contact.phone_e164, v_contact.email, p_timezone, v_expires)
+          v_contact.phone_e164, v_contact.email, p_timezone, v_expires, 'form', p_form_id)
   returning id into v_id;
   -- The visit asked for is the entry's: what it answered, and where it came from, are read through it.
   insert into public.form_entry_links (tenant_id, entry_id, kind, appointment_id)
@@ -13235,7 +13238,7 @@ end $$;
 -- Name: FUNCTION form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
+COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691, 00704; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit) and saying it answered the form (through_type form, through_id the form, 00699''s columns). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
 
 
 --
