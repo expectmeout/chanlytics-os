@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-459 handlers in 63 domains.
+467 handlers in 63 domains.
 
 ## activity
 
@@ -1124,6 +1124,15 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `limit` | integer | no | ≥ 1; ≤ 96 |
 | `about` | string | no | at most 80 characters |
 
+### `PUT /api/v1/content/aims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `goals` | array of object | no | at most 8 |
+| `content` | object | no |  |
+
 ### `POST /api/v1/content/bring-in`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
@@ -1132,11 +1141,73 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `link` | string | yes | at least 1 characters; at most 500 characters |
 
+### `POST /api/v1/content/claims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"price"`, `"offer"`, `"guarantee"`, `"fact"` | yes |  |
+| `text` | string | yes | at least 1 characters; at most 280 characters |
+| `source` | one of `"said"`, `"settings"` | yes |  |
+| `valid_until` | string or null | no |  |
+
+### `DELETE /api/v1/content/claims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `claim_id` | string (uuid) | yes |  |
+
+### `POST /api/v1/content/line`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"` | yes |  |
+| `words` | string | yes | at least 1 characters; at most 280 characters |
+
 ### `GET /api/v1/content/note`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/content/note/route.ts`).
+
+### `GET /api/v1/content/plan`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `week` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `week_of` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan/approve`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `plan_id` | string (uuid) | yes |  |
+| `week_of` | string | yes | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan/slots`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `slot_id` | string (uuid) | yes |  |
+| `change` | object or object or object or object or object | yes |  |
 
 ### `GET /api/v1/content/report`
 
@@ -2727,7 +2798,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2747,7 +2818,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

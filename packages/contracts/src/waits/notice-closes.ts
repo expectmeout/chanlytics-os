@@ -189,6 +189,14 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   // Closed by the news that it is gone (notice-mends.ts): the owner deleted it there, and the place no longer holds it.
   post_by_hand: { ends: "mended" },
+  plan_ready: {
+    ends: "news",
+    why: "A week is told once, when it is ready. The Week holds it, with Approve the week, until it is approved.",
+  },
+  footage_ask: {
+    ends: "news",
+    why: "What to film is told once a week at most. The Week keeps it at its foot until a clip comes in for it.",
+  },
   preview_tried: {
     ends: "news",
     why: "A lead who tried their preview is told at their first message and at their first call. Today keeps the lead.",

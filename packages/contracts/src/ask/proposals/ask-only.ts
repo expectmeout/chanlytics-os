@@ -10,6 +10,7 @@
  */
 import { adDraftSpec } from "../../ads/draft-card";
 import { takeDownSpec } from "../../content/placements/take-down-spec";
+import { claimSpec, planWeekSpec } from "../../content/plan/week-spec";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
 import { followUpSpec } from "./follow-up";
@@ -55,6 +56,9 @@ export const ASK_ONLY_SPECS = {
   ad_draft: adDraftSpec,
   // A made piece taken down everywhere it is up (00682; content/take-down.ts).
   take_down: takeDownSpec,
+  // A week of posts, and what a post may say (00702; content/plan/week-spec.ts).
+  week: planWeekSpec,
+  claim: claimSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
   list: listSpec,

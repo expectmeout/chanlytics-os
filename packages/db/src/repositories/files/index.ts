@@ -5,6 +5,17 @@ export { approvePosts, keepPieceWords, readPostAsApproved } from "./approvals";
 export type { ApproveFate, PostsApproved } from "./approvals";
 export { keepPostCaption, keepVideoCaption } from "./captions";
 export {
+  countMoments,
+  findBestMoment,
+  keepClaim,
+  keepGoals,
+  keepMoments,
+  listClaims,
+  listGoals,
+  withdrawClaim,
+} from "./claims";
+export type { GoalKept, MomentKept } from "./claims";
+export {
   beginCopyReturn,
   endSourceGrace,
   failCopyReturn,
@@ -89,6 +100,18 @@ export {
 } from "./pieces";
 export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow, PieceStandingRow } from "./pieces";
 export {
+  approveWeek,
+  askForPlan,
+  findPlanForJob,
+  findPlanSlot,
+  handOutPlans,
+  markSlotMade,
+  readContentWeek,
+  setPlanSlot,
+  writePlan,
+} from "./plans";
+export type { PlanAsked, PlanWritten, SlotChange, SlotMade, SlotSet, WeekApproved } from "./plans";
+export {
   closePostAttempt,
   countPostsOut,
   countPostsTimed,
@@ -97,6 +120,7 @@ export {
   listFilePosts,
   listKeptPostIds,
   listPostAttempts,
+  listPostsByIds,
   listPostsInSpan,
   listPostsOfFiles,
   listPostsSilent,
@@ -215,3 +239,5 @@ export {
 } from "./take-down";
 export type { PieceTakeDownKept, TakeDownBegun } from "./take-down";
 export { movePostTime } from "./waiting-posts";
+export { listNewReviews, listWeekFootage, readRecentlyPosted } from "./week-facts";
+export type { FootageRow, RecentlyPosted, ReviewRow } from "./week-facts";

@@ -2178,6 +2178,107 @@ export type Database = {
           },
         ]
       }
+      content_goals: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          detail: Json
+          goal: string
+          id: string
+          tenant_id: string
+          weight: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          goal: string
+          id?: string
+          tenant_id: string
+          weight?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          goal?: string
+          id?: string
+          tenant_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_goals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_plans: {
+        Row: {
+          approval_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          asked_at: string
+          asked_by: string
+          done_at: string | null
+          fewer: string | null
+          id: string
+          ready_at: string | null
+          status: string
+          tenant_id: string
+          week_of: string
+        }
+        Insert: {
+          approval_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          asked_at?: string
+          asked_by: string
+          done_at?: string | null
+          fewer?: string | null
+          id?: string
+          ready_at?: string | null
+          status?: string
+          tenant_id: string
+          week_of: string
+        }
+        Update: {
+          approval_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          asked_at?: string
+          asked_by?: string
+          done_at?: string | null
+          fewer?: string | null
+          id?: string
+          ready_at?: string | null
+          status?: string
+          tenant_id?: string
+          week_of?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_plans_approval_id_same_workspace"
+            columns: ["tenant_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "approvals"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "content_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_channel_state: {
         Row: {
           channel: string
@@ -3515,6 +3616,75 @@ export type Database = {
           },
           {
             foreignKeyName: "file_archives_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_moments: {
+        Row: {
+          confidence: number
+          corrected_at: string | null
+          corrected_by: string | null
+          created_at: string
+          end_s: number
+          faces: number | null
+          file_id: string
+          id: string
+          model_edition: number
+          score: number
+          sharp: number | null
+          shows: string[]
+          start_s: number
+          tenant_id: string
+          words: string | null
+        }
+        Insert: {
+          confidence: number
+          corrected_at?: string | null
+          corrected_by?: string | null
+          created_at?: string
+          end_s: number
+          faces?: number | null
+          file_id: string
+          id?: string
+          model_edition: number
+          score: number
+          sharp?: number | null
+          shows?: string[]
+          start_s: number
+          tenant_id: string
+          words?: string | null
+        }
+        Update: {
+          confidence?: number
+          corrected_at?: string | null
+          corrected_by?: string | null
+          created_at?: string
+          end_s?: number
+          faces?: number | null
+          file_id?: string
+          id?: string
+          model_edition?: number
+          score?: number
+          sharp?: number | null
+          shows?: string[]
+          start_s?: number
+          tenant_id?: string
+          words?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_moments_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_moments_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -6606,6 +6776,50 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_claims: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          source: string
+          tenant_id: string
+          text: string
+          valid_until: string | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          source: string
+          tenant_id: string
+          text: string
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          source?: string
+          tenant_id?: string
+          text?: string
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       page_vitals: {
         Row: {
           at: string
@@ -7400,6 +7614,124 @@ export type Database = {
           },
           {
             foreignKeyName: "pieces_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_slots: {
+        Row: {
+          approval_id: string | null
+          ask: Json | null
+          at: string
+          blocked_reason: string | null
+          blocked_why: string | null
+          created_at: string
+          creative: string
+          file_id: string | null
+          id: string
+          intent: Json | null
+          kind: string
+          piece_id: string | null
+          place: string
+          plan_id: string
+          post_id: string | null
+          reason: string | null
+          score: Json | null
+          state: string
+          tenant_id: string
+          title: string
+          updated_at: string
+          words: Json | null
+        }
+        Insert: {
+          approval_id?: string | null
+          ask?: Json | null
+          at: string
+          blocked_reason?: string | null
+          blocked_why?: string | null
+          created_at?: string
+          creative: string
+          file_id?: string | null
+          id?: string
+          intent?: Json | null
+          kind: string
+          piece_id?: string | null
+          place: string
+          plan_id: string
+          post_id?: string | null
+          reason?: string | null
+          score?: Json | null
+          state?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+          words?: Json | null
+        }
+        Update: {
+          approval_id?: string | null
+          ask?: Json | null
+          at?: string
+          blocked_reason?: string | null
+          blocked_why?: string | null
+          created_at?: string
+          creative?: string
+          file_id?: string | null
+          id?: string
+          intent?: Json | null
+          kind?: string
+          piece_id?: string | null
+          place?: string
+          plan_id?: string
+          post_id?: string | null
+          reason?: string | null
+          score?: Json | null
+          state?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          words?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_slots_approval_id_same_workspace"
+            columns: ["tenant_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "approvals"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_piece_id_same_workspace"
+            columns: ["tenant_id", "piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_plan_id_same_workspace"
+            columns: ["tenant_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "content_plans"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_post_id_same_workspace"
+            columns: ["tenant_id", "post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10889,6 +11221,30 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      content_goals_keep: {
+        Args: { p_goals: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      content_plan_ask: {
+        Args: { p_tenant_id: string; p_week_of: string }
+        Returns: Json
+      }
+      content_plan_begin: {
+        Args: { p_asked_by: string; p_tenant_id: string; p_week_of: string }
+        Returns: Json
+      }
+      content_plan_write: {
+        Args: { p_fewer: string; p_plan_id: string; p_slots: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      content_plans_hand_out: {
+        Args: { p_spread_seconds: number }
+        Returns: number
+      }
+      content_week_approve: {
+        Args: { p_plan_id: string; p_snapshot: Json; p_tenant_id: string }
+        Returns: Json
+      }
       conversation_draft_claim: {
         Args: {
           p_again?: boolean
@@ -11346,6 +11702,10 @@ export type Database = {
           p_width: number
         }
         Returns: Json
+      }
+      file_moments_keep: {
+        Args: { p_file_id: string; p_moments: Json; p_tenant_id: string }
+        Returns: number
       }
       file_printed: {
         Args: { p_id: string; p_print: string; p_tenant_id: string }
@@ -12684,6 +13044,14 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      owner_claim_withdraw: {
+        Args: { p_claim_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      owner_claims_keep: {
+        Args: { p_claim: Json; p_tenant_id: string }
+        Returns: Json
+      }
       page_freshness: {
         Args: { p_days?: number }
         Returns: {
@@ -13235,6 +13603,14 @@ export type Database = {
       }
       piece_words_keep: {
         Args: { p_caption: string; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      plan_slot_made: {
+        Args: { p_made: Json; p_slot_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      plan_slot_set: {
+        Args: { p_change: Json; p_slot_id: string; p_tenant_id: string }
         Returns: Json
       }
       platform_admin_add: {

@@ -21,7 +21,6 @@ const inQuotes = (words: string): string => `“${words}”`;
 
 export const CONTENT_CHECK_WORDS = {
   mayNot: "Only an owner or a manager can approve a post.",
-  claim: (problem: string) => `${problem} Change the words, or add it to the business's details.`,
   notConnected: (place: PostPlace) => `${POST_PLACE_SAID[place]} isn't connected. Connect it, then approve again.`,
   lineOff: "Instagram doesn't allow posting from here. Connect Meta again and allow it.",
   notTaken: (place: PostPlace, kind: string) => `${POST_PLACE_SAID[place]} doesn't take ${kind} from here.`,
@@ -34,6 +33,13 @@ export const CONTENT_CHECK_WORDS = {
   /** Before it is approved: what the words lean on is not something the business says of itself (PRD 6.3, Claim). */
   notAnOffer: (offer: string) => `${inQuotes(offer)} isn't one of your offers. Add it, or change the words.`,
   notAService: (service: string) => `${inQuotes(service)} isn't one of your services. Add it, or change the words.`,
+  /** A number or a promise AI wrote that the owner never said (PRD 6.3, Claim). */
+  notYours: (phrase: string) => `${inQuotes(phrase)} isn't something you've said. Add it, or change the words.`,
+  /** Before it is approved: the open time it was made for is gone already. */
+  noOpenings: (day: string) => `${day} has no openings now. Leave it out, or change the words.`,
+  /** At the send: the open time it was made for filled up since (PRD 6.3, The reason). */
+  filledUp: (day: string) =>
+    `${day} filled up since you approved this. Leave it out, change the words, or tell AI ${day} still has openings.`,
   late: (day: string) => `Too late to post. ${day} has passed.`,
   afterItsDay: "This would go after its day has passed. Pick an earlier time.",
   offerEnded: (offer: string) =>

@@ -1,4 +1,5 @@
 import "server-only";
+import { reasonsRead, weekRead } from "./week";
 import { z } from "zod";
 import {
   FILES_MAX,
@@ -516,5 +517,8 @@ export const filesTool = defineActions({
         };
       },
     }),
+    // This week's posts and why to post now (00702): read/week.ts.
+    week: weekRead,
+    reasons: reasonsRead,
   },
 });

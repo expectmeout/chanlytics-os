@@ -72,6 +72,7 @@ import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { filesOverride } from "@/surfaces/files/surface";
 import { contentOverride } from "@/surfaces/campaigns/content/surface";
+import { weekOverride } from "@/surfaces/campaigns/content/week/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -285,6 +286,8 @@ const SURFACES = [
   filesOverride,
   // What Ask made, read where Campaigns › Content is drawn (surfaces/campaigns/content/surface.ts).
   contentOverride,
+  // The Week, read where it or Settings › Content is drawn (surfaces/campaigns/content/week/surface.ts).
+  weekOverride,
   // The drafts Ask kept for the rows of Need you, read with Today's own first reads (surfaces/today/need-you/drafts-surface.ts).
   replyDraftsOverride,
   calendarOverride,

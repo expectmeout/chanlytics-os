@@ -108,6 +108,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Its Library (`campaigns/content:library`, once Settings › Files): what the business keeps, the library's own read
   // (files/surface.ts), read where it is drawn and never for Made.
   "campaigns/content/library": ["files"],
+  // Its Week (`campaigns/content:week`, 00702): the week's own read (campaigns/content/week/surface.ts).
+  "campaigns/content/week": ["content_week"],
   // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
   // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
   // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).
@@ -154,6 +156,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "admin/memory": ["partner", "ask_memory"],
   // Settings' Files pane draws what the workspace keeps (decision 0099), read where it is drawn.
   "admin/files": ["partner", "files"],
+  // Settings › Content (00702): the Week's own read, which holds what is set for the posts.
+  "admin/content": ["partner", "content_week"],
 };
 
 /**

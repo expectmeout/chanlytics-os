@@ -1,7 +1,7 @@
 {
-  "rows": 185,
-  "same": 7,
-  "differ": 178,
+  "rows": 192,
+  "same": 10,
+  "differ": 182,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -30,6 +30,9 @@
         "reports_reviews": "reports/reviews",
         "settings": "every page"
       }
+    },
+    "DELETE content/claims": {
+      "changes": "owner_claims UPDATE"
     },
     "DELETE files/[id]": {
       "changes": "files UPDATE · files_let_go INSERT · notifications INSERT UPDATE · posts UPDATE · source_items UPDATE",
@@ -984,6 +987,60 @@
         "files": "admin/files"
       }
     },
+    "POST content/claims": {
+      "changes": "owner_claims INSERT"
+    },
+    "POST content/line": {
+      "changes": "appointments UPDATE · content_goals INSERT UPDATE · tenant_config UPDATE",
+      "tells": "tenant_config",
+      "missing": {
+        "ask_morning": "today",
+        "audiences": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
+        "files": "admin/files",
+        "inbox": "inbox",
+        "people": "every page",
+        "person": "clients/person",
+        "playbooks": "campaigns/sequences/new, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "setup": "admin/integrations, start, today",
+        "today": "every page",
+        "today_pins": "today"
+      }
+    },
+    "POST content/plan": {
+      "changes": "content_plans INSERT UPDATE · plan_slots DELETE"
+    },
+    "POST content/plan/approve": {
+      "changes": "approvals INSERT · content_plans UPDATE · files INSERT UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · plan_slots UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
+      "missing": {
+        "calendar_runs": "calendar",
+        "files": "admin/files",
+        "notifications": "every page",
+        "today": "today"
+      }
+    },
+    "POST content/plan/slots": {
+      "changes": "approvals INSERT · files INSERT UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · plan_slots UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
+      "missing": {
+        "calendar_runs": "calendar",
+        "files": "admin/files",
+        "notifications": "every page",
+        "today": "today"
+      }
+    },
     "POST conversations/[id]/archive": {
       "changes": "contacts UPDATE · conversation_drafts DELETE · conversations UPDATE · escalations INSERT UPDATE · mailbox_senders DELETE INSERT UPDATE · messages UPDATE · notifications UPDATE",
       "tells": "contacts · notifications",
@@ -1308,7 +1365,7 @@
       }
     },
     "POST files/[id]/google": {
-      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
       "missing": {
@@ -1317,7 +1374,7 @@
       }
     },
     "POST files/[id]/instagram": {
-      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "doors": "tenant_channels",
       "missing": {
@@ -2924,6 +2981,32 @@
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "every page",
         "setup": "start, today",
+        "today_pins": "today"
+      }
+    },
+    "PUT content/aims": {
+      "changes": "appointments UPDATE · content_goals INSERT UPDATE · tenant_config UPDATE",
+      "tells": "tenant_config",
+      "missing": {
+        "ask_morning": "today",
+        "audiences": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
+        "files": "admin/files",
+        "inbox": "inbox",
+        "people": "every page",
+        "person": "clients/person",
+        "playbooks": "campaigns/sequences/new, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "setup": "admin/integrations, start, today",
+        "today": "every page",
         "today_pins": "today"
       }
     },

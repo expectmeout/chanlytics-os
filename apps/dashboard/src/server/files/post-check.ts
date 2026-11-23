@@ -4,9 +4,6 @@
  * Once the owner presses Save, the words are theirs.
  */
 import {
-  namesMoney,
-  priceBreach,
-  priceFigures,
   POST_LIMITS,
   postMomentWont,
   postPhotoWont,
@@ -14,6 +11,7 @@ import {
   type PostPlan,
   type PostUndrawable,
 } from "@chanlytics/contracts";
+import { claimProblemOf, type ClaimProblem } from "@chanlytics/core";
 
 /** What a post's band says, with the business's number. */
 export const postBandOf = (phone: string, language: "en" | "es"): string =>
@@ -24,24 +22,6 @@ const DRAWABLE = /^[\u0020-\u007E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u20
 const POST_CONTACT = /https?:|www\.|@|\b[\w-]+\.[a-z]{2,}\b/i;
 /** A run this long is a phone number, which the band says instead. */
 const LONG_NUMBER = /\d[\d\s().-]{6,}\d/;
-/**
- * The promises a business makes on purpose, in both languages. They read fine and cost money, so each needs the owner's own
- * word: a picture stays up long after a conversation is over.
- */
-const PROMISES: readonly RegExp[] = [
-  /\b(?:free|gratis|gratuit[oa]s?)\b/i,
-  /\bguarantee[sd]?\b|\bgarant[ií]\w*/i,
-  /\bwarrant(?:y|ies)\b/i,
-  /\b(?:lifetime|permanent(?:e|es|ly)?|painless|risk[- ]free|sin dolor)\b/i,
-  /\b(?:best|#\s?1|number one|n[uú]mero uno|mejor(?:es)?)\b/i,
-  /\b(?:award|winning|premiad[oa]s?)\b/i,
-  /\b(?:certified|licensed|board[- ]certified|certificad[oa]s?|licenciad[oa]s?)\b/i,
-  /\b(?:cure[sd]?|heals?|clinically|cura(?:r|mos)?)\b/i,
-  /\b(?:today only|last chance|limited|hurry|s[oó]lo hoy|[uú]ltima oportunidad|limitad[oa]s?)\b/i,
-];
-
-const numbersIn = (s: string): string[] => s.match(/\d+(?:[.,]\d+)?/g) ?? [];
-
 /** Why these words can't go on a picture, whoever wrote them, or null. */
 export function postUndrawable(words: string, limit: number): PostUndrawable | null {
   const text = words.trim();
@@ -78,22 +58,23 @@ export function postWordsProblem(words: string, owner: string, limit: number): s
   return postDrawProblem(text, limit) ?? postClaimsProblem(text, owner);
 }
 
+/** A claim problem said to the model, which can do something about it. */
+const CLAIM_TO_MODEL: Readonly<Record<ClaimProblem["is"], (phrase: string) => string>> = {
+  price: () => "it names a price or a share the owner has not said. Use their figure, or ask them",
+  number: (phrase) => `the number ${phrase} is not one the owner has said. Use theirs, or ask them`,
+  money: () =>
+    "it offers money (a discount, a deposit, a payment term) the owner has not offered. Use their words, or ask them",
+  promise: (phrase) => `it makes a promise the owner has not made ("${phrase}"). Use their words, or ask them`,
+};
+
 /**
  * What is wrong with what some words claim, in a sentence for the model, or null: a price, a number, money or a promise the
- * owner has not said (`owner`, as postWordsProblem reads it). A post's caption is held to it as the words on its picture are.
+ * owner has not said (`owner`, as postWordsProblem reads it, with the claims that stand). The rule is core's one claims
+ * rule (content/policy claims.ts), which the plan and the send ask too; this says its answer to the model.
  */
 export function postClaimsProblem(text: string, owner: string): string | null {
-  if (priceBreach(text, new Set(priceFigures(owner))))
-    return "it names a price or a share the owner has not said. Use their figure, or ask them";
-  const ownerNumbers = new Set(numbersIn(owner));
-  const stray = numbersIn(text).find((n) => !ownerNumbers.has(n));
-  if (stray) return `the number ${stray} is not one the owner has said. Use theirs, or ask them`;
-  if (namesMoney(text) && !namesMoney(owner))
-    return "it offers money (a discount, a deposit, a payment term) the owner has not offered. Use their words, or ask them";
-  const promise = PROMISES.find((p) => p.test(text) && !p.test(owner));
-  if (promise)
-    return `it makes a promise the owner has not made ("${promise.exec(text)?.[0]}"). Use their words, or ask them`;
-  return null;
+  const problem = claimProblemOf(text, owner);
+  return problem ? CLAIM_TO_MODEL[problem.is](problem.phrase) : null;
 }
 
 /** The first problem with a plan's words, naming the part it is in, or null. */

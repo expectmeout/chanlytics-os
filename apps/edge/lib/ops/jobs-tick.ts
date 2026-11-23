@@ -36,6 +36,7 @@ import { postJobs } from "../instagram/post-send.js";
 import { takeDownPlaceFor } from "../instagram/post-ready.js";
 import { sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
+import { planTheWeek } from "../content/plan.js";
 import { takePostDown } from "../content/take-down.js";
 import { readPostResults } from "../content/observe.js";
 import { replyToComment } from "../content/comment-reply.js";
@@ -188,6 +189,8 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
     // A public answer to a comment (00699): AI's draft, or the owner's words posted under it on Instagram.
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
+  // A week of posts planned (00702): it reads, scores and writes, and makes nothing.
+  plans: { plan: (job: ClaimedJob) => planTheWeek(db, job) },
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

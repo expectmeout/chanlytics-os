@@ -898,6 +898,62 @@
       "rate": "settings",
       "spend": false
     },
+    "PUT content/aims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/line": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "ask",
+      "spend": false
+    },
+    "POST content/claims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE content/claims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET content/plan": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST content/plan": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/plan/approve": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/plan/slots": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET content/note": {
       "kind": "read",
       "scope": "workspace",

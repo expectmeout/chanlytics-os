@@ -20,6 +20,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   CONTENT_ROUTE,
   CONTENT_TODAY_WORDS as W,
+  CONTENT_WEEK_ROUTE,
+  WEEK_WORDS,
   MIN_MS,
   contentRouteOf,
   fileSaidOf,
@@ -66,6 +68,35 @@ function DownLine({ down }: { down: ContentDownDto }) {
       door={routeDoor(contentRouteOf({ list: "made", view: "all", open: down.file.id, post: true }))}
       testid={`today-content-down-${down.is}`}
     />
+  );
+}
+
+/**
+ * The week's points (00702; the approved boards, Today 1 and the pass 3 rows): the week ready to approve, its size and
+ * days under it, and what AI asks to be filmed. Each opens the Week, where it is approved or added; Today approves nothing.
+ */
+function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
+  return (
+    <>
+      {plan.ready ? (
+        <CalmRow
+          first={{ mark: <Icon name="video" size={14} /> }}
+          name={WEEK_WORDS.todayReady}
+          said={`${plan.ready.size} · ${plan.ready.days}`}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-ready"
+        />
+      ) : null}
+      {plan.film.length ? (
+        <CalmRow
+          first={{ mark: <Icon name="video" size={14} /> }}
+          name={WEEK_WORDS.todayFilm(plan.film.length)}
+          said={plan.film.join(" · ")}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-film"
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -131,9 +162,12 @@ export function TodayContentLine() {
   ]);
   if (!today) return null;
   const downs = today.down ?? [];
-  if (today.week.length === 0 && today.making.length === 0 && !today.stopped && downs.length === 0) return null;
+  const plan = today.plan ?? null;
+  if (today.week.length === 0 && today.making.length === 0 && !today.stopped && downs.length === 0 && !plan)
+    return null;
   return (
     <CalmList label={W.title} testid="today-content">
+      {plan ? <PlanLines plan={plan} /> : null}
       {today.stopped ? <StoppedLine line={today.stopped} /> : null}
       {downs.map((down) => (
         <DownLine key={`${down.file.id}:${down.is}`} down={down} />

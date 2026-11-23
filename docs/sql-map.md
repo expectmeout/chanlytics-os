@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 204 | 204 |
+| door | 211 | 211 |
 | reader | 96 | 0 |
-| the server's | 451 | 381 |
+| the server's | 455 | 385 |
 | computed column | 3 | 0 |
 | trigger | 123 | 91 |
-| all | 877 | 676 |
+| all | 888 | 687 |
 
 ## Called by nothing
 
@@ -109,7 +109,7 @@ being read is dropped by a migration.
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
 | `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00699; |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
-| `approval_hash` | the server's | the server | SQL `piece_words_keep`, `post_approve` and 1 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
+| `approval_hash` | the server's | the server | SQL `content_week_approve`, `piece_words_keep` and 3 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
 | `ask_for_tick` | the server's | the server | SQL `event_outbox_wake`, `job_kind_resume` and 2 more | Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00333, 00334). |
 | `ask_journal_open_days` | the server's | the server | SQL `ask_journal_write`, `trigger_notes_sweep` | The journal's days due (decision 0070): |
@@ -137,7 +137,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 26 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 33 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -172,6 +172,12 @@ being read is dropped by a migration.
 | `contact_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | What the calling member has seen of the people named, in a workspace they belong to: |
 | `contact_stop_ends_offers_yes` | trigger | the server | trigger `contacts_stop_ends_offers_yes on contacts` | After a person's consent becomes opted_out while an answer about offers is a yes (00323): |
 | `contacts_before_erased` | trigger | a signed-in person, the server | trigger `contacts_before_erased on contacts` |  |
+| `content_goals_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | What the posts are for, the whole set at once (00702): |
+| `content_plan_ask` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | The owner's "plan the week" (00702; |
+| `content_plan_begin` | the server's | the server | SQL `content_plan_ask`, `content_plans_hand_out` | A week's plan begun (00702), and its content_plan job: |
+| `content_plan_write` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The content_plan job's write (00702): |
+| `content_plans_hand_out` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The weekly clock (00702; |
+| `content_week_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Approve the week (00702; |
 | `conversation_draft_claim` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft says it is being written, once a message, kind and edition (00538, decision 0093): |
 | `conversation_draft_keep` | door | a signed-in person, the server | nothing at run time | Keep Ask's draft for a thread waiting on a person (decision 0071): |
 | `conversation_draft_write` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft kept (00538, decision 0093), only over a row for the same message: |
@@ -256,6 +262,7 @@ being read is dropped by a migration.
 | `file_media_failed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform could not read a video (00556): |
 | `file_media_processing` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's video's bytes have all gone (00556), with the add_files permission (00596: |
 | `file_media_ready` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform says a video is playable (00556): |
+| `file_moments_keep` | the server's | the server | code `packages/db/src/repositories/files/claims.ts` | A clip's moments as read (00702; |
 | `file_printed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A picture's print kept and judged (00630): |
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
@@ -510,6 +517,8 @@ being read is dropped by a migration.
 | `outreach_lead_facts` | the server's | the server | SQL `outreach_mailbox_facts`, `reach_out_draft_facts` and 1 more | A cold email's facts about its lead: |
 | `outreach_mailbox_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | What the send door asks of a cold email (00424): |
 | `outreach_wrote_back` | the server's | the server | code `packages/contracts/src/campaigns/reach-out/replies/reading.ts`, `packages/contracts/src/campaigns/reach-out/rules.ts` and 1 more; SQL `outreach_lead_facts`, `reach_out_chain_report` and 2 more |  |
+| `owner_claim_withdraw` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim withdrawn (00702), by a member with the settings permission. |
+| `owner_claims_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim kept (00702): |
 | `page_freshness` | the server's | the server | nothing at run time | What tabs could not hear or read over the last p_days (00509; |
 | `page_speed` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Where the pages' time goes (00412): |
 | `page_spots` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | The elements that cost the most (00412): |
@@ -585,6 +594,8 @@ being read is dropped by a migration.
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's door, with the settings permission (00681; |
+| `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00702; |
+| `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00702): |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |

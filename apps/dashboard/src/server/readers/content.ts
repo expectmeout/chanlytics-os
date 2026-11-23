@@ -62,6 +62,7 @@ import {
 import { listReviewWords } from "@chanlytics/db/google";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
+import { readWeekToday } from "./week-today";
 import { readContentSources } from "../files/found";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -379,14 +380,15 @@ export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const now = rc.now.getTime();
-    const [standing, stopped, page, down] = await Promise.all([
+    const [standing, stopped, page, down, plan] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString()),
       postsStillStopped(db, rc.tenantId),
       madePage(db, rc.tenantId, { limit: CONTENT_PAGE }),
       takeDownsOpen(db, rc.tenantId, now).catch(logAndGoOn("content note: open take-downs", [])),
+      readWeekToday(rc).catch(logAndGoOn("content note: the week's points", null)),
     ]);
     const today = await contentTodayOf(db, rc.tenantId, { page, standing, stopped, down, now });
-    return { data: { today }, rows: [], stamp: readerStamp() };
+    return { data: { today: { ...today, plan } }, rows: [], stamp: readerStamp() };
   },
 };
 

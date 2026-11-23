@@ -41,6 +41,7 @@ import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { filesOverride } from "@/surfaces/files/surface";
 import { contentOverride } from "@/surfaces/campaigns/content/surface";
+import { weekOverride } from "@/surfaces/campaigns/content/week/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -98,6 +99,10 @@ const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? d
 // What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a made file's change, a post sent or stopped.
 const contentIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([contentOverride]) : []);
 const filesAndContentIfDrawn = (): SurfaceOverride[] => [...filesIfDrawn(), ...contentIfDrawn()];
+// The Week (campaigns/content/week/surface.ts), where it or Settings › Content is drawn: a week asked for, approved, a slot
+// set, a claim or what posts are for kept; and Made beside it, which a week's making fills.
+const weekIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([weekOverride]) : []);
+const weekAndContentIfDrawn = (): SurfaceOverride[] => [...weekIfDrawn(), ...contentIfDrawn()];
 const postMoved = (): SurfaceOverride[] => [...contentIfDrawn(), ...calendarRunsIfDrawn()];
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
@@ -517,7 +522,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT settings": () => [...settingsWrite(), workspaceOverride],
   // Ask's own section of the configuration, which Autonomy draws; a stop pauses what Campaigns draws too.
   "POST ask/alone": () => settingsWrite(),
-  "POST ask/stop": () => settingsWrite(),
+  "POST ask/stop": () => [...settingsWrite(), ...weekIfDrawn()],
   // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read
   // again. It takes the workspace's name and renames nothing, so the workspace is not read again.
   "POST settings/receptionist": settingsWrite,
@@ -559,6 +564,15 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
   "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/google": postMoved,
+  // The Week and Settings › Content (00702): what a press there changes is the week's, and Made's once it is made.
+  "POST content/plan": weekIfDrawn,
+  "POST content/plan/approve": weekAndContentIfDrawn,
+  "POST content/plan/slots": weekAndContentIfDrawn,
+  "POST content/claims": weekIfDrawn,
+  "DELETE content/claims": weekIfDrawn,
+  // The config's content section is the settings read's too; nothing else drawn reads it.
+  "PUT content/aims": () => [settingsOverride, ...weekIfDrawn()],
+  "POST content/line": () => [settingsOverride, ...weekIfDrawn()],
   "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
   "PATCH files/[id]/posts": postMoved,

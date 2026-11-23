@@ -129,6 +129,9 @@ const KINDS = [
   "ad_draft",
   // A made piece taken down everywhere it is up (00682).
   "take_down",
+  // A week of posts and what a post may say (00702).
+  "week",
+  "claim",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -226,6 +229,9 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     ad_draft: "approve",
     // A take-down is the settings permission's, as putting a post up is.
     take_down: "settings",
+    // A week of posts and what a post may say (00702): the settings permission's, as approving a post is.
+    week: "settings",
+    claim: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -714,6 +720,19 @@ const SHAPES = {
     card("ad_draft", { service: null, most: null, picture: FILE_ID }),
   ],
   take_down: [card("take_down", { file_id: FILE_ID, file: "chair-by-the-window" })],
+  week: [
+    card("week", { act: "plan", week_of: "2026-11-30" }),
+    card("week", { act: "approve", plan_id: FILE_ID, week_of: "2026-11-30" }),
+    card("week", { act: "slot", slot_id: FILE_ID, change: { to: "removed" }, week_of: "2026-11-30" }),
+    card("week", { act: "aims", aims: { goals: [{ goal: "fill_slow_days" }] } }),
+  ],
+  claim: [
+    card("claim", {
+      act: "keep",
+      claim: { kind: "offer", text: "20% off a first colour", source: "said", valid_until: null },
+    }),
+    card("claim", { act: "withdraw", claim_id: FILE_ID }),
+  ],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -1013,6 +1032,8 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     bring_in: ["POST content/bring-in"],
     ad_draft: ["POST ads/draft"],
     take_down: ["DELETE files/[id]/posts"],
+    week: ["POST content/plan", "POST content/plan/approve", "POST content/plan/slots", "PUT content/aims"],
+    claim: ["DELETE content/claims", "POST content/claims"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],
@@ -1051,6 +1072,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       .sort(([a], [b]) => a.localeCompare(b)),
     [
       ["bring_in", "partner"],
+      ["claim", "partner"],
       ["fact_suggestion", "partner"],
       ["invite", "owner"],
       ["lead_addressee", "partner"],
@@ -1068,6 +1090,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["publish", "partner"],
       ["settings", "partner"],
       ["take_down", "partner"],
+      ["week", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))

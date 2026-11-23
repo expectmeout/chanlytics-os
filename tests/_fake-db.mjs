@@ -1043,6 +1043,7 @@ export const FAKE_JOB_KINDS = {
   post_reconcile: [2, ["post_id", "attempt"], false],
   post_google: [2, ["post_id", "attempt"], false],
   post_take_down: [2, ["action_id", "attempt"], false],
+  content_plan: [2, ["plan_id"], false],
   post_observe: [2, ["post_id", "step"], false],
   comment_reply: [1, ["touch_id", "step", "attempt?"], false],
   piece_make: [1, ["piece_id", "step", "tick"], false],

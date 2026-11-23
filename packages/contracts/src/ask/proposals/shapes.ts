@@ -202,6 +202,10 @@ export const ASK_KIND_TRAITS = {
   publish: t("say", "public", null, "press", "post_it"),
   // A post taken down everywhere it is up: public, never undone, always pressed.
   take_down: t("change", "removes", null, "press", "take_down"),
+  // A week of posts: planned, approved or changed. What goes up is public, so it always waits for a person.
+  week: t("change", "public", null, "press", "save"),
+  // What a post may say: the business's own words, kept or withdrawn, always pressed as a setting is.
+  claim: t("change", "keeps", null, "press", "save"),
   // Fix: its door, nothing to press.
   fix: t("fix", "keeps", null, "press", "open"),
 } satisfies Record<AskProposal["kind"], AskKindTraits>;

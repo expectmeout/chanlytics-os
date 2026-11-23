@@ -421,6 +421,7 @@ export const CONTENT_WORDS = {
   },
   /** Content's two lists, as the control at the list's top says them. */
   lists: {
+    week: "Week",
     made: "Made",
     library: "Library",
     label: "Show what",
@@ -448,6 +449,8 @@ export const CONTENT_WORDS = {
       aside: "Nothing is set aside.",
     },
     thisWeek: "This week",
+    /** Made's own heading for its week once the Week stands beside it (the PRD's 21.2), so "this week" is said once. */
+    madeThisWeek: "Made this week",
     earlier: "Earlier",
     open: "Open",
     /** The lines' own words (the content canvas, PhList). */

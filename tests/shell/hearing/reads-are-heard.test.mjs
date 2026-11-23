@@ -109,6 +109,8 @@ const PAGES = [
   "campaigns/sequences",
   // Content, where what Ask made and where each piece was posted are drawn (decision 0125).
   "campaigns/content",
+  // The Week, where a week's plan and what it was made into are drawn (00702).
+  "campaigns/content:week",
   "clients",
   "calendar",
   "live",

@@ -205,6 +205,12 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
+  // A week planned (00702): what the owner claims and what posts are for, the plans and their slots, a clip's moments.
+  "owner_claims",
+  "content_goals",
+  "content_plans",
+  "plan_slots",
+  "file_moments",
   // What a post said back (00699): its numbers by read, people's touches of a post or a link, and the public answers to
   // comments.
   "post_observations",

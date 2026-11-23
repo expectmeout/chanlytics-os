@@ -31,6 +31,7 @@ apps/edge/lib/
   leads/
   lines/
   notes/
+  opportunities/
   ops/
   partners/
   previews/
@@ -178,6 +179,7 @@ packages/core/src/
   leads/
   look/
   messages/
+  opportunities/
   shared/
   website/
 packages/db/src/

@@ -291,6 +291,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "waitlist_join",
   "waitlist_repeat_not_updated",
   "website_read_unasked",
+  "week_made",
+  "week_make_failed",
   "whatsapp_look_unread",
   "workspace_logo_lookup",
   "workspace_logo_remove_failed",

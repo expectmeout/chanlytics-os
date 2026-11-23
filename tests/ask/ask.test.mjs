@@ -1146,7 +1146,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["files", ["list", "get", "view", "compare", "zoom", "listen"]],
+      ["files", ["list", "get", "view", "compare", "zoom", "listen", "week", "reasons"]],
       ["guide", []],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
@@ -1506,6 +1506,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
       ["propose_take_down", []],
       ["propose_thread_verb", []],
+      // A week of posts, and what a post may say (00702).
+      ["propose_week", ["plan", "approve", "slot", "aims", "claim", "withdraw"]],
       // A fact the person tells Ask to keep (decision 0070).
       ["remember", []],
     ],

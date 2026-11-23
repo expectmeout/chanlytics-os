@@ -17,6 +17,7 @@ import { PaneAutonomyReal } from "../autonomy/pane";
 import { PaneBillingReal } from "../billing/pane";
 import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
+import { PaneContent } from "../content/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
 import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
@@ -91,6 +92,8 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
       {id === "integrations" && <PaneIntegrationsReal row={row} />}
+      {/* What the business's posts are for and say, seven sentences each changed in place (00702). */}
+      {id === "content" && <PaneContent flash={flash} />}
       {/* What Ask remembers about the business, and its journal (decision 0070). */}
       {id === "memory" && <PaneMemory flash={flash} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
