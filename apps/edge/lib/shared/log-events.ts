@@ -682,6 +682,7 @@ export const LOG_EVENTS = [
   "rehearsal_fix_routed",
   "rehearsal_review_failed",
   "rehearsal_reviewed",
+  "rendition_made",
   "reply_draft",
   "reply_draft_job",
   "reply_draft_lead_unavailable",

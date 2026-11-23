@@ -2,8 +2,8 @@
  * Settings › Content's seven lines (the content loop PRD's 21.1; the approved boards, Settings 1-5): what posts are for, how
  * often, quiet days, languages, the look, offers, and "before anything posts". Each is a sentence with what is set in it;
  * a line the owner said in their own words shows their words. Nothing here is a row to pick from: CONTENT_GOALS is what
- * the database holds, and a line is changed by saying it again (AI reads it) or, for the look, the offers and the rung,
- * where they are kept. Pure, so the pane and AI say each line the same way.
+ * the database holds, and a line is changed by saying it again (AI reads it: the look too, since pass 4's brand kit), or,
+ * for the offers and the rung, where they are kept. Pure, so the pane and AI say each line the same way.
  */
 import type { ContentGoal } from "./sets";
 import type { WeekPageDto } from "./week-page";
@@ -18,8 +18,10 @@ export interface ContentLineView {
   label: string;
   words: string;
   edit: ContentLineEdit;
-  /** Where a line changed on another page is changed: Details for the look, Autonomy for the rung. */
+  /** Where a line changed on another page is changed: Autonomy for the rung. */
   to: string | null;
+  /** The colours a line shows beside its words: the look's, as swatches; none for every other line. */
+  colours?: string[];
 }
 
 /** A goal as a sentence says it. */
@@ -80,7 +82,7 @@ export function cadenceSaid(cadence: ReturnType<typeof cadenceOf>): string {
 
 /** The lines, as set and as said. */
 export function contentLinesOf(
-  page: Pick<WeekPageDto, "goals" | "cadence" | "quiet_days" | "languages" | "claims" | "lines">,
+  page: Pick<WeekPageDto, "goals" | "cadence" | "quiet_days" | "languages" | "claims" | "lines" | "look">,
   today: string,
 ): ContentLineView[] {
   const own = page.lines;
@@ -120,13 +122,24 @@ export function contentLinesOf(
       edit: "words",
       to: null,
     },
-    {
-      key: "look",
-      label: "The look",
-      words: "Your colour and logo, as Details sets them.",
-      edit: "page",
-      to: "settings/workspace",
-    },
+    // Said in words since pass 4's brand kit: AI reads the sentence into the kit, and its colours show beside it. A page
+    // from a server a deploy behind holds no look: the line then says where the colour and logo are set, as it did.
+    page.look
+      ? {
+          key: "look",
+          label: "The look",
+          words: own.look ?? page.look.words,
+          edit: "words",
+          to: null,
+          colours: page.look.colours,
+        }
+      : {
+          key: "look",
+          label: "The look",
+          words: "Your colour and logo, as Details sets them.",
+          edit: "page",
+          to: "settings/workspace",
+        },
     {
       key: "offers",
       label: "Offers",

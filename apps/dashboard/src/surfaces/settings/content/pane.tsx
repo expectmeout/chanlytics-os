@@ -3,7 +3,8 @@
  * seven sentences, each with what is set in it, each changed in place. "Tell AI what to change" stands on top, the quick
  * way; each line's Change is the direct way. Nothing is a row to pick from: what posts are for, how often, the quiet days
  * and the languages are said again as a sentence, which AI reads (POST content/line); offers are kept one by one in the
- * owner's words; the look is Details', and "before anything posts" opens Autonomy, never a second control.
+ * owner's words; the look is said too (pass 4's brand kit: AI reads the sentence, and its colours show beside it as
+ * swatches and nothing else); "before anything posts" opens Autonomy, never a second control.
  */
 import "../../campaigns/content/sheets/sheets.css";
 import "./content.css";
@@ -26,6 +27,7 @@ const SAYS = {
   save: "Save",
   cancel: "Cancel",
   fine: "Said in your words. AI keeps to it, and posts fewer when the clips are thin.",
+  fineLook: "Said in your words. Every video made from now on wears it.",
   withdraw: "Withdraw",
   addOffer: "An offer, in your words",
   until: "Its last day, if it has one",
@@ -34,7 +36,24 @@ const SAYS = {
 } as const;
 
 type Flash = (f: FrameFlash) => void;
-type WordsKey = "goals" | "cadence" | "quiet_days" | "languages";
+type WordsKey = "goals" | "cadence" | "quiet_days" | "languages" | "look";
+
+/** A line's words, with the look's colours beside them as swatches (the board: they only show colours). */
+function LineWords({ line }: { line: ContentLineView }) {
+  if (!line.colours?.length) return <>{line.words}</>;
+  return (
+    <span className="cset-look">
+      <span>{line.words}</span>
+      <span className="cset-swatches" data-testid="cset-swatches">
+        {line.colours.map((colour) => (
+          <svg key={colour} width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <rect width="20" height="20" rx="6" fill={colour} />
+          </svg>
+        ))}
+      </span>
+    </span>
+  );
+}
 
 /** A line said again in the owner's words: AI reads it, and it is kept as they said it. */
 function WordsLine({ line }: { line: ContentLineView & { key: WordsKey } }) {
@@ -64,7 +83,7 @@ function WordsLine({ line }: { line: ContentLineView & { key: WordsKey } }) {
         id={id}
         testid="cset-line"
         label={line.label}
-        value={line.words}
+        value={<LineWords line={line} />}
         stacked
         act={{ label: SAYS.change, onClick: fold.request, gate: gate("settings", SAYS.gate) }}
       />
@@ -91,7 +110,7 @@ function WordsLine({ line }: { line: ContentLineView & { key: WordsKey } }) {
         rows={3}
         maxLength={280}
         readOnly={busy}
-        hint={SAYS.fine}
+        hint={line.key === "look" ? SAYS.fineLook : SAYS.fine}
         data-testid="cset-line-box"
         {...fieldProblem(problem)}
       />

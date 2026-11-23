@@ -1,20 +1,32 @@
 /**
  * A line of Settings › Content in the owner's own words (the content loop PRD's 21.1; the approved boards, Settings 2): what
- * posts are for, how often, the quiet days, or the languages, said as a sentence and saved in place. Nothing is picked
+ * posts are for, how often, the quiet days, the languages, or the look (pass 4's brand kit), said as a sentence and saved
+ * in place. A colour the look names is set where the workspace keeps it (Details' own door), never twice. Nothing is picked
  * from a list: AI reads the sentence (one small call, `content_line`, a line of the ledger of its own) into what the week
  * is planned by, and the sentence is kept as the line says it from then on. What it read is kept through the same keeper
  * AI's own card uses (claims.ts keepAimsFor), at the version read.
  */
 import "server-only";
 import { z } from "zod";
-import { AppError, CONTENT_GOALS, ContentConfigSchema, fenced, type TenantId } from "@chanlytics/contracts";
+import {
+  AppError,
+  BrandKitConfigSchema,
+  CONTENT_GOALS,
+  ContentConfigSchema,
+  KIT_FACES,
+  KIT_LIMITS,
+  accentOk,
+  fenced,
+  type TenantId,
+} from "@chanlytics/contracts";
 import type { Member } from "@/server/shared/route";
 import { askForJson } from "@/server/shared/model-json";
 import type { RouteContext } from "@/server/shared/with-route";
+import { saveAccent } from "@/server/workspace/look";
 import { keepAimsFor } from "./claims";
 
-/** The lines a sentence is read for; the look, the offers and "before anything posts" have their own ways. */
-export const CONTENT_LINES = ["goals", "cadence", "quiet_days", "languages"] as const;
+/** The lines a sentence is read for; the offers and "before anything posts" have their own ways. */
+export const CONTENT_LINES = ["goals", "cadence", "quiet_days", "languages", "look"] as const;
 type ContentLine = (typeof CONTENT_LINES)[number];
 
 export const lineInput = z.strictObject({
@@ -26,6 +38,9 @@ export const lineInput = z.strictObject({
 const LINE_MAX_TOKENS = 600;
 
 const RANGE = { type: "array", items: { type: "integer", minimum: 0, maximum: 7 }, minItems: 2, maxItems: 2 } as const;
+const HEX_OR_NONE = { type: ["string", "null"] } as const;
+const SAID_OR_NONE = { type: ["string", "null"] } as const;
+
 const DAYS = {
   type: "array",
   items: { type: "string", enum: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] },
@@ -79,6 +94,20 @@ const LINE_SCHEMAS: Record<ContentLine, Record<string, unknown>> = {
     required: ["languages"],
     additionalProperties: false,
   },
+  look: {
+    type: "object",
+    properties: {
+      accent: HEX_OR_NONE,
+      second: HEX_OR_NONE,
+      face: { type: "string", enum: [...KIT_FACES] },
+      call: SAID_OR_NONE,
+      voice: SAID_OR_NONE,
+      music: SAID_OR_NONE,
+      never: { type: "array", items: { type: "string" }, maxItems: KIT_LIMITS.never },
+    },
+    required: ["accent", "second", "face", "call", "voice", "music", "never"],
+    additionalProperties: false,
+  },
 };
 
 const LINE_ASKS: Record<ContentLine, string> = {
@@ -87,6 +116,14 @@ const LINE_ASKS: Record<ContentLine, string> = {
     "How many posts a week at most and at least, per place and kind: Instagram reels, picture posts and stories, and Google picture posts; a kind not said is 0 to 0, and 'up to N' is 0 to N.",
   quiet_days: "The weekdays nothing should post on.",
   languages: "The languages captions are written in, as BCP 47 tags, the main one first.",
+  look: [
+    "How the business's videos look and sound.",
+    "accent: its main colour as #rrggbb where one is named (a colour named in words, as the hex nearest it), else null; second: a second colour the same way, else null.",
+    "face: sans for clean, modern or bold type, serif for classic, elegant or warm type; sans where the line says nothing of type.",
+    `call: the end card's short call to act where the line says one (${KIT_LIMITS.call} characters at most), else null.`,
+    "voice: how a voice over should sound, where said, else null; music: the music's mood, where said, else null.",
+    "never: words or phrases the line says never to use, each as said; none where it says none.",
+  ].join(" "),
 };
 
 const LINE_SYSTEM = [
@@ -149,8 +186,23 @@ export async function keepContentLineFor(ctx: RouteContext, member: Member, inpu
       content: { lines },
     });
   }
+  if (input.line === "look") return keepLookFor(ctx, member, read, lines);
   const content = ContentConfigSchema.safeParse(input.line === "cadence" ? { cadence: read } : read);
   if (!content.success || (input.line === "cadence" ? !content.data.cadence : !content.data[input.line]))
     throw new AppError("validation", UNREAD);
   return keepAimsFor(ctx, member, { content: { ...content.data, lines } });
+}
+
+const LookRead = z.looseObject({ accent: z.string().nullable().catch(null) });
+
+/**
+ * The look, as AI read the owner's sentence: the kit kept on the workspace's config with the sentence as its line says
+ * it, and a main colour it named set where the workspace keeps its colour (Details' own door), so one colour is said once.
+ */
+async function keepLookFor(ctx: RouteContext, member: Member, read: unknown, lines: Record<string, string>) {
+  const kit = BrandKitConfigSchema.safeParse(read);
+  if (!kit.success) throw new AppError("validation", UNREAD);
+  const accent = LookRead.safeParse(read).data?.accent?.trim().toLowerCase() ?? null;
+  if (accent && accentOk(accent)) await saveAccent(ctx, member, accent);
+  return keepAimsFor(ctx, member, { content: { look: kit.data, lines } });
 }

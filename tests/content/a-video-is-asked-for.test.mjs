@@ -85,7 +85,7 @@ async function lightOf(jpeg, left, top, width, height) {
 
 test("the storyboard is each cut's first frame side by side, and the words' backing sits where the video will draw it", async () => {
   const lines = ["I asked for volume", "Did I get it?"];
-  const box = pieceWordsBoxOf(lines, "low");
+  const box = pieceWordsBoxOf(lines, "low", "sans");
   const frame = await flat();
   const tile = (words, i) => ({
     kind: "picture",
@@ -127,7 +127,7 @@ test("the storyboard is each cut's first frame side by side, and the words' back
     "the second still starts where the first ends",
   );
   // High words on every tile, where they stay for the whole video.
-  const high = pieceWordsBoxOf(lines, "high");
+  const high = pieceWordsBoxOf(lines, "high", "sans");
   const held = await composeBoard({
     tiles: [tile(true, 0), tile(true, 1)],
     words: { lines, top: high.top, size: high.size },
@@ -395,6 +395,7 @@ test("the card is made by the call that carries the look's key: the plan its pre
     end_line: "Same chair. New me.",
     language: "en",
     caption: null,
+    captions: true,
   });
   assert.equal(
     pieceBeginInput.safeParse({ ...out.proposal.payload, key: "p-card-1" }).success,
@@ -682,8 +683,18 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
     source: f.source,
     media_status: f.media_status,
     seconds: f.seconds,
+    cues: null,
   }));
-  const look = { accent: "#e8b84a", logo: false, name: "Harbor", book: null, address: null };
+  const look = {
+    accent: "#e8b84a",
+    logo: false,
+    name: "Harbor",
+    book: null,
+    address: null,
+    face: "sans",
+    second: null,
+    call: null,
+  };
   const compiled = compilePiece(piecePlanOf(BLOCKS_PLAN), sources, look);
   assert.equal(compiled.ok, true, JSON.stringify(compiled));
   // The folders in Storage: every still asked for is there, and each read is kept by what it was of.
@@ -714,7 +725,7 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
     "3:original.jpg:sized",
   ]);
   // The opening words leave with the first picture: their backing is on the first still and not on the second.
-  const box = pieceWordsBoxOf(BLOCKS_PLAN.lines, "high");
+  const box = pieceWordsBoxOf(BLOCKS_PLAN.lines, "high", "sans");
   const y = Math.round((box.top + box.height / 2) * (360 / PIECE_FRAME.width)) - 6;
   assert.ok((await lightOf(board, 14, y, 20, 12)) < 120, "the words' backing on the first still");
   assert.ok(Math.abs((await lightOf(board, 360 + 14, y, 20, 12)) - 150) < 8, "the second still as it is");
@@ -768,7 +779,17 @@ test("the press writes the video's row: its plan, the business's look as it stan
         p_tenant_id: A,
         p_plan: PLAN,
         // The workspace's blue (#336699), as full as a blue gets: what reads on the card's dark ground.
-        p_look: { accent: "#4080bf", logo_path: null, name: "Harbor", book: "Book · (555) 010-0100", address: null },
+        // No kit said or proposed: the house's face, no second colour, no call of its own.
+        p_look: {
+          accent: "#4080bf",
+          logo_path: null,
+          name: "Harbor",
+          book: "Book · (555) 010-0100",
+          address: null,
+          face: "sans",
+          second: null,
+          call: null,
+        },
         p_key: "p-card-1",
         p_edition: PIECE_TEMPLATE.edition,
       },

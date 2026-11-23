@@ -4,7 +4,8 @@
  * (posts/checks.ts): the place takes it, AI is not paused, its reason stands. No yes is read. Then the
  * words that go are kept on the piece (posts/caption.ts), and the exact thing approved is read: each shape a placement
  * sends, by its path in the file's folder and the full SHA-256 of its bytes, so the edge sends those bytes or none (00681
- * post_as_approved). One door writes it all. An owner's own words are never judged by a guess: what they type and press
+ * post_as_approved), and each shape measured from those same bytes against what its place takes (pass 4: its size,
+ * length, codec and sound; contracts content/making/renditions.ts), before anything is kept. One door writes it all. An owner's own words are never judged by a guess: what they type and press
  * is theirs.
  */
 import "server-only";
@@ -17,6 +18,7 @@ import {
   fileMadePathOf,
   goodUntilOf,
   postPathOf,
+  renditionRefusalOf,
   renditionShapeOf,
   type InstagramPostable,
   type OwnersFact,
@@ -27,6 +29,7 @@ import {
   type SnapshotRendition,
   type TenantId,
 } from "@chanlytics/contracts";
+import { measureMedia } from "@chanlytics/channels/files";
 import { approvePosts, keepClaim, type FileMemberRow, type PostsApproved } from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
@@ -68,7 +71,13 @@ async function readShapes(tenantId: TenantId, row: FileMemberRow, shapes: readon
         throw new AppError("unavailable", ON_INSTAGRAM.notSent);
       }
       const bytes = Buffer.from(await read.data.arrayBuffer());
-      return { shape, path, checksum: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length };
+      return {
+        shape,
+        path,
+        checksum: createHash("sha256").update(bytes).digest("hex"),
+        bytes: bytes.length,
+        measured: measureMedia(bytes),
+      };
     }),
   );
 }
@@ -119,6 +128,18 @@ export async function approvePlacements(
     config: () => getStoredConfig(ctx.supabase, member.tenantId),
   });
   if (refused) throw new AppError("validation", refused);
+  // The exact bytes each placement sends, read and summed, and each held to what its place takes: a shape a place would
+  // refuse is said now, in that place's words, before anything is kept.
+  const shapes = await readShapes(
+    member.tenantId,
+    row,
+    approval.placements.map((p) => renditionShapeOf(p.place, p.kind)),
+  );
+  for (const p of approval.placements) {
+    const shape = shapes.find((s) => s.shape === renditionShapeOf(p.place, p.kind));
+    const refusal = shape ? renditionRefusalOf(p.place, p.kind, shape.measured) : null;
+    if (refusal) throw new AppError("validation", refusal.words);
+  }
   // A fact the owner stated is kept as their own claim (owner_claims, 00706; PRD 6.1), valid until its day ends: the
   // send's check reads it there, and an approval no longer carries it.
   await keepStatedFacts(ctx, member.tenantId, approval.facts);
@@ -126,11 +147,6 @@ export async function approvePlacements(
   const words = approval.placements.map(placementWordsOf).find((w) => w !== null);
   if (words) await keepPostWords(ctx, member, row, words);
   const goodUntil = goodUntilOf(approval.intent, zone);
-  const shapes = await readShapes(
-    member.tenantId,
-    row,
-    approval.placements.map((p) => renditionShapeOf(p.place, p.kind)),
-  );
   const now = new Date().toISOString();
   const renditions: SnapshotRendition[] = shapes.map(({ shape, path, checksum }) => ({
     shape,
@@ -157,7 +173,7 @@ export async function approvePlacements(
     approval: jsonCopyOf({
       snapshot,
       intent: approval.intent,
-      renditions: shapes,
+      renditions: shapes.map(({ shape, path, checksum, bytes }) => ({ shape, path, checksum, bytes })),
       placements: approval.placements.map((p) => ({
         place: p.place,
         kind: p.kind,

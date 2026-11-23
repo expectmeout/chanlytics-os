@@ -9,7 +9,8 @@
  * three never disagree. Whether the words may be said at all (a price, a promise, a character the face can't draw) is the
  * dashboard's, where it is known who said what.
  */
-import { PIECE_FRAME, pieceCardSizeOf, pieceQuoteLinesOf, pieceWordsBoxOf } from "./piece-frame";
+import { stretchCaptionsOf, type PieceCaption, type PieceCue } from "./making/captions";
+import { PIECE_FRAME, pieceCardSizeOf, pieceQuoteLinesOf, pieceWordsBoxOf, type PieceFace } from "./piece-frame";
 import { pieceWordsIn } from "./piece-words";
 import {
   PIECE_LIMITS,
@@ -31,6 +32,8 @@ export interface PieceSource {
   media_status: string | null;
   /** A clip's length: the row's where a card is made, the playback copy's own where the video is. Null for a photo. */
   seconds: number | null;
+  /** What is said in a clip, as its words were heard (files.sound.words.cues); null for a photo or a clip nobody speaks in. */
+  cues: readonly PieceCue[] | null;
 }
 
 /** The business's own, as the end card and the words wear it. */
@@ -41,6 +44,10 @@ export interface PieceLook {
   name: string;
   book: string | null;
   address: string | null;
+  /** The brand kit's (content/making/kit.ts): the face the words are set in, its second colour, the end card's own call. */
+  face: PieceFace;
+  second: string | null;
+  call: string | null;
 }
 
 /** A picture a block shows still, as it is drawn: the file, and the second of a clip it is (null for a photo). */
@@ -68,15 +75,23 @@ export interface PieceTimeline {
   blocks: PieceBlockDrawn[];
   /** The opening words. `frames` is how long they stay, null for the whole reel; they are never drawn over a card. */
   words: { lines: string[]; top: number; size: number; frames: number | null };
+  /** The spoken words burned in, in play order (content/making/captions.ts); none where nothing is said or they are off. */
+  captions: PieceCaption[];
   end: {
     line: string | null;
     under: string | null;
     logo: boolean;
     name: string;
+    /** The kit's own call, under the name ("Book on our website"). */
+    call: string | null;
     book: string | null;
     address: string | null;
   };
   accent: string;
+  /** The face every word is set in. */
+  face: PieceFace;
+  /** A words card's and a quote card's ground: the kit's second colour where white words read on it, else the ink. */
+  ground: string;
 }
 
 /** A plan refused: why, and the block it is about (counted from one, as a person counts) where it is about one. */
@@ -90,6 +105,7 @@ export type PieceCompiled = { ok: true; timeline: PieceTimeline } | PieceRefused
 interface Checking {
   sources: readonly PieceSource[];
   language: PieceLanguage;
+  face: PieceFace;
 }
 /** A block that passed, as it is drawn and how long it plays; or why it did not. */
 type Passed = { block: PieceBlockDrawn; seconds: number } | PieceWont;
@@ -185,7 +201,7 @@ function pairPassed(block: Extract<PieceBlock, { is: "pair" }>, checking: Checki
   };
 }
 
-function cardPassed(block: Extract<PieceBlock, { is: "words" }>): Passed {
+function cardPassed(block: Extract<PieceBlock, { is: "words" }>, face: PieceFace): Passed {
   const lines = block.lines.map((l) => l.trim());
   const fits =
     lines.length >= 1 &&
@@ -194,7 +210,7 @@ function cardPassed(block: Extract<PieceBlock, { is: "words" }>): Passed {
   if (!fits) return "card";
   if (!inRange(block.seconds, PIECE_LIMITS.cardMinS, PIECE_LIMITS.cardMaxS)) return "block_length";
   return {
-    block: { is: "words", lines, size: pieceCardSizeOf(lines), frames: frameCountOf(block.seconds) },
+    block: { is: "words", lines, size: pieceCardSizeOf(lines, face), frames: frameCountOf(block.seconds) },
     seconds: block.seconds,
   };
 }
@@ -202,7 +218,8 @@ function cardPassed(block: Extract<PieceBlock, { is: "words" }>): Passed {
 function quotePassed(block: Extract<PieceBlock, { is: "quote" }>, checking: Checking): Passed {
   const text = block.text.trim();
   const fromFits = block.from === null || Array.from(block.from).length <= PIECE_LIMITS.quoteFrom;
-  const wrapped = Array.from(text).length <= PIECE_LIMITS.quote && fromFits ? pieceQuoteLinesOf(text) : null;
+  const wrapped =
+    Array.from(text).length <= PIECE_LIMITS.quote && fromFits ? pieceQuoteLinesOf(text, checking.face) : null;
   if (!wrapped) return "quote";
   const over = block.over ? shotDrawn(block.over, checking) : null;
   if (typeof over === "string") return over;
@@ -230,7 +247,7 @@ function blockPassed(block: PieceBlock, checking: Checking): Passed {
     case "pair":
       return pairPassed(block, checking);
     case "words":
-      return cardPassed(block);
+      return cardPassed(block, checking.face);
     case "quote":
       return quotePassed(block, checking);
   }
@@ -259,8 +276,56 @@ function endLinesOf(line: string | null): { line: string | null; under: string |
   return { line: first || null, under: rest.filter(Boolean).join(" · ") || null };
 }
 
+/** A colour's relative luminance (WCAG 2): how light it is, 0 to 1. */
+function luminanceOf(hex: string): number {
+  const channel = (i: number): number => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
+
+/** How dark a card's ground must be for white words on it: the contrast a body of text needs (4.5:1). */
+const WHITE_ON_GROUND = 4.5;
+
+/** The cards' ground: the kit's second colour where white words read on it, else the ink every card had. */
+function groundOf(second: string | null): string {
+  if (!second || !/^#[0-9a-f]{6}$/i.test(second)) return PIECE_FRAME.ink;
+  return 1.05 / (luminanceOf(second) + 0.05) >= WHITE_ON_GROUND ? second.toLowerCase() : PIECE_FRAME.ink;
+}
+
 const framesHeld = (hold: PieceWordsHold, firstBlock: number): number | null =>
   hold === "all" ? null : Math.max(firstBlock, PIECE_FRAME.wordsFramesMin);
+
+/**
+ * The spoken words of every clip block, timed into the video. Under opening words set low they would sit on one another,
+ * so a caption waits for them to leave (and there is none where they stay the whole reel).
+ */
+function captionsOf(
+  blocks: readonly PieceBlockDrawn[],
+  checking: Checking,
+  words: { low: boolean; frames: number | null },
+): PieceCaption[] {
+  let first = 0;
+  const all = blocks.flatMap((block) => {
+    const at = first;
+    first += block.frames;
+    if (block.is !== "clip") return [];
+    const cues = sourceNamed(checking, block.source)?.cues ?? null;
+    if (!cues?.length) return [];
+    return stretchCaptionsOf(
+      cues,
+      { from: block.trim, seconds: block.frames / PIECE_FRAME.fps, firstFrame: at, labelled: block.label !== null },
+      checking.face,
+    );
+  });
+  if (!words.low) return all;
+  if (words.frames === null) return [];
+  const clear = words.frames;
+  return all
+    .filter((c) => c.from + c.frames > clear)
+    .map((c) => (c.from >= clear ? c : { ...c, frames: c.from + c.frames - clear, from: clear }));
+}
 
 /** The plan as the template draws it, or why it can't be made. `sources` are the files the plan names, as they now stand. */
 export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], look: PieceLook): PieceCompiled {
@@ -268,7 +333,7 @@ export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], l
     return { ok: false, wont: "blocks" };
   const opening = openingWont(plan);
   if (opening) return opening;
-  const checking: Checking = { sources, language: plan.language };
+  const checking: Checking = { sources, language: plan.language, face: look.face };
   const blocks: PieceBlockDrawn[] = [];
   let reel = 0;
   for (const [i, block] of plan.blocks.entries()) {
@@ -279,8 +344,10 @@ export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], l
   }
   if (!inRange(hundredth(reel), PIECE_LIMITS.reelMinS, PIECE_LIMITS.reelMaxS)) return { ok: false, wont: "length" };
   const lines = plan.lines.map((l) => l.trim());
-  const box = pieceWordsBoxOf(lines, plan.words_at);
+  const box = pieceWordsBoxOf(lines, plan.words_at, look.face);
   const reelFrames = blocks.reduce((n, b) => n + b.frames, 0);
+  const held = framesHeld(plan.words_hold, blocks[0]?.frames ?? 0);
+  const onPicture = lines.length > 0;
   return {
     ok: true,
     timeline: {
@@ -289,15 +356,21 @@ export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], l
       fps: PIECE_FRAME.fps,
       frames: reelFrames + PIECE_FRAME.end - PIECE_FRAME.fade,
       blocks,
-      words: { lines, top: box.top, size: box.size, frames: framesHeld(plan.words_hold, blocks[0]?.frames ?? 0) },
+      words: { lines, top: box.top, size: box.size, frames: held },
+      captions: plan.captions
+        ? captionsOf(blocks, checking, { low: onPicture && plan.words_at === "low", frames: held })
+        : [],
       end: {
         ...endLinesOf(plan.end_line),
         logo: look.logo,
         name: look.name,
+        call: look.call,
         book: look.book,
         address: look.address,
       },
       accent: look.accent ?? PIECE_FRAME.paper,
+      face: look.face,
+      ground: groundOf(look.second),
     },
   };
 }
@@ -330,4 +403,6 @@ export type PieceMaterial = {
   timeline: PieceTimeline;
   files: string[][];
   logo: string | null;
+  /** The frame the machine draws as the video's cover still (content/making/cover.ts), beside the video; null for none. */
+  cover: number | null;
 };

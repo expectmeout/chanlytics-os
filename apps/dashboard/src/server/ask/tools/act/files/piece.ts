@@ -7,11 +7,13 @@ import {
   PIECE_LIMITS,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
+  neverSaidIn,
   pieceCountOf,
   pieceOpeningOf,
   pieceWordsIn,
   secondsOf,
   videoPreviewOf,
+  type BrandKit,
   type PiecePlan,
   type PieceWont,
 } from "@chanlytics/contracts";
@@ -20,6 +22,7 @@ import { checkPieceClips, pieceSecondsOf } from "@/server/content/piece";
 import { drawPieceBoard } from "@/server/content/storyboard";
 import type { FileForAsk } from "@/server/files/line";
 import { postDrawProblem, postWordsProblem } from "@/server/files/post-check";
+import { readBrandKit } from "@/server/workspace/brand-kit";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
@@ -183,6 +186,7 @@ const pieceInput = z.object({
     .enum(["en", "es"])
     .optional()
     .describe("Only when asked for another language than the question's: its own words (Before, After) follow it."),
+  captions: z.boolean().optional().describe("false only when the owner asked for no spoken words on the video."),
   looked: z.string().optional().describe("The storyboard's look_key, once you have looked at it and it is right."),
 });
 
@@ -348,6 +352,26 @@ function wordsProblem(plan: PiecePlan, owner: string): string | null {
 }
 
 /**
+ * The first word the business's brand kit says AI never writes, in the words AI wrote for this video (its opening words,
+ * a block's own, the end card's, the caption), naming where; null for none. A quote is a client's own and is not held.
+ */
+function neverWordOf(plan: PiecePlan, kit: Pick<BrandKit, "never">): string | null {
+  const written = [
+    ...plan.lines,
+    ...plan.blocks.flatMap((b) =>
+      b.is === "words" ? b.lines : (b.is === "clip" || b.is === "photo") && b.label ? [b.label] : [],
+    ),
+    plan.end_line ?? "",
+    plan.caption ?? "",
+  ];
+  for (const text of written) {
+    const word = neverSaidIn(text, kit);
+    if (word) return `"${word}" is a word this business asked never to use: say it another way`;
+  }
+  return null;
+}
+
+/**
  * Words as two tellings of them are compared: in lower case, typographic marks as their plain ones, one space between words,
  * and no quote marks or trailing dots around them.
  */
@@ -476,6 +500,7 @@ async function planAsked(
     end_line: input.end_line?.trim() || null,
     language,
     caption: input.caption?.trim() || null,
+    captions: input.captions !== false,
   };
 }
 
@@ -487,6 +512,8 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   const owner = await ownersWords(toolContext, config);
   const wordsWrong = wordsProblem(given, owner);
   if (wordsWrong) return refuse(wordsWrong);
+  const never = neverWordOf(given, (await readBrandKit(toolContext.ctx, toolContext.tenantId, config)).kit);
+  if (never) return refuse(never);
   const plan = await quotesSourced(toolContext, given, {
     typed: ownersTyped(toolContext),
     vouched: input.client_said === true,

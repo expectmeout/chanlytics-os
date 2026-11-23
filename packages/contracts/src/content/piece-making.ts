@@ -4,6 +4,7 @@
  * with. What the plan is and what it must pass are pieces.ts's and piece-timeline.ts's; what it says to a person is piece-words.ts's.
  */
 import { isOneOf, nonBlankOrNull, recordOrNull } from "../shared/unknown";
+import type { PieceFace } from "./piece-frame";
 import type { PiecePlan, PieceShape } from "./pieces";
 
 /**
@@ -19,7 +20,7 @@ export const pieceCompositionOf = (shape: PieceShape | PiecePlan["shape"]): stri
  * a change to the template is a new edition here, with its image built before the change is merged (tooling/video/README.md).
  * tests/content/the-template-has-its-image.test.mjs fails the change that forgets.
  */
-export const PIECE_TEMPLATE = { edition: 2, hash: "4e3e426db96a" } as const;
+export const PIECE_TEMPLATE = { edition: 3, hash: "da6e2dcd9648" } as const;
 
 /** Where a video asked for stands (00613 `pieces`): being made, a file under Made by Ask, or not made. */
 export const PIECE_STATUSES = ["making", "made", "failed"] as const;
@@ -104,16 +105,26 @@ export interface PieceLookKept {
   name: string;
   book: string | null;
   address: string | null;
+  /** The brand kit's, as it stood at the press (content/making/kit.ts). A look kept before the kit reads as the house's. */
+  face: PieceFace;
+  second: string | null;
+  call: string | null;
 }
+
+const HEX = /^#[0-9a-f]{6}$/i;
 
 /** A row's look read back: a row that holds none draws with a name and nothing else. */
 export function pieceLookOf(value: unknown): PieceLookKept {
   const fields = recordOrNull(value) ?? {};
+  const second = nonBlankOrNull(fields.second);
   return {
     accent: nonBlankOrNull(fields.accent),
     logo_path: nonBlankOrNull(fields.logo_path),
     name: nonBlankOrNull(fields.name) ?? "",
     book: nonBlankOrNull(fields.book),
     address: nonBlankOrNull(fields.address),
+    face: fields.face === "serif" ? "serif" : "sans",
+    second: second && HEX.test(second) ? second.toLowerCase() : null,
+    call: nonBlankOrNull(fields.call),
   };
 }

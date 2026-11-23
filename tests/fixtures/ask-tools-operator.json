@@ -5058,6 +5058,10 @@
             "enum": ["en", "es"],
             "description": "Only when asked for another language than the question's: its own words (Before, After) follow it."
           },
+          "captions": {
+            "type": "boolean",
+            "description": "false only when the owner asked for no spoken words on the video."
+          },
           "looked": {
             "type": "string",
             "description": "The storyboard's look_key, once you have looked at it and it is right."
@@ -8435,6 +8439,10 @@
             "type": "string",
             "enum": ["en", "es"],
             "description": "Only when asked for another language than the question's: its own words (Before, After) follow it."
+          },
+          "captions": {
+            "type": "boolean",
+            "description": "false only when the owner asked for no spoken words on the video."
           },
           "looked": {
             "type": "string",

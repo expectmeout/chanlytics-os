@@ -9,6 +9,7 @@ export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
 export { readRender, readRenderBytes, startRender, stopRender } from "./machine";
 export type { RenderJob, RenderMachine, RenderState } from "./machine";
+export { measureMedia } from "./media-measure";
 export { readRelayTicket, RELAY_KEY_ASK, relayClipAddress, signRelayTicket } from "./relay-ticket";
 export type { RelayKeyAsk } from "./relay-ticket";
 export { putOnShelf, readShelfRecord, relayShelfAddress, removeFromShelf } from "./shelf";

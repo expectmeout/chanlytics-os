@@ -1166,7 +1166,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"` | yes |  |
+| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"`, `"look"` | yes |  |
 | `words` | string | yes | at least 1 characters; at most 280 characters |
 
 ### `GET /api/v1/content/note`
@@ -1600,6 +1600,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
 Body 2:
@@ -1614,6 +1615,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
 
 ### `GET /api/v1/files/video/[id]`
@@ -1640,6 +1642,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 Body 2:
 
@@ -1653,6 +1656,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 ## forms
 

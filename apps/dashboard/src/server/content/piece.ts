@@ -19,6 +19,7 @@ import {
   PIECE_WORDS_PLACES,
   compilePiece,
   parseTenantConfig,
+  pieceCuesOf,
   pieceFileIdsOf,
   piecePlanOf,
   pieceWordsIn,
@@ -32,8 +33,8 @@ import {
   type PieceTimeline,
   type TenantId,
 } from "@chanlytics/contracts";
-import { beginPiece, findFile, type FileMemberRow } from "@chanlytics/db/files";
-import { findWorkspaceLook } from "@chanlytics/db/look";
+import { beginPiece, findFile, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
+
 import { asJson } from "@chanlytics/db/shared";
 import { postBandOf, postUndrawable } from "@/server/files/post-check";
 import { colourOnDark } from "@/server/posts/layout";
@@ -41,6 +42,7 @@ import { postPhoneOf } from "@/server/posts/phone";
 import * as readers from "@/server/readers/facts";
 import { getKnownFacts } from "@/server/readers/settings";
 import { load, readerContext } from "@/server/shared/reader";
+import { readBrandKit } from "@/server/workspace/brand-kit";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 
@@ -58,6 +60,8 @@ const planWords = {
   // The words Ask wrote to go under the video where it is posted (C3): kept with the plan, read back as its words. None on a
   // card made before Ask wrote them.
   caption: z.string().max(PIECE_LIMITS.caption).nullable().optional(),
+  // Whether what its clips' people say is burned in (pass 4): on unless the owner told AI not to.
+  captions: z.boolean().optional(),
 };
 
 /** A plan kept as "Hook first", the one shape a video had: its cuts are read as clip blocks (contracts piecePlanOf). */
@@ -138,34 +142,44 @@ const shortAddressOf = (address: string | null): string | null =>
     .filter(Boolean)
     .join(", ") || null;
 
-/** The business's own as a video wears it, read now: its colour and mark, its name, its number as a post's band says it, its address. */
+/**
+ * The business's own as a video wears it, read now: its colour and mark, its name, its number as a post's band says it, its
+ * address, and its brand kit's face, second colour and end card call.
+ */
 async function pieceLookFor(
   ctx: RouteContext,
   tenantId: TenantId,
   language: PiecePlan["language"],
   config: unknown,
 ): Promise<PieceLookKept> {
-  const [look, known] = await Promise.all([findWorkspaceLook(ctx.supabase, tenantId), getKnownFacts(ctx, tenantId)]);
+  const [{ kit, ...look }, known] = await Promise.all([
+    readBrandKit(ctx, tenantId, config),
+    getKnownFacts(ctx, tenantId),
+  ]);
   const facts = resolveFacts(parseTenantConfig(config)?.brain ?? null, known);
   const phone = await postPhoneOf(ctx, tenantId, config);
   return {
     // The business's colour as light as it must be to read on the end card's dark ground (posts/layout.ts colourOnDark).
-    accent: colourOnDark(look?.accent ?? null, PIECE_FRAME.ink, PIECE_FRAME.paper),
-    logo_path: look?.logo_path ?? null,
-    name: facts.business_name.value ?? look?.name ?? "",
+    accent: colourOnDark(look.accent, PIECE_FRAME.ink, PIECE_FRAME.paper),
+    logo_path: look.logo_path,
+    name: facts.business_name.value ?? look.name ?? "",
     book: phone ? postBandOf(phone, language) : null,
     address: shortAddressOf(facts.address.value),
+    face: kit.face,
+    second: kit.second,
+    call: kit.call,
   };
 }
 
-/** A clip as the plan's checker reads it, from the row a member may see. */
-const pieceSourceOf = (file: FileMemberRow): PieceSource => ({
+/** A clip as the plan's checker reads it, from the row a member may see, with what is said in it (read by id: no list carries it). */
+const pieceSourceOf = (file: FileMemberRow, sound: unknown): PieceSource => ({
   id: file.id,
   kind: file.kind,
   status: file.status,
   source: file.source,
   media_status: file.media_status,
   seconds: file.seconds === null ? null : Number(file.seconds),
+  cues: file.kind === "video" ? pieceCuesOf(sound) : null,
 });
 
 /** A plan that passed: the timeline it draws, the look it was drawn in, and its clips. */
@@ -190,13 +204,21 @@ export async function checkPieceClips(
   const found = await Promise.all(ids.map((id) => findFile(ctx.supabase, id)));
   // This workspace's own: a member of two reads both under their session, and the job that draws reads this one alone.
   const files = found.filter((file): file is FileMemberRow => file !== null && file.tenant_id === tenantId);
-  const look = await pieceLookFor(ctx, tenantId, plan.language, config);
-  const compiled = compilePiece(plan, files.map(pieceSourceOf), {
+  const [look, sounds] = await Promise.all([
+    pieceLookFor(ctx, tenantId, plan.language, config),
+    // At most six blocks' clips: each one's words, for the spoken words burned in.
+    Promise.all(files.map(async (f) => (f.kind === "video" ? readFileSound(ctx.supabase, f.id) : null))),
+  ]);
+  const sources = files.map((f, i) => pieceSourceOf(f, sounds[i]));
+  const compiled = compilePiece(plan, sources, {
     accent: look.accent,
     logo: look.logo_path !== null,
     name: look.name,
     book: look.book,
     address: look.address,
+    face: look.face,
+    second: look.second,
+    call: look.call,
   });
   return compiled.ok ? { ok: true, timeline: compiled.timeline, look, files } : compiled;
 }
