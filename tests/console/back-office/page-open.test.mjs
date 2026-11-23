@@ -22,6 +22,7 @@ const { getMemberContext } = await import(at("apps/dashboard/src/server/shared/w
 const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const openRoute = await import(at("apps/dashboard/app/api/v1/open/route.ts"));
 const viewsRoute = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
+const { withRequestId, noteTiming } = await import("@chanlytics/log");
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -47,6 +48,8 @@ const linesOf = async (res) =>
     .split("\n")
     .filter(Boolean)
     .map((l) => JSON.parse(l));
+/** The lines that answer a read, each under its read's key: the last line of an answer names none (what the opening came to). */
+const readsIn = (lines) => lines.filter((l) => l.k !== undefined);
 
 /** A promise and its resolution, handed out: a read that answers when the test says. */
 const deferred = () => {
@@ -127,11 +130,77 @@ test("the page's own reads are answered first, each as it settles; what it draws
     if (done) break;
     rest.push(decoder.decode(value));
   }
-  const keys = (text + rest.join(""))
-    .split("\n")
-    .filter(Boolean)
-    .map((l) => JSON.parse(l).k);
+  const keys = readsIn(
+    (text + rest.join(""))
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l)),
+  ).map((l) => l.k);
   assert.deepEqual(keys.sort(), [...own, ...beside].sort(), "every read has its line, once");
+});
+
+test("the answer's last line is what the opening came to: how long it took and its database calls, and no read's answer", async () => {
+  const [own, beside] = openReads("today");
+  const routeOf = (key) => ({
+    run: async () => {
+      // As the database client says each call (packages/db observe.ts): two for the day's read, one for every other.
+      noteTiming("db", 4);
+      if (key === "today") noteTiming("db", 6);
+      return { key };
+    },
+  });
+  const lines = await withRequestId("rq-open", () =>
+    linesOf(openPage(ctxFor(), openReq(), { page: "today", period: null, thread: null }, routeOf)),
+  );
+  const reads = own.length + beside.length;
+  assert.equal(readsIn(lines).length, reads, "a line for each read, as ever");
+  const last = lines.at(-1);
+  assert.deepEqual(Object.keys(last), ["o"], "the last line answers no read");
+  assert.equal(last.o.db_n, reads + 1, "every call the reads made, each counted once");
+  assert.equal(last.o.db_ms, 4 * reads + 6, "and the time they took together");
+  assert.ok(Number.isInteger(last.o.ms) && last.o.ms >= 0, "and how long the whole opening took");
+});
+
+test("outside a request the opening still says its time, with no calls to count", async () => {
+  const lines = await linesOf(
+    openPage(ctxFor(), openReq(), { page: "inbox", period: null, thread: null }, () => ({ run: async () => ({}) })),
+  );
+  assert.deepEqual({ ...lines.at(-1).o, ms: 0 }, { ms: 0, db_ms: 0, db_n: 0 });
+});
+
+test("the log says how long each read took once the opening is done, by the read's route alone", async () => {
+  const thread = "22222222-2222-4222-8222-222222222222";
+  const [own] = openReads("inbox", null, thread);
+  const said = [];
+  const real = console.log;
+  console.log = (text) => said.push(JSON.parse(text));
+  try {
+    await linesOf(
+      openPage(
+        ctxFor(),
+        openReq(`route=inbox&thread=${thread}&workspace=harbor`),
+        { page: "inbox", period: null, thread },
+        () => ({ run: async () => ({}) }),
+      ),
+    );
+  } finally {
+    console.log = real;
+  }
+  const openings = said.filter((l) => l.event === "page_opened");
+  assert.equal(openings.length, 1, "one line an opening");
+  const [line] = openings;
+  assert.equal(line.page, "inbox");
+  assert.deepEqual(
+    Object.keys(line.reads).sort(),
+    [...new Set(own.map((k) => k.replace(/\?.*$/, "")))].sort(),
+    "each read by its route's words, its query left off",
+  );
+  assert.ok(
+    Object.values(line.reads).every((ms) => Number.isInteger(ms) && ms >= 0),
+    "each with its own time",
+  );
+  assert.ok(Number.isInteger(line.ms) && line.db_n === 0 && line.db_ms === 0, "and what the opening came to");
+  assert.ok(!JSON.stringify(line).includes(thread), "never an id the address named");
 });
 
 test("a read's refusal is its own route's: its code, status and sentence, and the wait a limit counted; anything else is a 500 that says nothing", async () => {
@@ -179,7 +248,9 @@ test("the membership is read once for every read, and a reader two of them read 
       return (await load(readerContext(c, m), shared, undefined)).data;
     },
   });
-  const lines = await linesOf(openPage(ctx, openReq(), { page: "today", period: null, thread: null }, routeOf));
+  const lines = readsIn(
+    await linesOf(openPage(ctx, openReq(), { page: "today", period: null, thread: null }, routeOf)),
+  );
   const [own, beside] = openReads("today");
   assert.equal(lines.length, own.length + beside.length);
   assert.ok(
@@ -193,7 +264,7 @@ test("the membership is read once for every read, and a reader two of them read 
 test("through the real route, every read GET open answers has its route, and a read's line is the JSON its own request answers", async () => {
   const ctx = ctxFor();
   const res = await openRoute.GET.run(openReq(), ctx);
-  const lines = await linesOf(res);
+  const lines = readsIn(await linesOf(res));
   const [own, beside] = openReads("today");
   assert.deepEqual(
     lines.map((l) => l.k).sort(),

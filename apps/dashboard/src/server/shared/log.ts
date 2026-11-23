@@ -189,6 +189,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "note_door_unknown_answer",
   "oauth_exchange_failed",
   "oauth_provider_refused",
+  "page_opened",
   "page_vitals_not_kept",
   "partner_code_dropped",
   "partner_invite_failed",

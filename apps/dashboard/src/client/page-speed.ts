@@ -25,13 +25,14 @@
  * here, which hands them the window's events, the shell's address and surfaces, and the field data's collector. The
  * parts of a page say when they are drawn through `partBegins` and `partReady` (surfaces/use-surface.ts usePartShown).
  */
-import { PAGE_PHONE_QUERY, PREFETCH_READS, vitalsPageOf } from "@chanlytics/contracts";
+import { OPENING_MARK, PAGE_PHONE_QUERY, PREFETCH_READS, recordOrEmpty, vitalsPageOf } from "@chanlytics/contracts";
 import { beaconTo, createFieldData, flushWhenHidden, type FieldData } from "./field-data";
 import {
   createPageSpeed,
   notACustomer,
   readKeyOf,
-  waitOf,
+  readsBegun,
+  saidOfWait,
   type Landed,
   type PageSpeed,
   type PartBegun,
@@ -228,6 +229,32 @@ function watchLanded(): Landed[] {
   return landed;
 }
 
+/** The reads the app has begun, kept from its first whether or not the measures are installed yet (readBegins). */
+const begun = readsBegun(() => (typeof performance === "undefined" ? 0 : performance.now()));
+
+/**
+ * A read of the app's own leaves (bridge/api.ts, as its fetch is made): what a load's READY counts of the reads begun for
+ * other pages before its own was drawn.
+ */
+export function readBegins(url: string): void {
+  begun.note(url);
+}
+
+/**
+ * The database calls the page's opening came to, where it opened through one read and the browser kept what that read's
+ * last line said (contracts OPENING_MARK, the head's mark). None where it opened read by read, or the mark holds no count.
+ */
+function openCallsOf(perf: Performance): number | undefined {
+  try {
+    const mark = perf.getEntriesByName(OPENING_MARK, "mark").at(-1);
+    const calls = recordOrEmpty(mark && "detail" in mark ? mark.detail : undefined).db_n;
+    return typeof calls === "number" && Number.isInteger(calls) && calls >= 0 ? calls : undefined;
+  } catch {
+    // A browser with no timeline to ask: the report says no count.
+    return undefined;
+  }
+}
+
 /** The pages this load has been on, and when each began: what a report that arrives later was on. */
 const PAGES_HELD = 200;
 
@@ -259,7 +286,12 @@ export function installPageSpeed(shell: SpeedShell, facts: { build: string; repo
     afterPaint,
     emit: (r) => fieldData.note({ id: `${loadKey}-${(said += 1)}`, ...r }),
     // Asked as the page is drawn, so the address is already the page's own: the router's fetch of it is its wait.
-    waits: (page, from, to) => waitOf(landed, from, to, { own: ownReads(page), here: window.location.pathname }),
+    waits: (page, from, to, kind) =>
+      saidOfWait(
+        { landed, begun: begun.list, openCalls: openCallsOf(performance) },
+        { own: ownReads(page), here: window.location.pathname },
+        { from, to, ...kind },
+      ),
     measure: measureIn(performance),
   });
 

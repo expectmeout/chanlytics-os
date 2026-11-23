@@ -18,6 +18,7 @@ import {
   PREFETCH_SLOT,
   PREFETCH_READS,
   PREFETCH_BESIDE,
+  OPENING_MARK,
   openReads,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
@@ -405,7 +406,7 @@ test("run twice, the head starts nothing twice; a fetch that throws leaves the p
 /* ------------------------------ one read for a page (GET open) ------------------------------ */
 
 /** The head over Today in a browser that reads a stream: GET open answered by `answer`, the slot it parked. */
-const openedToday = ({ answer, storage = {}, pathname = "/w/harbor" }) => {
+const openedToday = ({ answer, storage = {}, pathname = "/w/harbor", globals = {} }) => {
   const calls = [];
   const { win } = headRuns({
     pathname,
@@ -418,6 +419,7 @@ const openedToday = ({ answer, storage = {}, pathname = "/w/harbor" }) => {
       Response,
       TextDecoder,
       localStorage: { getItem: (k) => storage[k] ?? null },
+      ...globals,
     },
   });
   return { calls, slot: win[PREFETCH_SLOT] };
@@ -478,6 +480,40 @@ test("a refusal of the whole, or a stream that cannot be read, hands every read 
   ]) {
     const { slot } = openedToday({ answer });
     for (const url of Object.keys(slot)) assert.deepEqual(await settled(slot[url]), { rejected: "open" }, url);
+  }
+});
+
+/** The line GET open ends on: what the opening came to (server/workspace/page-open.ts). It names no read. */
+const cameTo = (o) => JSON.stringify({ o });
+
+test("what the opening came to is kept as a mark on the browser's own timeline, and parks no answer", async () => {
+  const marks = [];
+  const { slot } = openedToday({
+    answer: () => ndjson([line("today", { ok: true, data: {} }), cameTo({ ms: 900, db_ms: 400, db_n: 180 })]),
+    globals: { performance: { mark: (name, said) => marks.push([name, said]) } },
+  });
+  const parked = Object.keys(slot).sort();
+  assert.equal((await settled(slot[urlOf("today")])).status, 200, "the reads are answered as ever");
+  await until(() => marks.length > 0);
+  // Made in the script's own realm: read as the JSON it is.
+  assert.deepEqual(JSON.parse(JSON.stringify(marks)), [[OPENING_MARK, { detail: { ms: 900, db_ms: 400, db_n: 180 } }]]);
+  assert.deepEqual(Object.keys(slot).sort(), parked, "nothing parked for it");
+});
+
+test("a browser that keeps no such mark loses nothing by the opening's last line", async () => {
+  for (const performance of [
+    undefined,
+    {
+      mark: () => {
+        throw new Error("no detail here");
+      },
+    },
+  ]) {
+    const { slot } = openedToday({
+      answer: () => ndjson([cameTo({ ms: 1, db_ms: 1, db_n: 1 }), line("setup", { ok: true, data: { setup: {} } })]),
+      globals: performance ? { performance } : {},
+    });
+    assert.equal((await settled(slot[urlOf("setup")])).status, 200, "the lines after it are still read");
   }
 });
 

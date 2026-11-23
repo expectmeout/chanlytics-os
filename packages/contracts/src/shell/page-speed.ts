@@ -9,6 +9,7 @@
 import {
   FIRST_ROWS_ENDS,
   FIRST_ROWS_MISSES,
+  FIRST_ROWS_NO_COPY,
   FIRST_ROWS_PAGES,
   FIRST_ROWS_PART,
   firstRowsEndPart,
@@ -304,6 +305,11 @@ const MISS_WORDS: Readonly<Record<FirstRowsMiss, string>> = {
   width: "another width",
   sheets: "styles changed",
   aged: "too old",
+  scrolled: "scrolled",
+  typed: "something typed",
+  open: "something open",
+  reading: "still reading",
+  long: "too long to keep",
 };
 /** How a copy went before its page's rows came, as the card says it. */
 const END_WORDS: Readonly<Record<Exclude<FirstRowsEnd, "page">, string>> = {
@@ -340,6 +346,8 @@ function firstRowsLine(rows: readonly PageSpeedRowDto[], page: string): PageSpee
   const missed = FIRST_ROWS_MISSES.map((reason) => [MISS_WORDS[reason], samplesOf(firstRowsMissPart(reason))] as const);
   const opens = missed.reduce((sum, [, samples]) => sum + samples, drawn);
   if (opens < PAGE_SPEED_MIN) return null;
+  // The share is of the opens a copy could have stood for: a first visit, or an address no copy is of, is no miss.
+  const could = opens - FIRST_ROWS_NO_COPY.reduce((sum, reason) => sum + samplesOf(firstRowsMissPart(reason)), 0);
   const painted = drawn > 0 ? ofPart(FIRST_ROWS_PART) : undefined;
   const stood = ofPart(firstRowsEndPart("page"));
   const notDrawn = saidMostFirst(missed);
@@ -356,12 +364,12 @@ function firstRowsLine(rows: readonly PageSpeedRowDto[], page: string): PageSpee
   ]
     .filter(Boolean)
     .join(" · ");
-  const value = share(drawn, opens);
+  const value = could > 0 ? share(drawn, could) : MISS_WORDS.none;
   return {
     key: `${FIRST_ROWS_PART}.${page}`,
     label: `${pageSpeedLabel(page)} · ${value}`,
     value,
-    tone: drawn / opens >= FIRST_ROWS_WELL ? "ok" : "warn",
+    tone: could > 0 && drawn / could >= FIRST_ROWS_WELL ? "ok" : "warn",
     hint: `${text.charAt(0).toUpperCase()}${text.slice(1)} · ${countWords(opens, "open")}`,
   };
 }
