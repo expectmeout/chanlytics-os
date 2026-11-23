@@ -9,13 +9,11 @@ import {
   AppError,
   ON_INSTAGRAM,
   intentOfAbout,
-  type InstagramPostable,
   type InstagramPostKind,
   type OwnersFact,
   type PostAbout,
   type PostDto,
   type PostPlace,
-  type TenantId,
 } from "@chanlytics/contracts";
 import { listFilePosts, movePostTime, pullPost, type FileMemberRow, type MemberPostRow } from "@chanlytics/db/files";
 import { readInstagramPostable } from "@/server/connections/meta";

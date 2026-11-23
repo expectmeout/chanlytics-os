@@ -52616,7 +52616,7 @@ CREATE TABLE public.post_observations (
     CONSTRAINT post_observations_metric_check CHECK ((metric = ANY (ARRAY['reach'::text, 'views'::text, 'likes'::text, 'comments'::text, 'saves'::text, 'shares'::text, 'link_opens'::text, 'profile_visits'::text, 'follows'::text]))),
     CONSTRAINT post_observations_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
     CONSTRAINT post_observations_raw_check CHECK ((jsonb_typeof(raw) = 'object'::text)),
-    CONSTRAINT post_observations_step_check CHECK ((step = ANY (ARRAY['1h'::text, '1d'::text, '3d'::text, '7d'::text, '28d'::text]))),
+    CONSTRAINT post_observations_step_check CHECK ((step = ANY (ARRAY['1h'::text, '1d'::text, '3d'::text, '7d'::text, '28d'::text, 'last'::text]))),
     CONSTRAINT post_observations_value_check CHECK (((value IS NULL) OR (value >= (0)::numeric))),
     CONSTRAINT post_observations_value_only_when_there CHECK (((availability = 'available'::text) = (value IS NOT NULL)))
 );
@@ -52626,7 +52626,7 @@ CREATE TABLE public.post_observations (
 -- Name: TABLE post_observations; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.post_observations IS 'A post''s numbers as its place gave them (00699; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
+COMMENT ON TABLE public.post_observations IS 'A post''s numbers as its place gave them (00699; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up, and at `last`, read by a take-down just before it asks the place (00701; 8.3), since a post''s numbers end with it. Each is a running total since it went up; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
 
 
 --

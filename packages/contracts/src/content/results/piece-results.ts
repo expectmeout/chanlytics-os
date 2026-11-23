@@ -9,7 +9,15 @@ import { clockTime } from "../../shared/clock";
 import { groupedPlural } from "../../shared/words";
 import { CREDIT_WINDOW_DAYS } from "./credit";
 import { nextObserveStep } from "./observe";
-import type { CreditClass, LinkLands, MetricAvailability, ObserveStep, PostMetric, TouchKind } from "./sets";
+import type {
+  CreditClass,
+  LinkLands,
+  MetricAvailability,
+  ObserveStep,
+  PostMetric,
+  TimedObserveStep,
+  TouchKind,
+} from "./sets";
 
 /** One placement's newest numbers, as read; empty before the first read. */
 export interface PostNumbersDto {
@@ -97,13 +105,20 @@ function missingOf(post: PostNumbersDto): string | null {
   return `${KIND_NAME[post.kind]}: couldn't be read this time`;
 }
 
-const STEP_WORDS: Readonly<Record<ObserveStep, string>> = {
+const STEP_WORDS: Readonly<Record<TimedObserveStep, string>> = {
   "1h": "an hour",
   "1d": "a day",
   "3d": "3 days",
   "7d": "7 days",
   "28d": "28 days",
 };
+
+/** When the numbers shown were read, and whether more come: the clock's next step, or none after a take-down's read. */
+function whenReadOf(step: ObserveStep | null): string {
+  if (step === "last") return "Read just before you took it down.";
+  const next = nextObserveStep(step);
+  return next ? `Next at ${STEP_WORDS[next]}.` : "Read for the last time.";
+}
 
 function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDid"] {
   const lead = leading(posts);
@@ -125,9 +140,8 @@ function howItDidOf(posts: readonly PostNumbersDto[]): PieceResultsSaid["howItDi
   )
     .filter((parts) => parts.length > 0)
     .map((parts) => parts.join(" · "));
-  const next = nextObserveStep(lead.step);
   const comments = there.has("comments") ? "Comments as Instagram counts them, your own replies included. " : "";
-  return { lines, missing, fine: `${comments}${next ? `Next at ${STEP_WORDS[next]}.` : "Read for the last time."}` };
+  return { lines, missing, fine: `${comments}${whenReadOf(lead.step)}` };
 }
 
 const TOUCH_WORDS: Readonly<Record<BroughtPersonDto["touch"], (kind: string) => string>> = {
