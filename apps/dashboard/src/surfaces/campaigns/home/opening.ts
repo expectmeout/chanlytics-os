@@ -13,7 +13,7 @@ import { firstDrawWaitsFor, surfacesSettled } from "@/bridge/surface-status";
 import { refreshSurface } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { adsShown } from "../ads/shown";
-import { libraryCode } from "../content/library-code";
+import { libraryCode } from "../parts/library-code";
 import { readFormsOpening } from "../forms/opening";
 import { adsCode, contentCode, formsCode, sequencesCode } from "./campaigns-code";
 
@@ -21,10 +21,10 @@ import { adsCode, contentCode, formsCode, sequencesCode } from "./campaigns-code
 const CAMPAIGNS_ADDRESS = /^campaigns(?:\/([^/]*))?/;
 
 /** The code, and Forms' list, that the view an address of Campaigns draws first is made of; null off Campaigns. */
-function openingOf(route: string): Promise<unknown> | null {
-  const m = CAMPAIGNS_ADDRESS.exec(route);
-  if (!m) return null;
-  const word = m[1] ?? "";
+function viewOpeningOf(route: string): Promise<unknown> | null {
+  const address = CAMPAIGNS_ADDRESS.exec(route);
+  if (!address) return null;
+  const word = address[1] ?? "";
   if (/^content:library(:|$)/.test(word)) return Promise.all([contentCode(), libraryCode()]);
   if (/^content(:|$)/.test(word)) return contentCode();
   if (/^forms(:|$)/.test(word)) return Promise.all([formsCode(), readFormsOpening()]);
@@ -45,6 +45,6 @@ function sequencesInAdsPlace(): Promise<unknown> {
 
 /** A load's address, where it is Campaigns: the view it opens on fetched now, and the page's first draw held for it. */
 export function campaignsOpensOn(route: string): void {
-  const opening = openingOf(route);
+  const opening = viewOpeningOf(route);
   if (opening) firstDrawWaitsFor("campaigns", opening);
 }

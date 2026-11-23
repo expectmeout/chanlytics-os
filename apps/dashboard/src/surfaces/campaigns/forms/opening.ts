@@ -13,20 +13,20 @@ import { getActiveWorkspace } from "@/bridge/workspace";
 const OPENING_STANDS_MS = 30 * SECOND_MS;
 
 /** The answer, when it was read, and the workspace it is of: it is that workspace's list, and no other's. */
-let opened: { dto: FormsDto; at: number; workspace: string | null } | null = null;
+let listOpened: { dto: FormsDto; at: number; workspace: string | null } | null = null;
 
 /** The list, read for a load that opens on Forms. A read that fails keeps nothing: the list then asks for itself, and says so. */
 export async function readFormsOpening(): Promise<void> {
   const workspace = getActiveWorkspace();
   try {
-    opened = { dto: await readForms(), at: Date.now(), workspace };
+    listOpened = { dto: await readForms(), at: Date.now(), workspace };
   } catch {
-    opened = null;
+    listOpened = null;
   }
 }
 
 /** The opening answer, where it is this workspace's and recent: what the list is first drawn from; else null. */
 export function formsOpenedOn(nowMs: number, workspace: string | null): FormsDto | null {
-  if (!opened || opened.workspace !== workspace || nowMs - opened.at >= OPENING_STANDS_MS) return null;
-  return opened.dto;
+  if (!listOpened || listOpened.workspace !== workspace || nowMs - listOpened.at >= OPENING_STANDS_MS) return null;
+  return listOpened.dto;
 }

@@ -20,7 +20,7 @@ import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { navigate } from "../../frame-verbs";
 import type { ReportsSurface } from "../surface";
 import type { OneRead } from "./campaigns-one";
-import { campaignsOneCode } from "./campaigns-one-code";
+import { campaignsOneCode } from "../campaigns-one-code";
 
 /** What the chunk holds: its reads, its fold, and what it draws. */
 interface OneParts {
@@ -55,7 +55,7 @@ export interface CampaignsScopeHere {
 }
 
 /** What the lens takes of the chunk's module. */
-const partsOf = (m: typeof import("./campaigns-one") | null): OneParts | null =>
+const lensPartsOf = (m: typeof import("./campaigns-one") | null): OneParts | null =>
   m && {
     readRows: m.readRows,
     readCampaignOne: m.readCampaignOne,
@@ -66,16 +66,16 @@ const partsOf = (m: typeof import("./campaigns-one") | null): OneParts | null =>
   };
 
 /**
- * The chunk, once it has been fetched (campaigns-one-code.ts): from the first draw where a load that opened on the lens has
+ * The chunk, once it has been fetched (../campaigns-one-code.ts): from the first draw where a load that opened on the lens has
  * it in; null before that, and always null where `on` is false.
  */
 function useOneParts(on: boolean): OneParts | null {
-  const [parts, setParts] = useState<OneParts | null>(() => partsOf(campaignsOneCode.now()));
+  const [parts, setParts] = useState<OneParts | null>(() => lensPartsOf(campaignsOneCode.now()));
   useEffect(() => {
     if (!on || parts !== null) return undefined;
     let live = true;
     void campaignsOneCode().then((m) => {
-      if (live) setParts(partsOf(m));
+      if (live) setParts(lensPartsOf(m));
     });
     return () => {
       live = false;

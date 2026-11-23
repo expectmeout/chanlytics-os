@@ -126,6 +126,9 @@ const RECORD_ARRIVES: Arrival = {
   going: cmGoing,
 };
 
+/** Campaigns' first part (contracts PRIMARY_PART): Sequences' list. */
+const CAMPAIGNS_LIST = { page: "campaigns", part: "list" };
+
 /**
  * Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView).
  * `markedAs` is the page its draw is said for where the address names another (an Ads address where Ads is not drawn, whose
@@ -134,7 +137,7 @@ const RECORD_ARRIVES: Arrival = {
 export function SequencesPage({
   route,
   view,
-  markedAs,
+  markedAs = CAMPAIGNS_LIST,
 }: {
   route: string;
   view?: CmView;
@@ -147,10 +150,9 @@ export function SequencesPage({
   const over = useHeldList(phone && place.view === "record", sequencesList, RECORD_ARRIVES);
   // Campaigns' first part (client/page-speed.ts, contracts PRIMARY_PART): Sequences' list, drawn with its rows, or with
   // what could not be read. Timed from the press, so the page's own chunk and its read are in it, not the gate's frame alone.
-  // Said while it is the view shown: a move from another view of Campaigns is a page of its own begun (contracts vitalsPageOf).
+  // Said while it is the view shown (its split says it): a move from another view of Campaigns is a page of its own begun
+  // (contracts vitalsPageOf).
   const list = useSurface("sequences");
-  const as = markedAs ?? { page: "campaigns", part: "list" };
-  const mark = view?.shown !== false ? <PartShown page={as.page} part={as.part} ready={list !== undefined} /> : null;
   // A record keeps the way back it was opened with while its tabs change; the list and New say only their own.
   const held = recordBackOf(place.view === "record" ? place.id : null, place.back ?? null);
   const back = place.view === "record" ? held : (place.back ?? null);
@@ -181,16 +183,18 @@ export function SequencesPage({
       />
     ) : null;
   return (
-    <>
-      {mark}
-      <CmSplit
-        testid="sq-page"
-        className="sq-page"
-        view={view}
-        keepPane
-        list={<SequencesListPane openId={place.view === "record" ? place.id : null} />}
-        open={open}
-      />
-    </>
+    <CmSplit
+      testid="sq-page"
+      className="sq-page"
+      view={view}
+      keepPane
+      list={
+        <>
+          <PartShown page={markedAs.page} part={markedAs.part} ready={list !== undefined} />
+          <SequencesListPane openId={place.view === "record" ? place.id : null} />
+        </>
+      }
+      open={open}
+    />
   );
 }

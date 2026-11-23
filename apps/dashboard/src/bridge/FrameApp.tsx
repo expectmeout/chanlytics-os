@@ -64,7 +64,7 @@ import { audiencesOverride } from "@/surfaces/campaigns/broadcasts/audiences-sur
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { warmCampaignsCode, warmCampaignsSoon } from "@/surfaces/campaigns/home/campaigns-code";
 import { campaignsOpensOn } from "@/surfaces/campaigns/home/opening";
-import { campaignsLensOpensOn } from "@/surfaces/reports/lenses/campaigns-one-code";
+import { campaignsLensOpensOn } from "@/surfaces/reports/campaigns-one-code";
 import { warmSequenceRoute } from "@/surfaces/campaigns/sequences/verbs";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride, readRunsSoon } from "@/surfaces/calendar/runs-surface";
@@ -358,7 +358,7 @@ if (typeof window !== "undefined") {
   warmCampaignsCode(opened);
   // And the view it opens on, Sequences or another, its first draw held for its code (campaigns/home/opening.ts).
   campaignsOpensOn(opened);
-  // And Reports' Campaigns lens, whose scope's row is a chunk of its own (reports/lenses/campaigns-one-code.ts).
+  // And Reports' Campaigns lens, whose scope's row is a chunk of its own (reports/campaigns-one-code.ts).
   campaignsLensOpensOn(opened);
   warmSequenceRoute(opened);
 }

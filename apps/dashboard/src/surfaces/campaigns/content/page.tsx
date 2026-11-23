@@ -77,7 +77,7 @@ import {
   type ContentLayout,
 } from "./views";
 import { pieceBesideOf } from "./model/piece-open";
-import { libraryNow } from "./library-code";
+import { libraryNow } from "../parts/library-code";
 import { ContentWeek, WeekPlannedOpen } from "./week/week";
 import { surfaceValue } from "../../surface-values";
 

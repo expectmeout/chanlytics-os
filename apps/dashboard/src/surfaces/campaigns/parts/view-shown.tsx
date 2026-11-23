@@ -14,15 +14,16 @@ interface PartProps {
   ready: boolean;
 }
 
-let made: Context<boolean> | null | undefined;
+let shownContextMade: Context<boolean> | null | undefined;
 
 /**
  * Made the first time it is asked for, never as the module loads: the node suite's React (its react-server build) has no
  * createContext (message-pane.ts), and there every view is shown.
  */
 function shownContext(): Context<boolean> | null {
-  if (made === undefined) made = typeof createContext === "function" ? createContext(true) : null;
-  return made;
+  if (shownContextMade === undefined)
+    shownContextMade = typeof createContext === "function" ? createContext(true) : null;
+  return shownContextMade;
 }
 
 /** A view's parts told whether it is the one shown. */
@@ -40,6 +41,6 @@ function PartSaid({ page, part, ready }: PartProps): null {
 /** A part's draw, said while its view is the one shown. Draws nothing. */
 export function PartShown(props: PartProps) {
   const Shown = shownContext();
-  const shown = Shown ? use(Shown) : true;
-  return shown ? <PartSaid {...props} /> : null;
+  const onScreen = Shown ? use(Shown) : true;
+  return onScreen ? <PartSaid {...props} /> : null;
 }
