@@ -147,7 +147,7 @@ function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace"
 // Before anything below asks for it: a boot is coming (workspace.ts bootComing), so what waits for the boot waits for the one
 // the runner starts in its effect, not for none.
 bootComing();
-// And the page on screen will say when it is drawn: what other pages read waits for that too (workspace.ts drawComing). A
+// And the page on screen will say when it is drawn: what other pages read waits for that too (hearing/page-waits.ts). A
 // page with a first part (contracts PRIMARY_PART) is drawn once that part's rows are, the moment its READY is measured from:
 // its gate opened a beat before its rows were on the screen (the Calendar's board 0.15 s after its frame).
 drawComing();
@@ -370,15 +370,14 @@ import {
 } from "./surface-registry";
 import {
   bootComing,
-  drawComing,
   getActiveWorkspace,
   hearAddress,
   onRouteAsked,
-  pageDrawn,
   onRouteReachedFor,
   reachFor,
   routeOnScreen,
 } from "./workspace";
+import { drawComing, pageDrawn } from "./hearing/page-waits";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 import { SeeOverMount } from "@/surfaces/see/see-mount";
 

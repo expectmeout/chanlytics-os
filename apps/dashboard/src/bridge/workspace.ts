@@ -27,7 +27,6 @@ import {
   workspacePath,
 } from "@chanlytics/contracts";
 import { LAST_WORKSPACE_STORAGE } from "@/frame-boot";
-import { publicEnv } from "@/lib/public-env";
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";
@@ -408,42 +407,6 @@ export function bootComing(): void {
   pagesOwn.now = new Promise<void>((settle) => (pagesOwn.due = settle));
 }
 
-/**
- * Whether the page on screen goes first (the plan "Pages that open at once", piece 3): what other pages read waits for it
- * to be drawn, not only for its own reads. On unless NEXT_PUBLIC_PAGE_FIRST says off (lib/public-env.ts).
- */
-export const pageFirst = (): boolean => publicEnv.NEXT_PUBLIC_PAGE_FIRST !== "off";
-
-/** Settled once the page on screen is drawn (pageDrawn); at once where nobody said a draw is coming (drawComing). */
-const drawn: BootWait = { now: Promise.resolve(), due: null };
-
-/**
- * Said at the shell's module scope with bootComing: the page on screen will say when it is drawn. Until then, what other
- * pages read waits (surface-runner.ts), as does what is read ahead for a press (afterBoot("page")): on a first open the
- * page's reads were in while its code still loaded, and People and Campaigns began about twenty reads for other pages
- * before they drew (the phone sweep of 22 Nov 2026). Nothing waits where the switch is off.
- */
-export function drawComing(): void {
-  if (drawn.due || !pageFirst()) return;
-  drawn.now = new Promise<void>((settle) => (drawn.due = settle));
-}
-
-/**
- * The page on screen is drawn: the frame committed with its gate open on it (FrameApp). What waited for it goes once that
- * frame is painted, never in it: begun in the commit, the rest's twenty reads went out before the browser had put the page
- * on the screen (the local sweep of 23 Nov 2026), and a load's READY counted them as begun ahead of it.
- */
-export function pageDrawn(): void {
-  const due = drawn.due;
-  if (!due) return;
-  drawn.due = null;
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(due, 0));
-  else due();
-}
-
-/** Settled once the page on screen is drawn, or at once where no draw is coming. */
-export const afterDrawn = (): Promise<void> => drawn.now;
-
 /** A promise's settling, landed or not. */
 const settledOf = (p: Promise<unknown>): Promise<void> =>
   p.then(
@@ -461,15 +424,15 @@ const settledOf = (p: Promise<unknown>): Promise<void> =>
  */
 export function bootStarted(booted: Promise<unknown>, pageIn: Promise<unknown> = booted): void {
   const turn = ++bootsStarted;
-  answerFrom(boot, settledOf(booted), turn);
-  answerFrom(pagesOwn, settledOf(pageIn), turn);
+  letWaitersGo(boot, settledOf(booted), turn);
+  letWaitersGo(pagesOwn, settledOf(pageIn), turn);
 }
 
 /**
  * `wait` answers this boot's `part` from now on; what waited on the one coming goes once `part` settles, unless a later boot
  * has started by then (bootStarted).
  */
-function answerFrom(wait: BootWait, part: Promise<void>, turn: number): void {
+function letWaitersGo(wait: BootWait, part: Promise<void>, turn: number): void {
   if (!wait.due) {
     wait.now = part;
     return;

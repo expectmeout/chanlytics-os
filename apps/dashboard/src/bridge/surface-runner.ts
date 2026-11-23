@@ -39,8 +39,8 @@ import {
   type FeedWatch,
   type RealtimeChange,
 } from "./surface-realtime";
-import { bootStarted, getActiveWorkspace, onRouteAsked, pageFirst, routeOnScreen, signInHref } from "./workspace";
-import { pageDrawnIn, pageReadsIn } from "./hearing/page-waits";
+import { bootStarted, getActiveWorkspace, onRouteAsked, routeOnScreen, signInHref } from "./workspace";
+import { pageDrawnIn, pageFirst, pageReadsIn } from "./hearing/page-waits";
 import { watchTheClock } from "./hearing/clock";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
