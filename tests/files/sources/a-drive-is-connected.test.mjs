@@ -123,9 +123,147 @@ test("a connect trades the code for a grant, keeps its token in Vault and writes
     [T, "google", "google-sub-9", "owner@example.com", "ok", OWNER],
   );
   assert.ok(row.scopes.includes(DRIVE));
+  assert.equal(row.door, "watch", "a connect that names no door is a watched folder's, as every connect was");
   assert.doesNotMatch(JSON.stringify(row), /refresh-token-new|access-token-new/, "no token is on the row");
   assert.equal(w.vault.get(row.id).refresh_token, "refresh-token-new");
   assert.deepEqual(w.drive.revoked, [], "a grant that is kept is not given back");
+});
+
+/* ------------------------------------------------------------------------- the narrow door (the archive plan, B1) -- */
+
+const FILES = "https://www.googleapis.com/auth/drive.file";
+/** A grant as Google answers the narrow sign-in: who the account is, and only the files the app is given. */
+const narrowGrant = (over = {}) =>
+  grantOf({ scope: `openid https://www.googleapis.com/auth/userinfo.email ${FILES}`, ...over });
+
+test("a connect for the narrow door keeps a grant for the files the app is given, as a row of its own door", async () => {
+  fresh();
+  w.drive.grant(narrowGrant());
+  const [status, body] = await knock({ op: "connect", door: "save", code: "code-1" });
+  assert.deepEqual([status, body.resumed], [200, 0]);
+  const [row] = w.tables.source_connections;
+  assert.equal(body.connection_id, row.id);
+  assert.deepEqual(
+    [row.door, row.provider_account, row.email, row.health],
+    ["save", "google-sub-9", "owner@example.com", "ok"],
+  );
+  assert.ok(row.scopes.includes(FILES));
+  assert.equal(row.scopes.includes(DRIVE), false, "the narrow key holds nothing of the whole Drive");
+  assert.equal(w.vault.get(row.id).refresh_token, "refresh-token-new");
+  assert.deepEqual(w.drive.revoked, []);
+});
+
+test("each door refuses a grant that does not hold its own scope", async () => {
+  fresh();
+  w.drive.grant(grantOf());
+  assert.deepEqual(
+    (await knock({ op: "connect", door: "save", code: "code-1" }))[1].error,
+    "scope_missing",
+    "the wide grant",
+  );
+  w.drive.grant(narrowGrant());
+  assert.deepEqual(
+    (await knock({ op: "connect", door: "watch", code: "code-2" }))[1].error,
+    "scope_missing",
+    "the narrow one",
+  );
+  w.drive.grant(narrowGrant());
+  assert.deepEqual(
+    (await knock({ op: "connect", code: "code-3" }))[1].error,
+    "scope_missing",
+    "and with no door named",
+  );
+  assert.equal(w.tables.source_connections.length, 0);
+  assert.equal(w.vault.size, 0);
+});
+
+test("a narrow grant that came back holding the whole Drive is not kept", async () => {
+  fresh();
+  w.drive.grant(narrowGrant({ scope: `openid email ${FILES} ${DRIVE}` }));
+  const [status, body] = await knock({ op: "connect", door: "save", code: "code-1" });
+  assert.deepEqual([status, body.error, body.reason], [502, "exchange_failed", "failed"]);
+  assert.equal(w.tables.source_connections.length, 0, "a key wider than its door is no narrow key");
+  assert.equal(w.vault.size, 0);
+  assert.deepEqual(w.drive.revoked, ["refresh-token-new"], "alone, so it goes back to Google");
+});
+
+test("the narrow door leaves a watched folder's own words and folders as they are", async () => {
+  // An organisation's block is said for watching a folder: the narrow door neither writes that word nor ends it.
+  fresh();
+  w.drive.grant({ error: "admin_policy_enforced" });
+  const [status, body] = await knock({ op: "connect", door: "save", code: "code-1" });
+  assert.deepEqual([status, body.reason], [502, "blocked_by_admin"]);
+  assert.equal(w.tables.source_connections.length, 0, "no row says a folder cannot be watched");
+  w.drive.grant({ error: "admin_policy_enforced" });
+  await knock({ op: "connect", code: "code-2" });
+  w.drive.grant(narrowGrant());
+  assert.equal((await knock({ op: "connect", door: "save", code: "code-3" }))[0], 200);
+  assert.deepEqual(
+    w.tables.source_connections.map((row) => [row.door, row.health]).sort(),
+    [
+      ["save", "ok"],
+      ["watch", "blocked_by_admin"],
+    ],
+    "the watched folder's word stands until an account that may be watched connects",
+  );
+
+  // A folder paused for its own account's sign-in is not resumed by another account's narrow key.
+  w = world({
+    source: { state: "paused", stopped_why: "signed_out" },
+    tables: { google_connections: [], mailbox_connections: [] },
+  });
+  setPg(w.db);
+  w.tables.source_connections[0].health = "needs_reconnect";
+  w.drive.grant(narrowGrant());
+  const [, kept] = await knock({ op: "connect", door: "save", code: "code-4" });
+  assert.equal(kept.resumed, 0);
+  assert.deepEqual(
+    [w.source().state, w.tables.source_connections.find((row) => row.id === CONNECTION).health],
+    ["paused", "needs_reconnect"],
+  );
+});
+
+test("one Google account's two doors: the one that leaves does not take the grant with it", async () => {
+  // Within a workspace B1 still keeps one row an account (the old key stands until the step that first connects a
+  // narrow key), so the two doors stand in two workspaces here. The rule that holds a grant reads across workspaces.
+  const NARROW = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  connected({
+    tenants: [rows.tenant({ id: T }), rows.tenant({ id: OTHER, slug: "other-studio" })],
+    tenant_config: [
+      rows.config({ tenant_id: T, config: { features: { video_preview: true } } }),
+      rows.config({ tenant_id: OTHER, config: { features: { video_preview: true } } }),
+    ],
+  });
+  w.tables.source_connections.push(
+    rows.sourceConnection({
+      id: NARROW,
+      tenant_id: OTHER,
+      provider_account: "google-sub-1",
+      email: "owner@example.com",
+      door: "save",
+      credentials_ref: `source-creds-${NARROW}`,
+    }),
+  );
+  w.vault.set(NARROW, {
+    refresh_token: "refresh-token-narrow",
+    access_token: "a",
+    expires_at: Date.now() + 3_000_000,
+    scope: FILES,
+  });
+  const [, narrowLeft] = await knock({ op: "disconnect", connection_id: NARROW }, OTHER);
+  assert.deepEqual([narrowLeft.removed, narrowLeft.revoked], [true, false]);
+  assert.deepEqual(w.drive.revoked, [], "the watched folder's key rides the same account: Google is not asked");
+  assert.equal(w.vault.has(NARROW), false, "the narrow key is dropped all the same");
+  assert.deepEqual(
+    w.tables.source_connections.map((row) => [row.id, row.door]),
+    [[CONNECTION, "watch"]],
+    "and the other door's row is as it was",
+  );
+  assert.equal(w.vault.get(CONNECTION).refresh_token, "refresh-token-1");
+  // The last door to leave gives the grant back.
+  const [, wideLeft] = await knock({ op: "disconnect", connection_id: CONNECTION });
+  assert.deepEqual([wideLeft.removed, wideLeft.revoked], [true, true]);
+  assert.deepEqual(w.drive.revoked, ["refresh-token-1"]);
 });
 
 test("a workspace that does not take videos yet is not connected, and Google is not asked", async () => {

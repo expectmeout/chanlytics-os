@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import { DbFailure, type SchemaSet, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, type SchemaSet, type SourceDoor, type TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
 import { platformWide } from "../../shared/tenant-db";
@@ -57,12 +57,20 @@ export async function findGoogleSourceConnectionOfAccount(
   return data;
 }
 
-/** A workspace's connected accounts, oldest first. */
-export async function listSourceConnectionsOf(db: Db, tenantId: TenantId): Promise<SourceConnectionRow[]> {
+/**
+ * A workspace's connected accounts for one door, oldest first (00683): the accounts its folders are watched through,
+ * or the ones whose narrow key chooses and saves. A screen about one door never lists the other's.
+ */
+export async function listSourceConnectionsOf(
+  db: Db,
+  tenantId: TenantId,
+  door: SourceDoor,
+): Promise<SourceConnectionRow[]> {
   const { data, error } = await db
     .from("source_connections")
     .select("*")
     .eq("tenant_id", tenantId)
+    .eq("door", door)
     .order("connected_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the workspace's footage accounts");
   return data;
@@ -85,8 +93,9 @@ export async function findSourceConnection(
 }
 
 /**
- * A connected account written: one row an account in a workspace (source_connections_one_account), so a reconnect
- * writes over its own row and keeps its id, its folders and their items.
+ * A connected account written: one row an account and a door in a workspace (source_connections_one_account_a_door,
+ * 00683), so a reconnect of a door writes over its own row, keeps its id, its folders and their items, and touches no
+ * other door's.
  */
 export async function saveSourceConnection(
   db: Db,
@@ -95,13 +104,14 @@ export async function saveSourceConnection(
     provider_account: string;
     email: string;
     scopes: string[];
+    door: SourceDoor;
     connected_by: string | null;
     connected_at: string;
   },
 ): Promise<SourceConnectionRow> {
   const { data, error } = await db
     .from("source_connections")
-    .upsert({ ...row, provider: "google", health: "ok" }, { onConflict: "tenant_id,provider,provider_account" })
+    .upsert({ ...row, provider: "google", health: "ok" }, { onConflict: "tenant_id,provider,provider_account,door" })
     .select("*")
     .single();
   if (error) throw new DbFailure(error, "cannot keep the footage account");
@@ -110,7 +120,8 @@ export async function saveSourceConnection(
 
 /**
  * An account its organisation would not let be read, said: one row a workspace that names no account (the provider
- * gives none), found again by the next refusal rather than written twice.
+ * gives none), found again by the next refusal rather than written twice. It is a watched folder's word: the row's door
+ * is `watch`, the column's own default.
  */
 export async function saveBlockedSourceConnection(
   db: Db,
@@ -122,6 +133,7 @@ export async function saveBlockedSourceConnection(
     .eq("tenant_id", params.tenantId)
     .eq("provider", "google")
     .eq("health", "blocked_by_admin")
+    .eq("door", "watch")
     .is("provider_account", null)
     .limit(1)
     .maybeSingle();
@@ -133,6 +145,7 @@ export async function saveBlockedSourceConnection(
       tenant_id: params.tenantId,
       provider: "google",
       health: "blocked_by_admin",
+      door: "watch",
       connected_by: params.by,
       connected_at: params.at,
     })

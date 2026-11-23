@@ -191,6 +191,7 @@ const DEFAULTS = {
     email: "sam@getharbor.example",
     scopes: [],
     health: "ok",
+    door: "watch",
     connected_at: AT,
     created_at: AT,
     updated_at: AT,

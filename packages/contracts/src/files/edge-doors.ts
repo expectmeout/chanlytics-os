@@ -1,7 +1,7 @@
 /** The edge's doors for a workspace's files, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
 import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
-import { SOURCE_REFUSALS } from "./sources";
+import { SOURCE_DOORS, SOURCE_REFUSALS } from "./sources";
 
 /** A box in a shown picture's pixels (left, top, right, bottom), and the size it was shown at. */
 const BOX = z.tuple([z.number(), z.number(), z.number(), z.number()]);
@@ -136,6 +136,8 @@ export const SOURCES_DOOR = edgeDoor(
     /** A connect: Google's code, and PKCE's verifier where the consent was asked with its challenge. */
     code: z.string().max(4096).optional(),
     code_verifier: z.string().optional(),
+    /** A connect: which door the grant is for (00683). Left out, it is a watched folder's, as every connect was. */
+    door: z.enum(SOURCE_DOORS).optional(),
     connection_id: DOOR_ID.optional(),
     source_id: DOOR_ID.optional(),
     /** Where the chooser looks: the account's own Drive, its shared drives, what was shared with it, or a folder opened. */

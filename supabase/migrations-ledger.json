@@ -684,6 +684,7 @@
     "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
     "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75",
     "00681_a_post_goes_up_on_the_new_records.sql": "6e273bfa90b2fa00a159b5ff7e19e271372931c9e7d07ff4cf331d6c8b65f091",
-    "00682_a_post_comes_down.sql": "536ca03032d26ad77155eaa7cc9a582d79b806f59f2cfd9bf38f61cf76c46f3c"
+    "00682_a_post_comes_down.sql": "536ca03032d26ad77155eaa7cc9a582d79b806f59f2cfd9bf38f61cf76c46f3c",
+    "00683_a_file_says_where_its_copies_are.sql": "4d897d1b552f5128b7897fde5ed5e6d8f387203975f9f2055c138528ec514de2"
   }
 }

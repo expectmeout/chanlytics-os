@@ -255,6 +255,16 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(WITH_WORKSPACE, "name", "added_by"),
     ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "walk_page"),
   },
+  // Where a file's copies are (00683). The Google account whose Drive holds a copy is the member's who connected it,
+  // and leaves with the workspace, as a connection's does. Drive's ids for the folder and for a file in it, a piece's
+  // key on the shelf and its checksums name nobody (the states, origins, pieces and reasons are closed sets). A copy
+  // the owner saved to their own Drive is theirs to delete there: an erasure removes the file here, and its rows with it.
+  archive_folders: {
+    google_account: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "folder_id", "made_folder_id", "added_folder_id"),
+  },
+  file_archives: { google_account: WITH_WORKSPACE },
+  file_archive_parts: all(NOT_PERSONAL, "drive_file_id", "shelf_key", "md5", "sha256"),
   // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
   // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.
   business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),
