@@ -253,7 +253,7 @@ test("nine public PREFIXES, and only a workspace's own pages and forms, a form's
   // forgotten), holds a doubtful send for a look instead of telling anyone, and takes the same press once. It never
   // takes a yes to offers, sends nothing to anyone, and is limited per sender and per form (form-page.ts;
   // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and beside it the way to the business's own
-  // booking page (00688, F3): it counts an open of that page for the form's day and sends the visitor there. It reads
+  // booking page (00691, F3): it counts an open of that page for the form's day and sends the visitor there. It reads
   // nothing but the workspace's own booking link, writes nothing but the count, and lands nowhere else
   // (tests/forms/time/a-visitor-asks-for-a-time.test.mjs).
   assert.deepEqual(

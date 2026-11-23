@@ -23,7 +23,7 @@ export const GET = read({
  * POST /api/v1/forms/requests: one press on a request. Its reply sent (`reply`: queued as a member's first message
  * is, with its seconds to take it back, and kept as what answered this request), a member's word that it was answered
  * another way (`mark`) and that word taken back (`unmark`), a request that is not a real one held (`hold`), a held
- * entry let through (`let_through`), or the time it asked for answered (`book`, `cant`: 00688, F3), as a chat's is,
+ * entry let through (`let_through`), or the time it asked for answered (`book`, `cant`: 00691, F3), as a chat's is,
  * with Booked it's reply answered for the member to send. The reply keeps its own key for one press of Send (decision
  * 0035). An owner, an operator or a partner.
  */

@@ -75,7 +75,7 @@ function spread<T>(all: readonly T[], most: number): T[] {
  * The times a form offers from the openings (contracts freeWindows: already past the business's least notice, on its
  * grid, its booking rules kept): each window's starts a slot apart that leave a slot before it closes, the first
  * `days` days that have any, at most `perDay` a day spread over it, said in the form's language on the business's
- * clock. A start an hour away or less is never offered: such a time is held for nobody (00688).
+ * clock. A start an hour away or less is never offered: such a time is held for nobody (00691).
  */
 export function formTimesOf(
   openings: readonly OpenDay[],

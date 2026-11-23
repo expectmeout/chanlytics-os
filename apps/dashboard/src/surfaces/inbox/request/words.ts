@@ -102,7 +102,7 @@ export const REQUEST_WORDS = {
   },
   failed: "That didn't go through. Nothing was sent.",
   /**
-   * The time a request asked for (00688; the canvas's board "Ask for a time: you confirm it"): answered as a time asked
+   * The time a request asked for (00691; the canvas's board "Ask for a time: you confirm it"): answered as a time asked
    * in a chat is, Booked it or Can't, and then told to them from here. The two presses' own words are contracts'
    * (BOOKING_REQUEST_WORDS), as Today's, the thread's and the Calendar's are.
    */

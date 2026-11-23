@@ -178,7 +178,7 @@ the migration, logs that it could not read what is due (`booking_request_clock_f
 The Forms plan's step F3 (`Claude Video/docs/2026-11-21-forms-plan.md`, Ruben's call 8 of 22 November 2026): a
 request form's "when" question follows the workspace's own booking setting, the one this note's point 2 reads. Where
 the team confirms its own bookings it shows the real open times, and a time a visitor picks is this note's request,
-opened by migration 00688's `form_time_request_take` in the same transaction as the form's entry.
+opened by migration 00691's `form_time_request_take` in the same transaction as the form's entry.
 
 1. **The same row, held the same way.** A `proposed` row, source `receptionist`, held until the sooner of 23 hours
    on and an hour before its time; refused an hour away or less (the entry is then kept as a plain request); one open

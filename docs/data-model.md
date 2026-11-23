@@ -1741,7 +1741,7 @@ Foreign keys:
 
 ### form_days
 
-What a form brought by day (UTC) that is no entry (00688): how often the business's own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.
+What a form brought by day (UTC) that is no entry (00691): how often the business's own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.
 
 - Owned by: none
 - Primary key: `form_id`, `day`

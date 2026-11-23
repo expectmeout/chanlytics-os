@@ -131,7 +131,7 @@ export interface OpenFormRequest {
   heading: string | null;
   /** A reply to it failed to reach them. */
   unreached: boolean;
-  /** The time it asked for, as its visit stands now (00688, F3), or null where it asked for none. */
+  /** The time it asked for, as its visit stands now (00691, F3), or null where it asked for none. */
   time: OpenFormRequestTime | null;
 }
 
@@ -407,7 +407,7 @@ export interface FormPlaceResult {
   /** The people who asked: one person with two requests is one. */
   people: number;
   newPeople: number;
-  /** The requests that asked for a time (00688, F3). */
+  /** The requests that asked for a time (00691, F3). */
   asked: number;
 }
 
@@ -446,7 +446,7 @@ export async function readFormResults(
     }
     return by;
   };
-  // Each link's opens; and each form's business's own booking page, opened from it (00688).
+  // Each link's opens; and each form's business's own booking page, opened from it (00691).
   return { places, opens: countsBy(row.opens, "link_id"), bookingOpens: countsBy(row.booking_opens, "form_id") };
 }
 

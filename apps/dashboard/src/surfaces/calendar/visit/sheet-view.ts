@@ -340,7 +340,7 @@ function footnoteOf(visitSheetInput: VisitSheetInput, nobody: boolean): string {
   const block = visitSheetInput.block;
   if (nobody) return SHEET_WORDS.foot.nobody(visitSheetInput.source);
   // A time a customer picked by text is on no calendar: answered here or in its thread, and said so after (decision 0061).
-  // One asked for on a form holds no thread: it is answered here or on its request (00688).
+  // One asked for on a form holds no thread: it is answered here or on its request (00691).
   if (block.request) return requestFootOf(block.request, block.visit?.status === "cancelled");
   const status = block.visit?.status;
   if (block.tool) {

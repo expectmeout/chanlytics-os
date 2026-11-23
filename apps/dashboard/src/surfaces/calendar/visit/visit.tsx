@@ -300,7 +300,7 @@ function handOff(c: VisitCtx, open: () => void): void {
 }
 
 /**
- * A time asked for on a form, answered from its visit (00688): the same answer, on its request, which holds no thread.
+ * A time asked for on a form, answered from its visit (00691): the same answer, on its request, which holds no thread.
  * Either way the request is opened next, where its reply is drafted for the member to send.
  */
 function answerFormVisit(c: VisitCtx, entryId: string, booked: boolean): void {

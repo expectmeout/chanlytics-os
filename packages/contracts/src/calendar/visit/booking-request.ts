@@ -187,7 +187,7 @@ export const BOOKING_REQUEST_WORDS = {
   footCant: "Asked for by text · you couldn't take it",
   /** Its foot where nobody answered before it ran out (decision 0061, as amended 22 Nov 2026). */
   footLapsed: "Asked for by text · not confirmed in time",
-  /** A time asked for on a form (00688): answered here or on its request, which holds no thread to change it in. */
+  /** A time asked for on a form (00691): answered here or on its request, which holds no thread to change it in. */
   footForm: "Requested on a form · Booked it or Can't",
   footFormBooked: "Booked from a form · tell them from their request",
   footFormCant: "Asked for on a form · you couldn't take it",

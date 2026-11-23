@@ -10,7 +10,7 @@
  * The reply leaves by the route's one door and waits its seconds with Undo, as every message a member begins does. A
  * press that fails says so and changes nothing here.
  *
- * A request that asked for a time (00688) is answered Booked it or Can't first, as a time asked in a chat is: no reply
+ * A request that asked for a time (00691) is answered Booked it or Can't first, as a time asked in a chat is: no reply
  * is drafted while the time waits on that answer. Once it is answered, or its day has passed, AI's reply is told what
  * became of it (booked, or not, with the business's next open times), and where AI drafts nothing by itself the words
  * are there all the same: the house's own sentence for a booking, or the offer of other times.
@@ -208,7 +208,7 @@ export interface RequestPage {
   unmark: () => void;
   hold: () => void;
   letThrough: () => void;
-  /** The time it asked for, answered (00688): Booked it, or Can't. */
+  /** The time it asked for, answered (00691): Booked it, or Can't. */
   book: () => void;
   cant: () => void;
 }

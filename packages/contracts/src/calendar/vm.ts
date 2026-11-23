@@ -66,7 +66,7 @@ export interface CalendarBlockVM {
   visit: VisitMark | null;
   /**
    * A time a customer picked by text (decision 0061): the thread Booked it or Can't answers it in, while it is open; or
-   * one asked for on a form (00688), answered on its request (`entryId`), which holds no thread.
+   * one asked for on a form (00691), answered on its request (`entryId`), which holds no thread.
    */
   request?: { threadId: string | null; entryId?: string; open: boolean; lapsed?: boolean } | null;
   /** The lead its person was found as, and its sequence (CalendarItemDto.origin): the sheet's row and its door. */

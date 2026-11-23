@@ -11709,7 +11709,7 @@ end $$;
 -- Name: FUNCTION form_booking_open(p_tenant_id uuid, p_form_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) IS 'One more open of the business''s own booking page from a live form, on its day (00688; the Forms plan, F3): true when counted, false for a form that is not live. The service role''s alone; the page never counts a preview.';
+COMMENT ON FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) IS 'One more open of the business''s own booking page from a live form, on its day (00691; the Forms plan, F3): true when counted, false for a form that is not live. The service role''s alone; the page never counts a preview.';
 
 
 --
@@ -12497,7 +12497,7 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
     AS $$
   -- A request is open until a link answers it: a member's word, a conversation that took it over, or a reply whose
   -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list. A request that
-  -- asked for a time says the time as its visit stands now (00688).
+  -- asked for a time says the time as its visit stands now (00691).
   select coalesce(jsonb_agg(r.line order by r.created_at desc), '[]'::jsonb)
     from (
       select e.created_at,
@@ -12542,7 +12542,7 @@ $$;
 -- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s hosted forms nobody has answered (00680, 00688; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: each with its answers, who it is about as typed, its form''s heading, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now (time: null where it asked for none). Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back.';
+COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s hosted forms nobody has answered (00680, 00691; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: each with its answers, who it is about as typed, its form''s heading, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now (time: null where it asked for none). Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back.';
 
 
 --
@@ -12557,8 +12557,8 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
     select now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 366))) as since
   ), asked as (
     -- Each request in the window: whether its person was new with it, whether it became a conversation (a reply that
-    -- left, or their own message with its code), whether it asked for a time (00688), and whether a visit followed:
-    -- the time it asked for, confirmed (00688), or by the rule an ad's is read by (00678), a visit asked for in a chat
+    -- left, or their own message with its code), whether it asked for a time (00691), and whether a visit followed:
+    -- the time it asked for, confirmed (00691), or by the rule an ad's is read by (00678), a visit asked for in a chat
     -- and confirmed there, or one a member added, made after the request and starting after.
     select e.form_id, e.link_id, e.contact_id,
            c.created_at > e.created_at - interval '1 minute' as new_person,
@@ -12625,7 +12625,7 @@ $$;
 -- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s hosted forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680, 00688): by form and by the link each request came through (link_id null: none), the requests, how many asked for a time (asked), how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; each link''s opens; and how often each form''s business''s own booking page was opened from it (booking_opens). Held entries and tests are in no count.';
+COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s hosted forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680, 00691): by form and by the link each request came through (link_id null: none), the requests, how many asked for a time (asked), how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; each link''s opens; and how often each form''s business''s own booking page was opened from it (booking_opens). Held entries and tests are in no count.';
 
 
 --
@@ -12721,7 +12721,7 @@ end $$;
 -- Name: FUNCTION form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00688; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
+COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
 
 
 --
@@ -47577,7 +47577,7 @@ CREATE TABLE public.form_days (
 -- Name: TABLE form_days; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.form_days IS 'What a form brought by day (UTC) that is no entry (00688): how often the business''s own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.';
+COMMENT ON TABLE public.form_days IS 'What a form brought by day (UTC) that is no entry (00691): how often the business''s own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.';
 
 
 --

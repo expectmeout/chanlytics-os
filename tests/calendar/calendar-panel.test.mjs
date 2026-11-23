@@ -476,7 +476,7 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
   assert.ok(!lapsed.more.some((m) => m.act === "cant"));
 });
 
-test("(00688) a time asked for on a form is drawn and answered as a chat's is, on its request, and says it came from a form", async () => {
+test("(00691) a time asked for on a form is drawn and answered as a chat's is, on its request, and says it came from a form", async () => {
   const { itemOfAppointment } = await import("@chanlytics/contracts");
   // A form's request holds no thread: the board names it from the request it was asked for from.
   const row = {

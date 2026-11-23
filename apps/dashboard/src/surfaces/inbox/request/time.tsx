@@ -1,5 +1,5 @@
 /**
- * The time a request asked for (00688; the canvas's board "Ask for a time: you confirm it"): its day on a square, its
+ * The time a request asked for (00691; the canvas's board "Ask for a time: you confirm it"): its day on a square, its
  * hours and what it is for, and how long it is held; answered Booked it or Can't, as a time asked in a chat is, by the
  * same door. A time someone else was booked for since says so and leads with Can't. One past its day is never booked
  * blind: it says so, and the reply below offers what is open now. Nothing reaches them by either press: the reply

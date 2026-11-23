@@ -46,7 +46,7 @@ export interface AppointmentLike {
   /** The thread a request the receptionist took came from (00443): where it is answered. */
   conversation_id?: string | null;
   /**
-   * The form request a request with no thread was asked for from (00688, the Forms plan's F3): where it is answered.
+   * The form request a request with no thread was asked for from (00691, the Forms plan's F3): where it is answered.
    * Read beside the row (form_entry_links kind visit); absent where the reader did not ask.
    */
   form_entry_id?: string | null;
@@ -221,7 +221,7 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     staff: row.staff,
     price: row.price,
     visit: visitMarkOf(row),
-    // A time a customer picked by text, or on a form (00688): answered in its thread, or on the form's request, Booked it
+    // A time a customer picked by text, or on a form (00691): answered in its thread, or on the form's request, Booked it
     // or Can't, while it is open (decision 0061).
     ...(row.source === "receptionist" && (row.conversation_id || row.form_entry_id)
       ? {

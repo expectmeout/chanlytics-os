@@ -111,7 +111,7 @@ export interface CalendarItemDto {
    */
   visit?: VisitMark | null;
   /**
-   * A time a customer picked by text (00443, decision 0061), or on a form (00688): the thread it is answered in, or for
+   * A time a customer picked by text (00443, decision 0061), or on a form (00691): the thread it is answered in, or for
    * a form's the request it was asked from (`entry_id`, with no thread), and whether it waits on an answer.
    */
   request?: { thread_id: string | null; entry_id?: string; open: boolean; lapsed?: boolean } | null;

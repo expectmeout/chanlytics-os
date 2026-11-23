@@ -7,7 +7,7 @@
  * chat they already have while it is open; a number alone waits for their own message; someone who asked not to be
  * messaged is sent nothing, in the door's own words; an address that is not the one on their page waits for a pick.
  * Every open request has two quiet presses under it: answered another way, or not a real request. A request that asked
- * for a time (00688) leads with it, answered Booked it or Can't (time.tsx) before its reply.
+ * for a time (00691) leads with it, answered Booked it or Can't (time.tsx) before its reply.
  */
 // AI's three at work are Files' own drawing (files/looking.tsx AskLooking): its rules load with the request's page.
 import "../../files/files.css";

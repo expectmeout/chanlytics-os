@@ -3,7 +3,7 @@ import "server-only";
 /**
  * A press on one request (00680; the Forms plan, 3.5): its reply sent, a member's word that it was answered another
  * way (and that word taken back), a request that is not a real one held, a held entry let through, and the time it
- * asked for answered Booked it or Can't (00688, F3: request-time.ts).
+ * asked for answered Booked it or Can't (00691, F3: request-time.ts).
  *
  * The reply leaves by the doors every message leaves by: core's beginConversation opens the person's one thread where
  * they have none and queues the message as a reply is queued, with its seconds to take it back, and what the person
