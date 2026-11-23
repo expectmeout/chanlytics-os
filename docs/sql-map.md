@@ -617,7 +617,7 @@ being read is dropped by a migration.
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
-| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699; |
+| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00705; |
 | `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00699): |
 | `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00699): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
