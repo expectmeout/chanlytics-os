@@ -14961,6 +14961,10 @@ export type Database = {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
       }
+      setup_rows: {
+        Args: { p_roster: boolean; p_tenant_id: string }
+        Returns: Json
+      }
       slug_for_workspace: { Args: { p_name: string }; Returns: string }
       sms_sweep_text_canary: { Args: never; Returns: number }
       sms_sweep_texts: { Args: never; Returns: number }
