@@ -4066,7 +4066,7 @@ Foreign keys:
 
 ### remediation_actions
 
-One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. Members read.
+One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. A post a place left to its owner to delete, which the owner chose to leave up, says left_up, with who (00689). Members read.
 
 - Owned by: `packages/db/src/repositories/files/take-down.ts`
 - Primary key: `id`
@@ -4084,9 +4084,11 @@ One action a remediation started on one thing it reached (00676; the content loo
 | `said` | text | yes |  |  |
 | `started_at` | timestamp with time zone | no | `now()` |  |
 | `finished_at` | timestamp with time zone | yes |  |  |
+| `left_up_by` | uuid | yes |  | Who chose to leave the post up, on an action that says left_up (00689; the content loop PRD's 8.3, "Keep it up"). When is finished_at. Null on every other action, and once that member is gone. |
 
 Foreign keys:
 
+- `left_up_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `remediation_id` → [`remediations`](#remediations) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 

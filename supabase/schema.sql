@@ -29733,6 +29733,10 @@ begin
   if v_action.outcome = 'pending' then
     return jsonb_build_object('fate', 'asking');
   end if;
+  -- Left up by the owner's own word (00689): nothing is asked of the place until Take down is pressed again.
+  if v_action.outcome = 'left_up' then
+    return jsonb_build_object('fate', 'left_up');
+  end if;
   -- It waits again: the place is asked whether the post is gone, and the answer settles it.
   update public.remediation_actions r set outcome = 'pending', finished_at = null where r.id = v_action.id;
   update public.remediations m set finished_at = null where m.id = v_action.remediation_id;
@@ -29748,7 +29752,84 @@ end $$;
 -- Name: FUNCTION post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), left_up (the owner chose to leave it up, 00689: nothing is asked), unknown}.';
+
+
+--
+-- Name: post_take_down_keep(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_post public.posts;
+  v_answer jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- The newest take-down of this post: the one a press on its line speaks of.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  -- Still being asked: there is nothing the place left to the owner yet.
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  v_answer := jsonb_build_object('fate', 'left_up', 'post_id', v_post.id, 'file_id', v_post.file_id,
+                                 'place', v_post.place);
+  -- Said once: a second press, or a second owner's, keeps the first one's name and time.
+  if v_action.outcome = 'left_up' then
+    return v_answer;
+  end if;
+  if v_post.status is distinct from 'published' then
+    return jsonb_build_object('fate', 'not_up');
+  end if;
+  -- Every ask of this post that a place left to the owner is answered by the owner's word: the newest, and any older
+  -- take-down of it that was never finished (Take down pressed again before the first was deleted by hand). Nothing
+  -- of this post is then left for Today to name. Their remediations are finished already: each was, the moment its
+  -- place answered (post_take_down_settle), and an action that is not pending never holds one open.
+  update public.remediation_actions r
+     set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+     and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
+  -- The bell's line for this piece at this place (apps/edge post-told.ts: "Delete it in Instagram · <the piece>",
+  -- about the file) is closed here, for every device. Its words are contracts TAKE_DOWN_BELL.byHand, which a test
+  -- holds to this literal; a place the bell has no name for closes nothing.
+  update public.notifications n set closed_at = now()
+   where n.tenant_id = p_tenant_id and n.kind = 'post_by_hand'
+     and n.subject_type = 'file' and n.subject_id = v_post.file_id::text
+     and n.closed_at is null
+     and n.title like 'Delete it in '
+                      || case v_post.place when 'instagram' then 'Instagram' when 'google' then 'Google' end
+                      || ' · %';
+  return v_answer;
+end $$;
+
+
+--
+-- Name: FUNCTION post_take_down_keep(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes, and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
 
 
 --
@@ -50991,8 +51072,10 @@ CREATE TABLE public.remediation_actions (
     said text,
     started_at timestamp with time zone DEFAULT now() NOT NULL,
     finished_at timestamp with time zone,
+    left_up_by uuid,
     CONSTRAINT remediation_actions_act_check CHECK ((act = ANY (ARRAY['cancel'::text, 'pause'::text, 'take_down'::text]))),
-    CONSTRAINT remediation_actions_outcome_check CHECK ((outcome = ANY (ARRAY['done'::text, 'pending'::text, 'blocked'::text, 'not_possible'::text, 'needs_person'::text]))),
+    CONSTRAINT remediation_actions_left_up_by CHECK (((left_up_by IS NULL) OR (outcome = 'left_up'::text))),
+    CONSTRAINT remediation_actions_outcome_check CHECK ((outcome = ANY (ARRAY['done'::text, 'pending'::text, 'blocked'::text, 'not_possible'::text, 'needs_person'::text, 'left_up'::text]))),
     CONSTRAINT remediation_actions_said_check CHECK (((char_length(said) >= 1) AND (char_length(said) <= 300))),
     CONSTRAINT remediation_actions_settled CHECK (((outcome = 'pending'::text) = (finished_at IS NULL))),
     CONSTRAINT remediation_actions_target_type_check CHECK ((target_type = ANY (ARRAY['post'::text, 'ad'::text, 'scheduled_post'::text])))
@@ -51003,7 +51086,14 @@ CREATE TABLE public.remediation_actions (
 -- Name: TABLE remediation_actions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.remediation_actions IS 'One action a remediation started on one thing it reached (00676; the content loop PRD''s 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place''s own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad''s is settled by ads_settle_remediation as its row learns what the platform holds. Members read.';
+COMMENT ON TABLE public.remediation_actions IS 'One action a remediation started on one thing it reached (00676; the content loop PRD''s 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place''s own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad''s is settled by ads_settle_remediation as its row learns what the platform holds. A post a place left to its owner to delete, which the owner chose to leave up, says left_up, with who (00689). Members read.';
+
+
+--
+-- Name: COLUMN remediation_actions.left_up_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.remediation_actions.left_up_by IS 'Who chose to leave the post up, on an action that says left_up (00689; the content loop PRD''s 8.3, "Keep it up"). When is finished_at. Null on every other action, and once that member is gone.';
 
 
 --
@@ -56416,6 +56506,13 @@ CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (te
 
 
 --
+-- Name: remediation_actions_left_up_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX remediation_actions_left_up_by ON public.remediation_actions USING btree (left_up_by) WHERE (left_up_by IS NOT NULL);
+
+
+--
 -- Name: remediation_actions_pending_by_target; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56426,7 +56523,7 @@ CREATE INDEX remediation_actions_pending_by_target ON public.remediation_actions
 -- Name: remediation_actions_take_downs_open; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX remediation_actions_take_downs_open ON public.remediation_actions USING btree (tenant_id, started_at DESC) WHERE ((act = 'take_down'::text) AND (outcome <> 'done'::text));
+CREATE INDEX remediation_actions_take_downs_open ON public.remediation_actions USING btree (tenant_id, started_at DESC) WHERE ((act = 'take_down'::text) AND (outcome <> 'done'::text) AND (outcome <> 'left_up'::text));
 
 
 --
@@ -61132,6 +61229,14 @@ ALTER TABLE ONLY public.rehearsals
 
 ALTER TABLE ONLY public.rehearsals
     ADD CONSTRAINT rehearsals_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: remediation_actions remediation_actions_left_up_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediation_actions
+    ADD CONSTRAINT remediation_actions_left_up_by_fkey FOREIGN KEY (left_up_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -68828,6 +68933,15 @@ GRANT ALL ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uu
 REVOKE ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_take_down_keep(p_tenant_id uuid, p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) TO service_role;
 
 
 --
