@@ -58,6 +58,12 @@
       "import": "./src/repositories/console/index.ts",
       "default": "./src/repositories/console/index.ts"
     },
+    "./content": {
+      "types": "./src/repositories/content/index.ts",
+      "bundled": "./dist/content.js",
+      "import": "./src/repositories/content/index.ts",
+      "default": "./src/repositories/content/index.ts"
+    },
     "./conversations": {
       "types": "./src/repositories/conversations/index.ts",
       "bundled": "./dist/conversations.js",

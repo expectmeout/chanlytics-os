@@ -53,7 +53,9 @@ export type FenceTag =
   | "places"
   | "note"
   | "page"
-  | "ad";
+  | "ad"
+  | "post"
+  | "comment";
 
 /**
  * What a reader cannot see and a model can read: every format character (Unicode's Cf), which is the zero-width ones,

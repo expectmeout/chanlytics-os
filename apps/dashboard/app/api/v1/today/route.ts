@@ -37,6 +37,7 @@ export const GET = read({
         previews_tried: r.previewsTried,
         form_requests: r.formRequests,
         form_held: r.formHeld,
+        comments: r.comments,
         done_today: done,
         word,
         ai: r.ai,

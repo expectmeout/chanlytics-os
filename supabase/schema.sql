@@ -3739,6 +3739,62 @@ COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uui
 
 
 --
+-- Name: appointments_through_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_through_stamp() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_type text;
+  v_id   uuid;
+  v_at   timestamptz;
+  v_made timestamptz := coalesce(NEW.created_at, now());
+begin
+  if NEW.conversation_id is null or NEW.source not in ('receptionist', 'person') or NEW.through_type is not null then
+    return NEW;
+  end if;
+  -- The latest touch of this conversation in the 72 hours before: a post's (touches), or an ad's (a message that came
+  -- from an ad, in Ads' own home).
+  select x.subject_type, x.subject_id, x.at into v_type, v_id, v_at
+    from (
+      select t.subject_type, t.subject_id, t.at
+        from public.touches t
+       where t.tenant_id = NEW.tenant_id and t.conversation_id = NEW.conversation_id and t.contact_id is not null
+         and t.at <= v_made and t.at > v_made - interval '72 hours'
+      union all
+      select 'ad', e.ad_id, m.created_at
+        from public.ad_entries e
+        join public.messages m on m.tenant_id = e.tenant_id and m.id = e.message_id
+       where e.tenant_id = NEW.tenant_id and m.conversation_id = NEW.conversation_id and e.ad_id is not null
+         and m.created_at <= v_made and m.created_at > v_made - interval '72 hours'
+    ) x
+   order by x.at desc
+   limit 1;
+  if v_id is null then
+    return NEW;
+  end if;
+  -- Another visit asked for or added in this conversation since that touch: the touch led to that one, not this.
+  if exists (select 1 from public.appointments a
+              where a.tenant_id = NEW.tenant_id and a.conversation_id = NEW.conversation_id
+                and a.created_at > v_at and a.created_at <= v_made) then
+    return NEW;
+  end if;
+  NEW.through_type := v_type;
+  NEW.through_id := v_id;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_through_stamp(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_through_stamp() IS 'What a visit answered, stamped before it is written (00699; Appendix A.7, call 39): for a visit asked for (receptionist) or added by a member (person) in a conversation, the subject of the latest touch of that conversation in the 72 hours before (a post''s touch, or a message that came from an ad), provided no other visit was asked for or added there since that touch. One rule, the same whoever books; AI does not choose it. At the insert only.';
+
+
+--
 -- Name: appointments_worth_stamp(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6451,6 +6507,157 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.clear_control_of_departed_member() IS 'A member removed from a workspace stops being responsible for its threads and stops holding any. Without this, a departed colleague went on owning conversations that then sat in nobody''s queue, and the door went on refusing the receptionist''s drafts on their behalf for ever.';
+
+
+--
+-- Name: comment_answer_draft_keep(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if (nullif(btrim(coalesce(p_draft, '')), '') is null) = (nullif(btrim(coalesce(p_cannot_why, '')), '') is null) then
+    raise exception 'comment_answer_draft_keep: a draft, or why there is none' using errcode = '22023';
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, draft, cannot_why)
+  values (p_tenant_id, p_touch_id,
+          case when nullif(btrim(coalesce(p_draft, '')), '') is null then 'cannot' else 'drafted' end,
+          nullif(btrim(coalesce(p_draft, '')), ''), nullif(btrim(coalesce(p_cannot_why, '')), ''))
+  on conflict (tenant_id, touch_id) do update
+    set state = excluded.state, draft = excluded.draft, cannot_why = excluded.cannot_why, updated_at = now()
+    where comment_answers.state in ('drafted', 'cannot');
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) IS 'AI''s draft of a public answer to a comment, or why it could not answer it safely (00699). Never over an answer that was sent or is on its way. True when it wrote. The service role''s: comment_reply''s.';
+
+
+--
+-- Name: comment_answer_leave(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_leave: not a member who may act here' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment') then
+    raise exception 'comment_answer_leave: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  if p_left then
+    -- Left as it stands: AI's draft and its reason are kept, for an answer after all.
+    insert into public.comment_answers (tenant_id, touch_id, state)
+    values (p_tenant_id, p_touch_id, 'left')
+    on conflict (tenant_id, touch_id) do update
+      set state = 'left', updated_at = now()
+      where comment_answers.state in ('drafted', 'cannot', 'failed');
+  else
+    update public.comment_answers a
+       set state = case when a.draft is not null then 'drafted' when a.cannot_why is not null then 'cannot' end,
+           updated_at = now()
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left'
+       and (a.draft is not null or a.cannot_why is not null);
+    -- Left before AI wrote anything: back to no answer at all.
+    delete from public.comment_answers a
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  return jsonb_build_object('state', v_state);
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) IS 'A comment left unanswered by the owner, or answered after all (00699; the content loop PRD''s 12.4): left, it is no point on Today and nothing is posted under it; AI''s draft and its reason are kept, and come back. An answer on its way or up is not left. {state}: where it stands now, null for none. A member who may act (is_acting_member).';
+
+
+--
+-- Name: comment_answer_send(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_words text := nullif(btrim(coalesce(p_words, '')), '');
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_send: not a member who may act here' using errcode = '42501';
+  end if;
+  if v_words is null or char_length(v_words) > 2200 then
+    raise exception 'comment_answer_send: an answer of 1 to 2,200 characters' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment'
+                    and t.contact_id is not null) then
+    raise exception 'comment_answer_send: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  if v_state in ('sending', 'sent') then
+    return jsonb_build_object('sent', false, 'state', v_state);
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, words, sent_by)
+  values (p_tenant_id, p_touch_id, 'sending', v_words, auth.uid())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sending', words = excluded.words, sent_by = excluded.sent_by, said = null, updated_at = now();
+  insert into public.jobs (tenant_id, kind, payload, due_at)
+  values (p_tenant_id, 'comment_reply',
+          jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
+                             'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
+          now());
+  return jsonb_build_object('sent', true, 'state', 'sending');
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) IS 'The owner''s words sent as the business''s public answer to a comment (00699; the content loop PRD''s 12.4, call 27): kept as on its way and its job written (comment_reply, step send), in one transaction. An answer on its way or sent is not sent twice. {sent, state}. A member who may act (is_acting_member).';
+
+
+--
+-- Name: comment_answer_settle(uuid, uuid, boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.comment_answers a
+     set state = case when p_sent then 'sent' else 'failed' end,
+         external_id = case when p_sent then nullif(btrim(coalesce(p_external_id, '')), '') else a.external_id end,
+         said = case when p_sent then null else left(nullif(btrim(coalesce(p_said, '')), ''), 300) end,
+         sent_at = case when p_sent then now() else a.sent_at end,
+         updated_at = now()
+   where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) IS 'What Instagram said of a public answer on its way (00699): sent with its id, or failed with the house''s words for why. Only an answer on its way is settled. True when it wrote. The service role''s: comment_reply''s.';
 
 
 --
@@ -20967,6 +21174,24 @@ begin
     v_out := v_out || coalesce(
       (select jsonb_build_object('slug', f.slug, 'state', f.state) from public.forms f
         where f.tenant_id = v_link.tenant_id and f.id = v_link.subject_id), '{}'::jsonb);
+  elsif v_link.subject_type = 'post' then
+    -- Where a post's link may land, all the workspace's own: the Instagram account the post went to (by its username),
+    -- its oldest WhatsApp number, its booking page.
+    v_out := v_out || jsonb_build_object('lands', v_link.lands) || coalesce(
+      (select jsonb_build_object(
+                'place', p.place,
+                'instagram', (select c.config->>'username' from public.tenant_channels c
+                               where c.tenant_id = p.tenant_id and c.kind = 'instagram' and c.status = 'active'
+                                 and (p.account_id is null or c.external_id = p.account_id)
+                               order by c.created_at limit 1),
+                'whatsapp', (select c.number_e164 from public.tenant_channels c
+                              where c.tenant_id = p.tenant_id and c.kind = 'whatsapp' and c.status = 'active'
+                                and c.number_e164 is not null
+                              order by c.created_at limit 1),
+                'booking', (select nullif(btrim(tc.config->'brain'->>'booking_link'), '') from public.tenant_config tc
+                             where tc.tenant_id = p.tenant_id))
+         from public.posts p
+        where p.tenant_id = v_link.tenant_id and p.id = v_link.subject_id), '{}'::jsonb);
   end if;
   return v_out;
 end $$;
@@ -20976,7 +21201,7 @@ end $$;
 -- Name: FUNCTION link_open(p_code text, p_count boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.link_open(p_code text, p_count boolean) IS 'A link opened by its code (00680): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace, and for a form its slug and state}), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
+COMMENT ON FUNCTION public.link_open(p_code text, p_count boolean) IS 'A link opened by its code (00680, 00699): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace}; for a form its slug and state; for a post where it lands, its place, and the workspace''s own places it may land on: the Instagram account the post went to by username, the oldest WhatsApp number, the booking page), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
 
 
 --
@@ -29708,6 +29933,119 @@ COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id 
 
 
 --
+-- Name: post_comment_keep(uuid, text, text, text, text, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post    public.posts%rowtype;
+  v_person  jsonb;
+  v_contact uuid;
+  v_new     boolean;
+  v_kept    jsonb;
+begin
+  if nullif(btrim(coalesce(p_from, '')), '') is null or nullif(btrim(coalesce(p_comment_id, '')), '') is null then
+    raise exception 'post_comment_keep: a comment has an author and an id' using errcode = '22004';
+  end if;
+  -- A comment on a post Chanlytics sent, to the account it went to. One on a post made by hand is not kept here.
+  select * into v_post from public.posts p
+   where p.tenant_id = p_tenant_id and p.place = 'instagram' and p.external_id = p_media_id
+     and (p.account_id is null or p.account_id = p_account)
+   order by p.published_at desc nulls last
+   limit 1;
+  if not found then
+    return jsonb_build_object('kept', false, 'why', 'not_ours');
+  end if;
+  if exists (select 1 from public.touches t
+              where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = p_comment_id) then
+    return jsonb_build_object('kept', false, 'why', 'again', 'post_id', v_post.id);
+  end if;
+  -- The person by their Instagram-scoped id, the one a DM's sender carries: found, or made by this comment.
+  v_person := public.resolve_person(p_tenant_id, 'instagram', btrim(p_from), null, null,
+                                    nullif(btrim(coalesce(p_username, '')), ''), 'observed', 'inbound',
+                                    '{}'::jsonb, now());
+  v_contact := (v_person->>'contact_id')::uuid;
+  v_new := not coalesce((v_person->>'existed')::boolean, true);
+  if v_new then
+    perform public.person_set_first_touch(p_tenant_id, v_contact, 'instagram', null, null);
+  end if;
+  v_kept := public.touches_keep(p_tenant_id, 'comment', 'post', v_post.id, v_contact, 'instagram', btrim(p_comment_id),
+                              coalesce(p_at, now()), null, null, v_new,
+                              jsonb_strip_nulls(jsonb_build_object(
+                                'words', left(nullif(btrim(coalesce(p_words, '')), ''), 2200),
+                                'username', nullif(btrim(coalesce(p_username, '')), ''),
+                                'thread', nullif(btrim(coalesce(p_parent_id, '')), ''))));
+  -- AI's draft of a public answer, in this transaction: a delivery Meta sends again finds the comment kept, and its job.
+  if (v_kept->>'kept')::boolean then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'comment_reply', now(),
+            jsonb_build_object('touch_id', v_kept->>'touch_id', 'step', 'draft'));
+  end if;
+  return v_kept || jsonb_build_object('post_id', v_post.id, 'contact_id', v_contact, 'new_person', v_new);
+end $$;
+
+
+--
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) IS 'A person''s comment on a post Chanlytics sent (00699; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to, the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram), the comment kept once as a touch with its words and thread, and AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
+
+
+--
+-- Name: post_link_make(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_lands text;
+  v_link  public.links%rowtype;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'post_link_make: not a member who may act here' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    raise exception 'post_link_make: no such post in this workspace' using errcode = 'P0002';
+  end if;
+  select * into v_link from public.links l
+   where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+  if not found then
+    -- Its call to action decides where it lands: the booking page where the piece was made to send people there, a
+    -- chat with the business everywhere else ("Message us", call 23).
+    select case when pc.intent->>'call_to_action' = 'book' then 'booking' else 'chat' end into v_lands
+      from public.pieces pc where pc.tenant_id = p_tenant_id and pc.id = v_post.piece_id;
+    insert into public.links (tenant_id, subject_type, subject_id, place, lands, created_by)
+    values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
+    on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
+    returning * into v_link;
+    if v_link.id is null then
+      select * into v_link from public.links l
+       where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+    end if;
+  end if;
+  return jsonb_build_object('link_id', v_link.id, 'code', v_link.code, 'lands', v_link.lands,
+                            'stopped', v_link.stopped_at is not null,
+                            'opens', coalesce((select sum(d.opens) from public.link_days d
+                                                where d.tenant_id = p_tenant_id and d.link_id = v_link.id), 0));
+end $$;
+
+
+--
+-- Name: FUNCTION post_link_make(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) IS 'A post''s one link, made on first ask (00699; the content loop PRD''s 9.2, call 23): landing on a chat with the business carrying the post''s code, or on the booking page where the piece was made to send people there. Answers {link_id, code, lands, stopped, opens}. A member who may act (is_acting_member).';
+
+
+--
 -- Name: post_move(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29811,6 +30149,115 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+
+
+--
+-- Name: post_observations_due(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_observations_due(p_limit integer DEFAULT 200) RETURNS TABLE(tenant_id uuid, post_id uuid, step text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select p.tenant_id, p.id, s.step
+    from public.posts p
+    cross join (values ('1h', interval '1 hour'), ('1d', interval '1 day'), ('3d', interval '3 days'),
+                       ('7d', interval '7 days'), ('28d', interval '28 days')) as s(step, after)
+   where p.status = 'published' and p.place in ('instagram', 'google') and p.published_at is not null
+     and p.published_at > now() - interval '29 days'
+     and p.published_at + s.after <= now()
+     and not exists (select 1 from public.post_observations o
+                      where o.tenant_id = p.tenant_id and o.post_id = p.id and o.step = s.step)
+   order by p.published_at + s.after
+   limit greatest(1, least(coalesce(p_limit, 200), 1000));
+$$;
+
+
+--
+-- Name: FUNCTION post_observations_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
+
+
+--
+-- Name: post_observations_keep(uuid, uuid, text, jsonb, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer DEFAULT 1) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_count integer;
+begin
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    return 0;
+  end if;
+  insert into public.post_observations as o (tenant_id, post_id, place, step, metric, availability, value,
+                                             period_start, period_end, observed_at, definition_edition, raw)
+  select p_tenant_id, p_post_id, v_post.place, p_step, r.metric, r.availability,
+         case when r.availability = 'available' then r.value end,
+         coalesce(v_post.published_at, v_post.created_at), now(), now(), coalesce(p_definition_edition, 1),
+         jsonb_strip_nulls(jsonb_build_object('value', r.value))
+    from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) as r(metric text, availability text, value numeric)
+  on conflict (tenant_id, post_id, step, metric) do update
+    set availability = excluded.availability, value = excluded.value, period_end = excluded.period_end,
+        observed_at = excluded.observed_at, definition_edition = excluded.definition_edition, raw = excluded.raw;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) IS 'One read of a post''s numbers, every number at once (00699): [{metric, availability, value}], a value kept only where it was there. A read asked again at its step writes over itself. Answers the rows written; 0 for a post that is gone. The service role''s: post_observe''s.';
+
+
+--
+-- Name: post_own_comment_keep(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_touch uuid;
+begin
+  if nullif(btrim(coalesce(p_parent_id, '')), '') is null then
+    return false;
+  end if;
+  -- Our own answer, delivered back by Meta, is ours already.
+  if exists (select 1 from public.comment_answers a
+              where a.tenant_id = p_tenant_id and a.external_id = btrim(p_comment_id)) then
+    return false;
+  end if;
+  select t.id into v_touch from public.touches t
+   where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = btrim(p_parent_id)
+     and t.kind = 'comment';
+  if v_touch is null then
+    return false;
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, by_hand, external_id, sent_at)
+  values (p_tenant_id, v_touch, 'sent', true, btrim(p_comment_id), now())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
+        updated_at = now()
+    where comment_answers.state <> 'sent';
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) IS 'The business''s own comment, under a person''s comment kept here (00699): that comment is answered, by hand in the Instagram app. Our own answer delivered back changes nothing. True when it marked one. The service role''s.';
 
 
 --
@@ -44141,6 +44588,130 @@ COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written
 
 
 --
+-- Name: touches_age_out(timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_age_out(p_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_before timestamptz := coalesce(p_before, now() - interval '180 days');
+  v_count integer;
+begin
+  update public.touches t
+     set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb, emptied_at = now()
+   where t.emptied_at is null and t.at < v_before and not t.new_person;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_age_out(p_before timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_age_out(p_before timestamp with time zone) IS 'Touches older than 180 days (or p_before) keep their counts only: who, where and what was said are emptied (00699; Appendix A.9, call 35). The touch that made a person stays while the person does. Answers how many it emptied. The service role''s, run by the health sweep.';
+
+
+--
+-- Name: touches_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    update public.touches t
+       set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb,
+           emptied_at = coalesce(t.emptied_at, now())
+     where t.tenant_id = new.tenant_id and t.contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_erase_on_contact() IS 'A person erased (decision 0036; erase_contact keeps the person''s row as a tombstone, so no foreign key reaches this): their touches keep only that they happened, of what and when; who, where and what was said are emptied (00699).';
+
+
+--
+-- Name: touches_follow_merge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_follow_merge() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.merged_into_contact_id is not null and old.merged_into_contact_id is null then
+    update public.touches t
+       set contact_id = new.merged_into_contact_id
+     where t.tenant_id = new.tenant_id and t.contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_follow_merge(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_follow_merge() IS 'When two records of one person are combined, the touches of the one merged away go to the one kept (00699; Appendix A.3): what a person answered is theirs, in the merge itself.';
+
+
+--
+-- Name: touches_keep(uuid, text, text, uuid, uuid, text, text, timestamp with time zone, uuid, uuid, boolean, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid DEFAULT NULL::uuid, p_message_id uuid DEFAULT NULL::uuid, p_new_person boolean DEFAULT NULL::boolean, p_evidence jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id  uuid;
+  v_new boolean := p_new_person;
+begin
+  if p_contact_id is null then
+    raise exception 'touches_keep: a touch is a known person''s' using errcode = '22004';
+  end if;
+  -- Unsaid, a touch on a message made the person when they had written nothing before it.
+  if v_new is null and p_message_id is not null then
+    v_new := not exists (
+      select 1 from public.messages m
+       where m.tenant_id = p_tenant_id and m.contact_id = p_contact_id and m.id <> p_message_id
+         and m.direction = 'inbound'
+         and m.created_at < (select x.created_at from public.messages x
+                              where x.tenant_id = p_tenant_id and x.id = p_message_id));
+  end if;
+  insert into public.touches (tenant_id, subject_type, subject_id, kind, contact_id, conversation_id, message_id,
+                              new_person, place, provider_event_id, at, evidence)
+  values (p_tenant_id, p_subject_type, p_subject_id, p_kind, p_contact_id, p_conversation_id, p_message_id,
+          coalesce(v_new, false), p_place, p_event_id, coalesce(p_at, now()), coalesce(p_evidence, '{}'::jsonb))
+  on conflict (tenant_id, place, provider_event_id) do nothing
+  returning id into v_id;
+  if v_id is null then
+    select t.id into v_id from public.touches t
+     where t.tenant_id = p_tenant_id and t.place = p_place and t.provider_event_id = p_event_id;
+    return jsonb_build_object('kept', false, 'touch_id', v_id);
+  end if;
+  return jsonb_build_object('kept', true, 'touch_id', v_id);
+end $$;
+
+
+--
+-- Name: FUNCTION touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) IS 'A known person''s touch, kept once by the place''s own id (00699; Appendix A.5): {kept, touch_id}; kept false for one already there. Whether it made the person is said by the caller, or, for a touch on a message, read: they had written nothing before it. The service role''s: the edge''s inbound steps call it for a reply to a story and a coded first message.';
+
+
+--
 -- Name: trial_use(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -45960,7 +46531,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text, 'form_draft'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text, 'form_draft'::text, 'comment_reply'::text, 'comment_rewrite'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -46162,10 +46733,14 @@ CREATE TABLE public.appointments (
     lapse_told boolean,
     worth_minor bigint,
     worth_currency text,
+    through_type text,
+    through_id uuid,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
     CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
     CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text]))),
+    CONSTRAINT appointments_through_type_check CHECK ((through_type = ANY (ARRAY['post'::text, 'ad'::text, 'link'::text, 'form'::text]))),
+    CONSTRAINT appointments_through_whole CHECK (((through_type IS NULL) = (through_id IS NULL))),
     CONSTRAINT appointments_worth_check CHECK ((((worth_minor IS NULL) = (worth_currency IS NULL)) AND ((worth_minor IS NULL) OR ((worth_minor >= 0) AND (worth_currency ~ '^[A-Z]{3}$'::text)))))
 );
 
@@ -46231,6 +46806,20 @@ COMMENT ON COLUMN public.appointments.worth_minor IS 'What the visit is worth (0
 --
 
 COMMENT ON COLUMN public.appointments.worth_currency IS 'The currency worth_minor is in, ISO 4217 (00683). Null exactly where worth_minor is.';
+
+
+--
+-- Name: COLUMN appointments.through_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.through_type IS 'What the visit answered (00699; the content loop PRD''s 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this.';
+
+
+--
+-- Name: COLUMN appointments.through_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.through_id IS 'The id of what the visit answered (through_type''s record), stamped with it.';
 
 
 --
@@ -46879,6 +47468,42 @@ COMMENT ON TABLE public.client_errors IS 'What a page hit in a member''s browser
 --
 
 COMMENT ON COLUMN public.client_errors.member_key IS 'The first 16 hex of sha256 of the member''s id: who, counted and never named.';
+
+
+--
+-- Name: comment_answers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.comment_answers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    touch_id uuid NOT NULL,
+    state text NOT NULL,
+    draft text,
+    cannot_why text,
+    words text,
+    sent_by uuid,
+    by_hand boolean DEFAULT false NOT NULL,
+    external_id text,
+    said text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT comment_answers_cannot_why_check CHECK (((cannot_why IS NULL) OR ((char_length(cannot_why) >= 1) AND (char_length(cannot_why) <= 300)))),
+    CONSTRAINT comment_answers_draft_check CHECK (((draft IS NULL) OR ((char_length(draft) >= 1) AND (char_length(draft) <= 2200)))),
+    CONSTRAINT comment_answers_external_id_check CHECK (((external_id IS NULL) OR ((char_length(external_id) >= 1) AND (char_length(external_id) <= 200)))),
+    CONSTRAINT comment_answers_said_check CHECK (((said IS NULL) OR ((char_length(said) >= 1) AND (char_length(said) <= 300)))),
+    CONSTRAINT comment_answers_shape CHECK ((((state <> 'sending'::text) OR (words IS NOT NULL)) AND ((state <> 'sent'::text) OR (external_id IS NOT NULL)) AND ((state <> 'cannot'::text) OR (cannot_why IS NOT NULL)))),
+    CONSTRAINT comment_answers_state_check CHECK ((state = ANY (ARRAY['drafted'::text, 'cannot'::text, 'sending'::text, 'sent'::text, 'failed'::text, 'left'::text]))),
+    CONSTRAINT comment_answers_words_check CHECK (((words IS NULL) OR ((char_length(words) >= 1) AND (char_length(words) <= 2200))))
+);
+
+
+--
+-- Name: TABLE comment_answers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.comment_answers IS 'A public answer to a comment on a post, one per comment (00699; the content loop PRD''s 12.4): AI''s draft or why it could not answer safely, then the owner''s words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.';
 
 
 --
@@ -49479,9 +50104,12 @@ CREATE TABLE public.links (
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     stopped_at timestamp with time zone,
+    lands text,
     CONSTRAINT links_code_check CHECK ((code ~ '^[a-hjkmnp-z2-9]{6}$'::text)),
+    CONSTRAINT links_lands_a_post CHECK (((subject_type = 'post'::text) = (lands IS NOT NULL))),
+    CONSTRAINT links_lands_check CHECK ((lands = ANY (ARRAY['chat'::text, 'booking'::text]))),
     CONSTRAINT links_place_check CHECK (((char_length(btrim(place)) >= 1) AND (char_length(btrim(place)) <= 60))),
-    CONSTRAINT links_subject_type_check CHECK ((subject_type = 'form'::text))
+    CONSTRAINT links_subject_type_check CHECK ((subject_type = ANY (ARRAY['form'::text, 'post'::text])))
 );
 
 
@@ -49490,6 +50118,13 @@ CREATE TABLE public.links (
 --
 
 COMMENT ON TABLE public.links IS 'A short link for one place a thing of the business''s is shared (00680; the content loop PRD''s Appendix A): its code, what it opens (a form, so far), where it is shared in the owner''s words, whether it is the one printed as a code, and when it was stopped. A code says nothing by itself. Members read; a member who may act makes one, renames it and stops it; link_open reads it for a visitor.';
+
+
+--
+-- Name: COLUMN links.lands; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.links.lands IS 'Where a post''s link lands (00699): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
 
 
 --
@@ -50957,6 +51592,43 @@ COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the p
 
 
 --
+-- Name: post_observations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.post_observations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    post_id uuid NOT NULL,
+    place text NOT NULL,
+    step text NOT NULL,
+    metric text NOT NULL,
+    availability text NOT NULL,
+    value numeric,
+    period_start timestamp with time zone NOT NULL,
+    period_end timestamp with time zone NOT NULL,
+    observed_at timestamp with time zone DEFAULT now() NOT NULL,
+    definition_edition integer DEFAULT 1 NOT NULL,
+    paid_mixed boolean DEFAULT false NOT NULL,
+    raw jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT post_observations_availability_check CHECK ((availability = ANY (ARRAY['available'::text, 'unsupported'::text, 'delayed'::text, 'failed'::text, 'withheld'::text]))),
+    CONSTRAINT post_observations_definition_edition_check CHECK ((definition_edition >= 1)),
+    CONSTRAINT post_observations_metric_check CHECK ((metric = ANY (ARRAY['reach'::text, 'views'::text, 'likes'::text, 'comments'::text, 'saves'::text, 'shares'::text, 'link_opens'::text, 'profile_visits'::text, 'follows'::text]))),
+    CONSTRAINT post_observations_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT post_observations_raw_check CHECK ((jsonb_typeof(raw) = 'object'::text)),
+    CONSTRAINT post_observations_step_check CHECK ((step = ANY (ARRAY['1h'::text, '1d'::text, '3d'::text, '7d'::text, '28d'::text]))),
+    CONSTRAINT post_observations_value_check CHECK (((value IS NULL) OR (value >= (0)::numeric))),
+    CONSTRAINT post_observations_value_only_when_there CHECK (((availability = 'available'::text) = (value IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE post_observations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.post_observations IS 'A post''s numbers as its place gave them (00699; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
+
+
+--
 -- Name: posts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -52385,6 +53057,42 @@ COMMENT ON COLUMN public.tenants.sending_stopped_at IS 'When the workspace''s ow
 
 
 --
+-- Name: touches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.touches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    subject_type text NOT NULL,
+    subject_id uuid NOT NULL,
+    kind text NOT NULL,
+    contact_id uuid,
+    conversation_id uuid,
+    message_id uuid,
+    new_person boolean DEFAULT false NOT NULL,
+    place text NOT NULL,
+    provider_event_id text NOT NULL,
+    at timestamp with time zone NOT NULL,
+    evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
+    emptied_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT touches_evidence_check CHECK ((jsonb_typeof(evidence) = 'object'::text)),
+    CONSTRAINT touches_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'comment'::text, 'dm'::text, 'story_reply'::text, 'mention'::text, 'coded_message'::text]))),
+    CONSTRAINT touches_person_until_emptied CHECK (((contact_id IS NOT NULL) OR (emptied_at IS NOT NULL))),
+    CONSTRAINT touches_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'whatsapp'::text, 'google'::text]))),
+    CONSTRAINT touches_provider_event_id_check CHECK (((char_length(provider_event_id) >= 1) AND (char_length(provider_event_id) <= 200))),
+    CONSTRAINT touches_subject_type_check CHECK ((subject_type = ANY (ARRAY['post'::text, 'link'::text])))
+);
+
+
+--
+-- Name: TABLE touches; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.touches IS 'A known person''s reply, comment, reply to a story or coded first message, about a post or through a link (00699; the content loop PRD''s Appendix A.1, A.3, A.5): one row per event, once per place by the place''s own id. Events, never edited, written by post_comment_keep and touches_keep. The business''s own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.';
+
+
+--
 -- Name: usage_ledger; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -52887,6 +53595,30 @@ ALTER TABLE ONLY public.capability_activations
 
 ALTER TABLE ONLY public.client_errors
     ADD CONSTRAINT client_errors_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: comment_answers comment_answers_one_a_comment; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_one_a_comment UNIQUE (tenant_id, touch_id);
+
+
+--
+-- Name: comment_answers comment_answers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: comment_answers comment_answers_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -53962,6 +54694,30 @@ ALTER TABLE ONLY public.policies
 
 
 --
+-- Name: post_observations post_observations_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_once UNIQUE (tenant_id, post_id, step, metric);
+
+
+--
+-- Name: post_observations post_observations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: post_observations post_observations_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: posts posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -54402,6 +55158,30 @@ ALTER TABLE ONLY public.tenants
 
 
 --
+-- Name: touches touches_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_once UNIQUE (tenant_id, place, provider_event_id);
+
+
+--
+-- Name: touches touches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: touches touches_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: voice_agents voice_agents_agent_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -54695,6 +55475,13 @@ CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenan
 
 
 --
+-- Name: appointments_through; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_through ON public.appointments USING btree (tenant_id, through_type, through_id) WHERE (through_type IS NOT NULL);
+
+
+--
 -- Name: approvals_approved_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -54958,6 +55745,13 @@ CREATE INDEX client_errors_at ON public.client_errors USING btree (at DESC);
 --
 
 CREATE INDEX client_errors_fingerprint_at ON public.client_errors USING btree (fingerprint, at DESC);
+
+
+--
+-- Name: comment_answers_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX comment_answers_newest ON public.comment_answers USING btree (tenant_id, updated_at DESC);
 
 
 --
@@ -56039,6 +56833,13 @@ CREATE INDEX link_days_workspace ON public.link_days USING btree (tenant_id, day
 
 
 --
+-- Name: links_one_a_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX links_one_a_post ON public.links USING btree (tenant_id, subject_id) WHERE (subject_type = 'post'::text);
+
+
+--
 -- Name: links_subject; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56634,6 +57435,13 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: post_observations_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX post_observations_newest ON public.post_observations USING btree (tenant_id, post_id, observed_at DESC);
+
+
+--
 -- Name: posts_approval; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56673,6 +57481,13 @@ CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, p
 --
 
 CREATE INDEX posts_piece ON public.posts USING btree (tenant_id, piece_id) WHERE (piece_id IS NOT NULL);
+
+
+--
+-- Name: posts_published_lately; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_published_lately ON public.posts USING btree (published_at) WHERE (status = 'published'::text);
 
 
 --
@@ -57467,6 +58282,48 @@ CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions US
 
 
 --
+-- Name: touches_by_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_conversation ON public.touches USING btree (tenant_id, conversation_id, at DESC);
+
+
+--
+-- Name: touches_by_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_message ON public.touches USING btree (tenant_id, message_id);
+
+
+--
+-- Name: touches_by_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_person ON public.touches USING btree (tenant_id, contact_id, at DESC);
+
+
+--
+-- Name: touches_by_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_subject ON public.touches USING btree (tenant_id, subject_type, subject_id, at DESC);
+
+
+--
+-- Name: touches_by_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_time ON public.touches USING btree (tenant_id, at DESC);
+
+
+--
+-- Name: touches_to_age; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_to_age ON public.touches USING btree (at) WHERE ((emptied_at IS NULL) AND (NOT new_person));
+
+
+--
 -- Name: waitlist_email_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -57611,6 +58468,13 @@ CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appoint
 --
 
 CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW WHEN (((NOT (new.arrived_at IS DISTINCT FROM old.arrived_at)) AND (NOT (((new.worth_minor IS DISTINCT FROM old.worth_minor) OR (new.worth_currency IS DISTINCT FROM old.worth_currency)) AND (NOT (new.service IS DISTINCT FROM old.service)))))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: appointments appointments_through_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_through_stamp BEFORE INSERT ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_through_stamp();
 
 
 --
@@ -57838,6 +58702,13 @@ CREATE TRIGGER contacts_erase_takes_signers AFTER UPDATE OF erased_at ON public.
 
 
 --
+-- Name: contacts contacts_erase_takes_touches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_touches AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.touches_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erasure_digest_keyed; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -57849,6 +58720,13 @@ CREATE TRIGGER contacts_erasure_digest_keyed BEFORE INSERT OR UPDATE OF erased_p
 --
 
 CREATE TRIGGER contacts_merge_moves_form_entries AFTER UPDATE OF merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_follow_merge();
+
+
+--
+-- Name: contacts contacts_merge_moves_touches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_merge_moves_touches AFTER UPDATE OF merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.touches_follow_merge();
 
 
 --
@@ -60036,6 +60914,22 @@ ALTER TABLE ONLY public.capability_activations
 
 
 --
+-- Name: comment_answers comment_answers_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: comment_answers comment_answers_touch_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_touch_same_workspace FOREIGN KEY (tenant_id, touch_id) REFERENCES public.touches(tenant_id, id) ON DELETE CASCADE;
+
+
+--
 -- Name: contact_identities contact_identities_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -61372,6 +62266,22 @@ ALTER TABLE ONLY public.policies
 
 
 --
+-- Name: post_observations post_observations_post_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_post_same_workspace FOREIGN KEY (tenant_id, post_id) REFERENCES public.posts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_observations post_observations_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: posts posts_approval_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -62100,6 +63010,38 @@ ALTER TABLE ONLY public.tenant_config_versions
 
 
 --
+-- Name: touches touches_contact_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_contact_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: touches touches_conversation_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_conversation_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
+
+
+--
+-- Name: touches touches_message_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_message_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
+
+
+--
+-- Name: touches touches_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: voice_agents voice_agents_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -62608,6 +63550,21 @@ CREATE POLICY capability_activations_owner_update ON public.capability_activatio
 --
 
 ALTER TABLE public.client_errors ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: comment_answers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.comment_answers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: comment_answers comment_answers_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comment_answers_member_select ON public.comment_answers FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
 
 --
 -- Name: contact_identities; Type: ROW SECURITY; Schema: public; Owner: -
@@ -63825,6 +64782,21 @@ CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO auth
 
 
 --
+-- Name: post_observations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.post_observations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: post_observations post_observations_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY post_observations_member_select ON public.post_observations FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: posts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -64337,6 +65309,21 @@ CREATE POLICY tenants_member_select ON public.tenants FOR SELECT TO authenticate
 --
 
 CREATE POLICY tenants_owner_update ON public.tenants FOR UPDATE TO authenticated USING (public.caller_has_permission(id, 'settings'::text)) WITH CHECK (public.caller_has_permission(id, 'settings'::text));
+
+
+--
+-- Name: touches; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.touches ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: touches touches_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY touches_member_select ON public.touches FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -64876,6 +65863,14 @@ GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id u
 
 
 --
+-- Name: FUNCTION appointments_through_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_through_stamp() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_through_stamp() TO service_role;
+
+
+--
 -- Name: FUNCTION appointments_worth_stamp(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -65292,6 +66287,40 @@ GRANT ALL ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid
 
 REVOKE ALL ON FUNCTION public.clear_control_of_departed_member() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.clear_control_of_departed_member() TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) TO authenticated;
+GRANT ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) TO service_role;
 
 
 --
@@ -69199,6 +70228,23 @@ GRANT ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_i
 
 
 --
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION post_link_make(p_tenant_id uuid, p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION post_move(p_post_id uuid, p_when timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -69213,6 +70259,30 @@ GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with tim
 
 REVOKE ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_observations_due(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_observations_due(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_observations_due(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) TO service_role;
+
+
+--
+-- Name: FUNCTION post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) TO service_role;
 
 
 --
@@ -71485,6 +72555,38 @@ GRANT ALL ON FUNCTION public.tenants_zone_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION touches_age_out(p_before timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_age_out(p_before timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_age_out(p_before timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION touches_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION touches_follow_merge(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_follow_merge() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_follow_merge() TO service_role;
+
+
+--
+-- Name: FUNCTION touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION trial_use(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -72326,6 +73428,14 @@ GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.client_errors TO service_role;
+
+
+--
+-- Name: TABLE comment_answers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.comment_answers TO authenticated;
+GRANT ALL ON TABLE public.comment_answers TO service_role;
 
 
 --
@@ -73887,6 +74997,14 @@ GRANT ALL ON TABLE public.platform_metrics TO service_role;
 
 
 --
+-- Name: TABLE post_observations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.post_observations TO authenticated;
+GRANT ALL ON TABLE public.post_observations TO service_role;
+
+
+--
 -- Name: TABLE posts; Type: ACL; Schema: public; Owner: -
 --
 
@@ -74506,6 +75624,14 @@ GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(appointment_word) ON TABLE public.tenants TO authenticated;
+
+
+--
+-- Name: TABLE touches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.touches TO authenticated;
+GRANT ALL ON TABLE public.touches TO service_role;
 
 
 --

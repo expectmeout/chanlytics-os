@@ -61,15 +61,41 @@ export interface IgMessaging {
  *  - message: a person wrote (or tapped): answered through the one shape.
  *  - echo: the business's own message on the thread, from the Instagram app or from us.
  *  - unsent: the person took a message back; its words are not kept.
- *  - ignored: asks nothing of anyone (a reaction, a read, an edit), or is not a message at all: an `entry.changes[]` item
- *    (a comment, a mention, a story's numbers, which an account connected through Meta is sent) is one of these until
- *    comments come into Inbox.
+ *  - comment: a person's comment on one of the account's posts; own_comment: the business's own, whose author is the
+ *    account (`from.id` is `entry.id`, proved 21 November 2026), read only for the comment it answers.
+ *  - opened: an ig.me link's code arriving alone, the moment the link opens a chat already under way (`referral` with
+ *    no message, `type: OPEN_THREAD`): kept against the person and joined to what they write next.
+ *  - ignored: asks nothing of anyone (a reaction, a read, an edit), or a change that is not a comment: a mention is the
+ *    same comment delivered a second time (the comment comes as `comments` too), and a story's numbers are read, not
+ *    delivered.
  */
 export type InstagramEvent =
   | { kind: "message"; account: string; from: string; mid: string; item: IgMessaging }
   | { kind: "echo"; account: string; to: string; mid: string; text: string | null; atIso: string | null }
   | { kind: "unsent"; account: string; from: string; mid: string }
-  | { kind: "ignored"; account: string; what: "reaction" | "read" | "edit" | "change" | "unknown" };
+  | InstagramComment
+  | { kind: "own_comment"; account: string; commentId: string; mediaId: string; parentId: string | null }
+  | { kind: "opened"; account: string; from: string; ref: string; atIso: string | null }
+  | { kind: "ignored"; account: string; what: "reaction" | "read" | "edit" | "change" | "mention" | "unknown" };
+
+/**
+ * A person's comment on one of the account's posts (`changes[]`, field `comments`), as the sitting saw it delivered:
+ * who wrote it (`from.id` is the person's Instagram-scoped id, the one a DM's sender carries), the post by the id
+ * Chanlytics keeps (`media.id` is posts.external_id), the comment's own id, its words, and on a reply the thread's FIRST
+ * comment (Meta keeps a thread one level deep). `atIso` is the delivery's own time.
+ */
+export interface InstagramComment {
+  kind: "comment";
+  account: string;
+  from: string;
+  username: string | null;
+  commentId: string;
+  mediaId: string;
+  mediaKind: string | null;
+  parentId: string | null;
+  text: string | null;
+  atIso: string | null;
+}
 
 const trimmed = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -92,10 +118,45 @@ function eventOf(account: string, item: IgMessaging): InstagramEvent {
       : { kind: "ignored", account, what: "unknown" };
   if (message?.is_deleted === true && from && mid) return { kind: "unsent", account, from, mid };
   if ((message || isObject(item.postback)) && from && mid) return { kind: "message", account, from, mid, item };
+  const lone = isObject(item.referral) ? trimmed(item.referral.ref) : "";
+  if (!message && from && lone) return { kind: "opened", account, from, ref: lone, atIso: atIsoOf(item) };
   if (isObject(item.reaction)) return { kind: "ignored", account, what: "reaction" };
   if (isObject(item.read)) return { kind: "ignored", account, what: "read" };
   if (isObject(item.message_edit)) return { kind: "ignored", account, what: "edit" };
   return { kind: "ignored", account, what: "unknown" };
+}
+
+/** An entry's time: Meta's epoch seconds on a change (milliseconds on a message); null where it gave none. */
+function entryAtIso(time: unknown): string | null {
+  if (typeof time !== "number" || !Number.isFinite(time) || time <= 0) return null;
+  return new Date(time < 1e12 ? time * 1000 : time).toISOString();
+}
+
+/** One `changes[]` item: a comment (a person's, or the business's own), or something that asks nothing. */
+function instagramChangeOf(account: string, time: unknown, change: Record<string, unknown>): InstagramEvent {
+  const value = isObject(change.value) ? change.value : null;
+  if (change.field === "mentions") return { kind: "ignored", account, what: "mention" };
+  if (change.field !== "comments" || !value) return { kind: "ignored", account, what: "change" };
+  const author = isObject(value.from) ? value.from : null;
+  const media = isObject(value.media) ? value.media : null;
+  const from = trimmed(author?.id);
+  const commentId = trimmed(value.id);
+  const mediaId = trimmed(media?.id);
+  if (!from || !commentId || !mediaId) return { kind: "ignored", account, what: "change" };
+  const parentId = trimmed(value.parent_id) || null;
+  if (from === account) return { kind: "own_comment", account, commentId, mediaId, parentId };
+  return {
+    kind: "comment",
+    account,
+    from,
+    username: trimmed(author?.username) || null,
+    commentId,
+    mediaId,
+    mediaKind: trimmed(media?.media_product_type) || null,
+    parentId,
+    text: trimmed(value.text) || null,
+    atIso: entryAtIso(time),
+  };
 }
 
 /** Every item of an Instagram delivery, in the order Meta sent them; anything that is not its envelope is none. */
@@ -110,7 +171,7 @@ export function instagramEventsOf(body: unknown): InstagramEvent[] {
       for (const item of entry.messaging) if (isObject(item)) events.push(eventOf(account, item));
     if (Array.isArray(entry.changes))
       for (const change of entry.changes)
-        if (isObject(change)) events.push({ kind: "ignored", account, what: "change" });
+        if (isObject(change)) events.push(instagramChangeOf(account, entry.time, change));
   }
   return events;
 }
@@ -203,7 +264,14 @@ export function inboundFromInstagram(
     media: attached?.media ?? null,
     consent: consentOf(kind, content.consentText),
     referral: referralOf(item),
+    answered: storyAnsweredOf(item),
   };
+}
+
+/** The story a DM answers, by the id Meta names it with (`reply_to.story.id`: the id posts.external_id keeps). */
+function storyAnsweredOf(item: IgMessaging): InboundMessage["answered"] {
+  const story = trimmed(item.message?.reply_to?.story?.id);
+  return story ? { story } : null;
 }
 
 /**

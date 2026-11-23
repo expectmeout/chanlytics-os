@@ -544,5 +544,30 @@
     "kind": "on-open",
     "fresh": "Read as Reports' Campaigns lens is drawn, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
     "why": "It says what the forms brought over thirty days, which moves by a request or a visit, never by the second. It is not Reports' surface, which follows the period Reports shows."
+  },
+  "apps/dashboard/src/bridge/verbs/comments.ts GET comments": {
+    "kind": "on-open",
+    "fresh": "Read as the Inbox opens (Needs you's line that opens the comments, and the comments' own list), again after any press on a comment's page, and again whenever Needs you moves.",
+    "why": "A month of comments on the business's posts, each its own row: a new one is AI's to draft first, seconds later, and the one that waits on the owner is Today's point, which Today's read holds and the feed moves. The list is a door to each comment, which reads itself again as it opens."
+  },
+  "apps/dashboard/src/bridge/verbs/comments.ts GET comments/one": {
+    "kind": "on-open",
+    "fresh": "Read as a comment opens in the Inbox, after each press on it, and every three seconds while its answer is on its way, for as long as its job can take to settle it.",
+    "why": "A comment is answered where it is open; its answer moves only by the owner's press and the one job that posts it, which the page follows while it is on its way and reads again after."
+  },
+  "apps/dashboard/src/surfaces/campaigns/content/viewer/results.tsx GET files/[id]/results": {
+    "kind": "on-open",
+    "fresh": "Read as a piece with a post up is opened (on a phone and at a desk), and again after its link is made.",
+    "why": "A post's numbers are read from its place an hour, a day, 3, 7 and 28 days after it went up, and the people it brought arrive by the conversation: none moves by the second, and the piece is opened again to see the next read."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/content/lens.tsx GET content/report": {
+    "kind": "on-open",
+    "fresh": "Read as Reports' Content lens is drawn, and again whenever the window Reports shows moves (a period, or days picked).",
+    "why": "A report of days: a post's numbers and the bookings it brought are counted at the next read, as Reports' other lenses are read for the window picked."
+  },
+  "apps/dashboard/src/surfaces/today/calm/content-week.ts GET content/week": {
+    "kind": "on-open",
+    "fresh": "Read once Today has drawn, as its weekly card is asked for; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
+    "why": "The weekly card says what the last seven days' posts brought once a week, until Got it: a number a minute old is the week's all the same, and a read that fails says AI's week instead of guessing."
   }
 }

@@ -1,15 +1,16 @@
 import "server-only";
 
 /**
- * /l/<code>: a short link to one place a form is shared (00680; the content loop PRD's Appendix A). It counts the open
- * for its day and goes on to the form, carrying its code so the entry that follows says which place it came through.
+ * /l/<code>: a short link to one place a form is shared (00680; the content loop PRD's Appendix A), or to a post (00699).
+ * It counts the open for its day and goes on: to the form, carrying its code so the entry that follows says which place
+ * it came through; for a post, to a chat with the business carrying the post's code, or to its booking page.
  * An open is a count, never a visitor: no cookie is left and no address is kept. A chat app that fetches the address
  * to draw its preview is not a person opening it, and is not counted. A code nobody holds opens nothing; a link that
  * was stopped, or whose form is not there, lands on the business's own page.
  *
  * Cross-workspace: a code names one link, and the link its own workspace; nothing else is read.
  */
-import { SOURCE_LABELS } from "@chanlytics/contracts";
+import { postChatLinkOf, SOURCE_LABELS } from "@chanlytics/contracts";
 import { openLink, type LinkOpened } from "@chanlytics/db/forms";
 import { log } from "../shared/log";
 import { linkPageDb } from "./link-page";
@@ -27,10 +28,24 @@ const gone = () =>
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" },
   });
 
-/** Where an opened link lands: its form with the code, or the business's page where the link or the form is not live. */
+/** A booking page as kept in the business's settings, only where it is a web address. */
+const webAddress = (value: string | null): string | null => (value && /^https:\/\/\S+$/i.test(value) ? value : null);
+
+/**
+ * Where an opened link lands: its form with the code; a post's chat with the business carrying the post's code (on the
+ * post's own place where it is Instagram), or its booking page (00699); or the business's page where the link, the form
+ * or the place to land is not there.
+ */
 function landingOf(opened: LinkOpened, carried: URLSearchParams): string {
   const home = `/b/${opened.workspace}`;
-  if (opened.stopped || !opened.subject.slug) return home;
+  if (opened.stopped) return home;
+  if (opened.subject.type === "post") {
+    const post = opened.subject;
+    if (post.lands === "booking") return webAddress(post.booking) ?? home;
+    const instagram = post.place === "instagram" ? post.instagram : null;
+    return postChatLinkOf({ code: opened.code, instagram, whatsapp: post.whatsapp }) ?? home;
+  }
+  if (!opened.subject.slug) return home;
   const query = new URLSearchParams({ l: opened.code });
   for (const name of SOURCE_LABELS) {
     const label = carried.get(name);

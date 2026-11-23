@@ -14,6 +14,7 @@
  */
 import { MIN_MS } from "../../shared/time";
 import type { PostKind, PostPlace } from "../posts";
+import type { Observation } from "../results/observe";
 
 /** How a capability stands at a place, and how that is known. */
 export type CapabilityStanding = "proved" | "by_hand" | "built" | "not_so" | "to_prove";
@@ -239,12 +240,25 @@ export interface TakeDownAnswer {
   kept: PlaceAnswerKept;
 }
 
+/** A read of a post's numbers: one row for every number Chanlytics names, and the place's answer as it came. */
+export interface ObservedPost {
+  observations: Observation[];
+  kept: PlaceAnswerKept;
+}
+
+/** What posting a public answer under a comment came to: up with its id, refused in words, or no answer. */
+export type CommentAnswerSent =
+  | { is: "sent"; externalId: string; kept: PlaceAnswerKept }
+  | { is: "refused"; refusal: PlaceRefusal; kept: PlaceAnswerKept }
+  | { is: "unknown"; kept: PlaceAnswerKept };
+
 /**
  * One place's sender, assembled at the edge over its wire (apps/edge/lib/<place>/place.ts), each method one ask of
  * the place, read into these outcomes; what is kept of each send, and when to ask again, stays the post jobs'. A place
  * with no draft of its own (Google) has no `prepare` or `preparedState`; a place that cannot be asked what it holds has
  * no `status`; one with no delete of its own has no `takeDown`, and a take-down there is a step by hand shown before the
- * press. Numbers and comments (`observe`, `readTouches` in the PRD's sketch) join with pass 2, which reads them.
+ * press. A place that gives a post's numbers has `observe` (pass 2); one whose comments may be answered from here has
+ * `answerComment`. Comments themselves are delivered (Meta's webhook), never read by the adapter.
  */
 export interface PlaceAdapter {
   readonly place: PostPlace;
@@ -255,4 +269,8 @@ export interface PlaceAdapter {
   /** Whether the account holds this post (a send with no answer asks it before anything is sent again). */
   status?(post: SentPlacement): Promise<RemoteState>;
   takeDown?(post: SentPlacement): Promise<TakeDownAnswer>;
+  /** The post's numbers now, each a running total since it went up, a missing one said (perPostMetrics). */
+  observe?(post: SentPlacement): Promise<ObservedPost>;
+  /** A public answer posted under a comment, as the business (commentReply). */
+  answerComment?(commentId: string, words: string): Promise<CommentAnswerSent>;
 }
