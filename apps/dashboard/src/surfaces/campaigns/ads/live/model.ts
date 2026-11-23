@@ -21,13 +21,14 @@ import {
   waitedSince,
 } from "@chanlytics/contracts";
 import { AD_WAY_IN_SAID } from "@chanlytics/contracts";
-import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
+import type { AdLiveDto, AdsLiveDto, AppointmentWord } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayShort, dayWord, peopleWord } from "../model/words";
 import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
 import { ADS_MANAGER, AI_LINE, LENS, LIVE, NEEDS_YOU_LINE, SHEET } from "./words";
+import { worthOf, type WorthVM } from "./worth-model";
 
 /** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
 const counted = (ad: Pick<AdLiveDto, "opens">): boolean => AD_DOORS_COUNTED.includes(ad.opens);
@@ -45,6 +46,8 @@ const over = (ad: Pick<AdLiveDto, "state">): boolean => ad.state === "ended" || 
 interface Said {
   timezone: string;
   nowMs: number;
+  /** What this workspace calls a booking (surfaces/workspace-word.ts): an appointment where the page hands none. */
+  word?: AppointmentWord;
 }
 
 const dayOf = (iso: string | null, said: Said): string | null => {
@@ -420,6 +423,8 @@ export interface SheetVM {
   chats: { line: string; parted: string | null } | null;
   /** The people it brought back (T3), on a line of its own under Chanlytics' count; null for nobody. */
   back: string | null;
+  /** What its bookings are worth beside what it spent (T6), on a line of its own; null with nothing to say. */
+  worth: WorthVM | null;
   /** Whether its people are counted: the list is drawn only where they are. */
   counted: boolean;
   /** An ad made here: the sentence its owner changes by tapping its words; null for any other, or none to change. */
@@ -572,6 +577,7 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
     ],
     chats: chatsLineOf(ad),
     back: counted(ad) ? backLineOf(ad.back, "this ad") : null,
+    worth: worthOf([ad], dto, said.word),
     counted: counted(ad),
     ...sheetChangeOf(ad, dto, said),
     foot: footOf(ad, dto, said, currency),
@@ -601,6 +607,8 @@ interface LensVM {
   figures: FigureVM[];
   /** Everyone an ad brought back, on a line of its own under the figures (T3); null for nobody. */
   back: string | null;
+  /** What the counted ads' bookings are worth beside what those ads spent (T6); null with nothing to say. */
+  worth: WorthVM | null;
   rows: LensRowVM[];
   notes: string[];
 }
@@ -644,6 +652,7 @@ export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
       { label: LENS.spent, value: moneyOf(spent, currency) },
     ],
     back: backLineOf(dto.back, "an ad"),
+    worth: worthOf(dto.ads, dto, said.word),
     rows: [...rows, ...unnamed],
     // The two quiet lines are rows of the table here, so they are not said twice.
     notes: [

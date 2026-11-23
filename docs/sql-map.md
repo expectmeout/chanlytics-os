@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 203 | 203 |
 | reader | 95 | 0 |
-| the server's | 438 | 367 |
+| the server's | 440 | 367 |
 | computed column | 3 | 0 |
-| trigger | 118 | 87 |
-| all | 857 | 657 |
+| trigger | 120 | 88 |
+| all | 861 | 658 |
 
 ## Called by nothing
 
@@ -111,6 +111,7 @@ being read is dropped by a migration.
 | `appointments_lead_stamp` | trigger | the server | trigger `appointments_lead_stamp on appointments` | A visit names the lead its person was made from (00426): |
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
+| `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
 | `approval_hash` | the server's | the server | SQL `piece_words_keep`, `post_approve` and 1 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
 | `ask_for_tick` | the server's | the server | SQL `event_outbox_wake`, `job_kind_resume` and 2 more | Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00333, 00334). |
@@ -803,6 +804,8 @@ being read is dropped by a migration.
 | `sequence_steps_take_new_words` | trigger | the server | trigger `templates_approved_words_take_their_step on templates` |  |
 | `sequence_steps_words_changed` | trigger | the server | trigger `sequence_steps_words_changed on sequence_steps` |  |
 | `sequence_unchecked` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts` | The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, every planned send whatever its day (decision 0098): |
+| `service_amounts` | the server's | the server | SQL `appointments_worth_stamp`, `tenant_config_worth_stamp` | The services of a workspace that have an amount (00683; |
+| `service_key` | the server's | the server | SQL `appointments_worth_stamp`, `service_amounts` and 1 more | A service's name as the owner reads it (00683): |
 | `session_has_partner_seat` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/partner.ts` |  |
 | `session_shows_second_factor` | reader | a signed-in person, the server | SQL `caller_has_permission`, `contact_mark` and 31 more; in `rule memberships_partner_seat_needs_second_factor on memberships`, `rule partner_invitations_read on partner_invitations` | Whether the calling session showed its second factor (0013): |
 | `set_contact_consent` | door | a signed-in person, the server | SQL `record_consent` | Owner or operator records a customer's answer about messages on their own visit (not offers, which are set_marketing_consent's since 00095): |
@@ -869,6 +872,7 @@ being read is dropped by a migration.
 | `tenant_config_read` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's read of their workspace's configuration row (00365): |
 | `tenant_config_version_keep` | trigger | the server | trigger `tenant_config_version_kept on tenant_config`, `tenant_config_version_kept_first on tenant_config` | After a workspace's settings take a new version: |
 | `tenant_config_version_moves` | trigger | a signed-in person, the server | trigger `tenant_config_version_moves on tenant_config` | Before a change to a workspace's settings: |
+| `tenant_config_worth_stamp` | trigger | the server | trigger `tenant_config_worth_stamp on tenant_config` | The day a service is first given an amount, the visits already written for it take it (00683; |
 | `tenant_config_write` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's versioned write of their workspace's configuration (00365): |
 | `tenants_zone_guard` | trigger | the server | trigger `tenants_zone_guard on tenants` | A workspace's zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: |
 | `trial_use` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | What a workspace has used of what a trial includes (00512, decision 0090): |

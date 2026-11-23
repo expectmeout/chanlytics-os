@@ -5,7 +5,7 @@
  * run the migration answers null, where the page draws what it drew before (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, isCurrencyCode, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database } from "../../types";
@@ -60,7 +60,27 @@ export interface AdsPageCounts {
     string,
     { spend_minor: number; impressions: number; clicks: number; platform_results: number | null; settling: boolean }
   >;
+  /**
+   * What the visits each ad's people booked are worth (the tracking plan's T6): a sum a currency, the visits in them,
+   * and the visits left out for a service with no amount. Null where the database is a deploy behind and sums none.
+   */
+  worth: Map<string, AdVisitsWorth> | null;
 }
+
+/** One ad's booked visits as money: a sum a currency in whole minor units, and the visits in and left out of them. */
+export interface AdVisitsWorth {
+  sums: { currency: string; minor: number }[];
+  visits: number;
+  left_out: number;
+}
+
+/** A sum as the database answers it, or none: a three-letter code beside a whole number of minor units, not below none. */
+const worthSumOf = (row: Record<string, unknown>): AdVisitsWorth["sums"] => {
+  const { currency, minor } = row;
+  return isCurrencyCode(currency) && Number.isSafeInteger(minor) && count(minor) >= 0
+    ? [{ currency, minor: count(minor) }]
+    : [];
+};
 
 const count = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
 const rowsOf = (value: unknown): Record<string, unknown>[] => (Array.isArray(value) ? value.map(recordOrEmpty) : []);
@@ -96,6 +116,14 @@ export async function readAdsPageCounts(db: Db, tenantId: TenantId, days: number
         },
       ]),
     ),
+    worth: Array.isArray(answer.worth)
+      ? new Map(
+          rowsOf(answer.worth).map((row) => [
+            String(row.ad_id),
+            { sums: rowsOf(row.sums).flatMap(worthSumOf), visits: count(row.visits), left_out: count(row.left_out) },
+          ]),
+        )
+      : null,
   };
 }
 

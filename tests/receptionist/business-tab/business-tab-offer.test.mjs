@@ -452,7 +452,7 @@ test("Needs a consult first says nothing of a deal: what follows a consultation 
 
 /* ------------------------------------ the sheet ------------------------------------ */
 
-test("the sheet is the canvas's: its head, a search and Add, three columns, a consult-first mark, and a foot that says what it will be told", () => {
+test("the sheet is the canvas's: its head, a search and Add, its columns, a consult-first mark, and a foot that says what it will be told", () => {
   let tree = drawTab({
     profile: {
       ...many,
@@ -476,9 +476,8 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
     "Search services",
   );
   assert.match(textOf(byTestId(tree, "rec-services-add")), /Add/);
-  // How long a service takes says its unit in its box ("min"), so the column's head is the word alone.
-  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakesPrice");
-  // Each row is three boxes and a remove, each box named for its row.
+  // Takes says its unit in its box ("min"), so its head is the word alone; each row is four boxes and a remove.
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakesPriceAmount");
   const third = rowsOf(tree)[2];
   assert.deepEqual(
     all(third, (n) => n.type === "input").map((n) => [n.props.id, n.props["aria-label"]]),
@@ -486,6 +485,7 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
       ["svc-2-name", "Service 3 name"],
       ["svc-2-minutes", "Service 3 takes (min)"],
       ["svc-2-price", "Service 3 price"],
+      ["svc-2-amount", "Service 3 amount"],
     ],
   );
   assert.equal(all(third, (n) => n.type === "input")[1].props.inputMode, "numeric");
@@ -1550,7 +1550,7 @@ test("every box of What you offer is named by the words on screen beside it, so 
   )
     .map(textOf)
     .filter(Boolean);
-  assert.deepEqual(head, ["Service", "Takes", "Price"]);
+  assert.deepEqual(head, ["Service", "Takes", "Price", "Amount"]);
   const boxes = all(rowsOf(tree)[1], (n) => n.type === "input");
   boxes.forEach((box, i) =>
     assert.match(

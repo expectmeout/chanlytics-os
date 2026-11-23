@@ -47,8 +47,10 @@ import {
 } from "@chanlytics/db/forms";
 import type { Database } from "@chanlytics/db/types";
 import { findPublicWorkspaceBySlug, listMyMemberships, type PublicWorkspaceRead } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { findEmailReady } from "../connections/email-readiness";
 import { log } from "../shared/log";
 import { takeRate } from "../shared/rate-limit";
 import { hashKey, ipOf } from "../shared/request-ip";
@@ -390,11 +392,27 @@ function againHrefOf(read: SendRead): string {
   return `${read.place.path}?${query.toString()}`;
 }
 
-/** The thank-you for an entry that was kept (or held, or a forgotten person's: a visitor is told nothing of either). */
+/**
+ * Whether a reply by email can go from this business now (connections findEmailReady, the send door's own answer),
+ * asked only of a request that left an address. Never fails: what nobody could check is not promised.
+ */
+const repliesByEmail = (place: FormPlace, email: string | null): Promise<boolean> =>
+  email
+    ? findEmailReady(place.db, place.tenantId).then(
+        (ready) => ready.ready,
+        logAndGoOn("a form's email readiness", false),
+      )
+    : Promise.resolve(false);
+
+/**
+ * The thank-you for an entry that was kept (or held, or a forgotten person's: a visitor is told nothing of either).
+ * `emailOpen`: a reply by email can go now. Where it cannot, their address is not promised a reply: the thank-you
+ * says the roads that can carry one (the chat, a call), or only that the business will answer.
+ */
 function thanksPage(
   read: SendRead,
   taken: FormRequestTaken,
-  reach: { name: string | null; email: string | null; phone: string | null },
+  reach: { name: string | null; email: string | null; phone: string | null; emailOpen: boolean },
   fragment: boolean,
 ): Response {
   const { place, against } = read;
@@ -413,12 +431,13 @@ function thanksPage(
           code,
         })
       : null;
+  const email = reach.emailOpen ? reach.email : null;
   const main = thanksMain(frame, {
     thanks: against.description.thanks,
     // Thanked by their first name, as a person would.
     name: reach.name?.split(/\s+/)[0] || null,
-    email: reach.email,
-    phoneOnly: reach.email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
+    email,
+    phoneOnly: email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
     chatHref: message ? chatHrefOf(place.workspace, message) : null,
     againHref: againHrefOf(read),
   });
@@ -465,6 +484,8 @@ export async function takeFormPost(
   if (Object.keys(fixes).length > 0) return againPage(read, { fixes, offered: Object.keys(fixes) }, 422, fragment);
 
   const entryId = first(fields, "entry_id") || randomUUID();
+  // Asked beside the write, so the thank-you waits for one of them and not both.
+  const emailOpen = repliesByEmail(place, answered.reach.email);
   let taken: FormRequestTaken;
   try {
     taken = await takeFormRequest(db, {
@@ -513,5 +534,5 @@ export async function takeFormPost(
     };
     return againPage(carriedOver, { notice: "changed" }, 422, fragment);
   }
-  return thanksPage(read, taken, answered.reach, fragment);
+  return thanksPage(read, taken, { ...answered.reach, emailOpen: await emailOpen }, fragment);
 }

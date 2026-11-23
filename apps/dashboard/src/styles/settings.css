@@ -1685,13 +1685,15 @@ html.frame-on .bt-link { position: relative; }
 /* One line per service under a hairline, read as text: its boxes draw no edge until the row is approached (below),
    its remove waits for the same approach, and "min" is said once, in the column's head. It was three bordered boxes
    and a Remove on each of thirty-three rows (23 Sep). */
-.bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; padding: 3px 0; border-top: 1px solid var(--line); }
+.bt-service-row { display: grid; grid-template-columns: minmax(0, 1.15fr) 88px minmax(0, 1fr) 96px 28px; align-items: start; gap: 6px; padding: 3px 0; border-top: 1px solid var(--line); }
 .bt-service-row[hidden] { display: none; }
 /* A service's one line, a phone's (services.tsx btsLine): a desk draws its boxes instead. */
 .bt-service-line { display: none; }
 .bt-service-head { position: sticky; top: 0; z-index: 1; padding: 10px 0 6px; border-top: none; background: var(--bg-raised); font-size: var(--text-xs); color: var(--ink-dim); }
 .bt-service-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .bt-service-name > .rec-box { flex: 1; }
+/* A service's amount box (services.tsx): the row's fourth box fills its column, and a phone gives it a row of its own. */
+.bt-service-amount { display: grid; min-width: 0; }
 /* Read-only here: the consult-first list is its own fold's. The info tone, which says a fact, never the accent. */
 .bt-service-consult { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0; color: var(--ink-dim); font-size: var(--text-xs); white-space: nowrap; }
 /* Where a row was taken out: what went, and its Undo, inside the sheet's Tab ring. */
@@ -1902,6 +1904,7 @@ html.frame-on .bt-link { position: relative; }
   .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
   .bt-service-row > .rec-box:nth-child(3) { grid-column: 1; grid-row: 2; }
   .bt-service-row > .rec-box:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .bt-service-row > .bt-service-amount { grid-column: 1; grid-row: 3; }
   .bt-service-row[data-open="false"] { padding: 0; }
   .bt-service-row[data-open="false"] > :not(.bt-service-line) { display: none; }
   .bt-service-line { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 0; text-align: left; color: var(--ink); }

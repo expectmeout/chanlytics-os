@@ -95,6 +95,7 @@ export const ADDED_SINCE = [
   "propose_settings.answer_style",
   "propose_settings.answers",
   "propose_settings.goal",
+  "propose_settings.worth",
   "propose_take_down",
   "recall",
   "remember",

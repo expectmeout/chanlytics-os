@@ -95,11 +95,20 @@ export const FORMS_WORDS = {
     body: "Requests come to Inbox with a reply AI drafts for you to send. A form never takes a yes to offers.",
     cancel: "Not yet",
   },
+  // Said where no reply by email can go from the business yet: under what happens Next, and before a first publish.
+  noEmail: {
+    fact: "Replies can't go by email yet.",
+    thanks: "The thank-you won't promise one.",
+    connect: "Connect email",
+    label: "Replies can't go by email yet",
+  },
   next: {
     told: ["You're told", "On the bell, in Inbox and on Today.", "Always"],
     chat: ["Carry on in WhatsApp", "The thank-you offers it. Their own message starts the chat."],
     chatNone: "No WhatsApp number is connected, so the thank-you offers none.",
     draft: ["AI drafts the reply", "By email, in Inbox. You send it."],
+    // The same line where no email can go: the reply is drafted for whichever way can still reach them.
+    draftNoEmail: "In Inbox. You send it.",
     back: ["When they write back", "AI carries on with them, as with anyone who writes in.", "AI"],
     come: ["When they'd like to come", "Asked as a question. Times to pick come with the booking step.", "A question"],
     thanks: "Thank-you words",

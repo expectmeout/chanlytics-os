@@ -81,6 +81,8 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     // Cold email's opens there, on its row (decision 0113).
     if (change && isReachOutChange(change)) return `admin/outreach/${ASK_REACH_OUT_ROWS[change.op]}`;
     const op = change?.op;
+    // A service's amount is kept on Details, in its Services (the Ads tracking plan's T6).
+    if (op === "set_service_amounts") return "admin/workspace/services";
     if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
     const key = op as keyof typeof ASK_ANSWERS_ROWS;
     const row = ASK_ANSWERS_ROWS[key];

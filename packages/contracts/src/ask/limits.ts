@@ -59,7 +59,8 @@ export const ASK_SPOKEN_TURN_BUDGET_MS = 45_000;
  * new ad, propose_ad, its words cut the same way, so it moved from 132,000; 134,158 the same night with a yes for a photo
  * or a video kept, keep_yes, its words cut the same way, so it moved from 133,000; on 22 November with the content
  * loop's pass 1b, what a post's words are about on propose_publish, and propose_take_down, their words cut the same way,
- * so it moved from 135,000; keep_yes left the same day with the yes for footage). The most it may grow to, never a
+ * so it moved from 135,000; 137,219 the same day with AI proposing what each service is worth, propose_settings' worth,
+ * under the same ceiling; keep_yes left the same day with the yes for footage). The most it may grow to, never a
  * target: tests/ask/tools/ask-tools-size.test.mjs prints each role's.
  */
 export const ASK_TOOLS_CHARS_CEILING = 138_000;
