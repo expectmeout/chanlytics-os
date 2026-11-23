@@ -123,6 +123,7 @@ export type {
   SnapshotRendition,
 } from "./placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
+export type { ContentCheck } from "./placements/check-words";
 export {
   metaPageOf,
   ON_FACEBOOK,
@@ -131,7 +132,6 @@ export {
   placeSwitchedOn,
 } from "./placements/facebook";
 export type { FacebookRefusal, MetaPage } from "./placements/facebook";
-export type { ContentCheck } from "./placements/check-words";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,

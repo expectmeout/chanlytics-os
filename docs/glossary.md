@@ -237,6 +237,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `erasure`          | Honouring a deletion                                                          |
 | `events`           | The ledger of what happened, and who hears about it                           |
 | `export`           | The workspace's own records, for its owner                                    |
+| `facebook`         | A business's Facebook Page, posted to through the Meta link                   |
 | `facts`            | What the receptionist has learned and suggests keeping                        |
 | `files`            | Pictures, videos and documents a workspace keeps                              |
 | `forms`            | A request form a business shares, and each entry it takes                     |

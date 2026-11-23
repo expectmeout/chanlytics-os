@@ -131,7 +131,7 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
     if (sent.length > 0) done(sent);
   };
   // Something is switched on to send: only then does the list draw its caption and its send.
-  const sending = !!draft && (draft.instagram || draft.google || draft.facebook);
+  const sending = !!draft && (draft.instagram || draft.google || !!draft.facebook);
   const problem = draft && sending ? postBothProblemOf(draft, words) : null;
   return {
     open: draft !== null,
@@ -211,7 +211,7 @@ function readerMisses(
   if (places.some((at) => at.pull || at.letGo || at.waitsToo?.pull)) return true;
   if (!both.could) return false;
   const armed = postBothOpening(both.could, both.posts, Date.now(), both.fileKind);
-  return armed.instagram || armed.google || armed.facebook;
+  return armed.instagram || armed.google || !!armed.facebook;
 }
 
 /**
