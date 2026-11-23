@@ -62,7 +62,6 @@ what the script writes.
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
 | [`file_archive_parts`](#file_archive_parts) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
 | [`file_archives`](#file_archives) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
-| [`file_consents`](#file_consents) | none | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
@@ -386,7 +385,7 @@ An ad as its owner thinks of it (decision 0049, 00648): its account and platform
 | `shown_on` | text[] | yes |  | Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known. |
 | `change` | jsonb | yes |  | A change of the owner's to a running ad made here, on its way to the platform (00673; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account's zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told. |
 | `amounts_at` | timestamp with time zone[] | yes |  | When the ad's amount was lately sent to the platform (00673): Meta changes an ad set's amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour's are kept. |
-| `paused_by` | text | yes |  | Why Chanlytics holds this ad paused (00676; the content loop PRD's section 5.2): stop (Stop everything paused it), remediation (a yes taken back on its picture: it runs again only with another), owner (its owner's Pause) or owner_all (the owner's one press for them all). Null while it is not paused, or where it was paused before 00676 or at the platform. Kept by ad_set_intent; cleared the moment it is not paused (ads_paused_by_holds). |
+| `paused_by` | text | yes |  | Why Chanlytics holds this ad paused (00676; the content loop PRD's section 5.2): stop (Stop everything paused it), remediation (its picture was taken down: it runs again only with another), owner (its owner's Pause) or owner_all (the owner's one press for them all). Null while it is not paused, or where it was paused before 00676 or at the platform. Kept by ad_set_intent; cleared the moment it is not paused (ads_paused_by_holds). |
 | `paused_at` | timestamp with time zone | yes |  | When Chanlytics paused it, for paused_by (00676). Null with paused_by. |
 | `way_in` | text | yes |  | What stands between a running ad made here and AI answering the WhatsApp chat it opens, as the account's read last worked it out (00676; decision 0050 call 11; contracts adWayInOf): stopped (AI is stopped), paused (billing paused), no_number (the number it names is not the active one), unread (Meta's word on the number is not known) or blocked (Meta stops the number sending). Null while AI answers it, or where it is not running. Kept by ad_way_in_keep. |
 | `way_in_at` | timestamp with time zone | yes |  | Since when way_in has stood as it is (00676): the bell rings for unread only once it has stood an hour. |
@@ -1659,41 +1658,6 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `file_archives_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
-### file_consents
-
-A yes for one use of a file (00665; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.
-
-- Owned by: none
-- Primary key: `id`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no | `gen_random_uuid()` |  |
-| `tenant_id` | uuid | no |  |  |
-| `file_id` | uuid | no |  |  |
-| `use` | text | no |  |  |
-| `who` | text | no |  | Who said yes, as the owner named them to AI. A person in a picture is not joined to People, so this leaves with the workspace, as the picture does. |
-| `said_in` | text | no |  | ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00665, carried over as a yes for posts: D11). |
-| `thread_id` | uuid | yes |  |  |
-| `said_by` | uuid | yes |  |  |
-| `said_at` | timestamp with time zone | no | `now()` |  |
-| `taken_back_at` | timestamp with time zone | yes |  |  |
-| `taken_back_by` | uuid | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-
-Foreign keys:
-
-- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
-- `said_by` → `auth.users` (`id`), on delete set null
-- `taken_back_by` → `auth.users` (`id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `file_consents_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
 ### files
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
@@ -1723,7 +1687,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `looked_at` | timestamp with time zone | no | `now()` | When it was last looked at, or tried, or kept: what tells the sweep to leave it alone for a day. |
 | `shows` | text | yes |  | Its shelf's word: from the look, Google's category, or a person. owner_shelved says a person chose it. |
 | `owner_shelved` | boolean | no | `false` |  |
-| `who_in_it` | text | no | `'not_asked'::text` | A person's word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00665). |
+| `who_in_it` | text | no | `'not_asked'::text` | A person's word alone: not_asked, or no_one. What the look counted is on look.people. No page and no AI reads it since 00687: footage a business provides is taken as cleared, and nobody in it is asked. |
 | `created_by` | uuid | yes |  |  |
 | `removed_at` | timestamp with time zone | yes |  | A person removed it: hidden at once. file_purge lets its bytes go and takes the row. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
@@ -1746,8 +1710,6 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
 | `origin_left` | text | yes |  | How a watched file's original left its folder (00657): gone (seen in its provider's bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library. |
 | `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
-| `yes_for` | text[] | no | `'{}'::text[]` | The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row. |
-| `yes_back` | text[] | no | `'{}'::text[]` | The uses whose every yes on this file was taken back, and none given again (00665, file_consents). |
 
 Foreign keys:
 
@@ -4104,7 +4066,7 @@ Foreign keys:
 
 ### remediation_actions
 
-One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. Members read.
+One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. A post a place left to its owner to delete, which the owner chose to leave up, says left_up, with who (00689). Members read.
 
 - Owned by: `packages/db/src/repositories/files/take-down.ts`
 - Primary key: `id`
@@ -4122,9 +4084,11 @@ One action a remediation started on one thing it reached (00676; the content loo
 | `said` | text | yes |  |  |
 | `started_at` | timestamp with time zone | no | `now()` |  |
 | `finished_at` | timestamp with time zone | yes |  |  |
+| `left_up_by` | uuid | yes |  | Who chose to leave the post up, on an action that says left_up (00689; the content loop PRD's 8.3, "Keep it up"). When is finished_at. Null on every other action, and once that member is gone. |
 
 Foreign keys:
 
+- `left_up_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `remediation_id` → [`remediations`](#remediations) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 

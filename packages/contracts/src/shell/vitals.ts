@@ -61,7 +61,10 @@ const detailMs = () => z.optional(z.number().check(z.minimum(0), z.maximum(VITAL
  * (`head_ms`, from its request sent) and how much of that the server said was its own (`server_ms`, from Server-Timing,
  * and its database calls, `db_ms` over `db_n`): a first byte long past the server's own time is the network or, on a
  * route's first ask after a deploy, its code being loaded. A script chunk that had to arrive (`chunk_ms`), and what was
- * left for drawing (`render_ms`). For the browser's: the element (`el`), the
+ * left for drawing (`render_ms`). And what a load asked for around its page (the plan "Pages that open at once", piece 1):
+ * on its READY, how many reads for other pages the app began before the page was drawn (`ahead_n`), and on a SETTLED, the
+ * database calls the page's own reads came to (`open_db_n`: where it opened through one read, that read's own count). For
+ * the browser's: the element (`el`), the
  * interaction's type and its three phases, the longest script's share, the largest paint's four parts, the largest
  * shift's score, the document's state, and the phase the time went on most (`phase`). For READ_FAILED: why the reads
  * failed (`reason`: the refusal's own code, or `threw` where the read's own code did) and whether the tab was hidden
@@ -76,6 +79,8 @@ const PageVitalDetail = z.object({
   db_n: z.optional(z.int().check(z.minimum(0), z.maximum(10_000))),
   chunk_ms: detailMs(),
   render_ms: detailMs(),
+  ahead_n: z.optional(z.int().check(z.minimum(0), z.maximum(1000))),
+  open_db_n: z.optional(z.int().check(z.minimum(0), z.maximum(10_000))),
   el: detailWord(),
   type: z.optional(z.enum(["pointer", "keyboard"])),
   input_ms: detailMs(),

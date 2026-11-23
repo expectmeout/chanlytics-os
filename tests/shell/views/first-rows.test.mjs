@@ -223,6 +223,24 @@ test("a copy that could not be drawn says why, for the frame to report", () => {
   assert.equal(why({ kept: copy({ at: NOW + 60_000 }) }), "aged", "a clock moved back: no age to go by");
 });
 
+test("a slot that says why no copy was kept draws nothing, and its word is the miss", () => {
+  const unkept = (why, at = {}) => run({ raw: JSON.stringify({ at: NOW - 60_000, why }), ...at });
+  const UNKEPT = ["scrolled", "typed", "open", "reading", "long"];
+  for (const why of UNKEPT) {
+    const r = unkept(why);
+    assert.equal(r.html.attrs[FIRST_ROWS_MISS_ATTR], why);
+    assert.equal(r.picture, null, "nothing is drawn of a word");
+    assert.equal(r.html.attrs[FIRST_ROWS_ATTR], undefined);
+    assert.equal(r.threw, null);
+  }
+  assert.deepEqual(FIRST_ROWS_MISSES.slice(-UNKEPT.length), UNKEPT, "each is a miss the frame may report");
+  assert.equal(
+    unkept("scrolled", { search: "?see=x" }).html.attrs[FIRST_ROWS_MISS_ATTR],
+    "address",
+    "an address first",
+  );
+});
+
 test("a copy drawn says no reason, and nor does a load that could never have had one", () => {
   const why = (at) => run({ kept: copy(), ...at }).html.attrs[FIRST_ROWS_MISS_ATTR];
   assert.equal(why({}), undefined, "drawn");
@@ -249,7 +267,7 @@ test("every word a copy reports is one the table takes: a part it refused would 
     ...FIRST_ROWS_MISSES.map(firstRowsMissPart),
     ...FIRST_ROWS_ENDS.map(firstRowsEndPart),
   ];
-  assert.equal(parts.length, 1 + 5 + 6);
+  assert.equal(parts.length, 1 + 10 + 6);
   assert.equal(new Set(parts).size, parts.length, "no two say one thing");
   for (const part of parts) assert.match(part, PAGE_NAME);
 });

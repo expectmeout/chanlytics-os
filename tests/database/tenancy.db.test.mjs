@@ -230,7 +230,6 @@ before(async () => {
   // viewer's own morning.
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
   ctx.file = await seed("files", fileRow("seeded"));
-  await seed("file_consents", { tenant_id: A, file_id: ctx.file, use: "post", who: "Tenancy guest", said_in: "ai" });
   // Where a post went, and a send of it (00611): the service role writes both, a member reads where it stands.
   ctx.post = await seed("posts", {
     tenant_id: A,
@@ -466,10 +465,10 @@ before(async () => {
   // What a launch made at Meta for an ad made here (00666): members read the workspace's parts, its doors write them.
   await seed("ad_objects", { tenant_id: A, ad_id: ctx.ad, kind: "campaign", name: "Tenancy campaign", state: "made" });
   await seed("ad_days", { tenant_id: A, ad_id: ctx.ad, day: "2026-11-01" }, null);
-  // A yes taken back, walked on an ad (00676): members read what was done; its doors write it.
+  // A take-down, walked on an ad (00676, 00682): members read what was done; its doors write it.
   ctx.remediation = await seed("remediations", {
     tenant_id: A,
-    cause: "yes_taken_back",
+    cause: "owner_removed",
     subject_type: "file",
     subject_id: "tenancy-file",
   });
@@ -914,7 +913,6 @@ const TENANT_TABLES = {
       created_by: ctx.strangerId,
     }),
   ],
-  file_consents: ["member", () => ({ tenant_id: A, file_id: ctx.file, use: "ad", who: "Stranger", said_in: "ai" })],
   // Where a post went and each send of it (00611): a member reads them, the service role writes them.
   posts: ["member", () => ({ tenant_id: A, file_id: ctx.file, place: "google", kind: "picture", status: "published" })],
   publish_attempts: [

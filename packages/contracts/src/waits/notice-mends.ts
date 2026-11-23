@@ -26,7 +26,8 @@ export type MendChange =
   | "mailbox_connection.removed"
   | "google_connection.synced"
   | "google_connection.removed"
-  | "calendar.readable";
+  | "calendar.readable"
+  | "post.left_up";
 
 /** What mends a warning: a kind and title kept after it, or a change. */
 export type MendBy = { kind: ServerNotificationKind; title: RegExp } | { change: MendChange };
@@ -179,6 +180,13 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
   {
     warns: { kind: "post_by_hand", title: /^Delete it in .+ · /u },
     by: { kind: "post_down", title: /^Taken down · /u },
+    sameSubject: true,
+  },
+  // And by the owner's own word that the post stays up ("Keep it up"). Closed in SQL by post_take_down_keep (00689), for
+  // that piece at that place: listed so the test holds the SQL's literal to these words.
+  {
+    warns: { kind: "post_by_hand", title: /^Delete it in .+ · /u },
+    by: { change: "post.left_up" },
     sameSubject: true,
   },
   // Closed in SQL by resume_email_offers (00421): listed so the test holds the SQL's literal to these words.

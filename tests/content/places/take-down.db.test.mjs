@@ -2,7 +2,8 @@
  * A post comes down, on a real database (00682; the content loop PRD's 5.3, 8.3 and 15.1), with real sessions: the owner's
  * press asks down what is up and lets go what waited, as one remediation with its job; a post is taken_down only once the
  * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
- * none of it, and another workspace reads none of it.
+ * none of it, and another workspace reads none of it. And "Keep it up" (00689): a post a place left to its owner stays
+ * up on the owner's word, with who and when, the bell's line for it closes, and nothing is asked of the place again.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -10,6 +11,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { TAKE_DOWN_BELL } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -91,11 +93,18 @@ async function post(fileId, place, kind, status, over = {}) {
 
 const statusOf = async (id) => ok(await db.from("posts").select("status, held_why").eq("id", id).single(), "post");
 const actionOf = async (id) =>
-  ok(await db.from("remediation_actions").select("outcome, said, finished_at").eq("id", id).single(), "action");
+  ok(
+    await db.from("remediation_actions").select("outcome, said, finished_at, left_up_by").eq("id", id).single(),
+    "action",
+  );
 const begin = (who, fileId) => as[who].client.rpc("post_take_down_begin", { p_tenant_id: A, p_file_id: fileId });
 const settle = (action, outcome, said = "") =>
   db.rpc("post_take_down_settle", { p_action_id: action, p_outcome: outcome, p_said: said });
 const byHand = (who, postId) => as[who].client.rpc("post_take_down_by_hand", { p_tenant_id: A, p_post_id: postId });
+const keep = (who, postId) => as[who].client.rpc("post_take_down_keep", { p_tenant_id: A, p_post_id: postId });
+const takeDownJobs = async () =>
+  (await db.from("jobs").select("id", { count: "exact", head: true }).eq("tenant_id", A).eq("kind", "post_take_down"))
+    .count;
 
 before(async () => {
   if (skip) return;
@@ -121,9 +130,9 @@ after(async () => {
   if (skip) return;
   const all = [A, B];
   await db.from("jobs").delete().in("tenant_id", all);
+  await db.from("notifications").delete().in("tenant_id", all);
   await db.from("remediations").delete().in("tenant_id", all);
   await db.from("posts").delete().in("tenant_id", all);
-  await db.from("file_consents").delete().in("tenant_id", all);
   await db.from("files").delete().in("tenant_id", all);
   await db.from("memberships").delete().in("tenant_id", all);
   await db.from("tenants").delete().in("id", all);
@@ -205,5 +214,105 @@ test(
     );
     assert.equal(finished.cause, "owner_removed");
     assert.ok(finished.finished_at);
+  },
+);
+
+test(
+  "Keep it up: the post stays on the owner's word, said once, the bell's line for it closes, and nothing is asked again",
+  { skip },
+  async () => {
+    const f = await file();
+    const other = await file();
+    const ig = await post(f, "instagram", "picture", "published");
+    const google = await post(f, "google", "picture", "published");
+    const begun = ok(await begin("owner", f), "the press");
+    const act = (postId) => begun.actions.find((a) => a.post_id === postId).action_id;
+    // While its place is still being asked there is nothing to keep.
+    assert.deepEqual(ok(await keep("owner", ig), "kept too early"), { fate: "asking" });
+    ok(await settle(act(ig), "needs_person", "Delete it there."), "Instagram left it to the owner");
+    ok(await settle(act(google), "needs_person", "Delete it there."), "Google left it to the owner");
+    // The bell's lines as the edge writes them (post-told.ts), in the contract's own words.
+    const line = (place, piece, about) => ({
+      tenant_id: A,
+      kind: "post_by_hand",
+      title: TAKE_DOWN_BELL.byHand(place, piece),
+      body: TAKE_DOWN_BELL.byHandWhy,
+      subject_type: "file",
+      subject_id: about,
+    });
+    ok(
+      await db
+        .from("notifications")
+        .insert([
+          line("instagram", "The finish", f),
+          line("google", "The finish", f),
+          line("instagram", "Another", other),
+        ]),
+      "the bell's lines",
+    );
+    const bell = async (title) =>
+      ok(await db.from("notifications").select("closed_at").eq("tenant_id", A).eq("title", title).single(), title);
+
+    // A viewer may not, and nor may another workspace's owner, of this workspace or as their own.
+    assert.equal((await keep("viewer", ig)).error?.code, "42501");
+    const stranger = as.stranger.client;
+    assert.equal((await stranger.rpc("post_take_down_keep", { p_tenant_id: A, p_post_id: ig })).error?.code, "42501");
+    assert.deepEqual(
+      ok(await stranger.rpc("post_take_down_keep", { p_tenant_id: B, p_post_id: ig }), "as their own workspace"),
+      { fate: "unknown" },
+    );
+    assert.equal((await actionOf(act(ig))).outcome, "needs_person", "a refused press changed nothing");
+
+    const jobsBefore = await takeDownJobs();
+    const kept = ok(await keep("owner", ig), "Keep it up");
+    assert.deepEqual(kept, { fate: "left_up", post_id: ig, file_id: f, place: "instagram" });
+    const row = await actionOf(act(ig));
+    assert.deepEqual([row.outcome, row.left_up_by], ["left_up", as.owner.id], "who");
+    assert.ok(row.finished_at, "when");
+    assert.equal(row.said, "Delete it there.", "the place's own words stay on the record");
+    assert.equal((await statusOf(ig)).status, "published", "the post is still up");
+    assert.equal(await takeDownJobs(), jobsBefore, "nothing is asked of the place");
+    assert.ok(
+      (await bell(TAKE_DOWN_BELL.byHand("instagram", "The finish"))).closed_at,
+      "its line on the bell is closed",
+    );
+    assert.equal(
+      (await bell(TAKE_DOWN_BELL.byHand("google", "The finish"))).closed_at,
+      null,
+      "the other place's stays",
+    );
+    assert.equal((await bell(TAKE_DOWN_BELL.byHand("instagram", "Another"))).closed_at, null, "another piece's stays");
+
+    // Said once; "I deleted it" from a page that had not heard, and a late answer from the place, change nothing.
+    assert.deepEqual(ok(await keep("owner", ig), "pressed again"), kept);
+    assert.deepEqual(ok(await byHand("owner", ig), "I deleted it, late"), { fate: "left_up" });
+    assert.deepEqual(ok(await settle(act(ig), "done"), "a late answer"), { fate: "settled", outcome: "left_up" });
+    assert.equal(await takeDownJobs(), jobsBefore);
+    assert.equal((await statusOf(ig)).status, "published");
+    assert.equal(
+      (await actionOf(act(google))).outcome,
+      "needs_person",
+      "the other place is still the owner's to delete",
+    );
+
+    // A member reads who and when; another workspace reads nothing of it.
+    const read = ok(
+      await as.viewer.client.from("remediation_actions").select("outcome, left_up_by").eq("id", act(ig)).single(),
+      "a member's read",
+    );
+    assert.deepEqual(read, { outcome: "left_up", left_up_by: as.owner.id });
+    assert.deepEqual(
+      ok(await stranger.from("remediation_actions").select("id").eq("id", act(ig)), "a stranger's read"),
+      [],
+    );
+
+    // Take down again: the place is asked anew, and the older record keeps what it says.
+    const again = ok(await begin("owner", f), "Take down again");
+    assert.equal(again.fate, "begun");
+    const second = again.actions.find((a) => a.post_id === ig);
+    assert.equal(second.outcome, "pending");
+    assert.notEqual(second.action_id, act(ig));
+    assert.equal((await actionOf(act(ig))).outcome, "left_up");
+    assert.deepEqual(ok(await keep("owner", ig), "while asked again"), { fate: "asking" });
   },
 );

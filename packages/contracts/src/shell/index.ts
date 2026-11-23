@@ -122,7 +122,7 @@ export {
   firstRowsSlot,
   firstRowsStand,
 } from "./first-rows";
-export type { FirstRowsEnd, FirstRowsMiss, KeptFirstRows } from "./first-rows";
+export type { FirstRowsEnd, FirstRowsMiss, FirstRowsUnkept, KeptFirstRows } from "./first-rows";
 export {
   cleanDisplayName,
   DISPLAY_NAME_MAX,
@@ -170,6 +170,7 @@ export type { ReportedError, ReportKind } from "./report-problem";
 export { ReportProblemInput } from "./report-problem-schema";
 export type { ReportProblemInputDto } from "./report-problem-schema";
 export {
+  OPENING_MARK,
   openReads,
   PREFETCH_BESIDE,
   PREFETCH_OPEN,

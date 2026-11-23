@@ -335,7 +335,7 @@ export { footageAsidesOf } from "./files/footage-asides";
 export { FOOTAGE_NUMBERS } from "./files/footage-numbers";
 export { connectStoppedOf, FOOTAGE_SETUP } from "./files/footage-setup";
 export { FILE_IMAGE_MIMES, FILE_KINDS, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX, fileFramePathOf, fileKindOf, fileMadePathOf, isVideoMime } from "./files/kinds";
-export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELF_MINUTES_MAX, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_YES_SAID_IN, FILE_YES_USES, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, isFileMime } from "./files/limits";
+export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELF_MINUTES_MAX, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, isFileMime } from "./files/limits";
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_PICTURE_KEEP_S, FILE_VIDEO_LOOK_SCHEMA, fileLookAsked, fileLookOf, fileVideoLookAsked, fileVideoLookOf, VIDEO_LOOK_EDITION } from "./files/look";
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postMomentWont, postPhotoWont, postPlanOf, postPlanTidied, postSentencesOf, postWordsIn } from "./files/post";
 export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
@@ -542,7 +542,7 @@ export { cleanDisplayName, DISPLAY_NAME_MAX, identityWords, invitationWords, joi
 export { PAGE_SPEED_MIN, PAGE_SPEED_READ, pageSpeedWords } from "./shell/page-speed";
 export { combinedInto, NEEDS_TITLE, PERM_DOING, refusalOf, roleGate, SESSION_ENDED, sessionEnded, waitWords } from "./shell/refusal";
 export { REPORT_KIND_WORDS, REPORT_KINDS, REPORT_LIMITS, REPORT_WORDS, reportKindOf, reportProblemOf } from "./shell/report-problem";
-export { openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
+export { OPENING_MARK, openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";
