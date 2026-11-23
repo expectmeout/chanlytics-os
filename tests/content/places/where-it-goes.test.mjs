@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
+import { ON_FACEBOOK, ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
@@ -289,4 +289,19 @@ test("Take down is offered only where something of the piece is up: never for a 
   assert.equal(takeDownOffered([ended, post({ kind: "picture" })], NOW), true, "the post beside it is up");
   assert.equal(takeDownOffered([post({ status: "publishing", published_at: null })], NOW), true, "on its way up");
   assert.equal(takeDownOffered([post({ status: "taken_down" })], NOW), false);
+});
+
+test("a Page's post is said as Instagram's is: named with its kind, up only once seen, else said plainly", () => {
+  const page = (over = {}) =>
+    post({ place: "facebook", kind: "reel", permalink: "https://www.facebook.com/reel/1", ...over });
+  const seen = one(page());
+  assert.equal(seen.name, "Facebook reel");
+  assert.equal(seen.said, "On Facebook · @17:00");
+  assert.equal(one(page({ kind: "story" })).name, "Facebook story");
+  assert.equal(one(page({ kind: "picture" })).name, "Facebook post");
+  // A reel Meta has not said is published: still posting, then said plainly in Facebook's words.
+  const unseen = one(page({ verified_at: null, published_at: ago(MIN) }));
+  assert.deepEqual([unseen.said, unseen.tone, unseen.moving], ["Posting to Facebook", "live", true]);
+  const never = one(page({ verified_at: null, published_at: ago(HOUR) }));
+  assert.equal(never.said, ON_FACEBOOK.refused.unknown);
 });

@@ -1110,6 +1110,20 @@
       "rate": "file_upload",
       "spend": false
     },
+    "POST files/[id]/facebook": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_facebook",
+      "spend": false
+    },
+    "DELETE files/[id]/facebook": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_facebook",
+      "spend": false
+    },
     "POST files/[id]/google": {
       "kind": "write",
       "scope": "row",

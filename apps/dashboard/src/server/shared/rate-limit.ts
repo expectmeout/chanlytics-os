@@ -277,6 +277,7 @@ export const RATE = {
   file_post_preview: { limit: 1200, windowMs: HOUR_MS, noun: "post pictures" },
   file_google: { limit: 30, windowMs: HOUR_MS, noun: "posts on Google" },
   file_instagram: { limit: 30, windowMs: HOUR_MS, noun: "posts on Instagram" },
+  file_facebook: { limit: 30, windowMs: HOUR_MS, noun: "posts on Facebook" },
   /** A look for the logo on the business's own website: a page and up to two images asked of another server, each time. */
   workspace_logo_lookup: { limit: 6, windowMs: HOUR_MS, noun: "looks for your logo" },
   /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */

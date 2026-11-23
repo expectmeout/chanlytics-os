@@ -4,8 +4,8 @@
  * week a plan is for, when it is due ready, how a week says its size, and the cadence a workspace stands at.
  */
 import type { PieceIntent } from "../placements/approvals";
-import type { PostHeldWhy, PostKind, PostPlace } from "../posts";
-import type { OpportunityKind, PlanStatus, SlotState } from "./sets";
+import type { PostHeldWhy, PostKind } from "../posts";
+import type { OpportunityKind, PlanPlace, PlanStatus, SlotState } from "./sets";
 import { CADENCE_DEFAULT } from "../../config/content-cadence";
 import type { ContentCadence } from "../../config/content-config";
 import { POST_LIMITS, type PostLanguage } from "../../files/post";
@@ -102,7 +102,7 @@ export interface PlanSlotDto {
   id: string;
   /** The creative this slot is one place of: slots of one creative share it, and the Week draws them as one row. */
   creative: string;
-  place: PostPlace;
+  place: PlanPlace;
   kind: PostKind;
   at: string;
   state: SlotState;

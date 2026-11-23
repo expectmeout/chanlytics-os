@@ -302,7 +302,7 @@ export const SCHEMA_SETS = {
     "money", "reason_passed", "late",
   ],
   "posts.kind": ["picture", "story", "reel"],
-  "posts.place": ["instagram", "google", "hand"],
+  "posts.place": ["instagram", "google", "facebook", "hand"],
   "posts.status": [
     "queued", "preparing", "publishing", "checking", "published", "held", "failed", "pulled",
     "taken_down",

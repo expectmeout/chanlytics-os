@@ -71,6 +71,7 @@ export function usePiecePosts(
         instagram: record.instagram?.can === "yes",
         google: !video && record.connected,
         onGoogle: !!record.posted,
+        facebook: record.facebook?.can === "yes",
         fileKind: piece.file.kind,
       })
     : null;
@@ -85,11 +86,21 @@ export function usePiecePosts(
               ? PLACES_SAY.lineOff
               : null,
         google: record.connected ? null : PLACES_SAY.notConnected,
+        facebook:
+          record.facebook?.can === "not_connected"
+            ? PLACES_SAY.notConnected
+            : record.facebook?.can === "line_off"
+              ? PLACES_SAY.lineOff
+              : null,
       }
     : null;
   // Instagram is offered only where the Meta link is switched on for the workspace: the record holds none of it otherwise
   // (server posts/record.ts readFileRecord), and the list leaves the place out rather than say "Not yet" of it.
-  const offers: PieceOffers | null = known ? { instagram: record.instagram !== null, google: !video } : null;
+  // Facebook only where the link keeps a Page it may post to (pass 5): a row of a place nobody here can post to is left out,
+  // unless the piece already stands there.
+  const offers: PieceOffers | null = known
+    ? { instagram: record.instagram !== null, google: !video, facebook: record.facebook?.can === "yes" }
+    : null;
   return { posts, takes, wont, offers, known };
 }
 

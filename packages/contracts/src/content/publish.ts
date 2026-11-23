@@ -80,8 +80,8 @@ export function postPublishOf(payload: Record<string, unknown>): PostPublish {
 }
 
 const PLACE_WORDS = {
-  en: { instagram: "Instagram", story: "your Instagram story", google: "Google", and: "and" },
-  es: { instagram: "Instagram", story: "tu historia de Instagram", google: "Google", and: "y" },
+  en: { instagram: "Instagram", story: "your Instagram story", google: "Google", facebook: "Facebook", and: "and" },
+  es: { instagram: "Instagram", story: "tu historia de Instagram", google: "Google", facebook: "Facebook", and: "y" },
 } as const;
 
 /** Where it goes, in words: "Instagram and Google", "your Instagram story". */

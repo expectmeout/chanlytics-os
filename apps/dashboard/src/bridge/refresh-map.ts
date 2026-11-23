@@ -575,6 +575,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST content/line": () => [settingsOverride, ...weekIfDrawn()],
   "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
+  // A Page's post (pass 5), as Instagram's.
+  "POST files/[id]/facebook": () => [...filesIfDrawn(), ...postMoved()],
+  "DELETE files/[id]/facebook": postMoved,
   "PATCH files/[id]/posts": postMoved,
   // A piece asked down (00682): what waited is let go at once, and its posts move as each place answers.
   "DELETE files/[id]/posts": postMoved,

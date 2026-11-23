@@ -8,6 +8,7 @@
 import {
   DAY_MS,
   MIN_MS,
+  ON_FACEBOOK,
   ON_INSTAGRAM,
   POST_PLACE_SAID,
   POST_PULLABLE,
@@ -122,6 +123,10 @@ const GOES_ORDER: readonly (readonly [PostPlace, PostKind])[] = [
   ["instagram", "picture"],
   ["instagram", "story"],
   ["google", "picture"],
+  // A Page (pass 5), after the places a piece already went to, in Instagram's order.
+  ["facebook", "reel"],
+  ["facebook", "picture"],
+  ["facebook", "story"],
 ];
 
 type Said = Pick<GoesLine, "said" | "tone" | "note" | "moving" | "acts" | "status">;
@@ -200,11 +205,13 @@ function upSaid(post: PostDto, known: GoesKnown): Said {
   // Instagram's is said to be on the account only once the account was read holding it, and until then it is still
   // posting: no word between the two (PRD 8.2 as the canvas's call 7 took it). Past the time that read takes, nobody
   // can say it went up, and the line says so in the words a send with no answer always had.
-  if (post.place === "instagram" && !post.verified_at) {
+  // A Page's the same (pass 5): a reel is up only once Meta says it is published.
+  if (post.place !== "google" && !post.verified_at) {
     const sentMs = post.published_at ? Date.parse(post.published_at) : known.nowMs;
+    const unknown = post.place === "facebook" ? ON_FACEBOOK.refused.unknown : ON_INSTAGRAM.refused.unknown;
     return known.nowMs - sentMs < POST_SEEN_WAIT_MS
       ? lineSaysOf(GOES_WORDS.posting(post.place), "live", { moving: true })
-      : lineSaysOf(ON_INSTAGRAM.refused.unknown, "you", { acts: see });
+      : lineSaysOf(unknown, "you", { acts: see });
   }
   return lineSaysOf(GOES_WORDS.up(post.place, at), "ok", { acts: see });
 }

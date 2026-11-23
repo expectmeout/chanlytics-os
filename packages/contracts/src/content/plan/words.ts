@@ -3,6 +3,7 @@
  * when a week is ready and when it asks for clips, Today's point, and the Week's head. A week is said as what it is ("A
  * reel and 2 posts"), never "4 pieces, 6 places"; a place is Instagram or Google.
  */
+import { POST_PLACE_SAID, type PostPlace } from "../posts";
 import { weekdayShortOf } from "./week";
 
 /** The days a week's posts go up on, first to last: "Tue to Fri", or one day alone. */
@@ -70,10 +71,9 @@ export const WEEK_WORDS = {
   /** A row's line, as its creative stands. */
   goesUp: (when: string) => `Goes up ${when}`,
   waits: (when: string) => `Waits for you · was ${when}`,
-  upOn: (places: readonly ("instagram" | "google")[], day: string) =>
-    `On ${[...new Set(places)].map((p) => (p === "google" ? "Google" : "Instagram")).join(" and ")} · ${day}`,
-  didNotPost: (place: "instagram" | "google", why: string) =>
-    `Didn't post on ${place === "google" ? "Google" : "Instagram"}${why ? ` · ${why}` : ""}`,
+  upOn: (places: readonly PostPlace[], day: string) =>
+    `On ${[...new Set(places)].map((p) => POST_PLACE_SAID[p]).join(" and ")} · ${day}`,
+  didNotPost: (place: PostPlace, why: string) => `Didn't post on ${POST_PLACE_SAID[place]}${why ? ` · ${why}` : ""}`,
   making: "Being made",
   videoMaking: "Its video is being made",
   videoMade: (when: string) => `Made · approve it to go up ${when}`,
