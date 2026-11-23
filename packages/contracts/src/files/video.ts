@@ -210,3 +210,16 @@ export function videoPreviewOf(config: unknown): boolean {
     typeof features === "object" && features !== null && "video_preview" in features && features.video_preview === true
   );
 }
+
+/**
+ * Whether a workspace's made videos keep a copy on Chanlytics' own shelf (`features.video_shelf`, the flag registry's
+ * `video_shelf`; the archive plan's B2): a video with a checked copy there can give up its place at the video
+ * platform and come back on Play. Read off the config as stored, so anything but `true` is off.
+ */
+export function videoShelfOf(config: unknown): boolean {
+  if (typeof config !== "object" || config === null || !("features" in config)) return false;
+  const features: unknown = config.features;
+  return (
+    typeof features === "object" && features !== null && "video_shelf" in features && features.video_shelf === true
+  );
+}

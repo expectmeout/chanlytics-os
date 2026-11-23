@@ -37,7 +37,7 @@ import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
 import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
-import { endPiece, endSourceTake, failCopyReturn, keepFileLook } from "@chanlytics/db/files";
+import { endPiece, endSourceTake, failCopyReturn, failShelfCopy, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
 import {
@@ -533,6 +533,17 @@ async function settleCopyReturn(db: Db, job: TerminalJob): Promise<Settled[]> {
 }
 
 /**
+ * A made video's shelf copy whose job will not finish (00695): the copy stops saying it is on its way to the shelf.
+ * It is failed as refused, which loses nothing: the video keeps its place at the video platform, its own file is
+ * still there to put the copy from, and one already checked or failed is left, by the door's own guard.
+ */
+async function settleFileShelve(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const fileId = idFrom(job.payload, "file_id");
+  if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  return [{ what: "file", changed: await failShelfCopy(db, { tenantId: job.tenant_id, fileId, why: "refused" }) }];
+}
+
+/**
  * A time asked for that ran out, whose job will not finish (decision 0061, as amended): the request is closed for a
  * person to reply to, with nothing sent, so it never waits on a run that will not come.
  */
@@ -568,6 +579,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   piece_make: settlePiece,
   source_take: settleSourceTake,
   copy_return: settleCopyReturn,
+  file_shelve: settleFileShelve,
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
@@ -614,6 +626,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   piece_make: "file",
   source_take: "file",
   copy_return: "file",
+  file_shelve: "file",
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",

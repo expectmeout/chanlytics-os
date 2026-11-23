@@ -980,6 +980,20 @@ a picture that could not be opened. Ask's `propose_post` card shows a real pictu
 `POST files/post`: `file_post_read_failed` is a photo Storage would not hand over, `file_post_store_failed` a shape that would not store
 (what did arrive is taken back), and `file_post_logo_failed` a business's mark that could not be read, which costs the mark and never the post.
 
+**A made video's second copy** (decision 0146, 00695; on `features.video_shelf`, off unless a workspace's config sets it). A video
+made here keeps a copy in a private R2 bucket, `chanlytics-shelf`, bound to the relay alone (`apps/relay/README.md`, "The shelf":
+the bucket, the binding, the `SHELF_FROM` secret and the order to deploy in). The edge reaches it through `FOOTAGE_RELAY_URL` and
+`FOOTAGE_TICKET_KEY`, the two a watched folder's clips already use; without them no copy is begun and nothing else changes. The
+`file_shelve` job pulls the kept file onto the shelf and checks it: `file_shelved` is one done (its bytes, its seconds, how long
+it took), `file_shelve_failed` one that was not, with why (`shelf_full`: the workspace's 300 minutes are used; `mismatch`: the
+shelf was sent other bytes than the video's, twice; `not_found`: the kept file is gone; `left_saving`: the half-hourly pass had to
+write a copy's job again, which should never happen). `shelf_copy_lost` is the shelf holding nothing, or
+other bytes, for a copy that was checked: the video stays where it plays, the copy is put back from the kept file, and the line is
+an error because it should never be written. To see a made video step aside without two weeks of waiting, in a workspace whose
+switch is on: `node --import tsx tooling/scripts/ops/files/let-go-now.mjs --workspace <id>`, a dry run until `--apply`; it only
+marks, and the half-hourly pass finishes each within forty minutes, checking the shelf first. A workspace's delete
+(`tooling/scripts/ops/delete-tenant.mjs`) takes the same two variables for its run, to empty that workspace's shelf after its rows.
+
 ## Turn on Anthropic's user profiles
 
 Without a profile on a request, one customer's flagged traffic can restrict the whole organization (decision 0097). They are

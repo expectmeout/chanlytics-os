@@ -10,6 +10,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { closeLapsedRequest, listBookingRequestsDue, markBookingRequestNudged } from "@chanlytics/db/calendar";
+import { takeLock } from "../../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -129,8 +130,13 @@ const message = (who, over = {}) => ({
 const lapse = (who, told) =>
   closeLapsedRequest(w.admin, { tenantId: w.tenant, appointmentId: who.id, replyWords: WORDS, told });
 
+// A request told on its way out queues its send job due at once, on the jobs queue every database suite shares: the
+// broadcast walk, claiming beside this file, took two of them as strays (23 Nov 2026). So this file holds the ledger's
+// lock (_file-lock.mjs) from before its first write until its cleanup is done.
+let releaseLedger;
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   w.admin = createClient(URL_, KEY, { auth: { persistSession: false } });
   const stamp = Date.now().toString(36);
   w.tenant = ok(
@@ -152,21 +158,26 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip || !w.admin) return;
-  for (const table of [
-    "jobs",
-    "messages",
-    "appointments",
-    "escalations",
-    "decisions",
-    "events",
-    "conversations",
-    "contacts",
-  ])
-    await w.admin.from(table).delete().eq("tenant_id", w.tenant);
-  await w.admin.from("memberships").delete().eq("tenant_id", w.tenant);
-  await w.admin.from("tenants").delete().eq("id", w.tenant);
-  for (const id of users) await w.admin.auth.admin.deleteUser(id).catch(() => {});
+  if (skip) return;
+  try {
+    if (!w.admin) return;
+    for (const table of [
+      "jobs",
+      "messages",
+      "appointments",
+      "escalations",
+      "decisions",
+      "events",
+      "conversations",
+      "contacts",
+    ])
+      await w.admin.from(table).delete().eq("tenant_id", w.tenant);
+    await w.admin.from("memberships").delete().eq("tenant_id", w.tenant);
+    await w.admin.from("tenants").delete().eq("id", w.tenant);
+    for (const id of users) await w.admin.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 test(

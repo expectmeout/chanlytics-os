@@ -1,0 +1,472 @@
+/**
+ * The shelf's rules, on a real database (00695, the archive plan's B2): a made video's copy on the shelf is begun
+ * with its job in one step and within the shelf's room; it is checked only where the size and the SHA-256 are the
+ * ones that were sent; a video may step aside behind a checked shelf copy and behind nothing less, never behind a
+ * copy saved to the owner's Drive; a return from the shelf writes nothing on a provider's day; a copy found missing is
+ * put back, and the video is lost only when nothing is left to put it back from; a copy left saving gets its job
+ * again; a purge takes the rows; and a member reads no key and calls no door.
+ *
+ * In workspaces of its own. Runs against the local stack `supabase start` builds, never production: it makes
+ * workspaces, users and rows.
+ */
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { createClient } from "@supabase/supabase-js";
+
+const URL_ = process.env.SUPABASE_URL;
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ANON = process.env.SUPABASE_ANON_KEY;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite makes workspaces, users and rows"
+      : !ANON
+        ? "no SUPABASE_ANON_KEY in env: the member this suite signs in as needs it"
+        : false;
+
+const stamp = Date.now().toString(36);
+const SHA = "a".repeat(64);
+const OTHER_SHA = "b".repeat(64);
+const BYTES = 30_000_000;
+/** The shelf's room in seconds: contracts FILE_SHELF_MINUTES_MAX, as the edge passes it. */
+const ROOM = 300 * 60;
+let db;
+const tenants = [];
+const users = [];
+let serial = 0;
+
+const ok = (r, what) => {
+  assert.equal(r.error, null, `${what}: ${r.error?.message}`);
+  return r.data;
+};
+const refused = (r, code, what) =>
+  assert.equal(r.error?.code, code, `${what}: ${r.error?.message ?? "it went through"}`);
+
+async function workspace() {
+  serial += 1;
+  const tag = `${stamp}-${serial}`;
+  const [tenant] = ok(
+    await db
+      .from("tenants")
+      .insert({ name: `Shelf ${tag}`, slug: `shelf-${tag}` })
+      .select("id"),
+    "the workspace",
+  );
+  tenants.push(tenant.id);
+  return { T: tenant.id, tag };
+}
+
+/** A video in a workspace's Library, made here unless said, playable, looked at, and last used two hours ago. */
+async function video(ws, over = {}) {
+  serial += 1;
+  const long = new Date(Date.now() - 2 * 3_600_000).toISOString();
+  const [row] = ok(
+    await db
+      .from("files")
+      .insert({
+        tenant_id: ws.T,
+        status: "filed",
+        source: "made",
+        name: `shelf-video-${stamp}-${serial}`,
+        mime: "video/mp4",
+        bytes: BYTES,
+        fingerprint: `shelf-fp-${stamp}-${serial}`,
+        kind: "video",
+        media_ref: `shelf-ref-${stamp}-${serial}`,
+        media_status: "ready",
+        seconds: 60,
+        look_status: "done",
+        created_at: long,
+        ready_at: long,
+        copy_used_at: long,
+        ...over,
+      })
+      .select("id"),
+    "a video",
+  );
+  return row.id;
+}
+
+const rpc = async (name, args, what = name) => ok(await db.rpc(name, args), what);
+const begin = (ws, fileId, over = {}) =>
+  rpc("file_shelf_begin", {
+    p_tenant_id: ws.T,
+    p_file_id: fileId,
+    p_bytes: BYTES,
+    p_sha256: SHA,
+    p_seconds_max: ROOM,
+    ...over,
+  });
+const checked = (ws, fileId, bytes = BYTES, sha256 = SHA) =>
+  rpc("file_shelf_checked", { p_tenant_id: ws.T, p_file_id: fileId, p_bytes: bytes, p_sha256: sha256 });
+const failedAs = (ws, fileId, why) => rpc("file_shelf_failed", { p_tenant_id: ws.T, p_file_id: fileId, p_why: why });
+const again = (ws, fileId) => rpc("file_shelf_again", { p_tenant_id: ws.T, p_file_id: fileId });
+const settle = (ws, fileId) => rpc("file_copy_settle", { p_tenant_id: ws.T, p_file_id: fileId });
+const shelved = async (ws, over = {}) => {
+  const id = await video(ws, over);
+  assert.equal((await begin(ws, id)).fate, "begun");
+  assert.equal(await checked(ws, id), "checked");
+  return id;
+};
+/** Every copy that may go, marked going: the let-go by age, with now as both of its times. Answers their ids. */
+const letGoAll = async (ws) => {
+  const now = new Date().toISOString();
+  const went = await rpc("file_copies_let_go", {
+    p_tenant_id: ws.T,
+    p_seconds: null,
+    p_unused_before: now,
+    p_rested_before: now,
+    p_limit: 100,
+  });
+  return went.map((copy) => copy.id);
+};
+const gone = (ws, fileId) => rpc("file_copy_gone", { p_tenant_id: ws.T, p_id: fileId });
+const returnBegin = (ws, fileId, returnsMax = 20) =>
+  rpc("file_copy_return_begin", {
+    p_tenant_id: ws.T,
+    p_id: fileId,
+    p_units: 205,
+    p_platform_bytes_max: 800_000_000_000,
+    p_workspace_returns_max: returnsMax,
+    p_units_max: 300_000_000,
+    p_stale_seconds: 600,
+  });
+const fileNow = async (fileId) =>
+  ok(await db.from("files").select("copy_state, copy_why, media_ref").eq("id", fileId).single(), "the file");
+const shelfOf = async (fileId) => {
+  const rows = ok(
+    await db
+      .from("file_archives")
+      .select("id, state, why, checked_at, file_archive_parts(part, state, shelf_key, bytes, sha256)")
+      .eq("file_id", fileId)
+      .eq("origin", "shelf"),
+    "the shelf copy",
+  );
+  return rows[0] ?? null;
+};
+const jobsOf = async (fileId) =>
+  ok(
+    await db.from("jobs").select("id, state, tenant_id").eq("kind", "file_shelve").eq("payload->>file_id", fileId),
+    "its jobs",
+  );
+/** A job ended as the ledger ends one: fired first, then what it came to. */
+async function endJobs(fileId, state) {
+  for (const job of (await jobsOf(fileId)).filter((j) => j.state === "scheduled")) {
+    ok(await db.from("jobs").update({ state: "fired", fired_at: new Date().toISOString() }).eq("id", job.id), "fired");
+    ok(await db.from("jobs").update({ state }).eq("id", job.id), state);
+  }
+}
+
+before(async () => {
+  if (skip) return;
+  db = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+});
+
+after(async () => {
+  if (skip) return;
+  await db.from("jobs").delete().in("tenant_id", tenants);
+  await db.from("source_connections").delete().in("tenant_id", tenants);
+  await db.from("files").delete().in("tenant_id", tenants);
+  await db.from("memberships").delete().in("tenant_id", tenants);
+  await db.from("tenants").delete().in("id", tenants);
+  for (const id of users) await db.auth.admin.deleteUser(id);
+});
+
+test(
+  "a made video's shelf copy is begun with its job in one step, once, and within the shelf's room",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const file = await video(ws);
+    assert.deepEqual(await begin(ws, file), { fate: "begun" });
+    const copy = await shelfOf(file);
+    assert.equal(copy.state, "saving");
+    assert.deepEqual(copy.file_archive_parts, [
+      { part: "video", state: "saving", shelf_key: `${ws.T}/${file}/video`, bytes: BYTES, sha256: SHA },
+    ]);
+    const jobs = await jobsOf(file);
+    assert.deepEqual(
+      jobs.map((job) => [job.state, job.tenant_id]),
+      [["scheduled", ws.T]],
+      "its job, written by the door itself",
+    );
+    assert.deepEqual(await begin(ws, file), { fate: "kept", state: "saving" });
+    assert.equal((await jobsOf(file)).length, 1, "asked again, there is still one job");
+
+    // Not a made video, removed, another workspace's, or none at all: no copy.
+    const upload = await video(ws, { source: "upload" });
+    const photo = await video(ws, {
+      kind: "image",
+      mime: "image/jpeg",
+      media_ref: null,
+      media_status: null,
+      seconds: null,
+    });
+    const removed = await video(ws, { removed_at: new Date().toISOString() });
+    const elsewhere = await workspace();
+    for (const [what, id, on] of [
+      ["a video its owner added", upload, ws],
+      ["a picture", photo, ws],
+      ["a removed video", removed, ws],
+      ["another workspace's video", file, elsewhere],
+      ["no such file", "00000000-0000-4000-8000-00000000ffff", ws],
+    ])
+      assert.deepEqual(await begin(on, id), { fate: "none" }, what);
+    refused(
+      await db.rpc("file_shelf_begin", {
+        p_tenant_id: ws.T,
+        p_file_id: file,
+        p_bytes: 0,
+        p_sha256: SHA,
+        p_seconds_max: ROOM,
+      }),
+      "22023",
+      "a copy of no bytes",
+    );
+    refused(
+      await db.rpc("file_shelf_begin", {
+        p_tenant_id: ws.T,
+        p_file_id: file,
+        p_bytes: 5,
+        p_sha256: "abc",
+        p_seconds_max: ROOM,
+      }),
+      "22023",
+      "a checksum that is no SHA-256",
+    );
+
+    // The room: one copy of 60 seconds is on its way. Room for 160 lets a video of 100 in, and room for 159 does not.
+    const long = await video(ws, { seconds: 100 });
+    assert.deepEqual(await begin(ws, long, { p_seconds_max: 159 }), { fate: "full" });
+    assert.equal(await shelfOf(long), null, "a video that does not fit has no row");
+    assert.equal((await jobsOf(long)).length, 0, "and no job");
+    assert.deepEqual(await begin(ws, long, { p_seconds_max: 160 }), { fate: "begun" });
+    // And at the whole room, to the second: 300 minutes hold a video that fills them, and not one second more.
+    const filling = await workspace();
+    const whole = await video(filling, { seconds: ROOM });
+    assert.deepEqual(await begin(filling, whole), { fate: "begun" });
+    assert.deepEqual(await begin(filling, await video(filling, { seconds: 1 })), { fate: "full" });
+  },
+);
+
+test("a copy is checked only where the size and the SHA-256 are the ones that were sent", { skip }, async () => {
+  const ws = await workspace();
+  assert.equal(await checked(ws, await video(ws)), "none", "no copy saving");
+  for (const [what, bytes, sha256] of [
+    ["another size", BYTES - 1, SHA],
+    ["another SHA-256", BYTES, OTHER_SHA],
+    ["a SHA-256 the shelf does not say", BYTES, null],
+  ]) {
+    const file = await video(ws);
+    await begin(ws, file);
+    assert.equal(await checked(ws, file, bytes, sha256), "mismatch", what);
+    const copy = await shelfOf(file);
+    assert.deepEqual([copy.state, copy.why, copy.file_archive_parts[0].state], ["failed", "mismatch", "failed"], what);
+    assert.equal(await checked(ws, file), "none", "a failed copy is not checked by asking");
+  }
+  const file = await video(ws);
+  await begin(ws, file);
+  assert.equal(await checked(ws, file), "checked");
+  const copy = await shelfOf(file);
+  assert.deepEqual([copy.state, copy.why, copy.file_archive_parts[0].state], ["checked", null, "checked"]);
+  assert.ok(copy.checked_at, "it says when");
+  assert.equal(await checked(ws, file), "checked", "asked again of one already checked: the same answer");
+});
+
+test("a video may step aside behind a checked shelf copy, and behind nothing less", { skip }, async () => {
+  const ws = await workspace();
+  const shelf = await shelved(ws);
+  const saving = await video(ws);
+  await begin(ws, saving);
+  const failed = await video(ws);
+  await begin(ws, failed);
+  await checked(ws, failed, BYTES - 1);
+  const none = await video(ws);
+  const upload = await video(ws, { source: "upload" });
+  // A copy the owner saved to their Drive, and an origin they picked, never make a video one that may go (FR-4.9).
+  const saved = await video(ws);
+  const picked = await video(ws, { source: "upload" });
+  const record = {
+    tenant_id: ws.T,
+    google_account: "google-sub-1",
+    state: "checked",
+    checked_at: new Date().toISOString(),
+  };
+  ok(await db.from("file_archives").insert({ ...record, file_id: saved, origin: "saved" }), "a saved copy");
+  ok(await db.from("file_archives").insert({ ...record, file_id: picked, origin: "picked" }), "a picked origin");
+
+  const road = await rpc("video_minutes_by_road", { p_tenant_id: ws.T });
+  assert.equal(Number(road.can_step_aside), 60, "the minutes that can step aside are the shelved video's alone");
+  const went = await rpc("file_copies_let_go", {
+    p_tenant_id: ws.T,
+    p_seconds: null,
+    p_unused_before: new Date().toISOString(),
+    p_rested_before: new Date().toISOString(),
+    p_limit: 100,
+  });
+  assert.deepEqual(
+    went.map((copy) => copy.id),
+    [shelf],
+    "only the video with a checked shelf copy",
+  );
+  // The answer the code live before 00695 reads keeps its shape.
+  assert.deepEqual(Object.keys(went[0]).sort(), ["id", "media_ref", "seconds"]);
+  for (const id of [saving, failed, none, upload, saved, picked]) assert.equal((await fileNow(id)).copy_state, "here");
+
+  // Marked going, and its shelf copy was not what it should be: here again, playing, with its id.
+  assert.equal(await rpc("file_copy_kept", { p_tenant_id: ws.T, p_id: shelf }), true);
+  const kept = await fileNow(shelf);
+  assert.deepEqual([kept.copy_state, kept.copy_why, Boolean(kept.media_ref)], ["here", null, true]);
+  assert.equal(await rpc("file_copy_kept", { p_tenant_id: ws.T, p_id: shelf }), false, "one that is not going");
+});
+
+test(
+  "a return from the shelf spends none of a provider's day, and the workspace's own returns still bind",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const file = await shelved(ws);
+    assert.deepEqual(await letGoAll(ws), [file]);
+    assert.equal(await gone(ws, file), true);
+    assert.deepEqual(await fileNow(file), { copy_state: "away", copy_why: null, media_ref: null });
+    const standing = await settle(ws, file);
+    assert.deepEqual([standing.copy_state, standing.shelf, standing.item_id], ["away", true, null]);
+
+    const day = async () =>
+      ok(await db.from("source_days").select("day, units, bytes, returns").order("day"), "the days");
+    const before = await day();
+    const tight = await returnBegin(ws, file, 0);
+    assert.deepEqual([tight.fate, tight.binds], ["wait", "workspace_returns"]);
+    assert.equal((await fileNow(file)).copy_why, "budget");
+    assert.deepEqual(await returnBegin(ws, file), { fate: "go" });
+    assert.equal((await fileNow(file)).copy_state, "returning");
+    assert.deepEqual(await day(), before, "nothing of a provider's day was asked or written");
+    // The platform's word finishes it as it does a watched clip's.
+    const ref = `shelf-back-${stamp}`;
+    assert.equal(await rpc("file_copy_returning", { p_tenant_id: ws.T, p_id: file, p_media_ref: ref }), true);
+    const ready = await rpc("file_media_ready", { p_media_ref: ref, p_seconds: 60, p_width: 1080, p_height: 1920 });
+    assert.equal(ready.fate, "returned");
+    assert.equal((await fileNow(file)).copy_state, "here");
+  },
+);
+
+test(
+  "a copy found missing is put back, and the video is lost only when nothing is left to put it back from",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const file = await shelved(ws);
+    await letGoAll(ws);
+    await gone(ws, file);
+    await endJobs(file, "done");
+
+    assert.equal(await again(ws, file), true);
+    const back = await shelfOf(file);
+    assert.deepEqual([back.state, back.why, back.checked_at], ["saving", null, null]);
+    assert.deepEqual(
+      [back.file_archive_parts[0].state, back.file_archive_parts[0].sha256, back.file_archive_parts[0].bytes],
+      ["saving", SHA, BYTES],
+      "its bytes and its SHA-256 are kept",
+    );
+    assert.equal((await jobsOf(file)).filter((job) => job.state === "scheduled").length, 1, "with its job");
+    const meanwhile = await settle(ws, file);
+    assert.deepEqual([meanwhile.copy_state, meanwhile.shelf], ["away", false], "being put back is not lost");
+    assert.equal((await letGoAll(ws)).includes(file), false);
+    assert.equal(await checked(ws, file), "checked");
+    assert.equal((await settle(ws, file)).shelf, true);
+
+    // The shelf would not take it: failed, and the video is not lost, since its own file is still Chanlytics'.
+    await again(ws, file);
+    assert.equal(await failedAs(ws, file, "refused"), true);
+    assert.deepEqual(await fileNow(file), { copy_state: "away", copy_why: null, media_ref: null });
+    // The file it is put from is gone: now nothing is left, and it says so.
+    assert.equal(await again(ws, file), true, "a failed copy can be put back again");
+    assert.equal(await failedAs(ws, file, "not_found"), true);
+    assert.deepEqual(await fileNow(file), { copy_state: "lost", copy_why: "no_origin", media_ref: null });
+    assert.equal((await returnBegin(ws, file)).fate, "lost");
+
+    // A video that is here stays here, whatever its shelf copy came to.
+    const here = await shelved(ws);
+    await again(ws, here);
+    await failedAs(ws, here, "mismatch");
+    assert.equal((await fileNow(here)).copy_state, "here");
+    refused(
+      await db.rpc("file_shelf_failed", { p_tenant_id: ws.T, p_file_id: here, p_why: "drive_full" }),
+      "22023",
+      "a reason of another copy's",
+    );
+    assert.equal(await failedAs(ws, here, "refused"), false, "nothing saving: nothing to fail");
+    const removed = await shelved(ws);
+    ok(await db.from("files").update({ removed_at: new Date().toISOString() }).eq("id", removed), "removed");
+    assert.equal(await again(ws, removed), false, "a removed file's copy is not put back");
+  },
+);
+
+test("a copy left saving gets its job again, and one whose job is on the ledger gets no second", { skip }, async () => {
+  const ws = await workspace();
+  const stale = await video(ws);
+  await begin(ws, stale);
+  await endJobs(stale, "failed");
+  const live = await video(ws);
+  await begin(ws, live);
+  // Nothing is an hour old yet.
+  await rpc("file_shelf_requeue", { p_stale_seconds: 3600, p_limit: 100 });
+  assert.equal((await jobsOf(stale)).filter((job) => job.state === "scheduled").length, 0, "a fresh one is left");
+  // Every copy saving, however fresh: the one with no job on the ledger gets one, the other no second.
+  await rpc("file_shelf_requeue", { p_stale_seconds: 0, p_limit: 100 });
+  assert.equal((await jobsOf(stale)).filter((job) => job.state === "scheduled").length, 1);
+  assert.equal((await jobsOf(live)).length, 1);
+});
+
+test("a purged file takes its shelf copy's rows", { skip }, async () => {
+  const ws = await workspace();
+  const file = await shelved(ws);
+  const copy = await shelfOf(file);
+  ok(await db.from("files").update({ removed_at: new Date().toISOString() }).eq("id", file), "removed");
+  await rpc("file_purged", { p_tenant_id: ws.T, p_id: file });
+  assert.equal(ok(await db.from("file_archives").select("id").eq("id", copy.id), "the copy").length, 0);
+  assert.equal(ok(await db.from("file_archive_parts").select("id").eq("archive_id", copy.id), "its piece").length, 0);
+});
+
+test("a member asks whether a video is on the shelf, reads no key, and calls no door", { skip }, async () => {
+  const ws = await workspace();
+  const file = await shelved(ws);
+  const email = `shelf-viewer-${stamp}@example.com`;
+  const password = `pw-${stamp}-shelf-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  ok(await db.from("memberships").insert({ tenant_id: ws.T, user_id: made.data.user.id, role: "viewer" }), "the seat");
+  const member = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  ok(await member.auth.signInWithPassword({ email, password }), "the viewer signs in");
+
+  assert.equal(ok(await member.rpc("file_copy_shelved", { p_tenant_id: ws.T, p_file_id: file }), "shelved"), true);
+  const road = ok(await member.rpc("video_minutes_by_road", { p_tenant_id: ws.T }), "the minutes by road");
+  assert.equal(Number(road.can_step_aside), 60);
+  const elsewhere = await workspace();
+  const theirs = await shelved(elsewhere);
+  assert.equal(
+    ok(await member.rpc("file_copy_shelved", { p_tenant_id: elsewhere.T, p_file_id: theirs }), "another's"),
+    false,
+    "another workspace's shelf says nothing to them",
+  );
+  for (const column of ["shelf_key", "sha256"])
+    refused(await member.from("file_archive_parts").select(column), "42501", `a member reads ${column}`);
+  const doors = [
+    ["file_shelf_begin", { p_tenant_id: ws.T, p_file_id: file, p_bytes: 5, p_sha256: SHA, p_seconds_max: ROOM }],
+    ["file_shelf_checked", { p_tenant_id: ws.T, p_file_id: file, p_bytes: 5, p_sha256: SHA }],
+    ["file_shelf_failed", { p_tenant_id: ws.T, p_file_id: file, p_why: "refused" }],
+    ["file_shelf_again", { p_tenant_id: ws.T, p_file_id: file }],
+    ["file_shelf_requeue", { p_stale_seconds: 0, p_limit: 10 }],
+    ["file_copy_kept", { p_tenant_id: ws.T, p_id: file }],
+  ];
+  for (const [name, args] of doors) refused(await member.rpc(name, args), "42501", `a member calls ${name}`);
+  const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  refused(
+    await anon.rpc("file_copy_shelved", { p_tenant_id: ws.T, p_file_id: file }),
+    "42501",
+    "nobody signed in asks",
+  );
+  assert.equal((await shelfOf(file)).state, "checked", "and nothing of the copy moved");
+});

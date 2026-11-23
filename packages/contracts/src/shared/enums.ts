@@ -190,6 +190,9 @@ export const JOB_KINDS = [
   // A watched clip's copy brought back to the video platform from its folder (00654): payload { file_id }, once a file
   // while one waits or runs, so two askers join one job.
   "copy_return",
+  // A made video's own file put on Chanlytics' shelf and checked there (00695, the archive plan's B2): payload
+  // { file_id }, once a file while one waits or runs. Written by the shelf's own doors, with the copy's row.
+  "file_shelve",
   /**
    * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
    * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;

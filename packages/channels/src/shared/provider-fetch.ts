@@ -67,6 +67,9 @@ const PROVIDER_NAMES = [
   // An owner's ads, read and paused at Meta's ads interface (ads/meta-call.ts): its own breaker, so a fault there
   // never holds a WhatsApp or an Instagram call.
   "meta_ads",
+  // The shelf where a made video keeps its own copy, asked through the relay (files/shelf.ts): Cloudflare's too, but
+  // its own breaker, so a relay that gives no answer never holds a call to the video platform.
+  "relay",
 ] as const;
 export type Provider = (typeof PROVIDER_NAMES)[number];
 

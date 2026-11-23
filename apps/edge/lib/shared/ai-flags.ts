@@ -266,6 +266,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-15",
   },
   {
+    name: "video_shelf",
+    mechanism: "workspace_feature",
+    does: "A video made here keeps a checked copy on Chanlytics' own shelf (the archive plan's B2, 00695), so it gives up its place in the sixty minutes when room is needed and comes back on Play. Off, a made video holds its minutes as before. The test workspace's alone until a video an ad or a post set for later needs is kept (B5).",
+    owner: "Ruben",
+    sunset: "2027-02-28",
+  },
+  {
     name: "VIDEO_WORDS_MODEL",
     mechanism: "edge_env",
     does: "Where a video's words come from: gemini (one call on the ear's model, the words and the note together) or scribe (ElevenLabs Scribe v2); empty is gemini.",
