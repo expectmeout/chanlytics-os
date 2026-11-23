@@ -61,6 +61,21 @@ const ENGLISH: FormPageWords = {
   problem_no_way_to_answer: "An email address or a phone number is needed, so they can answer you.",
   // The printed sheet's one line of its own (server/public/form-sign.ts): what to do with the code.
   scan: "Point your phone's camera here.",
+  // A time asked for (F3): the press, the choice that is no time, the thank-you's lines, and a time gone or too short.
+  ask_time: "Ask for this time",
+  none_of_these: "None of these work",
+  time_confirm: "{business} confirms it with you. Nothing is booked until they do.",
+  asked_for: "You asked for {time}.",
+  confirm_by_email: "{business} will confirm it with you by email, at {email}.",
+  time_sub: "Nothing is booked until they confirm it.",
+  time_taken: "{time} was just taken",
+  time_taken_lead: "Your answers are still here. These times are open now.",
+  time_short: "{service} takes longer",
+  time_short_lead: "{time} doesn't leave enough time. These fit.",
+  book_page: "Pick a time on {business}'s booking page",
+  book_page_lead: "It opens their own page",
+  sent_time: "You asked {business} for {time}. They'll confirm it with you.",
+  day_at_time: "{day} at {time}",
 };
 
 const SPANISH_PAGE: FormPageWords = {
@@ -102,6 +117,20 @@ const SPANISH_PAGE: FormPageWords = {
   problem_not_a_choice: "Elige entre las opciones dadas.",
   problem_no_way_to_answer: "Hace falta un correo o un teléfono, para que puedan responderte.",
   scan: "Apunta aquí la cámara de tu teléfono.",
+  ask_time: "Pedir esta hora",
+  none_of_these: "Ninguna me va bien",
+  time_confirm: "{business} te la confirma. Nada queda reservado hasta entonces.",
+  asked_for: "Pediste {time}.",
+  confirm_by_email: "{business} te la confirmará por correo, a {email}.",
+  time_sub: "Nada queda reservado hasta que te la confirmen.",
+  time_taken: "{time} se acaba de ocupar",
+  time_taken_lead: "Tus respuestas siguen aquí. Estas horas están libres ahora.",
+  time_short: "{service} lleva más tiempo",
+  time_short_lead: "{time} no deja tiempo suficiente. Estas sí.",
+  book_page: "Elige una hora en la página de reservas de {business}",
+  book_page_lead: "Se abre su propia página",
+  sent_time: "Pediste {time} a {business}. Te la confirmarán.",
+  day_at_time: "{day} a las {time}",
 };
 
 /** The languages whose words are the house's own, by the first part of a language's tag. */

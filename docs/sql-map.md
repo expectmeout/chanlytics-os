@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 211 | 211 |
 | reader | 97 | 0 |
-| the server's | 455 | 385 |
+| the server's | 457 | 387 |
 | computed column | 3 | 0 |
 | trigger | 123 | 91 |
-| all | 889 | 687 |
+| all | 891 | 689 |
 
 ## Called by nothing
 
@@ -223,7 +223,7 @@ being read is dropped by a migration.
 | `erasure_rekey` | the server's | the server | script `tooling/scripts/ops/erasure-rekey.mjs` |  |
 | `erasure_rekey_hashes` | the server's | the server | SQL `erasure_rekey` |  |
 | `escalation_closes_its_notices` | trigger | the server | trigger `escalation_closes_its_notices on escalations` | Closes the open handoff, deadman and call rows about a hold's thread when the hold goes open -> resolved, whoever resolves it (00421, through notifications_close_about); |
-| `escalation_open` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `booking_request_answer`, `booking_request_lapse` and 2 more | The one door a thread is handed to a person by (00388): |
+| `escalation_open` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `booking_request_answer`, `booking_request_lapse` and 3 more | The one door a thread is handed to a person by (00388): |
 | `escalations_guard` | trigger | a signed-in person, the server | trigger `escalations_guard on escalations` | open -> resolved, once. |
 | `escalations_note_change` | trigger | the server | trigger `escalations_note_change on escalations` | Writes escalation.changed { from, to } when a reason replaces another on an escalation (K4). |
 | `escalations_stamp_resolved` | trigger | a signed-in person, the server | trigger `escalations_stamp_resolved on escalations` | Stamps resolved_at once, when state goes from open to resolved, whoever writes it (K4). |
@@ -296,6 +296,7 @@ being read is dropped by a migration.
 | `footage_hearers` | the server's | the server | SQL `footage_ring` | Who hears that a watched folder or its account needs someone (00657): |
 | `footage_quoted` | the server's | the server | SQL `files_ring_footage_in`, `media_sources_ring` and 1 more | A watched folder's name as the bell says it (00657): |
 | `footage_ring` | the server's | the server | SQL `media_sources_ring`, `source_connections_ring` and 1 more | One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: |
+| `form_booking_open` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | One more open of the business's own booking page from a live form, on its day (00691; |
 | `form_code_link` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | After a message that carries a request's code is kept (00680): |
 | `form_code_new` | the server's | the server | SQL `form_request_take` | A request's code (00680): |
 | `form_code_person` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | Before a message that carries a request's code is kept (00680): |
@@ -311,9 +312,10 @@ being read is dropped by a migration.
 | `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
 | `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675; |
 | `form_publish` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
-| `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | The hosted form door's one write (00680; |
-| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's hosted forms nobody has answered (00680; |
+| `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts`; SQL `form_time_request_take` | The hosted form door's one write (00680; |
+| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's hosted forms nobody has answered (00680, 00691; |
 | `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's hosted forms brought over the last p_days (30; |
+| `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691; |
 | `form_turn` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |

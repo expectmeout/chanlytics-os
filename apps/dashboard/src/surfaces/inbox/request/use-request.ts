@@ -9,18 +9,28 @@
  *
  * The reply leaves by the route's one door and waits its seconds with Undo, as every message a member begins does. A
  * press that fails says so and changes nothing here.
+ *
+ * A request that asked for a time (00691) is answered Booked it or Can't first, as a time asked in a chat is: no reply
+ * is drafted while the time waits on that answer. Once it is answered, or its day has passed, AI's reply is told what
+ * became of it (booked, or not, with the business's next open times), and where AI drafts nothing by itself the words
+ * are there all the same: the house's own sentence for a booking, or the offer of other times.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  BOOKING_REQUEST_WORDS,
   DRAFT_ABOUT_MAX,
   NEW_CONVERSATION_WORDS,
+  otherTimeWords,
   SECOND_MS,
+  slotLong,
+  slotNear,
   type FormRequestDto,
   type FormRequestPress,
   type PersonReachDto,
   type WriteWay,
 } from "@chanlytics/contracts";
 import { readFormRequest, sendFormRequestPress } from "@/bridge/verbs/forms";
+import { offerOtherTimes } from "../../booking-request";
 import { hearNeedsYou } from "../../needs-you";
 import { askDraft, readReach, undoFirst } from "../new-conversation/verbs";
 import type { Flash } from "../shell";
@@ -158,6 +168,12 @@ async function markAnswered(io: PressIo) {
   io.close();
 }
 
+/** The time it asked for, answered: Booked it or Can't. What tells them is the reply, below. */
+async function answerTime(io: PressIo, booked: boolean) {
+  if (!(await sendRequestPress(io, { act: booked ? "book" : "cant", entry_id: io.dto.id }))) return;
+  io.flash({ tone: "ok", msg: booked ? W.time.said.booked : W.time.said.cant });
+}
+
 /** Not a real request: held, in no count, with its Undo. */
 async function holdRequest(io: PressIo) {
   if (!(await sendRequestPress(io, { act: "hold", entry_id: io.dto.id }))) return;
@@ -192,6 +208,9 @@ export interface RequestPage {
   unmark: () => void;
   hold: () => void;
   letThrough: () => void;
+  /** The time it asked for, answered (00691): Booked it, or Can't. */
+  book: () => void;
+  cant: () => void;
 }
 
 /** What a reply's draft is written from: who it is to, on which wire, and what the request says. */
@@ -239,6 +258,77 @@ function useRequestDraft(id: string, from: DraftFor) {
   return { draft, setDraft, askAi };
 }
 
+/** What AI's reply is told of the time a request asked for, and the words it leaves where AI drafts nothing. */
+interface TimeTold {
+  about: string | null;
+  words: string | null;
+  /** Whether a reply may be drafted yet: the time is answered or past its day, and its words are in hand. */
+  ready: boolean;
+}
+
+const NO_TIME: TimeTold = { about: null, words: null, ready: true };
+
+/**
+ * What the reply is told of the time asked for: nothing while it waits on Booked it or Can't (no reply yet); booked, in
+ * the visit's own words; let go or past its day, with the business's next two open times, read as it is written (the
+ * thread's Can't do it reads them the same way, booking-request.ts offerOtherTimes).
+ */
+function useTimeTold(time: FormRequestDto["time"] | undefined): TimeTold {
+  const startsAt = time?.starts_at ?? null;
+  const zone = time?.timezone ?? "UTC";
+  const service = time?.service ?? null;
+  const lost = !!time && (time.status === "cancelled" || (time.status === "proposed" && !time.holds));
+  const key = time ? `${time.appointment_id}:${time.status}:${time.holds}` : "";
+  const [offer, setOffer] = useState<{ key: string; words: string } | null>(null);
+  useEffect(() => {
+    if (!lost || !startsAt) return undefined;
+    let live = true;
+    const near = slotNear(Date.parse(startsAt), zone, Date.now());
+    void offerOtherTimes({ near, service }).then(
+      (words) => live && setOffer({ key, words }),
+      () => live && setOffer({ key, words: otherTimeWords(near, []) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [key, lost, startsAt, zone, service]);
+  if (!time) return NO_TIME;
+  if (time.status === "proposed" && time.holds) return { about: null, words: null, ready: false };
+  if (!lost) {
+    const when = slotLong(Date.parse(time.starts_at), time.timezone);
+    return { about: W.time.aboutBooked(when), words: BOOKING_REQUEST_WORDS.booked(when, time.service), ready: true };
+  }
+  const words = offer?.key === key ? offer.words : null;
+  return words ? { about: W.time.aboutGone(words), words, ready: true } : { about: null, words: null, ready: false };
+}
+
+/**
+ * What the reply is written from: who it is to, on which wire, what they asked with what became of the time they asked
+ * for, and whether AI drafts by itself (never while that time waits on Booked it or Can't).
+ */
+function replyDraftOf(dto: FormRequestDto | null, wire: WriteWay["wire"] | null, timeReply: TimeTold): DraftFor {
+  const note = dto?.note ?? "";
+  return {
+    personId: dto?.person?.id ?? null,
+    wire,
+    note: timeReply.about ? `${note}\n${timeReply.about}` : note,
+    alone: dto?.standing === "open" && dto.drafts && !!wire && !dto.unreached && timeReply.ready,
+  };
+}
+
+/** Where AI drafts nothing by itself, a time answered still leaves its words ready to send, over no words of theirs. */
+function useTimeWordsReady(
+  dto: FormRequestDto | null,
+  words: string | null,
+  draft: RequestDraft,
+  setDraft: (next: RequestDraft) => void,
+) {
+  const ready = dto?.standing === "open" && !dto.drafts && draft.state === "none" && !draft.text;
+  useEffect(() => {
+    if (ready && words) setDraft({ state: "none", text: words, subject: "", changed: false });
+  }, [ready, words, setDraft]);
+}
+
 /** One request's page: `flash` is the frame's toast, `close` goes back to the list the request was opened from. */
 export function useRequestPage(id: string, flash: (f: Flash) => void, close: () => void): RequestPage {
   const [read, again] = useRequestRead(id);
@@ -249,13 +339,9 @@ export function useRequestPage(id: string, flash: (f: Flash) => void, close: () 
   const [emailTo, setEmailTo] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => setEmailTo(null), [id]);
-  const wire = way?.wire ?? null;
-  const { draft, setDraft, askAi } = useRequestDraft(id, {
-    personId: dto?.person?.id ?? null,
-    wire,
-    note: dto?.note ?? "",
-    alone: !!open && !!dto?.drafts && !!wire && !dto.unreached,
-  });
+  const timeReply = useTimeTold(dto?.time);
+  const { draft, setDraft, askAi } = useRequestDraft(id, replyDraftOf(dto, way?.wire ?? null, timeReply));
+  useTimeWordsReady(dto, timeReply.words, draft, setDraft);
 
   const io: PressIo | null = dto ? { dto, flash, again, close, setBusy } : null;
   return {
@@ -281,5 +367,7 @@ export function useRequestPage(id: string, flash: (f: Flash) => void, close: () 
     unmark: () => void (io && sendRequestPress(io, { act: "unmark", entry_id: io.dto.id })),
     hold: () => void (io && holdRequest(io)),
     letThrough: () => void (io && sendRequestPress(io, { act: "let_through", entry_id: io.dto.id })),
+    book: () => void (io && answerTime(io, true)),
+    cant: () => void (io && answerTime(io, false)),
   };
 }

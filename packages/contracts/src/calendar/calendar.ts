@@ -209,6 +209,7 @@ const blockRequestOf = (item: CalendarItemDto): Pick<CalendarBlockVM, "request">
     ? {
         request: {
           threadId: item.request.thread_id,
+          ...(item.request.entry_id ? { entryId: item.request.entry_id } : {}),
           open: item.request.open,
           ...(item.request.lapsed ? { lapsed: true } : {}),
         },

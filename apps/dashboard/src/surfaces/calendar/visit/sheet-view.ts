@@ -325,19 +325,23 @@ function visitRowsOf(
   );
 }
 
+/** A requested visit's foot: waiting on its answer, closed by its clock, or answered, in its thread or on a form. */
+function requestFootOf(request: NonNullable<VisitSheetInput["block"]["request"]>, cancelled: boolean): string {
+  const words = BOOKING_REQUEST_WORDS;
+  const form = !request.threadId;
+  if (request.open) return form ? words.footForm : words.foot;
+  if (request.lapsed) return words.footLapsed;
+  if (cancelled) return form ? words.footFormCant : words.footCant;
+  return form ? words.footFormBooked : words.footBooked;
+}
+
 /** Where the visit changes, by how it stands and where it came from. */
 function footnoteOf(visitSheetInput: VisitSheetInput, nobody: boolean): string {
   const block = visitSheetInput.block;
   if (nobody) return SHEET_WORDS.foot.nobody(visitSheetInput.source);
   // A time a customer picked by text is on no calendar: answered here or in its thread, and said so after (decision 0061).
-  if (block.request)
-    return block.request.open
-      ? BOOKING_REQUEST_WORDS.foot
-      : block.request.lapsed
-        ? BOOKING_REQUEST_WORDS.footLapsed
-        : block.visit?.status === "cancelled"
-          ? BOOKING_REQUEST_WORDS.footCant
-          : BOOKING_REQUEST_WORDS.footBooked;
+  // One asked for on a form holds no thread: it is answered here or on its request (00691).
+  if (block.request) return requestFootOf(block.request, block.visit?.status === "cancelled");
   const status = block.visit?.status;
   if (block.tool) {
     if (status === "proposed") return SHEET_WORDS.foot.requested(block.tool);

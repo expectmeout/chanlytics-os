@@ -6,7 +6,8 @@
  * What the reply's card says follows what the send door says can go (use-request.ts): a reply by email, or in the
  * chat they already have while it is open; a number alone waits for their own message; someone who asked not to be
  * messaged is sent nothing, in the door's own words; an address that is not the one on their page waits for a pick.
- * Every open request has two quiet presses under it: answered another way, or not a real request.
+ * Every open request has two quiet presses under it: answered another way, or not a real request. A request that asked
+ * for a time (00691) leads with it, answered Booked it or Can't (time.tsx) before its reply.
  */
 // AI's three at work are Files' own drawing (files/looking.tsx AskLooking): its rules load with the request's page.
 import "../../files/files.css";
@@ -22,6 +23,7 @@ import { Panel } from "../../kit/panel/panel";
 import { AskLooking } from "../../files/looking";
 import { appNavigate, gate, type Flash } from "../shell";
 import { IxWho, threadBack } from "../thread/who";
+import { TimeAsked } from "./time";
 import { useRequestPage, type RequestPage } from "./use-request";
 import { REQUEST_WORDS as W, requestCameWords, requestSubline, requestWho } from "./words";
 
@@ -35,7 +37,9 @@ const initialsFor = (name: string): string =>
 
 /** What they answered, a line each, then how they can be reached and how they came. */
 function Answers({ dto }: { dto: FormRequestDto }) {
-  const reachKinds = new Set(["email", "phone"]);
+  // A time asked for is said once, on its card above, with its service (the canvas's board "Ask for a time: you
+  // confirm it").
+  const reachKinds = new Set(dto.time ? ["email", "phone", "when", "service"] : ["email", "phone"]);
   const name = dto.lines.find((line) => line.kind === "short")?.id;
   const answered = dto.lines.filter((line) => !reachKinds.has(line.kind) && line.id !== name);
   const ways = [dto.reach.email, formatPhoneDisplay(dto.reach.phone)].filter(Boolean).join(" · ");
@@ -184,6 +188,8 @@ function Quiet({ page }: { page: RequestPage }) {
 
 /** An open request's reply, by what the send door says can go. */
 function OpenRequest({ page, dto }: { page: RequestPage; dto: FormRequestDto }) {
+  // A time asked for waits on Booked it or Can't (time.tsx) before anything is drafted to them.
+  if (dto.time?.status === "proposed" && dto.time.holds) return <Quiet page={page} />;
   const phone = dto.reach.phone;
   const mended = dto.unreached && dto.reach.email ? emailTypoFix(dto.reach.email) : null;
   const bounced = dto.unreached ? (
@@ -398,6 +404,7 @@ export function RequestPane({ id, flash, onBack }: { id: string; flash: (f: Flas
         </div>
       </header>
       <div className="ix-rq-body">
+        {dto.time ? <TimeAsked page={page} time={dto.time} nowMs={now} /> : null}
         <Answers dto={dto} />
         {dto.standing === "open" ? <OpenRequest page={page} dto={dto} /> : <Settled page={page} dto={dto} />}
       </div>
