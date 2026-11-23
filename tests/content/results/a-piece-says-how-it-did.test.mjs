@@ -55,6 +55,17 @@ test("a story too few saw says why, a place with no numbers says not available, 
   assert.ok(!said.howItDid.lines.join(" ").includes(" 0 "), "nothing missing became a zero");
 });
 
+test("numbers read just before a take-down say so, and promise no next read", () => {
+  const last = { ...reel, step: "last" };
+  const said = pieceResultsSaid({ posts: [last], ...empty }, TZ);
+  assert.deepEqual(said.howItDid.lines, [
+    "2,140 reached · 3,420 plays · 31 saves",
+    "188 likes · 14 comments · 9 shares",
+  ]);
+  assert.match(said.howItDid.fine, /Read just before you took it down\.$/);
+  assert.doesNotMatch(said.howItDid.fine, /Next at|last time/);
+});
+
 test("before the first read, the piece says when its numbers come", () => {
   const fresh = { ...reel, step: null, read_at: null, numbers: [] };
   const said = pieceResultsSaid({ posts: [fresh], ...empty }, TZ);

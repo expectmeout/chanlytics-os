@@ -149,6 +149,18 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]):
 }
 
 /**
+ * The place a post's numbers are read at (00699): Google's adapter gives none yet, so each reads unsupported there;
+ * Instagram's through the Meta link's numbers line. The clock's reads and a take-down's last read ask the same one.
+ */
+const numbersPlaceOf = (
+  db: Parameters<typeof findResultsPlace>[0],
+  post: Parameters<typeof findResultsPlace>[1],
+): ReturnType<typeof findResultsPlace> =>
+  post.place === "google"
+    ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
+    : findResultsPlace(db, post, "insights");
+
+/**
  * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
  * its calendar, WhatsApp's), with the grants that live here, the business's website read for Check (R10), and a lead's
  * preview built (0079).
@@ -171,20 +183,19 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   posts: {
     ...postJobs(db),
     google: (job: ClaimedJob) => sendGooglePost(db, job),
-    // A post asked down where it is up (00682), each place through its own adapter.
+    // A post asked down where it is up (00682), each place through its own adapter, its last numbers read first.
     takeDown: (job: ClaimedJob) =>
-      takePostDown(db, job, (post) =>
-        post.place === "google"
-          ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
-          : takeDownPlaceFor(db, post),
+      takePostDown(
+        db,
+        job,
+        (post) =>
+          post.place === "google"
+            ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
+            : takeDownPlaceFor(db, post),
+        (post) => numbersPlaceOf(db, post),
       ),
-    // A post's numbers read at one step (00699): Google's adapter gives none yet, so each reads unsupported there.
-    observe: (job: ClaimedJob) =>
-      readPostResults(db, job, (post) =>
-        post.place === "google"
-          ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
-          : findResultsPlace(db, post, "insights"),
-      ),
+    // A post's numbers read at one of the clock's steps (00699).
+    observe: (job: ClaimedJob) => readPostResults(db, job, (post) => numbersPlaceOf(db, post)),
     // A public answer to a comment (00699): AI's draft, or the owner's words posted under it on Instagram.
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
