@@ -4,7 +4,7 @@
  * and the account's row written (one an account and a door in a workspace, so a reconnect writes over its own and
  * keeps its folders).
  *
- * A connection opens one door (the archive PRD 1.1, principle 9; 00683). `watch` reads a folder the business chose,
+ * A connection opens one door (the archive PRD 1.1, principle 9; 00686). `watch` reads a folder the business chose,
  * with Drive, read only. `save` reaches only the files the business picks or the app makes, with the narrow scope; a
  * grant for it that came back holding the whole Drive is not kept, so the narrow key is never a wide one. Each door's
  * connect writes its own row and leaves the other's row, token and folders alone.

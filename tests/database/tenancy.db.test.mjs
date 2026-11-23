@@ -443,7 +443,7 @@ before(async () => {
     kind: "video",
     name: "tenancy-clip.mp4",
   });
-  // Where a file's copies are (00683): the folder a press saves into, a copy the owner saved, and one piece of it.
+  // Where a file's copies are (00686): the folder a press saves into, a copy the owner saved, and one piece of it.
   const drive = { tenant_id: A, google_account: `tenancy-${stamp}`, connection_id: ctx.sourceConnection };
   await seed("archive_folders", {
     ...drive,
@@ -1167,7 +1167,7 @@ const TENANT_TABLES = {
       name: "stranger.jpg",
     }),
   ],
-  // Where a file's copies are (00683): members read their workspace's; only the service role writes.
+  // Where a file's copies are (00686): members read their workspace's; only the service role writes.
   archive_folders: [
     "member",
     () => ({
@@ -1394,7 +1394,7 @@ const COLUMNS_OF = {
   publish_attempts: "id, tenant_id, outcome",
   // A member never reads the machine a video is drawn on, nor its card's key (00613's column grants).
   pieces: "id, tenant_id, status",
-  // A member never reads where a piece of a copy sits on the shelf, nor a checksum (00683's column grants).
+  // A member never reads where a piece of a copy sits on the shelf, nor a checksum (00686's column grants).
   file_archive_parts: "id, tenant_id, state",
 };
 

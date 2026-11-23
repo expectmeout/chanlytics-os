@@ -2,7 +2,7 @@
 
 **Status:** Decided by Ruben, 22 November 2026 (calls A13 and A14 of the archive plan, with its requirements at
 version 1.1). Step 1, the ground, is built with this note on the lane `files/a-file-says-where-its-copies-are`
-(migration 00683), waiting for his word to push; the steps after it are not. Written against main at `64b1bbef7e`.
+(migration 00686), waiting for his word to push; the steps after it are not. Written against main at `64b1bbef7e`.
 Builds on 0099 (a business keeps its files) and the footage sources plan's "each Google key opens one door".
 
 ## Context
@@ -22,7 +22,7 @@ Builds on 0099 (a business keeps its files) and the footage sources plan's "each
 
 ## Decision
 
-1. **A Google key opens one door, and a connection's row says which** (`source_connections.door`, 00683). `watch`
+1. **A Google key opens one door, and a connection's row says which** (`source_connections.door`, 00686). `watch`
    reads a folder the business chose, with the wide read. `save` reaches only the files the business picks in Google's
    picker or the app itself makes, with the narrow scope (`drive.file`). One row a door for an account in a workspace:
    connecting, reconnecting or disconnecting one never touches the other, and the give-back rule already keeps the
@@ -63,10 +63,10 @@ notice. No `save` row can be written by anything a person can reach.
   screen says of any of it.
 - `files_copy_shape` still lets only a watched folder's clip be anything but here: the step that shelves a video widens
   it.
-- `source_connections_one_account`, the key of three columns, stays so the code live before 00683 keeps writing over
+- `source_connections_one_account`, the key of three columns, stays so the code live before 00686 keeps writing over
   its own row; with every row `watch` it still holds. The step that first writes a `save` row drops it.
 
 ## Deploy order
 
-00683 is applied before the code that reads it; the code live before it runs on it unchanged. After that, either app
+00686 is applied before the code that reads it; the code live before it runs on it unchanged. After that, either app
 first: the edge reads a connect that names no door as a watched folder's, which is every connect the dashboard makes.

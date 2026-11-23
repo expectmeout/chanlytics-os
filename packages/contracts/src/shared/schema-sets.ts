@@ -198,7 +198,7 @@ export type SchemaAgreement = [
   // Where a watched clip's copy at the video platform stands, and why (00654).
   Holds<Exactly<Of<typeof FILE_COPY_STATES>, SchemaSet<"files.copy_state">>>,
   Holds<Exactly<Of<typeof FILE_COPY_WHYS>, SchemaSet<"files.copy_why">>>,
-  // Where a file's copies are (00683): the folder a press saves into, what a copy is, where it and each of its pieces
+  // Where a file's copies are (00686): the folder a press saves into, what a copy is, where it and each of its pieces
   // stand, and why one failed or is gone.
   Holds<Exactly<Of<typeof ARCHIVE_FOLDER_STATES>, SchemaSet<"archive_folders.state">>>,
   Holds<Exactly<Of<typeof FILE_ARCHIVE_ORIGINS>, SchemaSet<"file_archives.origin">>>,
@@ -360,7 +360,7 @@ export type SchemaAgreement = [
   // item under it is and where it stands.
   Holds<Exactly<Of<typeof SOURCE_PROVIDERS>, SchemaSet<"source_connections.provider">>>,
   Holds<Exactly<Of<typeof SOURCE_CONNECTION_HEALTHS>, SchemaSet<"source_connections.health">>>,
-  // Which door a connected account's key opens (00683).
+  // Which door a connected account's key opens (00686).
   Holds<Exactly<Of<typeof SOURCE_DOORS>, SchemaSet<"source_connections.door">>>,
   Holds<Exactly<Of<typeof MEDIA_SOURCE_STATES>, SchemaSet<"media_sources.state">>>,
   Holds<Exactly<Of<typeof SOURCE_WALK_KINDS>, SchemaSet<"media_sources.walk_kind">>>,

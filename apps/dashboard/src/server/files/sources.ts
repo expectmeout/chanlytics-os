@@ -358,7 +358,7 @@ export async function stopSourceWatch(ctx: RouteContext, member: Member): Promis
  * of the same Google account is connected here, and the sheet says so before the press.
  */
 export async function disconnectSource(ctx: RouteContext, member: Member): Promise<{ revoked: boolean }> {
-  // The watched folder's accounts alone: a narrow key that chooses and saves is not this press's to end (00683).
+  // The watched folder's accounts alone: a narrow key that chooses and saves is not this press's to end (00686).
   const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId, "watch");
   let revoked = false;
   // Every account is let go, one failing or not, and the one that failed is named (the review of 20 Nov, finding 14):

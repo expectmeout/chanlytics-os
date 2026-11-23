@@ -1,5 +1,5 @@
 /**
- * Where a file's copies are, on a real database (00683, the archive plan's B1): a connected account's row says which
+ * Where a file's copies are, on a real database (00686, the archive plan's B1): a connected account's row says which
  * door its key opens, and the code live before the column still writes over its own row; the folder a press saves
  * into, a copy of a file and a copy's pieces refuse the rows that should be impossible; a disconnect leaves every copy
  * known, its connection cleared and its Google account kept; a purged file takes its copies' rows; a member reads
@@ -140,7 +140,7 @@ test(
     };
     const [first] = ok(
       await db.from("source_connections").insert(row).select("id, door"),
-      "as the code before 00683 writes",
+      "as the code before 00686 writes",
     );
     assert.equal(first.door, "watch");
     // The code live before the column: a reconnect writes over its own row by the three-column key.

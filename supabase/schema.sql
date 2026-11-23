@@ -46057,7 +46057,7 @@ CREATE TABLE public.archive_folders (
 -- Name: TABLE archive_folders; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.archive_folders IS 'The one "Chanlytics" folder in an owner''s Google Drive that a press to save writes into (the archive PRD 1.1, 00683): a workspace and a Google account, the folder''s id and its two folders'' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.';
+COMMENT ON TABLE public.archive_folders IS 'The one "Chanlytics" folder in an owner''s Google Drive that a press to save writes into (the archive PRD 1.1, 00686): a workspace and a Google account, the folder''s id and its two folders'' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.';
 
 
 --
@@ -47137,7 +47137,7 @@ CREATE TABLE public.file_archive_parts (
 -- Name: TABLE file_archive_parts; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.file_archive_parts IS 'One piece of a copy of a Library file (the archive PRD 1.1, 00683): a photo''s or a picked file''s own bytes (original), a post''s four pictures (portrait, square, story, wide), or a video''s file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.';
+COMMENT ON TABLE public.file_archive_parts IS 'One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo''s or a picked file''s own bytes (original), a post''s four pictures (portrait, square, story, wide), or a video''s file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.';
 
 
 --
@@ -47178,7 +47178,7 @@ CREATE TABLE public.file_archives (
 -- Name: TABLE file_archives; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.file_archives IS 'One copy of a Library file, a file and an origin (the archive PRD 1.1, 00683). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner''s own Drive file a pick brought in. shelf: Chanlytics'' own copy. A video''s copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder''s item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.';
+COMMENT ON TABLE public.file_archives IS 'One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner''s own Drive file a pick brought in. shelf: Chanlytics'' own copy. A video''s copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder''s item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.';
 
 
 --
@@ -51648,7 +51648,7 @@ COMMENT ON COLUMN public.source_connections.health IS 'ok: its grant reads. need
 -- Name: COLUMN source_connections.door; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.source_connections.door IS 'Which door this account''s key opens (00683). watch: a folder the business chose is read, with the provider''s wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace.';
+COMMENT ON COLUMN public.source_connections.door IS 'Which door this account''s key opens (00686). watch: a folder the business chose is read, with the provider''s wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace.';
 
 
 --

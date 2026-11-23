@@ -58,7 +58,7 @@ export async function findGoogleSourceConnectionOfAccount(
 }
 
 /**
- * A workspace's connected accounts for one door, oldest first (00683): the accounts its folders are watched through,
+ * A workspace's connected accounts for one door, oldest first (00686): the accounts its folders are watched through,
  * or the ones whose narrow key chooses and saves. A screen about one door never lists the other's.
  */
 export async function listSourceConnectionsOf(
@@ -94,7 +94,7 @@ export async function findSourceConnection(
 
 /**
  * A connected account written: one row an account and a door in a workspace (source_connections_one_account_a_door,
- * 00683), so a reconnect of a door writes over its own row, keeps its id, its folders and their items, and touches no
+ * 00686), so a reconnect of a door writes over its own row, keeps its id, its folders and their items, and touches no
  * other door's.
  */
 export async function saveSourceConnection(

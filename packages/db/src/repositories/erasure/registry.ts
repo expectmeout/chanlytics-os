@@ -255,7 +255,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(WITH_WORKSPACE, "name", "added_by"),
     ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "walk_page"),
   },
-  // Where a file's copies are (00683). The Google account whose Drive holds a copy is the member's who connected it,
+  // Where a file's copies are (00686). The Google account whose Drive holds a copy is the member's who connected it,
   // and leaves with the workspace, as a connection's does. Drive's ids for the folder and for a file in it, a piece's
   // key on the shelf and its checksums name nobody (the states, origins, pieces and reasons are closed sets). A copy
   // the owner saved to their own Drive is theirs to delete there: an erasure removes the file here, and its rows with it.

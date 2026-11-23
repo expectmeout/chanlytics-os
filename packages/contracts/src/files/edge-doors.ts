@@ -136,7 +136,7 @@ export const SOURCES_DOOR = edgeDoor(
     /** A connect: Google's code, and PKCE's verifier where the consent was asked with its challenge. */
     code: z.string().max(4096).optional(),
     code_verifier: z.string().optional(),
-    /** A connect: which door the grant is for (00683). Left out, it is a watched folder's, as every connect was. */
+    /** A connect: which door the grant is for (00686). Left out, it is a watched folder's, as every connect was. */
     door: z.enum(SOURCE_DOORS).optional(),
     connection_id: DOOR_ID.optional(),
     source_id: DOOR_ID.optional(),

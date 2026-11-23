@@ -6,7 +6,7 @@
  *
  * The closed sets a row holds, and nothing else: what a screen says of each is the screen's own.
  *
- * Below them, where a file's other copies are (the archive PRD 1.1, section 10; 00683). A video Chanlytics made, or
+ * Below them, where a file's other copies are (the archive PRD 1.1, section 10; 00686). A video Chanlytics made, or
  * one added from a phone, has a checked copy on Chanlytics' own shelf, so its copy at the platform can be let go
  * and fetched again. A file the owner chose from their Google Drive keeps the Drive file it came from. A file the
  * owner pressed "Save to Google Drive" on has a copy in their Drive, which is theirs: nothing reads it back, and a

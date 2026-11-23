@@ -591,7 +591,7 @@ Foreign keys:
 
 ### archive_folders
 
-The one "Chanlytics" folder in an owner's Google Drive that a press to save writes into (the archive PRD 1.1, 00683): a workspace and a Google account, the folder's id and its two folders' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.
+The one "Chanlytics" folder in an owner's Google Drive that a press to save writes into (the archive PRD 1.1, 00686): a workspace and a Google account, the folder's id and its two folders' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.
 
 - Owned by: none
 - Primary key: `id`
@@ -1594,7 +1594,7 @@ Foreign keys:
 
 ### file_archive_parts
 
-One piece of a copy of a Library file (the archive PRD 1.1, 00683): a photo's or a picked file's own bytes (original), a post's four pictures (portrait, square, story, wide), or a video's file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.
+One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo's or a picked file's own bytes (original), a post's four pictures (portrait, square, story, wide), or a video's file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.
 
 - Owned by: none
 - Primary key: `id`
@@ -1627,7 +1627,7 @@ Foreign keys:
 
 ### file_archives
 
-One copy of a Library file, a file and an origin (the archive PRD 1.1, 00683). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner's own Drive file a pick brought in. shelf: Chanlytics' own copy. A video's copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder's item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.
+One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner's own Drive file a pick brought in. shelf: Chanlytics' own copy. A video's copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder's item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.
 
 - Owned by: none
 - Primary key: `id`
@@ -4661,7 +4661,7 @@ A provider account a business connected so its footage can be read where it alre
 | `connected_at` | timestamp with time zone | no | `now()` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `door` | text | no | `'watch'::text` | Which door this account's key opens (00683). watch: a folder the business chose is read, with the provider's wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace. |
+| `door` | text | no | `'watch'::text` | Which door this account's key opens (00686). watch: a folder the business chose is read, with the provider's wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace. |
 
 Foreign keys:
 

@@ -47,7 +47,7 @@ create unique index if not exists source_connections_one_account_a_door
   on public.source_connections (tenant_id, provider, provider_account, door);
 
 comment on column public.source_connections.door is
-  'Which door this account''s key opens (00683). watch: a folder the business chose is read, with the provider''s wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace.';
+  'Which door this account''s key opens (00686). watch: a folder the business chose is read, with the provider''s wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace.';
 
 /* ------------------------------------------------------------------------------- 2. the folder a press saves into -- */
 
@@ -95,7 +95,7 @@ grant select on public.archive_folders to authenticated;
 grant all on public.archive_folders to service_role;
 
 comment on table public.archive_folders is
-  'The one "Chanlytics" folder in an owner''s Google Drive that a press to save writes into (the archive PRD 1.1, 00683): a workspace and a Google account, the folder''s id and its two folders'' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.';
+  'The one "Chanlytics" folder in an owner''s Google Drive that a press to save writes into (the archive PRD 1.1, 00686): a workspace and a Google account, the folder''s id and its two folders'' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.';
 comment on column public.archive_folders.state is
   'ready: where it was left. missing: found in Google Drive''s bin or gone. A missing folder is never made again by itself: the owner''s next press to save asks first.';
 
@@ -158,7 +158,7 @@ grant select on public.file_archives to authenticated;
 grant all on public.file_archives to service_role;
 
 comment on table public.file_archives is
-  'One copy of a Library file, a file and an origin (the archive PRD 1.1, 00683). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner''s own Drive file a pick brought in. shelf: Chanlytics'' own copy. A video''s copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder''s item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.';
+  'One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner''s own Drive file a pick brought in. shelf: Chanlytics'' own copy. A video''s copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder''s item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.';
 comment on column public.file_archives.state is
   'saving: being sent. saved: every part is in place. checked: every part''s size and checksum are the ones that were sent. failed: a part could not be sent, or did not match twice. gone: checked once, and since found in a bin or missing.';
 comment on column public.file_archives.why is
@@ -212,6 +212,6 @@ grant select (id, tenant_id, archive_id, part, drive_file_id, bytes, state, chec
 grant all on public.file_archive_parts to service_role;
 
 comment on table public.file_archive_parts is
-  'One piece of a copy of a Library file (the archive PRD 1.1, 00683): a photo''s or a picked file''s own bytes (original), a post''s four pictures (portrait, square, story, wide), or a video''s file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.';
+  'One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo''s or a picked file''s own bytes (original), a post''s four pictures (portrait, square, story, wide), or a video''s file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.';
 comment on column public.file_archive_parts.shelf_key is
   'The piece''s key on Chanlytics'' own shelf. The service role''s alone: no member reads it.';
