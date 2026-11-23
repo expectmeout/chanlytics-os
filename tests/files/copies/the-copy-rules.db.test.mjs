@@ -193,7 +193,7 @@ after(async () => {
 });
 
 test(
-  "a video holds no id only while its copy is away, lost or coming back, and only a watched clip ever is",
+  "a video holds no id only while its copy is away, lost or coming back, and a photo's copy is always here",
   { skip },
   async () => {
     const ws = await workspace();
@@ -220,9 +220,24 @@ test(
       (await tryRow({ source: "drive", media_ref: `shape-${randomUUID()}`, copy_state: "away" })).error,
       "away never holds an id",
     );
-    // An upload, a video made here and a found video are always here.
+    // Any video's row may say its copy is away (00690): a made video steps aside behind its copy on the shelf. Which
+    // video may is the doors' to say, never the row's (file_copy_shelved; tests/files/shelf/the-shelf-rules.db.test.mjs).
     for (const source of ["upload", "made", "instagram", "website"])
-      assert.ok((await tryRow({ source, media_ref: null, copy_state: "away" })).error, `${source} is never away`);
+      ok(await tryRow({ source, media_ref: null, copy_state: "away" }), `${source}: the row allows it`);
+    // A photo is never anything but here: it has no copy at the platform to let go (the archive PRD, FR-5.7).
+    const photo = {
+      kind: "image",
+      mime: "image/jpeg",
+      source: "upload",
+      media_status: null,
+      media_ref: null,
+      seconds: null,
+    };
+    ok(await tryRow(photo), "a photo that is here");
+    for (const copy_state of ["going", "away", "returning", "lost"]) {
+      const refused = (await tryRow({ ...photo, copy_state })).error;
+      assert.match(refused?.message ?? "", /files_copy_shape/, `a photo is never ${copy_state}`);
+    }
     // Why is said only of a copy that is away or lost, and only in the closed set's words.
     assert.ok((await tryRow({ source: "drive", media_ref: `shape-${randomUUID()}`, copy_why: "room" })).error);
     assert.ok((await tryRow({ source: "drive", media_ref: null, copy_state: "lost", copy_why: "because" })).error);
