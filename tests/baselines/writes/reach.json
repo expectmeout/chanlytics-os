@@ -40,14 +40,14 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE files/[id]/facebook": {
       "changes": "posts UPDATE",
       "missing": {
         "content_week": "admin/content",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE files/[id]/google": {
@@ -55,14 +55,14 @@
       "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "missing": {
         "content_week": "admin/content",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE files/[id]/instagram": {
       "changes": "posts UPDATE",
       "missing": {
         "content_week": "admin/content",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE files/[id]/posts": {
@@ -76,7 +76,7 @@
         "person": "clients/person",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE google/connection": {
@@ -207,7 +207,7 @@
         "sequences": "every page",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE reach-outs/[id]": {
@@ -282,7 +282,7 @@
         "reach_out_replies": "inbox, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "DELETE team/[id]": {
@@ -361,7 +361,7 @@
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today"
       }
     },
@@ -386,7 +386,7 @@
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today"
       }
     },
@@ -399,14 +399,14 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "PATCH files/[id]/posts": {
       "changes": "posts UPDATE",
       "missing": {
         "content_week": "admin/content",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "PATCH lead-searches/[id]": {
@@ -456,7 +456,7 @@
         "reports_receptionist": "reports/receptionist",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "every page",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today",
         "workspace": "every page"
       }
@@ -468,7 +468,7 @@
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "settings": "admin/setup, calendar, clients, clients/get-yes, clients/leads, clients/person, conversations, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, today",
-        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
       },
       "missing": {
         "calendar_runs": "calendar",
@@ -746,7 +746,7 @@
     "POST comments": {
       "changes": "comment_answers DELETE INSERT UPDATE",
       "extra": {
-        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
       }
     },
     "POST contacts": {
@@ -1051,7 +1051,7 @@
         "calendar_runs": "calendar",
         "files": "admin/files",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST content/plan/slots": {
@@ -1062,7 +1062,7 @@
         "calendar_runs": "calendar",
         "files": "admin/files",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST conversations/[id]/archive": {
@@ -1387,7 +1387,7 @@
         "content": "campaigns/content, campaigns/content/library, campaigns/content/week",
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/[id]/facebook": {
@@ -1397,7 +1397,7 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/[id]/google": {
@@ -1407,7 +1407,7 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/[id]/instagram": {
@@ -1417,7 +1417,7 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/[id]/restore": {
@@ -1427,7 +1427,7 @@
         "calendar_runs": "calendar",
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/[id]/version": {
@@ -1448,7 +1448,7 @@
         "content": "campaigns/content, campaigns/content/library, campaigns/content/week",
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/post": {
@@ -1459,7 +1459,7 @@
         "calendar_runs": "calendar",
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/video": {
@@ -1681,7 +1681,7 @@
         "person": "clients/person",
         "reach_outs": "outbound",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST lead-searches/chosen": {
@@ -1781,7 +1781,7 @@
         "person": "clients/person",
         "reach_outs": "outbound",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST leads/[id]/keep": {
@@ -1793,7 +1793,7 @@
         "person": "clients/person",
         "reach_outs": "outbound",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST leads/[id]/later": {
@@ -1805,7 +1805,7 @@
         "person": "clients/person",
         "reach_outs": "outbound",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST leads/[id]/name": {
@@ -1856,7 +1856,7 @@
         "person": "clients/person",
         "reach_outs": "outbound",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST leads/[id]/send": {
@@ -2183,7 +2183,7 @@
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "every page",
         "setup": "every page",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today"
       }
     },
@@ -2413,7 +2413,7 @@
       "missing": {
         "person": "clients/person",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST reach-outs/[id]/leads/leave": {
@@ -2581,7 +2581,7 @@
       },
       "missing": {
         "person": "clients/person",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST sequences/[id]/leave": {
@@ -2747,7 +2747,7 @@
         "calendar_runs": "calendar",
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST team/invite": {
@@ -2778,7 +2778,7 @@
         "reports_receptionist": "reports/receptionist",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "every page",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today",
         "workspace": "every page"
       }
@@ -3292,7 +3292,7 @@
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today"
       }
     },
@@ -3317,7 +3317,7 @@
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
-        "today": "today",
+        "today": "inbox, today",
         "today_pins": "today"
       }
     }

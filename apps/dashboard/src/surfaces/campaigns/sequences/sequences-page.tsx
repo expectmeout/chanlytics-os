@@ -31,7 +31,8 @@ import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { useHeldList, type Arrival } from "../../kit/motion/held-list";
 import { canDo, gate, navigate, routeDoor } from "../../frame-verbs";
-import { usePartShown, useSurface } from "../../use-surface";
+import { useSurface } from "../../use-surface";
+import { PartShown } from "../parts/view-shown";
 import { useEmailAllowance } from "../parts/head";
 import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
 import { SequencesList, sequencesList } from "./list";
@@ -125,8 +126,23 @@ const RECORD_ARRIVES: Arrival = {
   going: cmGoing,
 };
 
-/** Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView). */
-export function SequencesPage({ route, view }: { route: string; view?: CmView }) {
+/** Campaigns' first part (contracts PRIMARY_PART): Sequences' list. */
+const CAMPAIGNS_LIST = { page: "campaigns", part: "list" };
+
+/**
+ * Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView).
+ * `markedAs` is the page its draw is said for where the address names another (an Ads address where Ads is not drawn, whose
+ * page Sequences is: contracts vitalsPageOf, PRIMARY_PART); Campaigns' list otherwise.
+ */
+export function SequencesPage({
+  route,
+  view,
+  markedAs = CAMPAIGNS_LIST,
+}: {
+  route: string;
+  view?: CmView;
+  markedAs?: { page: string; part: string };
+}) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
   // On a phone a sequence open, its record or a run of it, is the screen: the list is held where it was under it, and put
   // back there as it goes, by any Back; a record opened from it is pushed in over it. A desk keeps the list beside it.
@@ -134,8 +150,9 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
   const over = useHeldList(phone && place.view === "record", sequencesList, RECORD_ARRIVES);
   // Campaigns' first part (client/page-speed.ts, contracts PRIMARY_PART): Sequences' list, drawn with its rows, or with
   // what could not be read. Timed from the press, so the page's own chunk and its read are in it, not the gate's frame alone.
+  // Said while it is the view shown (its split says it): a move from another view of Campaigns is a page of its own begun
+  // (contracts vitalsPageOf).
   const list = useSurface("sequences");
-  usePartShown("campaigns", "list", list !== undefined);
   // A record keeps the way back it was opened with while its tabs change; the list and New say only their own.
   const held = recordBackOf(place.view === "record" ? place.id : null, place.back ?? null);
   const back = place.view === "record" ? held : (place.back ?? null);
@@ -171,7 +188,12 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
       className="sq-page"
       view={view}
       keepPane
-      list={<SequencesListPane openId={place.view === "record" ? place.id : null} />}
+      list={
+        <>
+          <PartShown page={markedAs.page} part={markedAs.part} ready={list !== undefined} />
+          <SequencesListPane openId={place.view === "record" ? place.id : null} />
+        </>
+      }
       open={open}
     />
   );

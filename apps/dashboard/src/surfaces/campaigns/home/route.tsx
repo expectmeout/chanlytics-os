@@ -21,7 +21,7 @@
  * itself; a view not drawn yet when its tab is pressed comes in the same way, by the box that says it is reading
  * (ViewReading), which the page takes over as it lands.
  */
-import { Activity, Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Activity, Suspense, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   ADS_ROUTE,
@@ -46,17 +46,19 @@ import { waitForAdsFirstRead } from "../ads/first-read";
 import { useAdsShown } from "../ads/shown";
 import { useWhatsAppListAsked } from "../parts/whatsapp-list";
 import { openSeeOver } from "../../see/see-over";
-import { MessagePaneProvider, sequencesPageNow } from "./campaigns-code";
+// Each view's code is a chunk of its own (campaigns-code.tsx), fetched where the view is drawn: once the frame is idle on another
+// view, at its press, or beside the frame's own where a load opens on it (opening.ts), its first draw held for it.
+import {
+  MessagePaneProvider,
+  adsCode,
+  adsPageNow,
+  contentCode,
+  contentPageNow,
+  formsPageNow,
+  sequencesPageNow,
+} from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
 
-// The Ads view's code is its own chunk, fetched where Ads is drawn: once the frame is idle on another view, or at its press.
-const adsCode = () => import("../ads/ads-page").then((m) => ({ default: m.AdsPage }));
-const AdsPage = lazy(adsCode);
-// The Content view's code, a chunk of its own, fetched where Content is drawn: once the frame is idle on another view, or at its press.
-const contentCode = () => import("../content/page").then((m) => ({ default: m.ContentPage }));
-const ContentPage = lazy(contentCode);
-// The Forms view's code, a chunk of its own, fetched the first time Forms is shown (00680).
-const FormsPage = lazy(() => import("../forms/page").then((m) => ({ default: m.FormsPage })));
 // Content readied ahead (content/warm.ts): its page read in, and its first screen's pictures asked for, from the page's chunk.
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 
@@ -82,6 +84,9 @@ function ViewReading({ view }: { view: CmView }) {
     </div>
   );
 }
+
+/** An Ads address where Ads is not drawn is Sequences, and its draw is said for the page the address is (contracts PRIMARY_PART). */
+const ADS_SHOWN_AS_SEQUENCES: { page: string; part: string } = { page: "ads", part: "page" };
 
 /** Campaigns' kept views, in the strip's order: Ads only where it is drawn (ads/shown.ts). */
 type View = "sequences" | "content" | "ads" | "forms";
@@ -168,9 +173,9 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
       stop = aheadWhenIdle(() => {
         readKeptViews(view);
         // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
-        if (adsShown && view !== "ads") void adsCode();
+        if (adsShown && view !== "ads") adsCode.warm();
         if (view !== "content") {
-          void contentCode();
+          contentCode.warm();
           // Drawn hidden once it holds what it shows; one that could not be readied is drawn as it is pressed, as before.
           void contentWarm().then(
             () => setContentReady(true),
@@ -238,9 +243,13 @@ export function CampaignsRoute() {
   const landing = retiredRouteOf(route);
   useMessageOpensOverTheList(route);
   const view = viewOf(param, adsShown);
-  // Sequences is a chunk of its own (campaigns-code.tsx), most often fetched before the press: then the page is drawn at once,
-  // and only a press that beat it waits under the Suspense below. Taken once for the mount, which follows every address.
+  // Each view is a chunk of its own (campaigns-code.tsx), most often fetched before the press, and on a load that opens on it
+  // before the first draw (opening.ts): then the view is drawn at once, and only a press that beat it waits under the Suspense
+  // below. Taken once for the mount, which follows every address, so a view drawn is never swapped for another.
   const [SequencesPage] = useState(sequencesPageNow);
+  const [ContentPage] = useState(contentPageNow);
+  const [AdsPage] = useState(adsPageNow);
+  const [FormsPage] = useState(formsPageNow);
   const ahead = useViewsAhead(view, adsShown);
   const kept = useKeptViews(view, landing ?? route, ahead);
   useEffect(() => {
@@ -253,7 +262,11 @@ export function CampaignsRoute() {
           {/* The message's pane, handed down to the step editor (parts/message-pane.ts). */}
           <Suspense fallback={<ViewReading view={kept.viewOf("sequences")} />}>
             <MessagePaneProvider>
-              <SequencesPage route={kept.sequencesAt} view={kept.viewOf("sequences")} />
+              <SequencesPage
+                route={kept.sequencesAt}
+                view={kept.viewOf("sequences")}
+                markedAs={param && isAdsParam(param) ? ADS_SHOWN_AS_SEQUENCES : undefined}
+              />
             </MessagePaneProvider>
           </Suspense>
         </Activity>

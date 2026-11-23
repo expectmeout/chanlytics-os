@@ -79,7 +79,8 @@ test("what Today waits for is what the boot reads first among what it draws, in 
 
 // After Today's: Sent's runs, the reach-outs' replies and Conversations' read are in by then (module state: the tests above).
 test("the Inbox waits beside its threads for the runs above them and what a row draws from other reads; what the thread it opens on draws is that thread's to wait for (the Inbox load review, 28 Oct 2026)", () => {
-  const drawn = ["broadcasts", "conversations", "reach_out_replies"];
+  // And the day's read, which Needs you is made of: drawn before it, three conversations folded away under the list (22 Nov 2026).
+  const drawn = ["broadcasts", "conversations", "reach_out_replies", "today"];
   assert.deepEqual(reg.ROUTE_WAITS.inbox, drawn);
   assert.deepEqual(
     reg.ROUTE_DRAWS.inbox.slice(0, drawn.length),

@@ -16,6 +16,7 @@ import { Icon } from "../../kit/icon/icon";
 import { showHeld } from "../../kit/motion/held-list";
 import { Panel } from "../../kit/panel/panel";
 import { useRecSheetEscape } from "../../kit/record/focus";
+import { ViewShownAs } from "./view-shown";
 import { cx } from "../../kit/variants";
 import type { ScopeView } from "../../people/scope-view";
 
@@ -108,14 +109,17 @@ export function CmSplit({ list, open, className, testid, view, keepPane = false 
       data-takeover={opened && view?.shown !== false ? "true" : undefined}
       data-testid={testid}
     >
-      <Panel as="section" size="flush" className="cm-list">
-        {list}
-      </Panel>
-      {opened ? (
-        open
-      ) : keepPane ? (
-        <Panel as="section" size="flush" className="cm-pane cm-pane-none" aria-hidden />
-      ) : null}
+      {/* Whether this view is the one shown, for the parts that say their draw (use-surface.ts PartShown). */}
+      <ViewShownAs shown={view?.shown !== false}>
+        <Panel as="section" size="flush" className="cm-list">
+          {list}
+        </Panel>
+        {opened ? (
+          open
+        ) : keepPane ? (
+          <Panel as="section" size="flush" className="cm-pane cm-pane-none" aria-hidden />
+        ) : null}
+      </ViewShownAs>
     </div>
   );
 }

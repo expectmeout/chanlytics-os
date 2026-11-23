@@ -10,6 +10,7 @@ import type { FrameFlash } from "../../frame-verbs";
 import { FolderLine } from "../../files/footage/line";
 import { LibraryInContent } from "../../files/pane";
 import { useSurface } from "../../use-surface";
+import { PartShown } from "../parts/view-shown";
 import { FileLines } from "./lines";
 import { FoundCard } from "./found-card";
 import type { ContentLayout } from "./views";
@@ -39,6 +40,8 @@ export default function ContentLibrary({
   }, [files, onPieces]);
   return (
     <>
+      {/* Its draw, said while its view is shown (use-surface.ts PartShown; client/page-speed.ts, contracts PRIMARY_PART). */}
+      <PartShown page="library" part="library" ready={held !== undefined} />
       {/* A watched folder's news, over the list; an empty Library says it on its own card (FoundCard). */}
       {files && files.length > 0 ? <FolderLine /> : null}
       <LibraryInContent

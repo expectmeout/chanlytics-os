@@ -78,7 +78,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Not People's book: a thread's head draws its person from People's row where the tab holds it, and from the thread's own
   // read of them where it does not (people/want-person.ts), so a contact's edit on the Inbox never reads every page of the
   // book behind it (S4-6), and nothing waits for the heaviest read.
-  inbox: ["broadcasts", "conversations", "reach_out_replies", "reply_drafts", "settings"],
+  inbox: ["broadcasts", "conversations", "reach_out_replies", "today", "reply_drafts", "settings"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
@@ -198,7 +198,14 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // PREFETCH_READS). What the thread it opens on draws in it, its person and its reply box's reads, is that thread's to wait
   // for, said by the Inbox's own read as it finds the thread (surfaces/inbox/surface.ts openingThreadWaits): a phone opens on
   // its list alone, which draws none of it (the Inbox load review, 28 Oct 2026).
-  inbox: ["broadcasts", "conversations", "reach_out_replies"],
+  // And the day's read, which Needs you is made of (needs-you.ts needsYouRowsNow): drawn before it, the list was the rule's
+  // own, then three conversations folded away under it and the runs and the fold came 2.4 s after the list (CLS 0.67; the
+  // phone sweep of 22 Nov 2026). Started from the document's head with the Inbox's own, in its opening (PREFETCH_READS).
+  inbox: ["broadcasts", "conversations", "reach_out_replies", "today"],
+  // The Calendar's campaigns, which its board holds its first draw for (calendar-page.tsx useRunsHold), so they never land
+  // between the meetings: the gate let the page draw as its weeks landed, and a slow phone drew the board's empty frame, then
+  // the board 0.56 s after it as the campaigns came (the phone sweep of 22 Nov 2026). Started from the document's head with them.
+  calendar: ["calendar_runs"],
   // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
   // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
@@ -207,6 +214,8 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   "reports/people": ["workspace", "reports_people"],
   "reports/receptionist": ["workspace", "reports_receptionist"],
   "reports/reviews": ["workspace", "reports_reviews"],
+  // Campaigns' too: its scope beside the lenses narrowed the strip, which slid 14 px (the phone sweep of 22 Nov 2026).
+  "reports/campaigns": ["workspace", "reports_campaigns"],
   // Campaigns' views each wait for what their own first screen is made of (surface-registry routeWaitsFor asks the view
   // before the page), each started from the document's head with the view's own (contracts PREFETCH_READS). A sequence's
   // steps say their messages' words, which are the settings read's (offered-templates.ts), as the Inbox's reply box does:
@@ -216,6 +225,12 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // there is a number to send from: drawn before the channels read, it said there was none, then the list moved 55 px up.
   "campaigns/sequences": ["settings"],
   "campaigns/sequences/new": ["playbooks"],
+  // Content's own read and its Library's, which its view draws from beside the settings read: a view drawn before its read
+  // would say it holds nothing, then fill. Each started from the document's head with the settings read.
+  "campaigns/content": ["content"],
+  "campaigns/content/library": ["files"],
+  // And its Week's, which draws nothing until its read is in (week/week.tsx).
+  "campaigns/content/week": ["content_week"],
   // Messages' old route and its addresses are Campaigns' list's (Messages folded into Campaigns, 17 Nov 2026).
   "campaigns/messages": ["settings"],
   messages: ["settings"],
