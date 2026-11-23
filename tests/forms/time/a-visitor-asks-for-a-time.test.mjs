@@ -184,7 +184,10 @@ test("a business that confirms its own bookings: the question shows its real ope
 test("a time picked is the same request a chat opens: held for the business, in no thread, and the thank-you never says booked", async () => {
   const made = world("requests");
   const html = await (await get()).text();
-  const slot = slotsOf(html)[1];
+  // A time a two-hour balayage fits before five: which times today offers turns on the hour the test runs at, and one
+  // at four is the form's "takes longer" (the test of a time too short holds that), so the time is picked by its hour.
+  const slot = slotsOf(html).find((s) => s.slice(11) <= "15:00");
+  assert.ok(slot, "a time with two hours before closing is offered");
   const res = await send({ ...ANA, "a.f6serv": "s1", "a.f7when": slot }, carriedOf(html));
   assert.equal(res.status, 200);
   const thanks = await res.text();
