@@ -4,10 +4,10 @@
  * since the post went up, so a day's change is the difference of two reads, never the number itself.
  */
 import { DAY_MS, HOUR_MS } from "../../shared/time";
-import { OBSERVE_STEPS, type MetricAvailability, type ObserveStep, type PostMetric } from "./sets";
+import { TIMED_OBSERVE_STEPS, type MetricAvailability, type PostMetric, type TimedObserveStep } from "./sets";
 
-/** How long after a post went up each step reads it. */
-const OBSERVE_STEP_MS: Readonly<Record<ObserveStep, number>> = {
+/** How long after a post went up each of the clock's steps reads it. */
+const OBSERVE_STEP_MS: Readonly<Record<TimedObserveStep, number>> = {
   "1h": HOUR_MS,
   "1d": DAY_MS,
   "3d": 3 * DAY_MS,
@@ -16,14 +16,17 @@ const OBSERVE_STEP_MS: Readonly<Record<ObserveStep, number>> = {
 };
 
 /** When a step reads a post that went up at `publishedAt`. */
-export function observeDueAt(publishedAt: string, step: ObserveStep): string {
+export function observeDueAt(publishedAt: string, step: TimedObserveStep): string {
   return new Date(Date.parse(publishedAt) + OBSERVE_STEP_MS[step]).toISOString();
 }
 
-/** The step after this one, the first where none was read yet, or null once the last was. */
-export function nextObserveStep(step: ObserveStep | null): ObserveStep | null {
-  if (step === null) return OBSERVE_STEPS[0];
-  return OBSERVE_STEPS[OBSERVE_STEPS.indexOf(step) + 1] ?? null;
+/**
+ * The clock's step after this one, the first where none was read yet, or null once its last was. The clock never asks
+ * for `last`: a take-down does.
+ */
+export function nextObserveStep(step: TimedObserveStep | null): TimedObserveStep | null {
+  if (step === null) return TIMED_OBSERVE_STEPS[0];
+  return TIMED_OBSERVE_STEPS[TIMED_OBSERVE_STEPS.indexOf(step) + 1] ?? null;
 }
 
 /** One number as a read gave it: a value only where it was there (a missing number is never zero). */

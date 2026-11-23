@@ -5,6 +5,9 @@
  * us with the action still waiting. After "I deleted it" nothing is asked down: the account is read, and only an account
  * that reads and no longer holds the post settles it. An action already settled asks nothing.
  *
+ * Its last numbers first (8.3, 9.1): once a post is down its numbers are gone, so they are read just before the place is
+ * asked, and kept at the step `last`; only what the read gave is kept, and nothing is read after "I deleted it".
+ *
  * And the bell (the canvas's Today 6): a place that leaves a post still up to its owner rings once, "Delete it in
  * Instagram", never again at each "I deleted it" that found it still there; a piece gone from every place it was asked
  * down from rings "Taken down", which closes the first.
@@ -25,6 +28,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { takePostDown } = await import(at("apps/edge/lib/content/take-down.ts"));
 const { takeDownPlaceFor } = await import(at("apps/edge/lib/instagram/post-ready.ts"));
+const { findResultsPlace } = await import(at("apps/edge/lib/instagram/results-place.ts"));
 
 const T = "aaaa1111-4444-4000-8000-000000000021";
 const OWNER = "bbbb2222-4444-4000-8000-000000000022";
@@ -37,6 +41,25 @@ const ACCOUNT = "17841400000000003";
 const MEDIA = "17900000000000021";
 const ALL = ["instagram_basic", "instagram_manage_messages", "instagram_content_publish"];
 const GONE = [400, { error: { message: "Object does not exist", type: "GraphMethodException", code: 100 } }];
+/** A picture's numbers as Meta gives them, each a running total. */
+const NUMBERS = [
+  200,
+  {
+    data: [
+      { name: "reach", period: "lifetime", values: [{ value: 412 }] },
+      { name: "views", period: "lifetime", values: [{ value: 655 }] },
+      { name: "likes", period: "lifetime", values: [{ value: 23 }] },
+      { name: "comments", period: "lifetime", values: [{ value: 4 }] },
+      { name: "saved", period: "lifetime", values: [{ value: 6 }] },
+      { name: "shares", period: "lifetime", values: [{ value: 2 }] },
+    ],
+  },
+];
+/** What Meta says of a post's numbers once the post is gone: as for nothing at all (the sitting, 23 November). */
+const NUMBERS_GONE = [
+  400,
+  { error: { message: "Unsupported get request.", type: "GraphMethodException", code: 100, error_subcode: 33 } },
+];
 
 let meta;
 const calls = [];
@@ -61,7 +84,7 @@ beforeEach(() => {
 });
 
 /** A workspace with one post up on Instagram and its take-down asked, as post_take_down_begin leaves them. */
-function world({ status = "published", outcome = "pending", connected = true } = {}) {
+function world({ status = "published", outcome = "pending", connected = true, insights = false } = {}) {
   const now = new Date().toISOString();
   const tables = {
     tenants: [{ id: T, timezone: "America/New_York", sending_stopped_at: null }],
@@ -87,7 +110,11 @@ function world({ status = "published", outcome = "pending", connected = true } =
             external_id: ACCOUNT,
             credentials_ref: "ref-1",
             status: "active",
-            config: { login: "meta", scopes: ALL, username: "studio" },
+            config: {
+              login: "meta",
+              scopes: insights ? [...ALL, "instagram_manage_insights"] : ALL,
+              username: "studio",
+            },
             created_at: now,
           },
         ]
@@ -137,6 +164,8 @@ function world({ status = "published", outcome = "pending", connected = true } =
       },
     ],
     jobs: [],
+    // What post_observations_keep was handed, each read as one call.
+    kept: [],
   };
   const action = () => tables.remediation_actions[0];
   const post = () => tables.posts[0];
@@ -145,6 +174,10 @@ function world({ status = "published", outcome = "pending", connected = true } =
     {},
     {
       get_channel_credentials: () => ({ access_token: "bisu-token", account_id: ACCOUNT, login: "meta" }),
+      post_observations_keep: (args) => {
+        tables.kept.push(args);
+        return args.p_rows.length;
+      },
       // The door as 00682 writes it: kept once; done, and only done, marks the post taken down.
       post_take_down_settle: ({ p_action_id, p_outcome, p_said }) => {
         const row = tables.remediation_actions.find((r) => r.id === p_action_id);
@@ -172,7 +205,13 @@ function world({ status = "published", outcome = "pending", connected = true } =
     kind: "post_take_down",
     payload: { action_id: ACTION, attempt: "1", ...payload },
   });
-  const run = (payload) => takePostDown(db, job(payload), (p) => takeDownPlaceFor(db, p));
+  const run = (payload) =>
+    takePostDown(
+      db,
+      job(payload),
+      (p) => takeDownPlaceFor(db, p),
+      (p) => findResultsPlace(db, p, "insights"),
+    );
   /** The bell's rows as kept: kind, title, body, and whether each is closed. */
   const bell = () => tables.notifications.map((n) => [n.kind, n.title, n.body, !!n.closed_at]);
   return { db, tables, action, post, run, bell };
@@ -280,6 +319,86 @@ test("an action already settled asks nothing", async () => {
   const w = world({ outcome: "done" });
   assert.deepEqual(await w.run(), { skipped: "done" });
   assert.deepEqual(calls, []);
+});
+
+/* ------------------------------------------------------------------------------------------- its last numbers -- */
+
+/** Each read kept: its step, and the numbers it gave. */
+const keptOf = (w) =>
+  w.tables.kept.map((k) => [
+    k.p_step,
+    Object.fromEntries(k.p_rows.filter((r) => r.availability === "available").map((r) => [r.metric, r.value])),
+  ]);
+
+test("its last numbers are read and kept just before Instagram is asked, and then it comes down", async () => {
+  meta[`GET /${MEDIA}/insights`] = NUMBERS;
+  meta[`DELETE /${MEDIA}`] = [200, { success: true }];
+  const w = world({ insights: true });
+  await w.run();
+  assert.deepEqual(calls, [`GET /${MEDIA}/insights`, `DELETE /${MEDIA}`], "read first: once it is down they are gone");
+  assert.deepEqual(keptOf(w), [["last", { reach: 412, views: 655, likes: 23, comments: 4, saves: 6, shares: 2 }]]);
+  assert.equal(w.post().status, "taken_down");
+});
+
+test("Instagram refuses: the numbers are kept all the same, since the owner deletes it by hand next", async () => {
+  meta[`GET /${MEDIA}/insights`] = NUMBERS;
+  meta[`DELETE /${MEDIA}`] = [400, { error: { message: "(#10) Application does not have permission", code: 10 } }];
+  const w = world({ insights: true });
+  await w.run();
+  assert.equal(w.action().outcome, "needs_person");
+  assert.deepEqual(
+    keptOf(w).map(([step]) => step),
+    ["last"],
+  );
+});
+
+test("a read that gives nothing keeps nothing: the reading before it stands, and the post is still asked down", async () => {
+  meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
+  meta[`DELETE /${MEDIA}`] = [200, { success: true }];
+  const w = world({ insights: true });
+  await w.run();
+  assert.deepEqual(w.tables.kept, []);
+  assert.equal(w.post().status, "taken_down");
+});
+
+test("a number not there yet is left out of the last reading, so the one read before it stands", async () => {
+  meta[`GET /${MEDIA}/insights`] = [
+    200,
+    {
+      data: [
+        { name: "reach", period: "lifetime", values: [{ value: 412 }] },
+        { name: "views", period: "lifetime", values: [] },
+      ],
+    },
+  ];
+  meta[`DELETE /${MEDIA}`] = [200, { success: true }];
+  const w = world({ insights: true });
+  await w.run();
+  const [kept] = w.tables.kept;
+  assert.deepEqual(
+    kept.p_rows.find((r) => r.metric === "reach"),
+    { metric: "reach", availability: "available", value: 412 },
+  );
+  assert.ok(!kept.p_rows.some((r) => r.metric === "views"), "not there yet: the earlier read of it stands");
+  assert.ok(!kept.p_rows.some((r) => r.availability === "failed" || r.availability === "delayed"));
+});
+
+test("with the numbers line off, nothing is read and the post is asked down as before", async () => {
+  meta[`DELETE /${MEDIA}`] = [200, { success: true }];
+  const w = world();
+  await w.run();
+  assert.deepEqual(calls, [`DELETE /${MEDIA}`]);
+  assert.deepEqual(w.tables.kept, []);
+});
+
+test("after I deleted it, its numbers are not read: they went with it", async () => {
+  meta[`GET /${MEDIA}`] = GONE;
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [] }];
+  const w = world({ insights: true });
+  await w.run({ by_hand: "yes" });
+  assert.ok(!calls.includes(`GET /${MEDIA}/insights`));
+  assert.deepEqual(w.tables.kept, []);
+  assert.equal(w.post().status, "taken_down");
 });
 
 /* ------------------------------------------------------------------------------------------------------ the bell -- */
