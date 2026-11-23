@@ -7,7 +7,9 @@
  * bytes) and asks who is knocking (authorizeAdmin); everything after is here.
  *
  *   { op: "readiness" }                                        → whether Drive is offered here, and its client's public half
- *   { op: "connect", tenant_id, user_id, code, code_verifier? } → the grant exchanged and checked, the account's row
+ *   { op: "connect", tenant_id, user_id, code, code_verifier?, door? }
+ *                                                               → the grant exchanged and checked for its door (a
+ *                                                                 watched folder's where none is named), the account's row
  *   { op: "disconnect", tenant_id, connection_id }              → its channels closed, its grant given back where
  *                                                                 nothing else rides it, its row and folders gone
  *   { op: "folders", tenant_id, connection_id, place, folder_id?, page? }
@@ -123,7 +125,9 @@ async function connectOp({ db, tenantId, by, log }: OpContext, body: Body): Prom
   const verifier = textOrEmpty(body.code_verifier);
   if (verifier && !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))
     return refuse(400, "bad_request", "code_verifier is PKCE's verifier");
-  const out = await connectDrive(db, { tenantId, userId: by, code, verifier: verifier || null }, log);
+  // A dashboard deployed before this door knew of two names none: every connect it makes is a watched folder's.
+  const door = body.door ?? "watch";
+  const out = await connectDrive(db, { tenantId, userId: by, code, verifier: verifier || null, door }, log);
   if (out.ok) return json(200, { ok: true, connection_id: out.connection.id, resumed: out.resumed });
   log.warn("source_connect_refused", { reason: out.reason, detail: out.detail });
   return connectRefused(out.reason);

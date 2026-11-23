@@ -443,6 +443,22 @@ before(async () => {
     kind: "video",
     name: "tenancy-clip.mp4",
   });
+  // Where a file's copies are (00686): the folder a press saves into, a copy the owner saved, and one piece of it.
+  const drive = { tenant_id: A, google_account: `tenancy-${stamp}`, connection_id: ctx.sourceConnection };
+  await seed("archive_folders", {
+    ...drive,
+    folder_id: "tenancy-f",
+    made_folder_id: "tenancy-m",
+    added_folder_id: "tenancy-a",
+  });
+  ctx.fileArchive = await seed("file_archives", { ...drive, file_id: ctx.file, origin: "saved" });
+  await seed("file_archive_parts", {
+    tenant_id: A,
+    archive_id: ctx.fileArchive,
+    part: "original",
+    drive_file_id: "d",
+    bytes: 1,
+  });
   await seed("ad_entries", { tenant_id: A, message_id: ctx.message, ...AD_ENTRY }, null);
   ctx.adAccount = await seed("ad_accounts", { tenant_id: A, ...AD_ACCOUNT, external_id: "tenancy-act-1" });
   ctx.ad = await seed("ads", { tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "tenancy-ad-1" });
@@ -1151,6 +1167,22 @@ const TENANT_TABLES = {
       name: "stranger.jpg",
     }),
   ],
+  // Where a file's copies are (00686): members read their workspace's; only the service role writes.
+  archive_folders: [
+    "member",
+    () => ({
+      tenant_id: A,
+      google_account: "stranger",
+      folder_id: "s-f",
+      made_folder_id: "s-m",
+      added_folder_id: "s-a",
+    }),
+  ],
+  file_archives: ["member", () => ({ tenant_id: A, file_id: ctx.file, origin: "shelf" })],
+  file_archive_parts: [
+    "member",
+    () => ({ tenant_id: A, archive_id: ctx.fileArchive, part: "video", shelf_key: "s", bytes: 1 }),
+  ],
   ad_entries: ["member", () => ({ tenant_id: A, message_id: ctx.message2, ...AD_ENTRY })],
   ad_accounts: ["member", () => ({ tenant_id: A, ...AD_ACCOUNT, external_id: "stranger-act" })],
   ads: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "stranger-ad" })],
@@ -1362,6 +1394,8 @@ const COLUMNS_OF = {
   publish_attempts: "id, tenant_id, outcome",
   // A member never reads the machine a video is drawn on, nor its card's key (00613's column grants).
   pieces: "id, tenant_id, status",
+  // A member never reads where a piece of a copy sits on the shelf, nor a checksum (00686's column grants).
+  file_archive_parts: "id, tenant_id, state",
 };
 
 const seen = async (client, table, filter) => {

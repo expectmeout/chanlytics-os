@@ -148,6 +148,7 @@ export type {
   SourceChannel,
   SourceChannelAsk,
   SourceChildren,
+  SourceDoor,
   SourceFolder,
   SourceItemKind,
   SourceItemRecord,

@@ -46197,6 +46197,44 @@ COMMENT ON COLUMN public.approvals.snapshot IS '{revision {piece_id, n}, renditi
 
 
 --
+-- Name: archive_folders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.archive_folders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    google_account text NOT NULL,
+    connection_id uuid,
+    folder_id text NOT NULL,
+    made_folder_id text NOT NULL,
+    added_folder_id text NOT NULL,
+    state text DEFAULT 'ready'::text NOT NULL,
+    seen_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT archive_folders_added_folder_id_check CHECK (((char_length(added_folder_id) >= 1) AND (char_length(added_folder_id) <= 200))),
+    CONSTRAINT archive_folders_folder_id_check CHECK (((char_length(folder_id) >= 1) AND (char_length(folder_id) <= 200))),
+    CONSTRAINT archive_folders_google_account_check CHECK (((char_length(google_account) >= 1) AND (char_length(google_account) <= 200))),
+    CONSTRAINT archive_folders_made_folder_id_check CHECK (((char_length(made_folder_id) >= 1) AND (char_length(made_folder_id) <= 200))),
+    CONSTRAINT archive_folders_state_check CHECK ((state = ANY (ARRAY['ready'::text, 'missing'::text])))
+);
+
+
+--
+-- Name: TABLE archive_folders; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.archive_folders IS 'The one "Chanlytics" folder in an owner''s Google Drive that a press to save writes into (the archive PRD 1.1, 00686): a workspace and a Google account, the folder''s id and its two folders'' ("Made by Chanlytics", "Added from your phone"). Known by id, so a rename or a move changes nothing. Its connection is cleared when the account is disconnected, and the row stays.';
+
+
+--
+-- Name: COLUMN archive_folders.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.archive_folders.state IS 'ready: where it was left. missing: found in Google Drive''s bin or gone. A missing folder is never made again by itself: the owner''s next press to save asks first.';
+
+
+--
 -- Name: ask_actions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -47230,6 +47268,98 @@ CREATE TABLE public.fact_suggestions (
 --
 
 COMMENT ON TABLE public.fact_suggestions IS 'An owner''s correction, looked at once by the note sweep (decision 0063): a rewritten draft''s instruction or the owner''s own text after a hold. Most end as nothing; a lasting fact about the business waits on Today as a note to Keep or Dismiss.';
+
+
+--
+-- Name: file_archive_parts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.file_archive_parts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    archive_id uuid NOT NULL,
+    part text NOT NULL,
+    drive_file_id text,
+    shelf_key text,
+    bytes bigint NOT NULL,
+    md5 text,
+    sha256 text,
+    state text DEFAULT 'saving'::text NOT NULL,
+    checked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT file_archive_parts_bytes_check CHECK ((bytes >= 0)),
+    CONSTRAINT file_archive_parts_checked_shape CHECK (((state <> 'checked'::text) OR ((checked_at IS NOT NULL) AND (num_nonnulls(md5, sha256) >= 1)))),
+    CONSTRAINT file_archive_parts_drive_file_id_check CHECK (((char_length(drive_file_id) >= 1) AND (char_length(drive_file_id) <= 200))),
+    CONSTRAINT file_archive_parts_md5_check CHECK ((md5 ~ '^[0-9a-f]{32}$'::text)),
+    CONSTRAINT file_archive_parts_one_place CHECK ((num_nonnulls(drive_file_id, shelf_key) = 1)),
+    CONSTRAINT file_archive_parts_part_check CHECK ((part = ANY (ARRAY['original'::text, 'portrait'::text, 'square'::text, 'story'::text, 'wide'::text, 'video'::text]))),
+    CONSTRAINT file_archive_parts_sha256_check CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT file_archive_parts_shelf_key_check CHECK (((char_length(shelf_key) >= 1) AND (char_length(shelf_key) <= 500))),
+    CONSTRAINT file_archive_parts_state_check CHECK ((state = ANY (ARRAY['saving'::text, 'saved'::text, 'checked'::text, 'failed'::text, 'gone'::text])))
+);
+
+
+--
+-- Name: TABLE file_archive_parts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.file_archive_parts IS 'One piece of a copy of a Library file (the archive PRD 1.1, 00686): a photo''s or a picked file''s own bytes (original), a post''s four pictures (portrait, square, story, wide), or a video''s file (video). Where it is, its size and its whole checksum. A copy is checked when every piece is.';
+
+
+--
+-- Name: COLUMN file_archive_parts.shelf_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.file_archive_parts.shelf_key IS 'The piece''s key on Chanlytics'' own shelf. The service role''s alone: no member reads it.';
+
+
+--
+-- Name: file_archives; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.file_archives (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    file_id uuid NOT NULL,
+    origin text NOT NULL,
+    google_account text,
+    connection_id uuid,
+    state text DEFAULT 'saving'::text NOT NULL,
+    why text,
+    checked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT file_archives_account_shape CHECK (((origin = 'shelf'::text) = (google_account IS NULL))),
+    CONSTRAINT file_archives_checked_shape CHECK (((state <> 'checked'::text) OR (checked_at IS NOT NULL))),
+    CONSTRAINT file_archives_google_account_check CHECK (((char_length(google_account) >= 1) AND (char_length(google_account) <= 200))),
+    CONSTRAINT file_archives_origin_check CHECK ((origin = ANY (ARRAY['saved'::text, 'picked'::text, 'shelf'::text]))),
+    CONSTRAINT file_archives_shelf_has_no_connection CHECK (((origin <> 'shelf'::text) OR (connection_id IS NULL))),
+    CONSTRAINT file_archives_state_check CHECK ((state = ANY (ARRAY['saving'::text, 'saved'::text, 'checked'::text, 'failed'::text, 'gone'::text]))),
+    CONSTRAINT file_archives_why_check CHECK ((why = ANY (ARRAY['drive_full'::text, 'key_lost'::text, 'other_account'::text, 'mismatch'::text, 'in_bin'::text, 'not_found'::text, 'folder_missing'::text, 'refused'::text]))),
+    CONSTRAINT file_archives_why_shape CHECK (((why IS NOT NULL) = (state = ANY (ARRAY['failed'::text, 'gone'::text]))))
+);
+
+
+--
+-- Name: TABLE file_archives; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.file_archives IS 'One copy of a Library file, a file and an origin (the archive PRD 1.1, 00686). saved: a copy the owner saved to their Google Drive on a press; it is theirs and is never read back. picked: the owner''s own Drive file a pick brought in. shelf: Chanlytics'' own copy. A video''s copy at the video platform may be let go only behind a checked shelf copy, a picked origin or a watched folder''s item. Its connection is cleared when the account is disconnected; the Google account stays, so the same account connected again finds it.';
+
+
+--
+-- Name: COLUMN file_archives.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.file_archives.state IS 'saving: being sent. saved: every part is in place. checked: every part''s size and checksum are the ones that were sent. failed: a part could not be sent, or did not match twice. gone: checked once, and since found in a bin or missing.';
+
+
+--
+-- Name: COLUMN file_archives.why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.file_archives.why IS 'Why a copy failed or is gone, and null otherwise: drive_full, key_lost (Google no longer takes the key), other_account (another Google account is connected), mismatch (not the bytes that were sent), in_bin, not_found, folder_missing, refused.';
 
 
 --
@@ -51657,6 +51787,8 @@ CREATE TABLE public.source_connections (
     connected_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    door text DEFAULT 'watch'::text NOT NULL,
+    CONSTRAINT source_connections_door_check CHECK ((door = ANY (ARRAY['save'::text, 'watch'::text]))),
     CONSTRAINT source_connections_email_check CHECK ((((char_length(email) >= 6) AND (char_length(email) <= 254)) AND (email = lower(btrim(email))))),
     CONSTRAINT source_connections_health_check CHECK ((health = ANY (ARRAY['ok'::text, 'needs_reconnect'::text, 'blocked_by_admin'::text]))),
     CONSTRAINT source_connections_known_unless_blocked CHECK (((health = 'blocked_by_admin'::text) OR ((provider_account IS NOT NULL) AND (email IS NOT NULL)))),
@@ -51677,6 +51809,13 @@ COMMENT ON TABLE public.source_connections IS 'A provider account a business con
 --
 
 COMMENT ON COLUMN public.source_connections.health IS 'ok: its grant reads. needs_reconnect: the provider refused the grant (revoked or expired); its sources pause and nothing in the Library changes. blocked_by_admin: the account''s organisation does not let the app read it, so no grant was given and the account''s id and email may be unknown.';
+
+
+--
+-- Name: COLUMN source_connections.door; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_connections.door IS 'Which door this account''s key opens (00686). watch: a folder the business chose is read, with the provider''s wide read. save: only the files the business picked or the app made are reached, with the narrow one. One row a door for an account in a workspace.';
 
 
 --
@@ -52553,6 +52692,22 @@ ALTER TABLE ONLY public.approvals
 
 
 --
+-- Name: archive_folders archive_folders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.archive_folders
+    ADD CONSTRAINT archive_folders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: archive_folders archive_folders_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.archive_folders
+    ADD CONSTRAINT archive_folders_tenant_id_id UNIQUE (tenant_id, id);
+
+
+--
 -- Name: ask_actions ask_actions_one_per_card; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52918,6 +53073,38 @@ ALTER TABLE ONLY public.fact_suggestions
 
 ALTER TABLE ONLY public.fact_suggestions
     ADD CONSTRAINT fact_suggestions_source_message_one UNIQUE (source_message_id);
+
+
+--
+-- Name: file_archive_parts file_archive_parts_one_a_copy; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archive_parts
+    ADD CONSTRAINT file_archive_parts_one_a_copy UNIQUE (archive_id, part);
+
+
+--
+-- Name: file_archive_parts file_archive_parts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archive_parts
+    ADD CONSTRAINT file_archive_parts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: file_archives file_archives_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archives
+    ADD CONSTRAINT file_archives_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: file_archives file_archives_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archives
+    ADD CONSTRAINT file_archives_tenant_id_id UNIQUE (tenant_id, id);
 
 
 --
@@ -54508,6 +54695,20 @@ CREATE INDEX approvals_subject ON public.approvals USING btree (tenant_id, subje
 
 
 --
+-- Name: archive_folders_connection; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX archive_folders_connection ON public.archive_folders USING btree (tenant_id, connection_id) WHERE (connection_id IS NOT NULL);
+
+
+--
+-- Name: archive_folders_one_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX archive_folders_one_account ON public.archive_folders USING btree (tenant_id, google_account);
+
+
+--
 -- Name: ask_actions_recent; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55100,6 +55301,41 @@ CREATE INDEX fact_suggestions_tenant_created ON public.fact_suggestions USING bt
 --
 
 CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (tenant_id, created_at DESC) WHERE (state = 'suggested'::text);
+
+
+--
+-- Name: file_archive_parts_archive; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_archive_parts_archive ON public.file_archive_parts USING btree (tenant_id, archive_id);
+
+
+--
+-- Name: file_archives_connection; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_archives_connection ON public.file_archives USING btree (tenant_id, connection_id) WHERE (connection_id IS NOT NULL);
+
+
+--
+-- Name: file_archives_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_archives_file ON public.file_archives USING btree (tenant_id, file_id);
+
+
+--
+-- Name: file_archives_one_copy_an_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_archives_one_copy_an_account ON public.file_archives USING btree (tenant_id, file_id, origin, google_account) WHERE (origin <> 'shelf'::text);
+
+
+--
+-- Name: file_archives_one_shelf_copy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_archives_one_shelf_copy ON public.file_archives USING btree (tenant_id, file_id) WHERE (origin = 'shelf'::text);
 
 
 --
@@ -57077,6 +57313,13 @@ CREATE UNIQUE INDEX source_connections_one_account ON public.source_connections 
 
 
 --
+-- Name: source_connections_one_account_a_door; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX source_connections_one_account_a_door ON public.source_connections USING btree (tenant_id, provider, provider_account, door);
+
+
+--
 -- Name: source_items_file; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -57382,6 +57625,13 @@ CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments 
 --
 
 CREATE TRIGGER appointments_worth_stamp BEFORE INSERT OR UPDATE OF service ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_worth_stamp();
+
+
+--
+-- Name: archive_folders archive_folders_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER archive_folders_set_updated_at BEFORE UPDATE ON public.archive_folders FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -57739,6 +57989,20 @@ CREATE TRIGGER events_outbox_copy AFTER INSERT ON public.events FOR EACH ROW EXE
 --
 
 CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_suggestions FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: file_archive_parts file_archive_parts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER file_archive_parts_set_updated_at BEFORE UPDATE ON public.file_archive_parts FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: file_archives file_archives_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER file_archives_set_updated_at BEFORE UPDATE ON public.file_archives FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -59523,6 +59787,22 @@ ALTER TABLE ONLY public.approvals
 
 
 --
+-- Name: archive_folders archive_folders_connection_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.archive_folders
+    ADD CONSTRAINT archive_folders_connection_id_same_workspace FOREIGN KEY (tenant_id, connection_id) REFERENCES public.source_connections(tenant_id, id) ON DELETE SET NULL (connection_id);
+
+
+--
+-- Name: archive_folders archive_folders_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.archive_folders
+    ADD CONSTRAINT archive_folders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ask_actions ask_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -60040,6 +60320,46 @@ ALTER TABLE ONLY public.fact_suggestions
 
 ALTER TABLE ONLY public.fact_suggestions
     ADD CONSTRAINT fact_suggestions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_archive_parts file_archive_parts_archive_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archive_parts
+    ADD CONSTRAINT file_archive_parts_archive_id_same_workspace FOREIGN KEY (tenant_id, archive_id) REFERENCES public.file_archives(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_archive_parts file_archive_parts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archive_parts
+    ADD CONSTRAINT file_archive_parts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_archives file_archives_connection_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archives
+    ADD CONSTRAINT file_archives_connection_id_same_workspace FOREIGN KEY (tenant_id, connection_id) REFERENCES public.source_connections(tenant_id, id) ON DELETE SET NULL (connection_id);
+
+
+--
+-- Name: file_archives file_archives_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archives
+    ADD CONSTRAINT file_archives_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_archives file_archives_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_archives
+    ADD CONSTRAINT file_archives_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -61999,6 +62319,21 @@ CREATE POLICY approvals_member_select ON public.approvals FOR SELECT TO authenti
 
 
 --
+-- Name: archive_folders; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.archive_folders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: archive_folders archive_folders_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY archive_folders_member_select ON public.archive_folders FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: ask_actions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -62545,6 +62880,36 @@ ALTER TABLE public.fact_suggestions ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY fact_suggestions_member_select ON public.fact_suggestions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: file_archive_parts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.file_archive_parts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: file_archive_parts file_archive_parts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY file_archive_parts_member_select ON public.file_archive_parts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: file_archives; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.file_archives ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: file_archives file_archives_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY file_archives_member_select ON public.file_archives FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -71555,6 +71920,14 @@ GRANT ALL ON TABLE public.approvals TO service_role;
 
 
 --
+-- Name: TABLE archive_folders; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.archive_folders TO authenticated;
+GRANT ALL ON TABLE public.archive_folders TO service_role;
+
+
+--
 -- Name: TABLE ask_actions; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72184,6 +72557,91 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 
 GRANT SELECT ON TABLE public.fact_suggestions TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
+
+
+--
+-- Name: TABLE file_archive_parts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.file_archive_parts TO service_role;
+
+
+--
+-- Name: COLUMN file_archive_parts.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tenant_id) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.archive_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(archive_id) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.part; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(part) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.drive_file_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(drive_file_id) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.bytes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(bytes) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(state) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.checked_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(checked_at) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: COLUMN file_archive_parts.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(updated_at) ON TABLE public.file_archive_parts TO authenticated;
+
+
+--
+-- Name: TABLE file_archives; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.file_archives TO authenticated;
+GRANT ALL ON TABLE public.file_archives TO service_role;
 
 
 --

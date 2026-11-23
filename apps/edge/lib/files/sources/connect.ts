@@ -1,7 +1,13 @@
 /**
  * A business's Google Drive connected, and disconnected (the footage sources plan, P2). The code from Google becomes
- * the workspace's connection: the grant checked to hold Drive, read only, its token in Vault and never on a row, and
- * the account's row written (one an account in a workspace, so a reconnect writes over its own and keeps its folders).
+ * the workspace's connection: the grant checked to hold its door's Drive scope, its token in Vault and never on a row,
+ * and the account's row written (one an account and a door in a workspace, so a reconnect writes over its own and
+ * keeps its folders).
+ *
+ * A connection opens one door (the archive PRD 1.1, principle 9; 00686). `watch` reads a folder the business chose,
+ * with Drive, read only. `save` reaches only the files the business picks or the app makes, with the narrow scope; a
+ * grant for it that came back holding the whole Drive is not kept, so the narrow key is never a wide one. Each door's
+ * connect writes its own row and leaves the other's row, token and folders alone.
  *
  * A connect that cannot finish says why, and a grant it does not keep goes back to Google only when no other
  * connection of that Google account rides it: Google ends every token an account gave this project at once, a
@@ -17,7 +23,7 @@
  * The rollout guard is the workspace's video switch (`features.video_preview`, the plan's D9): until Google has
  * reviewed the app, only a workspace that takes videos may connect. It is a guard on the rollout, not on access.
  */
-import { DRIVE_READ_SCOPE, driveSource, driveTokenRequest } from "@chanlytics/channels/files";
+import { DRIVE_READ_SCOPE, driveScopeOfDoor, driveSource, driveTokenRequest } from "@chanlytics/channels/files";
 import {
   grantHasScope,
   idTokenClaims,
@@ -31,6 +37,7 @@ import {
   normalizeEmail,
   recordOrEmpty,
   videoPreviewOf,
+  type SourceDoor,
   type SourceRefusal,
   type TenantId,
 } from "@chanlytics/contracts";
@@ -134,6 +141,8 @@ interface ConnectAsk {
   userId: string | null;
   code: string;
   verifier: string | null;
+  /** Which door the grant is for: it must hold that door's Drive scope, and its row is that door's. */
+  door: SourceDoor;
 }
 
 /**
@@ -150,9 +159,11 @@ export async function connectDrive(db: Db, ask: ConnectAsk, log: Logger, now = n
   const traded = await exchange(ask.code, ask.verifier);
   if (traded === null) return refused("not_available");
   if (!traded.ok) {
-    // The account's organisation does not let the app read its Drive: no grant was given, and the row says so.
+    // The account's organisation does not let the app read its Drive: no grant was given, and the row says so. That
+    // word is a watched folder's; the narrow door refuses the same way and writes none.
     if (/admin_policy_enforced/i.test(traded.refusal)) {
-      await saveBlockedSourceConnection(db, { tenantId: ask.tenantId, by: ask.userId, at: now.toISOString() });
+      if (ask.door === "watch")
+        await saveBlockedSourceConnection(db, { tenantId: ask.tenantId, by: ask.userId, at: now.toISOString() });
       return refused("blocked_by_admin");
     }
     return refused("failed", traded.refusal.slice(0, 300));
@@ -166,20 +177,29 @@ export async function connectDrive(db: Db, ask: ConnectAsk, log: Logger, now = n
     await giveBack(grant.refresh_token ?? grant.access_token);
     return refused("no_account");
   }
-  if (!grantHasScope(grant, DRIVE_READ_SCOPE)) {
+  if (!grantHasScope(grant, driveScopeOfDoor(ask.door))) {
     await giveBack(grant.refresh_token ?? grant.access_token);
     return refused("scope_missing");
+  }
+  // The narrow sign-in asks for nothing of the whole Drive and folds in no earlier grant: one that holds it all the
+  // same is wider than its door, and is not kept.
+  if (ask.door === "save" && grantHasScope(grant, DRIVE_READ_SCOPE)) {
+    await giveBack(grant.refresh_token ?? grant.access_token);
+    return refused("failed", "a grant wider than its door");
   }
   if (!grant.refresh_token) {
     await giveBack(grant.access_token);
     return refused("no_refresh_token");
   }
-  const before = await listSourceConnectionsOf(db, ask.tenantId);
+  // This door's rows alone: a reconnect is known by its own door's row, and the blocked word ended below is a watched
+  // folder's.
+  const before = await listSourceConnectionsOf(db, ask.tenantId, ask.door);
   const known = before.some((row) => row.provider_account === claims.sub);
   const connection = await saveSourceConnection(db, {
     tenant_id: ask.tenantId,
     provider_account: claims.sub,
     email,
+    door: ask.door,
     scopes: grant.scope.split(/\s+/).filter(Boolean).slice(0, 20),
     connected_by: ask.userId,
     connected_at: now.toISOString(),
@@ -207,7 +227,7 @@ export async function connectDrive(db: Db, ask: ConnectAsk, log: Logger, now = n
   for (const row of before.filter((blocked) => blocked.health === "blocked_by_admin"))
     await deleteSourceConnection(db, ask.tenantId, row.id);
   const resumed = await resumeSourcesOf(db, connection, now);
-  log.info("source_connected", { connection: connection.id, again: known, resumed: resumed.length });
+  log.info("source_connected", { connection: connection.id, door: ask.door, again: known, resumed: resumed.length });
   return { ok: true, connection, resumed: resumed.length };
 }
 

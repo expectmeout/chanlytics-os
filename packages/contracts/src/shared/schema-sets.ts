@@ -39,7 +39,15 @@ import type {
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
-import type { FILE_COPY_STATES, FILE_COPY_WHYS } from "../files/copy";
+import type {
+  ARCHIVE_FOLDER_STATES,
+  FILE_ARCHIVE_ORIGINS,
+  FILE_ARCHIVE_PARTS,
+  FILE_ARCHIVE_STATES,
+  FILE_ARCHIVE_WHYS,
+  FILE_COPY_STATES,
+  FILE_COPY_WHYS,
+} from "../files/copy";
 import type { FILE_KINDS, FILE_MEDIA_STATUSES } from "../files/kinds";
 import type {
   FILE_LOOK_STATUSES,
@@ -96,6 +104,7 @@ import type { MAILBOX_HOLDS } from "../email/mailbox-standing";
 import type {
   MEDIA_SOURCE_STATES,
   SOURCE_CONNECTION_HEALTHS,
+  SOURCE_DOORS,
   SOURCE_ITEM_KINDS,
   SOURCE_ITEM_STATES,
   SOURCE_ITEM_WHYS,
@@ -189,6 +198,14 @@ export type SchemaAgreement = [
   // Where a watched clip's copy at the video platform stands, and why (00654).
   Holds<Exactly<Of<typeof FILE_COPY_STATES>, SchemaSet<"files.copy_state">>>,
   Holds<Exactly<Of<typeof FILE_COPY_WHYS>, SchemaSet<"files.copy_why">>>,
+  // Where a file's copies are (00686): the folder a press saves into, what a copy is, where it and each of its pieces
+  // stand, and why one failed or is gone.
+  Holds<Exactly<Of<typeof ARCHIVE_FOLDER_STATES>, SchemaSet<"archive_folders.state">>>,
+  Holds<Exactly<Of<typeof FILE_ARCHIVE_ORIGINS>, SchemaSet<"file_archives.origin">>>,
+  Holds<Exactly<Of<typeof FILE_ARCHIVE_STATES>, SchemaSet<"file_archives.state">>>,
+  Holds<Exactly<Of<typeof FILE_ARCHIVE_WHYS>, SchemaSet<"file_archives.why">>>,
+  Holds<Exactly<Of<typeof FILE_ARCHIVE_PARTS>, SchemaSet<"file_archive_parts.part">>>,
+  Holds<Exactly<Of<typeof FILE_ARCHIVE_STATES>, SchemaSet<"file_archive_parts.state">>>,
 
   // A post on its way to a place (00611, decision 0121).
   // Where a post can be: the places a press sends it (POST_PLACES), and `hand`, one its owner put up themselves (00620).
@@ -343,6 +360,8 @@ export type SchemaAgreement = [
   // item under it is and where it stands.
   Holds<Exactly<Of<typeof SOURCE_PROVIDERS>, SchemaSet<"source_connections.provider">>>,
   Holds<Exactly<Of<typeof SOURCE_CONNECTION_HEALTHS>, SchemaSet<"source_connections.health">>>,
+  // Which door a connected account's key opens (00686).
+  Holds<Exactly<Of<typeof SOURCE_DOORS>, SchemaSet<"source_connections.door">>>,
   Holds<Exactly<Of<typeof MEDIA_SOURCE_STATES>, SchemaSet<"media_sources.state">>>,
   Holds<Exactly<Of<typeof SOURCE_WALK_KINDS>, SchemaSet<"media_sources.walk_kind">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_KINDS>, SchemaSet<"source_items.kind">>>,

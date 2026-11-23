@@ -10,7 +10,7 @@ import { resetBreakers } from "@chanlytics/channels/shared";
 import { at } from "../../_cron-doors-world.mjs";
 
 const { driveSource, SourceKeyRefused, SourceUnanswered } = await import(at("packages/channels/src/files/drive.ts"));
-const { driveAuthorizeUrl, driveTokenRequest, DRIVE_SCOPES } = await import(
+const { driveAuthorizeUrl, driveScopeOfDoor, driveTokenRequest } = await import(
   at("packages/channels/src/files/drive-sign-in.ts")
 );
 
@@ -44,20 +44,55 @@ const drive = (web) => driveSource({ fetch: web.fetch, ...noSleep });
 
 /* ---------------------------------------------------------------------------------------------------- the sign-in -- */
 
-test("the sign-in asks for Drive, read only, and who the account is, and folds in nothing granted before", () => {
-  const url = new URL(
-    driveAuthorizeUrl({ clientId: "client-1", redirectUri: "https://app.example.com/back" }, "signed-state", {
-      loginHint: "owner@example.com",
-      challenge: "challenge-1",
-    }),
+const CLIENT = { clientId: "client-1", redirectUri: "https://app.example.com/back" };
+const ASKED = { loginHint: "owner@example.com", challenge: "challenge-1" };
+
+test("the sign-in to watch a folder is, to the letter, what it was before a second door existed", () => {
+  assert.equal(
+    driveAuthorizeUrl(CLIENT, "signed-state", { door: "watch", ...ASKED }),
+    "https://accounts.google.com/o/oauth2/v2/auth?client_id=client-1" +
+      "&redirect_uri=https%3A%2F%2Fapp.example.com%2Fback&response_type=code" +
+      "&scope=openid+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly" +
+      "&access_type=offline&prompt=consent&include_granted_scopes=false&state=signed-state" +
+      "&code_challenge=challenge-1&code_challenge_method=S256&login_hint=owner%40example.com",
   );
+});
+
+test("the sign-in to choose and save asks for the files the app is given, and never for the whole Drive", () => {
+  const address = driveAuthorizeUrl(CLIENT, "signed-state", { door: "save", ...ASKED });
+  const url = new URL(address);
+  assert.equal(url.origin + url.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
+  assert.deepEqual(url.searchParams.get("scope").split(" "), [
+    "openid",
+    "email",
+    "https://www.googleapis.com/auth/drive.file",
+  ]);
+  assert.equal(address.includes("drive.readonly"), false, "the narrow key never asks for the wide one's scope");
+  assert.equal(url.searchParams.get("include_granted_scopes"), "false", "nor has an earlier grant's folded in");
+  assert.equal(url.searchParams.get("access_type"), "offline");
+  assert.equal(url.searchParams.get("prompt"), "consent");
+  assert.equal(url.searchParams.get("state"), "signed-state");
+  assert.equal(url.searchParams.get("code_challenge"), "challenge-1");
+  assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+});
+
+test("each door's grant must hold its own Drive scope", () => {
+  assert.equal(driveScopeOfDoor("watch"), "https://www.googleapis.com/auth/drive.readonly");
+  assert.equal(driveScopeOfDoor("save"), "https://www.googleapis.com/auth/drive.file");
+  for (const door of ["watch", "save"]) {
+    const asked = new URL(driveAuthorizeUrl(CLIENT, "signed-state", { door, ...ASKED })).searchParams.get("scope");
+    assert.ok(asked.split(" ").includes(driveScopeOfDoor(door)), `${door} asks for what its grant must hold`);
+  }
+});
+
+test("the sign-in asks for Drive, read only, and who the account is, and folds in nothing granted before", () => {
+  const url = new URL(driveAuthorizeUrl(CLIENT, "signed-state", { door: "watch", ...ASKED }));
   assert.equal(url.origin + url.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
   assert.deepEqual(url.searchParams.get("scope").split(" "), [
     "openid",
     "email",
     "https://www.googleapis.com/auth/drive.readonly",
   ]);
-  assert.deepEqual([...DRIVE_SCOPES], url.searchParams.get("scope").split(" "));
   assert.equal(url.searchParams.get("include_granted_scopes"), "false", "each Google key opens one door (D17)");
   assert.equal(url.searchParams.get("access_type"), "offline");
   assert.equal(url.searchParams.get("prompt"), "consent");
