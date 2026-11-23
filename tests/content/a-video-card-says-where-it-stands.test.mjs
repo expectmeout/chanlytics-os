@@ -112,7 +112,7 @@ test("while the stills are drawn a dim still stands under Ask's three, and a pla
   const coming = drawn(held({ picture: null, waiting: true }));
   assert.ok(coming.html.includes('data-testid="ask-piece-drawing"') && coming.html.includes('data-dim=""'));
   assert.ok(coming.html.includes("ask-piece-working"), "the one sign of work");
-  const wont = pieceWordsIn("en").wont.people;
+  const wont = pieceWordsIn("en").wont.not_ready;
   const refused = drawn(held({ picture: null, refused: wont, press: { label: "Make it", disabled: true } }));
   assert.ok(refused.html.includes('role="alert"') && refused.read.startsWith(wont));
   assert.ok(!refused.html.includes("ask-piece-still"), "nothing drawn stands for a plan that cannot be made");

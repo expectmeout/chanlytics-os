@@ -2,12 +2,11 @@ import "server-only";
 import {
   AD_BEFORE_AFTER,
   adPictureIssue,
-  fileAdRightsOf,
+  adRightsOf,
   fileSoundOf,
   type AdPicture,
   type AdPictureIssue,
   type FileDto,
-  type FileYesFacts,
 } from "@chanlytics/contracts";
 import { findLiveAdAccount } from "@chanlytics/db/ads";
 import { logAndGoOn } from "@chanlytics/log";
@@ -20,15 +19,14 @@ import {
 } from "@chanlytics/db/files";
 import { readAdsOffered } from "../connections/ads-ready";
 import { fileDtoOf } from "../readers/files";
-import { readDrawnFrom } from "../posts/made-as";
 import type { ReaderContext } from "../shared/reader";
 
 /**
  * The pictures and videos a new ad may show (the Ads plan's 4.6, 6.8 and G15), from what the business keeps in Files and
- * what AI made. Whether each may run as an ad, on the rights, is Content's one answer (contracts files/yes.ts
- * fileAdRightsOf, the content PRD's step L4): someone shown runs only with a yes for ads that stands (a yes for posts
- * never covers an ad), a made piece shows who its photo or clips show, and a video with music, or not heard yet, is a no
- * until its licence is written (L8). This module reads what that answer needs and keeps no rule of its own:
+ * what AI made. Whether each may run as an ad, on the rights, is one rule (contracts ads/draft.ts adRightsOf): a video
+ * with music, or not heard yet, is a no until its licence is written (the content PRD's step L8). Who is in a picture is
+ * not asked: footage a business provides is taken as cleared (Ruben, 22 Nov 2026). This module reads what the rules need
+ * and keeps no rule of its own:
  *
  *  - A video's sound, heard whole: none at all, or heard and holding no music, is no music. A video not heard yet is
  *    not known to have none.
@@ -42,7 +40,7 @@ import type { ReaderContext } from "../shared/reader";
  */
 
 /**
- * How many a draft looks through of each shelf and kind, newest first, of what Files knows may be offered (nobody shown, a
+ * How many a draft looks through of each shelf and kind, newest first, of what Files knows may be offered (looked at, a
  * video ready here): what AI made, then what the business keeps, photos and videos apart. Never the newest of a whole
  * shelf: on 20 November 2026 a Drive folder's 29 new clips, none looked at yet, pushed the one photo fine in ads out of
  * the 24 read, and every draft said a picture was missing.
@@ -60,8 +58,8 @@ const musicIn = (sound: HeardSound | null): boolean | null => {
   return sound.note ? sound.note.music.present : null;
 };
 
-/** A file as the picture rule reads it. `from` is what a made piece was drawn from; `music` a video's, as heard. */
-function adPictureOfFile(file: FileDto, from: readonly FileYesFacts[], music: boolean | null): AdPicture {
+/** A file as the picture rule reads it. `music` is a video's, as heard. */
+function adPictureOfFile(file: FileDto, music: boolean | null): AdPicture {
   const video = file.kind === "video";
   return {
     id: file.id,
@@ -71,7 +69,7 @@ function adPictureOfFile(file: FileDto, from: readonly FileYesFacts[], music: bo
     width: file.width ?? 0,
     height: file.height ?? 1,
     seconds: file.seconds,
-    rights: fileAdRightsOf(file, from, video ? music : false),
+    rights: adRightsOf(video ? "video" : "photo", music),
     beforeAfter: AD_BEFORE_AFTER.test([file.line ?? "", ...file.issues].join(" ")),
     made: file.source === "made",
   };
@@ -86,20 +84,13 @@ export interface AdPictures {
   pictures: AdPicture[];
   /**
    * Where none of `pictures` fits an ad: the newest of each shelf as Files keeps them, whatever is in them, read only so
-   * a draft can say why (someone shown, nobody said who, music, a shape). Empty where one fits.
+   * a draft can say why (music, a shape). Empty where one fits.
    */
   newest: AdPicture[];
   files: ReadonlyMap<string, FileDto>;
 }
 
 type AdReader = Pick<ReaderContext, "ctx" | "tenantId">;
-
-/** For each made piece among these, the files it was drawn from, as the rule reads them. */
-async function readPiecesDrawnFrom(rc: AdReader, files: readonly FileDto[]): Promise<Map<string, FileDto[]>> {
-  const pieces = files.filter((file) => file.source === "made").map((file) => file.id);
-  const drawn = await readDrawnFrom(rc.ctx.supabase, rc.tenantId, pieces);
-  return new Map([...drawn].map(([id, rows]) => [id, rows.map(fileDtoOf)]));
-}
 
 /** The newest of each shelf as Files keeps them, each as the rule reads it, its sound not read: only to say why none fits. */
 async function listNewestOnShelves(rc: AdReader): Promise<AdPicture[]> {
@@ -108,9 +99,11 @@ async function listNewestOnShelves(rc: AdReader): Promise<AdPicture[]> {
     listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: true }, page),
     listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: false }, page),
   ]);
-  const files = shelves.flat().map(fileDtoOf).filter(playable);
-  const from = await readPiecesDrawnFrom(rc, files);
-  return files.map((file) => adPictureOfFile(file, from.get(file.id) ?? [], null));
+  return shelves
+    .flat()
+    .map(fileDtoOf)
+    .filter(playable)
+    .map((file) => adPictureOfFile(file, null));
 }
 
 /**
@@ -151,11 +144,9 @@ export async function listAdPictures(
   const shelved = new Set([...byAi, ...byBusiness].map((row) => row.id));
   const offShelf = asked.filter((row) => !shelved.has(row.id));
   const files = [...byAi, ...byBusiness, ...offShelf].map(fileDtoOf).filter(playable);
-  const from = await readPiecesDrawnFrom(rc, files);
-  const fromOf = (file: FileDto) => from.get(file.id) ?? [];
   const isNamed = new Set(asked.map((row) => row.id));
   const hearable = files.filter(
-    (file) => file.kind === "video" && adPictureIssue(adPictureOfFile(file, fromOf(file), false)) === null,
+    (file) => file.kind === "video" && adPictureIssue(adPictureOfFile(file, false)) === null,
   );
   const unheard = [
     ...hearable.filter((file) => isNamed.has(file.id)),
@@ -169,7 +160,7 @@ export async function listAdPictures(
       ]),
     ),
   );
-  const pictures = files.map((file) => adPictureOfFile(file, fromOf(file), musicIn(sounds.get(file.id) ?? null)));
+  const pictures = files.map((file) => adPictureOfFile(file, musicIn(sounds.get(file.id) ?? null)));
   return {
     pictures,
     newest: pictures.some((picture) => adPictureIssue(picture) === null) ? [] : await listNewestOnShelves(rc),
@@ -193,14 +184,13 @@ export async function readPieceAdStands(rc: AdReader, file: FileDto): Promise<Pi
   if (file.source !== "made" || !playable(file)) return null;
   if (!(await readAdsOffered(rc.tenantId))) return null;
   const video = file.kind === "video";
-  const [account, from, sound] = await Promise.all([
+  const [account, sound] = await Promise.all([
     findLiveAdAccount(rc.ctx.supabase, rc.tenantId, "meta"),
-    readPiecesDrawnFrom(rc, [file]),
     video ? readFileSound(rc.ctx.supabase, file.id) : null,
   ]);
   if (account?.status !== "connected") return { is: "no_account" };
   const music = video ? musicIn(fileSoundOf(sound)) : false;
-  const issue = adPictureIssue(adPictureOfFile(file, from.get(file.id) ?? [], music));
+  const issue = adPictureIssue(adPictureOfFile(file, music));
   if (issue === null) return { is: "may" };
   return { is: "wont", why: issue === "music" && music === null ? "unheard" : issue };
 }

@@ -138,10 +138,8 @@ export function ContentPiece({
   flash: (f: FrameFlash) => void;
 }) {
   const { file } = made;
-  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says; and as a
-  // yes on it is said or taken back, so Run as an ad says what its record now says.
-  const yeses = `${(file.yes_for ?? []).join()}|${(file.yes_back ?? []).join()}`;
-  const record = usePostRecord(file, `${made.posts.map((p) => `${p.id}:${p.status}`).join()}|${yeses}`);
+  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says.
+  const record = usePostRecord(file, made.posts.map((p) => `${p.id}:${p.status}`).join());
   const hands: PieceHands = { made, record, reread, open, onClose, flash };
   const at = usePiecePosts(made, record);
   const { posts, takes } = at;

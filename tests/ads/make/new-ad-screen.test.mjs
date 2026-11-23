@@ -299,12 +299,6 @@ test("a check tripped (5.1): the first of them as one line with its one act, and
     ],
     [{ code: "price", fault: "never" }, PRICE_FAULT.never.title, "Take the price out", { kind: "no_price" }],
     [{ code: "price", fault: "differs" }, PRICE_FAULT.differs.title, "Take the price out", { kind: "no_price" }],
-    [
-      { code: "picture", fault: "person" },
-      PICTURE_FAULT.person.title,
-      "Use the next picture",
-      { kind: "next_picture" },
-    ],
     [{ code: "picture", fault: "music" }, "This video has music", "Use the next picture", { kind: "next_picture" }],
     [{ code: "picture", fault: "shape" }, PICTURE_FAULT.shape.title, "Use the next picture", { kind: "next_picture" }],
     [
@@ -352,10 +346,10 @@ test("a check tripped (5.1): the first of them as one line with its one act, and
   }
   // Several at once: only the first is said.
   const two = lineOf([
-    { code: "picture", fault: "person" },
+    { code: "picture", fault: "music" },
     { code: "words", fault: "about_reader" },
   ]);
-  assert.equal(two.line.title, PICTURE_FAULT.person.title);
+  assert.equal(two.line.title, PICTURE_FAULT.music.title);
   // The ad account's own need is the card's line, drawn as the card draws it; with no card read yet, its plain words.
   const need = { title: "Add a payment method at Meta", body: "", act: null };
   assert.deepEqual(lineOf([{ code: "account", check: "payment" }], { need }).line, { is: "account", need });
@@ -663,7 +657,6 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     paused: "admin/billing",
     picture: CONTENT_LIBRARY_ROUTE,
     picture_none: CONTENT_LIBRARY_ROUTE,
-    picture_person: CONTENT_LIBRARY_ROUTE,
     picture_music: CONTENT_LIBRARY_ROUTE,
     picture_gone: CONTENT_ROUTE,
     account: "closed",
@@ -680,7 +673,7 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     assert.deepEqual(w.went, [door], missing);
     assert.equal(w.asks.length, 1, `${missing}: no writer is asked`);
   }
-  for (const missing of ["picture", "picture_none", "picture_person", "picture_music"])
+  for (const missing of ["picture", "picture_none", "picture_music"])
     assert.doesNotMatch(
       Object.values(MISSING[missing]).join(" "),
       /\bfor now\b/i,

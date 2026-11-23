@@ -124,12 +124,11 @@ function standsOf(
 
 /**
  * Which picture is missing, where the rule found none fine in ads: none at all; else the cause an owner can mend first,
- * someone shown (or nobody said who), then music (or not heard yet); else none of a size or shape an ad takes.
+ * music (or not heard yet); else none of a size or shape an ad takes.
  */
 function pictureMissing(pictures: readonly AdPicture[]): Extract<AdDraftAnswer, { can: false }>["missing"] {
   if (pictures.length === 0) return "picture_none";
   const issues = new Set(pictures.map(adPictureIssue));
-  if (issues.has("person")) return "picture_person";
   return issues.has("music") ? "picture_music" : "picture";
 }
 

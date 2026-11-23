@@ -489,7 +489,7 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
   // On, and AI can't answer the people it brings (call 11): why, and the press that stops the spend.
   if (ad.needs === "way_in" && ad.way_in) return { kind: "pause", body: SHEET.wayIn(AD_WAY_IN_SAID[ad.way_in]) };
   if (ad.state !== "paused") return { kind: "pause", body: SHEET.pauseBody };
-  // Someone in its picture took back their yes: it runs again only with another picture, here or in Meta (G16).
+  // Paused by a remediation of its picture (00676, G16): it runs again only with another picture, here or in Meta.
   if (!ad.resume.ok && ad.resume.why === "picture") return { kind: "held", ...SHEET.cant.picture };
   if (!ad.resume.ok) return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
   // While AI is stopped no ad is turned on from here (the Ads plan's G17).

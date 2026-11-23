@@ -40,8 +40,6 @@ export type PostPlan = {
   voice: PostVoice;
   layout: PostLayoutName;
   language: PostLanguage;
-  /** The owner said in this thread that the people in the photo agreed: their word, kept on the photo as it is saved. */
-  people_agreed: boolean;
   /** Where the photo is a moment of a video: that moment, in seconds from its start. Null for a photo. */
   at: number | null;
 };
@@ -59,7 +57,6 @@ export function postPlanOf(payload: Record<string, unknown>): PostPlan {
     voice: payload.voice === "modern" ? "modern" : "classic",
     layout: POST_LAYOUTS.find((l) => l === payload.layout) ?? "over",
     language: payload.language === "es" ? "es" : "en",
-    people_agreed: payload.people_agreed === true,
     at: typeof payload.at === "number" && Number.isFinite(payload.at) && payload.at >= 0 ? payload.at : null,
   };
 }

@@ -13,7 +13,7 @@ export type RunAsAdActs = Record<RunAsAdDoes, () => void> & { run: () => void };
 
 /**
  * The acts over the piece's own (piece.tsx): New ad on Ads' address, drafted around this piece; AI asked about it, for
- * a yes or another picture; a picture post from a video; the Ads page, where an ad account is connected.
+ * another picture; a picture post from a video; the Ads page, where an ad account is connected.
  */
 export function runAsAdActsOf(
   fileId: string,
@@ -22,7 +22,6 @@ export function runAsAdActsOf(
 ): RunAsAdActs {
   return {
     run: () => go(newAdFromRoute("piece", fileId)),
-    yes: piece.ask,
     ask: piece.ask,
     post: piece.makePost,
     ads: () => go(ADS_ROUTE),
