@@ -29,7 +29,7 @@ const STORY_DAY_READ_MS = 22 * HOUR_MS;
 const STORY_STEPS = ["1h", "1d"] as const satisfies readonly ObserveStep[];
 
 /** The steps a post of this kind is read at, in order. */
-export function observeStepsOf(kind: PostKind): readonly [ObserveStep, ...ObserveStep[]] {
+function observeStepsOf(kind: PostKind): readonly [ObserveStep, ...ObserveStep[]] {
   return kind === "story" ? STORY_STEPS : OBSERVE_STEPS;
 }
 

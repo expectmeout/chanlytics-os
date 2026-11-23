@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextObserveStep, observeDueAt, observeStepsOf, OBSERVE_STEPS, POST_METRICS } from "@chanlytics/contracts";
+import { nextObserveStep, observeDueAt, OBSERVE_STEPS, POST_METRICS } from "@chanlytics/contracts";
 import { instagramObservationsOf, metaInsightsRequest } from "../../../packages/channels/src/instagram/meta-results.ts";
 
 const UP = "2026-11-21T22:19:57.000Z";
@@ -26,14 +26,13 @@ test("a post is read an hour, a day, 3, 7 and 28 days after it went up, and then
 });
 
 test("a story is read at an hour and once more before its day is out, and never after: an ended story has no numbers", () => {
-  assert.deepEqual([...observeStepsOf("story")], ["1h", "1d"]);
-  assert.deepEqual([...observeStepsOf("reel")], [...OBSERVE_STEPS]);
   assert.equal(observeDueAt(UP, "1h", "story"), "2026-11-21T23:19:57.000Z");
   assert.equal(
     observeDueAt(UP, "1d", "story"),
     "2026-11-22T20:19:57.000Z",
     "22 hours on: four of the half-hour sweep's passes are left before it ends",
   );
+  assert.equal(nextObserveStep(null, "story"), "1h");
   assert.equal(nextObserveStep("1h", "story"), "1d");
   assert.equal(nextObserveStep("1d", "story"), null, "its day's read is its last");
 });

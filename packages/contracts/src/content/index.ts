@@ -217,7 +217,7 @@ export type { CommentStage } from "./results/comment-stage";
 export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./results/credit";
 export type { Credit, CreditSubject, CreditTouch, CreditVisit } from "./results/credit";
 export type { CommentAnswerDto, CommentRowDto, CommentsDto, ContentReportDto, ContentWeekDto } from "./results/dtos";
-export { nextObserveStep, observeDueAt, observeStepsOf } from "./results/observe";
+export { nextObserveStep, observeDueAt } from "./results/observe";
 export type { Observation } from "./results/observe";
 export { pieceResultsSaid } from "./results/piece-results";
 export type {
