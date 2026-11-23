@@ -107,6 +107,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/files": "real",
+  "admin/content": "real", // what is set for the posts, from GET content/plan (00702)
   "admin/activity": "real", // both ledgers, from GET /activity, owners only
   // The back office (gate 5, #300): every workspace sorted by who needs a
   // person, read from the guarded platform routes. It was never listed here,
@@ -159,6 +160,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
+  // Settings › Content (00702): its lines are the week's read's, drawn beside the settings read Settings' frame waits for.
+  "admin/content": "settings",
   // A pane drawn from none of it waits for who is looking alone: every pane waited for the settings read's four (the business
   // with its facts and its prompt, the team, the policies, every template with what sends it) and for nothing it drew itself
   // (the Settings load review, 28 Oct 2026). What it draws (ROUTE_DRAWS: Billing's plan, Connections' channels, Ask's memory,

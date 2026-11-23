@@ -79,6 +79,8 @@ const ASKED_AT = {
   "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
   // Content's Library (the content redesign's stage 2): its family is the pane, its address a word after Content's.
   "campaigns/content/library": "campaigns/content:library",
+  // Its Week (00702), as the Library is.
+  "campaigns/content/week": "campaigns/content:week",
 };
 const askedAt = (family) => ASKED_AT[family] ?? family;
 
@@ -142,6 +144,7 @@ const ADDRESSES = [
   // Campaigns › Content (decision 0125): what Ask made, where its switch is on; and its Library, where Settings › Files went.
   "campaigns/content",
   "campaigns/content:library",
+  "campaigns/content:week",
 ];
 const PANES = Object.keys(ROUTE_SURFACE)
   .filter((r) => r.startsWith("admin/"))

@@ -259,6 +259,9 @@ const HEARD_BEFORE = {
   // review, which its "newest review" idea is offered from, so a first one landing offers it without a press. And, while
   // nothing is kept, where Ask looked (decision 0134), as the Library hears it.
   content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
+  // The Week (00702), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
+  // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page.
+  content_week: ["files", "google_connections", "tenant_config", "tenant_channels", "tenants"],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: ["conversation_drafts"],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
@@ -349,6 +352,9 @@ const ON_ITS_PAGE_BEFORE = {
   files: ["files", "imports", "business_reads", "tenant_config", "google_listings"],
   // What Ask made (decision 0125): nothing but Campaigns › Content draws it, nor its idea from a review, nor where Ask looked.
   content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
+  // The Week (00702), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
+  // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page.
+  content_week: ["files", "google_connections", "tenant_config", "tenant_channels", "tenants"],
   // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   people: [
@@ -467,6 +473,7 @@ const ROUTES = [
 const HOME = {
   files: "admin/files",
   content: "campaigns/content",
+  content_week: "campaigns/content:week",
   playbooks: "outbound",
   reports_campaigns: "reports/campaigns",
   settings: "messages",
