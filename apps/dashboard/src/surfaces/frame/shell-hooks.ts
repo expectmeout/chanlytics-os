@@ -62,17 +62,19 @@ export const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 
  * a demo surface renders nowhere, and the route table's landing stands in its place (route-table.tsx routeGated).
  */
 /**
- * Whether this gate has drawn the page at this address: a wait said once it has holds nothing. Ads' own first reads, asked as
- * the settings read lands, came after a reopen had drawn the address from what the tab kept, and took the page away for a
- * beat and drew it again (the phone sweep of 22 Nov 2026). `ready` is the gate's answer before this one.
+ * Whether the route's page may draw: its own surface in, and what its first draw waits for beside it in (routeReady), or the
+ * wait for that over (`waitedOut`) or the page drawn once already at this address: a wait said once it was holds nothing.
+ * Ads' own first reads, asked as the settings read lands, came after a reopen had drawn the address from what the tab kept,
+ * and took the page away for a beat and drew it again (the phone sweep of 22 Nov 2026). Derived every render.
  */
-function useDrewHere(routeKey: string, ready: boolean): boolean {
+function useSurfaceReady({ page, param, routeKey }: RouteAt, waitedOut: boolean): boolean {
   const [drawnKey, setDrawnKey] = useState<string | null>(null);
   const drew = drawnKey === routeKey;
+  const surfaceReady = routeReady(page, param) || ((waitedOut || drew) && routeReady(page, param, true));
   useEffect(() => {
-    if (ready && !drew) setDrawnKey(routeKey);
-  }, [ready, drew, routeKey]);
-  return drew;
+    if (surfaceReady && !drew) setDrawnKey(routeKey);
+  }, [drew, surfaceReady, routeKey]);
+  return surfaceReady;
 }
 
 export function useRouteGate({ page, param, routeKey }: RouteAt) {
@@ -113,11 +115,8 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
   void readyTick;
   const routeWaitedOut = waitedOutKey === routeKey;
   // A band the page waits for beside its own surface (Today's setup, above its queue) holds the first draw so it never lands
-  // above content already drawn; once the page's own surface is in, only for so long. And only the first draw (useDrewHere).
-  const ownIn = routeReady(page, param, true);
-  const firstReady = routeReady(page, param) || (routeWaitedOut && ownIn);
-  const drewHere = useDrewHere(routeKey, firstReady);
-  const surfaceReady = firstReady || (drewHere && ownIn);
+  // above content already drawn; once the page's own surface is in, only for so long. And only the first draw (useSurfaceReady).
+  const surfaceReady = useSurfaceReady({ page, param, routeKey }, routeWaitedOut);
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || timedOutKey === routeKey);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
   const surfaceState = frameSurfaceState();
