@@ -74,7 +74,7 @@ export function formTimeDoors(tables, base, { clock = Date.now, member = () => t
         client_email: person?.email ?? null,
         timezone: a.p_timezone,
         expires_at: new Date(expires).toISOString(),
-        // What it answered: the form (00702).
+        // What it answered: the form (00704).
         through_type: "form",
         through_id: a.p_form_id,
         created_at: now(),

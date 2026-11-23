@@ -92,7 +92,9 @@
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
-    "00701": "claimed by the Forms plan's F4 (a form on the business's own website, lane cm-forms-website), not on main when F3's visit stamp took 00702 above it (23 Nov 2026); the record drops this line once its file lands"
+    "00701": "claimed by pass 1b's last numbers before a take-down (lane cm-first-post, #2541), a draft not on main when F3's visit stamp took 00704 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week), not on main when F3's visit stamp took 00704 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00703": "claimed by the Forms plan's F4 (a form on the business's own website, lane cm-forms-website, #2542), a draft not on main when F3's visit stamp took 00704 above it (23 Nov 2026); the record drops this line once its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -704,6 +706,6 @@
     "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
     "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
     "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103",
-    "00702_a_visit_a_form_asked_for_says_the_form.sql": "e67e249f8cbde9adaa99e65ff6ca456093e2e25cf53c4c96cb3a8d89348c14aa"
+    "00704_a_visit_a_form_asked_for_says_the_form.sql": "ff3ca5c81af0b3bce8df605264dccc16c2faad07127cba0636455eb6c849dcdd"
   }
 }
