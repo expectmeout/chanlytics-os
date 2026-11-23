@@ -53,7 +53,7 @@ const DEPS: RelayDeps = { fetch: (input, init) => fetch(input, init), nowMs: () 
  * An answer begun within `ms`, or null. The bound ends when the answer's first line comes: a signal that outlived it would
  * cut a download's bytes off mid-way, since stopping a fetch stops its body too.
  */
-async function askWithin(deps: RelayDeps, url: string, init: RequestInit, ms: number): Promise<Response | null> {
+export async function askWithin(deps: RelayDeps, url: string, init: RequestInit, ms: number): Promise<Response | null> {
   const stop = new AbortController();
   const bound = setTimeout(() => stop.abort(), ms);
   try {
@@ -67,10 +67,10 @@ async function askWithin(deps: RelayDeps, url: string, init: RequestInit, ms: nu
 }
 
 /** A refusal: its status, whose it is and why in one word, and no body where the question was a HEAD. */
-function relayRefusal(
+export function relayRefusal(
   head: boolean,
   status: number,
-  refusal: { error: "request" | "ticket" | "key_door" | "drive"; reason: string },
+  refusal: { error: "request" | "ticket" | "key_door" | "drive" | "shelf" | "source"; reason: string },
   headers: Record<string, string> = {},
 ): Response {
   return new Response(head ? null : JSON.stringify(refusal), {

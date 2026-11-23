@@ -11,6 +11,8 @@ export { readRender, readRenderBytes, startRender, stopRender } from "./machine"
 export type { RenderJob, RenderMachine, RenderState } from "./machine";
 export { readRelayTicket, RELAY_KEY_ASK, relayClipAddress, signRelayTicket } from "./relay-ticket";
 export type { RelayKeyAsk } from "./relay-ticket";
+export { putOnShelf, readShelfRecord, relayShelfAddress, removeFromShelf } from "./shelf";
+export type { Shelf } from "./shelf";
 export {
   askStreamAudio,
   askStreamToFetch,
