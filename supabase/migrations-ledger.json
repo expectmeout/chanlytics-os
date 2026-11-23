@@ -693,6 +693,7 @@
     "00686_a_file_says_where_its_copies_are.sql": "daf097e1a71b1fa3561737bc4738a788d9edab56d5bed6cbd50fe8c5a6aa239d",
     "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff",
     "00689_a_post_stays_up_on_the_owner_s_word.sql": "d6c796ea95d33635ec9d339b9060a3d6851b210d54ee5aa73167cb751d55b307",
-    "00691_a_time_asked_for_on_a_form.sql": "4e87e1a4fdecec1623d3a3f2d7b64a963c5fe31bf8033a8285e8d830d8539e41"
+    "00691_a_time_asked_for_on_a_form.sql": "4e87e1a4fdecec1623d3a3f2d7b64a963c5fe31bf8033a8285e8d830d8539e41",
+    "00692_a_form_on_their_own_website.sql": "4d40412e78992d3a117698cb7b049c42822a88e05e528781616337a92cff2996"
   }
 }

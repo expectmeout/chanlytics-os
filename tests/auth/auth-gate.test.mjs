@@ -191,6 +191,11 @@ test("nine public PREFIXES, and only a workspace's own pages and forms, a form's
   // code that says nothing by itself, counts the open for its day (never a visitor: no cookie, no address; a chat app's
   // preview fetch is not counted) and sends the visitor on to the form under the business's page. Beside it, the same
   // link drawn as a code and its one sheet to print, which show nothing the form's page does not. None takes input.
+  //
+  // `/f/` joined with the form on a business's own website (00692; the Forms plan, F4): the same form framed in their
+  // page, read by its website link's code as /l/ is, its send the hosted form's own door with the hosted form's checks
+  // (one sent from anywhere but its own page is held for a look). It knows no session: the proxy returns before one is
+  // read, and the address's own policy names the sites that may frame it (the next tests).
   assert.deepEqual(prefixes, [
     "/yes/",
     "/b/",
@@ -199,6 +204,7 @@ test("nine public PREFIXES, and only a workspace's own pages and forms, a form's
     "/p/",
     "/c/",
     "/l/",
+    "/f/",
     "/preview/",
     "/api/v1/previews/",
   ]);
@@ -684,6 +690,15 @@ const passed = (res) => res.headers.get("x-middleware-next") === "1";
 
 /* --------------------------------------------------------------------- tests -- */
 
+test("a framed form passes the gate with no session read and no policy of the app's, signed in or not", async () => {
+  for (const cookie of [{}, { cookie: sessionCookie(await signed(projectKey)) }]) {
+    const res = await ask("/f/k7q2md", cookie);
+    assert.ok(passed(res), "on to its route");
+    assert.equal(res.headers.get("content-security-policy"), null, "whose own policy names who may frame it");
+    assert.equal(res.headers.get("set-cookie"), null, "and no session is refreshed for it");
+  }
+});
+
 test("signed out, every address of a workspace is sent to sign in, whatever it ends in, and the home too", async () => {
   for (const path of ["/w/acme", "/w/acme/inbox/th-1?private=1", "/w/acme/people/x.png", "/w/acme/settings/x.css"]) {
     sentToSignIn(await ask(path), path, "acme");
@@ -780,6 +795,23 @@ test("Next's own matcher runs the proxy for every address of a workspace, and ne
     "/www/a.png",
   ]) {
     assert.equal(runs(path), false, path);
+  }
+});
+
+test("a form framed on a business's own website is the one address that may be framed, and by its own policy alone", async () => {
+  const headersOf = async (path) =>
+    (await unstable_getResponseFromNextConfig({ url: `${APP}${path}`, nextConfig: loadedConfig })).headers;
+  for (const path of ["/", "/w/acme", "/b/acme/consultation", "/l/k7q2md", "/f", "/fit.js", "/forms"]) {
+    const headers = await headersOf(path);
+    assert.equal(headers.get("x-frame-options"), "DENY", path);
+    assert.equal(headers.get("content-security-policy"), "frame-ancestors 'none'", path);
+  }
+  for (const path of ["/f/k7q2md", "/f/fit.js"]) {
+    const headers = await headersOf(path);
+    assert.equal(headers.get("x-frame-options"), null, `${path}: its route says who may frame it`);
+    assert.equal(headers.get("content-security-policy"), null, path);
+    assert.equal(headers.get("x-content-type-options"), "nosniff", `${path}: and keeps every other header`);
+    assert.equal(headers.get("referrer-policy"), "strict-origin-when-cross-origin", path);
   }
 });
 

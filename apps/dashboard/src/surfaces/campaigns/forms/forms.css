@@ -333,6 +333,40 @@
 .fmv-printed[data-stopped] {
   opacity: 0.6;
 }
+/* The website (F4): the site first, then the lines to paste and the sites it may show on. */
+.fmv-web {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) 0 var(--space-3);
+}
+.fmv-say {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+.fmv-fine {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-code {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.fmv-web .fmv-link > svg {
+  flex: none;
+  color: var(--ink-muted);
+}
 .fmv-nums {
   margin: 0;
   font-size: var(--text-md);

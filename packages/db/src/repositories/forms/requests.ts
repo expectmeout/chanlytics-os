@@ -22,7 +22,7 @@ export interface FormReach {
 }
 
 /** Why an entry is held for a look. */
-export type FormHeldWhy = "hidden_field" | "too_fast" | "too_many" | "member";
+export type FormHeldWhy = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
 
 /** What the door hands its one write. */
 export interface FormRequestToTake {

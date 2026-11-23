@@ -141,7 +141,7 @@ export const SCHEMA_SETS = {
   "files.status": ["inbox", "filed", "set_aside"],
   "files.who_in_it": ["not_asked", "no_one"],
   "form_entries.form": ["signup", "request"],
-  "form_entries.held_why": ["hidden_field", "too_fast", "too_many", "member"],
+  "form_entries.held_why": ["hidden_field", "too_fast", "too_many", "member", "elsewhere"],
   "form_entries.state": ["accepted", "processed", "held"],
   "form_entry_links.kind": ["reply", "conversation", "visit", "marked"],
   "forms.state": ["draft", "live", "off"],

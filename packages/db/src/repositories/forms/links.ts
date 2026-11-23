@@ -19,9 +19,11 @@ export interface LinkRead {
   printed: boolean;
   createdAt: string;
   stoppedAt: string | null;
+  /** The sites the form may show on, framed in their own page (00692): null for every place that is not the website. */
+  sites: string[] | null;
 }
 
-const LINK_COLUMNS = "id, code, place, printed, created_at, stopped_at";
+const LINK_COLUMNS = "id, code, place, printed, created_at, stopped_at, sites";
 
 function linkOf(row: {
   id: string;
@@ -30,6 +32,7 @@ function linkOf(row: {
   printed: boolean;
   created_at: string;
   stopped_at: string | null;
+  sites: string[] | null;
 }): LinkRead {
   return {
     id: row.id,
@@ -38,6 +41,7 @@ function linkOf(row: {
     printed: row.printed,
     createdAt: row.created_at,
     stoppedAt: row.stopped_at,
+    sites: row.sites ?? null,
   };
 }
 
@@ -85,7 +89,7 @@ const CODE_TRIES = 3;
  */
 export async function makeFormLink(
   db: Db,
-  link: { tenantId: TenantId; formId: string; place: string; printed: boolean; userId: string },
+  link: { tenantId: TenantId; formId: string; place: string; printed: boolean; userId: string; sites?: string[] },
 ): Promise<LinkRead> {
   for (let attempt = 1; ; attempt++) {
     const { data, error } = await db
@@ -97,6 +101,7 @@ export async function makeFormLink(
         place: link.place,
         printed: link.printed,
         created_by: link.userId,
+        ...(link.sites ? { sites: link.sites } : {}),
       })
       .select(LINK_COLUMNS)
       .maybeSingle();
@@ -111,19 +116,57 @@ export async function makeFormLink(
 /** A link renamed, stopped, or started again. Answers whether a row was written: a refused write changes none. */
 export async function keepLink(
   db: Db,
-  kept: { tenantId: TenantId; linkId: string; place?: string; stoppedAt?: string | null },
+  kept: { tenantId: TenantId; linkId: string; place?: string; stoppedAt?: string | null; sites?: string[] },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("links")
     .update({
       ...(kept.place === undefined ? {} : { place: kept.place }),
       ...(kept.stoppedAt === undefined ? {} : { stopped_at: kept.stoppedAt }),
+      ...(kept.sites === undefined ? {} : { sites: kept.sites }),
     })
     .eq("tenant_id", kept.tenantId)
     .eq("id", kept.linkId)
     .select("id");
   if (error) throw new DbFailure(error, "links");
   return data.length > 0;
+}
+
+/**
+ * The sites a link's form may show on, framed in their own page (00692), read for the framed address on the service
+ * role: null for a link that is not a website's, or that the workspace does not hold.
+ */
+export async function findLinkSites(db: Db, tenantId: TenantId, linkId: string): Promise<string[] | null> {
+  const { data, error } = await tenantDb(db, tenantId).from("links").select("sites").eq("id", linkId).maybeSingle();
+  if (error) throw new DbFailure(error, "links");
+  return data?.sites ?? null;
+}
+
+/** How many of a website link's latest requests are read for when each site last sent one. */
+const SITE_ENTRIES = 200;
+
+/**
+ * The site each of a link's latest requests came from, newest first (form_entries.source.site, a host without its
+ * www.): what says when a request last came from each site a form may show on. A test and a held entry are none.
+ */
+export async function listLinkEntrySites(
+  db: Db,
+  tenantId: TenantId,
+  linkId: string,
+): Promise<Array<{ site: string; createdAt: string }>> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("form_entries")
+    .select("source, created_at")
+    .eq("link_id", linkId)
+    .neq("state", "held")
+    .eq("test", false)
+    .order("created_at", { ascending: false })
+    .limit(SITE_ENTRIES);
+  if (error) throw new DbFailure(error, "form_entries");
+  return data.flatMap((row) => {
+    const site = recordOrEmpty(row.source).site;
+    return typeof site === "string" && site ? [{ site, createdAt: row.created_at }] : [];
+  });
 }
 
 /** Where an opened link lands. */
