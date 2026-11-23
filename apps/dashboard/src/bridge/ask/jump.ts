@@ -96,6 +96,15 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "every photo and clip the business keeps",
     also: ["files", "photos", "pictures", "images", "clips"],
   },
+  // Settings › Content (00702): what the business's posts are for, how often they go up, the quiet days, the languages,
+  // the offers they may say.
+  {
+    label: "Content settings",
+    to: "admin/content",
+    kind: "page",
+    sub: "what posts are for, how often, quiet days, offers",
+    also: ["how often to post", "quiet days", "post languages"],
+  },
   {
     label: "How it answers",
     to: "admin/receptionist",

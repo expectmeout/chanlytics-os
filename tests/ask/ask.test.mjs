@@ -177,7 +177,7 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(
     askJump("set", index).map((j) => j.label),
-    ["Settings", "Setting up"],
+    ["Settings", "Setting up", "Content settings"],
   );
   assert.deepEqual(
     askJump("lea", index).map((j) => j.to),
@@ -234,6 +234,7 @@ const REACHED = {
   "admin/workspace": ["Settings", "admin/workspace"],
   "admin/hours": ["Hours & booking", "admin/hours"],
   "admin/files": ["Library", "campaigns/content:library"],
+  "admin/content": ["Content settings", "admin/content"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
   "admin/outreach": ["Cold email", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],
