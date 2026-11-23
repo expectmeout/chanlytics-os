@@ -1608,7 +1608,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
 
-One of 2 bodies.
+One of 3 bodies.
 
 Body 1:
 
@@ -1626,6 +1626,13 @@ Body 2:
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `act` | one of `"mark"`, `"unmark"`, `"hold"`, `"let_through"` | yes |  |
+| `entry_id` | string (uuid) | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"book"`, `"cant"` | yes |  |
 | `entry_id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/forms/sheet`

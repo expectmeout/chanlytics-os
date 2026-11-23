@@ -45,6 +45,11 @@ export interface AppointmentLike {
   source?: string | null;
   /** The thread a request the receptionist took came from (00443): where it is answered. */
   conversation_id?: string | null;
+  /**
+   * The form request a request with no thread was asked for from (00688, the Forms plan's F3): where it is answered.
+   * Read beside the row (form_entry_links kind visit); absent where the reader did not ask.
+   */
+  form_entry_id?: string | null;
   /** Whether AI told the customer when a request ran out with no answer (00679); null or absent for one that never did. */
   lapse_told?: boolean | null;
 }
@@ -216,11 +221,13 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     staff: row.staff,
     price: row.price,
     visit: visitMarkOf(row),
-    // A time a customer picked by text: answered in its thread, Booked it or Can't, while it is open (decision 0061).
-    ...(row.source === "receptionist" && row.conversation_id
+    // A time a customer picked by text, or on a form (00688): answered in its thread, or on the form's request, Booked it
+    // or Can't, while it is open (decision 0061).
+    ...(row.source === "receptionist" && (row.conversation_id || row.form_entry_id)
       ? {
           request: {
-            thread_id: row.conversation_id,
+            thread_id: row.conversation_id ?? null,
+            ...(row.form_entry_id ? { entry_id: row.form_entry_id } : {}),
             open: row.status === "proposed",
             // Closed by its clock, never by its owner (00679): the sheet says so.
             ...(typeof row.lapse_told === "boolean" ? { lapsed: true } : {}),

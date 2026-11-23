@@ -349,6 +349,7 @@ export { FORM_PARTS, formPagePath, FORMS_ROUTE, formsPlaceOf, formsRouteOf, form
 export { emailTypoFix } from "./forms/email-typo";
 export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS } from "./forms/limits";
 export { requestLines, throughPlace } from "./forms/request-words";
+export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./forms/times";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";
 export { gainedOver, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, toGoogleReviewVM, toGoogleVM } from "./google/google";

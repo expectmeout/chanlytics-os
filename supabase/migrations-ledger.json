@@ -685,6 +685,7 @@
     "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75",
     "00681_a_post_goes_up_on_the_new_records.sql": "6e273bfa90b2fa00a159b5ff7e19e271372931c9e7d07ff4cf331d6c8b65f091",
     "00682_a_post_comes_down.sql": "536ca03032d26ad77155eaa7cc9a582d79b806f59f2cfd9bf38f61cf76c46f3c",
-    "00683_a_visit_is_worth_its_services_amount.sql": "b52019d27fc48e5661913e20ac9df53fcac8a97bcdfb31e9ccd0de7eb707dc0c"
+    "00683_a_visit_is_worth_its_services_amount.sql": "b52019d27fc48e5661913e20ac9df53fcac8a97bcdfb31e9ccd0de7eb707dc0c",
+    "00688_a_time_asked_for_on_a_form.sql": "d35cd6ea4e35fbf1ac5ce4b81f1c3203694364d63f94224b7b305312e34a4455"
   }
 }

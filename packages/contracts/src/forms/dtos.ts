@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { FormDescription } from "./shape";
 import type { RequestLine } from "./request-words";
+import type { FormTimeStatus } from "./times";
 
 export type FormStateDto = "draft" | "live" | "off";
 
@@ -77,6 +78,10 @@ export interface FormSheetDto {
     days: number;
     opens: number;
     requests: number;
+    /** The requests that asked for a time (F3). */
+    asked?: number;
+    /** How often the business's own booking page was opened from the form (F3): a count, never a visitor. */
+    booking_opens?: number;
     talked: number;
     visits: number;
     new_people: number;
@@ -95,6 +100,25 @@ export interface FormSheetDto {
    */
   email?: { ready: boolean; why: string | null; connect: boolean; unchecked: boolean };
   can_change: boolean;
+}
+
+/**
+ * The time a request asked for (00688; the Forms plan, F3), as its visit stands now: the same request a chat opens,
+ * held for its owner a day at most and answered Booked it or Can't. `holds`: it still takes its time (proposed, and not
+ * past `expires_at`); past it, Booked it is refused and the time may have gone to someone else. `taken_by`: who another
+ * visit at that time is booked for since, where one is (empty where it names nobody): then Can't leads. Null: nothing
+ * is in its way.
+ */
+export interface FormRequestTimeDto {
+  appointment_id: string;
+  starts_at: string;
+  ends_at: string;
+  service: string | null;
+  status: FormTimeStatus;
+  expires_at: string | null;
+  holds: boolean;
+  timezone: string;
+  taken_by: string | null;
 }
 
 /** One request as Inbox answers it. */
@@ -124,6 +148,8 @@ export interface FormRequestDto {
   note: string;
   /** Whether the form asks AI to draft the reply. */
   drafts: boolean;
+  /** The time it asked for, where it asked for one (F3); null where it asked for none. */
+  time: FormRequestTimeDto | null;
 }
 
 /**
@@ -147,6 +173,8 @@ export interface FormOpenRequestDto {
   phone_only: boolean;
   /** A reply to it left and never reached them. */
   unreached: boolean;
+  /** The time it asked for, as its visit stands now (F3): what Needs you says first. Absent or null: none asked. */
+  time?: Omit<FormRequestTimeDto, "taken_by"> | null;
 }
 
 /**
@@ -229,5 +257,7 @@ export const FormRequestPress = z.discriminatedUnion("act", [
     email_to: z.optional(z.email().max(254)),
   }),
   z.strictObject({ act: z.enum(["mark", "unmark", "hold", "let_through"]), entry_id: z.uuid() }),
+  // The time it asked for, answered as a chat's is (F3): Booked it, or Can't.
+  z.strictObject({ act: z.enum(["book", "cant"]), entry_id: z.uuid() }),
 ]);
 export type FormRequestPress = z.infer<typeof FormRequestPress>;

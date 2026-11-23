@@ -430,6 +430,8 @@ export interface PublicWorkspaceRead {
   name: string;
   slug: string;
   status: string;
+  /** The business's clock: what a form's open times are said in (the Forms plan, F3). */
+  timezone: string;
   open: OpenToCustomers;
   /**
    * The record's public columns, as the select reads them: exactly those contracts lets the page show (the dashboard's
@@ -455,7 +457,11 @@ export interface PublicWorkspaceRead {
  * Cross-workspace: the public pages resolve one workspace by slug, with the service role, and read only its public facts.
  */
 export async function findPublicWorkspaceBySlug(db: Db, slug: string): Promise<PublicWorkspaceRead | null> {
-  const rows = await db.from("tenants").select("id, name, slug, status, left_empty_at").eq("slug", slug).maybeSingle();
+  const rows = await db
+    .from("tenants")
+    .select("id, name, slug, status, timezone, left_empty_at")
+    .eq("slug", slug)
+    .maybeSingle();
   if (rows.error) throw new DbFailure(rows.error, "reading the workspace");
   if (!rows.data) return null;
   const id = rows.data.id;
@@ -481,6 +487,7 @@ export async function findPublicWorkspaceBySlug(db: Db, slug: string): Promise<P
     name: rows.data.name,
     slug: rows.data.slug,
     status: rows.data.status,
+    timezone: rows.data.timezone,
     open: openToCustomersOf({
       paused: rows.data.status === "paused",
       ended: !!rows.data.left_empty_at,

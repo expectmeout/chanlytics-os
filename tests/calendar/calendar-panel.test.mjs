@@ -476,6 +476,63 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
   assert.ok(!lapsed.more.some((m) => m.act === "cant"));
 });
 
+test("(00688) a time asked for on a form is drawn and answered as a chat's is, on its request, and says it came from a form", async () => {
+  const { itemOfAppointment } = await import("@chanlytics/contracts");
+  // A form's request holds no thread: the board names it from the request it was asked for from.
+  const row = {
+    id: "v9",
+    tool: null,
+    status: "proposed",
+    starts_at: AHEAD[1],
+    ends_at: AHEAD[2],
+    all_day: false,
+    title: "Balayage",
+    service: "Balayage",
+    staff: null,
+    price: null,
+    note: null,
+    client_name: "Ana Ruiz",
+    client_phone: null,
+    client_email: "ana@example.com",
+    contact_id: "p-ana",
+    source: "receptionist",
+    conversation_id: null,
+    form_entry_id: "entry-ana",
+  };
+  assert.deepEqual(itemOfAppointment(row, []).request, { thread_id: null, entry_id: "entry-ana", open: true });
+  assert.equal(
+    itemOfAppointment({ ...row, form_entry_id: undefined }, []).request,
+    undefined,
+    "a row no request names is none",
+  );
+  const request = {
+    source: "notice",
+    tool: null,
+    visit: { id: "v9", status: "proposed" },
+    request: { thread_id: null, entry_id: "entry-ana", open: true },
+  };
+  const vm = sheet(AHEAD, request);
+  assert.deepEqual(vm.primary, { act: "booked", label: "Booked it", quiet: false });
+  assert.equal(vm.footnote, "Requested on a form · Booked it or Can't");
+  assert.ok(
+    vm.more.some((m) => m.act === "cant"),
+    "Can't, in More, as a chat's",
+  );
+  assert.equal(vm.state?.word, "Requested");
+  const booked = sheet(AHEAD, {
+    ...request,
+    visit: { id: "v9", status: "booked" },
+    request: { thread_id: null, entry_id: "entry-ana", open: false },
+  });
+  assert.equal(booked.footnote, "Booked from a form · tell them from their request");
+  const cant = sheet(AHEAD, {
+    ...request,
+    visit: { id: "v9", status: "cancelled" },
+    request: { thread_id: null, entry_id: "entry-ana", open: false },
+  });
+  assert.equal(cant.footnote, "Asked for on a form · you couldn't take it");
+});
+
 test("(00426) a visit whose person was found as a lead says where they came from: its sequence, a door to its People; else the lead, a door to it on Leads", async () => {
   const { leadsRoute, sequenceRoute } = await import("@chanlytics/contracts");
   const lead = { id: "ld-1", name: "Ruiz Design" };

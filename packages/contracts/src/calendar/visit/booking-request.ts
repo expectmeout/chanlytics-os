@@ -7,7 +7,7 @@
 import type { Opening } from "../availability";
 import { visitRoute } from "../appointment-key";
 import { clockInZone, dayInZone, dayPlusInZone, localToUtcMs } from "../../shared/zone/math";
-import { DAY_MS, MIN_MS, dateFormat } from "../../shared/time";
+import { CLOCK_SLOT, DAY_MS, MIN_MS, dateFormat } from "../../shared/time";
 
 /** The two fields the receptionist writes beside its reply, empty when no time was picked. */
 export interface BookingRequestFields {
@@ -68,7 +68,7 @@ export type RequestedBooking =
   | { ok: true; startMs: number; endMs: number; service: string | null }
   | { ok: false; why: "no_slot" | "unreadable" | "not_open" | "unknown_service" };
 
-const SLOT = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/;
+const SLOT = CLOCK_SLOT;
 
 /**
  * Whether what the receptionist wrote is a request (decision 0061, point 3), never the model's say: the slot is a time on
@@ -187,6 +187,10 @@ export const BOOKING_REQUEST_WORDS = {
   footCant: "Asked for by text · you couldn't take it",
   /** Its foot where nobody answered before it ran out (decision 0061, as amended 22 Nov 2026). */
   footLapsed: "Asked for by text · not confirmed in time",
+  /** A time asked for on a form (00688): answered here or on its request, which holds no thread to change it in. */
+  footForm: "Requested on a form · Booked it or Can't",
+  footFormBooked: "Booked from a form · tell them from their request",
+  footFormCant: "Asked for on a form · you couldn't take it",
   /** What the role gate says the two presses are, to a member who may not press them. */
   gate: "confirm a booking",
   /** What a page says once a press is taken: booked, and the reply waiting in the thread; or theirs to answer. */

@@ -1351,6 +1351,21 @@
       "where": null
     },
     {
+      "table": "form_days",
+      "name": "form_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "form_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "form_entries",
       "name": "form_entries_pkey",
       "primary": true,

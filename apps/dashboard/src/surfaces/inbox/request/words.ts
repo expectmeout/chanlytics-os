@@ -101,6 +101,38 @@ export const REQUEST_WORDS = {
     page: "The one on their page",
   },
   failed: "That didn't go through. Nothing was sent.",
+  /**
+   * The time a request asked for (00688; the canvas's board "Ask for a time: you confirm it"): answered as a time asked
+   * in a chat is, Booked it or Can't, and then told to them from here. The two presses' own words are contracts'
+   * (BOOKING_REQUEST_WORDS), as Today's, the thread's and the Calendar's are.
+   */
+  time: {
+    asked: "They asked for a time",
+    booked: "Booked",
+    cant: "You couldn't take it",
+    held: (until: string) => `Held for them until ${until}`,
+    onCalendar: "On your calendar",
+    notHeld: "No longer held on your calendar",
+    foot: "On your calendar as Requested. Nothing is booked until you say.",
+    taken: {
+      title: "That time is booked now",
+      body: (name: string, when: string) =>
+        `You booked ${name || "someone else"} for ${when}. Tell them it can't, with other times.`,
+      too: "Booked it too",
+    },
+    lapsed: {
+      title: "Not confirmed in time",
+      body: (until: string) =>
+        `It was held until ${until} and may have gone since, so it can't be booked from here. Tell them what's open now.`,
+    },
+    /** What the page says once a press is taken: the reply that tells them is below. */
+    said: { booked: "Booked. Tell them below.", cant: "Let go. Tell them below." },
+    /** What AI's reply is told of the time, beside what they asked (the request's note). */
+    aboutBooked: (when: string) =>
+      `The business booked the time they asked for: ${when}. Tell them they are booked, and promise nothing else.`,
+    aboutGone: (offer: string) =>
+      `The time they asked for can't be booked. Tell them so, in these words or close: ${offer}`,
+  },
 } as const;
 
 /** "Colour consultation · 2h ago": which form and how long ago, under the person's name. */

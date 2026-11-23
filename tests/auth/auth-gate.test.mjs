@@ -252,12 +252,16 @@ test("nine public PREFIXES, and only a workspace's own pages and forms, a form's
   // door uses (resolve_person: it fills what is empty, never overwrites, and writes nothing for a person who asked to be
   // forgotten), holds a doubtful send for a look instead of telling anyone, and takes the same press once. It never
   // takes a yes to offers, sends nothing to anyone, and is limited per sender and per form (form-page.ts;
-  // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and nothing else.
+  // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and beside it the way to the business's own
+  // booking page (00688, F3): it counts an open of that page for the form's day and sends the visitor there. It reads
+  // nothing but the workspace's own booking link, writes nothing but the count, and lands nowhere else
+  // (tests/forms/time/a-visitor-asks-for-a-time.test.mjs).
   assert.deepEqual(
-    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]")),
-    ["route.ts"],
-    "a form's page is its one route: it draws the form and takes its send",
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]")).sort(),
+    ["book", "route.ts"],
+    "a form's page is its one route, and the way to its business's booking page",
   );
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]/book")), ["route.ts"]);
   // Under /l/, the link's own door, its code and its sheet to print, and nothing else.
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l")), ["[code]"]);
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]")).sort(), ["code", "route.ts", "sign"]);

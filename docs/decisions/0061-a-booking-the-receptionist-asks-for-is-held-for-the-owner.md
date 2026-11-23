@@ -173,6 +173,41 @@ note, Activity's line), and on a database in CI `tests/calendar/booking-requests
 Deploy order: the migration first. The edge before it calls none of the new functions; the edge after it, met before
 the migration, logs that it could not read what is due (`booking_request_clock_failed`) and does nothing.
 
+## A time asked for on a form (amended 23 November 2026)
+
+The Forms plan's step F3 (`Claude Video/docs/2026-11-21-forms-plan.md`, Ruben's call 8 of 22 November 2026): a
+request form's "when" question follows the workspace's own booking setting, the one this note's point 2 reads. Where
+the team confirms its own bookings it shows the real open times, and a time a visitor picks is this note's request,
+opened by migration 00688's `form_time_request_take` in the same transaction as the form's entry.
+
+1. **The same row, held the same way.** A `proposed` row, source `receptionist`, held until the sooner of 23 hours
+   on and an hour before its time; refused an hour away or less (the entry is then kept as a plain request); one open
+   request per person, so the person's request before it is let go. Where a chat held that one, its thread's hold
+   becomes a reply owed (`booking_reply`), as Can't leaves it. Two people may ask for one time: a time is checked as
+   it is sent against the calendar's bookings, never against another person's request, so both are requests and the
+   owner answers both. A page drawn after one asked does not offer that time, as AI never offers it.
+2. **No thread and no hold.** A form's request is never a hand-over (the Forms plan's call 14: AI still answers the
+   person the moment they write in), and its person may have no thread at all. So the row names no conversation, and
+   it is named from the entry instead (`form_entry_links` kind `visit`). This was the build's own call, said to
+   Ruben with how to undo it: the chat's door (`booking_request_open`) on a thread opened for the person, which would
+   also hand that thread to a person.
+3. **Answered by the same door, on the request.** Booked it and Can't are `booking_request_answer`, the member's
+   decision as here, through the request's own route (`POST forms/requests`, acts `book` and `cant`) and from the
+   Calendar's visit, which then opens the request. Booked it answers with this note's reply ("You're booked for …");
+   the request stays in Needs you until the person is told by its reply, drafted for the member to send. Nothing
+   reaches the person by either press.
+4. **Its clock is the owner's.** `booking_requests_due` lists only requests held in a thread, so a form's is never
+   nudged or told by itself: past its day it takes no time, Booked it is refused (`expired`), and the request says
+   so, offering what is open now in its reply.
+5. **What it counts.** A form's request confirmed is a visit the form brought (`form_results`), whatever the 00678
+   rule reads, since the row is made in the entry's own statement. Where the business sends people to its own booking
+   page instead, an open of that page from the form is counted by day (`form_days`), and nothing booked there is
+   claimed.
+
+Tests: `tests/forms/time/a-visitor-asks-for-a-time.test.mjs`, `tests/forms/time/an-owner-answers-a-time.test.mjs`,
+`tests/forms/time/a-time-follows-the-business-s-way.test.mjs`, `tests/calendar/calendar-panel.test.mjs` (the visit's
+sheet), and on a database in CI `tests/forms/time/a-time-asked-for-on-a-form.db.test.mjs`.
+
 ## Not now
 
 - An automatic confirmation to the customer (spine step 2).

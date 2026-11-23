@@ -524,7 +524,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   form_versions: { description: WITH_WORKSPACE },
   forms: all(WITH_WORKSPACE, "slug", "draft"),
   // A link (00680): a code made at random, the kind of thing it opens, and where it is shared in the owner's own
-  // words for a place ("Google listing"), which leave with the workspace. A day of a link (link_days) is numbers alone.
+  // words for a place ("Google listing"), which leave with the workspace. A day of a link (link_days) is numbers alone,
+  // and so is a day of a form (form_days, 00688: its business's booking page opened from it).
   links: { ...all(NOT_PERSONAL, "code", "subject_type"), place: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.

@@ -254,6 +254,54 @@ function fmtWindow(start: number, end: number, tz: string): string {
  * caller's too: the record's taken time over the days on offer (calendar/record-busy.ts), asked for once a feed has
  * read, since the bookings a tool emailed are subtracted beside the feed's (00345).
  */
+/** What the calendar's open times came to: the windows and the terms they were cut by, or why there are none. */
+type FreeOpenings =
+  | {
+      state: "ok";
+      openings: Opening[];
+      tz: string;
+      daysAhead: number;
+      /** How long a visit is where its service does not say (the booking rules' slot length). */
+      slotMin: number;
+      /** The business's hours, closures and booking rules on its clock: what the windows were cut from. */
+      free: Parameters<typeof roomOf>[1];
+    }
+  | { state: "no_calendar"; cfg: TenantConfig | null }
+  | { state: "unavailable" };
+
+/**
+ * The open windows, computed the one way every reader here computes them (the receptionist's, on the edge): the feed's
+ * busy blocks and the record's taken time beside them (`known.taken`, 00345), against the hours, closures and booking
+ * rules, in the business's zone. Read for Ask's openings (getOpenings, below) and for the times a form offers (the
+ * Forms plan, F3: server/public/form-times.ts): one rule, so none offers a time another draws as taken.
+ */
+export async function readFreeOpenings(
+  tenantId: TenantId,
+  now: Date,
+  known: { timezone: string; config: unknown; taken: (daysAhead: number) => Promise<BusyBlock[]> },
+): Promise<FreeOpenings> {
+  const timezone = known.timezone;
+  const cfg = parseTenantConfig(known.config);
+  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+  const url = calendarFeedKeyOf(cfg);
+  const profile = cfg?.brain?.profile;
+  if (!url || !profile) return { state: "no_calendar", cfg };
+  const text = await fetchFeed(tenantId, url);
+  if (text === null) return { state: "unavailable" };
+  try {
+    const rules = profile.booking_rules ?? null;
+    const daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
+    const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
+    const free = { hours: profile.hours, closures: profile.closures, tz: timezone, rules, now };
+    const openings = freeWindows({ ...free, busy: [...feed.busy, ...(await known.taken(daysAhead))] });
+    const slotMin = rules?.slot_min ?? BOOKING_DEFAULTS.slot_min;
+    return { state: "ok", openings, tz: timezone, daysAhead, slotMin, free };
+  } catch (e) {
+    log.error("ask_openings_failed", { tenant_id: tenantId, error: e });
+    return { state: "unavailable" };
+  }
+}
+
 export async function getOpenings(
   tenantId: TenantId,
   by: { day?: string | null; service?: string | null },
@@ -261,31 +309,17 @@ export async function getOpenings(
   known: { timezone: string; config: unknown; taken: (daysAhead: number) => Promise<BusyBlock[]> },
 ): Promise<OpeningsResult> {
   const timezone = known.timezone;
+  const read = await readFreeOpenings(tenantId, now, known);
   const cfg = parseTenantConfig(known.config);
-  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
-  const url = calendarFeedKeyOf(cfg);
   const profile = cfg?.brain?.profile;
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
   const offer = offerFor(profile?.services, profile?.booking_rules, by.service);
   const service = offer?.service ?? null;
-  if (!url || !profile) return noCalendar(cfg, timezone, service);
-  const text = await fetchFeed(tenantId, url);
-  if (text === null)
+  if (read.state === "no_calendar") return noCalendar(read.cfg, timezone, service);
+  if (read.state === "unavailable")
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
-  let openings: Opening[];
-  let daysAhead: number;
-  let room: BookRoom;
-  try {
-    const rules = profile.booking_rules ?? null;
-    daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-    const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
-    const free = { hours: profile.hours, closures: profile.closures, tz: timezone, rules, now };
-    openings = freeWindows({ ...free, busy: [...feed.busy, ...(await known.taken(daysAhead))] });
-    room = roomOf(openings, free, daysAhead);
-  } catch (e) {
-    log.error("ask_openings_failed", { tenant_id: tenantId, error: e });
-    return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
-  }
+  const { openings, daysAhead } = read;
+  const room: BookRoom = roomOf(openings, read.free, daysAhead);
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });
   const described = describeOpenings(picked, timezone, {
     maxDays: 3,
