@@ -42,12 +42,20 @@ updates:
       - dependency-name: "react-native-*"
       - dependency-name: "@react-native/*"
       # React is the phone's exact pin too (19.2.3, the SDK's) beside the
-      # dashboard's; a patch passes the doctor, a minor moves with the SDK and
-      # Next.
+      # dashboard's; a minor moves with the SDK and Next.
       - dependency-name: "react"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "react-dom"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # And never below the dashboard's own minor. The group lines every
+      # importer up to one version, and offered the phone's 19.2.x to the
+      # dashboard, the tests, the scripts and the video tool, which were on
+      # 19.3: React split in two (#2364, #2536). So the phone's React moves with
+      # its SDK, by hand, and the floor moves with the dashboard's React.
+      - dependency-name: "react"
+        versions: ["< 19.3.0"]
+      - dependency-name: "react-dom"
+        versions: ["< 19.3.0"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]

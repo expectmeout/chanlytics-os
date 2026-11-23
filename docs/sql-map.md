@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 204 | 204 |
-| reader | 96 | 0 |
+| reader | 97 | 0 |
 | the server's | 451 | 381 |
 | computed column | 3 | 0 |
 | trigger | 123 | 91 |
-| all | 877 | 676 |
+| all | 878 | 676 |
 
 ## Called by nothing
 
@@ -615,7 +615,7 @@ being read is dropped by a migration.
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
-| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00702; |
+| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00705; |
 | `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00699): |
 | `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00699): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
@@ -830,6 +830,7 @@ being read is dropped by a migration.
 | `set_workspace_logo` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | Sets (or, with null, clears) the workspace's logo address for a caller who may change its settings (caller_has_permission 'settings': |
 | `setup_choice_set` | door | a signed-in person, the server | code `apps/dashboard/src/server/setup/setup.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): |
 | `setup_request` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/setup/request/route.ts`, `packages/db/src/repositories/workspace/setup.ts` | Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configu |
+| `setup_rows` | reader | a signed-in person, the server | code `packages/db/src/repositories/workspace/setup-rows.ts` | Every row Setup reads of a workspace, in one call (00700): |
 | `slug_for_workspace` | the server's | the server | SQL `create_workspace_for`, `preview_claim` | A workspace's slug from its name (create_workspace_for's rule since 00021, lifted out in 00497 for a preview's claim): |
 | `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00595): |
 | `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00594): |
@@ -873,11 +874,11 @@ being read is dropped by a migration.
 | `team_leave` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | A member leaves a workspace (00371, 00437): |
 | `team_owner_or_refuse` | the server's | the server | SQL `team_change_role`, `team_invite` and 4 more |  |
 | `team_remove` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | An owner revokes an open invitation or removes a member (00277), and its decision, in one transaction; |
-| `team_roster` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts`, `apps/dashboard/src/server/workspace/team.ts` and 1 more | Members of a workspace with their emails and the names they gave, in one query. |
+| `team_roster` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts`, `apps/dashboard/src/server/workspace/team.ts` and 2 more; SQL `setup_rows` | Members of a workspace with their emails and the names they gave, in one query. |
 | `team_take_turn` | the server's | the server | SQL `team_change_role`, `team_remove` |  |
 | `template_sends` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | How many times each message went out (a person a run marked sent; |
 | `templates_words_changed` | trigger | the server | trigger `templates_words_changed on templates` |  |
-| `tenant_config_read` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's read of their workspace's configuration row (00365): |
+| `tenant_config_read` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts`; SQL `setup_rows` | A member's read of their workspace's configuration row (00365): |
 | `tenant_config_version_keep` | trigger | the server | trigger `tenant_config_version_kept on tenant_config`, `tenant_config_version_kept_first on tenant_config` | After a workspace's settings take a new version: |
 | `tenant_config_version_moves` | trigger | a signed-in person, the server | trigger `tenant_config_version_moves on tenant_config` | Before a change to a workspace's settings: |
 | `tenant_config_worth_stamp` | trigger | the server | trigger `tenant_config_worth_stamp on tenant_config` | The day a service is first given an amount, the visits already written for it take it (00683; |

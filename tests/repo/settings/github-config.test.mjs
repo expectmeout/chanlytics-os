@@ -74,15 +74,18 @@ test("the pull request template has the sections a body is judged by", () => {
 test("every package the Expo SDK pins for the phone is held back from Dependabot's weekly group", () => {
   const dependabot = read(".github/dependabot.yml");
   const npm = dependabot.slice(0, dependabot.indexOf('package-ecosystem: "github-actions"'));
-  // An ignore with no update-types ignores every version: the SDK moves these together, by hand (`expo install`).
-  const ignoredWhole = [...npm.matchAll(/- dependency-name: "([^"]+)"\n(?!\s+update-types)/g)].map((m) => m[1]);
+  // An ignore with no update-types or versions ignores every version: the SDK moves these together, by hand
+  // (`expo install`).
+  const ignoredWhole = [...npm.matchAll(/- dependency-name: "([^"]+)"\n(?!\s+(update-types|versions))/g)].map(
+    (m) => m[1],
+  );
   const covered = (name) => ignoredWhole.some((p) => (p.endsWith("*") ? name.startsWith(p.slice(0, -1)) : name === p));
   // The SDK's own list of what it pins: the packages `expo install --check` compares with the installed versions.
   const bundledFile = require.resolve("expo/bundledNativeModules.json", { paths: [path.join(ROOT, "apps/mobile")] });
   const bundled = JSON.parse(fs.readFileSync(bundledFile, "utf8"));
   const mobile = JSON.parse(read("apps/mobile/package.json"));
   const names = Object.keys({ ...mobile.dependencies, ...mobile.devDependencies });
-  // React moves by patch beside the dashboard's, and its minor and major with the SDK: a narrower ignore, below.
+  // React's minor and major move with the SDK, and nothing takes it below the dashboard's minor: narrower ignores, below.
   const pinned = ["expo", ...names.filter((n) => n in bundled && n !== "react" && n !== "react-dom")];
   assert.ok(pinned.length > 25, "the phone's Expo packages were found");
   const loose = pinned.filter((name) => !covered(name));
@@ -94,6 +97,16 @@ test("every package the Expo SDK pins for the phone is held back from Dependabot
         `- dependency-name: "${name}"\n        update-types: ["version-update:semver-minor", "version-update:semver-major"]`,
       ),
       `${name}: its minor and major move with the SDK`,
+    );
+  // The group lines every importer up to one version, and offered the phone's 19.2.x to the dashboard, the tests, the
+  // scripts and the video tool, which were on 19.3: React split in two and the bundled tests could not find it (#2364,
+  // #2536). No version below the dashboard's own minor is ever offered.
+  const dashboardReact = JSON.parse(read("apps/dashboard/package.json")).dependencies.react;
+  const floor = `${/(\d+\.\d+)\./.exec(dashboardReact)[1]}.0`;
+  for (const name of ["react", "react-dom"])
+    assert.ok(
+      npm.includes(`- dependency-name: "${name}"\n        versions: ["< ${floor}"]`),
+      `${name}: never offered below the dashboard's ${floor}`,
     );
 });
 

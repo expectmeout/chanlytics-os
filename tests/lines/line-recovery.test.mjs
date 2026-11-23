@@ -530,18 +530,18 @@ test("a released line leaves a disabled route beside the active one, and the pic
     ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
       .map((p) => readCode(p))
       .join("\n"),
-    /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/,
+    /const byKind = \(kind: string\) => channelFor\(channels, kind\);/,
   );
   assert.match(
     [
       "apps/dashboard/src/server/setup/channel-rows.ts",
       "apps/dashboard/src/server/setup/setup.ts",
-      // The read itself, packages/db's (decision 0111).
-      "packages/db/src/repositories/workspace/setup-rows.ts",
+      // The read itself, in Setup's rows (setup_rows, 00700).
+      "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
     ]
       .map((p) => readCode(p))
       .join("\n"),
-    /select\("kind, status, number_e164, config, created_at"\)/,
+    /'kind', c\.kind, 'status', c\.status, 'number_e164', c\.number_e164, 'config', c\.config,\s*'created_at', c\.created_at/,
     "or the tie-break has nothing to read",
   );
   assert.match(
