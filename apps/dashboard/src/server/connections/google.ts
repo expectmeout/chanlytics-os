@@ -36,7 +36,7 @@ const REVIEWS_SHOWN = 20;
 /** Days of snapshots the longest report period reads, with one to spare. */
 const DAYS_KEPT = 92;
 
-export async function findListing(db: SupabaseClient<Database>, tenantId: TenantId): Promise<GoogleListingDto | null> {
+async function findListing(db: SupabaseClient<Database>, tenantId: TenantId): Promise<GoogleListingDto | null> {
   const { data, error } = await findListingCard(db, tenantId);
   if (error) throw new DbFailure(error);
   return data;

@@ -11,7 +11,6 @@
 import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import { tenantDb } from "../../shared/tenant-db";
 import { recordOrEmpty } from "@chanlytics/contracts";
 import { asJson } from "../../shared/json";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -110,20 +109,6 @@ function importedOf(data: Json): ImportedPerson {
     existed: o.existed === true,
     email,
   };
-}
-
-/**
- * How many people the workspace holds (neither erased nor merged into another): the first run's "Your dashboard, filling
- * in" and Live's "0 of 604 said yes" (decision 0073). Counted by the database, never by reading every row.
- */
-export async function getPeopleCount(db: Db, tenantId: TenantId): Promise<number> {
-  const { count, error } = await tenantDb(db, tenantId)
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .is("erased_at", null)
-    .is("merged_into_contact_id", null);
-  if (error) throw new DbFailure(error, "cannot count the people");
-  return count ?? 0;
 }
 
 /**

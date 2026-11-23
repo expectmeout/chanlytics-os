@@ -587,6 +587,105 @@ function newestMessagesIn(tables, { p_tenant_id, p_threads, p_each, p_most }) {
 }
 
 /**
+ * `setup_rows` (00700), answered out of the rows a fixture holds, in the function's own shape: every row Setup reads of
+ * the workspace p_tenant_id, each key with the columns, filters and order its SQL gives it (the migration says which read
+ * each stands for). The roster is `roster`'s answer (team_roster, as a suite models it) where p_roster says so, else the
+ * members are counted, partners aside. No RLS: the double holds one member's view, the settings row an owner's.
+ */
+function setupRowsIn(tables, { p_tenant_id, p_roster }, roster) {
+  const of = (table) => (tables[table] ?? []).filter((r) => r.tenant_id === p_tenant_id);
+  const pick = (row, cols) => (row ? Object.fromEntries(cols.map((c) => [c, row[c] ?? null])) : null);
+  // Newest first, a row with none last, as `order by x desc nulls last` puts it.
+  const newestBy = (rows, col) =>
+    [...rows].sort((a, b) => (a[col] == null) - (b[col] == null) || String(b[col]).localeCompare(String(a[col])));
+  const oldestBy = (rows, col) => [...rows].sort((a, b) => String(a[col]).localeCompare(String(b[col])));
+  const config = of("tenant_config")[0];
+  const people = of("contacts").filter((c) => !c.erased_at);
+  const offers = people.filter((c) => c.marketing_consent === "opted_in" && !c.dnc);
+  const rehearsed = newestBy(of("rehearsals"), "created_at").slice(0, 500);
+  const listing = of("google_listings")[0];
+  return {
+    config: config
+      ? { ...pick(config, ["tenant_id", "config", "version", "updated_at", "updated_by"]), feed_hidden: false }
+      : null,
+    mailbox: of("mailboxes")[0] ?? null,
+    channels: of("tenant_channels").map((r) => pick(r, ["kind", "status", "number_e164", "config", "created_at"])),
+    last_whatsapp: pick(
+      newestBy(
+        of("messages").filter((m) => m.direction === "inbound" && m.channel === "whatsapp"),
+        "channel_ts",
+      )[0],
+      ["channel_ts", "created_at"],
+    ),
+    last_call: pick(
+      newestBy(
+        of("calls").filter((k) => k.direction === "inbound" && k.status != null && k.status !== "not_connected"),
+        "started_at",
+      )[0],
+      ["started_at"],
+    ),
+    templates: of("templates")
+      .filter((p) => p.channel === "whatsapp")
+      .map((p) => pick(p, ["name", "meta_status", "hidden_at"])),
+    roster: p_roster ? roster({ p_tenant_id }) : null,
+    members: p_roster ? null : of("memberships").filter((m) => m.role !== "partner").length,
+    invitations: oldestBy(
+      of("invitations").filter((i) => i.accepted_at == null && i.revoked_at == null),
+      "created_at",
+    ).map((i) => pick(i, ["id", "email", "role", "created_at", "expires_at"])),
+    people: {
+      said_yes: people.filter((c) => c.consent === "opted_in").length,
+      offers_yes: offers.length,
+      offers_reach: offers.filter((c) => c.phone_e164 != null).length,
+      all: people.filter((c) => c.merged_into_contact_id == null).length,
+    },
+    asks: newestBy(
+      of("events").filter((e) => e.kind === "setup.requested"),
+      "created_at",
+    )
+      .slice(0, 30)
+      .map((e) => pick(e, ["created_at", "data"])),
+    lines: oldestBy(of("lines"), "created_at").map((l) =>
+      pick(l, [
+        ...["id", "e164", "kind", "provider", "area_code", "voice_state", "sms_state", "reg_step", "reg_mock"],
+        ...["reg_sole_prop", "whatsapp_state", "port_state", "forwarding_state", "step", "last_error", "state_since"],
+        ...["created_at", "facts"],
+      ]),
+    ),
+    listing: pick(listing, [
+      ...["place_id", "name", "address", "maps_uri", "business_status", "rating", "review_count", "linked_at"],
+      ...["checked_at", "check_error"],
+    ]),
+    listing_facts: pick(listing, ["name", "address", "facts"]),
+    google: pick(of("google_connections")[0], [
+      ...["google_email", "account_title", "location_name", "location_title", "connected_at", "last_synced_at"],
+      "sync_error",
+    ]),
+    billing: pick(of("billing_accounts")[0], [
+      ...["mode", "status", "price_id", "current_period_end", "trial_end", "cancel_at", "cancel_at_period_end"],
+      ...["card_brand", "card_last4", "last_payment_failed_at", "last_paid_at", "updated_at"],
+    ]),
+    activations: of("capability_activations").map((a) =>
+      pick(a, ["capability", "activated_at", "activated_by", "deactivated_at"]),
+    ),
+    day_before: of("sequence_steps").some((s) => s.state === "running" && s.trigger === "visit_tomorrow"),
+    rehearsals: {
+      reviewed: rehearsed.filter((r) => r.reviewed_at != null).length,
+      kept: rehearsed.reduce((n, r) => n + (Array.isArray(r.fixes) ? r.fixes.length : 0), 0),
+      last_at: rehearsed[0]?.created_at ?? null,
+    },
+    imports: of("imports").map((m) =>
+      pick(m, [
+        ...["source", "connection_id", "state", "counts", "parts_done", "parts_total", "oldest", "started_at"],
+        ...["finished_at", "last_error", "via"],
+      ]),
+    ),
+    business_reads: of("business_reads").map((r) => pick(r, ["source", "facts", "read_from", "read_at", "error"])),
+    choices: pick(of("setup_choices")[0], ["phone", "whatsapp", "marks", "version"]),
+  };
+}
+
+/**
  * The zone a row is judged in, as 00245 safe_zone answers it: the workspace's own, the product's default when it has
  * none, and UTC when the name is not spelled Area/Location (or UTC) or is not a zone Intl knows -- the edge's own
  * fallback (contracts parts()).
@@ -1440,6 +1539,13 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // sees the feed's address and who may write are SQL's, proved on a stack in
     // workspace/config/the-feed-address-is-the-owner-s.db.test.mjs; a suite that models a member who is not the owner
     // gives its own.
+    // Every row Setup reads (00700), out of the fixture's tables; its roster is team_roster's as the suite models it.
+    setup_rows: (args) =>
+      setupRowsIn(tables, args, (a) => {
+        const fn = rpcs.team_roster ?? derived.team_roster;
+        if (!fn) throw new Error("fakeDb: rpc(team_roster) is not modelled; add it to fakeDb's third argument");
+        return fn(a) ?? [];
+      }),
     tenant_config_read: ({ p_tenant_id }) => {
       const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
       if (!row) return null;

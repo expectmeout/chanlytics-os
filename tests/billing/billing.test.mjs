@@ -488,8 +488,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
     .map((p) => readCode(p))
     .join("\n");
+  // The plan comes with Setup's rows (setup_rows, 00700), as the billing page reads it (findPlanForPage's columns).
   assert.ok(
-    setup.includes("findBilling(supabase, tenantId),") &&
+    setup.includes("billingRow: rows.billing ? billingAccountDto(rows.billing) : null,") &&
       setup.includes("getBillingReadiness(),") &&
       /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
   );

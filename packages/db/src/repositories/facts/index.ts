@@ -9,7 +9,6 @@ export {
   findConfigAtVersion,
   findRehearsalByCall,
   findRehearsalById,
-  findRehearsalTally,
   findVoiceAgent,
   getRehearsalSpokenMs,
   keepCallReview,
