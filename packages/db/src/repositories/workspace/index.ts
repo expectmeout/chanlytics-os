@@ -95,20 +95,8 @@ export {
   takeRateBucket,
 } from "./scopes";
 export { findSetupAsked, requestSetup } from "./setup";
-export {
-  countOffersReach,
-  countOffersYes,
-  countOpenInvites,
-  countSaidYes,
-  countTeamMembers,
-  findLastWhatsAppIn,
-  findWorkspaceFacts,
-  listCapabilityRows,
-  listChannelsForPage,
-  listSetupAsks,
-  listSetupChannels,
-  listTemplateVerdicts,
-} from "./setup-rows";
+export { findWorkspaceFacts, listChannelsForPage, readSetupRows } from "./setup-rows";
+export type { SetupRows } from "./setup-rows";
 export {
   changeTeamRole,
   insertMembership,

@@ -616,14 +616,14 @@ test('every read of "said yes to offers" points at the offers column', () => {
   const server = [
     "apps/dashboard/src/server/setup/channel-rows.ts",
     "apps/dashboard/src/server/setup/setup.ts",
-    // The counts themselves, packages/db's (decision 0111).
-    "packages/db/src/repositories/workspace/setup-rows.ts",
+    // The counts themselves, in Setup's rows (setup_rows, 00700).
+    "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
   ]
     .map((p) => readCode(p))
     .join("\n");
   assert.match(
     server,
-    /\.eq\("marketing_consent", "opted_in"\)\s*\.eq\("dnc", false\)/,
+    /'offers_yes', count\(\*\) filter \(where c\.marketing_consent = 'opted_in' and c\.dnc = false\)/,
     "and it is counted the way the reachable view counts it",
   );
 

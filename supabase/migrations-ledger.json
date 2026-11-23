@@ -689,6 +689,7 @@
     "00683_a_visit_is_worth_its_services_amount.sql": "b52019d27fc48e5661913e20ac9df53fcac8a97bcdfb31e9ccd0de7eb707dc0c",
     "00684_a_deal_marked_won_is_a_moment.sql": "b3dd58f808da2b4796e3d3f73ab254959311c6e8e440dc7344f57b8b6fbc0e3a",
     "00686_a_file_says_where_its_copies_are.sql": "daf097e1a71b1fa3561737bc4738a788d9edab56d5bed6cbd50fe8c5a6aa239d",
-    "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff"
+    "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff",
+    "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103"
   }
 }

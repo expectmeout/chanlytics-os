@@ -1,7 +1,7 @@
 /**
  * The imports domain: `@chanlytics/db/imports`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
-export { getPeopleCount, importPerson, keepBefore, recordPersonBeforeNote } from "./before";
+export { importPerson, keepBefore, recordPersonBeforeNote } from "./before";
 export type { BeforeKept, BeforeMessage } from "./before";
 export {
   findBusinessDescription,

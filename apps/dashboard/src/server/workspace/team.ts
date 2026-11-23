@@ -125,8 +125,12 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
   ]);
   if (members.error) throw new DbFailure(members.error);
   if (invites.error) throw new DbFailure(invites.error);
+  return { members: rosterOf(members.data ?? []), invites: invites.data ?? [] };
+}
 
-  const roster: TeamMember[] = (members.data ?? []).map((m) => ({
+/** The team as team_roster answers it (00022), as the pages name its members: here and in Setup (setup_rows' roster). */
+export function rosterOf(rows: Database["public"]["Functions"]["team_roster"]["Returns"]): TeamMember[] {
+  return rows.map((m) => ({
     membershipId: m.membership_id,
     userId: m.member_user_id,
     email: m.email,
@@ -134,7 +138,6 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
     role: m.role,
     joined_at: m.joined_at ?? null,
   }));
-  return { members: roster, invites: invites.data ?? [] };
 }
 
 export async function inviteMember(

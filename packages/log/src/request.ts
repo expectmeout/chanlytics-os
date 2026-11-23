@@ -22,6 +22,8 @@ interface Serving {
   timings?: Map<string, RequestTiming>;
   /** The tables and SQL functions its database calls touched, each with how (`noteTouch`). */
   touched?: Map<string, Set<string>>;
+  /** What stands for it where its identical reads share one answer (`shareReads`): it lives as long as the request does. */
+  reads?: object;
 }
 
 /** One name's share of a request's time: how long all of it took, and how many there were. */
@@ -104,4 +106,23 @@ export function noteTouch(table: string, how: string): void {
 /** The tables and functions the request running now has touched so far, each with how; none outside a request. */
 export function requestTouches(): ReadonlyMap<string, ReadonlySet<string>> {
   return serving.getStore()?.touched ?? new Map();
+}
+
+/**
+ * The request running now answers several reads as one, and they may ask the database the same thing (the dashboard's
+ * GET open): from here its identical reads share one answer, which the database client keeps for it (packages/db
+ * read-once.ts). Said by the request itself, never for it; outside a request it does nothing.
+ */
+export function shareReads(): void {
+  const store = serving.getStore();
+  if (store) store.reads ??= {};
+}
+
+/**
+ * What stands for the request running now where it shares its reads: an object that lives exactly as long as the
+ * request, which the database client keeps the request's answers against. Null outside a request, and in one that
+ * shares none.
+ */
+export function sharedReads(): object | null {
+  return serving.getStore()?.reads ?? null;
 }
