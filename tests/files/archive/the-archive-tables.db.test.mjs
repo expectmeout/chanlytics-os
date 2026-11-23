@@ -297,8 +297,10 @@ test("the tables refuse a copy that says two things at once", { skip }, async ()
     "file_archives_file_id_same_workspace",
     "a copy of another workspace's file",
   );
+  // A piece of a kind the copy does not hold yet, so the one rule it meets is the fence (its video piece is there:
+  // a second would meet the one-a-copy key first).
   refused(
-    await piece(elsewhere, shelf.id, { shelf_key: "k" }),
+    await piece(elsewhere, shelf.id, { part: "original", shelf_key: "k" }),
     "23503",
     "file_archive_parts_archive_id_same_workspace",
     "a piece of another workspace's copy",
