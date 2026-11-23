@@ -81,7 +81,7 @@ function whenOf(said: string | undefined, zone: string): { at: number | null } |
   const at = wallClockAt(zone, parts[1] ?? "", Number(parts[2]), Number(parts[3]));
   if (!Number.isFinite(at)) return { refused: `when ${said} is not a time` };
   const ahead = at - Date.now();
-  // A time this close is the press's own: it goes as the card is pressed (contracts POST_SOON_MS, 00616 post_begin).
+  // A time this close is the press's own: it goes as the card is pressed (contracts POST_SOON_MS, 00681 post_approve).
   if (ahead < -POST_SOON_MS)
     return {
       refused: `${said} has passed on the business's clock. Ask them for a later time, or leave when out for now`,

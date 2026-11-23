@@ -1,9 +1,13 @@
 /**
  * Where a post goes, on a real database (00611, decision 0121), with real sessions: the press is a member's with the settings
  * permission and writes the post and its first job together; one post on its way per file and place; a story keeps no caption, a
- * reel waits, only a made post goes, a deleted one is gone; Don't post holds until the send; a member reads where a post stands
+ * picture never goes as a reel, only a made post goes, a deleted one is gone; Don't post holds until the send; a member reads where a post stands
  * but never what was sent or the container; the service role's doors are shut to a member, a send's row never changes once
  * finished, a move is a compare-and-set, and the two doors that write a move with its job write both or neither.
+ *
+ * The press is post_approve (00681), the one press there is since 00693 dropped the door before it: `begin` makes the
+ * approval a page makes for one placement, and answers the post it began. What an approval keeps and holds a post to is
+ * proved beside it, in tests/content/places/approvals.db.test.mjs.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -68,15 +72,38 @@ async function file(over = {}) {
   return id;
 }
 
-const begin = (who, fileId, over = {}) =>
-  as[who].client.rpc("post_begin", {
+/**
+ * The press (post_approve): one placement, with the bytes of the shape it sends by checksum, as a page's approval names
+ * them. Answers as a call does, `{ data, error }`, the data being what the press came to and the post it is about:
+ * `{ fate, post_id }`, or `{ fate }` where it began none.
+ */
+async function begin(who, fileId, over = {}) {
+  const { place = "instagram", kind = "picture", caption = "Open late on Fridays.", when = null } = over;
+  const shape = place === "google" ? "google" : kind === "picture" ? "4x5" : "9x16";
+  const path = `${A}/${fileId}/original.jpg`;
+  const checksum = "a".repeat(64);
+  const answer = await as[who].client.rpc("post_approve", {
     p_tenant_id: A,
     p_file_id: fileId,
-    p_place: "instagram",
-    p_kind: "picture",
-    p_caption: "Open late on Fridays.",
-    ...over,
+    p_approval: {
+      snapshot: {
+        revision: null,
+        renditions: [{ shape, file_id: fileId, path, checksum }],
+        placements: [{ place, kind, at: when, caption }],
+        uses: ["post"],
+        spend: null,
+        facts: [],
+      },
+      intent: null,
+      renditions: [{ shape, path, checksum, bytes: 1000 }],
+      placements: [{ place, kind, at: when, caption, capability_edition: 1 }],
+      via: "press",
+    },
   });
+  if (answer.error || !answer.data) return answer;
+  const postId = answer.data.posts?.[0]?.post_id ?? answer.data.post_id;
+  return { ...answer, data: postId ? { fate: answer.data.fate, post_id: postId } : { fate: answer.data.fate } };
+}
 const postOf = async (id) => ok(await db.from("posts").select("*").eq("id", id).maybeSingle(), "the post");
 const jobsOf = async (kind, postId) =>
   ok(
@@ -115,6 +142,10 @@ after(async () => {
   await db.from("jobs").delete().in("tenant_id", all);
   await db.from("publish_attempts").delete().in("tenant_id", all);
   await db.from("posts").delete().in("tenant_id", all);
+  await db.from("approvals").delete().in("tenant_id", all);
+  await db.from("piece_renditions").delete().in("tenant_id", all);
+  await db.from("piece_revisions").delete().in("tenant_id", all);
+  await db.from("pieces").delete().in("tenant_id", all);
   await db.from("files").delete().in("tenant_id", all);
   await db.from("memberships").delete().in("tenant_id", all);
   await db.from("tenants").delete().in("id", all);
@@ -124,7 +155,7 @@ after(async () => {
 test("the press writes the post, approved by whoever pressed, and its first job, together", { skip }, async () => {
   const fileId = await file();
   const begun = ok(await begin("owner", fileId), "begin");
-  assert.equal(begun.fate, "begun");
+  assert.equal(begun.fate, "approved");
   const post = await postOf(begun.post_id);
   assert.deepEqual(
     [post.place, post.kind, post.caption, post.status, post.approved_by, post.via, post.attempts],
@@ -135,42 +166,41 @@ test("the press writes the post, approved by whoever pressed, and its first job,
   assert.ok(Date.parse(job.due_at) <= Date.now() + 60_000, "now");
   assert.deepEqual(ok(await begin("owner", fileId), "again"), { fate: "busy", post_id: begun.post_id });
   // A story waits apart from the post (00620): taken while the post waits, and a second story is the first.
-  const story = ok(await begin("owner", fileId, { p_kind: "story" }), "story beside it");
-  assert.equal(story.fate, "begun");
-  assert.deepEqual(ok(await begin("owner", fileId, { p_kind: "story" }), "story again"), {
+  const story = ok(await begin("owner", fileId, { kind: "story" }), "story beside it");
+  assert.equal(story.fate, "approved");
+  assert.deepEqual(ok(await begin("owner", fileId, { kind: "story" }), "story again"), {
     fate: "busy",
     post_id: story.post_id,
   });
 });
 
-test("a story keeps no caption, a reel waits, only a made post goes, and a deleted one is gone", { skip }, async () => {
-  const story = ok(await begin("owner", await file(), { p_kind: "story" }), "story");
-  assert.equal((await postOf(story.post_id)).caption, null);
-  assert.equal(ok(await begin("owner", await file(), { p_kind: "reel" }), "reel").fate, "not_yet");
-  assert.equal(ok(await begin("owner", await file({ source: "upload" })), "photo").fate, "not_a_post");
-  assert.equal(ok(await begin("owner", await file({ removed_at: new Date().toISOString() })), "gone").fate, "gone");
-});
+test(
+  "a story keeps no caption, a picture never goes as a reel, only a made post goes, and a deleted one is gone",
+  { skip },
+  async () => {
+    const story = ok(await begin("owner", await file(), { kind: "story" }), "story");
+    assert.equal((await postOf(story.post_id)).caption, null);
+    // A reel is a made video's (00681): a picture is refused it, and nothing is written.
+    assert.deepEqual(ok(await begin("owner", await file(), { kind: "reel" }), "reel"), { fate: "wrong_kind" });
+    assert.equal(ok(await begin("owner", await file({ source: "upload" })), "photo").fate, "not_a_post");
+    assert.equal(ok(await begin("owner", await file({ removed_at: new Date().toISOString() })), "gone").fate, "gone");
+  },
+);
 
 test("a time ahead sets the job ten minutes before it, and no further than thirty days", { skip }, async () => {
   const when = new Date(Date.now() + 2 * 3_600_000).toISOString();
-  const later = ok(await begin("owner", await file(), { p_when: when }), "later");
+  const later = ok(await begin("owner", await file(), { when }), "later");
   const [job] = await jobsOf("post_prepare", later.post_id);
   assert.ok(Math.abs(Date.parse(job.due_at) - (Date.parse(when) - 600_000)) < 5_000, "ten minutes ahead");
-  const far = await begin("owner", await file(), { p_when: new Date(Date.now() + 40 * 86_400_000).toISOString() });
+  const far = await begin("owner", await file(), { when: new Date(Date.now() + 40 * 86_400_000).toISOString() });
   assert.ok(far.error, "past thirty days is refused");
 });
 
 test("only a member with the settings permission presses, in their own workspace", { skip }, async () => {
   const fileId = await file();
   assert.equal((await begin("viewer", fileId)).error?.code, "42501");
-  const stranger = await as.stranger.client.rpc("post_begin", {
-    p_tenant_id: A,
-    p_file_id: fileId,
-    p_place: "instagram",
-    p_kind: "picture",
-    p_caption: "x",
-  });
-  assert.equal(stranger.error?.code, "42501");
+  // Another workspace's owner, pressing for this one.
+  assert.equal((await begin("stranger", fileId, { caption: "x" })).error?.code, "42501");
 });
 
 test("Don't post holds until the send, and is too late once it is being sent", { skip }, async () => {
@@ -189,7 +219,7 @@ test("Don't post holds until the send, and is too late once it is being sent", {
 test("Change time moves the same post and its job, until a run has taken it (00621)", { skip }, async () => {
   const later = new Date(Date.now() + 3 * 86_400_000).toISOString();
   const to = new Date(Date.now() + 5 * 86_400_000);
-  const begun = ok(await begin("owner", await file(), { p_when: later }), "begin");
+  const begun = ok(await begin("owner", await file(), { when: later }), "begin");
   const move = (who, postId, when) => as[who].client.rpc("post_move", { p_post_id: postId, p_when: when });
   assert.deepEqual(ok(await move("owner", begun.post_id, to.toISOString()), "move"), { fate: "moved" });
   const moved = await postOf(begun.post_id);
@@ -201,7 +231,7 @@ test("Change time moves the same post and its job, until a run has taken it (006
   const [prepare] = await jobsOf("post_prepare", begun.post_id);
   assert.equal(Date.parse(prepare.due_at), to.getTime() - 10 * 60_000, "its job ten minutes ahead of the new time");
   // A Google post waits for its own job at its time.
-  const google = ok(await begin("owner", await file(), { p_place: "google", p_when: later }), "google");
+  const google = ok(await begin("owner", await file(), { place: "google", when: later }), "google");
   assert.deepEqual(ok(await move("owner", google.post_id, to.toISOString()), "google move"), { fate: "moved" });
   const [job] = await jobsOf("post_google", google.post_id);
   assert.equal(Date.parse(job.due_at), to.getTime());
@@ -209,7 +239,7 @@ test("Change time moves the same post and its job, until a run has taken it (006
   ok(await db.from("jobs").update({ state: "fired" }).eq("payload->>post_id", begun.post_id), "taken");
   assert.equal(ok(await move("owner", begun.post_id, later), "late").fate, "late");
   assert.equal(Date.parse((await postOf(begun.post_id)).scheduled_for), to.getTime(), "its time unchanged");
-  const making = ok(await begin("owner", await file(), { p_when: later }), "begin");
+  const making = ok(await begin("owner", await file(), { when: later }), "begin");
   ok(await db.from("posts").update({ status: "preparing" }).eq("id", making.post_id), "preparing");
   assert.deepEqual(ok(await move("owner", making.post_id, to.toISOString()), "preparing"), {
     fate: "late",
@@ -332,10 +362,10 @@ test(
   { skip },
   async () => {
     const fileId = await file();
-    const google = ok(await begin("owner", fileId, { p_place: "google", p_caption: "New floor." }), "google");
+    const google = ok(await begin("owner", fileId, { place: "google", caption: "New floor." }), "google");
     assert.equal((await postOf(google.post_id)).status, "publishing");
     assert.deepEqual(await jobsOf("post_prepare", google.post_id), [], "no job: the press asks Google itself");
-    assert.equal(ok(await begin("owner", fileId, { p_place: "google" }), "busy").fate, "busy");
+    assert.equal(ok(await begin("owner", fileId, { place: "google" }), "busy").fate, "busy");
     ok(
       await db
         .from("posts")
@@ -343,7 +373,7 @@ test(
         .eq("id", google.post_id),
       "ten minutes on",
     );
-    assert.equal(ok(await begin("owner", fileId, { p_place: "google" }), "again").fate, "begun");
+    assert.equal(ok(await begin("owner", fileId, { place: "google" }), "again").fate, "approved");
     assert.equal((await postOf(google.post_id)).status, "failed");
   },
 );

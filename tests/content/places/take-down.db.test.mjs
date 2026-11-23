@@ -4,6 +4,8 @@
  * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
  * none of it, and another workspace reads none of it. And "Keep it up" (00689): a post a place left to its owner stays
  * up on the owner's word, with who and when, the bell's line for it closes, and nothing is asked of the place again.
+ * That line is about a piece at a place (00694): with a post and a story both left to the owner, it ends only with
+ * the last of them, kept up or deleted by hand, in either order.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -314,5 +316,70 @@ test(
     assert.notEqual(second.action_id, act(ig));
     assert.equal((await actionOf(act(ig))).outcome, "left_up");
     assert.deepEqual(ok(await keep("owner", ig), "while asked again"), { fate: "asking" });
+  },
+);
+
+test(
+  "the bell's line for a piece at a place ends with the last post there left to its owner, kept or deleted, in either order",
+  { skip },
+  async () => {
+    /** A piece up on Instagram as a post and a story, taken down, each left to the owner; the bell rang for the place. */
+    const leftToOwner = async () => {
+      const f = await file();
+      const feed = await post(f, "instagram", "picture", "published");
+      const story = await post(f, "instagram", "story", "published");
+      const begun = ok(await begin("owner", f), "the press");
+      const act = (postId) => begun.actions.find((a) => a.post_id === postId).action_id;
+      for (const one of [feed, story])
+        ok(await settle(act(one), "needs_person", "Delete it there."), "left to the owner");
+      ok(
+        await db.from("notifications").insert({
+          tenant_id: A,
+          kind: "post_by_hand",
+          title: TAKE_DOWN_BELL.byHand("instagram", "The finish"),
+          body: TAKE_DOWN_BELL.byHandWhy,
+          subject_type: "file",
+          subject_id: f,
+        }),
+        "the bell's line",
+      );
+      const open = async () =>
+        ok(
+          await db
+            .from("notifications")
+            .select("id")
+            .eq("tenant_id", A)
+            .eq("kind", "post_by_hand")
+            .eq("subject_id", f)
+            .is("closed_at", null),
+          "the open lines",
+        ).length;
+      return { feed, story, act, open };
+    };
+
+    // The post kept up first: the story is still to delete, so the line stays; it ends when Instagram shows the story gone.
+    const first = await leftToOwner();
+    assert.equal(ok(await keep("owner", first.feed), "keep the post").fate, "left_up");
+    assert.equal(await first.open(), 1, "the story is still the owner's to delete");
+    assert.deepEqual(ok(await byHand("owner", first.story), "I deleted it"), { fate: "asking" });
+    const gone = ok(await settle(first.act(first.story), "done"), "Instagram shows it gone");
+    assert.equal(gone.down, null, "the piece is not down: one post of it was kept up");
+    assert.equal(await first.open(), 0, "nothing at Instagram is left to the owner");
+
+    // The other order: the story deleted first, the post kept up last.
+    const second = await leftToOwner();
+    ok(await byHand("owner", second.story), "I deleted it");
+    ok(await settle(second.act(second.story), "done"), "gone");
+    assert.equal(await second.open(), 1, "the post is still to delete, or to keep");
+    assert.equal(ok(await keep("owner", second.feed), "keep the post").fate, "left_up");
+    assert.equal(await second.open(), 0);
+
+    // The helper is nobody's to call from outside.
+    const direct = await as.owner.client.rpc("post_by_hand_bell_settle", {
+      p_tenant_id: A,
+      p_file_id: randomUUID(),
+      p_place: "instagram",
+    });
+    assert.ok(direct.error, "a member cannot call it");
   },
 );

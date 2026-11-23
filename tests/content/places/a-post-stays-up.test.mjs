@@ -198,7 +198,7 @@ test("the bell's line for that place is closed by the door itself, by the words 
   assert.deepEqual(more, [], "one warning, and no other, ends with the owner's word");
   assert.equal(warns?.kind, "post_by_hand");
   assert.equal(warns.sameSubject, true, "one piece's word never closes another's line");
-  // post_take_down_keep (00689) closes the line in SQL, by its title: 'Delete it in ' || the place || ' · %'. The
+  // The door closes the line in SQL (00694 post_by_hand_bell_settle), by its title: 'Delete it in ' || the place || ' · %'. The
   // words and that literal agree, at either place and for a piece with no name.
   assert.equal(TAKE_DOWN_BELL.byHand("instagram", "The finish"), "Delete it in Instagram · The finish");
   assert.equal(TAKE_DOWN_BELL.byHand("google", ""), "Delete it in Google · A post");
