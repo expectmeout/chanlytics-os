@@ -133,6 +133,8 @@ What AI suggests and waits on is a **draft** or a **suggestion**, never said as 
 | **Couldn't**                                                                            | could not, unable to, failed to                          | Always the short form: "Couldn't load", "Couldn't send"                                                                         |
 | **Sign in**, **Sign out**                                                               | log in, log out                                          |                                                                                                                                 |
 | **Settings**                                                                            | preferences, configuration, config                       |                                                                                                                                 |
+| **This week**                                                                           | plan, schedule, calendar, pieces                         | The Week: this week's posts as one list, said as what it is ("A reel and 2 posts"), never "4 pieces"                            |
+| **Film**                                                                                | footage request, shot list, upload request               | What AI asks to be filmed for the week: "Film 10 seconds of…", with the reason under it                                         |
 
 The page is Campaigns and its things are campaigns, so the tab that lists them is renamed in that page's pass: a tab
 never repeats its page's name.

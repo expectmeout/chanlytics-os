@@ -1,7 +1,8 @@
 /**
  * Where a form is shared, and what each place brought (the Forms canvas, "Share and results"): one list, each place
- * with its own link and its own count, the printed code among them; another place added by saying where; one sentence
- * of numbers; then its requests, a test, and the held pile, each entry saying why it is held.
+ * with its own link and its own count, the printed code among them; another place added by saying where; the website,
+ * under its own heading (F4, website-part.tsx); one sentence of numbers; then its requests, a test, and the held pile,
+ * each entry saying why it is held.
  *
  * A link is copied, never typed; a place is renamed or its link stopped from the caret on its row. A printed code is
  * the link drawn by the server (`/l/<code>/code`), with its sheet to print (`/l/<code>/sign`).
@@ -23,6 +24,7 @@ import { Menu } from "../../kit/menu/menu";
 import { navigate } from "../../frame-verbs";
 import { gate } from "../../shell-doors";
 import { SayLine } from "./say-line";
+import { WebsitePart } from "./website-part";
 import { doFormEntryPress, doFormLinkPress, workspaceSlugNow } from "./use-forms";
 import { FORMS_WORDS as W, entryWords, linkWords, placeBrought, resultsWords } from "./words";
 
@@ -228,7 +230,10 @@ export function SharePart({ sheet, again, fail, justLive }: SharePartProps) {
     return pressed.ok;
   };
   const slug = workspaceSlugNow();
-  const firstLink = sheet.links.find((link) => !link.printed && !link.stopped)?.id ?? null;
+  // The website (F4) is a link too, shown under its own heading and not among the places.
+  const places = sheet.links.filter((link) => link.sites === null);
+  const website = sheet.links.find((link) => link.sites !== null) ?? null;
+  const firstLink = places.find((link) => !link.printed && !link.stopped)?.id ?? null;
   return (
     <div className="fmv-share" data-testid="forms-share">
       {sheet.state === "off" ? <p className="fmv-state">{SHARE_WORDS.offNote}</p> : null}
@@ -238,7 +243,7 @@ export function SharePart({ sheet, again, fail, justLive }: SharePartProps) {
         </p>
       ) : null}
       <h4>{SHARE_WORDS.where}</h4>
-      {sheet.links.map((link) =>
+      {places.map((link) =>
         link.printed ? (
           <PrintedRow key={link.id} link={link} io={io} />
         ) : (
@@ -256,6 +261,7 @@ export function SharePart({ sheet, again, fail, justLive }: SharePartProps) {
           testid="forms-place-line"
         />
       ) : null}
+      <WebsitePart sheet={sheet} website={website} again={again} fail={fail} now={now} />
       <h4>{SHARE_WORDS.days(sheet.results.days)}</h4>
       {results ? (
         <p className="fmv-nums" data-testid="forms-results">

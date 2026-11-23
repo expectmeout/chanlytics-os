@@ -299,6 +299,24 @@ export async function listPostsOfFiles(
   return data;
 }
 
+/** The posts a week's slots were made into, by their ids, under the member's session (the Week, 00706). */
+export async function listPostsByIds(
+  db: Db,
+  tenantId: TenantId,
+  postIds: readonly string[],
+): Promise<MemberFilePostRow[]> {
+  if (postIds.length === 0) return [];
+  const { data, error } = await db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("id", [...postIds])
+    // A plan holds at most forty slots, each at most one post.
+    .limit(40);
+  if (error) throw new DbFailure(error, "posts by ids");
+  return data;
+}
+
 /** How many of the workspace's posts are up, at any place: Content's tally. */
 export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await db

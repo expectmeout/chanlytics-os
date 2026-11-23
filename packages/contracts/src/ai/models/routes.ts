@@ -35,6 +35,7 @@ export const MODEL_PURPOSES = [
   "preview_starters",
   "ad_draft",
   "form_draft",
+  "post_words",
   "comment_reply",
 ] as const;
 
@@ -53,6 +54,8 @@ export const SMALL_JSON_PURPOSES = [
   "person_draft",
   "sequence_draft",
   "yes_check",
+  // A line of Settings › Content in the owner's own words, read into what the week is planned by (00706).
+  "content_line",
   "comment_rewrite",
 ] as const;
 
@@ -401,6 +404,18 @@ export const MODEL_ROUTES = {
     timeoutMs: DRAFT_TRY_MS,
     retries: 0,
     maxTokens: 8000,
+  },
+  // A week's words (the content loop PRD's 10.2, 13; 00706): every creative's line and caption, in one call as the plan
+  // job drafts the week on Sunday evening, read in code (contracts content/plan slotWordsOf). Nobody waits on it, and a
+  // week whose call fails is drafted without words and says so; a line of the ledger of its own.
+  post_words: {
+    attributed: "workspace",
+    model: SONNET_5_5,
+    fallback: HAIKU_5_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 3000,
+    thinking: "off",
   },
   // A public answer to a comment on a post (00699; the content loop PRD's 12.4): a few sentences in the business's name
   // under its own post, drafted when the comment arrives for the owner to send. A fast model, as a review's reply is.

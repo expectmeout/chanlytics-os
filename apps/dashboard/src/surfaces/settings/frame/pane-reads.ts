@@ -15,7 +15,7 @@ import type { ApiResult } from "@/client/api";
 import { activity } from "@/bridge/activity";
 import { api } from "@/bridge/api";
 import { readCache } from "@/bridge/read-cache";
-import { bootWaitsFor } from "@/bridge/surface-runner";
+import { bootWaitsFor } from "@/bridge/hearing/page-waits";
 import { ROUTE_WAIT_MS, routeDrawsFor } from "@/bridge/surface-registry";
 import { firstDrawWaitsFor, surfacesSettled } from "@/bridge/surface-status";
 import { getActiveWorkspace, reachFor, routeOnScreen } from "@/bridge/workspace";

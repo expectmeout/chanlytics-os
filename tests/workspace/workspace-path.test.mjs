@@ -561,6 +561,24 @@ test("REGRESSION (16 Nov 2026): a read for where a press goes next waits for the
   await afterBoot("page");
 });
 
+test("REGRESSION (23 Nov 2026): what waits is let go by the last boot started, never by one it replaced -- in development React mounts the frame twice, and the first runner, stopped at once, let Today's reads go ahead of the Calendar's draw", async () => {
+  const done = [];
+  const land = [{}, {}];
+  bootComing();
+  void afterBoot("page").then(() => done.push("page's own"));
+  void afterBoot().then(() => done.push("all"));
+  for (const l of land) bootStarted(new Promise((r) => (l.all = r)), new Promise((r) => (l.page = r)));
+  // The first, replaced, ends whole; then the second's strangers are in before its page's own.
+  land[0].page();
+  land[0].all();
+  land[1].all();
+  await until(() => done.length >= 1, "the boot in");
+  assert.deepEqual(done, ["all"], "the replaced boot let nothing go: the page's own wait for the last boot's");
+  land[1].page();
+  await until(() => done.length === 2, "the page's own in");
+  assert.deepEqual(done, ["all", "page's own"]);
+});
+
 test("a phone's tab pages, and the pages a swipe walks to from them, are asked for at once, with no idle wait; never on a desk, in the native app, or where a person has asked to save data", () => {
   const was = {
     idle: globalThis.requestIdleCallback,

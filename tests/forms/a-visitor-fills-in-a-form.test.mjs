@@ -62,7 +62,10 @@ const carriedOf = (html) =>
     [...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)].map((m) => [m[1], m[2]]),
   );
 
-/** A send as the page's own form makes it; `t` is when the page says it was drawn (ten seconds ago unless said). */
+/**
+ * A send as the page's own form makes it, from the page's own address as a browser says it (its Origin); `t` is when the
+ * page says it was drawn (ten seconds ago unless said).
+ */
 async function send(answers, { carried = {}, fragment = false, query = "", session = nobody } = {}) {
   const body = new URLSearchParams({ t: String(Date.now() - 10_000), ...carried });
   for (const [name, value] of Object.entries(answers))
@@ -72,7 +75,11 @@ async function send(answers, { carried = {}, fragment = false, query = "", sessi
     "colour-consultation",
     new Request(`${ADDRESS}${query}`, {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded", ...(fragment ? { "x-form": "1" } : {}) },
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        origin: new URL(ADDRESS).origin,
+        ...(fragment ? { "x-form": "1" } : {}),
+      },
       body,
     }),
     session,

@@ -7,6 +7,7 @@ import {
   POST_LIMITS,
   POST_NO_PHONE,
   POST_VOICES,
+  dayInZone,
   fileSaidOf,
   isAskMorningQuestion,
   ownersSayings,
@@ -15,6 +16,8 @@ import {
   secondsOf,
   type PostPlan,
 } from "@chanlytics/contracts";
+import { saidWithClaims } from "@chanlytics/core";
+import { listClaims } from "@chanlytics/db/files";
 import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
@@ -59,11 +62,16 @@ import { filesNamed } from "../../read/files";
  * its own offer. A morning's turn asks itself.
  */
 export async function ownersWords(toolContext: ToolContext, config: unknown): Promise<string> {
-  const kept = toolContext.subjectFile
-    ? await readKeptWords(toolContext.ctx.supabase, toolContext.tenantId, toolContext.subjectFile)
-    : "";
+  const [kept, claims] = await Promise.all([
+    toolContext.subjectFile
+      ? readKeptWords(toolContext.ctx.supabase, toolContext.tenantId, toolContext.subjectFile)
+      : Promise.resolve(""),
+    listClaims(toolContext.ctx.supabase, toolContext.tenantId),
+  ]);
   const settings = ownersSayings(parseTenantConfig(config)?.brain, toolContext.timezone, toolContext.now);
-  return [ownersTyped(toolContext), ...settings, kept].join("\n");
+  // What the owner claims and that stands today (owner_claims, 00706): an offer kept in Settings › Content is theirs to say.
+  const today = dayInZone(toolContext.timezone, toolContext.now.getTime()).key;
+  return [ownersTyped(toolContext), ...settings, kept, saidWithClaims("", claims, today)].join("\n");
 }
 
 /**

@@ -53,6 +53,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
       "message_draft",
       "ad_draft",
       "form_draft",
+      "content_line",
     ],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
@@ -138,7 +139,7 @@ test("each small JSON call rides one route and is a line of the ledger of its ow
   const C = await import("@chanlytics/contracts");
   assert.deepEqual(
     [...C.SMALL_JSON_PURPOSES],
-    ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check", "comment_rewrite"],
+    ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check", "content_line", "comment_rewrite"],
   );
   for (const p of C.SMALL_JSON_PURPOSES) {
     assert.ok(GATEWAY_PURPOSES.includes(p), `the edge lets ${p} through`);

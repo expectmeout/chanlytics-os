@@ -173,6 +173,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Its Library (`campaigns/content:library`): the settings read, and what the business keeps, the library's own read, never
   // Made's (files/surface.ts).
   "campaigns/content/library": [...SETTINGS_READ, "files"],
+  // The Week (`campaigns/content:week`, where the workspace plans its weeks): the settings read, which says whether it
+  // does, and the week's own read (campaigns/content/week/surface.ts), never Made's.
+  "campaigns/content/week": [...SETTINGS_READ, "content/plan"],
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],
@@ -207,6 +210,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/billing": ["partner", "billing"],
   "admin/memory": ["partner", "ask/memory"],
   "admin/files": ["partner", "files"],
+  "admin/content": [...SETTINGS_READ, "partner", "content/plan"],
   "admin/activity": ["partner", "activity"],
   start: ["setup", "views"],
 };
@@ -327,8 +331,9 @@ export function routePrefetchScript(): string {
     'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
     // Ads is a view of Campaigns too (`campaigns/ads`, `campaigns/ads:new`, `campaigns/ads:ad:<id>`), and opens on its own reads.
     'if(s==="campaigns"&&/^ads(:|$)/.test(l))s="campaigns/ads";',
-    // And Content (`campaigns/content`, its Library `campaigns/content:library`), each on its own reads.
-    'if(s==="campaigns"&&/^content(:|$)/.test(l))s=/^content:library(:|$)/.test(l)?"campaigns/content/library":"campaigns/content";',
+    // And Content (`campaigns/content`, its Library `campaigns/content:library`, its Week `campaigns/content:week`), each on
+    // its own reads.
+    'if(s==="campaigns"&&/^content(:|$)/.test(l))s=/^content:library(:|$)/.test(l)?"campaigns/content/library":/^content:week(:|$)/.test(l)?"campaigns/content/week":"campaigns/content";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

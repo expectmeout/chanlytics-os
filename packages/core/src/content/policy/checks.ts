@@ -9,12 +9,14 @@
  * `wordsNeedAbout` is only the backstop on AI's own card for the plain cases, in the two languages AI writes posts in,
  * and what an owner types and presses themselves is their own word.
  *
- * What is not here yet, and why: claims are the owner's own words or AI's held to them (the dashboard's post-check.ts
- * rule, handed in as `problem`) until pass 3's owner_claims; money is a press's, which costs nothing to send, until the
- * plan reserves a week's cost (pass 3); a rung other than "AI asks first" waits for the Autonomy pane's content rows.
+ * Claims are the owner's own words, or AI's held to what the owner said and the claims that stand (claims.ts, pass 3's
+ * owner_claims). The reason reads the business's facts and, where a piece was made for an opportunity, the opportunities
+ * as they stand now (pass 3's opportunitiesOf), so "Thursday has openings" is asked again right before it goes. What is
+ * not here yet, and why: a rung other than "AI asks first" waits for the Autonomy pane's content rows.
  */
 import {
   CONTENT_CHECK_WORDS,
+  ON_FACEBOOK,
   ON_INSTAGRAM,
   PLACE_CAPABILITIES,
   capabilityStands,
@@ -26,6 +28,8 @@ import {
   zoneDayKey,
   type ContentCheck,
   type InstagramPostable,
+  type Opportunity,
+  type OwnerClaim,
   type OwnersFact,
   type PieceIntent,
   type PostAbout,
@@ -33,6 +37,7 @@ import {
   type PostKind,
   type PostPlace,
 } from "@chanlytics/contracts";
+import { claimProblemOf, saidWithClaims, type ClaimProblem } from "./claims";
 
 /** One refusal: which check, its code (as the post keeps it when held), and the words with the one thing to do. */
 export interface PolicyRefusal {
@@ -53,9 +58,31 @@ export function mayAct(actor: { may: boolean; approving: boolean }): PolicyRefus
   );
 }
 
-/** Claim evidence: words AI wrote are held to what the owner said (the caller's rule); the owner's own words are theirs. */
-export function evaluateClaimPolicy(words: { aiWrote: boolean; problem: string | null }): PolicyRefusal | null {
-  return words.aiWrote && words.problem ? refusal("claims", "claim", CONTENT_CHECK_WORDS.claim(words.problem)) : null;
+/** What the claims check reads: the words, who wrote them, what the owner said here, and the claims kept. */
+export interface ClaimsAsked {
+  aiWrote: boolean;
+  words: string;
+  /** The owner's own words this claim may lean on: their questions in the conversation at hand, their Settings. */
+  said: string;
+  claims: readonly Pick<OwnerClaim, "text" | "valid_until" | "withdrawn_at">[];
+  /** Today, in the business's own zone: a claim stands through its last day. */
+  today: string;
+}
+
+/** A claim problem in the owner's words with its one fix (PRD 6.3, Claim). */
+const claimWordsOf = (problem: ClaimProblem): string =>
+  problem.is === "price" || problem.is === "money"
+    ? CONTENT_CHECK_WORDS.notAnOffer(problem.phrase)
+    : CONTENT_CHECK_WORDS.notYours(problem.phrase);
+
+/**
+ * Claim evidence (PRD 6.1): every price, share off, number, money offer or promise in words AI wrote is one the owner
+ * said, or a claim that stands today. The owner's own words are theirs, and never refused by a guess.
+ */
+export function evaluateClaimPolicy(claim: ClaimsAsked): PolicyRefusal | null {
+  if (!claim.aiWrote) return null;
+  const problem = claimProblemOf(claim.words, saidWithClaims(claim.said, claim.claims, claim.today));
+  return problem ? refusal("claims", "claim", claimWordsOf(problem)) : null;
 }
 
 /** What a placement asks of its place: where, as what, of which file, through which connection, with which words. */
@@ -81,8 +108,9 @@ function videoProblem(placement: PlaceAsked): string | null {
 
 /** Why the place does not take this kind of this file, in words; null where it does. */
 function kindProblem(placement: PlaceAsked): string | null {
-  if (placement.place === "instagram" && !instagramKindsFor(placement.fileKind).some((kind) => kind === placement.kind))
-    return ON_INSTAGRAM.wrongKind;
+  // A Page (pass 5) takes what Instagram takes: a picture as a post or a story, a video as a reel.
+  if (placement.place !== "google" && !instagramKindsFor(placement.fileKind).some((kind) => kind === placement.kind))
+    return placement.place === "facebook" ? ON_FACEBOOK.wrongKind : ON_INSTAGRAM.wrongKind;
   const google = placement.place === "google" && (placement.fileKind === "video" || placement.kind !== "picture");
   if (google || !capabilityStands(PLACE_CAPABILITIES[placement.place].formats[placement.kind]))
     return CONTENT_CHECK_WORDS.notTaken(placement.place, ON_INSTAGRAM.kind[placement.kind]);
@@ -156,6 +184,11 @@ export interface ReasonAsked {
   says: readonly string[];
   services: readonly string[];
   facts: readonly OwnersFact[];
+  /**
+   * The reasons to post as they stand this moment (opportunitiesOf, read again), where the piece was made for one; null
+   * where none was read (a piece made for no opportunity, or a caller that has no reader of them).
+   */
+  opportunities: readonly Pick<Opportunity, "key">[] | null;
   /** Before a send the words say what to change; at a send, what changed since it was approved. */
   moment: "before" | "send";
 }
@@ -213,5 +246,22 @@ export function reasonStands(reason: ReasonAsked): PolicyRefusal | null {
       "reason_passed",
       before ? CONTENT_CHECK_WORDS.notAService(service) : CONTENT_CHECK_WORDS.serviceGone(service),
     );
-  return null;
+  return opportunityRefusal(reason, today);
+}
+
+/**
+ * The opportunity a piece was made for, asked again (PRD 6.1, the seventh check): open time on a day it named is still
+ * open. Asked only where the piece names one and the caller read them; an owner's stated fact for its day covers it
+ * ("Thursday still has openings"), since Chanlytics sees only its own calendar.
+ */
+function opportunityRefusal(reason: ReasonAsked, today: string): PolicyRefusal | null {
+  const named = reason.intent?.opportunity_id;
+  if (!named || reason.opportunities === null || reason.opportunities.some((o) => o.key === named)) return null;
+  const day = dayNamed(reason.intent, reason.zone);
+  if (factCovers(reason.facts, day, today)) return null;
+  return refusal(
+    "reason",
+    "reason_passed",
+    reason.moment === "before" ? CONTENT_CHECK_WORDS.noOpenings(day) : CONTENT_CHECK_WORDS.filledUp(day),
+  );
 }

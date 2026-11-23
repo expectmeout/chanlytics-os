@@ -52,6 +52,7 @@ import {
   runTooLate,
   skippedRunNotice,
 } from "@chanlytics/contracts";
+import { handOutPlans } from "@chanlytics/db/files";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
@@ -65,7 +66,7 @@ const DAY_PASSED_BATCH = 50;
 /** When the tick stops ending missed days' runs, so the hand-out keeps its time: what is left ends next hour. */
 const DAY_PASSED_UNTIL_MS = 5_000;
 
-type SweepCounts = Record<"moments" | "steps" | "told" | "ended" | "reminded", number>;
+type SweepCounts = Record<"moments" | "steps" | "plans" | "told" | "ended" | "reminded", number>;
 
 /** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
 interface Tick {
@@ -173,7 +174,7 @@ async function tellSkipped(
 
 export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Response> {
   const now = new Date();
-  const out: SweepCounts = { moments: 0, steps: 0, told: 0, ended: 0, reminded: 0 };
+  const out: SweepCounts = { moments: 0, steps: 0, plans: 0, told: 0, ended: 0, reminded: 0 };
   await endRunsWhoseDayPassed({ db, now, L, out, started });
   try {
     out.moments = await handOutStepsDue(db, {
@@ -195,6 +196,13 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
     });
   } catch (e) {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
+  }
+  // Next week's posts planned from Sunday 6 PM in each business's own zone, once, where its canary switch is on (00706;
+  // the content loop PRD's 10.2): the hour's clock hands out the plan's job as it hands out a workspace's moments.
+  try {
+    out.plans = await handOutPlans(db, HAND_OUT_SPREAD_SECONDS);
+  } catch (e) {
+    L.error("content_plans_hand_out_failed", { error: e instanceof Error ? e.message : String(e) });
   }
   // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
   out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);

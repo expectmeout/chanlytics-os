@@ -160,6 +160,10 @@ export interface AskProposal {
     | "bring_in"
     // A made piece taken down everywhere it is up (content/take-down.ts): what each place will be asked, and Take it down.
     | "take_down"
+    // A week of posts (content/plan/week-spec.ts): planned now, approved, one slot changed, or what the posts are for.
+    | "week"
+    // What the owner claims, kept or withdrawn (content/plan/week-spec.ts): an offer, a price, a guarantee, a fact.
+    | "claim"
     // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts): nothing is made at Meta.
     | "ad_draft"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It

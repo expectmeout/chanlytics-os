@@ -12,6 +12,7 @@ import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
 import { isBookingTool } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
+import { ContentConfigSchema } from "../content-config";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
 import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, withAlertAddress } from "./alerts";
 import { BrainConfigSchema } from "./brain-config-schema";
@@ -119,6 +120,8 @@ export const FeaturesConfigSchema = z
     video_shelf: z.boolean().optional(),
     /** Connect Meta offered in this workspace (decision 0117), and so posting to Instagram; contracts content/address.ts contentPreviewOf. */
     content_preview: z.boolean().optional(),
+    /** A week of posts planned each Sunday evening (the content loop's pass 3, PRD 16.3): the canary's switch. */
+    content_plan: z.boolean().optional(),
     /**
      * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
      * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
@@ -188,6 +191,8 @@ export const TenantConfigSchema = z.object({
   features: FeaturesConfigSchema.optional(),
   // `.catch`: a section that is not an object reads as none, for the same reason.
   preview: PreviewConfigSchema.optional().catch(undefined),
+  // How often the business posts, its quiet days and languages (the content loop's pass 3): content-config.ts.
+  content: ContentConfigSchema.optional().catch(undefined),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 

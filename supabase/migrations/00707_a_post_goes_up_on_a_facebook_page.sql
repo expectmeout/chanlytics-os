@@ -1,4 +1,4 @@
--- 00702 · A post goes up on a Facebook Page (the content loop PRD v3.6, pass 5, Facebook as a place).
+-- 00707 · A post goes up on a Facebook Page (the content loop PRD v3.6, pass 5, Facebook as a place).
 --
 -- A Page is a place, reached through the Meta link (call 10), and goes the way Instagram does: a picture as a post or a
 -- story, a made video as a reel, made ready at the Page ten minutes ahead of its time, sent at it, and read back after.
@@ -197,7 +197,7 @@ end $$;
 revoke all on function public.post_approve(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.post_approve(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.post_approve(uuid, uuid, jsonb) is
-  'A member''s press, with the settings permission (00681, 00702 for a Facebook Page; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+  'A member''s press, with the settings permission (00681, 00707 for a Facebook Page; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 /* -------------------------------------------------------------------------------------------- 3. post_moved -- */
 
@@ -246,7 +246,7 @@ end $$;
 revoke all on function public.post_moved(uuid, text[], text, jsonb) from public, anon, authenticated;
 grant execute on function public.post_moved(uuid, text[], text, jsonb) to service_role;
 comment on function public.post_moved(uuid, text[], text, jsonb) is
-  'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram or a Facebook Page (00702) unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+  'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram or a Facebook Page (00707) unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 /* ---------------------------------------------------------------------------- 4. post_by_hand_bell_settle -- */
 
@@ -285,4 +285,4 @@ end $$;
 revoke all on function public.post_by_hand_bell_settle(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.post_by_hand_bell_settle(uuid, uuid, text) to service_role;
 comment on function public.post_by_hand_bell_settle(uuid, uuid, text) is
-  'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00702; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
+  'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00707; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';

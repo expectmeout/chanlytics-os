@@ -244,6 +244,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "NEXT_PUBLIC_PAGE_FIRST",
+    mechanism: "dashboard_env",
+    does: 'off lets what other pages read go as soon as the page on screen has its own reads; unset, it also waits for the page to be drawn (the plan "Pages that open at once", piece 3; bridge/workspace.ts pageFirst).',
+    owner: "Ruben",
+    sunset: "2026-12-07",
+  },
+  {
     name: "EDGE_PROVIDERS",
     mechanism: "dashboard_env",
     does: "'live' lets a preview or a laptop reach the real providers through its edge; 'model' the model alone (Ask's turns, its warm, the drafts), every provider door still shut (env.ts modelLive).",

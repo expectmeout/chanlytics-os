@@ -27,8 +27,15 @@ export type PostMetric = (typeof POST_METRICS)[number];
 export const METRIC_AVAILABILITY = ["available", "unsupported", "delayed", "failed", "withheld"] as const;
 export type MetricAvailability = (typeof METRIC_AVAILABILITY)[number];
 
-/** When a post's numbers are read after it went up (PRD 9.1): an hour, a day, 3, 7 and 28 days. */
-export const OBSERVE_STEPS = ["1h", "1d", "3d", "7d", "28d"] as const;
+/** When the clock reads a post's numbers after it went up (PRD 9.1): an hour, a day, 3, 7 and 28 days. */
+export const TIMED_OBSERVE_STEPS = ["1h", "1d", "3d", "7d", "28d"] as const;
+export type TimedObserveStep = (typeof TIMED_OBSERVE_STEPS)[number];
+
+/**
+ * Every step a read is kept at (post_observations.step): the clock's, and `last`, read just before a take-down asks the
+ * place (PRD 8.3). A post's numbers end with the post, so what is not read then never can be.
+ */
+export const OBSERVE_STEPS = [...TIMED_OBSERVE_STEPS, "last"] as const;
 export type ObserveStep = (typeof OBSERVE_STEPS)[number];
 
 /** What a known person's touch was (touches.kind). */

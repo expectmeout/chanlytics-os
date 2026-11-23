@@ -30,6 +30,20 @@ test("one line of the place's numbers, comments as Instagram counts them, and wh
   assert.match(said.howItDid.fine, /Next at 3 days/);
 });
 
+test("a story's numbers are read once more before it ends, and that read is its last", () => {
+  const story = {
+    post_id: "p-story-read",
+    place: "instagram",
+    kind: "story",
+    step: "1h",
+    read_at: "2026-12-03T13:00:00Z",
+    numbers: [n("reach", 12), n("views", 20), n("shares", 1)],
+  };
+  assert.match(pieceResultsSaid({ posts: [story], ...empty }, TZ).howItDid.fine, /Next before the story ends\./);
+  const last = pieceResultsSaid({ posts: [{ ...story, step: "1d" }], ...empty }, TZ);
+  assert.match(last.howItDid.fine, /Read for the last time\./);
+});
+
 test("a story too few saw says why, a place with no numbers says not available, never a zero", () => {
   const story = {
     post_id: "p-story",
@@ -53,6 +67,17 @@ test("a story too few saw says why, a place with no numbers says not available, 
     "Google: not available",
   ]);
   assert.ok(!said.howItDid.lines.join(" ").includes(" 0 "), "nothing missing became a zero");
+});
+
+test("numbers read just before a take-down say so, and promise no next read", () => {
+  const last = { ...reel, step: "last" };
+  const said = pieceResultsSaid({ posts: [last], ...empty }, TZ);
+  assert.deepEqual(said.howItDid.lines, [
+    "2,140 reached · 3,420 plays · 31 saves",
+    "188 likes · 14 comments · 9 shares",
+  ]);
+  assert.match(said.howItDid.fine, /Read just before you took it down\.$/);
+  assert.doesNotMatch(said.howItDid.fine, /Next at|last time/);
 });
 
 test("before the first read, the piece says when its numbers come", () => {

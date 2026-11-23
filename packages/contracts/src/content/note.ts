@@ -55,6 +55,12 @@ export interface ContentTodayDto {
    * an answer a build before pass 1b gave, which names none: the two apps deploy in either order.
    */
   down?: ContentDownDto[];
+  /**
+   * The week's points (00706; the PRD's 12.5), where the workspace plans its weeks: the week ready to approve, with its
+   * size and days, and what AI asks to be filmed. Each opens the Week. Absent from an older build's answer, and null
+   * where nothing of the week waits on the owner.
+   */
+  plan?: { ready: { size: string; days: string } | null; film: string[] } | null;
 }
 
 /** How many of the week's pieces Today's card shows. */

@@ -49,6 +49,8 @@ what the script writes.
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/email.ts`, `packages/db/src/repositories/people/erased.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/people/pages.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
+| [`content_goals`](#content_goals) | `packages/db/src/repositories/files/claims.ts` | on, 1 policy |
+| [`content_plans`](#content_plans) | `packages/db/src/repositories/files/plans.ts` | on, 1 policy |
 | [`conversation_channel_state`](#conversation_channel_state) | none | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/control.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 2 policies |
@@ -63,10 +65,11 @@ what the script writes.
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
 | [`file_archive_parts`](#file_archive_parts) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
 | [`file_archives`](#file_archives) | `packages/db/src/repositories/files/shelf.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
+| [`file_moments`](#file_moments) | `packages/db/src/repositories/files/claims.ts` | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_days`](#form_days) | none | on, 1 policy |
-| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
@@ -74,7 +77,7 @@ what the script writes.
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/google/listing.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
-| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/files/week-facts.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/conversations/idempotency.ts` | on, 1 policy |
 | [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts`, `packages/db/src/repositories/imports/sites-again.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 1 policy |
@@ -112,6 +115,7 @@ what the script writes.
 | [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/ops/pages.ts` | on, no policy, so only the service role reaches it |
+| [`owner_claims`](#owner_claims) | `packages/db/src/repositories/files/claims.ts` | on, 1 policy |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
 | [`partner_invitations`](#partner_invitations) | `packages/db/src/repositories/partners/invite.ts` | on, 1 policy |
@@ -125,14 +129,15 @@ what the script writes.
 | [`piece_images`](#piece_images) | `packages/db/src/repositories/files/pieces.ts` | on, no policy, so only the service role reaches it |
 | [`piece_renditions`](#piece_renditions) | none | on, 1 policy |
 | [`piece_revisions`](#piece_revisions) | none | on, 1 policy |
-| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
+| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
+| [`plan_slots`](#plan_slots) | `packages/db/src/repositories/files/plans.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`post_observations`](#post_observations) | `packages/db/src/repositories/content/observations.ts` | on, 1 policy |
-| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts` | on, 1 policy |
+| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/auth/account.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
@@ -1292,6 +1297,67 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `contacts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### content_goals
+
+What a business's posts are for (00706; the content loop PRD's 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.
+
+- Owned by: `packages/db/src/repositories/files/claims.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `goal` | text | no |  |  |
+| `detail` | jsonb | no | `'{}'::jsonb` |  |
+| `weight` | real | no | `1` |  |
+| `active` | boolean | no | `true` |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `content_goals_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### content_plans
+
+A week of posts (00706; the content loop PRD's 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.
+
+- Owned by: `packages/db/src/repositories/files/plans.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `week_of` | date | no |  |  |
+| `status` | text | no | `'drafting'::text` |  |
+| `asked_by` | text | no |  |  |
+| `fewer` | text | yes |  |  |
+| `approval_id` | uuid | yes |  |  |
+| `asked_at` | timestamp with time zone | no | `now()` |  |
+| `ready_at` | timestamp with time zone | yes |  |  |
+| `approved_at` | timestamp with time zone | yes |  |  |
+| `approved_by` | uuid | yes |  |  |
+| `done_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id`, `approval_id` → [`approvals`](#approvals) (`tenant_id`, `id`), on delete set null
+- `approved_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `content_plans_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### conversation_channel_state
 
 When a thread's person last wrote on each wire (decision 0001, step 4): one row a thread and wire, the fact a per-channel reply window reads. Written by ingest_inbound for every message it takes in, beside conversations.last_wa_inbound_at until step 7; a merged thread's rows fold into the kept one's (merge_people). Members read their workspace's.
@@ -1698,11 +1764,47 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `file_archives_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### file_moments
+
+A clip's best moments (00706; the content loop PRD's 5.3 and 10.3), written when a plan wants them: from the look's own moments and the hearing's words, with their score, confidence and the look's edition; a member's correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.
+
+- Owned by: `packages/db/src/repositories/files/claims.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `file_id` | uuid | no |  |  |
+| `start_s` | real | no |  |  |
+| `end_s` | real | no |  |  |
+| `shows` | text[] | no | `'{}'::text[]` |  |
+| `faces` | integer | yes |  |  |
+| `sharp` | real | yes |  |  |
+| `words` | text | yes |  |  |
+| `score` | real | no |  |  |
+| `confidence` | real | no |  |  |
+| `model_edition` | integer | no |  |  |
+| `corrected_by` | uuid | yes |  |  |
+| `corrected_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `corrected_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `file_moments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### files
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
+- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1806,7 +1908,7 @@ Foreign keys:
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
 
-- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1831,7 +1933,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `source` | jsonb | yes |  | Where the entry came from, in the one shape a website entry keeps (contracts EntrySource; the Ads tracking plan's T4): the link's code, the page, the site it came from and any campaign labels. Never a click id. |
 | `reach` | jsonb | yes |  | Who a hosted form's entry is about, as typed: {name, email, phone}. What a held entry is let through with, what a reply's address is compared with, and what an erased person's held entries are found by. |
 | `test` | boolean | no | `false` | A test its owner sent: it tells nobody, counts nowhere, has no person, and goes after 7 days. |
-| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member). |
+| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form's address and not from its own page (elsewhere, 00703). |
 | `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
 | `code_used_at` | timestamp with time zone | yes |  |  |
 
@@ -2069,7 +2171,7 @@ Foreign keys:
 
 Reviews of the workspace's listing as Google showed them, one row per review, kept from the first time it was seen. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/files/week-facts.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2856,6 +2958,7 @@ A short link for one place a thing of the business's is shared (00680; the conte
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `stopped_at` | timestamp with time zone | yes |  |  |
 | `lands` | text | yes |  | Where a post's link lands (00699): chat (a chat with the business carrying the post's code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form's. |
+| `sites` | text[] | yes |  | The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them. |
 
 Foreign keys:
 
@@ -3298,6 +3401,35 @@ Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backl
 | `count` | integer | no | `1` |  |
 | `alerted_at` | timestamp with time zone | yes |  |  |
 
+### owner_claims
+
+What an owner claims (00706; the content loop PRD's 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.
+
+- Owned by: `packages/db/src/repositories/files/claims.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `text` | text | no |  |  |
+| `source` | text | no |  |  |
+| `valid_until` | date | yes |  |  |
+| `withdrawn_at` | timestamp with time zone | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `owner_claims_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### page_vitals
 
 Field data (00255, 00412): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser's five (LCP, INP, CLS, FCP, TTFB) and the shell's two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.
@@ -3699,7 +3831,7 @@ Foreign keys:
 
 One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3733,6 +3865,52 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `pieces_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### plan_slots
+
+One creative at one place in a week's plan (00706; the content loop PRD's 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.
+
+- Owned by: `packages/db/src/repositories/files/plans.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `plan_id` | uuid | no |  |  |
+| `creative` | uuid | no |  |  |
+| `place` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `at` | timestamp with time zone | no |  |  |
+| `title` | text | no |  |  |
+| `reason` | text | yes |  |  |
+| `file_id` | uuid | yes |  |  |
+| `piece_id` | uuid | yes |  |  |
+| `post_id` | uuid | yes |  |  |
+| `intent` | jsonb | yes |  |  |
+| `words` | jsonb | yes |  |  |
+| `state` | text | no | `'proposed'::text` |  |
+| `blocked_why` | text | yes |  |  |
+| `blocked_reason` | text | yes |  |  |
+| `ask` | jsonb | yes |  |  |
+| `score` | jsonb | yes |  |  |
+| `approval_id` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `approval_id` → [`approvals`](#approvals) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `piece_id` → [`pieces`](#pieces) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `plan_id` → [`content_plans`](#content_plans) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `post_id` → [`posts`](#posts) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `plan_slots_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### platform_acts
 
@@ -3871,7 +4049,7 @@ Foreign keys:
 
 ### post_observations
 
-A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up. Each is a running total since then; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
+A post's numbers as its place gave them (00699; the content loop PRD's 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up, and at `last`, read by a take-down just before it asks the place (00701; 8.3), since a post's numbers end with it. Each is a running total since it went up; a day's change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.
 
 - Owned by: `packages/db/src/repositories/content/observations.ts`
 - Primary key: `id`
@@ -3907,7 +4085,7 @@ Foreign keys:
 
 One row per place a post goes (00611, decision 0121): the exact file approved, who approved it and when, its words there, when it goes and where it stands. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`
+- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

@@ -92,7 +92,7 @@
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
-    "00701": "held as a working number by other lanes (pass 3, the take-down's last numbers, a story's last read) when this one was taken"
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -704,6 +704,11 @@
     "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
     "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
     "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103",
-    "00702_a_post_goes_up_on_a_facebook_page.sql": "8700b31a5bf58ea8a5815e1c2ba5feae68dd65e1ef42ee4887d7400e64aa3035"
+    "00701_a_take_down_reads_a_post_s_last_numbers.sql": "360139ad33b55db3ca2a75c25fd92f11dc2e976404eb577912097f1140a7a8f5",
+    "00703_a_form_on_their_own_website.sql": "19a9e5e51808179fd4ed273d16ffec2a5e53126a73def76b160c2dab249c482a",
+    "00704_a_visit_a_form_asked_for_says_the_form.sql": "ff3ca5c81af0b3bce8df605264dccc16c2faad07127cba0636455eb6c849dcdd",
+    "00705_a_story_is_read_before_its_day_ends.sql": "5ade35d6a0ce4ad73b8ee5b6c7253f4d38fcd0c3a2dcb3f53b3ebd01041e7904",
+    "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab",
+    "00707_a_post_goes_up_on_a_facebook_page.sql": "49ae92879b7a854513f2dd7266e1bdcccae6f2d5298d6d907feaff1429124232"
   }
 }

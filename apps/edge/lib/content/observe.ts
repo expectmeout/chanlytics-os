@@ -3,7 +3,8 @@
  * adapter, every number Chanlytics names kept at once (post_observations_keep). A place that gives no numbers for a post
  * (Google, until a listing proves it) writes every number unsupported; one that cannot be asked now (not connected, the
  * numbers line off) writes them failed, and the next step reads again. Asked by the health sweep for each read that is
- * due and not kept (content/observe-due.ts); a read asked again writes over itself.
+ * due and not kept (content/observe-due.ts); a read asked again writes over itself. And a post's last numbers, read by
+ * its take-down just before the place is asked (keepLastNumbers).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -14,13 +15,14 @@ import {
   type MetricAvailability,
   type Observation,
   type PlaceAdapter,
+  type TenantId,
 } from "@chanlytics/contracts";
 import { keepPostObservations } from "@chanlytics/db/content";
 import { findPostForWork, type PostRow } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
-import { sentPlacementOf } from "./take-down.js";
+import { sentPlacementOf } from "./placement.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -61,5 +63,30 @@ export async function readPostResults(
     available: rows.filter((row) => row.availability === "available").length,
     withheld: rows.filter((row) => row.availability === "withheld").length,
     failed: rows.filter((row) => row.availability === "failed").length,
+  });
+}
+
+/**
+ * A post's last numbers, read just before its take-down asks the place (the content loop PRD's 8.3 and 9.1): once the
+ * post is down Meta answers for them as for nothing (code 100, subcode 33), so what is not read now never can be. Kept at
+ * the step `last`, with only what the read gave: a number that failed or is not there yet is left out, so the reading
+ * before it stands, and a read that gave nothing keeps nothing.
+ */
+export async function keepLastNumbers(
+  db: Db,
+  tenantId: TenantId,
+  post: PostRow,
+  placeOf: ObservePlaceOf,
+): Promise<void> {
+  const read = await observedNumbersOf(post, placeOf);
+  const rows = read.filter((row) => row.availability !== "failed" && row.availability !== "delayed");
+  if (!rows.some((row) => row.availability === "available" || row.availability === "withheld")) return;
+  await keepPostObservations(db, { tenantId, postId: post.id, step: "last", rows });
+  logger({ tenant_id: tenantId }).info("observation_read", {
+    post_id: post.id,
+    step: "last",
+    available: rows.filter((row) => row.availability === "available").length,
+    withheld: rows.filter((row) => row.availability === "withheld").length,
+    failed: read.length - rows.length,
   });
 }

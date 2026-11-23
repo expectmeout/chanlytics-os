@@ -35,6 +35,7 @@ const PURPOSE_WORDS: Record<AiUsagePurpose | "ask_warm", string> = {
   preview_starters: "Writing a preview's first questions",
   ad_draft: "Writing an ad's words",
   form_draft: "Drafting a form",
+  post_words: "Writing a week's posts",
   comment_reply: "Answering comments on posts",
   comment_rewrite: "Writing a comment's answer again",
   file_words: "Writing down what videos say",
@@ -44,6 +45,7 @@ const PURPOSE_WORDS: Record<AiUsagePurpose | "ask_warm", string> = {
   person_draft: "Writing to a person",
   sequence_draft: "Drafting campaigns",
   yes_check: "Reading a yes to a card",
+  content_line: "Reading a line of Settings › Content",
 };
 
 function purposeWords(purpose: string): string {

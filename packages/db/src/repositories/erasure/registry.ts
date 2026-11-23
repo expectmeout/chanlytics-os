@@ -524,7 +524,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // listing"), which leave with the workspace. What it opens and where a post's lands are closed sets (00699). A day of a
   // link (link_days) is numbers alone, and so is a day of a form (form_days, 00691: its business's booking page opened
   // from it).
-  links: { code: NOT_PERSONAL, place: WITH_WORKSPACE },
+  links: { code: NOT_PERSONAL, place: WITH_WORKSPACE, sites: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),
@@ -610,6 +610,15 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // What an owner approved (00681): the version, each shape by path and checksum, where, when, the business's own words and
   // any fact the owner stated, the business's record; its hash is nobody's.
   approvals: { snapshot: WITH_WORKSPACE, snapshot_hash: NOT_PERSONAL },
+  // A week planned (00706; the content loop PRD's 14.4): what an owner claims and what their posts are for are the
+  // business's own words; a plan's slots say what each post shows and why, from the business's own footage and reasons
+  // (a review's reviewer only as a first name and initial, never a contact Chanlytics holds). A clip's moments carry
+  // what was heard in it, as the file's own heard words do, so they go with the workspace; their closed sets are nobody's.
+  owner_claims: { text: WITH_WORKSPACE },
+  content_goals: { detail: WITH_WORKSPACE },
+  content_plans: { fewer: WITH_WORKSPACE },
+  plan_slots: { ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason"), score: NOT_PERSONAL },
+  file_moments: { ...all(WITH_WORKSPACE, "words", "shows") },
   // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's
   // ids and our sentences.
   posts: {

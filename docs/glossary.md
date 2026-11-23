@@ -260,6 +260,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `notes`            | Notes on a person, and the steps they suggest                                 |
 | `notices`          | The bell and what it says                                                     |
 | `ops`              | What keeps the edge running: pages to an operator, diagnostics, sweeps' doors |
+| `opportunities`    | Why a business should post now: open time, an offer, a review, fresh footage  |
 | `partners`         | The partner program                                                           |
 | `people`           | Everyone a workspace knows, lists, and a person's page                        |
 | `posts`            | A post for a Google listing, made from a photo                                |

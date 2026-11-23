@@ -22,7 +22,6 @@ import {
   mailboxCalendarOf,
   parseIcs,
   freeWindows,
-  roomOf,
   describeOpenings,
   describeVisits,
   feedUrlOk,
@@ -212,39 +211,17 @@ export async function listFeedItems(
 }
 
 /**
- * How much room the book has now, for a paced offer's run (D39 of the answers canvas), by the one count (contracts roomOf): null
- * where it could not be read, and a run then keeps the pace it was given, never guessing a full book.
+ * What takes the book's time over its horizon: the feed's appointments and Chanlytics' own record, as busy blocks. Null
+ * where the feed could not be read: the book is then not known, and nothing is guessed from it. The one read of a book's
+ * busy time for the readers that count its room (lib/opportunities: a paced offer's pace, the week's open time).
  */
-export async function bookRoomOf(
+export async function readBookBusy(
   tenantId: TenantId,
-  at: {
-    url: string;
-    tz: string;
-    now: Date;
-    daysAhead: number;
-    profile: { hours?: never; closures?: never; booking_rules?: never } | undefined;
-  },
-): Promise<{ open: number; days: number } | null> {
-  if (!at.profile) return null;
-  try {
-    const feed = await parsedFeedOf(tenantId, at.url, at.tz, at.daysAhead, at.now);
-    if (!feed) return null;
-    const free = {
-      hours: at.profile.hours,
-      closures: at.profile.closures,
-      tz: at.tz,
-      rules: at.profile.booking_rules ?? null,
-      now: at.now,
-    };
-    const openings = freeWindows({
-      ...free,
-      busy: [...feed.busy, ...(await recordBusy(tenantId, at.now, at.daysAhead, null))],
-    });
-    const room = roomOf(openings, free, at.daysAhead);
-    return { open: room.by_day.reduce((n, d) => n + d.open, 0), days: room.days };
-  } catch {
-    return null; // a run with no room said keeps its pace: the sweep is never failed for a calendar it could not read
-  }
+  at: { url: string; tz: string; now: Date; daysAhead: number },
+): Promise<BusyBlock[] | null> {
+  const feed = await parsedFeedOf(tenantId, at.url, at.tz, at.daysAhead, at.now);
+  if (!feed) return null;
+  return [...feed.busy, ...(await recordBusy(tenantId, at.now, at.daysAhead, null))];
 }
 
 /** The openings as data, for the phone tool that answers about one day. */
