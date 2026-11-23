@@ -162,7 +162,7 @@ test("a purge a run has taken can't be undone, and whoever may not delete may no
 });
 
 /**
- * The owner's press for Google (post_approve, 00681; the one press there is since 00696): the approval a page makes for
+ * The owner's press for Google (post_approve, 00681; the one press there is since 00697): the approval a page makes for
  * the one placement, answered as a call is, its data `{ fate, post_id }`.
  */
 async function pressForGoogle(fileId, when) {

@@ -4,7 +4,7 @@
  * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
  * none of it, and another workspace reads none of it. And "Keep it up" (00689): a post a place left to its owner stays
  * up on the owner's word, with who and when, the bell's line for it closes, and nothing is asked of the place again.
- * That line is about a piece at a place (00697): with a post and a story both left to the owner, it ends only with
+ * That line is about a piece at a place (00698): with a post and a story both left to the owner, it ends only with
  * the last of them, kept up or deleted by hand, in either order.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.

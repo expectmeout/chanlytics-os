@@ -1,4 +1,4 @@
--- 00696 · A post is begun by its approval alone (the content loop PRD, section 16.2: "left for later, on purpose").
+-- 00697 · A post is begun by its approval alone (the content loop PRD, section 16.2: "left for later, on purpose").
 --
 -- Since 00681 the press that approves a post is post_approve: it keeps the snapshot the owner saw and the post is
 -- checked against it right before it is sent. The door before it, post_begin (00611, re-made by 00616, 00620 and

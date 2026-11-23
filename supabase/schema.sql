@@ -29704,7 +29704,7 @@ end $$;
 -- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00697; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
+COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
 
 
 --
@@ -30073,7 +30073,7 @@ begin
    where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
      and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
   -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
-  -- its owner (00697): a story of it still to delete keeps the line.
+  -- its owner (00698): a story of it still to delete keeps the line.
   perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
   return v_answer;
 end $$;
@@ -30083,7 +30083,7 @@ end $$;
 -- Name: FUNCTION post_take_down_keep(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes once nothing of the piece there is left to its owner (00697), and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes once nothing of the piece there is left to its owner (00698), and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
 
 
 --
@@ -30128,7 +30128,7 @@ begin
   select p.file_id, p.place into v_file, v_place from public.posts p
    where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
   -- Gone from its place: where nothing else of the piece there is left to its owner, the bell's line for it ends
-  -- (00697). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
+  -- (00698). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
   if p_outcome = 'done' then
     perform public.post_by_hand_bell_settle(v_action.tenant_id, v_file, v_place);
   end if;
@@ -30148,7 +30148,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}. Since 00697 a done also ends the bell''s line for the piece at that place, where nothing else of it there is left to its owner.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}. Since 00698 a done also ends the bell''s line for the piece at that place, where nothing else of it there is left to its owner.';
 
 
 --

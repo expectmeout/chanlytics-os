@@ -605,7 +605,7 @@ being read is dropped by a migration.
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00681; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00697; |
+| `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
