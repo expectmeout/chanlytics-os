@@ -49,8 +49,10 @@ export async function sendToEach(
     if (answer?.ok) sent.push(place);
     else if (answer) refused[place] = answer.message;
   });
-  // A story carries no words, so its door keeps none: only Google's, or Instagram's picture, kept these on the piece.
-  const carried = sent.includes("google") || (sent.includes("instagram") && sending.as !== "story");
+  // A story carries no words, so its door keeps none: only Google's, or a picture or reel on Instagram or a Page, kept these
+  // on the piece.
+  const carried =
+    sent.includes("google") || ((sent.includes("instagram") || sent.includes("facebook")) && sending.as !== "story");
   return { sent, refused, kept: carried ? words : null };
 }
 
@@ -120,5 +122,6 @@ export function postBothOpening(
     as: instagramAsOf(instagramKindsFree(posts, fileKind), again),
     instagram: on("instagram"),
     google: on("google"),
+    facebook: on("facebook"),
   };
 }

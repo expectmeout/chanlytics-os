@@ -291,6 +291,14 @@ export const fileVerbs = {
     }),
   pullFromInstagram: (id: string, postId: string) =>
     api()("DELETE files/[id]/instagram", { params: { id }, body: { post_id: postId } }),
+  /** The same on the business's Facebook Page (the content loop PRD's pass 5), through its own door. */
+  postToFacebook: (id: string, as: InstagramPostKind, caption: string, when?: string) =>
+    api()("POST files/[id]/facebook", {
+      params: { id },
+      body: { ...(as === "story" ? { as } : { as, caption }), ...(when ? { when } : {}) },
+    }),
+  pullFromFacebook: (id: string, postId: string) =>
+    api()("DELETE files/[id]/facebook", { params: { id }, body: { post_id: postId } }),
   /** Change time, for a post set for its time at either place (00621): the same post, set for another. */
   movePost: (id: string, postId: string, when: string) =>
     api()("PATCH files/[id]/posts", { params: { id }, body: { post_id: postId, when } }),
@@ -315,5 +323,9 @@ export const postDoors = {
   google: {
     begin: (id, _as, words, when) => fileVerbs.postToGoogle(id, words, when),
     pull: (id, postId) => fileVerbs.pullFromGoogle(id, postId),
+  },
+  facebook: {
+    begin: (id, as, words, when) => fileVerbs.postToFacebook(id, as, words, when),
+    pull: (id, postId) => fileVerbs.pullFromFacebook(id, postId),
   },
 } as const satisfies Record<PostPlace, PostDoorsAt>;

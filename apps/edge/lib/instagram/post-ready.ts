@@ -19,7 +19,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
   INSTAGRAM_POST_KINDS,
+  ON_FACEBOOK,
   ON_INSTAGRAM,
+  POST_PLACES,
   SECOND_MS,
   fileMadePathOf,
   isOneOf,
@@ -32,6 +34,7 @@ import {
   type PlaceAdapter,
   type PlaceRefusal,
   type PlacedMedia,
+  type PostPlace,
   type PostStatus,
   type PreparedState,
 } from "@chanlytics/contracts";
@@ -58,13 +61,19 @@ import { readKeptSecret } from "./credentials.js";
 import { tellPostMoved } from "../files/post-told.js";
 import { INSTAGRAM_CALL_MS, instagramPlace, type InstagramPlaceDeps } from "./place.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
+import type { Posting, PostingFinder } from "../content/posting.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** What a post job is handed besides its database: the network, and a pause between two looks at a container. */
+/**
+ * What a post job is handed besides its database: the network, a pause between two looks at a draft, and how each place
+ * other than Instagram finds who posts there (a Page: facebook/posting.ts), handed in by the job runner so the places'
+ * folders never lean on each other.
+ */
 export interface PostDeps extends InstagramPlaceDeps {
   pause?: (ms: number) => Promise<void>;
+  postingAt?: Partial<Record<PostPlace, PostingFinder>>;
 }
 
 /** How long Instagram has to fetch the media: a day, as long as a container lives. */
@@ -112,21 +121,52 @@ export async function findPoster(db: Db, tenantId: TenantId): Promise<{ poster: 
 }
 
 /** Instagram's adapter for this workspace's account, knowing which of its posts another placement already keeps. */
-export function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDeps): PlaceAdapter {
+function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDeps): PlaceAdapter {
   return instagramPlace(poster, {
     ...deps,
     keptElsewhere: (ids) => listKeptPostIds(db, post.tenant_id, "instagram", [...ids]),
   });
 }
 
+/** Who posts at the post's place, or why nobody may now: Instagram's account here, any other place by its own finder. */
+export async function postingOf(db: Db, post: PostRow, deps: PostDeps): Promise<Posting | SendHold> {
+  if (post.place === "instagram") {
+    const found = await findPoster(db, post.tenant_id);
+    if ("held" in found) return found;
+    const { poster } = found;
+    const kind = instagramKindOf(post);
+    return {
+      place: placeFor(db, post, poster, deps),
+      accountId: poster.accountId,
+      keptRequest: (p) =>
+        metaContainerFieldsKept(metaContainerFields(kind, p.mediaUrl, { caption: p.caption, says: p.says })),
+    };
+  }
+  const find = isOneOf(POST_PLACES, post.place) ? deps.postingAt?.[post.place] : undefined;
+  if (!find)
+    throw new CertainFailure(`post ${post.id}: nothing here posts to ${String(post.place)}`, ON_INSTAGRAM.notSent);
+  return find(db, post);
+}
+
+/** Where a take-down at a place that cannot be asked now is the owner's to do, by hand, in the place's own app. */
+const BY_HAND: Readonly<Partial<Record<PostPlace, string>>> = {
+  instagram: ON_INSTAGRAM.takeDown.byHand,
+  facebook: ON_FACEBOOK.takeDown.byHand,
+};
+
 /**
- * Instagram's adapter for a post asked down (00682), or why the account cannot be asked from here: not connected, or
- * posting not allowed, and the take-down is the owner's to do in Instagram.
+ * The place's adapter for a post asked down (00682), or why it cannot be asked from here: not connected, or posting not
+ * allowed, and the take-down is the owner's to do in the place's own app.
  */
-export async function takeDownPlaceFor(db: Db, post: PostRow): Promise<PlaceAdapter | { cant: string }> {
-  const posting = await findPoster(db, post.tenant_id);
-  if ("held" in posting) return { cant: ON_INSTAGRAM.takeDown.byHand };
-  return placeFor(db, post, posting.poster, {});
+export async function takeDownPlaceFor(
+  db: Db,
+  post: PostRow,
+  deps: PostDeps = {},
+): Promise<PlaceAdapter | { cant: string }> {
+  const posting = await postingOf(db, post, deps);
+  if (!("held" in posting)) return posting.place;
+  const said = isOneOf(POST_PLACES, post.place) ? BY_HAND[post.place] : undefined;
+  return { cant: said ?? ON_INSTAGRAM.takeDown.byHand };
 }
 
 /** What a refusal comes to: the owner's words for good, or a throw to try again when it was only busy. */
@@ -175,16 +215,12 @@ export async function keepPublished(
  * through the first. One another placement of this workspace already keeps is never it. Throws when the account's posts
  * could not be read.
  */
-export async function findOnTheAccount(
-  db: Db,
-  at: { post: PostRow; poster: MetaPoster },
-  deps: PostDeps,
-): Promise<PlacedMedia | null> {
+export async function findOnTheAccount(db: Db, at: { post: PostRow; posting: Posting }): Promise<PlacedMedia | null> {
   const sends = await listPostAttempts(db, at.post.tenant_id, at.post.id);
   // In the order they were made: the first send is the earliest a post of this one can be.
   const send = sends.find((a) => a.step === "publish");
   if (!send) return null;
-  const state = await placeFor(db, at.post, at.poster, deps).status?.({
+  const state = await at.posting.place.status?.({
     postId: at.post.id,
     kind: instagramKindOf(at.post),
     externalId: at.post.external_id,
@@ -223,7 +259,7 @@ interface Preparing {
   post: PostRow;
   attempt: 1 | 2;
   kind: InstagramPostKind;
-  poster: MetaPoster;
+  posting: Posting;
   place: PlaceAdapter;
   path: string;
 }
@@ -249,7 +285,7 @@ async function firstContainerNow(db: Db, at: Preparing): Promise<FirstContainer 
 }
 
 /** The first send landed after all: the post is up, how that was learned is kept on a row of its own, and nothing is sent. */
-async function keepLanded(db: Db, at: Preparing, first: FirstContainer, deps: PostDeps): Promise<{ skipped: string }> {
+async function keepLanded(db: Db, at: Preparing, first: FirstContainer): Promise<{ skipped: string }> {
   const opened = await openPostAttempt(db, {
     postId: at.post.id,
     attemptNo: 2,
@@ -257,7 +293,7 @@ async function keepLanded(db: Db, at: Preparing, first: FirstContainer, deps: Po
     request: { container_id: first.id },
   });
   // Its address, for the sheet's See it: an account that cannot be read leaves the post up without one.
-  const found = await findOnTheAccount(db, { post: at.post, poster: at.poster }, deps).catch(
+  const found = await findOnTheAccount(db, { post: at.post, posting: at.posting }).catch(
     logAndGoOn("post's address after its first send landed", null),
   );
   await closePostAttempt(db, {
@@ -270,7 +306,7 @@ async function keepLanded(db: Db, at: Preparing, first: FirstContainer, deps: Po
   await keepPublished(db, at.post, {
     from: ["queued"],
     media: found,
-    accountId: at.poster.accountId,
+    accountId: at.posting.accountId,
     seen: found !== null,
   });
   return { skipped: "landed" };
@@ -303,11 +339,11 @@ async function containerOf(db: Db, at: Preparing & { says: string | null }): Pro
     book: false,
   };
   // The request as kept: the media's host alone, never its signed address or a token.
-  const request = metaContainerFieldsKept(metaContainerFields(kind, link, { caption: post.caption, says: at.says }));
+  const request = at.posting.keptRequest(toSend);
   const opened = await openPostAttempt(db, { postId: post.id, attemptNo: attempt, step: "container", request });
   if (opened.finished && opened.outcome === "ok" && opened.containerId) return opened.containerId;
   const prepared = await place.prepare?.(toSend);
-  if (!prepared) throw new Error(`post ${post.id}: Instagram has no draft to make`);
+  if (!prepared) throw new Error(`post ${post.id}: ${post.place} has no draft to make`);
   if (prepared.is === "refused") {
     // Refused for good: the send's row says so. Only busy: it stays open, and the next run asks again on it.
     const refused = postRefusalOf(prepared.refusal, `post ${post.id}`);
@@ -355,19 +391,19 @@ export async function preparePost(
   // Nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
   const bytes = await readSendRecheck(db, post, { approver: false });
   if ("held" in bytes) return holdPlacement(db, post, { ...bytes, from: HOLDABLE });
-  const posting = await findPoster(db, job.tenant_id);
+  const posting = await postingOf(db, post, deps);
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   const at: Preparing = {
     post,
     attempt,
     kind,
-    poster: posting.poster,
-    place: placeFor(db, post, posting.poster, deps),
+    posting,
+    place: posting.place,
     path: mediaPathOf(post, kind, bytes.path),
   };
   // Before a second container, the first is asked after: it may be up by now, or still ready to be the one sent.
   const first = attempt === 2 && post.status === "queued" ? await firstContainerNow(db, at) : null;
-  if (first?.state.is === "published") return keepLanded(db, at, first, deps);
+  if (first?.state.is === "published") return keepLanded(db, at, first);
   const containerId =
     first?.state.is === "ready"
       ? await containerAgain(db, at, first.id)

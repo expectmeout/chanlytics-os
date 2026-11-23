@@ -22,6 +22,7 @@ apps/edge/lib/
   content/
   drafts/
   email/
+  facebook/
   files/
   google/
   imports/
@@ -116,6 +117,7 @@ packages/channels/src/
   ads/
   ai/
   email/
+  facebook/
   files/
   google/
   inbound/

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { evaluate, verdictWords, wordsNeedAbout } from "@chanlytics/core";
-import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_FACEBOOK, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = Date.parse("2026-11-24T15:00:00Z"); // a Tuesday morning in New York
@@ -133,6 +133,16 @@ test("publishing: the place takes the kind, the connection allows it, the words 
   assert.equal(says({ connection: "line_off" }).words, CONTENT_CHECK_WORDS.lineOff);
   assert.equal(says({ place: "google", caption: "x".repeat(1501) }).words, CONTENT_CHECK_WORDS.tooLong("google", 1500));
   assert.match(says({ caption: "#a ".repeat(31) }).words, /30 hashtags/);
+  // A Page (pass 5) takes what Instagram takes, said in Facebook's words; a 2-minute reel is past a Page's 90 seconds.
+  assert.equal(says({ place: "facebook" }), null);
+  assert.equal(says({ place: "facebook", kind: "reel" }).words, ON_FACEBOOK.wrongKind);
+  const pageReel = says({
+    place: "facebook",
+    kind: "reel",
+    fileKind: "video",
+    video: { mime: "video/mp4", bytes: 1e6, ms: 120_000 },
+  });
+  assert.equal(pageReel.words, CONTENT_CHECK_WORDS.video);
 });
 
 test("money and automation: within the limit; nothing goes while AI is paused, and AI never posts alone", () => {

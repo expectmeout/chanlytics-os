@@ -907,7 +907,7 @@ test("Post sends the words on screen, to each place's door, which keeps them on 
 test("a reader's list switches nothing, and the list waits for the record before it opens", () => {
   const reader = S.bothAfter(pieceOf({ may: false }), [opens]);
   assert.equal(reader.open, true, "where it stands is theirs to read");
-  assert.deepEqual(reader.takes, { instagram: false, google: false }, "no place has a switch");
+  assert.deepEqual(reader.takes, { instagram: false, google: false, facebook: false }, "no place has a switch");
   assert.deepEqual([reader.draft.instagram, reader.draft.google, reader.sending], [false, false, false]);
   const unread = S.bothAfter(pieceOf({ known: false, takes: null, wont: null, offers: null }), [opens]);
   assert.deepEqual([unread.ready, unread.open], [false, false]);

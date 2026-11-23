@@ -37,15 +37,19 @@ export const instagramAsOf = (free: readonly InstagramPostKind[], wanted: Instag
  * What can take the piece now, from its posts and what its record says of each place. Google takes a piece once, and none
  * while one is on its way there (contracts postPlaceTakenOf). Instagram takes one of each kind at a time, so it takes another
  * while either kind is free: the sheet draws a line for each post that waits there, with its own Don't post (model/places.ts),
- * and offers the kind that is free. Opening the sheet still arms nothing where a post is on its way (postBothOpening).
+ * and offers the kind that is free. A Page (pass 5) takes the same kinds the same way. Opening the sheet still arms nothing
+ * where a post is on its way (postBothOpening).
  */
 export function pieceTakesOf(
   posts: readonly PostDto[],
-  can: { instagram: boolean; google: boolean; onGoogle: boolean; fileKind?: string },
+  can: { instagram: boolean; google: boolean; onGoogle: boolean; facebook?: boolean; fileKind?: string },
 ): PieceTakes {
+  const free = (place: "instagram" | "facebook") =>
+    instagramKindsFor(can.fileKind ?? "image").some((kind) => !postPlaceTakenOf(posts, place, kind));
   return {
     instagram: can.instagram && instagramKindsFree(posts, can.fileKind).length > 0,
     google: can.google && !can.onGoogle && !postPlaceTakenOf(posts, "google"),
+    facebook: !!can.facebook && free("facebook"),
   };
 }
 
