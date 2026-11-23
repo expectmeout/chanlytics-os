@@ -24,13 +24,13 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DbFailure,
   FILE_MADE_OF_VIDEO_MIMES,
   MIN_MS,
   PIECE_FRAME,
   PIECE_ROUNDS_MAX,
   PIECE_TEMPLATE,
   SECOND_MS,
-  clipMomentsOf,
   compilePiece,
   contentRouteOf,
   fileMadePathOf,
@@ -38,7 +38,6 @@ import {
   filePathOf,
   isPieceStep,
   pieceCompositionOf,
-  pieceCoverOf,
   pieceCuesOf,
   pieceFileIdsOf,
   pieceLookOf,
@@ -48,9 +47,9 @@ import {
   pieceRoundsOf,
   pieceWordsIn,
   recordOrEmpty,
+  revisionChangesOf,
   renditionRefusalOf,
   workspaceLogoSrc,
-  type ClipMoment,
   type PieceFail,
   type PieceMachine,
   type PieceMaterial,
@@ -89,6 +88,8 @@ import {
   findPieceForWork,
   findPieceImage,
   keepPieceMachine,
+  keepPieceVersion,
+  readyPieceVersion,
   markPieceSent,
   sayPieceStage,
   type MediaFate,
@@ -105,6 +106,7 @@ import { logger } from "../shared/log.js";
 import { ensureCopy } from "./copy/ensure.js";
 import { makeRoom } from "./copy/let-go.js";
 import { beginShelving } from "./shelf/shelve.js";
+import { clipMomentsOf, pieceCoverOf, type ClipMoment } from "./piece-cover.js";
 import { streamKeys } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;
@@ -358,7 +360,7 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
     return again("image");
   }
   const fetches = fetchesOf(compiled.timeline, read);
-  // Its cover: the best moment of its clips, drawn by the machine as a still beside the video (content/making/cover.ts).
+  // Its cover: the best moment of its clips, drawn by the machine as a still beside the video (piece-cover.ts).
   const cover = pieceCoverOf(compiled.timeline, read.moments);
   const material: PieceMaterial = {
     timeline: compiled.timeline,
@@ -511,20 +513,41 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine, deadline: 
   // Its bytes all went: its row says so first, in one step with its machine let go, so nothing after this can throw it away.
   await markPieceSent(db, piece.id);
   await machines.stop(machine);
-  // Its copy on Chanlytics' own shelf is begun (the archive plan's B2), held to these very bytes: their SHA-256 is
-  // taken here, as they pass. Never the video's to fail: without a shelf copy it only keeps its place at the platform.
-  await beginShelving(db, {
-    tenantId: piece.tenant_id,
-    fileId: id,
-    bytes: bytes.length,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  }).catch(logAndGoOn("shelf: begin a made video's copy"));
+  // Their SHA-256, taken once as they pass: what the shelf's copy is held to, and a new version's standing shape.
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  // A new version of a piece (00708): its root gains the version and its shape now, while the bytes are in hand.
+  if (piece.revises) await keepVersionOf(db, piece, { sha256, bytes: bytes.length });
+  // Its copy on Chanlytics' own shelf is begun (the archive plan's B2), held to these very bytes. Never the video's to
+  // fail: without a shelf copy it only keeps its place at the platform.
+  await beginShelving(db, { tenantId: piece.tenant_id, fileId: id, bytes: bytes.length, sha256 }).catch(
+    logAndGoOn("shelf: begin a made video's copy"),
+  );
   logger({ tenant_id: piece.tenant_id }).info("piece_drawn", {
     piece: piece.id,
     bytes: bytes.length,
     fate: file.fate,
     frames,
     ...machineTook(kept),
+  });
+}
+
+/**
+ * A new version's bytes kept as its root's next version (00708): what moved from the version it replaces (contracts
+ * revisionChangesOf), and its shape by its full SHA-256. A failure is logged and the video goes on: the root keeps
+ * standing at the version it was, and the drawn video stays in Files.
+ */
+async function keepVersionOf(db: Db, piece: PieceRow, kept: { sha256: string; bytes: number }): Promise<void> {
+  const root = piece.revises ? await findPieceForWork(db, piece.tenant_id, piece.revises) : null;
+  if (!root) return;
+  const changed = revisionChangesOf(piecePlanOf(recordOrEmpty(root.plan)), piecePlanOf(recordOrEmpty(piece.plan)));
+  const n = await keepPieceVersion(db, piece.id, { checksum: kept.sha256, bytes: kept.bytes, changed }).catch(
+    logAndGoOn("piece_make: keep a new version", null),
+  );
+  logger({ tenant_id: piece.tenant_id }).info("piece_version_kept", {
+    piece: root.id,
+    drawn: piece.id,
+    version: n,
+    changed,
   });
 }
 
@@ -536,7 +559,7 @@ async function keepCover(db: Db, piece: PieceRow, machine: RenderMachine, fileId
     contentType: FILE_MADE_OF_VIDEO_MIMES.cover,
     upsert: true,
   });
-  if (stored.error) throw new Error(stored.error.message);
+  if (stored.error) throw new DbFailure(stored.error, "keep a made video's cover");
 }
 
 /**
@@ -611,6 +634,9 @@ export async function tellPieceMoved(db: Db, fate: MediaFate): Promise<void> {
   const file = await findFileForWork(db, fate.tenant_id, fate.file_id);
   const plan = piecePlanOf(recordOrEmpty(recordOrEmpty(file?.made).plan));
   const says = pieceWordsIn(plan.language);
+  // A new version that now plays (00708): its piece stands at it, and what was set to go of the one before asks again.
+  const version = fate.fate === "ready" ? await readyPieceVersion(db, fate.file_id) : null;
+  const versionWaits = version !== null && !version.again && version.voided > 0;
   const about = { type: "file", id: fate.file_id };
   await recordNotification(
     fate.tenant_id,
@@ -618,7 +644,7 @@ export async function tellPieceMoved(db: Db, fate: MediaFate): Promise<void> {
       ? {
           kind: "video_ready",
           title: says.bell.ready,
-          body: says.bell.readyBody(file?.name ?? ""),
+          body: versionWaits ? says.bell.versionWaits(version.revision) : says.bell.readyBody(file?.name ?? ""),
           // Open in Content, where it plays.
           route: contentRouteOf({ list: "made", view: "all", open: fate.file_id }),
           about,

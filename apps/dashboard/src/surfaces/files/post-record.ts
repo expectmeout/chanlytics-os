@@ -12,6 +12,7 @@ import type {
   FileSound,
   PiecePlan,
   PieceTakeDownDto,
+  PieceVersionsDto,
   PostDto,
 } from "@chanlytics/contracts";
 import type { PieceAdStands } from "@/server/content/ad-pictures";
@@ -39,6 +40,8 @@ export function usePostRecord(file: FileDto, moved = "") {
   const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
   // A made piece's newest take-down (00682). Kept with the file it was read for.
   const [standing, setStanding] = useState<{ id: string; takeDown: PieceTakeDownDto | null } | null>(null);
+  // A made video's versions (00708), kept with the file they were read for; none from a server before versions.
+  const [versions, setVersions] = useState<{ id: string; version: PieceVersionsDto | null } | null>(null);
   // Read again when asked: a post on its way to Instagram says where it stands as it moves.
   const [asked, setAsked] = useState(0);
   const reread = useCallback(() => setAsked((n) => n + 1), []);
@@ -62,6 +65,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       setVideo(data.video?.plan ?? null);
       setAd({ id: file.id, stands: data.ad ?? null });
       setStanding({ id: file.id, takeDown: data.take_down ?? null });
+      setVersions({ id: file.id, version: data.version ?? null });
     });
     return () => {
       live = false;
@@ -83,6 +87,7 @@ export function usePostRecord(file: FileDto, moved = "") {
     /** Whether this file's record has been read: nothing is said of a place before it is. */
     read: here !== null,
     takeDown: here?.takeDown ?? null,
+    version: versions?.id === file.id ? versions.version : null,
     reread,
   };
 }

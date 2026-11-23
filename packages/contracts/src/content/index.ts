@@ -29,8 +29,6 @@ export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
 export type { PieceCaption, PieceCue } from "./making/captions";
-export { clipMomentsOf, pieceCoverOf } from "./making/cover";
-export type { ClipMoment, PieceCover } from "./making/cover";
 export { pieceCuesOf } from "./making/cues";
 export { brandKitOf, lookSaidOf, neverSaidIn, siteKitOf } from "./making/kit";
 export type { BrandKit } from "./making/kit";

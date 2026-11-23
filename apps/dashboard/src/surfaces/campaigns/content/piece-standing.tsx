@@ -9,7 +9,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { SECOND_MS, TAKE_DOWN_WORDS, fileSaidOf, type PostDto } from "@chanlytics/contracts";
 import { goesLinesOf, goesPillOf, takeDownOffered, takeDownStandsOf, type GoesAct, type GoesLine } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
-import { keepPostUp, markDeletedByHand } from "@/bridge/verbs/pieces";
+import { keepPostUp, markDeletedByHand, pressPieceVersion } from "@/bridge/verbs/pieces";
+import { versionStandingOf, type VersionStanding } from "./model/version";
 import type { PieceStanding } from "./model/standing";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
 import { viewerClockOf } from "./viewer/clock";
@@ -73,15 +74,23 @@ export function usePieceStanding(
   const clock = viewerClockOf();
   const may = canDo("settings");
   const aiMade = file.source === "made";
+  // Its versions (00708): a post that waits on one says so on its line, in place of its time.
+  const version = aiMade
+    ? versionStandingOf(record.version, posts, file.id, clock.ahead)
+    : versionStandingOf(null, [], "", clock.ahead);
   const lines = aiMade
-    ? goesLinesOf(posts, { takeDown: record.takeDown, when: clock.ahead, nowMs: Date.now(), may })
+    ? linesWithVersion(
+        goesLinesOf(posts, { takeDown: record.takeDown, when: clock.ahead, nowMs: Date.now(), may }),
+        version,
+      )
     : [];
   const again = () => {
     record.reread();
     reread();
   };
   useRereadWhileMoving(
-    lines.some((line) => line.moving),
+    // A version being made is read again as a line moving is: its frame says each step, and it asks once it is made.
+    lines.some((line) => line.moving) || version.making !== null,
     record.reread,
     reread,
   );
@@ -134,11 +143,18 @@ export function usePieceStanding(
       }}
     />
   ) : null;
+  const versionLead =
+    may && version.lead
+      ? {
+          words: version.lead.words,
+          press: () => void run(pressPieceVersion(file.id, version.lead?.is === "again" ? "again" : "approve")),
+        }
+      : null;
   return {
     lines,
     /** The piece's one status from its lines; null where it has no placement yet, and its usual status says it. */
-    pill: goesPillOf(lines),
-    lead: may ? standingLeadOf(lines, goes) : null,
+    pill: version.pill ? { ...version.pill, moving: false } : goesPillOf(lines),
+    lead: versionLead ?? (may ? standingLeadOf(lines, goes) : null),
     /**
      * Whether the list opens to be read, with nothing switched on: a line needs the owner for something another post
      * would not mend. Look again and Try again are the ones a post does mend, and they arm its place as before.
@@ -156,5 +172,16 @@ export function usePieceStanding(
     takeDown: may && aiMade && takeDownOffered(posts, Date.now()) && !down.asking ? () => setTakingDown(true) : null,
     sheets,
     results: { fileId: file.id, upPostId: aiMade ? (posts.find((p) => p.published_at)?.id ?? null) : null },
+    version: { ...version, instead: (fileId) => void run(pressPieceVersion(fileId, "approve")) },
   };
+}
+
+/** Each line of a post that waits on a version says so (the version board, cells 1 and 4), its tone the version's. */
+function linesWithVersion(lines: GoesLine[], version: VersionStanding): GoesLine[] {
+  if (version.lines.size === 0) return lines;
+  return lines.map((line) => {
+    const said = version.lines.get(line.key);
+    if (!said) return line;
+    return { ...line, said, tone: version.making ? "live" : "you", status: null, moving: false };
+  });
 }

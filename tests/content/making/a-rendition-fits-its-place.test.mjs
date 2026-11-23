@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 const { HOUSE_LOUDNESS, renditionRefusalOf } = await import(at("packages/contracts/src/content/making/renditions.ts"));
-const { pieceCoverOf } = await import(at("packages/contracts/src/content/making/cover.ts"));
+const { pieceCoverOf } = await import(at("apps/edge/lib/files/piece-cover.ts"));
 const { revisionChangesOf, shapesReachedOf } = await import(at("packages/contracts/src/content/making/versions.ts"));
 const { piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
 

@@ -709,6 +709,7 @@
     "00704_a_visit_a_form_asked_for_says_the_form.sql": "ff3ca5c81af0b3bce8df605264dccc16c2faad07127cba0636455eb6c849dcdd",
     "00705_a_story_is_read_before_its_day_ends.sql": "5ade35d6a0ce4ad73b8ee5b6c7253f4d38fcd0c3a2dcb3f53b3ebd01041e7904",
     "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab",
-    "00707_a_post_goes_up_on_a_facebook_page.sql": "49ae92879b7a854513f2dd7266e1bdcccae6f2d5298d6d907feaff1429124232"
+    "00707_a_post_goes_up_on_a_facebook_page.sql": "49ae92879b7a854513f2dd7266e1bdcccae6f2d5298d6d907feaff1429124232",
+    "00708_a_made_video_gets_a_second_version.sql": "b6220c545667b443d98ad36ebde3d8ee71487733df327aacd11f1f1febeeda48"
   }
 }

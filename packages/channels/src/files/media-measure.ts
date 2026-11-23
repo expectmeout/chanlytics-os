@@ -36,7 +36,7 @@ const child = (bytes: Uint8Array, view: DataView, box: Box | undefined, type: st
   box ? boxesIn(bytes, view, box.start, box.end).find((b) => b.type === type) : undefined;
 
 /** A media header's timescale and duration (mvhd, mdhd: version 0 holds them in four bytes, version 1 in eight). */
-function timeOf(view: DataView, box: Box | undefined): { scale: number; duration: number } | null {
+function headerTimeOf(view: DataView, box: Box | undefined): { scale: number; duration: number } | null {
   if (!box || box.end - box.start < 24) return null;
   const v1 = view.getUint8(box.start) === 1;
   const scale = view.getUint32(box.start + (v1 ? 20 : 12));
@@ -73,7 +73,7 @@ function trackOf(bytes: Uint8Array, view: DataView, trak: Box): Track {
     for (let i = 0; i < count && stts.start + 8 + i * 8 + 8 <= stts.end; i++)
       samples += view.getUint32(stts.start + 8 + i * 8);
   }
-  return { handler, entry, time: timeOf(view, child(bytes, view, mdia, "mdhd")), samples };
+  return { handler, entry, time: headerTimeOf(view, child(bytes, view, mdia, "mdhd")), samples };
 }
 
 /** An MP4 or a MOV, read from its boxes. */
@@ -86,28 +86,28 @@ function measuredMovie(bytes: Uint8Array): MediaMeasured {
   const read = tracks.map((t) => trackOf(bytes, view, t));
   const picture = read.find((t) => t.handler === "vide");
   const sound = read.find((t) => t.handler === "soun");
-  const movie = timeOf(view, child(bytes, view, moov, "mvhd"));
+  const movie = headerTimeOf(view, child(bytes, view, moov, "mvhd"));
   const own = picture?.time;
   const seconds = movie ? movie.duration / movie.scale : own ? own.duration / own.scale : null;
-  const e = picture?.entry;
-  const a = sound?.entry;
+  const sampled = picture?.entry;
+  const heard = sound?.entry;
   return {
     media: "video",
     format: brand === "qt  " ? "mov" : "mp4",
     bytes: bytes.length,
-    width: e && e.end - e.start >= 28 ? view.getUint16(e.start + 24) : null,
-    height: e && e.end - e.start >= 28 ? view.getUint16(e.start + 26) : null,
+    width: sampled && sampled.end - sampled.start >= 28 ? view.getUint16(sampled.start + 24) : null,
+    height: sampled && sampled.end - sampled.start >= 28 ? view.getUint16(sampled.start + 26) : null,
     seconds: seconds === null ? null : Math.round(seconds * 100) / 100,
     fps:
       own && picture.samples > 0 && own.duration > 0
         ? Math.round((picture.samples * own.scale * 100) / own.duration) / 100
         : null,
-    codec: e ? (VIDEO_CODECS[e.type] ?? "other") : null,
-    sound: a
+    codec: sampled ? (VIDEO_CODECS[sampled.type] ?? "other") : null,
+    sound: heard
       ? {
-          codec: a.type === "mp4a" ? "aac" : "other",
-          channels: a.end - a.start >= 28 ? view.getUint16(a.start + 16) : null,
-          rate: a.end - a.start >= 28 ? view.getUint16(a.start + 24) : null,
+          codec: heard.type === "mp4a" ? "aac" : "other",
+          channels: heard.end - heard.start >= 28 ? view.getUint16(heard.start + 16) : null,
+          rate: heard.end - heard.start >= 28 ? view.getUint16(heard.start + 24) : null,
         }
       : null,
     lufs: null,

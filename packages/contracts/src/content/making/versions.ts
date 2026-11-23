@@ -10,7 +10,7 @@ import type { RenditionShape } from "../placements/sets";
 import type { PieceBlock, PiecePlan } from "../pieces";
 
 /** What a block is, apart from how much of it plays: its kind and the files it shows. */
-function identityOf(block: PieceBlock): string {
+function blockIdentityOf(block: PieceBlock): string {
   switch (block.is) {
     case "clip":
     case "photo":
@@ -39,7 +39,7 @@ function timingOf(block: PieceBlock): string {
 }
 
 /** The words a block draws on its picture. */
-function wordsOf(block: PieceBlock): string {
+function blockWordsSaidOf(block: PieceBlock): string {
   switch (block.is) {
     case "clip":
     case "photo":
@@ -53,36 +53,36 @@ function wordsOf(block: PieceBlock): string {
   }
 }
 
-const same = (a: readonly string[], b: readonly string[]): boolean =>
+const sameStrings = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** Whether anything drawn over the pictures moved: the opening words, where they sit and stay, the end card's line, a block's words. */
 function layoutMoved(before: PiecePlan, after: PiecePlan): boolean {
   return (
-    !same(before.lines, after.lines) ||
+    !sameStrings(before.lines, after.lines) ||
     before.words_at !== after.words_at ||
     before.words_hold !== after.words_hold ||
     before.end_line !== after.end_line ||
     before.language !== after.language ||
     before.captions !== after.captions ||
-    !same(blockWordsOf(before), blockWordsOf(after))
+    !sameStrings(blockWordsOf(before), blockWordsOf(after))
   );
 }
 
 /** Each block's words with the block they ride on, in one order: a block moved keeps its words, which is no new layout. */
 const blockWordsOf = (plan: PiecePlan): string[] =>
-  plan.blocks.map((b) => `${identityOf(b)}\n${wordsOf(b)}`).sort((a, b) => a.localeCompare(b));
+  plan.blocks.map((b) => `${blockIdentityOf(b)}\n${blockWordsSaidOf(b)}`).sort((a, b) => a.localeCompare(b));
 
 /**
  * What moved from one version's plan to the next, in the record's order: the words under it, the order or the blocks
- * themselves, how much of each plays, and what is drawn over the pictures. Nothing for two plans that draw the same.
+ * themselves, how much of each plays, and what is drawn over the pictures. Nothing for two plans that draw the sameStrings.
  */
 export function revisionChangesOf(before: PiecePlan, after: PiecePlan): RevisionChange[] {
   const changed: RevisionChange[] = [];
   if (before.caption !== after.caption) changed.push("caption");
-  const order = !same(before.blocks.map(identityOf), after.blocks.map(identityOf));
+  const order = !sameStrings(before.blocks.map(blockIdentityOf), after.blocks.map(blockIdentityOf));
   if (order) changed.push("order");
-  else if (!same(before.blocks.map(timingOf), after.blocks.map(timingOf))) changed.push("trim");
+  else if (!sameStrings(before.blocks.map(timingOf), after.blocks.map(timingOf))) changed.push("trim");
   if (layoutMoved(before, after)) changed.push("layout");
   return changed;
 }

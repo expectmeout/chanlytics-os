@@ -206,6 +206,8 @@ export type {
   FilePeople,
   FilePosted,
   FileRecordDto,
+  PieceVersionDto,
+  PieceVersionsDto,
   FileShelf,
   FileShelfFilter,
   FilesPageDto,

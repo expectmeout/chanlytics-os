@@ -3855,11 +3855,13 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | `made_at` | timestamp with time zone | yes |  |  |
 | `revision` | integer | no | `1` | The version the piece stands at (00681, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep). |
 | `intent` | jsonb | yes |  | Why it exists (00681; the content loop PRD's 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands). |
+| `revises` | uuid | yes |  | The piece this one is drawn as a new version of (00708): its root, never a version. Null for a piece of its own. Written by piece_version_begin; the drawn file becomes the root's next version (piece_version_kept, piece_version_ready). |
 
 Foreign keys:
 
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `revises` → [`pieces`](#pieces) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |

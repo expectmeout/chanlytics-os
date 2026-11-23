@@ -33,9 +33,10 @@ import {
   type PieceTimeline,
   type TenantId,
 } from "@chanlytics/contracts";
-import { beginPiece, findFile, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
+import { beginPiece, beginPieceVersion, findFile, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
 
 import { asJson } from "@chanlytics/db/shared";
+import type { Json } from "@chanlytics/db/types";
 import { postBandOf, postUndrawable } from "@/server/files/post-check";
 import { colourOnDark } from "@/server/posts/layout";
 import { postPhoneOf } from "@/server/posts/phone";
@@ -125,7 +126,11 @@ const blocksInput = z.object({
 export const pieceBoardInput = z.union([hookInput, blocksInput]);
 
 /** The card's own key, so the same press twice is one video. */
-const pressKey = { key: z.string().min(1).max(100) };
+const pressKey = {
+  key: z.string().min(1).max(100),
+  // The made video this card changes (00708): its next version, drawn on the same piece.
+  revises: z.uuid().optional(),
+};
 
 /**
  * A press: the payload a card carries, in the shape it is kept in, and the card's key. The door stores what came (00615
@@ -268,9 +273,10 @@ export async function beginPieceFor(
   member: Member,
   input: z.infer<typeof pieceBeginInput>,
 ): Promise<{ piece_id: string; fate: "begun" | "here" }> {
-  const { key, ...kept } = input;
+  const { key, revises, ...kept } = input;
   const plan = piecePlanOf(kept);
   const checked = await checkPiecePlan(ctx, member, plan);
+  if (revises) return beginVersionFor(ctx, member, { revises, key, kept: asJson(kept), checked, plan });
   const begun = await beginPiece(ctx.supabase, {
     tenantId: member.tenantId,
     // As its card sent it: a row holds either shape (00615), and every reader reads it as blocks.
@@ -280,5 +286,33 @@ export async function beginPieceFor(
     edition: PIECE_TEMPLATE.edition,
   });
   if (begun.fate === "busy" || !begun.piece_id) throw new AppError("validation", pieceWordsIn(plan.language).busy);
+  return { piece_id: begun.piece_id, fate: begun.fate };
+}
+
+/** What stands in the way of a new version, in the video's own words where they are kept, else plainly. */
+const VERSION_WONT = {
+  drawing: "A new version of this video is being made. It asks you once it's ready.",
+  gone: "That video isn't here any more.",
+  not_made: "That video isn't made yet, so it has no next version.",
+} as const;
+
+/** The press for a new version of a made video (00708 piece_version_begin): drawn as a video is, on the same piece. */
+async function beginVersionFor(
+  ctx: RouteContext,
+  member: Member,
+  version: { revises: string; key: string; kept: Json; checked: PieceChecked; plan: PiecePlan },
+): Promise<{ piece_id: string; fate: "begun" | "here" }> {
+  const begun = await beginPieceVersion(ctx.supabase, {
+    tenantId: member.tenantId,
+    pieceId: version.revises,
+    plan: version.kept,
+    look: asJson(version.checked.look),
+    key: version.key,
+    edition: PIECE_TEMPLATE.edition,
+  });
+  if (begun.fate === "busy" || !begun.piece_id)
+    throw new AppError("validation", pieceWordsIn(version.plan.language).busy);
+  if (begun.fate === "drawing" || begun.fate === "gone" || begun.fate === "not_made")
+    throw new AppError("validation", VERSION_WONT[begun.fate]);
   return { piece_id: begun.piece_id, fate: begun.fate };
 }

@@ -289,8 +289,10 @@
   background: var(--warn);
 }
 
-/* A being-made tile: the clip it starts from, dim, and where it is at in words over it. */
-.files-frame.cnv-making > .files-pic {
+/* A being-made tile: the clip it starts from, dim, and where it is at in words over it; a made video whose next version is
+   being made is its own tile, dim the same way (body.tsx MadeTile; the version board, cell 6). */
+.files-frame.cnv-making > .files-pic,
+.cnv-piece[data-version-making] .files-frame > .files-pic {
   opacity: 0.45;
   filter: saturate(0.5);
 }
@@ -605,6 +607,18 @@
   position: absolute;
   inset: 0;
   cursor: zoom-in;
+}
+/* A new version being made over the reel (picture.tsx VersionMaking; the version board, cell 1): the reel dimmed under AI's
+   three and where it is at, its run along the foot of the picture, over the door to open it full size. */
+.cnv-viewer-making {
+  position: absolute;
+  inset: 0;
+  background: var(--viewer-still-dim);
+}
+/* Its run under its words, in the middle: the foot of a phone's screen is the foot's own. */
+.cnv-viewer-making .cnv-making-run {
+  position: static;
+  width: min(180px, 60%);
 }
 
 /* The glass top: ×, "2 of 8", and at its end a video's sound and More. */

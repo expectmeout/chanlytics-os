@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-469 handlers in 63 domains.
+470 handlers in 63 domains.
 
 ## activity
 
@@ -1539,6 +1539,14 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/results/route.ts`).
+
+### `POST /api/v1/files/[id]/version`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_instagram` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `to` | one of `"approve"`, `"again"` | yes |  |
 
 ### `GET /api/v1/files/[id]/view`
 

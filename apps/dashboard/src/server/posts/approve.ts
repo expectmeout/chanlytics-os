@@ -30,7 +30,13 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { measureMedia } from "@chanlytics/channels/files";
-import { approvePosts, keepClaim, type FileMemberRow, type PostsApproved } from "@chanlytics/db/files";
+import {
+  approvePosts,
+  keepClaim,
+  replacePiecePosts,
+  type FileMemberRow,
+  type PostsApproved,
+} from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import { log } from "@/server/shared/log";
@@ -50,6 +56,11 @@ interface ApprovalAsked {
   via: "press" | "card";
   /** Whether each place's connection takes a post now (the caller read it). */
   connections: Readonly<Partial<Record<PostPlace, InstagramPostable>>>;
+  /**
+   * The piece's posts still waiting are let go in the same step, these set in their place (00708 piece_posts_replace):
+   * "Approve version 2" and "Post this one instead". Absent for a press that adds a place.
+   */
+  replace?: true;
 }
 
 /** Where a shape of this made file is kept: a picture's shapes beside its original, a video's own file. */
@@ -167,7 +178,7 @@ export async function approvePlacements(
     spend: null,
     facts: [],
   };
-  const answer = await approvePosts(ctx.supabase, {
+  const answer = await (approval.replace ? replacePiecePosts : approvePosts)(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,
     approval: jsonCopyOf({

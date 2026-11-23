@@ -43,6 +43,11 @@ export async function approvePosts(
     p_approval: press.approval,
   });
   if (error) throw new DbFailure(error, "post approve");
+  return postsApprovedOf(data);
+}
+
+/** The approval door's answer read (post_approve, and 00708 piece_posts_replace, which answers what it answered). */
+export function postsApprovedOf(data: unknown): PostsApproved {
   const answer = recordOrEmpty(data);
   if (!isOneOf(APPROVE_FATES, answer.fate)) throw new Error("post approve: no fate answered");
   const posts = Array.isArray(answer.posts) ? answer.posts.map(recordOrEmpty) : [];

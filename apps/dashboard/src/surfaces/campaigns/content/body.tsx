@@ -54,6 +54,7 @@ import { ContentList } from "./list";
 import { madeFlatOf, madeGroupsOf, piecesUnder, type MadeGroup } from "./model/groups";
 import type { ContentLayout } from "./views";
 import { tileDayOf } from "./model/tile-day";
+import { VERSION_WORDS } from "./model/version";
 
 /** The day a piece went up, by the business's clock. */
 const dayOfTile = (at: string) => tileDayOf(at, pageClock().zone(), Date.now());
@@ -141,10 +142,29 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
 /** A made piece: Files' own tile, square as the Library's are, and where it stands as one mark on it. The open one is outlined. */
 function MadeTile({ made, open, onOpen }: { made: ContentMadeDto; open: boolean; onOpen: (fileId: string) => void }) {
   const mark = contentPieceMarkOf(made, Date.now());
+  // Its next version being made (the version board, cell 6): the same tile, dim under AI's three, never a second one.
+  const making = made.version_drawing ? VERSION_WORDS.making(made.version_drawing) : null;
   return (
-    <div className="cnv-piece" data-open={open || undefined} data-tile={made.file.id} data-testid="cnv-tile">
-      <Photo file={made.file} onOpen={() => onOpen(made.file.id)} />
-      <TileStands tone={contentMarkToneOf(mark)} words={contentMarkSaid(mark, dayOfTile)} />
+    <div
+      className="cnv-piece"
+      data-open={open || undefined}
+      data-tile={made.file.id}
+      data-version-making={making ? true : undefined}
+      data-testid="cnv-tile"
+    >
+      <Photo
+        file={made.file}
+        onOpen={() => onOpen(made.file.id)}
+        over={
+          making ? (
+            <span className="cnv-making-work" data-testid="cnv-tile-version-making">
+              <AskLooking looking />
+              <span className="cnv-making-says">{making}</span>
+            </span>
+          ) : null
+        }
+      />
+      {making ? null : <TileStands tone={contentMarkToneOf(mark)} words={contentMarkSaid(mark, dayOfTile)} />}
     </div>
   );
 }

@@ -23,6 +23,7 @@ import { drawPieceBoard } from "@/server/content/storyboard";
 import type { FileForAsk } from "@/server/files/line";
 import { postDrawProblem, postWordsProblem } from "@/server/files/post-check";
 import { readBrandKit } from "@/server/workspace/brand-kit";
+import { findPieceOfVideo } from "@chanlytics/db/files";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
@@ -187,6 +188,10 @@ const pieceInput = z.object({
     .optional()
     .describe("Only when asked for another language than the question's: its own words (Before, After) follow it."),
   captions: z.boolean().optional().describe("false only when the owner asked for no spoken words on the video."),
+  revises: z
+    .string()
+    .optional()
+    .describe("The made video's name when the owner asked to change it: its next version, not a new video."),
   looked: z.string().optional().describe("The storyboard's look_key, once you have looked at it and it is right."),
 });
 
@@ -537,14 +542,31 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
       );
     return boardShownFirst(toolContext, checked, { key, note: lookNoteOf(plan) });
   }
+  const revises = input.revises ? await revisedPieceOf(toolContext, input.revises) : null;
+  if (revises && "refusal" in revises) return refuse(revises.refusal);
   const says = pieceWordsIn(plan.language);
   return propose({
     kind: "piece",
     // Both opening lines: a phrase a line could not hold is broken across two, and its row on Content joins them too.
     title: says.cardTitle(pieceOpeningOf(plan).join(" ")),
     summary: says.summary(pieceCountOf(plan), pieceSecondsOf(checked.timeline)),
-    payload: plan,
+    // A change to a made video is its next version (00708): the press draws it on the same piece.
+    payload: revises ? { ...plan, revises: revises.pieceId } : plan,
   });
+}
+
+/** The piece a made video the owner asked to change is, by its name; or why it is no video to make a version of. */
+async function revisedPieceOf(
+  toolContext: ToolContext,
+  name: string,
+): Promise<{ pieceId: string } | { refusal: string }> {
+  const { files } = await load(toolContext.rc, filesNamedForAsk, { names: [name] }).then((r) => r.data);
+  const file = filesNamed(files, [name]).found.at(0);
+  if (!file || file.kind !== "video") return { refusal: `revises: no made video is named ${name}` };
+  const piece = await findPieceOfVideo(toolContext.ctx.supabase, toolContext.tenantId, file.id);
+  return piece
+    ? { pieceId: piece.id }
+    : { refusal: `revises: ${name} is not a video AI made, so it has no next version` };
 }
 
 export const pieceAct = defineAct({

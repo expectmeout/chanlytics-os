@@ -131,7 +131,7 @@ export function pieceCardSizeOf(lines: readonly string[], face: PieceFace): numb
 }
 
 /** A quote's words wrapped to a width at one size: a word goes on the next line where it no longer fits this one. */
-export function pieceWrappedAt(words: readonly string[], size: number, width: number, face: PieceFace): string[] {
+function wrappedAt(words: readonly string[], size: number, width: number, face: PieceFace): string[] {
   const lines: string[] = [];
   let line = "";
   for (const word of words) {
@@ -154,7 +154,7 @@ function evened(words: readonly string[], size: number, lines: string[], face: P
   let kept = lines;
   while (wide - narrow > 1) {
     const width = (narrow + wide) / 2;
-    const tried = pieceWrappedAt(words, size, width, face);
+    const tried = wrappedAt(words, size, width, face);
     if (tried.length <= lines.length) {
       kept = tried;
       wide = width;
@@ -171,7 +171,7 @@ export function pieceQuoteLinesOf(text: string, face: PieceFace): { lines: strin
   const words = text.trim().split(/\s+/u).filter(Boolean);
   if (words.length === 0) return null;
   for (const size of PIECE_CARD.quoteSizes) {
-    const lines = pieceWrappedAt(words, size, PIECE_FRAME.wordsWidth, face);
+    const lines = wrappedAt(words, size, PIECE_FRAME.wordsWidth, face);
     const fits = lines.every((l) => pieceLineWidthOf(l, size, face) <= PIECE_FRAME.wordsWidth);
     if (fits && lines.length <= PIECE_CARD.quoteLinesMax) return { lines: evened(words, size, lines, face), size };
   }

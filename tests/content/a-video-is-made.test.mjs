@@ -230,6 +230,8 @@ function world({
         Object.assign(row(), { file_id: a.p_id, stage: "saving" });
         return { fate: "kept", file_id: a.p_id };
       },
+      // No version here: a video of its own (00708's door answers null for a file that is no version).
+      piece_version_ready: () => null,
       piece_sent: () => {
         if (row().status !== "making") return false;
         row().machine = null;

@@ -578,6 +578,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A Page's post (pass 5), as Instagram's.
   "POST files/[id]/facebook": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/facebook": postMoved,
+  // A version approved in place of what waited, or drawn again (00708): its posts move, and Made's tile with them.
+  "POST files/[id]/version": () => [...filesAndContentIfDrawn(), ...postMoved()],
   "PATCH files/[id]/posts": postMoved,
   // A piece asked down (00682): what waited is let go at once, and its posts move as each place answers.
   "DELETE files/[id]/posts": postMoved,

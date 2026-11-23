@@ -61,6 +61,11 @@ export interface ContentTodayDto {
    * where nothing of the week waits on the owner.
    */
   plan?: { ready: { size: string; days: string } | null; film: string[] } | null;
+  /**
+   * A post set to go that waits for a new version's approval (00708; the version board, cell 5): the soonest, with its
+   * piece's file (the version that asks) and that version's number. Absent from an older build's answer; null where none.
+   */
+  version?: { file: FileDto; n: number; at: string } | null;
 }
 
 /** How many of the week's pieces Today's card shows. */
@@ -82,4 +87,6 @@ export const CONTENT_TODAY_WORDS = {
     down.is === "by_hand"
       ? `Delete it in ${POST_PLACE_SAID[down.place]} · Chanlytics couldn't`
       : takeDownUnconfirmedSaid(down.place),
+  /** "Approve version 2 · goes up Tue, 6:00 PM": a post set to go waits for a new version's approval. */
+  versionWaits: (n: number, at: string) => `Approve version ${n} · goes up ${at}`,
 } as const;

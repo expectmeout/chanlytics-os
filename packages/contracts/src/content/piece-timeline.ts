@@ -277,7 +277,7 @@ function endLinesOf(line: string | null): { line: string | null; under: string |
 }
 
 /** A colour's relative luminance (WCAG 2): how light it is, 0 to 1. */
-function luminanceOf(hex: string): number {
+function relativeLuminanceOf(hex: string): number {
   const channel = (i: number): number => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -289,9 +289,9 @@ function luminanceOf(hex: string): number {
 const WHITE_ON_GROUND = 4.5;
 
 /** The cards' ground: the kit's second colour where white words read on it, else the ink every card had. */
-function groundOf(second: string | null): string {
+function cardGroundOf(second: string | null): string {
   if (!second || !/^#[0-9a-f]{6}$/i.test(second)) return PIECE_FRAME.ink;
-  return 1.05 / (luminanceOf(second) + 0.05) >= WHITE_ON_GROUND ? second.toLowerCase() : PIECE_FRAME.ink;
+  return 1.05 / (relativeLuminanceOf(second) + 0.05) >= WHITE_ON_GROUND ? second.toLowerCase() : PIECE_FRAME.ink;
 }
 
 const framesHeld = (hold: PieceWordsHold, firstBlock: number): number | null =>
@@ -370,7 +370,7 @@ export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], l
       },
       accent: look.accent ?? PIECE_FRAME.paper,
       face: look.face,
-      ground: groundOf(look.second),
+      ground: cardGroundOf(look.second),
     },
   };
 }

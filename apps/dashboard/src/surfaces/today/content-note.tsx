@@ -22,7 +22,10 @@ import {
   CONTENT_TODAY_WORDS as W,
   CONTENT_WEEK_ROUTE,
   WEEK_WORDS,
+  CONTENT_WORDS,
   MIN_MS,
+  clockNear,
+  clockTime,
   contentRouteOf,
   fileSaidOf,
   fileViewOf,
@@ -31,6 +34,7 @@ import {
   type ContentLineDto,
   type ContentTodayDto,
 } from "@chanlytics/contracts";
+import { pageClock } from "@/bridge/zone";
 import { routeDoor } from "../frame-verbs";
 import { TODAY_LINE_WORDS, contentWords } from "./model/lines";
 import { Icon } from "../kit/icon/icon";
@@ -67,6 +71,27 @@ function DownLine({ down }: { down: ContentDownDto }) {
       said={<span data-tone={down.is === "by_hand" ? "warn" : undefined}>{W.down(down)}</span>}
       door={routeDoor(contentRouteOf({ list: "made", view: "all", open: down.file.id, post: true }))}
       testid={`today-content-down-${down.is}`}
+    />
+  );
+}
+
+/**
+ * A post set to go that waits for a new version's approval (the version board, cell 5): the piece by its name and its new
+ * version's picture, "Approve version 2 · goes up Tue, 6:00 PM" in amber; it opens the piece, where that press leads.
+ */
+function VersionLine({ version }: { version: NonNullable<ContentTodayDto["version"]> }) {
+  const zone = pageClock().zone();
+  const atMs = Date.parse(version.at);
+  const at = CONTENT_WORDS.viewer.at(clockNear(atMs, zone, Date.now()), clockTime(atMs, zone));
+  return (
+    <CalmRow
+      first={{
+        face: { glyph: <Icon name="video" size={14} />, photo: `${fileViewOf(version.file.id)}?w=320`, tile: true },
+      }}
+      name={fileSaidOf(version.file.name)}
+      said={<span data-tone="warn">{W.versionWaits(version.n, at)}</span>}
+      door={routeDoor(contentRouteOf({ list: "made", view: "all", open: version.file.id }))}
+      testid="today-content-version"
     />
   );
 }
@@ -163,12 +188,16 @@ export function TodayContentLine() {
   if (!today) return null;
   const downs = today.down ?? [];
   const plan = today.plan ?? null;
-  if (today.week.length === 0 && today.making.length === 0 && !today.stopped && downs.length === 0 && !plan)
+  const version = today.version ?? null;
+  // A post held as changed while a new version waits is said once, as that version (its file is the older version's).
+  const stopped = version && today.stopped?.post.held_why === "changed" ? null : today.stopped;
+  if (today.week.length === 0 && today.making.length === 0 && !stopped && downs.length === 0 && !plan && !version)
     return null;
   return (
     <CalmList label={W.title} testid="today-content">
       {plan ? <PlanLines plan={plan} /> : null}
-      {today.stopped ? <StoppedLine line={today.stopped} /> : null}
+      {version ? <VersionLine version={version} /> : null}
+      {stopped ? <StoppedLine line={stopped} /> : null}
       {downs.map((down) => (
         <DownLine key={`${down.file.id}:${down.is}`} down={down} />
       ))}

@@ -97,7 +97,7 @@ export interface RenditionRefusal {
 }
 
 const PLACE_SAID: Record<PostPlace, string> = { instagram: "Instagram", google: "Google", facebook: "Facebook" };
-const KIND_SAID: Record<PostKind, string> = { picture: "post", story: "story", reel: "reel" };
+const RULE_KIND_SAID: Record<PostKind, string> = { picture: "post", story: "story", reel: "reel" };
 
 /** "2 seconds", "1 minute 30 seconds", "15 minutes". */
 function lengthSaid(seconds: number): string {
@@ -116,25 +116,25 @@ const outside = (value: number | null, range: readonly [number, number] | undefi
   value !== null && range !== undefined && (value < range[0] || value > range[1]);
 
 /** The video's own checks: its codec, its length, its frame rate, its sound. */
-function videoRefusalOf(m: MediaMeasured, rule: RenditionRule, said: string): RenditionRefusal | null {
-  if (rule.codecs && m.codec !== null && !rule.codecs.some((c) => c === m.codec))
-    return { why: "codec", words: `${said} takes video made as H.264 or HEVC.` };
-  if (outside(m.seconds, rule.seconds) && rule.seconds && m.seconds !== null)
+function videoRefusalOf(measured: MediaMeasured, rule: RenditionRule, placeKind: string): RenditionRefusal | null {
+  if (rule.codecs && measured.codec !== null && !rule.codecs.some((c) => c === measured.codec))
+    return { why: "codec", words: `${placeKind} takes video made as H.264 or HEVC.` };
+  if (outside(measured.seconds, rule.seconds) && rule.seconds && measured.seconds !== null)
     return {
       why: "length",
-      words: `${said} takes ${lengthSaid(rule.seconds[0])} to ${lengthSaid(rule.seconds[1])}. This one is ${lengthSaid(m.seconds)}.`,
+      words: `${placeKind} takes ${lengthSaid(rule.seconds[0])} to ${lengthSaid(rule.seconds[1])}. This one is ${lengthSaid(measured.seconds)}.`,
     };
-  if (outside(m.fps, rule.fps) && rule.fps)
-    return { why: "frame_rate", words: `${said} takes ${rule.fps[0]} to ${rule.fps[1]} frames a second.` };
-  const s = m.sound;
-  if (s && rule.sound) {
+  if (outside(measured.fps, rule.fps) && rule.fps)
+    return { why: "frame_rate", words: `${placeKind} takes ${rule.fps[0]} to ${rule.fps[1]} frames a second.` };
+  const sound = measured.sound;
+  if (sound && rule.sound) {
     const fits =
-      rule.sound.codecs.some((c) => c === s.codec) &&
-      (s.rate === null || s.rate <= rule.sound.rateMost) &&
-      (s.channels === null || s.channels <= rule.sound.channelsMost);
-    if (!fits) return { why: "sound", words: `${said} can't take this video's sound.` };
+      rule.sound.codecs.some((c) => c === sound.codec) &&
+      (sound.rate === null || sound.rate <= rule.sound.rateMost) &&
+      (sound.channels === null || sound.channels <= rule.sound.channelsMost);
+    if (!fits) return { why: "sound", words: `${placeKind} can't take this video's sound.` };
   }
-  if (s && m.lufs !== null && (m.lufs < HOUSE_LOUDNESS.least || m.lufs > HOUSE_LOUDNESS.most))
+  if (sound && measured.lufs !== null && (measured.lufs < HOUSE_LOUDNESS.least || measured.lufs > HOUSE_LOUDNESS.most))
     return { why: "loudness", words: "This video's sound is too quiet or too loud. Make it again." };
   return null;
 }
@@ -143,30 +143,38 @@ function videoRefusalOf(m: MediaMeasured, rule: RenditionRule, said: string): Re
  * Whether a placement's rendition fits its place: null where it does, else the first thing that does not, in the owner's
  * words. The bytes' own size and shape first, then what a video holds.
  */
-export function renditionRefusalOf(place: PostPlace, kind: PostKind, m: MediaMeasured): RenditionRefusal | null {
-  const said = `${PLACE_SAID[place]}'s ${KIND_SAID[kind]}`;
-  const rule = RENDITION_RULES[place][kind]?.[m.media];
-  if (!rule) return { why: "medium", words: `${PLACE_SAID[place]} can't take a ${m.media} as a ${KIND_SAID[kind]}.` };
-  if (!rule.formats.includes(m.format))
-    return { why: "format", words: `${said} takes ${rule.formats.map((f) => f.toUpperCase()).join(" or ")}.` };
-  if (rule.bytesMost !== undefined && m.bytes > rule.bytesMost)
-    return { why: "size", words: `${said} takes up to ${sizeSaid(rule.bytesMost)}. This one is ${sizeSaid(m.bytes)}.` };
-  if (rule.bytesLeast !== undefined && m.bytes < rule.bytesLeast)
+export function renditionRefusalOf(place: PostPlace, kind: PostKind, measured: MediaMeasured): RenditionRefusal | null {
+  const placeKind = `${PLACE_SAID[place]}'s ${RULE_KIND_SAID[kind]}`;
+  const rule = RENDITION_RULES[place][kind]?.[measured.media];
+  if (!rule)
+    return {
+      why: "medium",
+      words: `${PLACE_SAID[place]} can't take a ${measured.media} as a ${RULE_KIND_SAID[kind]}.`,
+    };
+  if (!rule.formats.includes(measured.format))
+    return { why: "format", words: `${placeKind} takes ${rule.formats.map((f) => f.toUpperCase()).join(" or ")}.` };
+  if (rule.bytesMost !== undefined && measured.bytes > rule.bytesMost)
     return {
       why: "size",
-      words: `${said} takes ${sizeSaid(rule.bytesLeast)} or more. This one is ${sizeSaid(m.bytes)}.`,
+      words: `${placeKind} takes up to ${sizeSaid(rule.bytesMost)}. This one is ${sizeSaid(measured.bytes)}.`,
     };
-  const short = m.width !== null && m.height !== null ? Math.min(m.width, m.height) : null;
-  if (rule.sideLeast !== undefined && short !== null && short < rule.sideLeast)
-    return { why: "small", words: `${said} takes a picture at least ${rule.sideLeast} pixels on each side.` };
-  const ratio = m.width !== null && m.height ? m.width / m.height : null;
+  if (rule.bytesLeast !== undefined && measured.bytes < rule.bytesLeast)
+    return {
+      why: "size",
+      words: `${placeKind} takes ${sizeSaid(rule.bytesLeast)} or more. This one is ${sizeSaid(measured.bytes)}.`,
+    };
+  const shortSide =
+    measured.width !== null && measured.height !== null ? Math.min(measured.width, measured.height) : null;
+  if (rule.sideLeast !== undefined && shortSide !== null && shortSide < rule.sideLeast)
+    return { why: "small", words: `${placeKind} takes a picture at least ${rule.sideLeast} pixels on each side.` };
+  const ratio = measured.width !== null && measured.height ? measured.width / measured.height : null;
   if (outside(ratio, rule.ratio))
     return {
       why: "shape",
       words:
-        m.media === "video"
-          ? `${said} takes a standing video (9:16).`
-          : `${said} takes a picture from portrait (4:5) to wide (1.91:1).`,
+        measured.media === "video"
+          ? `${placeKind} takes a standing video (9:16).`
+          : `${placeKind} takes a picture from portrait (4:5) to wide (1.91:1).`,
     };
-  return m.media === "video" ? videoRefusalOf(m, rule, said) : null;
+  return measured.media === "video" ? videoRefusalOf(measured, rule, placeKind) : null;
 }

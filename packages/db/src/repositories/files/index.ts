@@ -100,6 +100,19 @@ export {
 } from "./pieces";
 export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow, PieceStandingRow } from "./pieces";
 export {
+  beginPieceVersion,
+  findPieceOfVideo,
+  findVersionDrawing,
+  keepPieceVersion,
+  listPiecePosts,
+  findPostWaitingOnVersion,
+  listPieceVersions,
+  readVersionsOfFiles,
+  readyPieceVersion,
+  replacePiecePosts,
+} from "./versions";
+export type { PieceVersionBegun, PieceVersionReady, PieceVersionRow, VideoPieceRow } from "./versions";
+export {
   approveWeek,
   askForPlan,
   findPlanForJob,

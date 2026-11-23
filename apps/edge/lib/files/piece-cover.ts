@@ -4,10 +4,10 @@
  * moment kept with its score (`file_moments`, pass 3), where it falls inside the stretch a block shows, clear of the cut
  * at either end. Where no moment does, the first picture's own middle stands in.
  *
- * Pure: the job works it out from the timeline it compiled, and the machine draws that frame as a still beside the video.
+ * Pure, and the job's alone (piece-make.ts works it out from the timeline it compiled, and the machine draws that frame
+ * as a still beside the video).
  */
-import { recordOrNull } from "../../shared/unknown";
-import { PIECE_FRAME } from "../piece-frame";
+import { PIECE_FRAME, recordOrNull } from "@chanlytics/contracts";
 
 /** A moment of a clip, in its own seconds, with how good it is (0 to 1) where that was kept; null where only its order was. */
 export interface ClipMoment {

@@ -32,7 +32,7 @@ const CAPTION_LEAST_S = 0.6;
 /** A pause this long between two words ends a caption: what follows is the next thought. */
 const PAUSE_S = 0.6;
 /** A word that ends a sentence ends its caption. */
-const SENTENCE_END = /[.!?…]["”’)]*$/u;
+const CAPTION_SENTENCE_END = /[.!?…]["”’)]*$/u;
 
 /** A word with the seconds it is said in, shared out of its cue by length. */
 interface TimedWord {
@@ -75,7 +75,7 @@ function fitsOn(lines: readonly string[], word: string, face: PieceFace): boolea
 }
 
 /** The words grouped into captions: a line or two each, ended by a full line, a sentence's end, a pause, or its most time. */
-function groupsOf(words: readonly TimedWord[], face: PieceFace): TimedWord[][] {
+function captionGroupsOf(words: readonly TimedWord[], face: PieceFace): TimedWord[][] {
   const groups: TimedWord[][] = [];
   let group: TimedWord[] = [];
   let lines: string[] = [];
@@ -85,7 +85,7 @@ function groupsOf(words: readonly TimedWord[], face: PieceFace): TimedWord[][] {
     const ends =
       first !== undefined &&
       last !== undefined &&
-      (SENTENCE_END.test(last.text) ||
+      (CAPTION_SENTENCE_END.test(last.text) ||
         word.start - last.end > PAUSE_S ||
         word.end - first.start > CAPTION_MOST_S ||
         !fitsOn(lines, word.text, face));
@@ -94,7 +94,7 @@ function groupsOf(words: readonly TimedWord[], face: PieceFace): TimedWord[][] {
       group = [];
     }
     group.push(word);
-    lines = linesOf(
+    lines = captionLinesOf(
       group.map((w) => w.text),
       face,
     );
@@ -122,7 +122,7 @@ function filledLinesOf(words: readonly string[], face: PieceFace): string[] {
  * Words laid into lines: where they take two, broken where the two come out nearest one width, so a caption never ends
  * on one word under a full line ("…crack the / fitting." reads as "Any tighter and / you crack the fitting.").
  */
-function linesOf(words: readonly string[], face: PieceFace): string[] {
+function captionLinesOf(words: readonly string[], face: PieceFace): string[] {
   const filled = filledLinesOf(words, face);
   if (filled.length !== 2) return filled;
   let best = filled;
@@ -139,7 +139,7 @@ function linesOf(words: readonly string[], face: PieceFace): string[] {
 }
 
 /** Where a caption's foot stands: above what a phone app draws at the foot, and above a block's own caption where it has one. */
-export function pieceCaptionBottomOf(labelled: boolean): number {
+function captionBottomOf(labelled: boolean): number {
   const label = labelled
     ? Math.round(PIECE_FRAME.labelSize * PIECE_FRAME.wordsLeading + 2 * PIECE_FRAME.labelPad) + PIECE_FRAME.captionGap
     : 0;
@@ -156,19 +156,19 @@ export function stretchCaptionsOf(
   face: PieceFace,
 ): PieceCaption[] {
   const to = stretch.from + stretch.seconds;
-  const groups = groupsOf(wordsInside(cues, stretch.from, to, face), face);
+  const groups = captionGroupsOf(wordsInside(cues, stretch.from, to, face), face);
   const frameAt = (s: number): number =>
     stretch.firstFrame + Math.round((Math.min(Math.max(s, stretch.from), to) - stretch.from) * PIECE_FRAME.fps);
-  const bottom = pieceCaptionBottomOf(stretch.labelled);
-  return groups.map((group, i) => {
+  const bottom = captionBottomOf(stretch.labelled);
+  return groups.map((group, index) => {
     const start = group[0]?.start ?? stretch.from;
-    const said = group.at(-1)?.end ?? start;
+    const spokenTo = group.at(-1)?.end ?? start;
     // It stays its least, never past the next caption or the stretch's end.
-    const next = groups[i + 1]?.[0]?.start ?? to;
-    const end = Math.min(Math.max(said, start + CAPTION_LEAST_S), next, to);
+    const next = groups[index + 1]?.[0]?.start ?? to;
+    const end = Math.min(Math.max(spokenTo, start + CAPTION_LEAST_S), next, to);
     const from = frameAt(start);
     return {
-      lines: linesOf(
+      lines: captionLinesOf(
         group.map((w) => w.text),
         face,
       ),

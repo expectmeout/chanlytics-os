@@ -1,7 +1,7 @@
 {
-  "rows": 194,
+  "rows": 195,
   "same": 10,
-  "differ": 184,
+  "differ": 185,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1010,8 +1010,8 @@
       "changes": "owner_claims INSERT"
     },
     "POST content/line": {
-      "changes": "appointments UPDATE · content_goals INSERT UPDATE · tenant_config UPDATE",
-      "tells": "tenant_config",
+      "changes": "appointments UPDATE · content_goals INSERT UPDATE · tenant_config UPDATE · tenants UPDATE",
+      "tells": "tenant_config · tenants",
       "missing": {
         "ask_morning": "today",
         "audiences": "broadcasts",
@@ -1022,17 +1022,22 @@
         "conversations": "conversations, inbox",
         "files": "admin/files",
         "inbox": "inbox",
+        "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "every page",
         "person": "clients/person",
-        "playbooks": "campaigns/sequences/new, outbound",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
         "today": "every page",
-        "today_pins": "today"
+        "today_pins": "today",
+        "workspace": "every page"
       }
     },
     "POST content/plan": {
@@ -1420,6 +1425,16 @@
       "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
+        "notifications": "every page",
+        "today": "today"
+      }
+    },
+    "POST files/[id]/version": {
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · owner_claims INSERT · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "tenant_channels",
+      "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
         "today": "today"

@@ -14,9 +14,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { brandKitOf, lookSaidOf, neverSaidIn, siteKitOf } = await import(
   at("packages/contracts/src/content/making/kit.ts")
 );
-const { stretchCaptionsOf, pieceCaptionBottomOf } = await import(
-  at("packages/contracts/src/content/making/captions.ts")
-);
+const { stretchCaptionsOf } = await import(at("packages/contracts/src/content/making/captions.ts"));
 const { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } = await import(
   at("packages/contracts/src/content/making/safe-areas.ts")
 );
@@ -264,13 +262,14 @@ test("words the face can't draw are left out, never drawn in no face", () => {
 });
 
 test("a caption stands above what a phone draws at the foot, and above a block's own caption where it has one", () => {
-  assert.equal(pieceCaptionBottomOf(false), PIECE_FRAME.clearBottom + PIECE_FRAME.captionLift);
-  assert.ok(pieceCaptionBottomOf(true) > pieceCaptionBottomOf(false) + PIECE_FRAME.labelSize);
+  const unlabelled = PIECE_FRAME.clearBottom + PIECE_FRAME.captionLift;
   const t = timelineOf();
+  const first = t.captions.filter((c) => c.from < t.blocks[0].frames);
   const second = t.captions.filter((c) => c.from >= t.blocks[0].frames);
-  assert.ok(second.length > 0);
+  assert.ok(first.length > 0 && second.length > 0);
+  assert.ok(first.every((c) => c.bottom === unlabelled));
   assert.ok(
-    second.every((c) => c.bottom === pieceCaptionBottomOf(true)),
+    second.every((c) => c.bottom > unlabelled + PIECE_FRAME.labelSize),
     "the labelled block's captions sit above its label",
   );
 });

@@ -30,7 +30,7 @@ const ProposedKitSchema = BrandKitConfigSchema.extend({
 });
 
 /** What AI proposed for the look, each part where it said one. */
-export type ProposedKit = z.infer<typeof ProposedKitSchema>;
+type ProposedKit = z.infer<typeof ProposedKitSchema>;
 
 /** The house's own, where neither the owner nor the website said a part: the face every video was set in before the kit. */
 const HOUSE_FACE: KitFace = "sans";
@@ -77,11 +77,11 @@ export function siteKitOf(
   answer: unknown,
   brand: { second?: string | null; font?: string | null } | null,
 ): ProposedKit | null {
-  const said = recordOrNull(recordOrNull(answer)?.look);
+  const answered = recordOrNull(recordOrNull(answer)?.look);
   const kit = ProposedKitSchema.parse({
-    words: nonBlankOrNull(said?.words) ?? undefined,
-    call: nonBlankOrNull(said?.call) ?? undefined,
-    music: nonBlankOrNull(said?.music) ?? undefined,
+    words: nonBlankOrNull(answered?.words) ?? undefined,
+    call: nonBlankOrNull(answered?.call) ?? undefined,
+    music: nonBlankOrNull(answered?.music) ?? undefined,
     second: kitColourOf(brand?.second) ?? undefined,
     face: brand?.font ? (SERIF_FAMILY.test(brand.font) && !/sans/i.test(brand.font) ? "serif" : "sans") : undefined,
   });
@@ -103,8 +103,8 @@ export function lookSaidOf(kit: BrandKit, has: { logo: boolean; accent: boolean 
     has.accent ? "your colour" : null,
     FACE_SAID[kit.face],
   ].filter((p): p is string => p !== null);
-  const said = parts.join(", ");
-  return `${said[0]?.toUpperCase() ?? ""}${said.slice(1)}.`;
+  const sentence = parts.join(", ");
+  return `${sentence[0]?.toUpperCase() ?? ""}${sentence.slice(1)}.`;
 }
 
 /**

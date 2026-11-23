@@ -11,7 +11,7 @@ import { findWorkspaceLook } from "@chanlytics/db/look";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /** The kit, and the colour and mark beside it (the mark where it is kept, null for none). */
-export interface BrandKitRead {
+interface BrandKitRead {
   kit: BrandKit;
   accent: string | null;
   logo_path: string | null;
