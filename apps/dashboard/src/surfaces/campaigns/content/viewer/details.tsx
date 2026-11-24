@@ -7,17 +7,8 @@
  * said once. Every line is the records': a video's words come
  * with Ask's caption (Part D), and none is made up meanwhile.
  */
-import {
-  AD_STATE_WORDS,
-  AD_WARN_STATES,
-  CONTENT_WORDS as W,
-  adRoute,
-  fileViewOf,
-  type PieceAdUseDto,
-} from "@chanlytics/contracts";
-import { navigate } from "../../../frame-verbs";
+import { CONTENT_WORDS as W, fileViewOf } from "@chanlytics/contracts";
 import { Icon } from "../../../kit/icon/icon";
-import { LinkButton } from "../../../kit/link-button/link-button";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { FileChoices } from "../../../files/file-fields";
 import type { FileChange } from "../../../files/verbs";
@@ -85,35 +76,6 @@ function MadeLine({ shown }: { shown: ViewerDetailsShown }) {
   );
 }
 
-/** An ad's tone where a piece names it, as its Ads row is drawn: amber where it needs the owner, green while it is on. */
-const adToneOf = (state: PieceAdUseDto["state"]): "warn" | "ok" | undefined =>
-  AD_WARN_STATES.includes(state) ? "warn" : state === "on" ? "ok" : undefined;
-
-/**
- * The ads it is shown in (Campaigns in three tabs), every one, running or not, each opening the ad itself, and the one rule an
- * owner may wonder about: a change to the piece never changes an ad that runs.
- */
-function UsedIn({ ads }: { ads: readonly PieceAdUseDto[] }) {
-  const facts = W.viewer.facts;
-  return (
-    <div className="cnv-fact" data-testid="cnv-used-in">
-      <span>{facts.usedIn(ads.length)}</span>
-      <ul className="cnv-used-in">
-        {ads.map((ad) => (
-          <li key={ad.id}>
-            <LinkButton onClick={() => navigate(adRoute(ad.id))} data-testid="cnv-used-in-ad">
-              {ad.name}
-            </LinkButton>
-            {/* Where it stands, in the words its row on Ads says it (contracts AD_STATE_WORDS). */}
-            <span data-tone={adToneOf(ad.state)}>{AD_STATE_WORDS[ad.state]}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="cnv-used-note">{facts.usedNote}</p>
-    </div>
-  );
-}
-
 /**
  * The words, what it was made from, a photo's shelf, and its rows. A made piece's caption is the owner's to change where it
  * stands (caption.tsx); a reader's is words to read. Where it stands at each place, and the doors to a post that is up, are
@@ -152,7 +114,6 @@ export function ViewerFacts(props: ViewerFactsProps) {
           </div>
         ))}
       </dl>
-      {shown.usedIn.length > 0 ? <UsedIn ads={shown.usedIn} /> : null}
     </div>
   );
 }

@@ -116,7 +116,6 @@ export type {
   AdsLiveDto,
   AdStopped,
   AdWayClosed,
-  PieceAdUseDto,
 } from "./live";
 export { minorPerUnit } from "./money";
 export { pieceAdBroughtOf, pieceAdLineOf } from "./on-piece";

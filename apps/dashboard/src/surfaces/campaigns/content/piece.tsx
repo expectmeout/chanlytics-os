@@ -161,7 +161,7 @@ export function ContentPiece({
   const shown = {
     made: { file, posts, by_hand: byHand },
     byHand: byHandPressOf(byHand, presses.change, flash),
-    record: { made: record.made, video: record.video, usedIn: record.usedIn },
+    record: { made: record.made, video: record.video },
     takes,
     may: canDo("settings"),
     beside,
