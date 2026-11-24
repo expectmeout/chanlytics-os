@@ -315,13 +315,6 @@ export interface AdMadeFromLive {
   name: string | null;
 }
 
-/** One ad a made piece of Content is shown in, for the piece's "Used in N ads" (Campaigns in three tabs). */
-export interface PieceAdUseDto {
-  id: string;
-  name: string;
-  state: AdState | "draft";
-}
-
 /** The file an ad made here shows, from what its owner approved (00666 `ads.approved`, its `picture`); null where none. */
 export const adPictureFileOf = (approved: unknown): string | null => {
   const picture = recordOrEmpty(approved).picture;

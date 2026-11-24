@@ -263,36 +263,6 @@
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
-/* A made piece's ads, in its Details (three tabs, 23 Nov 2026): each ad a line, its name the way to it, where it stands after. */
-.cnv-used-in {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cnv-used-in > li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.cnv-used-in > li > span {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-.cnv-used-in > li > span[data-tone="ok"] {
-  color: var(--ok-ink);
-}
-.cnv-used-in > li > span[data-tone="warn"] {
-  color: var(--warn-ink);
-}
-.cnv-used-note {
-  margin: 6px 0 0;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
 /* Ads, the paid view, set apart at the row's end by a hairline (three tabs, 23 Nov 2026). */
 .cnv-view-row-paid {
   align-self: stretch;

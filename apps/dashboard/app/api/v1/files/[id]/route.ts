@@ -2,16 +2,15 @@ import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS, HAND_LINK_MAX, POST_CAPTION_MAX } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
 import { readerContext } from "@/server/shared/reader";
-import { readPieceAd, readPieceAds } from "@/server/content/ad-pictures";
+import { readPieceAd } from "@/server/content/ad-pictures";
 import { fileScope, removeFile } from "@/server/files/file";
 import { changePiece } from "@/server/posts/caption";
 import { readFileRecord, readPieceStanding } from "@/server/posts/record";
 
 /**
  * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
- * For a made piece, where Ads is on, it says too whether the piece may run as an ad (`ad`: Content's Run as an ad), and the
- * ads it is already shown in (`used_in`: "Used in N ads", Campaigns in three tabs); and for every made piece its newest
- * take-down (`take_down`).
+ * For a made piece, where Ads is on, it says too whether the piece may run as an ad (`ad`: Content's Run as an ad); and for
+ * every made piece its newest take-down (`take_down`). The ads made from a piece are its results' (GET files/:id/results).
  *
  * PATCH /api/v1/files/:id — `{ name?, shows?, status?, caption?, posted? }`: what a person says of a file. What they
  * name and shelve stays when the look runs again. A caption is a made piece's, written where it stands, and kept with
@@ -27,17 +26,12 @@ export const GET = read({
   scope: fileScope,
   handle: async ({ ctx, member, row }) => {
     const rc = readerContext(ctx, member);
-    const [record, ad, usedIn] = await Promise.all([
-      readFileRecord(ctx, member, row),
-      readPieceAd(rc, row),
-      readPieceAds(rc, row),
-    ]);
+    const [record, ad] = await Promise.all([readFileRecord(ctx, member, row), readPieceAd(rc, row)]);
     // A made piece's newest take-down (00682): read once its posts are known.
     const standing = await readPieceStanding(ctx, member, row, record.posts ?? []);
     return {
       ...record,
       ...(ad === null ? {} : { ad }),
-      ...(usedIn.length === 0 ? {} : { used_in: usedIn }),
       ...(standing ?? {}),
     };
   },

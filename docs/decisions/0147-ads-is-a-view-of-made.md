@@ -29,7 +29,9 @@ goes). Where Ads was not drawn, an Ads address (a notice, an email, Meta's retur
 4. **One amber signal.** Content's tab counts what needs the owner in Made and in Ads, as each last read it: Made's pieces
    that need them, each ad whose `needs` is set, and an account Meta took back as one (`ads/needs-you.ts`). The Ads choice
    among the views carries the amber dot while one does.
-5. **A piece and its ads name each other.** A piece's details say "Used in N ads", each a link to the ad with its standing
+5. **A piece and its ads name each other.** (Amended 24 Nov 2026, Ruben: a piece names its ads once, in the content loop's
+   pass 6 line under Where it goes, with its results; the details' "Used in N ads" and the file's `used_in` are gone.)
+   A piece's details said "Used in N ads", each a link to the ad with its standing
    in the words its row on Ads says (contracts `AD_STATE_WORDS`, the one table of them); the GET of a file says `used_in`
    only where there are some, asked of the database by the file (`listAdsShowingFile`). An ad made here says "Made from"
    its piece, a link, or "a piece removed from Made". Both follow `ads.approved->>'picture'`, the link a removed
