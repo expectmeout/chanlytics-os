@@ -4,7 +4,14 @@
  * shape; the root moved to it when the new file plays; and a press that sets one version's posts in place of the posts
  * still waiting. Each a door; the reads are what the piece's sheet says of its versions.
  */
-import { DbFailure, recordOrEmpty, type RevisionChange, type TenantId } from "@chanlytics/contracts";
+import {
+  DbFailure,
+  pieceIntentOf,
+  recordOrEmpty,
+  type PieceIntent,
+  type RevisionChange,
+  type TenantId,
+} from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { postsApprovedOf, type PostsApproved } from "./approvals";
@@ -132,14 +139,25 @@ export async function listPieceVersions(db: Db, tenantId: TenantId, pieceId: str
   });
 }
 
-/** A made video's piece (its root, never a version's drawing row): its id, the version it stands at, its own file. */
+/**
+ * A made video's piece (its root, never a version's drawing row): its id, the version it stands at, its own file, and
+ * the reason it was made for (a day, an offer, a service), which a version's approval carries on.
+ */
 export interface VideoPieceRow {
   id: string;
   revision: number;
   file_id: string | null;
+  intent: PieceIntent | null;
 }
 
-const ROOT_COLUMNS = "id, revises, revision, file_id";
+const ROOT_COLUMNS = "id, revises, revision, file_id, intent";
+
+const videoPieceOf = (row: { id: string; revision: number; file_id: string | null; intent: Json }): VideoPieceRow => ({
+  id: row.id,
+  revision: row.revision,
+  file_id: row.file_id,
+  intent: pieceIntentOf(row.intent),
+});
 
 /** The piece a made video's file is, under the member's RLS: its own, a version's root, or the one it was a version of. */
 export async function findPieceOfVideo(db: Db, tenantId: TenantId, fileId: string): Promise<VideoPieceRow | null> {
@@ -165,10 +183,10 @@ export async function findPieceOfVideo(db: Db, tenantId: TenantId, fileId: strin
     rootId = shape.data?.piece_id ?? null;
   }
   if (!rootId) return null;
-  if (row && row.id === rootId) return { id: row.id, revision: row.revision, file_id: row.file_id };
+  if (row && row.id === rootId) return videoPieceOf(row);
   const root = await db.from("pieces").select(ROOT_COLUMNS).eq("tenant_id", tenantId).eq("id", rootId).maybeSingle();
   if (root.error) throw new DbFailure(root.error, "piece of video's root");
-  return root.data ? { id: root.data.id, revision: root.data.revision, file_id: root.data.file_id } : null;
+  return root.data ? videoPieceOf(root.data) : null;
 }
 
 /**

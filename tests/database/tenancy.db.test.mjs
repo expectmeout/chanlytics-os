@@ -260,7 +260,7 @@ before(async () => {
     revision: 1,
     shape: "9x16",
     file_id: ctx.file,
-    path: "seeded/video.mp4",
+    path: `${A}/${ctx.file}/video.mp4`,
     checksum: "a".repeat(64),
   });
   await seed("approvals", {
@@ -989,7 +989,7 @@ const TENANT_TABLES = {
       revision: 1,
       shape: "1x1",
       file_id: ctx.file,
-      path: "stranger/square.jpg",
+      path: `${A}/${ctx.file}/square.jpg`,
       checksum: "c".repeat(64),
     }),
   ],

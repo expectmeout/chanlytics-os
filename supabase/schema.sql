@@ -52715,6 +52715,7 @@ CREATE TABLE public.piece_renditions (
     CONSTRAINT piece_renditions_bytes_check CHECK (((bytes IS NULL) OR (bytes > 0))),
     CONSTRAINT piece_renditions_checksum_check CHECK ((checksum ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT piece_renditions_path_check CHECK (((char_length(path) >= 1) AND (char_length(path) <= 400))),
+    CONSTRAINT piece_renditions_path_in_its_folder CHECK ((path ~ (((('^'::text || (tenant_id)::text) || '/'::text) || (file_id)::text) || '/[^/]+$'::text))),
     CONSTRAINT piece_renditions_revision_check CHECK ((revision >= 1)),
     CONSTRAINT piece_renditions_shape_check CHECK ((shape = ANY (ARRAY['9x16'::text, '4x5'::text, '1x1'::text, '16x9'::text, 'google'::text])))
 );
@@ -52724,7 +52725,7 @@ CREATE TABLE public.piece_renditions (
 -- Name: TABLE piece_renditions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00681; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
+COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00681; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. The path is `<tenant_id>/<file_id>/<name>`, its own workspace and file (00711, piece_renditions_path_in_its_folder): the edge signs it with the service role, so a path a member''s call names never reaches another workspace''s bytes. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
 
 
 --
