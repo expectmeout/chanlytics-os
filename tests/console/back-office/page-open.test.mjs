@@ -8,7 +8,15 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { AppError, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, openReads } from "@chanlytics/contracts";
+import {
+  AppError,
+  OPEN_READ_PATHS,
+  openReadPathOf,
+  PREFETCH_BESIDE,
+  PREFETCH_OPEN,
+  PREFETCH_READS,
+  openReads,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
@@ -17,10 +25,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { openPage } = await import(at("apps/dashboard/src/server/workspace/page-open.ts"));
+const { openPage, openRest, restKeysOf } = await import(at("apps/dashboard/src/server/workspace/page-open.ts"));
 const { getMemberContext } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const openRoute = await import(at("apps/dashboard/app/api/v1/open/route.ts"));
+const restRoute = await import(at("apps/dashboard/app/api/v1/open/rest/route.ts"));
+const { openReadOf } = await import(at("apps/dashboard/app/api/v1/open/reads.ts"));
 const viewsRoute = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
 const { withRequestId, noteTiming } = await import("@chanlytics/log");
 
@@ -321,4 +331,80 @@ test("an opening's reads ask the database each question once, and a request that
     await db(lines);
   });
   assert.equal(sent.length, 3, "a request that answers one read asks as it always did");
+});
+
+test("the rest of a load is answered as one: each read asked a line, a few at a time, in the order asked", async () => {
+  // "Pages that open at once", piece 8: the boot asked each of the pages not on screen in a request of its own, 36 a load.
+  const keys = Array.from({ length: 9 }, (_, i) => `read-${i}`);
+  const held = Object.fromEntries(keys.map((k) => [k, deferred()]));
+  const started = [];
+  const routeOf = (key) => ({
+    run: async () => {
+      started.push(key);
+      return held[key].p;
+    },
+  });
+  const res = openRest(ctxFor(), openReq("reads=x&workspace=harbor"), keys, routeOf);
+  assert.equal(res.headers.get("content-type"), "application/x-ndjson; charset=utf-8");
+  await turns();
+  assert.deepEqual(started, keys.slice(0, 6), "six at once, the first asked first");
+  held["read-0"].resolve({ k: "read-0" });
+  await turns();
+  assert.deepEqual(started, keys.slice(0, 7), "one in, the next one leaves");
+  for (const k of keys) held[k].resolve({ k });
+  const lines = await linesOf(res);
+  assert.deepEqual(
+    readsIn(lines)
+      .map((l) => l.k)
+      .sort(),
+    [...keys].sort(),
+    "every read its line, once",
+  );
+  assert.ok(
+    readsIn(lines).every((l) => l.s === 200 && l.b.data.k === l.k),
+    "each the answer its own route gave",
+  );
+  assert.ok(lines.at(-1).o, "and what the rest came to, last");
+});
+
+test("the rest takes the reads a route answers, each once, in the order asked: any other is the client's to ask alone", () => {
+  const routeOf = (key) => (key.startsWith("known") ? { run: async () => null } : undefined);
+  const reads = ["known?a=1", "unknown", "known?a=1", "known?b=2", "%E0%A4%A"].map(encodeURIComponent).join(",");
+  assert.deepEqual(restKeysOf(reads, routeOf), ["known?a=1", "known?b=2"]);
+  assert.deepEqual(restKeysOf("%E0%A4%A,known", routeOf), ["known"], "a key that does not decode is passed over");
+  const many = Array.from({ length: 60 }, (_, i) => encodeURIComponent(`known?i=${i}`)).join(",");
+  assert.equal(restKeysOf(many, routeOf).length, 48, "at most 48 a request");
+});
+
+test("every read the client asks as one has its route, by its path, and none other is answered", () => {
+  for (const path of OPEN_READ_PATHS) assert.ok(openReadOf(path), `${path} has its route`);
+  assert.ok(openReadOf("contacts?sort=name"), "a read is its path's, whatever its query");
+  assert.equal(openReadOf("activity"), undefined, "a read no list names is the client's to ask alone");
+  const someone = "33333333-3333-4333-8333-333333333333";
+  assert.equal(openReadPathOf(`contacts/${someone}`), "contacts/[id]", "a person's page is listed by its pattern");
+  assert.equal(openReadPathOf(`contacts/${someone}/notes`), "contacts/[id]/notes");
+  assert.ok(openReadOf(`contacts/${someone}`), "and answered, by the id its key names");
+  assert.equal(openReadOf("contacts/not-an-id"), undefined, "a word where an id goes is no person's page");
+  assert.equal(openReadOf(`contacts/${someone}/notes`), undefined, "nor is a path the list does not name");
+  assert.ok(restRoute.GET.run, "GET open/rest is a route");
+  for (const [own] of openReads("today")
+    .flat()
+    .map((k) => [k]))
+    assert.ok(openReadOf(own), `GET open's ${own} is answered from the same list`);
+});
+
+test("through the real route, the rest answers the reads it was asked for in one streamed request", async () => {
+  const reads = ["views", "activity"].map(encodeURIComponent).join(",");
+  const res = await restRoute.GET.run(
+    new Request(`http://localhost/api/v1/open/rest?reads=${encodeURIComponent(reads)}&workspace=harbor`),
+    ctxFor(),
+  );
+  const lines = await linesOf(res);
+  assert.deepEqual(
+    readsIn(lines).map((l) => l.k),
+    ["views"],
+    "the read a route answers has its line; the one no route answers has none",
+  );
+  const alone = await viewsRoute.GET.run(new Request("http://localhost/api/v1/views?workspace=harbor"), ctxFor());
+  assert.deepEqual(readsIn(lines)[0].b, { ok: true, data: alone }, "the JSON its own request answers");
 });

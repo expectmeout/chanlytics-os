@@ -7,6 +7,7 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { readBegins } from "../client/page-speed";
+import { restReads } from "../client/rest-reads";
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { sealSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
@@ -204,6 +205,11 @@ export function api(): Api {
     },
     prefetched: (url) => takePrefetched(window, url),
     prefetchedFrom: pageBegan,
+    // The rest of a load's reads, as one (GET open/rest): what the boot gathers as it starts the pages not on screen.
+    together: restReads((url, init) => {
+      readBegins(url);
+      return window.fetch(url, init);
+    }),
     workspace: getActiveWorkspace,
     onSignedOut: () => toSignIn(window),
     onSessionEnded: () => void endSession(window),

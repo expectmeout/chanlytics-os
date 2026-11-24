@@ -135,6 +135,14 @@ export function warmPeople(ids: string[]): void {
 }
 
 function readAhead(): void {
+  // Asked as one where the tab's client gathers reads (GET open/rest): two at a time, the twelve were a request each on
+  // every load of People ("Pages that open at once", piece 8). The server answers them a few at a time.
+  if (api().gathers) {
+    const ids = ahead.splice(0).filter((id) => !people().peek(id));
+    // Nothing waits on them: each lands in the tab's people as it comes, and one that fails is read as its row is pressed.
+    if (ids.length) void Promise.all(api().gather(() => ids.map((id) => personDetail(id).catch(() => null))));
+    return;
+  }
   while (aheadOut < AHEAD_LANES && ahead.length) {
     const id = ahead.shift() as string;
     if (people().peek(id)) continue;

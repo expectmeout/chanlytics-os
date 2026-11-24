@@ -537,6 +537,10 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   `apps/dashboard/src/bridge/surface-registry.ts`), then everyone else's
   (`apps/dashboard/src/bridge/surface-runner.ts`). What waits for the boot (a warm, Ask's follow-ups, a list's
   people ahead) waits for this one (`workspace.ts` `afterBoot`; the shell says a boot is coming before anything asks).
+  Everyone else's first reads leave as one streamed request, the rest (`GET open/rest`, `apps/dashboard/app/api/v1/open/rest/route.ts`),
+  answered from the same list of reads as the opening (`OPEN_READ_PATHS`) a few at a time and handed to their surfaces a
+  task at a time (`apps/dashboard/src/client/rest-reads.ts`, gathered by `client/api.ts` `gather`); People's people ahead
+  leave so too. A read it does not carry goes alone, as before.
 - _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
   (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
   as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in

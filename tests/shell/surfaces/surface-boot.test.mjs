@@ -1283,3 +1283,89 @@ test("what the live feed says while the rest of the boot is out is read once the
     stop();
   }
 });
+
+/** GET open/rest as the server answers it (server/workspace/page-open.ts): a line for each read asked but those `without`, then what it came to. */
+const restAnswer = (url, without = []) => {
+  const asked = new URL(url, "http://x").searchParams.get("reads").split(",").map(decodeURIComponent);
+  const lines = asked
+    .filter((k) => !without.includes(k.split("?")[0]))
+    .map((k) => JSON.stringify({ k, s: 200, b: { ok: true, data: { from: "rest", k } } }));
+  return new Response(`${[...lines, JSON.stringify({ o: { ms: 1, db_ms: 0, db_n: 0 } })].join("\n")}\n`, {
+    status: 200,
+    headers: { "content-type": "application/x-ndjson; charset=utf-8" },
+  });
+};
+
+test("the pages not on screen ask their first reads as one request, each answered from its line, and the rest alone", async () => {
+  // "Pages that open at once", piece 8: the boot asked each in a request of its own, 36 a load (23 Nov 2026).
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const sent = [];
+  win.fetch = async (url) => {
+    sent.push(url);
+    if (url.startsWith("/api/v1/open/rest")) return restAnswer(url, ["leads"]);
+    return new Response(JSON.stringify({ ok: true, data: { from: "alone" } }), { status: 200 });
+  };
+  const got = {};
+  const reading = (key, route) => ({ key, apply: async () => void (got[key] = await read(route)) });
+  const surfaces = [
+    { key: "workspace", apply: async () => {} },
+    reading("inbox", "GET conversations"),
+    reading("campaigns", "GET conversations"),
+    reading("reports", "GET reach-outs"),
+    reading("leads", "GET leads"),
+    reading("settings", "GET activity"),
+  ];
+  const stop = startSurfaces(surfaces);
+  try {
+    pageDrawn();
+    await until(() => Object.keys(got).length === 5, "every page not on screen answered");
+  } finally {
+    stop();
+  }
+  const together = sent.filter((u) => u.startsWith("/api/v1/open/rest"));
+  assert.equal(together.length, 1, "one request for all of them");
+  const asked = new URL(together[0], "http://x").searchParams.get("reads").split(",").map(decodeURIComponent);
+  assert.deepEqual(
+    asked.map((k) => k.split("?")[0]).sort(),
+    ["conversations", "leads", "reach-outs"],
+    "the reads it carries, the one two pages ask for once",
+  );
+  assert.equal(new URL(together[0], "http://x").searchParams.get("workspace"), "acme", "on the workspace on screen");
+  assert.deepEqual(
+    [got.inbox.from, got.campaigns.from, got.reports.from],
+    ["rest", "rest", "rest"],
+    "each answered from its own line",
+  );
+  assert.ok(!sent.some((u) => u.startsWith("/api/v1/conversations")), "none of those asked again alone");
+  assert.equal(got.leads.from, "alone", "a read the answer had no line for is asked alone");
+  assert.equal(got.settings.from, "alone", "and one it does not carry goes alone, as before");
+});
+
+test("a rest refused whole leaves no page without its read: each is asked alone", async () => {
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const sent = [];
+  win.fetch = async (url) => {
+    sent.push(url);
+    if (url.startsWith("/api/v1/open/rest")) return new Response("{}", { status: 500 });
+    return new Response(JSON.stringify({ ok: true, data: { from: "alone" } }), { status: 200 });
+  };
+  const got = {};
+  const surfaces = [
+    { key: "workspace", apply: async () => {} },
+    { key: "inbox", apply: async () => void (got.inbox = await read("GET conversations")) },
+    { key: "reports", apply: async () => void (got.reports = await read("GET reach-outs")) },
+  ];
+  const stop = startSurfaces(surfaces);
+  try {
+    pageDrawn();
+    await until(() => got.inbox && got.reports, "both answered");
+  } finally {
+    stop();
+  }
+  assert.deepEqual([got.inbox.from, got.reports.from], ["alone", "alone"]);
+  assert.equal(sent.filter((u) => u.startsWith("/api/v1/open/rest")).length, 1, "the rest asked once, not again");
+});

@@ -304,15 +304,20 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   },
   apply: async () => {
-    // The invitations this sign-in completes are one POST (invitations/accept.ts), asked as the list is, not by it (a read never
-    // writes: decision 0047, lane 6). It costs the boot nothing when the list is whole: only a list that holds no workspace,
-    // or none the address names, waits for it, since that is the list an invitation is about to change, and is read again
-    // when it seated someone. A seat made beside a whole list reaches the switcher through the live feed (memberships).
-    void acceptInvitations();
+    // The invitations this sign-in completes are one POST (invitations/accept.ts), not a read's doing (a read never writes:
+    // decision 0047, lane 6). Made where the list says an invitation is open for this address, or cannot say (a server from
+    // before it said so): it was made on every load, 52 in 52 (the phone sweep, 23 Nov 2026), for the few that seat someone.
+    // Only a list that holds no workspace, or none the address names, waits for it (acceptedInTime, which makes it if it was
+    // not), since that is the list an invitation is about to change, and is read again when it seated someone. A seat made
+    // beside a whole list reaches the switcher through the live feed (memberships).
     let data = await read("GET workspaces");
+    // No invitation open, nothing to accept or wait for: a person with no workspace opens on the create screen at once,
+    // where they waited up to four seconds for an accept that could seat them nowhere.
+    const mayBeSeated = data.user.invited !== false;
+    if (mayBeSeated) void acceptInvitations();
     const named = getActiveWorkspace();
     const holdsIt = !named || data.workspaces.some((t) => t.slug === named || t.id === named);
-    if (!seatedRead && (!data.workspaces.length || !holdsIt) && (await acceptedInTime()).length) {
+    if (!seatedRead && mayBeSeated && (!data.workspaces.length || !holdsIt) && (await acceptedInTime()).length) {
       // The seat is made, so what the tab shares or the head started is the list from before it. Read once for it.
       seatedRead = true;
       api().forget();

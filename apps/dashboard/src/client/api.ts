@@ -158,6 +158,15 @@ interface ApiDeps {
    * second audit, S2-4). Absent, a prefetched read is dated when it is taken.
    */
   prefetchedFrom?: () => number;
+  /**
+   * Reads asked as one (GET open/rest, bridge/rest-reads.ts): the reads gathered while `gather` runs, which the boot does as
+   * it starts the pages not on screen. `carries` says whether a URL's read is one it answers; `ask` sends the URLs as one
+   * request and answers each, or rejects one it could not carry, which is then asked alone. Absent, nothing is gathered.
+   */
+  together?: {
+    carries: (url: string) => boolean;
+    ask: (urls: readonly string[]) => ReadonlyMap<string, Promise<Response>>;
+  };
 }
 
 /** Identical reads inside this window share one request: three overrides asking for the same list at boot. */
@@ -320,11 +329,43 @@ function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
   };
 }
 
+/**
+ * A client's reads asked as one (ApiDeps `together`): `gather` runs `start` and sends every read it asks for that `together`
+ * carries as one request, once it has asked them all; `gathered` is what such a read waits on in place of its own fetch, and
+ * null for a read asked outside it or not carried. A read asked once `start` has returned (after an answer of its own) goes
+ * alone, as every read does outside it. A client with no `together` (a test's) asks every read alone (`gathers` false).
+ */
+function readsGathered(together: ApiDeps["together"]) {
+  /** The reads gathered while `gather` runs, by URL, each with the hand that gives it its answer. */
+  let gathering: Map<string, (answer: Promise<Response>) => void> | null = null;
+  function gathered(url: string): Promise<Response> | null {
+    if (!gathering || !together?.carries(url)) return null;
+    const into = gathering;
+    return new Promise<Response>((give) => into.set(url, give));
+  }
+  function gather<T>(start: () => T): T {
+    if (!together || gathering) return start();
+    const mine = new Map<string, (answer: Promise<Response>) => void>();
+    gathering = mine;
+    // Sent at the end of the task `start` runs in, with what its own work asks for before then (Leads' list a promise after
+    // its view, the boot's after-reads): sent as `start` returned, five of a load's reads went alone a few ms behind it.
+    setTimeout(() => {
+      gathering = null;
+      if (!mine.size) return;
+      const answers = together.ask([...mine.keys()]);
+      for (const [url, give] of mine) give(answers.get(url) ?? Promise.reject(new Error("not carried")));
+    }, 0);
+    return start();
+  }
+  return { gathered, gather };
+}
+
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   const inFlight: InFlight = new Map();
   let holds = 0;
   const lead = leadMeter(now);
+  const { gathered, gather } = readsGathered(deps.together);
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -349,13 +390,14 @@ export function createApi(deps: ApiDeps) {
       const hit = inFlight.get(url);
       if (hit && sharedAt(hit, now())) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
-    // What the head started for this URL, else the read's own fetch; a prefetch that failed is asked again.
+    // The head's answer, else the gathered reads', else its own fetch; one that failed or was not carried, asked alone.
     const early = isRead ? (deps.prefetched?.(url) ?? null) : null;
+    const before = early ?? (isRead ? gathered(url) : null);
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
       let res: Response;
       try {
-        res = early
-          ? await early.catch(() => deps.fetch(url, initFor(key, sent)))
+        res = before
+          ? await before.catch(() => deps.fetch(url, initFor(key, sent)))
           : await deps.fetch(url, initFor(key, sent));
       } catch (e) {
         // A request that never left changed nothing; one that timed out may
@@ -464,7 +506,8 @@ export function createApi(deps: ApiDeps) {
   const sharesFrom = (): number => oldestShared(inFlight, now());
 
   // How far this browser's clock runs ahead of the servers' (leadMeter), in ms.
-  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead });
+  const reading = Object.assign(send, { gather, gathers: !!deps.together });
+  return Object.assign(reading, { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead });
 }
 
 export type Api = ReturnType<typeof createApi>;

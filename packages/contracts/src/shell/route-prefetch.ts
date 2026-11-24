@@ -6,6 +6,7 @@
  */
 import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/periods";
 import { ROUTE_WORDS } from "./address";
+import { isUuid } from "../shared/identity";
 
 /** The settings read (bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
 const SETTINGS_READ = ["settings", "team", "policies", "templates?all=1"] as const;
@@ -263,6 +264,64 @@ export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
  * The pages PREFETCH_BESIDE names (route-prefetch.test.mjs holds the two to one list).
  */
 export const PREFETCH_OPEN = ["today", "inbox"] as const;
+
+/**
+ * Every read GET open answers, and GET open/rest, by the path the client asks it at. GET open/rest is the rest of a load:
+ * the reads of the pages not on screen, which the boot makes once the page on screen is drawn, asked as one streamed
+ * request in place of one request each ("Pages that open at once", piece 8: 36 requests a load, a function and a session
+ * check each). The client sends a read whose path is here with the others; any other goes alone. The dashboard names each
+ * one's route (app/api/v1/open/reads.ts), and page-open.test.mjs holds the two to one list.
+ */
+export const OPEN_READ_PATHS = [
+  "workspaces",
+  "today",
+  "today/people",
+  "conversations",
+  "escalations",
+  "calls",
+  "setup",
+  "views",
+  "calendar",
+  "calendar/runs",
+  "broadcasts",
+  "broadcasts/touches",
+  "contacts",
+  "segments",
+  "channels",
+  "settings",
+  "reports/headline",
+  "playbooks",
+  "notifications",
+  "google",
+  "reach-out-replies",
+  "reach-outs",
+  "ask/morning",
+  "ask/follow-ups",
+  "conversations/drafts",
+  "team",
+  "policies",
+  "templates",
+  "settings/reach-out/note",
+  "content/note",
+  "changes",
+  "leads",
+  "lead-searches",
+  "sequences",
+  "billing",
+  "partner",
+  // A person's page, read ahead for the first rows of People's list (dashboard surfaces/people/people-detail.ts warmPeople):
+  // twelve requests of their own on every People load (23 Nov 2026).
+  "contacts/[id]",
+] as const;
+export type OpenReadPath = (typeof OPEN_READ_PATHS)[number];
+
+/** The path a read is listed under in OPEN_READ_PATHS: its own, with an id in it said `[id]` (`contacts/<id>` is `contacts/[id]`). */
+export function openReadPathOf(path: string): string {
+  return path
+    .split("/")
+    .map((part) => (isUuid(part) ? "[id]" : part))
+    .join("/");
+}
 
 /**
  * The read of the person a thread is with, as the client spells it (dashboard surfaces/people/want-person.ts): their People

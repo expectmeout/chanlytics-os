@@ -133,6 +133,21 @@ async function inLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<
 }
 
 /**
+ * The pages not on screen, started at once with their reads gathered (client/api.ts `gather`): their first reads leave as
+ * one request (GET open/rest, "Pages that open at once" piece 8), which the server answers a few at a time and the client
+ * hands over a task at a time, in place of a request each, four at a time from here (36 requests a load, 23 Nov 2026). In
+ * the order they stand in as they start, the page a move went to first. A read a surface asks for once one of its own has
+ * answered goes alone, as before. A client that gathers nothing (a test's) starts them four at a time, as before.
+ */
+async function bootTogether(strangers: SurfaceOverride[], boot: (o: SurfaceOverride) => Promise<void>): Promise<void> {
+  const client = api();
+  if (!client.gathers) return inLanes(strangers, BOOT_LANES, boot);
+  // None to start, nothing gathered: a read asked meanwhile (a write's re-read) goes alone, never into a request of others.
+  if (!strangers.length) return;
+  await Promise.all(client.gather(() => strangers.splice(0).map(boot)));
+}
+
+/**
  * The order a pass reads surfaces in, for a route (the address's, or one a move asks for): the surface it asks for first,
  * then the ones its page draws beside it in the page's own order (surface-registry.ts ROUTE_DRAWS), then the rest.
  *
@@ -636,7 +651,7 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     dropPrefetched(window);
     return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
   });
-  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
+  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : bootTogether(strangers, boot)));
   void booted.then(stopFollowing, stopFollowing);
   // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this
   // one; what is read ahead for a press (afterBoot("page")) waits for the page on screen, drawn.

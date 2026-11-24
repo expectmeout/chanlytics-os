@@ -49,6 +49,7 @@ import { readSettled } from "@/server/shared/lazy";
 import type { Member } from "@/server/shared/route";
 import { saysMissing } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
+import { hasOpenInvites } from "./team";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
@@ -145,7 +146,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // shell makes once when it boots and which says "You joined X"; the list is read again when it seated someone.
   // Acceptance was never gated on having no memberships (someone invited before they had an account, who then creates
   // their own workspace, is seated all the same); the POST keeps that, and migration 00023's partial index.
-  const [tenants, profileRead, platformAdmin, partnerRow, open, mine, active] = await Promise.all([
+  const [tenants, profileRead, platformAdmin, partnerRow, open, mine, active, invited] = await Promise.all([
     tenantsOf(supabase),
     // The name this person gave (profiles, 00068) rides with the identity, so the chrome shows a person rather
     // than the workspace standing in for one.
@@ -166,6 +167,9 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     getOpenHandovers(supabase),
     rolesOf(supabase, userId),
     readSettled(getMemberContext(ctx, preferred, { defaultAllowed: true })),
+    // Whether an invitation is open for this address (team.ts hasOpenInvites): the shell makes its accept only then, where
+    // it made it on every load. Null where it cannot be read, and the shell accepts as it always did.
+    hasOpenInvites(email ?? null),
   ]);
   if (tenants.error) throw new DbFailure(tenants.error);
   // The name they gave is the chrome's, never the boot's to fail for: a read that fails is logged and reads as none.
@@ -218,6 +222,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
         platform_admin: platformAdmin,
         partner,
         handovers,
+        invited,
       },
     };
   }
@@ -257,6 +262,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
       platform_admin: platformAdmin,
       partner,
       handovers,
+      invited,
     },
   };
 }

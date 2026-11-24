@@ -10,7 +10,7 @@
 import { useEffect } from "react";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { syncWhatsAppList } from "@/bridge/verbs/templates";
-import { aheadWhenIdle } from "@/bridge/workspace";
+import { aheadWhenIdle, getActiveWorkspace } from "@/bridge/workspace";
 import { canDo } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 
@@ -18,6 +18,31 @@ import { useSurface } from "../../use-surface";
 const QUIET_CHECK_MS = HOUR_MS;
 /** Asked once a visit at most: Campaigns opened again in it reads what that asking brought. */
 let checkedThisVisit = false;
+/** The tab's note of the workspace WhatsApp's list was last asked for, and when: kept across its loads, gone with the tab. */
+const ASKED_SLOT = "chanlytics-whatsapp-list-asked";
+
+/**
+ * Whether this tab asked WhatsApp's list for this workspace within the hour. The rows' own time says so where WhatsApp has
+ * messages to stamp; a number with none stamps nothing, and every load of Campaigns asked again (seen on production, 24 Nov
+ * 2026: Forms, Content and the rest each sent POST templates/sync).
+ */
+function askedWithinTheHour(workspace: string | null): boolean {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(ASKED_SLOT) ?? "[]");
+    return Array.isArray(kept) && kept[0] === workspace && Date.now() - Number(kept[1]) < QUIET_CHECK_MS;
+  } catch {
+    // Storage refused, or a note this tab cannot read: asked as before, once a visit.
+    return false;
+  }
+}
+
+function noteAsked(workspace: string | null): void {
+  try {
+    sessionStorage.setItem(ASKED_SLOT, JSON.stringify([workspace, Date.now()]));
+  } catch {
+    // Storage refused: the next load asks again, as before.
+  }
+}
 
 /** Ask WhatsApp's list where a number is connected, this member may, and the rows were last read past the hour. */
 export function useWhatsAppListAsked(): void {
@@ -29,13 +54,14 @@ export function useWhatsAppListAsked(): void {
     null,
   );
   useEffect(() => {
-    if (!may || checkedThisVisit) return undefined;
+    if (!may || checkedThisVisit || askedWithinTheHour(getActiveWorkspace())) return undefined;
     if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return undefined;
     // Once the boot is in and the page is idle; let go where Campaigns is left before then, and asked on the next visit.
     return aheadWhenIdle(
       () => {
         if (checkedThisVisit) return;
         checkedThisVisit = true;
+        noteAsked(getActiveWorkspace());
         // A check that did not answer leaves the rows as they were read: the next visit asks again.
         void syncWhatsAppList();
       },
