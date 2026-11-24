@@ -231,6 +231,7 @@ export {
   beginPostTakeDown,
   findPieceTakeDown,
   findTakeDownAction,
+  isPostTakeDownAsking,
   keepPostUp,
   listTakeDownsOpen,
   markPostDeletedByHand,
