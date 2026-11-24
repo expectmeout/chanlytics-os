@@ -28,6 +28,7 @@ import {
   watchedClip,
   world,
 } from "./_world.mjs";
+const { planPage, keepPage } = await import(at("apps/edge/lib/files/sources/items.ts"));
 
 after(() => {
   setPg(null);
@@ -213,8 +214,6 @@ test("the cleanup never removes a file its own road holds: an upload, a found fi
   for (const clip of all) assert.equal(w.file(clip.row.id).removed_at, null);
   assert.deepEqual(w.tables.jobs, []);
 });
-
-const { planPage, keepPage } = await import(at("apps/edge/lib/files/sources/items.ts"));
 
 /** What Drive says of an item now: the same item, other bytes. */
 const recordOf = (item, over = {}) => ({

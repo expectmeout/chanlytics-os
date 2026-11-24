@@ -16,6 +16,8 @@ import assert from "node:assert/strict";
 import { leadQuestionRoute, NOTHING_WAITS_KNOWN, noticeInNeedYou, toTodayVM } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { metrics, msg, NOW, settingsRead, thread } from "./_world.mjs";
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
+const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 const ANA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BEN = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -103,8 +105,6 @@ test("what no count holds is the bell's: a review to answer is To do's, a bookin
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
-const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 landRead("settings", settingsRead());
 const was = globalThis.window;
 globalThis.window = {

@@ -11,8 +11,8 @@
  *     (packages/core/src/leads/cards.ts runs tests/leads; apps/edge/lib/receptionist/steer.ts runs tests/edge and
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
  *   - every test whose imports reach a changed file, read from the syntax tree (test-reach.mjs: through the packages'
- *     sources, a barrel by the names asked of it, and the paths a test reads by name), nearest first, while the run
- *     stays within BUDGET test files;
+ *     sources, a barrel by the names asked of it, the paths a test reads by name, and the lines of a string a test
+ *     hands esbuild to bundle), nearest first, while the run stays within BUDGET test files;
  *   - a file in a tree a test reads whole, that test, which no import of it names (READ_BY: the hearing tests, the
  *     browser's entry, the style tests, layout-measure);
  *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there;

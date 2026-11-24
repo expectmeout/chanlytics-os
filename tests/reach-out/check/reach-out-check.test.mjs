@@ -21,9 +21,10 @@ import { at } from "../../_cron-doors-world.mjs";
 
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/campaigns/reach-out/check.ts"));
-const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/campaigns/reach-out/check-one.ts"));
+const { hoursLine, checkInputOf, siteReaderOf } = await import(at("apps/edge/lib/campaigns/reach-out/check-one.ts"));
 const { checkedWordsOf } = await import("@chanlytics/channels/email");
 const { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
+const { siteWordsOf } = await import(at("packages/core/src/website/site-words.ts"));
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -332,8 +333,6 @@ test("a fact the reader cannot back goes the writer's way, as an opening with no
 
 /* ------------------------------------------- what a business's own website says (30 Oct 2026) -- */
 
-const { siteReaderOf } = await import(at("apps/edge/lib/campaigns/reach-out/check-one.ts"));
-const { siteWordsOf } = await import(at("packages/core/src/website/site-words.ts"));
 /** The most a website is said in (check-one.ts): a directory's about's 600 characters. */
 const WEBSITE_SAYS_MAX = 600;
 
