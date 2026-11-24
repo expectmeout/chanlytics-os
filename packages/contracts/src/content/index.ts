@@ -188,6 +188,17 @@ export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/
 export { takeDownSpec } from "./placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
 export type { OwnerClaim } from "./plan/claims";
+export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./plan/patterns";
+export type { ContentPattern, PatternDimension, PatternLevel, PostOutcome } from "./plan/patterns";
+export {
+  REVIEW_ASK_REST_DAYS,
+  REVIEW_ASK_START,
+  REVIEW_ASK_WORDS,
+  reviewAskLineOf,
+  reviewAskOf,
+  reviewAskWordsOf,
+} from "./plan/review-ask";
+export type { ReviewAskDto, ReviewAskFacts, ReviewAskWhy } from "./plan/review-ask";
 export {
   CLAIM_KINDS,
   CLAIM_SOURCES,
@@ -207,17 +218,6 @@ export type {
   PlanStatus,
   SlotState,
 } from "./plan/sets";
-export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./plan/patterns";
-export type { ContentPattern, PatternDimension, PatternLevel, PostOutcome } from "./plan/patterns";
-export {
-  REVIEW_ASK_QUIET_DAYS,
-  REVIEW_ASK_REST_DAYS,
-  REVIEW_ASK_START,
-  REVIEW_ASK_WORDS,
-  reviewAskLineOf,
-  reviewAskOf,
-} from "./plan/review-ask";
-export type { ReviewAskDto, ReviewAskFacts, ReviewAskWhy } from "./plan/review-ask";
 export { cadenceSaid, contentLinesOf } from "./plan/settings-lines";
 export type { ContentLineEdit, ContentLineView } from "./plan/settings-lines";
 export {

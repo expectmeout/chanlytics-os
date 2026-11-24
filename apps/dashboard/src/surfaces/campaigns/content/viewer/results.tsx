@@ -56,13 +56,13 @@ const RESULTS_WORDS = {
 } as const;
 
 /** A piece's results as its route answers them: the post's, and the ads made from it apart (pass 6). */
-export type PieceResultsRead = PieceResultsDto & {
+type PieceResultsRead = PieceResultsDto & {
   ads?: readonly PieceAdDto[];
   ad_people?: readonly { id: string; name: string; first_at: string; booked: boolean }[];
 };
 
 /** The piece's results and how to read them again (after its link is made). */
-export interface PieceResultsHeld {
+interface PieceResultsHeld {
   data: PieceResultsRead | null;
   again: () => void;
 }

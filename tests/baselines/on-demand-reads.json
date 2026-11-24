@@ -560,6 +560,11 @@
     "fresh": "Read as a piece with a post up is opened (on a phone and at a desk), and again after its link is made.",
     "why": "A post's numbers are read from its place an hour, a day, 3, 7 and 28 days after it went up, and the people it brought arrive by the conversation: none moves by the second, and the piece is opened again to see the next read."
   },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/from-post.tsx GET files/[id]/results": {
+    "kind": "on-open",
+    "fresh": "Read once as New ad opens from a piece (pass 6), for the line under the post it came from; nothing of it is kept once the sheet closes.",
+    "why": "The line says what the post did so far, the same read the piece's own line makes when it is opened; a number read an hour apart changes nothing the owner chooses here, and the ad's own preview is read apart."
+  },
   "apps/dashboard/src/surfaces/reports/lenses/content/lens.tsx GET content/report": {
     "kind": "on-open",
     "fresh": "Read as Reports' Content lens is drawn, and again whenever the window Reports shows moves (a period, or days picked).",

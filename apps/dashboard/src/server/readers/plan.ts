@@ -34,12 +34,12 @@ import { logAndGoOn } from "@chanlytics/log";
 import { loadFeed } from "../calendar/openings";
 import { recordBusy } from "../calendar/record-busy";
 import { readInstagramPostable } from "../connections/meta";
-import { readReviewAsk } from "../content/review-ask";
 import { readBrandKit } from "../workspace/brand-kit";
 import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { fileDtoOf } from "./files";
 import { sentPostsOf } from "./content";
+import { readReviewAsk } from "./week-today";
 
 /**
  * A week of posts as the Week, Settings › Content and AI read it (00706; the content loop PRD's 10.1, 21.1, 21.2): the

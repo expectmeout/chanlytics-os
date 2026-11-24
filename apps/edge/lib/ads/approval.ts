@@ -43,7 +43,7 @@ interface PressedAd {
 }
 
 /** An ad's approval, as `approvals.snapshot` keeps it (subject `ad`): a plain object, sent as jsonb as it is. */
-export type AdApprovalSnapshot = {
+type AdApprovalSnapshot = {
   ad: { name: string; service: string };
   picture: { file_id: string; kind: "photo" | "video"; checksum: string | null };
   words: { n: number; text: string; headline: string }[];

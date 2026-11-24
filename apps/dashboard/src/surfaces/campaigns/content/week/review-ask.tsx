@@ -2,13 +2,14 @@
  * The plan's proposal to ask every client for a review (the content loop's pass 6; the content canvas's Loop4, approved by
  * Ruben on 24 Nov 2026): a row at the Week's foot, beside what to film, and the card it opens. The card says why in AI's
  * words, shows the after-visit message as it is live (its slots named, never a client's words), its three facts, and two
- * presses: Approve starts the ask by its starter (POST playbooks; its first batch waits for the owner's OK, as every
+ * presses: Approve starts the ask by its starter (POST playbooks; its first send waits for the owner's OK, as every
  * campaign's does), and Not now rests the proposal for 30 days. Nothing here turns anything on by itself.
  */
 import { useState } from "react";
 import {
   REVIEW_ASK_WORDS as W,
   reviewAskLineOf,
+  reviewAskWordsOf,
   starterByKey,
   starterText,
   type ReviewAskDto,
@@ -62,12 +63,13 @@ export function ReviewAskSheet({ ask, open, onClose }: { ask: ReviewAskDto; open
     return onClose();
   };
   const message = liveMessage();
+  const words = reviewAskWordsOf(ask.word);
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title={W.card.title}
-      sub={W.card.head}
+      sub={words.head}
       close={{ label: W.card.close, glyph: <Icon name="x" size={13} /> }}
       testid="cwk-review-ask-card"
       foot={
@@ -81,14 +83,14 @@ export function ReviewAskSheet({ ask, open, onClose }: { ask: ReviewAskDto; open
         </div>
       }
     >
-      <div className="cwk-ask-card">
+      <div className="cwk-ask-body">
         <p className="cwk-ask-says">
           <Icon name="three" size={14} />
-          <span>{W.card.says[ask.why]}</span>
+          <span>{words.says[ask.why]}</span>
         </p>
         {message ? <p className="cwk-ask-message">{message}</p> : null}
         <ul className="cwk-ask-facts">
-          {W.card.facts.map((fact) => (
+          {words.facts.map((fact) => (
             <li key={fact}>{fact}</li>
           ))}
         </ul>

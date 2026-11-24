@@ -79,7 +79,7 @@ const isIn = (post: Compared, dimension: PatternDimension, value: string): boole
   dimension === "shows" ? post.shows.includes(value) : post[dimension] === value;
 
 /** The values a thing takes among these posts, each once: a phrase counts once it is in enough posts to be compared. */
-function valuesOf(posts: readonly Compared[], dimension: PatternDimension): string[] {
+function cohortValuesOf(posts: readonly Compared[], dimension: PatternDimension): string[] {
   if (dimension !== "shows") return [...new Set(posts.map((p) => p[dimension]).filter((v): v is string => v !== null))];
   const count = new Map<string, number>();
   for (const phrase of posts.flatMap((p) => p.shows)) count.set(phrase, (count.get(phrase) ?? 0) + 1);
@@ -130,15 +130,15 @@ function movedWithOf(
   return null;
 }
 
-const levelOf = (n: { better: number; rest: number }, stable: boolean): PatternLevel => {
-  const fewest = Math.min(n.better, n.rest);
+const levelOf = (counts: { better: number; rest: number }, stable: boolean): PatternLevel => {
+  const fewest = Math.min(counts.better, counts.rest);
   if (fewest < PATTERN_EARLY_AT) return "too_little";
   return fewest > PATTERN_AT && stable ? "pattern" : "early";
 };
 
 /** A kind's plural, as an owner says it. */
 const KIND_PLURALS: Readonly<Record<PostKind, string>> = { reel: "reels", picture: "posts", story: "stories" };
-const PLACE_WORDS: Readonly<Record<PlanPlace, string>> = { instagram: "Instagram", google: "Google" };
+const PATTERN_PLACES: Readonly<Record<PlanPlace, string>> = { instagram: "Instagram", google: "Google" };
 
 /** How a cohort is named before its kind: "evening reels", "short reels", "reels showing a blow-dry". */
 function cohortWords(dimension: PatternDimension, value: string, kind: PostKind): string {
@@ -151,12 +151,12 @@ function cohortWords(dimension: PatternDimension, value: string, kind: PostKind)
 }
 
 /** The sentence a difference is said in, with how many posts it rests on. */
-function saysOf(p: Omit<ContentPattern, "says">): string {
-  const plural = KIND_PLURALS[p.kind];
-  const cohort = cohortWords(p.dimension, p.better, p.kind);
+function patternSentenceOf(pattern: Omit<ContentPattern, "says">): string {
+  const plural = KIND_PLURALS[pattern.kind];
+  const cohort = cohortWords(pattern.dimension, pattern.better, pattern.kind);
   return (
-    `On ${PLACE_WORDS[p.place]}, ${cohort} reached ${p.lift} times as many people as your other ${plural} ` +
-    `(${p.n.better} and ${p.n.rest} ${plural})`
+    `On ${PATTERN_PLACES[pattern.place]}, ${cohort} reached ${pattern.lift} times as many people as your other ${plural} ` +
+    `(${pattern.counts.better} and ${pattern.counts.rest} ${plural})`
   );
 }
 
@@ -167,23 +167,23 @@ function strongestOf(
   dimension: PatternDimension,
 ): ContentPattern | null {
   let best: ContentPattern | null = null;
-  const told = posts.filter((p) => dimension !== "length" || p.length !== null);
-  for (const value of valuesOf(told, dimension)) {
-    const cohort = told.filter((p) => isIn(p, dimension, value));
-    const rest = told.filter((p) => !isIn(p, dimension, value));
+  const comparable = posts.filter((p) => dimension !== "length" || p.length !== null);
+  for (const value of cohortValuesOf(comparable, dimension)) {
+    const cohort = comparable.filter((p) => isIn(p, dimension, value));
+    const rest = comparable.filter((p) => !isIn(p, dimension, value));
     const lift = liftOf(cohort, rest);
     if (lift === null || lift < LIFT_AT_LEAST || (best && best.lift >= lift)) continue;
-    const n = { better: cohort.length, rest: rest.length };
+    const counts = { better: cohort.length, rest: rest.length };
     const found = {
       ...group,
       dimension,
       better: value,
-      n,
+      counts,
       lift,
-      level: levelOf(n, holdsInBothHalves(cohort, rest)),
+      level: levelOf(counts, holdsInBothHalves(cohort, rest)),
       movedWith: movedWithOf(cohort, rest, dimension),
     };
-    best = { ...found, says: saysOf(found) };
+    best = { ...found, says: patternSentenceOf(found) };
   }
   return best;
 }

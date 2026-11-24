@@ -182,7 +182,8 @@ export function footStandingOf(hands: ViewerHands, at: { more: ReactNode; onTold
   const ad = runAsAd.line?.is === "press" ? { words: runAsAd.line.words, press: runAsAd.acts.run } : null;
   return {
     pill: standing.pill,
-    results: ad ? <PieceResultLine {...resultLineOf(hands)} /> : null,
+    // Out of the way while a question is asked in the acts' place.
+    results: ad && !hands.presses.asking ? <PieceResultLine {...resultLineOf(hands)} /> : null,
     leads: standing.lead,
     ad,
     takeDown: standing.takeDown,

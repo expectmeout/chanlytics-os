@@ -363,7 +363,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 {presses.problem ?? save.said}
               </p>
             ) : null}
-            {presses.asking ? null : standing.results}
+            {standing.results}
             {removeAsk(hands) ?? (
               <ViewerActs
                 file={file}

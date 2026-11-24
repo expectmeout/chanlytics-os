@@ -37,7 +37,7 @@ export interface PieceAdLine {
   opens: boolean;
 }
 
-const weekdayOf = (iso: string, tz: string): string =>
+const adDayOf = (iso: string, tz: string): string =>
   new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(iso));
 
 /** Where it shows, by the platform's own names: Facebook alone for an ad made here today. */
@@ -48,7 +48,7 @@ const shownTitleOf = (shown: readonly string[] | null): string =>
       ? "Ad on Instagram"
       : "Ad on Facebook";
 
-const money = (ad: PieceAdDto, minor: number): string => exactMoney(minor, ad.currency ?? "USD");
+const adMoneyOf = (ad: PieceAdDto, minor: number): string => exactMoney(minor, ad.currency ?? "USD");
 
 /** The ad's line, in the canvas's four states and Ads' others. */
 export function pieceAdLineOf(ad: PieceAdDto, tz: string): PieceAdLine {
@@ -56,13 +56,13 @@ export function pieceAdLineOf(ad: PieceAdDto, tz: string): PieceAdLine {
   if (ad.state === "setting-up" || ad.state === "review" || ad.state === "unconfirmed" || ad.state === "draft")
     return { title, said: "Meta is checking it · usually within a day", tone: "moving", opens: false };
   if (ad.state === "on") {
-    const of = ad.total_minor === null ? "" : ` of ${money(ad, ad.total_minor)}`;
-    const until = ad.ends_at ? ` · until ${weekdayOf(ad.ends_at, tz)}` : "";
-    return { title, said: `Running as an ad · ${money(ad, ad.spend_minor)}${of}${until}`, tone: "ok", opens: true };
+    const of = ad.total_minor === null ? "" : ` of ${adMoneyOf(ad, ad.total_minor)}`;
+    const until = ad.ends_at ? ` · until ${adDayOf(ad.ends_at, tz)}` : "";
+    return { title, said: `Running as an ad · ${adMoneyOf(ad, ad.spend_minor)}${of}${until}`, tone: "ok", opens: true };
   }
   if (ad.state === "ended" || ad.state === "finished") {
-    const ended = ad.ends_at ? ` · ended ${weekdayOf(ad.ends_at, tz)}` : "";
-    return { title, said: `Ran as an ad · ${money(ad, ad.spend_minor)}${ended}`, tone: "gone", opens: true };
+    const ended = ad.ends_at ? ` · ended ${adDayOf(ad.ends_at, tz)}` : "";
+    return { title, said: `Ran as an ad · ${adMoneyOf(ad, ad.spend_minor)}${ended}`, tone: "gone", opens: true };
   }
   if (ad.state === "paused")
     return {
@@ -82,7 +82,7 @@ export function pieceAdBroughtOf(ad: PieceAdDto): { head: string; line: string }
   const booked = ad.booked > 0 ? ` · ${ad.booked.toLocaleString("en-US")} booked from the ad` : "";
   const each =
     ad.booked > 0 && ad.spend_minor > 0
-      ? ` · about ${money(ad, Math.round(ad.spend_minor / ad.booked))} a booking`
+      ? ` · about ${adMoneyOf(ad, Math.round(ad.spend_minor / ad.booked))} a booking`
       : "";
-  return { head: `From the ad · ${money(ad, ad.spend_minor)}`, line: `${people}${booked}${each}` };
+  return { head: `From the ad · ${adMoneyOf(ad, ad.spend_minor)}`, line: `${people}${booked}${each}` };
 }

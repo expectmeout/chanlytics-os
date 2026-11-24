@@ -316,14 +316,14 @@ function scoreAt(score: SlotScore, fit: { value: number; why: string } | null): 
 function slotsOf(
   candidate: Candidate,
   given: WeekAsked,
-  at: { day: string; places: PlanPlace[]; creative: string; lean: WeekLean; made: Map<string, number> },
+  at: { day: string; places: PlanPlace[]; creative: string; lean: WeekLean; placed: Map<string, number> },
 ) {
   return at.places.map((place): DraftedSlot => {
     const verdict = proposeVerdict(given, place, candidate.kind, candidate.kind === "reel" ? "video" : "image");
     const [first] = verdict.ok ? [] : verdict.refusals;
     const key = `${place}:${candidate.kind}`;
-    const nth = at.made.get(key) ?? 0;
-    at.made.set(key, nth + 1);
+    const nth = at.placed.get(key) ?? 0;
+    at.placed.set(key, nth + 1);
     const timing = slotHourOf(at.lean, { place, kind: candidate.kind, nth }, HOUR_OF[place][candidate.kind]);
     return {
       creative: at.creative,
@@ -391,7 +391,7 @@ export function planWeek(given: WeekAsked, newId: () => string): WeekDrafted {
     cadence.google.picture[end];
   const wanted = { low: ends(0), high: ends(1) };
   const used = new Map<string, number>();
-  const made = new Map<string, number>();
+  const placed = new Map<string, number>();
   const undated = new Map<PostKind, number>();
   const slots: DraftedSlot[] = [];
   let picked = 0;
@@ -405,7 +405,7 @@ export function planWeek(given: WeekAsked, newId: () => string): WeekDrafted {
     for (const place of places)
       left.set(`${place}:${candidate.kind}`, (left.get(`${place}:${candidate.kind}`) ?? 0) - 1);
     used.set(day, (used.get(day) ?? 0) + 1);
-    slots.push(...slotsOf(candidate, given, { day, places, creative: newId(), lean, made }));
+    slots.push(...slotsOf(candidate, given, { day, places, creative: newId(), lean, placed }));
     picked += 1;
   }
   const askDay = days.at(-1) ?? shiftKey(given.weekOf, 6);

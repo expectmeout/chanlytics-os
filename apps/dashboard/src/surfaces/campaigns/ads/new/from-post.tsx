@@ -11,7 +11,7 @@ import { read } from "@/bridge/api";
 import { Icon } from "../../../kit/icon/icon";
 import { NEW } from "./words";
 
-const PLACES = { instagram: "Instagram", google: "Google" } as const;
+const POSTED_ON = { instagram: "Instagram", google: "Google" } as const;
 
 /** When it went up, as the band says it: minutes for the first hour, a weekday for the week, a date after. */
 export function sinceSaid(atIso: string, nowMs: number): string {
@@ -61,7 +61,7 @@ export function FromPost({
     ? NEW.from.down
     : post.kind === "story"
       ? NEW.from.story(since)
-      : NEW.from.up(PLACES[post.place], since);
+      : NEW.from.up(POSTED_ON[post.place], since);
   const line = pieceResultLineOf(results, { down });
   return (
     <div className="ads-new-from" data-testid="ads-new-from">
@@ -82,7 +82,7 @@ export function FromPost({
             </span>
           </span>
         ) : null}
-        {down ? <em>{NEW.from.downNote(PLACES[post.place])}</em> : null}
+        {down ? <em>{NEW.from.downNote(POSTED_ON[post.place])}</em> : null}
       </div>
     </div>
   );

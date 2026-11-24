@@ -146,7 +146,7 @@ test("paid reach is kept apart: posts that also ran as an ad are never compared 
   ];
   const [hour] = contentPatternsOf(posts, ZONE).filter((p) => p.dimension === "hour");
   assert.equal(hour.level, "too_little");
-  assert.deepEqual(hour.n, { better: 8, rest: 14 });
+  assert.deepEqual(hour.counts, { better: 8, rest: 14 });
 });
 
 test("what the footage is: a short-reel pattern lifts a short clip and lowers a long one, each saying why", () => {

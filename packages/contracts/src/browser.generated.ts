@@ -292,7 +292,7 @@ export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/pla
 export { takeDownSpec } from "./content/placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./content/plan/claims";
 export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./content/plan/patterns";
-export { REVIEW_ASK_QUIET_DAYS, REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf } from "./content/plan/review-ask";
+export { REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf, reviewAskWordsOf } from "./content/plan/review-ask";
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";
 export { cadenceSaid, contentLinesOf } from "./content/plan/settings-lines";
 export { cadenceOf, creativesOf, FOOTAGE_ASKS_MOST, planWeekOf, SLOT_CAPTION_MAX, slotWordsOf, weekdayShortOf, weekSizeSaid } from "./content/plan/week";

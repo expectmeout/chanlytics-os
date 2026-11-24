@@ -3,17 +3,44 @@ import {
   contentPlanOf,
   creativesOf,
   planWeekOf,
+  reviewAskOf,
   weekDaysSaid,
   weekSizeSaid,
   zoneDayKey,
   type ContentTodayDto,
+  type ReviewAskDto,
+  type TenantId,
 } from "@chanlytics/contracts";
-import { readContentWeek } from "@chanlytics/db/files";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
+import { readReviewAskFacts } from "@chanlytics/db/content";
+import { listGoals, readContentWeek } from "@chanlytics/db/files";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
-import { readReviewAsk } from "../content/review-ask";
+import { getAppointmentWord } from "../people/deals";
 import { findConfigRow } from "../workspace/config-row";
 import type { ReaderContext } from "../shared/reader";
+
+/**
+ * The plan's proposal of the review ask for a workspace now, or none (pass 6; the PRD's 10.5; the canvas's Loop4): from
+ * the owner's goals, the review link, whether an ask runs, when it was last rested (content/review-ask.ts), and the newest
+ * review. The Week reads it too (plan.ts).
+ */
+export async function readReviewAsk(
+  db: ReaderContext["ctx"]["supabase"],
+  tenantId: TenantId,
+  nowMs: number,
+): Promise<ReviewAskDto | null> {
+  const [goals, link, facts, word] = await Promise.all([
+    listGoals(db, tenantId),
+    reviewLinkOf(db, tenantId),
+    readReviewAskFacts(db, tenantId),
+    getAppointmentWord({ supabase: db }, tenantId),
+  ]);
+  return reviewAskOf(
+    { goal: goals.some((g) => g.goal === "reviews"), reviewLink: link !== null, word, ...facts },
+    nowMs,
+  );
+}
 
 /**
  * Today's points of the week (the PRD's 12.5; the approved boards, Today 1 and the pass 3 rows): the week ready to

@@ -50,8 +50,8 @@ const AD_REFUSED = {
   notFiled: (pieceName: string) => `${pieceName} isn't filed yet, so it can't run as an ad. Say so.`,
   notPlayable: (pieceName: string) =>
     `${pieceName} can't be played yet, so it can't run as an ad until it is ready. Say so.`,
-  results: (pieceName: string, said: readonly string[]) =>
-    `What ${pieceName}'s posts did so far: ${said.join("; ")}. Tell the owner this beside the card, as it is: add nothing to it.`,
+  results: (pieceName: string, lines: readonly string[]) =>
+    `What ${pieceName}'s posts did so far: ${lines.join("; ")}. Tell the owner this beside the card, as it is: add nothing to it.`,
   wont: (pieceName: string, issue: AdPieceWhy, video: boolean) =>
     `${pieceName} can't run as an ad: ${AD_PIECE_WHY[issue]}.${video && VIDEO_POST_MENDS.includes(issue) ? " A picture post made from it can." : ""} Say so, and propose no ad.`,
 } as const;
@@ -138,8 +138,12 @@ async function adPieceOf(
 async function piecePostsSaid(toolContext: ToolContext, piece: AdPiece): Promise<string | null> {
   const { data } = await load(toolContext.rc, pieceResults, { file: piece.id });
   if (data.posts.length === 0) return null;
-  const said = pieceResultsSaid(data, "UTC");
-  return AD_REFUSED.results(piece.name, [...said.howItDid.lines, ...said.howItDid.missing, said.whatItBrought.head]);
+  const sentences = pieceResultsSaid(data, "UTC");
+  return AD_REFUSED.results(piece.name, [
+    ...sentences.howItDid.lines,
+    ...sentences.howItDid.missing,
+    sentences.whatItBrought.head,
+  ]);
 }
 
 /** The card's title and summary: the service, else the piece, in the title, and the other said once below it. */

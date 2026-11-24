@@ -9,10 +9,11 @@
  *
  * Pure: the facts in, the proposal out.
  */
+import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { DAY_MS } from "../../shared/time";
 
 /** How long without a new review on Google before the plan proposes the ask. */
-export const REVIEW_ASK_QUIET_DAYS = 30;
+const REVIEW_ASK_QUIET_DAYS = 30;
 /** How long Not now rests the proposal. */
 export const REVIEW_ASK_REST_DAYS = 30;
 
@@ -22,6 +23,8 @@ export type ReviewAskWhy = "goal" | "quiet";
 /** The proposal, where there is one. */
 export interface ReviewAskDto {
   why: ReviewAskWhy;
+  /** What the workspace calls an appointment (tenants.appointment_word), which its words say. */
+  word: AppointmentWord;
 }
 
 /** What the proposal is worked out from. */
@@ -36,42 +39,52 @@ export interface ReviewAskFacts {
   askOn: boolean;
   /** When the owner last said Not now to it; null where never. */
   restedAt: string | null;
+  /** What the workspace calls an appointment. */
+  word: AppointmentWord;
 }
 
 /** The plan's proposal of the review ask, or none (where it could not run, is on, rests, or has no reason). */
 export function reviewAskOf(facts: ReviewAskFacts, nowMs: number): ReviewAskDto | null {
   if (!facts.reviewLink || facts.askOn) return null;
   if (facts.restedAt && nowMs - Date.parse(facts.restedAt) < REVIEW_ASK_REST_DAYS * DAY_MS) return null;
-  if (facts.goal) return { why: "goal" };
+  if (facts.goal) return { why: "goal", word: facts.word };
   const quiet =
     facts.newestReviewAt === null || nowMs - Date.parse(facts.newestReviewAt) >= REVIEW_ASK_QUIET_DAYS * DAY_MS;
-  return quiet ? { why: "quiet" } : null;
+  return quiet ? { why: "quiet", word: facts.word } : null;
 }
 
 /** The proposal's words: its row on the Week and Today, and the card it opens (the canvas's Loop4). */
 export const REVIEW_ASK_WORDS = {
   title: "Ask every client for a review",
   why: { goal: "More reviews is a goal you set", quiet: "No new review on Google in 30 days" },
-  when: "the day after each visit",
   open: "Open",
   card: {
-    head: "The day after a visit",
     title: "Ask for a review",
-    says: {
-      goal: "More reviews is a goal you set. This asks every client the day after a kept visit, with your review link. Never only the happy ones.",
-      quiet:
-        "No new review on Google in 30 days. This asks every client the day after a kept visit, with your review link. Never only the happy ones.",
-    },
-    facts: ["Every client, the day after a kept visit", "On WhatsApp, once a visit", "Asks you before its first batch"],
     approve: "Approve",
     notNow: "Not now",
     close: "Close",
   },
 } as const;
 
+/** The words that say the workspace's own appointment word: when it asks, the card's head, AI's line and its facts. */
+export function reviewAskWordsOf(word: AppointmentWord) {
+  const { one, a } = appointmentWords(word);
+  const asks = `This asks every client the day after a kept ${one}, with your review link.`;
+  return {
+    when: `the day after each ${one}`,
+    head: `The day after ${a}`,
+    says: { goal: `${REVIEW_ASK_WORDS.why.goal}. ${asks}`, quiet: `${REVIEW_ASK_WORDS.why.quiet}. ${asks}` },
+    facts: [
+      "Every client, never only the happy ones",
+      `On WhatsApp, once for each ${one}`,
+      "Asks you before it first sends",
+    ],
+  } as const;
+}
+
 /** The row's line under its title: why, then when it asks. */
 export const reviewAskLineOf = (ask: ReviewAskDto): string =>
-  `${REVIEW_ASK_WORDS.why[ask.why]} · ${REVIEW_ASK_WORDS.when}`;
+  `${REVIEW_ASK_WORDS.why[ask.why]} · ${reviewAskWordsOf(ask.word).when}`;
 
 /**
  * What the card's Approve starts, as POST playbooks takes it: the after-visit review ask by its starter, on the visited

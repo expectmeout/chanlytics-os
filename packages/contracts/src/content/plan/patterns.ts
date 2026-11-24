@@ -51,7 +51,7 @@ export interface ContentPattern {
   /** The cohort that did better: `evening`, `weekend`, `short`, or what the footage shows. */
   better: string;
   /** Comparable posts in the cohort, and in the rest. */
-  n: { better: number; rest: number };
+  counts: { better: number; rest: number };
   /** How many times the rest's middle reach the cohort's middle reach was, to two places. */
   lift: number;
   level: PatternLevel;

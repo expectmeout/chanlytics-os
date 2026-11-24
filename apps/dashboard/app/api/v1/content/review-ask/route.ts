@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { restReviewAsk } from "@/server/content/review-ask";
+import { snoozeReviewAsk } from "@/server/content/review-ask";
 
 /**
  * POST /api/v1/content/review-ask — `{ act: "rest" }`: Not now on the plan's proposal to ask every client for a review
@@ -15,5 +15,5 @@ export const POST = write({
   role: "operator",
   rate: "settings",
   input: z.strictObject({ act: z.literal("rest") }),
-  handle: ({ ctx, member }) => restReviewAsk(ctx, member),
+  handle: ({ ctx, member }) => snoozeReviewAsk(ctx, member),
 });

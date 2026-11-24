@@ -7,6 +7,7 @@
  */
 import { clockTime } from "../../shared/clock";
 import { groupedPlural } from "../../shared/words";
+import { dayInZone } from "../../shared/zone/math";
 import { CREDIT_WINDOW_DAYS } from "./credit";
 import type { PostKind } from "../posts";
 import { nextObserveStep } from "./observe";
@@ -222,7 +223,7 @@ export function pieceResultLineOf(dto: PieceResultsDto, at: { down: boolean }): 
   if (dto.posts.length === 0) return null;
   const lead = leading(dto.posts);
   const reach = lead?.numbers.find((one) => one.metric === "reach" && one.availability === "available")?.value ?? null;
-  const missing = dto.posts.map(missingOf).find((said) => said !== null) ?? null;
+  const missing = dto.posts.map(missingOf).find((line) => line !== null) ?? null;
   if (reach === null && missing === null) return [howItDidOf(dto.posts).fine || "Its numbers aren't read yet."];
   const reached: ResultLinePart[] =
     lead && reach !== null
@@ -257,8 +258,7 @@ export interface ChainStep {
   done: boolean;
 }
 
-const dayKeyIn = (atMs: number, tz: string): string =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(atMs);
+const dayKeyIn = (atMs: number, tz: string): string => dayInZone(tz, atMs).key;
 
 /** What a visit's asking says of where it stands: confirmed, waiting, or called off. */
 const ASKED_STANDS: Readonly<Record<string, string>> = {
@@ -315,6 +315,9 @@ export function broughtChainOf(
       opens: ask.conversation_id ? { kind: "conversation", id: ask.conversation_id } : null,
       done: true,
     });
-  const asked = steps.at(-1)?.words === "Asked for a review";
-  return { steps, fine: asked ? "Chanlytics can't tell who wrote a review on Google, so it ends at the ask." : null };
+  const endsAtTheAsk = steps.at(-1)?.words === "Asked for a review";
+  return {
+    steps,
+    fine: endsAtTheAsk ? "Chanlytics can't tell who wrote a review on Google, so it ends at the ask." : null,
+  };
 }

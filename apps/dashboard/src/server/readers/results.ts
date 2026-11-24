@@ -263,7 +263,7 @@ interface PieceAdPersonDto {
  * A piece's results, and the ads made from it as the Ads page reads them, with the people they brought (the content
  * loop's pass 6; the canvas's Loop2): never added to the post's.
  */
-export type PieceResultsAnswer = PieceResultsDto & { ads: PieceAdDto[]; ad_people: PieceAdPersonDto[] };
+type PieceResultsAnswer = PieceResultsDto & { ads: PieceAdDto[]; ad_people: PieceAdPersonDto[] };
 
 const NO_ADS = { ads: [], ad_people: [] } satisfies Pick<PieceResultsAnswer, "ads" | "ad_people">;
 

@@ -159,7 +159,7 @@ test("What it brought, the post and the ad apart, each person once; one who book
 });
 
 test("the plan's proposal to ask for reviews at the Week's foot: a star, the ask, why and when, and Open (Loop4)", () => {
-  const html = draw(S.ReviewAskRow, { ask: { why: "quiet" }, onOpen: () => undefined });
+  const html = draw(S.ReviewAskRow, { ask: { why: "quiet", word: "visit" }, onOpen: () => undefined });
   assert.match(html, /data-testid="cwk-review-ask"/);
   assert.match(html, /<b>Ask every client for a review<\/b>/);
   assert.match(html, /No new review on Google in 30 days · the day after each visit/);
