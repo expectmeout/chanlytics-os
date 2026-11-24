@@ -107,8 +107,21 @@ const postRow = (tenant, over = {}) => ({
   ...over,
 });
 
+/** A day's key, `days` from today in UTC (the workspace's zone here). */
+const dayKey = (days) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+/** The reason a piece was made for: a day it is about, nothing else to lean on. */
+const reasonFor = (day) => ({
+  goal: "Fill that day's chairs",
+  opportunity_id: null,
+  call_to_action: null,
+  day,
+  offer: null,
+  service: null,
+});
+
 /** A workspace with a piece at version 2 (its file V2), version 1's file, posts at version 1, and a photo. */
-function world({ role = "owner", posts = [{}], drawing = null } = {}) {
+function world({ role = "owner", posts = [{}], drawing = null, intent = null } = {}) {
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   const replaced = [];
@@ -129,6 +142,7 @@ function world({ role = "owner", posts = [{}], drawing = null } = {}) {
       stage: "saving",
       edition: 3,
       card_key: "card-1",
+      intent,
       created_at: "2026-11-30T12:00:00Z",
       updated_at: "2026-12-01T16:12:00Z",
     },
@@ -253,6 +267,32 @@ test("Approve version 2 approves it for every place still waiting, at each one's
   assert.equal(approval.renditions.length, 1);
   assert.equal(approval.renditions[0].shape, "9x16");
   assert.match(approval.renditions[0].checksum, /^[0-9a-f]{64}$/);
+});
+
+test("a version carries on the reason its piece was made for: the day still dates each post it sets", async () => {
+  const day = dayKey(2);
+  const w = world({ intent: reasonFor(day) });
+  assert.deepEqual(await press(w, "approve"), { fate: "approved" });
+  const [{ approval }] = w.replaced;
+  assert.deepEqual(approval.intent, reasonFor(day), "the piece's reason, never null, so the door keeps it");
+  assert.deepEqual(
+    approval.placements.map((p) => p.good_until),
+    [`${day}T23:59:59.999Z`],
+    "good until the end of its day, in the workspace's zone",
+  );
+});
+
+test("a version of a piece whose day has passed is refused, and nothing waiting is let go", async () => {
+  const w = world({ intent: reasonFor(dayKey(-1)) });
+  await assert.rejects(press(w, "approve"));
+  assert.deepEqual([w.replaced.length, w.approved.length], [0, 0]);
+});
+
+test("a piece made for no day sets posts with nothing to date them, as before", async () => {
+  const w = world();
+  assert.deepEqual(await press(w, "approve"), { fate: "approved" });
+  assert.equal(w.replaced[0].approval.intent, null);
+  assert.equal(w.replaced[0].approval.placements[0].good_until, null);
 });
 
 test("Post this one instead approves the older version's own file in the same way", async () => {

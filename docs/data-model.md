@@ -3766,7 +3766,7 @@ The machine image a made video is drawn on, one row an edition of the template (
 
 ### piece_renditions
 
-One shape of a piece's version as it is sent (00681; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
+One shape of a piece's version as it is sent (00681; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. The path is `<tenant_id>/<file_id>/<name>`, its own workspace and file (00711, piece_renditions_path_in_its_folder): the edge signs it with the service role, so a path a member's call names never reaches another workspace's bytes. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
 
 - Owned by: `packages/db/src/repositories/files/versions.ts`
 - Primary key: `id`
