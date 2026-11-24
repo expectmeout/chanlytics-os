@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-472 handlers in 63 domains.
+473 handlers in 63 domains.
 
 ## activity
 
@@ -1208,6 +1208,14 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `slot_id` | string (uuid) | yes |  |
 | `change` | object or object or object or object or object | yes |  |
+
+### `POST /api/v1/content/plan/stop`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `plan_id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/content/report`
 
@@ -2888,7 +2896,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"content_week_go"`, `"content_week_make"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2908,7 +2916,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"content_week_go"`, `"content_week_make"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

@@ -28,6 +28,7 @@ import {
   type RenditionShape,
   type SnapshotRendition,
   type TenantId,
+  type PostVia,
 } from "@chanlytics/contracts";
 import { measureMedia } from "@chanlytics/channels/files";
 import {
@@ -39,6 +40,7 @@ import {
 } from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { Json } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -53,7 +55,8 @@ interface ApprovalAsked {
   placements: PlacementAsked[];
   intent: PieceIntent | null;
   facts: OwnersFact[];
-  via: "press" | "card";
+  /** A person's press, their Approve on AI's card, or AI under the owner's rung (00712: the door takes rung from the service alone). */
+  via: PostVia;
   /** Whether each place's connection takes a post now (the caller read it). */
   connections: Readonly<Partial<Record<PostPlace, InstagramPostable>>>;
   /**
@@ -117,15 +120,16 @@ function refusedFate(answer: PostsApproved): AppError {
 const placementWordsOf = (p: PlacementAsked): string | null => (p.kind === "story" ? null : p.caption?.trim() || null);
 
 /**
- * The approval: the checks, the words kept, the shapes' bytes read and summed, then the one door. Answers what the door
- * wrote, or throws the owner's words for what stands in the way; nothing is kept or written for a press that is refused.
+ * The approval readied: the checks, the words kept, the shapes' bytes read and summed, and what the one door takes
+ * (post_approve's p_approval). Throws the owner's words for what stands in the way. A held week readies each of its
+ * placements overnight (00712) and the door takes them at 8:00; a press readies and approves at once (approvePlacements).
  */
-export async function approvePlacements(
+export async function readyApproval(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   approval: ApprovalAsked,
-): Promise<PostsApproved> {
+): Promise<Json> {
   const zone = member.facts?.timezone ?? "UTC";
   const refused = await readPlacementRefusals(ctx.supabase, {
     tenantId: member.tenantId,
@@ -178,23 +182,37 @@ export async function approvePlacements(
     spend: null,
     facts: [],
   };
+  return jsonCopyOf({
+    snapshot,
+    intent: approval.intent,
+    renditions: shapes.map(({ shape, path, checksum, bytes }) => ({ shape, path, checksum, bytes })),
+    placements: approval.placements.map((p) => ({
+      place: p.place,
+      kind: p.kind,
+      at: p.when,
+      caption: placementWordsOf(p),
+      good_until: goodUntil,
+      capability_edition: PLACE_CAPABILITIES[p.place].edition,
+    })),
+    via: approval.via,
+  });
+}
+
+/**
+ * The approval: readied (readyApproval), then the one door. Answers what the door wrote, or throws the owner's words for
+ * what stands in the way; nothing is kept or written for a press that is refused.
+ */
+export async function approvePlacements(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  approval: ApprovalAsked,
+): Promise<PostsApproved> {
+  const readied = await readyApproval(ctx, member, row, approval);
   const answer = await (approval.replace ? replacePiecePosts : approvePosts)(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,
-    approval: jsonCopyOf({
-      snapshot,
-      intent: approval.intent,
-      renditions: shapes.map(({ shape, path, checksum, bytes }) => ({ shape, path, checksum, bytes })),
-      placements: approval.placements.map((p) => ({
-        place: p.place,
-        kind: p.kind,
-        at: p.when,
-        caption: placementWordsOf(p),
-        good_until: goodUntil,
-        capability_edition: PLACE_CAPABILITIES[p.place].edition,
-      })),
-      via: approval.via,
-    }),
+    approval: readied,
   });
   if (answer.fate !== "approved") throw refusedFate(answer);
   return answer;

@@ -109,7 +109,8 @@ function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
       {plan.ready ? (
         <CalmRow
           first={{ mark: <Icon name="video" size={14} /> }}
-          name={WEEK_WORDS.todayReady}
+          // Held to its time (00712, board B5): the week goes up by itself unless the owner stops it on the Week.
+          name={plan.ready.held ? WEEK_WORDS.todayHeld(plan.ready.held) : WEEK_WORDS.todayReady}
           said={`${plan.ready.size} · ${plan.ready.days}`}
           door={routeDoor(CONTENT_WEEK_ROUTE)}
           testid="today-week-ready"

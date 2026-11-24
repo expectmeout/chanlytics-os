@@ -2227,10 +2227,19 @@ export type Database = {
           asked_at: string
           asked_by: string
           done_at: string | null
+          edited: boolean | null
           fewer: string | null
+          first_post_at: string | null
+          goes_at: string | null
           id: string
+          made_at: string | null
+          make_queued_at: string | null
+          make_tries: number
+          making_since: string | null
           ready_at: string | null
           status: string
+          stopped_at: string | null
+          stopped_by: string | null
           tenant_id: string
           week_of: string
         }
@@ -2241,10 +2250,19 @@ export type Database = {
           asked_at?: string
           asked_by: string
           done_at?: string | null
+          edited?: boolean | null
           fewer?: string | null
+          first_post_at?: string | null
+          goes_at?: string | null
           id?: string
+          made_at?: string | null
+          make_queued_at?: string | null
+          make_tries?: number
+          making_since?: string | null
           ready_at?: string | null
           status?: string
+          stopped_at?: string | null
+          stopped_by?: string | null
           tenant_id: string
           week_of: string
         }
@@ -2255,10 +2273,19 @@ export type Database = {
           asked_at?: string
           asked_by?: string
           done_at?: string | null
+          edited?: boolean | null
           fewer?: string | null
+          first_post_at?: string | null
+          goes_at?: string | null
           id?: string
+          made_at?: string | null
+          make_queued_at?: string | null
+          make_tries?: number
+          making_since?: string | null
           ready_at?: string | null
           status?: string
+          stopped_at?: string | null
+          stopped_by?: string | null
           tenant_id?: string
           week_of?: string
         }
@@ -7811,6 +7838,7 @@ export type Database = {
           place: string
           plan_id: string
           post_id: string | null
+          prepared: Json | null
           reason: string | null
           score: Json | null
           state: string
@@ -7835,6 +7863,7 @@ export type Database = {
           place: string
           plan_id: string
           post_id?: string | null
+          prepared?: Json | null
           reason?: string | null
           score?: Json | null
           state?: string
@@ -7859,6 +7888,7 @@ export type Database = {
           place?: string
           plan_id?: string
           post_id?: string | null
+          prepared?: Json | null
           reason?: string | null
           score?: Json | null
           state?: string
@@ -11423,6 +11453,28 @@ export type Database = {
         Args: { p_plan_id: string; p_snapshot: Json; p_tenant_id: string }
         Returns: Json
       }
+      content_week_hold: {
+        Args: { p_goes_at?: string; p_plan_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      content_week_made: {
+        Args: {
+          p_cap: number
+          p_lease_seconds: number
+          p_pass: string
+          p_plan_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      content_week_stop: {
+        Args: { p_plan_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      content_weeks_start: {
+        Args: { p_cap: number; p_lease_seconds: number }
+        Returns: number
+      }
       conversation_draft_claim: {
         Args: {
           p_again?: boolean
@@ -13857,6 +13909,10 @@ export type Database = {
       plan_slot_made: {
         Args: { p_made: Json; p_slot_id: string; p_tenant_id: string }
         Returns: Json
+      }
+      plan_slot_prepared: {
+        Args: { p_prepared: Json; p_slot_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       plan_slot_set: {
         Args: { p_change: Json; p_slot_id: string; p_tenant_id: string }

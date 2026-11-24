@@ -316,6 +316,9 @@ test("only these nineteen paths are reachable without a session", () => {
   // since the vendor appends /chat/completions to the address it is given.
   // Ask's morning joined with Ask's answers (#2211): the platform's clock calls it with its CRON_SECRET and no cookie;
   // anything else is a 401 (the test above). One exact path.
+  // The edge's week, made as AI (00712): the edge's content_week_go job calls it with a token it signs for that path, that
+  // workspace and that body, and no cookie; anything else is a 401, and it makes only a week the owner's rung approved.
+  // One exact path.
   // The warm-ups joined with the load review of 12 Nov 2026: the platform's clock asks for them with no cookie, so the
   // routes every page opens on are loaded before a visitor asks. Two exact paths, each answers anyone the names of the
   // routes it holds and nothing else: no workspace is named, nothing is read, nothing is written.
@@ -324,6 +327,7 @@ test("only these nineteen paths are reachable without a session", () => {
     "/api/ask/voice/llm",
     "/api/ask/voice/llm/chat/completions",
     "/api/ask/voice/llm/v1/chat/completions",
+    "/api/content/week-made",
     "/api/v1/calendar/filler.ics",
     "/api/v1/signup",
     "/api/version",

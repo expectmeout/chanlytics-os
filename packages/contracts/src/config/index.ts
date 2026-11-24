@@ -256,6 +256,7 @@ export { offersAfterStart, offersFacts } from "./workspace-config/offers-ask";
 export type { LeadChannel } from "./workspace-config/offers-ask";
 export {
   bookingHeld,
+  CONTENT_POLICY_CLASSES,
   HELD_DRAFTS_DAYS,
   heldDraftsByClass,
   heldDraftsLine,

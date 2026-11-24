@@ -270,6 +270,7 @@ export const ROUTES = {
   "POST content/plan": { method: "POST", path: "/api/v1/content/plan" },
   "POST content/plan/approve": { method: "POST", path: "/api/v1/content/plan/approve" },
   "POST content/plan/slots": { method: "POST", path: "/api/v1/content/plan/slots" },
+  "POST content/plan/stop": { method: "POST", path: "/api/v1/content/plan/stop" },
   "POST content/review-ask": { method: "POST", path: "/api/v1/content/review-ask" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
@@ -746,6 +747,7 @@ export type Routes = {
   "POST content/plan": typeof import("../../app/api/v1/content/plan/route").POST;
   "POST content/plan/approve": typeof import("../../app/api/v1/content/plan/approve/route").POST;
   "POST content/plan/slots": typeof import("../../app/api/v1/content/plan/slots/route").POST;
+  "POST content/plan/stop": typeof import("../../app/api/v1/content/plan/stop/route").POST;
   "POST content/review-ask": typeof import("../../app/api/v1/content/review-ask/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;

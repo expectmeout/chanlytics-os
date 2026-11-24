@@ -333,6 +333,8 @@ const JOB_WORDS: Record<JobKind, string> = {
   post_google: "Posting on Google at its time",
   post_take_down: "Taking a post down where it is up",
   content_plan: "Planning a week of posts",
+  content_week_go: "Putting up a week AI was let approve",
+  content_week_make: "Making a week AI approved, in its turn",
   post_observe: "Reading a post's numbers",
   comment_reply: "Answering a comment on a post",
   piece_make: "Making a video from a business's clips",

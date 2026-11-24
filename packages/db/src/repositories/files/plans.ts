@@ -30,9 +30,10 @@ type Db = SupabaseClient<Database>;
 type PlanRow = Database["public"]["Tables"]["content_plans"]["Row"];
 type SlotRow = Database["public"]["Tables"]["plan_slots"]["Row"];
 
-const PLAN_COLUMNS = "id, tenant_id, week_of, status, fewer, ready_at, approved_at, approved_by, approval_id, asked_by";
+const PLAN_COLUMNS =
+  "id, tenant_id, week_of, status, fewer, ready_at, approved_at, approved_by, approval_id, asked_by, goes_at, stopped_at, stopped_by, edited";
 const SLOT_COLUMNS =
-  "id, creative, place, kind, at, state, title, reason, file_id, piece_id, post_id, intent, words, blocked_why, blocked_reason, ask, score, approval_id";
+  "id, creative, place, kind, at, state, title, reason, file_id, piece_id, post_id, intent, words, blocked_why, blocked_reason, ask, score, approval_id, prepared";
 
 /** What the owner's ask came to: a week drafting, or the week is approved already and stays as it is. */
 export interface PlanAsked {
@@ -88,7 +89,10 @@ const slotScoreOf = (value: unknown): SlotScore | null => {
 };
 
 type SlotRead = Omit<SlotRow, "tenant_id" | "plan_id" | "created_at" | "updated_at">;
-type PlanRead = Omit<PlanRow, "asked_at" | "done_at">;
+type PlanRead = Pick<
+  PlanRow,
+  "id" | "week_of" | "status" | "fewer" | "ready_at" | "approved_at" | "approved_by" | "goes_at"
+>;
 
 /** One slot as the page reads it; null for a row whose sets this build does not know. */
 function slotDtoOf(row: SlotRead): PlanSlotDto | null {
@@ -112,6 +116,7 @@ function slotDtoOf(row: SlotRead): PlanSlotDto | null {
     blocked_reason: row.blocked_reason,
     ask: footageAskOf(row.ask),
     score: slotScoreOf(row.score),
+    prepared_file_id: nonBlankOrNull(recordOrEmpty(row.prepared).file_id),
   };
 }
 
@@ -125,6 +130,7 @@ const planDtoOf = (row: PlanRead): WeekPlanDto["plan"] =>
         ready_at: row.ready_at,
         approved_at: row.approved_at,
         approved_by: row.approved_by,
+        goes_at: row.status === "ready" ? row.goes_at : null,
       }
     : null;
 
@@ -158,14 +164,18 @@ export async function readContentWeek(db: Db, tenantId: TenantId, weekOf: string
 
 /** What approving the week came to. */
 export interface WeekApproved {
-  fate: "approved" | "changed" | "gone" | "nothing" | "drafting" | "done";
+  // A rung's approval may also find the week held to a later time, stopped, or under a rung that now asks (00712).
+  fate: "approved" | "changed" | "gone" | "nothing" | "drafting" | "done" | "held" | "stopped" | "asks";
   approvalId: string | null;
   slots: number;
 }
 
-const WEEK_FATES = ["approved", "changed", "gone", "nothing", "drafting", "done"] as const;
+const WEEK_FATES = ["approved", "changed", "gone", "nothing", "drafting", "done", "held", "stopped", "asks"] as const;
 
-/** Approve the week (content_week_approve), as the member: the snapshot's slots under one approval of the plan. */
+/**
+ * Approve the week (content_week_approve): as the member, the snapshot's slots under one approval of the plan; as the
+ * service at a held week's time, the same under the rung the door reads again (00712).
+ */
 export async function approveWeek(
   db: Db,
   tenantId: TenantId,
@@ -262,10 +272,22 @@ export async function markSlotMade(db: Db, tenantId: TenantId, slot: { id: strin
 export async function findPlanForJob(
   db: Db,
   planId: string,
-): Promise<Pick<PlanRow, "id" | "tenant_id" | "week_of" | "status" | "asked_by"> | null> {
+): Promise<Pick<
+  PlanRow,
+  | "id"
+  | "tenant_id"
+  | "week_of"
+  | "status"
+  | "asked_by"
+  | "goes_at"
+  | "stopped_at"
+  | "approved_by"
+  | "making_since"
+  | "made_at"
+> | null> {
   const { data, error } = await db
     .from("content_plans")
-    .select("id, tenant_id, week_of, status, asked_by")
+    .select("id, tenant_id, week_of, status, asked_by, goes_at, stopped_at, approved_by, making_since, made_at")
     .eq("id", planId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "content plan for its job");
@@ -304,4 +326,171 @@ export async function handOutPlans(db: Db, spreadSeconds: number): Promise<numbe
   const { data, error } = await db.rpc("content_plans_hand_out", { p_spread_seconds: spreadSeconds });
   if (error) throw new DbFailure(error, "content plans hand out");
   return typeof data === "number" ? data : 0;
+}
+
+/** What holding a week came to (content_week_hold): held to its time under the rung, or let go and why. */
+export type WeekHold = "held" | "let_go" | "asks" | "stopped" | "gone" | "other";
+
+const HOLD_FATES = ["held", "let_go", "asks", "stopped", "gone"] as const;
+
+/**
+ * A ready week held to its time (content_week_hold, 00712), under the service role: its goes_at kept and its job
+ * scheduled for then while the plan_approve rung holds or sends it; null lets it go. The door reads the rung itself.
+ */
+export async function holdWeek(
+  db: Db,
+  tenantId: TenantId,
+  hold: { planId: string; goesAt: string | null },
+): Promise<WeekHold> {
+  const { data, error } = await db.rpc("content_week_hold", {
+    p_tenant_id: tenantId,
+    p_plan_id: hold.planId,
+    // None lets it go.
+    ...(hold.goesAt ? { p_goes_at: hold.goesAt } : {}),
+  });
+  if (error) throw new DbFailure(error, "content week hold");
+  const fate = recordOrEmpty(data).fate;
+  return isOneOf(HOLD_FATES, fate) ? fate : "other";
+}
+
+/** Stop it (content_week_stop, 00712), as the member: a held week let go, so it waits for their press. */
+export async function stopWeek(
+  db: Db,
+  tenantId: TenantId,
+  planId: string,
+): Promise<"stopped" | "asks" | "gone" | "other"> {
+  const { data, error } = await db.rpc("content_week_stop", { p_tenant_id: tenantId, p_plan_id: planId });
+  if (error) throw new DbFailure(error, "content week stop");
+  const fate = recordOrEmpty(data).fate;
+  return fate === "stopped" || fate === "asks" || fate === "gone" ? fate : "other";
+}
+
+/** The workspace's rung for Approve the week (policies, class plan_approve): its mode, or null where none is read. */
+export async function findWeekRung(db: Db, tenantId: TenantId): Promise<string | null> {
+  const { data, error } = await db
+    .from("policies")
+    .select("mode")
+    .eq("tenant_id", tenantId)
+    .eq("class", "plan_approve")
+    .is("subject_type", null)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "the week's rung");
+  return data?.mode ?? null;
+}
+
+/** How many approved weeks AI's suggested rung reads, newest first. */
+const RECORD_WEEKS = 8;
+
+/** The weeks approved, newest first, as AI's suggested rung reads them: by whose press, and whether edited (00712). */
+export async function listWeeksApproved(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ by_owner: boolean; edited: boolean | null }[]> {
+  const { data, error } = await db
+    .from("content_plans")
+    .select("approved_by, edited")
+    .eq("tenant_id", tenantId)
+    .in("status", ["approved", "done"])
+    .not("approved_at", "is", null)
+    .order("week_of", { ascending: false })
+    .limit(RECORD_WEEKS);
+  if (error) throw new DbFailure(error, "weeks approved");
+  return data.map((row) => ({ by_owner: row.approved_by !== null, edited: row.edited }));
+}
+
+/** What AI does with a week the dashboard's door is asked for (00712): prepare it while it is held, make what is left once approved. */
+export type WeekPass = "prepare" | "make";
+
+/**
+ * A week AI is to work on, as the dashboard's door reads it under the service role (00712): held under a rung that still
+ * holds or sends it and not stopped (prepare its pictures ahead), or approved by nobody's press under the rung (make what
+ * is left). Null for any other week: one the owner approved, one that asks, one not this workspace's.
+ */
+export async function findWeekForAI(
+  db: Db,
+  tenantId: TenantId,
+  planId: string,
+): Promise<{ weekOf: string; pass: WeekPass } | null> {
+  const { data: plan, error } = await db
+    .from("content_plans")
+    .select("week_of, status, approved_by, approval_id, goes_at, stopped_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", planId)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "a week for AI");
+  if (!plan) return null;
+  if (plan.status === "ready") {
+    const rung = await findWeekRung(db, tenantId);
+    return plan.goes_at && !plan.stopped_at && (rung === "veto" || rung === "auto")
+      ? { weekOf: plan.week_of, pass: "prepare" }
+      : null;
+  }
+  if (plan.status !== "approved" || plan.approved_by !== null || !plan.approval_id) return null;
+  const { data: approval, error: approvalError } = await db
+    .from("approvals")
+    .select("approved_by, snapshot")
+    .eq("tenant_id", tenantId)
+    .eq("id", plan.approval_id)
+    .maybeSingle();
+  if (approvalError) throw new DbFailure(approvalError, "the week's approval");
+  const rung = recordOrEmpty(recordOrEmpty(approval?.snapshot).rung);
+  return approval && approval.approved_by === null && rung.class === "plan_approve"
+    ? { weekOf: plan.week_of, pass: "make" }
+    : null;
+}
+
+/**
+ * A slot of a held week readied ahead (plan_slot_prepared, 00712), under the service role: the made file its picture was
+ * drawn into, the time it was readied for, and the approval the door takes at 8:00. Whether it was kept.
+ */
+export async function markSlotPrepared(
+  db: Db,
+  tenantId: TenantId,
+  slot: { id: string; prepared: Json },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("plan_slot_prepared", {
+    p_tenant_id: tenantId,
+    p_slot_id: slot.id,
+    p_prepared: slot.prepared,
+  });
+  if (error) throw new DbFailure(error, "a slot prepared");
+  return data === true;
+}
+
+/** The making queue's cap and lease, as its doors take them (contracts WEEKS_MAKING_AT_ONCE, WEEK_MAKING_LEASE_S). */
+export interface MakingQueue {
+  cap: number;
+  leaseSeconds: number;
+}
+
+/**
+ * The making queue started (content_weeks_start, 00712), under the service role: the weeks AI approved begun in turn,
+ * never more at once than the cap, the earliest first post first, each with its content_week_make job. How many began.
+ */
+export async function startWeeksMaking(db: Db, queue: MakingQueue): Promise<number> {
+  const { data, error } = await db.rpc("content_weeks_start", {
+    p_cap: queue.cap,
+    p_lease_seconds: queue.leaseSeconds,
+  });
+  if (error) throw new DbFailure(error, "the making queue's start");
+  return typeof data === "number" ? data : 0;
+}
+
+/** A week's pass done (content_week_made, 00712): its place in the queue is free, and the next in turn begins. */
+export async function markWeekMade(
+  db: Db,
+  tenantId: TenantId,
+  week: { planId: string; pass: WeekPass },
+  queue: MakingQueue,
+): Promise<number> {
+  const { data, error } = await db.rpc("content_week_made", {
+    p_tenant_id: tenantId,
+    p_plan_id: week.planId,
+    p_pass: week.pass,
+    p_cap: queue.cap,
+    p_lease_seconds: queue.leaseSeconds,
+  });
+  if (error) throw new DbFailure(error, "a week made");
+  const started = recordOrEmpty(data).started;
+  return typeof started === "number" ? started : 0;
 }

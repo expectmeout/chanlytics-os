@@ -40,6 +40,11 @@ export interface WeekPageDto {
   paused_at: string | null;
   /** Which places take a post now. */
   places: { instagram: boolean; google: boolean };
+  /**
+   * Approve the week's rung (00712; policies, class plan_approve): `ask`, `veto` (held to 8:00 AM) or `auto`; absent from
+   * an older build's answer, and null where none was read. Settings › Content says it.
+   */
+  rung?: string | null;
   /** Whether this workspace plans its weeks (features.content_plan): the Week is its tab only where it does. */
   planned: boolean;
   claims: OwnerClaim[];

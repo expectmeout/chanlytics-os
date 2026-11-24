@@ -18,6 +18,7 @@ import {
   AppError,
   PIECE_LIMITS,
   POST_VOICES,
+  WEEK_MADE_AHEAD_MS,
   type PieceIntent,
   type PlanSlotDto,
   type PostAbout,
@@ -25,14 +26,22 @@ import {
   type SlotWords,
   type TenantId,
 } from "@chanlytics/contracts";
-import { findBestMoment, findFile, markSlotMade, readContentWeek, type FileMemberRow } from "@chanlytics/db/files";
+import {
+  findBestMoment,
+  findFile,
+  markSlotMade,
+  markSlotPrepared,
+  readContentWeek,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { makePost } from "../posts/make";
-import { postFileToGoogle } from "../posts/google";
-import { postFileToInstagram } from "../posts/instagram";
+import { postFileToGoogle, readyOnGoogle } from "../posts/google";
+import { postFileToInstagram, readyOnInstagram } from "../posts/instagram";
 import { beginPieceFor } from "./piece";
 
 /** What a row says when a creative could not be made, with its one fix (Try again). */
@@ -40,6 +49,8 @@ const UNMADE = {
   words: "AI couldn't write its words. Try again.",
   footage: "Its photo or clip isn't there any more.",
   failed: "It couldn't be made. Try again.",
+  /** A week AI approved, whose slot's time came before its turn to be made (00712): never posted late. */
+  late: "Its time came before it could be made. Pick another time.",
 } as const;
 
 /** How long a reel runs around its clip's best moment: a beat before it, and long enough to land. */
@@ -65,13 +76,20 @@ const refusalWords = (e: unknown): string => (e instanceof AppError ? e.message 
 
 type Hold = (reason: string) => Promise<void>;
 
-/** A picture or a story: drawn from its photo or its clip's moment, then each of its places at its time. */
-async function makePicture(
+/**
+ * Who makes a week: a member's press (after their Approve the week, or a row's own), or AI under the rung the owner set
+ * (00712: a held week at its time, through the edge's job and app/api/content/week-made). AI's placements go via rung,
+ * and a reel it begins is keyed by its slot, so the job's try again begins no second video.
+ */
+export type WeekMadeBy = "press" | "rung";
+
+/** A picture or a story drawn from its photo, or its clip's best moment, with the words the Week showed: its made file. */
+async function drawPicture(
   ctx: RouteContext,
   member: Member,
-  creative: { slots: readonly PlanSlotDto[]; file: FileMemberRow; words: SlotWords },
-): Promise<void> {
-  const { slots, file, words } = creative;
+  creative: { file: FileMemberRow; words: SlotWords },
+): Promise<FileMemberRow> {
+  const { file, words } = creative;
   const moment = file.kind === "video" ? await findBestMoment(ctx.supabase, member.tenantId, file.id) : null;
   const plan: PostPlan = {
     file_id: file.id,
@@ -88,16 +106,39 @@ async function makePicture(
   const post = await makePost(ctx, member, plan);
   const row = await findFile(ctx.supabase, post.file_id);
   if (!row) throw new AppError("not_found", UNMADE.failed, 404);
+  return row;
+}
+
+/** The made file every slot of a creative was drawn into ahead (00712), where they share one: whoever places it reuses it. */
+const preparedFileOf = (slots: readonly PlanSlotDto[]): string | null => {
+  const first = slots[0]?.prepared_file_id ?? null;
+  return first && slots.every((s) => s.prepared_file_id === first) ? first : null;
+};
+
+/** A picture or a story: drawn (or the one drawn ahead), then each of its places at its time. */
+async function makePicture(
+  ctx: RouteContext,
+  member: Member,
+  creative: { slots: readonly PlanSlotDto[]; file: FileMemberRow; words: SlotWords; by: WeekMadeBy },
+): Promise<void> {
+  const { slots, file, words } = creative;
+  const via = creative.by === "rung" ? ("rung" as const) : undefined;
+  const prepared = preparedFileOf(slots);
+  const row =
+    (prepared ? await findFile(ctx.supabase, prepared) : null) ?? (await drawPicture(ctx, member, { file, words }));
   for (const slot of slots) {
     const about = aboutOf(slot.intent);
     const placed =
       slot.place === "google"
-        ? await postFileToGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about }).then(() => null)
+        ? await postFileToGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about, via }).then(
+            () => null,
+          )
         : await postFileToInstagram(ctx, member, row, {
             as: slot.kind === "story" ? "story" : "picture",
             caption: words.caption,
             when: slot.at,
             about,
+            via,
           });
     if (placed) await markSlotMade(ctx.supabase, member.tenantId, { id: slot.id, made: { post_id: placed.post_id } });
   }
@@ -129,39 +170,105 @@ async function beginReel(
 }
 
 /** One creative made, or held on its row with why and its one fix. */
-async function makeCreative(ctx: RouteContext, member: Member, slots: readonly PlanSlotDto[]): Promise<void> {
+async function makeCreative(
+  ctx: RouteContext,
+  member: Member,
+  made: { slots: readonly PlanSlotDto[]; by: WeekMadeBy },
+): Promise<void> {
+  const { slots, by } = made;
   const first = slots[0];
   if (!first) return;
   const hold: Hold = async (reason) => {
     for (const slot of slots)
       await markSlotMade(ctx.supabase, member.tenantId, { id: slot.id, made: { held: { why: "unmade", reason } } });
   };
+  // AI makes nothing it would post late (00712, the making queue): a slot whose time is too near is held, with why.
+  if (by === "rung" && Math.min(...slots.map((s) => Date.parse(s.at))) - Date.now() < WEEK_MADE_AHEAD_MS) {
+    for (const slot of slots)
+      await markSlotMade(ctx.supabase, member.tenantId, {
+        id: slot.id,
+        made: { held: { why: "late", reason: UNMADE.late } },
+      });
+    return;
+  }
   if (!first.words) return hold(UNMADE.words);
   const file = first.file_id ? await findFile(ctx.supabase, first.file_id) : null;
   if (!file) return hold(UNMADE.footage);
   try {
     if (first.kind === "reel")
       // A key a press of its own: each approval that makes it (the week's, or its own Try again) begins its own video.
-      await beginReel(ctx, member, { slots, file, words: first.words, key: `week:${first.id}:${Date.now()}` });
-    else await makePicture(ctx, member, { slots, file, words: first.words });
+      // AI's is its slot's own (00712): the job asked again finds the video it began.
+      await beginReel(ctx, member, {
+        slots,
+        file,
+        words: first.words,
+        key: by === "rung" ? `week:${first.id}:rung` : `week:${first.id}:${Date.now()}`,
+      });
+    else await makePicture(ctx, member, { slots, file, words: first.words, by });
   } catch (e) {
     log.warn("week_make_failed", { tenant_id: member.tenantId, creative: first.creative, error: e });
     await hold(refusalWords(e));
   }
 }
 
-/** Every approved creative of a week not yet made, one at a time, as the member whose press approved it. */
-export async function makeWeek(ctx: RouteContext, member: Member, weekOf: string): Promise<number> {
-  const week = await readContentWeek(ctx.supabase, member.tenantId, weekOf);
-  const creatives = creativesToMake(week.slots);
-  for (const slots of creatives) await makeCreative(ctx, member, slots);
+/** Every approved creative of a week not yet made, one at a time, as the member whose press approved it, or as AI. */
+export async function makeWeek(
+  ctx: RouteContext,
+  member: Member,
+  week: { weekOf: string; by: WeekMadeBy },
+): Promise<number> {
+  const read = await readContentWeek(ctx.supabase, member.tenantId, week.weekOf);
+  const creatives = creativesToMake(read.slots);
+  for (const slots of creatives) await makeCreative(ctx, member, { slots, by: week.by });
   return creatives.length;
+}
+
+/**
+ * A held week prepared ahead (00712; the making queue's overnight pass): each picture or story drawn once into its made
+ * file, and each of its places readied for the door (posts/approve.ts readyApproval), kept on its slot. Nothing approved,
+ * nothing placed, no reel begun: a reel costs, and waits for the owner's look whatever the rung. A creative that cannot be
+ * readied is left to be made after the approval, where it says its one fix if it cannot be then either. How many slots.
+ */
+export async function prepareWeek(ctx: RouteContext, member: Member, weekOf: string): Promise<number> {
+  const read = await readContentWeek(ctx.supabase, member.tenantId, weekOf);
+  const byCreative = new Map<string, PlanSlotDto[]>();
+  for (const slot of read.slots) {
+    if (slot.state !== "proposed" || slot.kind === "reel" || slot.prepared_file_id) continue;
+    byCreative.set(slot.creative, [...(byCreative.get(slot.creative) ?? []), slot]);
+  }
+  let readied = 0;
+  for (const slots of byCreative.values()) {
+    const first = slots[0];
+    const file = first?.words && first.file_id ? await findFile(ctx.supabase, first.file_id) : null;
+    if (!first?.words || !file) continue;
+    try {
+      const row = await drawPicture(ctx, member, { file, words: first.words });
+      for (const slot of slots) {
+        const about = aboutOf(slot.intent);
+        const approval =
+          slot.place === "google"
+            ? await readyOnGoogle(ctx, member, row, { summary: first.words.caption, when: slot.at, about })
+            : await readyOnInstagram(ctx, member, row, {
+                as: slot.kind === "story" ? "story" : "picture",
+                caption: first.words.caption,
+                when: slot.at,
+                about,
+                via: "rung",
+              });
+        const prepared = jsonCopyOf({ file_id: row.id, at: slot.at, approval });
+        if (await markSlotPrepared(ctx.supabase, member.tenantId, { id: slot.id, prepared })) readied += 1;
+      }
+    } catch (e) {
+      log.warn("week_prepare_failed", { tenant_id: member.tenantId, creative: first.creative, error: e });
+    }
+  }
+  return readied;
 }
 
 /** The week made after the press has answered (next/server `after`): the owner waits on none of it. */
 export function makeWeekAfter(ctx: RouteContext, member: Member, at: { tenantId: TenantId; weekOf: string }): void {
   after(() =>
-    makeWeek(ctx, member, at.weekOf).then(
+    makeWeek(ctx, member, { weekOf: at.weekOf, by: "press" }).then(
       (count) => log.info("week_made", { tenant_id: at.tenantId, creatives: count }),
       logAndGoOn("making a week's posts"),
     ),

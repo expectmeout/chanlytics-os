@@ -33,7 +33,7 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
-import { approvePlacements } from "./approve";
+import { approvePlacements, readyApproval } from "./approve";
 import { getMaterial } from "./material";
 import { getPhoto, googlePicturePathOf, postDrawn } from "./make";
 import { readFileRecord } from "./record";
@@ -111,6 +111,8 @@ export async function postFileToGoogle(
     when?: string | undefined;
     about?: PostAbout | undefined;
     facts?: OwnersFact[] | undefined;
+    /** AI's approval under the owner's rung (00712), never a person's press. */
+    via?: "rung" | undefined;
   },
 ): Promise<{ name: string | null; search_url: string | null; state: string | null }> {
   // Google takes a picture: a video made here is not a post for it.
@@ -131,7 +133,7 @@ export async function postFileToGoogle(
     ],
     intent: intentOfAbout(input.about),
     facts: input.facts ?? [],
-    via: "press",
+    via: input.via ?? "press",
     connections: { google: "yes" },
   }).catch((e: unknown) => {
     throw e instanceof AppError && e.message === ON_INSTAGRAM.busy
@@ -153,7 +155,8 @@ export async function postFileToGoogle(
     {
       op: "post",
       tenant_id: member.tenantId,
-      user_id: ctx.userId,
+      // AI under the owner's rung (00712) is nobody: the post is written down as no person's.
+      ...(ctx.userId ? { user_id: ctx.userId } : {}),
       file_id: row.id,
       summary: input.summary,
       photo_url: photoUrl,
@@ -201,6 +204,29 @@ export async function postFileToGoogle(
 }
 
 /** DELETE files/[id]/google: the post comes off the profile. It stays in Files. */
+/**
+ * A held week's Google placement readied overnight (00712): the picture drawn and kept for Google, every check, nothing
+ * approved; the door takes it at 8:00, and the post's job asks Google at its time. Only for a time later than soon.
+ */
+export async function readyOnGoogle(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  input: { summary: string; when: string; about?: PostAbout | undefined },
+) {
+  if (row.source !== "made" || row.kind === "video") throw new AppError("validation", ON_GOOGLE.notAPost);
+  const { made } = await readFileRecord(ctx, member, row);
+  if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
+  await pictureForGoogle(ctx, member, row.id, made.plan);
+  return readyApproval(ctx, member, row, {
+    placements: [{ place: "google", kind: "picture", caption: input.summary, when: input.when }],
+    intent: intentOfAbout(input.about),
+    facts: [],
+    via: "rung",
+    connections: { google: "yes" },
+  });
+}
+
 export async function takeFileOffGoogle(
   ctx: RouteContext,
   member: Member,

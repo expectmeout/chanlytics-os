@@ -713,6 +713,7 @@
     "00708_a_made_video_gets_a_second_version.sql": "b6220c545667b443d98ad36ebde3d8ee71487733df327aacd11f1f1febeeda48",
     "00709_a_website_s_forms_are_forms.sql": "1996cd9646b6fda7196357ea6dd7cccbda4c54abc60e72ea0612893e0b55e3fb",
     "00710_turning_an_ad_on_keeps_its_approval.sql": "4fa8ee2a9fed4441dcd3cbb1593a81b49abfe6e8d90a67747682182a27af463e",
-    "00711_a_shape_s_path_is_in_its_own_workspace.sql": "46266c78c45e76cf8d606603e6fc65c21a91cd06559b83df377130675778997b"
+    "00711_a_shape_s_path_is_in_its_own_workspace.sql": "46266c78c45e76cf8d606603e6fc65c21a91cd06559b83df377130675778997b",
+    "00712_a_held_week_goes_up_unless_the_owner_stops_it.sql": "da1dfba7b0a67709a4c3d994e195d9b2a2b1fd6fccfe9869f99ad18e24c69e95"
   }
 }

@@ -62,7 +62,11 @@ export interface ContentTodayDto {
    * where nothing of the week waits on the owner.
    */
   plan?: {
-    ready: { size: string; days: string } | null;
+    /**
+     * The week ready, its size and days; `held`, the time a week AI may approve goes up at ("8:00 AM", 00712), absent
+     * from an older build's answer and null where nothing goes without the owner's press.
+     */
+    ready: { size: string; days: string; held?: string | null } | null;
     film: string[];
     /** The plan's proposal to ask every client for a review (pass 6; the canvas's Loop4); absent from an older build's. */
     review_ask?: ReviewAskDto | null;

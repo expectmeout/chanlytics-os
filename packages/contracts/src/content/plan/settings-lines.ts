@@ -80,9 +80,20 @@ export function cadenceSaid(cadence: ReturnType<typeof cadenceOf>): string {
   return `Up to ${places.join(", and ")}, each week. Fewer when the clips are thin.`;
 }
 
+/** Approve the week's rung as Settings › Content says it (00712): the Autonomy pane is where it is moved. */
+const RUNG_SAID = {
+  ask: "AI asks you first.",
+  veto: "AI holds the week and puts it up at 8:00 AM unless you stop it.",
+  auto: "AI approves the week as soon as it is ready.",
+} as const;
+
+/** The rung read as one of the three; any other (or none read) asks. */
+const rungSaid = (rung: string | null | undefined): string =>
+  rung === "veto" ? RUNG_SAID.veto : rung === "auto" ? RUNG_SAID.auto : RUNG_SAID.ask;
+
 /** The lines, as set and as said. */
 export function contentLinesOf(
-  page: Pick<WeekPageDto, "goals" | "cadence" | "quiet_days" | "languages" | "claims" | "lines" | "look">,
+  page: Pick<WeekPageDto, "goals" | "cadence" | "quiet_days" | "languages" | "claims" | "lines" | "look" | "rung">,
   today: string,
 ): ContentLineView[] {
   const own = page.lines;
@@ -147,6 +158,6 @@ export function contentLinesOf(
       edit: "offers",
       to: null,
     },
-    { key: "rung", label: "Before anything posts", words: "AI asks you first.", edit: "page", to: "settings/autonomy" },
+    { key: "rung", label: "Before anything posts", words: rungSaid(page.rung), edit: "page", to: "settings/autonomy" },
   ];
 }

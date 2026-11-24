@@ -209,6 +209,7 @@ export const LOG_EVENTS = [
   "comment_draft_skipped",
   "comment_drafted",
   "content_plans_hand_out_failed",
+  "content_weeks_start_failed",
   "copy_grace",
   "copy_let_go",
   "copy_return",
@@ -1012,6 +1013,10 @@ export const LOG_EVENTS = [
   "website_read",
   "website_read_failed",
   "website_read_unscheduled",
+  "week_held",
+  "week_let_go",
+  "week_queued",
+  "week_went",
   "you_are_live_sent",
   "you_are_live_unaddressed",
 ] as const;

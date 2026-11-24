@@ -43,6 +43,7 @@ import { handOutStepsDue } from "@chanlytics/db/jobs";
 import { cancelBroadcast } from "@chanlytics/core";
 import {
   AppError,
+  WEEK_MAKING_QUEUE,
   addressOf,
   audienceLate,
   audienceTrigger,
@@ -52,7 +53,7 @@ import {
   runTooLate,
   skippedRunNotice,
 } from "@chanlytics/contracts";
-import { handOutPlans } from "@chanlytics/db/files";
+import { handOutPlans, startWeeksMaking } from "@chanlytics/db/files";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
@@ -66,7 +67,7 @@ const DAY_PASSED_BATCH = 50;
 /** When the tick stops ending missed days' runs, so the hand-out keeps its time: what is left ends next hour. */
 const DAY_PASSED_UNTIL_MS = 5_000;
 
-type SweepCounts = Record<"moments" | "steps" | "plans" | "told" | "ended" | "reminded", number>;
+type SweepCounts = Record<"moments" | "steps" | "plans" | "making" | "told" | "ended" | "reminded", number>;
 
 /** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
 interface Tick {
@@ -174,7 +175,7 @@ async function tellSkipped(
 
 export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Response> {
   const now = new Date();
-  const out: SweepCounts = { moments: 0, steps: 0, plans: 0, told: 0, ended: 0, reminded: 0 };
+  const out: SweepCounts = { moments: 0, steps: 0, plans: 0, making: 0, told: 0, ended: 0, reminded: 0 };
   await endRunsWhoseDayPassed({ db, now, L, out, started });
   try {
     out.moments = await handOutStepsDue(db, {
@@ -203,6 +204,13 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
     out.plans = await handOutPlans(db, HAND_OUT_SPREAD_SECONDS);
   } catch (e) {
     L.error("content_plans_hand_out_failed", { error: e instanceof Error ? e.message : String(e) });
+  }
+  // The weeks AI approved under the owner's rung, made in turn (00712): each made week begins the next, and the hour's
+  // clock begins the queue too, so a making that never reported back frees its place once its lease ends.
+  try {
+    out.making = await startWeeksMaking(db, WEEK_MAKING_QUEUE);
+  } catch (e) {
+    L.error("content_weeks_start_failed", { error: e instanceof Error ? e.message : String(e) });
   }
   // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
   out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);

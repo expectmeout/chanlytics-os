@@ -42,9 +42,10 @@ const clip = (id, look) => ({
   look,
 });
 
-function world({ footage = true } = {}) {
+function world({ footage = true, rung = "ask" } = {}) {
   const written = [];
   const moments = [];
+  const holds = [];
   const tables = {
     tenants: [{ id: T, timezone: ZONE, slug: "studio", name: "Studio" }],
     tenant_config: [{ tenant_id: T, config: { features: { content_preview: true, content_plan: true } }, version: 1 }],
@@ -87,6 +88,18 @@ function world({ footage = true } = {}) {
     ],
     notifications: [],
     jobs: [],
+    // Approve the week's rung (00712): the workspace's row, as provision_tenant gives it.
+    policies: [
+      {
+        id: "abab7777-4444-4000-8000-000000000037",
+        tenant_id: T,
+        class: "plan_approve",
+        mode: rung,
+        subject_type: null,
+        subject_id: null,
+        limits: {},
+      },
+    ],
   };
   const db = fakeDb(
     tables,
@@ -104,10 +117,22 @@ function world({ footage = true } = {}) {
         moments.push(args);
         return args.p_moments.length;
       },
+      // The making queue started once a week is held (00712): it prepares the week ahead, in turn.
+      content_weeks_start: () => 1,
+      // content_week_hold (00712), as the door: held under a rung that holds or sends the week, else let go.
+      content_week_hold: (args) => {
+        holds.push(args);
+        const plan = tables.content_plans.find((p) => p.id === args.p_plan_id);
+        const mode = tables.policies.find((p) => p.class === "plan_approve")?.mode;
+        if (!args.p_goes_at || !plan || plan.status !== "ready" || !["veto", "auto"].includes(mode))
+          return { fate: "asks" };
+        plan.goes_at = args.p_goes_at;
+        return { fate: "held", goes_at: args.p_goes_at, mode };
+      },
     },
   );
   setPg(db);
-  return { db, tables, written, moments };
+  return { db, tables, written, moments, holds };
 }
 
 const job = { id: "job-1", tenant_id: T, kind: "content_plan", payload: { plan_id: PLAN }, attempts: 1 };
@@ -217,4 +242,42 @@ test("a plan gone, or one approved since, is left as it is", async () => {
     skipped: "gone",
   });
   assert.equal(w.written.length, 0);
+});
+
+test("under a rung that asks, a ready week is held to no time and its notice says nothing goes up until the owner approves", async () => {
+  const w = world();
+  await planTheWeek(w.db, job, wordsFor());
+  assert.equal(w.holds.length, 1, "the door is asked, and decides");
+  assert.equal(w.holds[0].p_goes_at, undefined, "no time is asked for");
+  assert.equal(w.tables.content_plans[0].goes_at, undefined);
+  assert.match(
+    w.tables.notifications.find((n) => n.kind === "plan_ready").body,
+    /Nothing goes up until you approve them/,
+  );
+});
+
+test("under Holds it, a ready week is held to the next 8:00 AM in the business's zone, and its notice says so", async () => {
+  const w = world({ rung: "veto" });
+  await planTheWeek(w.db, job, wordsFor());
+  const goes = w.tables.content_plans[0].goes_at;
+  assert.ok(goes, "held to a time");
+  assert.ok(Date.parse(goes) > Date.now() && Date.parse(goes) - Date.now() <= 86_400_000, "within the day ahead");
+  const local = new Intl.DateTimeFormat("en-US", {
+    timeZone: ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(goes));
+  assert.equal(local, "8:00 AM");
+  assert.match(
+    w.tables.notifications.find((n) => n.kind === "plan_ready").body,
+    /go up at 8:00 AM unless you stop them/,
+  );
+});
+
+test("under Sends it, a ready week goes now, and its notice says AI approved it as the owner set", async () => {
+  const w = world({ rung: "auto" });
+  await planTheWeek(w.db, job, wordsFor());
+  assert.ok(Math.abs(Date.parse(w.tables.content_plans[0].goes_at) - Date.now()) < 60_000, "held to now");
+  assert.match(w.tables.notifications.find((n) => n.kind === "plan_ready").body, /AI approved them, as you set it/);
 });

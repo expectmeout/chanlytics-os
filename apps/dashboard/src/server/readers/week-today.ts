@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  clockTime,
   contentPlanOf,
   creativesOf,
   planWeekOf,
@@ -10,10 +11,11 @@ import {
   type ContentTodayDto,
   type ReviewAskDto,
   type TenantId,
+  type WeekPlanDto,
 } from "@chanlytics/contracts";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import { readReviewAskFacts } from "@chanlytics/db/content";
-import { listGoals, readContentWeek } from "@chanlytics/db/files";
+import { findWeekRung, listGoals, readContentWeek } from "@chanlytics/db/files";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
 import { getAppointmentWord } from "../people/deals";
@@ -43,6 +45,15 @@ export async function readReviewAsk(
 }
 
 /**
+ * A week as the owner reads it: held to its time (00712) only while the rung still lets AI approve it. A rung moved back
+ * to asking since the week was held says nothing goes by itself, whatever the plan still keeps.
+ */
+export function weekAsHeld(week: WeekPlanDto, rung: string | null): WeekPlanDto {
+  if (!week.plan?.goes_at || rung === "veto" || rung === "auto") return week;
+  return { ...week, plan: { ...week.plan, goes_at: null } };
+}
+
+/**
  * Today's points of the week (the PRD's 12.5; the approved boards, Today 1 and the pass 3 rows): the week ready to
  * approve, with its size and days, what AI asks to be filmed, and the plan's proposal to ask every client for a review
  * (pass 6; the canvas's Loop4). Null where the workspace plans no weeks, or nothing of the week waits on the owner. Each
@@ -53,10 +64,12 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
   const [row, zone] = await Promise.all([findConfigRow(db, rc.tenantId), findWorkspaceZone(db, rc.tenantId)]);
   if (!contentPlanOf(row?.config ?? null)) return null;
   const at = zone ?? "UTC";
-  const [week, reviewAsk] = await Promise.all([
+  const [read, rung, reviewAsk] = await Promise.all([
     readContentWeek(db, rc.tenantId, planWeekOf(at, rc.now.getTime())),
+    findWeekRung(db, rc.tenantId),
     readReviewAsk(db, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
   ]);
+  const week = weekAsHeld(read, rung);
   if (!week.plan) return reviewAsk ? { ready: null, film: [], review_ask: reviewAsk } : null;
   const live = week.slots.filter((s) => s.state !== "needs_footage" && s.state !== "removed");
   const ready =
@@ -64,6 +77,8 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
       ? {
           size: weekSizeSaid(creativesOf(live)),
           days: weekDaysSaid(live.map((s) => zoneDayKey(Date.parse(s.at), at))),
+          // Held to its time (00712): "8:00 AM", which Today says the week goes up at unless the owner stops it.
+          held: week.plan.goes_at ? clockTime(Date.parse(week.plan.goes_at), at) : null,
         }
       : null;
   const film = week.slots.flatMap((s) => (s.state === "needs_footage" && s.ask ? [s.ask.what] : []));

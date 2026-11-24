@@ -954,6 +954,13 @@
       "rate": "settings",
       "spend": false
     },
+    "POST content/plan/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST content/plan/slots": {
       "kind": "write",
       "scope": "workspace",

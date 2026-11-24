@@ -26,7 +26,7 @@ what the script writes.
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/counts.ts`, `packages/db/src/repositories/calendar/appointments/lapses.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/content/visits.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
-| [`approvals`](#approvals) | none | on, 1 policy |
+| [`approvals`](#approvals) | `packages/db/src/repositories/files/plans.ts` | on, 1 policy |
 | [`archive_folders`](#archive_folders) | none | on, 1 policy |
 | [`ask_actions`](#ask_actions) | `packages/db/src/repositories/ask/actions.ts` | on, 3 policies |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
@@ -137,7 +137,7 @@ what the script writes.
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
-| [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
+| [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/files/plans.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`post_observations`](#post_observations) | `packages/db/src/repositories/content/observations.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
@@ -576,7 +576,7 @@ Foreign keys:
 
 What an owner approved, exactly (00681; the content loop PRD's 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement's part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/plans.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1349,11 +1349,21 @@ A week of posts (00706; the content loop PRD's 5.3 and 8.4): one a workspace a w
 | `approved_at` | timestamp with time zone | yes |  |  |
 | `approved_by` | uuid | yes |  |  |
 | `done_at` | timestamp with time zone | yes |  |  |
+| `goes_at` | timestamp with time zone | yes |  | When a week AI may approve goes (00712; the content loop PRD's 12.4): 8:00 in the business's zone for a week held, the moment it is ready for one AI sends. Null when nothing will go without the owner's press. Written by content_week_hold, let go by content_week_stop. |
+| `stopped_at` | timestamp with time zone | yes |  | When a member stopped a held week (00712, Stop it): it then waits for the owner's own press, as a week that asks does. |
+| `stopped_by` | uuid | yes |  | Who stopped a held week (00712). |
+| `make_queued_at` | timestamp with time zone | yes |  | When a week joined the making queue (00712): when it was held (to be prepared ahead) and again when AI approved it (what is left to make). Made in turn by content_weeks_start, never more at once than its cap. Null when nothing of it waits. |
+| `first_post_at` | timestamp with time zone | yes |  | The earliest slot of the week still to be made (00712): the making queue's turn, earliest first. |
+| `making_since` | timestamp with time zone | yes |  | When the week's current pass began (00712): it holds a place in the queue's cap until made_at, or until its lease ends and it is tried again. |
+| `made_at` | timestamp with time zone | yes |  | When the dashboard said the week's current pass was done (00712, content_week_made): prepared while held, made once approved. It leaves the queue. |
+| `make_tries` | smallint | no | `0` | How many times the week's making was begun (00712): a week begun three times is left to the owner. |
+| `edited` | boolean | yes | `false` | Whether the owner left out, moved or swapped a slot of the week (00712, plan_slots_mark_edited): AI's suggested rung reads the weeks approved with none as its record. Null for a week from before 00712, where it is not known. |
 
 Foreign keys:
 
 - `tenant_id`, `approval_id` → [`approvals`](#approvals) (`tenant_id`, `id`), on delete set null
 - `approved_by` → `auth.users` (`id`), on delete set null
+- `stopped_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -3966,6 +3976,7 @@ One creative at one place in a week's plan (00706; the content loop PRD's 5.3 an
 | `approval_id` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `prepared` | jsonb | yes |  | A slot of a held week prepared ahead (00712; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week's approval under the rung places it in its own transaction while its time still stands. Never an approval itself. |
 
 Foreign keys:
 
@@ -4089,7 +4100,7 @@ Foreign keys:
 
 ### policies
 
-- Owned by: `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts`
+- Owned by: `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/files/plans.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 

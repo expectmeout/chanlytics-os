@@ -473,6 +473,18 @@ async function contentPlan(ctx: JobContext, job: ClaimedJob): Promise<void | { s
   return ctx.plans.plan(job, ctx.deadline);
 }
 
+/** content_week_go: a week AI may approve goes up (00712), through what the edge injects. payload: { plan_id } */
+async function contentWeekGo(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.plans?.go) throw new Error("content_week_go: this runtime holds no week to put up");
+  return ctx.plans.go(job, ctx.deadline);
+}
+
+/** content_week_make: a week AI approved, made in its turn (00712), through what the edge injects. payload: { plan_id } */
+async function contentWeekMake(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.plans?.make) throw new Error("content_week_make: this runtime holds no week to make");
+  return ctx.plans.make(job, ctx.deadline);
+}
+
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
 async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
@@ -593,6 +605,8 @@ const HANDLERS: Record<JobKind, Handler> = {
   post_google: postGoogle,
   post_take_down: postTakeDown,
   content_plan: contentPlan,
+  content_week_go: contentWeekGo,
+  content_week_make: contentWeekMake,
   post_observe: postObserve,
   comment_reply: commentReply,
   piece_make: pieceMake,

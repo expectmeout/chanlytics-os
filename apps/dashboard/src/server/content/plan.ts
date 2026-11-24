@@ -8,15 +8,8 @@
  * (make-week.ts); a reel, once its video is made, goes up on its own Approve, as a video's bytes are approved once seen.
  */
 import "server-only";
-import {
-  AppError,
-  goodUntilOf,
-  planWeekOf,
-  type WeekPlanDto,
-  type PlanSlotDto,
-  type TenantId,
-} from "@chanlytics/contracts";
-import { evaluate, verdictWords } from "@chanlytics/core";
+import { AppError, planWeekOf, type WeekPlanDto, type TenantId } from "@chanlytics/contracts";
+import { weekApprovalOf } from "@chanlytics/core";
 import {
   approveWeek,
   askForPlan,
@@ -26,6 +19,7 @@ import {
   markSlotMade,
   readContentWeek,
   setPlanSlot,
+  stopWeek,
   type SlotChange,
 } from "@chanlytics/db/files";
 import { jsonCopyOf } from "@chanlytics/db/shared";
@@ -45,6 +39,8 @@ const PLAN_REFUSED = {
   past: "Pick a time that hasn't passed.",
   slotGone: "That post isn't in this week any more.",
   notMade: "Its video isn't made yet. It says so on its row once it is.",
+  /** Stop it on a week no longer held (00712): approved meanwhile, or already waiting for the owner. */
+  notHeld: "This week isn't set to go up by itself any more. Look again.",
 } as const;
 
 const memberZoneOf = (member: Member): string => member.facts?.timezone ?? "UTC";
@@ -62,32 +58,6 @@ async function readWeekOf(ctx: RouteContext, tenantId: TenantId, weekOf: string)
   return readContentWeek(ctx.supabase, tenantId, weekOf);
 }
 
-/** A slot's reason, asked before the week is approved (PRD 6.2, the owner approves): what refuses it, in words, or null. */
-function slotRefusal(slot: PlanSlotDto, zone: string, nowMs: number): string | null {
-  const verdict = evaluate({
-    reason: {
-      intent: slot.intent,
-      goodUntil: goodUntilOf(slot.intent, zone),
-      atMs: Date.parse(slot.at),
-      nowMs,
-      zone,
-      says: [],
-      services: [],
-      facts: [],
-      opportunities: null,
-      moment: "before",
-    },
-  });
-  return verdict.ok ? null : verdictWords(verdict);
-}
-
-/** What the press approves of each slot, as the door holds it: by id, where, as what, when, from which footage, and why. */
-const SNAPSHOT_PARTS = ["id", "place", "kind", "at", "file_id", "title", "intent"] as const;
-
-const snapshotOf = (slots: readonly PlanSlotDto[]) => ({
-  slots: slots.map((slot) => Object.fromEntries(SNAPSHOT_PARTS.map((part) => [part, slot[part]]))),
-});
-
 /**
  * Approve the week (PRD 8.4, canvas call 10): every slot ready, as shown, under one approval of the plan. A slot whose
  * reason no longer stands is left out of it and said; a blocked slot or one asking for footage stays as it is.
@@ -102,17 +72,12 @@ export async function approveWeekFor(
   if (week.plan.status === "approved" || week.plan.status === "done")
     throw new AppError("conflict", PLAN_REFUSED.approved, 409);
   if (week.plan.status === "drafting") throw new AppError("conflict", PLAN_REFUSED.drafting, 409);
-  const nowMs = Date.now();
-  const ready = week.slots.filter((slot) => slot.state === "proposed");
-  const leftOut = ready.flatMap((slot) => {
-    const refusal = slotRefusal(slot, memberZoneOf(member), nowMs);
-    return refusal ? [{ id: slot.id, why: refusal }] : [];
-  });
-  const going = ready.filter((slot) => !leftOut.some((left) => left.id === slot.id));
+  // The rule a held week's job asks too (core weekApprovalOf): each ready slot held to the checks before it goes.
+  const { going, leftOut, snapshot } = weekApprovalOf(week.slots, memberZoneOf(member), Date.now());
   if (going.length === 0) throw new AppError("validation", leftOut[0]?.why ?? PLAN_REFUSED.nothing);
   const answer = await approveWeek(ctx.supabase, member.tenantId, {
     planId: week.plan.id,
-    snapshot: jsonCopyOf(snapshotOf(going)),
+    snapshot: jsonCopyOf(snapshot),
   });
   if (answer.fate === "changed") throw new AppError("conflict", PLAN_REFUSED.changed, 409);
   if (answer.fate === "gone") throw new AppError("not_found", PLAN_REFUSED.gone, 404);
@@ -169,4 +134,19 @@ export async function setSlotFor(
     if (found) makeWeekAfter(ctx, member, { tenantId: member.tenantId, weekOf: found.weekOf });
   }
   return { done: true, approval_id: answer.approvalId };
+}
+
+/**
+ * Stop it (00712; the content loop PRD's 12.4): a week AI may approve, held to its time, let go by the member's own
+ * press, so it waits for their Approve the week as a week that asks does.
+ */
+export async function stopWeekFor(
+  ctx: RouteContext,
+  member: Member,
+  input: { plan_id: string },
+): Promise<{ stopped: true }> {
+  const fate = await stopWeek(ctx.supabase, member.tenantId, input.plan_id);
+  if (fate === "gone") throw new AppError("not_found", PLAN_REFUSED.gone, 404);
+  if (fate !== "stopped") throw new AppError("conflict", PLAN_REFUSED.notHeld, 409);
+  return { stopped: true };
 }

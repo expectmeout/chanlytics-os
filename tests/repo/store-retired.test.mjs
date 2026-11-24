@@ -130,6 +130,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "post_google",
       "post_take_down",
       "content_plan",
+      "content_week_go",
+      "content_week_make",
       "post_observe",
       "comment_reply",
       "piece_make",

@@ -21,6 +21,7 @@ import type { Database } from "@chanlytics/db/types";
 import { notifyOnce } from "../shared/alerts/notify.js";
 import { errField, logger } from "../shared/log.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import type { WeekGoes } from "./week-go.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,6 +33,8 @@ interface WeekWritten {
   zone: string;
   slots: readonly DraftedSlot[];
   asks: number;
+  /** Whether the rung let AI approve it (00712): held to 8:00 AM, or going now; else it waits for the owner. */
+  held?: WeekGoes | undefined;
 }
 
 /** The week ready, and what to film for it, each told once. */
@@ -48,7 +51,11 @@ export async function notifyWeek(db: Db, week: WeekWritten): Promise<void> {
         {
           kind: "plan_ready",
           subject: WEEK_WORDS.readySubject,
-          body: WEEK_WORDS.readyBody(size, weekDaysSaid(live.map((s) => dayInZone(week.zone, Date.parse(s.at)).key))),
+          body: (week.held === "held"
+            ? WEEK_WORDS.readyBodyHeld
+            : week.held === "sent"
+              ? WEEK_WORDS.readyBodySent
+              : WEEK_WORDS.readyBody)(size, weekDaysSaid(live.map((s) => dayInZone(week.zone, Date.parse(s.at)).key))),
           route: CONTENT_WEEK_ROUTE,
           about,
           onceKey: `plan_ready:${week.planId}`,

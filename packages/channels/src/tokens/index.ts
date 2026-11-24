@@ -2,6 +2,8 @@
  * The tokens domain: `@chanlytics/channels/tokens`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./confirm-token";
+export { callDashboard } from "./dashboard-call";
+export type { DashboardAnswer } from "./dashboard-call";
 export type { ConfirmClaims } from "./confirm-token";
 export { EDGE_TOKEN_TTL_MS, edgeBodyMatches, signEdgeToken, verifyEdgeToken } from "./edge-token";
 export type { EdgeClaims, EdgeTokenVerdict } from "./edge-token";

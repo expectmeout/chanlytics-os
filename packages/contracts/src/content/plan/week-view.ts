@@ -55,7 +55,7 @@ export interface WeekView {
   title: string;
   line: string;
   /** The head's one act. */
-  act: "approve" | "resume" | "plan" | null;
+  act: "approve" | "stop" | "resume" | "plan" | null;
   /** The head's mark moves while AI drafts. */
   moving: boolean;
   groups: WeekGroup[];
@@ -256,6 +256,9 @@ export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
   if (state === "nothing") return { ...base, title: W.nothing, line: W.filmWhy };
   if (state === "paused") return { ...base, title: W.paused, line: W.pausedSince(at(page.paused_at)), act: "resume" };
   const head = sizeHead(page, rows);
+  // A week AI may approve, held to its time (00712, board B5): the head says when, and its one press stops it.
+  if (state === "ready" && plan?.goes_at)
+    return { ...base, title: head.title, line: W.held(clockTime(Date.parse(plan.goes_at), page.zone)), act: "stop" };
   if (state === "ready") return { ...base, ...head, act: "approve" };
   return { ...base, title: W.approvedTitle(head.title), line: W.approved(at(plan?.approved_at)) };
 }

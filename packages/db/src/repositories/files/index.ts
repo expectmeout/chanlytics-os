@@ -104,13 +104,31 @@ export {
   askForPlan,
   findPlanForJob,
   findPlanSlot,
+  findWeekForAI,
+  findWeekRung,
   handOutPlans,
+  holdWeek,
+  listWeeksApproved,
   markSlotMade,
+  markSlotPrepared,
+  markWeekMade,
   readContentWeek,
   setPlanSlot,
+  startWeeksMaking,
+  stopWeek,
   writePlan,
 } from "./plans";
-export type { PlanAsked, PlanWritten, SlotChange, SlotMade, SlotSet, WeekApproved } from "./plans";
+export type {
+  MakingQueue,
+  WeekPass,
+  PlanAsked,
+  PlanWritten,
+  SlotChange,
+  SlotMade,
+  SlotSet,
+  WeekApproved,
+  WeekHold,
+} from "./plans";
 export {
   closePostAttempt,
   countPostsOut,

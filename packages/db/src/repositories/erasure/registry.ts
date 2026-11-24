@@ -622,7 +622,11 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   owner_claims: { text: WITH_WORKSPACE },
   content_goals: { detail: WITH_WORKSPACE },
   content_plans: { fewer: WITH_WORKSPACE },
-  plan_slots: { ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason"), score: NOT_PERSONAL },
+  // A slot prepared ahead (00712) keeps the approval its placement will take: the business's own words and its file's path.
+  plan_slots: {
+    ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason", "prepared"),
+    score: NOT_PERSONAL,
+  },
   file_moments: { ...all(WITH_WORKSPACE, "words", "shows") },
   // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's
   // ids and our sentences.

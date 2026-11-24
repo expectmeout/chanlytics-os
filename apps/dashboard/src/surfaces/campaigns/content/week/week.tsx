@@ -21,7 +21,7 @@ import {
   type WeekRow,
   type WeekView,
 } from "@chanlytics/contracts";
-import { approveTheWeek, planThisWeek, pressSlot } from "@/bridge/verbs/week";
+import { approveTheWeek, planThisWeek, pressSlot, stopTheWeek } from "@/bridge/verbs/week";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { navigate, refreshSurface, type FrameFlash } from "../../../frame-verbs";
@@ -60,7 +60,15 @@ const FIX_PAGES = { offer: "settings/content", connect: "settings/integrations" 
 /** The head: what week, its size or where it stands, how often it goes up, and its one act. */
 function WeekHead({ view, busy, onAct }: { view: WeekView; busy: boolean; onAct: () => void }) {
   const act =
-    view.act === "approve" ? W.approve : view.act === "resume" ? W.resume : view.act === "plan" ? W.plan : null;
+    view.act === "approve"
+      ? W.approve
+      : view.act === "stop"
+        ? W.stop
+        : view.act === "resume"
+          ? W.resume
+          : view.act === "plan"
+            ? W.plan
+            : null;
   return (
     <div className="cwk-head" data-state={view.state} data-testid="cwk-head">
       <small>
@@ -75,7 +83,13 @@ function WeekHead({ view, busy, onAct }: { view: WeekView; busy: boolean; onAct:
       {view.line ? <p>{view.line}</p> : null}
       {act ? (
         <div className="cwk-acts">
-          <Button variant="primary" onClick={onAct} disabled={busy} data-testid="cwk-act">
+          {/* A held week's one press stops it (00712, board B5): the quiet one; Approve stays the strong one. */}
+          <Button
+            variant={view.act === "stop" ? "secondary" : "primary"}
+            onClick={onAct}
+            disabled={busy}
+            data-testid="cwk-act"
+          >
             {act}
           </Button>
         </div>
@@ -127,7 +141,8 @@ export function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: Wee
           answer,
           answer.ok && answer.data.left_out.length ? W.leftOut(answer.data.left_out.length) : W.approvedToast,
         );
-      } else if (view.act === "resume") tell(await autonomyVerbs.stopAll(false));
+      } else if (view.act === "stop" && plan) tell(await stopTheWeek(plan.id), W.stopped);
+      else if (view.act === "resume") tell(await autonomyVerbs.stopAll(false));
       else if (view.act === "plan") tell(await planThisWeek());
     });
   const onFix = (row: WeekRow) => {
