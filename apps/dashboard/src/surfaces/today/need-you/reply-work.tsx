@@ -391,7 +391,7 @@ function replyNotes(row: TodayQueueRowVM, r: ReturnType<typeof useReplyRow>, sta
 
 /** The words themselves, typed in where they stand, or nothing where none should go. Called, not drawn. */
 function replyWords(
-  p: WorkProps & { what?: string; by?: string },
+  p: WorkProps & { what?: string },
   r: ReturnType<typeof useReplyRow>,
   stage: ReturnType<typeof replyStage>,
 ) {
@@ -403,13 +403,15 @@ function replyWords(
     r.setMine(text);
     if (r.sending.s) clearSend(row.id);
   };
+  // Whose the words are (contracts' failed.by): a reply the team wrote that failed is theirs until AI changes it.
+  const writer = row.failed?.by === "team" && ask.asks === null ? "team" : "ai";
   return (
     <WordsPart
       what={p.what}
       who={row.who}
       words={ask.over ?? words}
       draft={draft}
-      {...whoseWords(ask.asks ?? written, mine, () => r.setMine(null), p.by)}
+      {...whoseWords(ask.asks ?? written, mine, () => r.setMine(null), writer)}
       shown={mine !== null}
       open={r.editing}
       onChange={may ? type : null}
@@ -423,11 +425,11 @@ function replyWords(
 
 /**
  * What a reply row prepared and lets the member do: the draft, typed in where it stands, what is said to Ask's line about it, Send
- * with its countdown, Not now with its Wake. `what` names the words where they are not a reply (a booking's confirmation), `by`
- * says whose they are where they are not Ask's (a held reply of the receptionist's), and `sendWord` is the press where it is not
- * Send (a reply that never reached them goes again with Try again).
+ * with its countdown, Not now with its Wake. `what` names the words where they are not a reply (a booking's confirmation), whose
+ * they are is the row's (a reply the team wrote that never reached them is the team's), and `sendWord` is the press where it is
+ * not Send (a reply that never reached them goes again with Try again).
  */
-export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: ReactNode; sendWord?: string }) {
+export function ReplyWork(p: WorkProps & { what?: string; start?: ReactNode; sendWord?: string }) {
   const { row, may } = p;
   const r = useReplyRow(p);
   // Reply now pressed on a reach-out's reply that needs none by default: its words and Send stand.
@@ -532,6 +534,8 @@ function WordsPart(p: {
   open: boolean;
   onChange: ((text: string) => void) | null;
   onRestore: (() => void) | null;
+  /** The way back's words, by whose the words were written (whoseWords). */
+  back: string;
   signed: string | null;
   onRead?: (() => void) | null;
   busy: boolean;
@@ -547,6 +551,7 @@ function WordsPart(p: {
         who={p.who}
         onChange={p.onChange}
         onRestore={p.onRestore}
+        back={p.back}
         undo={p.undo}
         open={p.open}
         busy={p.busy}
