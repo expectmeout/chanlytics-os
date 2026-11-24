@@ -108,6 +108,8 @@ export type {
   AdWayClosed,
 } from "./live";
 export { minorPerUnit } from "./money";
+export { pieceAdBroughtOf, pieceAdLineOf } from "./on-piece";
+export type { PieceAdDto, PieceAdLine, PieceAdTone } from "./on-piece";
 export { AD_TOLD_MAX } from "./said";
 export type { AdSaid } from "./said";
 export { adAccountStateOf, adStateOf } from "./states";

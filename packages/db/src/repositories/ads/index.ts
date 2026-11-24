@@ -43,6 +43,7 @@ export type {
 } from "./launches";
 export {
   findAd,
+  listAdIdsOfPicture,
   listAdPeople,
   listAdsByIds,
   listAdsOfAccount,

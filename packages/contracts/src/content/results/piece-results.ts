@@ -25,6 +25,9 @@ export interface PostNumbersDto {
   post_id: string;
   place: "instagram" | "google";
   kind: "picture" | "story" | "reel";
+  /** When it went up, and whether it was taken down since (pass 6: New ad's band says where it came from). */
+  published_at?: string;
+  down?: boolean;
   step: ObserveStep | null;
   read_at: string | null;
   numbers: Array<{ metric: PostMetric; value: number | null; availability: MetricAvailability }>;
@@ -41,6 +44,15 @@ export interface BroughtPersonDto {
   words?: string | null;
   class: CreditClass;
   visit: { starts_at: string; status: string } | null;
+  /**
+   * Where the steps from its post to the chair live (pass 6; the canvas's Loop3): the conversation it wrote in, its
+   * visit and when it was asked for, and the review ask it was sent after the visit, where one went.
+   */
+  chain?: {
+    conversation_id: string | null;
+    visit: { id: string; asked_at: string } | null;
+    review_ask: { at: string; conversation_id: string | null } | null;
+  };
 }
 
 export interface PieceResultsDto {
@@ -195,4 +207,114 @@ function broughtOf(dto: PieceResultsDto, tz: string): PieceResultsSaid["whatItBr
 /** Every sentence the sheet says of a piece's results, in the business's zone. */
 export function pieceResultsSaid(dto: PieceResultsDto, tz: string): PieceResultsSaid {
   return { howItDid: howItDidOf(dto.posts), whatItBrought: broughtOf(dto, tz) };
+}
+
+/** A piece of the one line: words, or a number the line sets apart. */
+export type ResultLinePart = string | { number: string };
+
+/**
+ * The one line beside Run as an ad, on the piece's foot and in New ad opened from it (the content loop's pass 6; the
+ * canvas's Loop1, approved by Ruben on 24 Nov 2026): what its posts already did, in How it did's and What it brought's
+ * words: who it reached and where, the people who wrote, the visits booked from it. A reach a place keeps back says why,
+ * never a zero; none read yet says when it comes; a post taken down says it in the past. Null before any post went up.
+ */
+export function pieceResultLineOf(dto: PieceResultsDto, at: { down: boolean }): ResultLinePart[] | null {
+  if (dto.posts.length === 0) return null;
+  const lead = leading(dto.posts);
+  const reach = lead?.numbers.find((one) => one.metric === "reach" && one.availability === "available")?.value ?? null;
+  const missing = dto.posts.map(missingOf).find((said) => said !== null) ?? null;
+  if (reach === null && missing === null) return [howItDidOf(dto.posts).fine || "Its numbers aren't read yet."];
+  const reached: ResultLinePart[] =
+    lead && reach !== null
+      ? [
+          "Reached ",
+          { number: reach.toLocaleString("en-US") },
+          at.down ? " while it was up" : ` on ${PLACE_NAME[lead.place]}`,
+        ]
+      : [missing ?? ""];
+  return [
+    ...reached,
+    " · ",
+    { number: dto.conversations.toLocaleString("en-US") },
+    dto.conversations === 1 ? " conversation" : " conversations",
+    ...(dto.direct > 0 ? [" · ", { number: dto.direct.toLocaleString("en-US") }, " booked from it"] : []),
+  ];
+}
+
+/** The one line as plain words: what a test reads, and what AI is told. */
+export const resultLineText = (parts: readonly ResultLinePart[]): string =>
+  parts.map((part) => (typeof part === "string" ? part : part.number)).join("");
+
+/** What a step of a person's chain opens: the conversation, or the visit on its day. */
+export type ChainOpens = { kind: "conversation"; id: string } | { kind: "visit"; id: string; day: string };
+
+/** One step of a person's chain: what happened, when, and the record it opens. */
+export interface ChainStep {
+  words: string;
+  when: string;
+  opens: ChainOpens | null;
+  /** Whether it is done; a time still waiting to be confirmed, or a missed visit, is not. */
+  done: boolean;
+}
+
+const dayKeyIn = (atMs: number, tz: string): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(atMs);
+
+/** What a visit's asking says of where it stands: confirmed, waiting, or called off. */
+const ASKED_STANDS: Readonly<Record<string, string>> = {
+  proposed: "waiting to be confirmed",
+  booked: "confirmed",
+  kept: "confirmed",
+  missed: "confirmed",
+  cancelled: "cancelled",
+};
+
+/**
+ * A person's chain, from the post to the review ask (the content loop's pass 6; the canvas's Loop3, approved by Ruben on
+ * 24 Nov 2026): what they did, the time they asked for and whether it was confirmed, the visit kept or missed, and the
+ * review ask sent after it. It says only what the record holds and ends at the ask: a review on Google names its writer
+ * by display name only, and Chanlytics never works out who someone is. Null for a person with no visit.
+ */
+export function broughtChainOf(
+  person: BroughtPersonDto,
+  kind: string,
+  tz: string,
+): { steps: ChainStep[]; fine: string | null } | null {
+  const chain = person.chain;
+  if (!chain || !person.visit || !chain.visit) return null;
+  const startsMs = Date.parse(person.visit.starts_at);
+  const visitOpens: ChainOpens = { kind: "visit", id: chain.visit.id, day: dayKeyIn(startsMs, tz) };
+  const did =
+    person.touch === "comment" && person.words ? `Commented “${person.words}”` : TOUCH_WORDS[person.touch](kind);
+  const steps: ChainStep[] = [
+    {
+      words: did,
+      when: dayTime(Date.parse(person.touched_at), tz),
+      opens: chain.conversation_id ? { kind: "conversation", id: chain.conversation_id } : null,
+      done: true,
+    },
+    {
+      words: `Asked for ${dayTime(startsMs, tz)} · ${ASKED_STANDS[person.visit.status] ?? "asked"}`,
+      when: dayTime(Date.parse(chain.visit.asked_at), tz),
+      opens: visitOpens,
+      done: person.visit.status !== "proposed",
+    },
+  ];
+  if (person.visit.status === "kept" || person.visit.status === "missed")
+    steps.push({
+      words: person.visit.status === "kept" ? "Kept" : "Missed",
+      when: dayTime(startsMs, tz),
+      opens: visitOpens,
+      done: person.visit.status === "kept",
+    });
+  const ask = chain.review_ask;
+  if (person.visit.status === "kept" && ask)
+    steps.push({
+      words: "Asked for a review",
+      when: dayTime(Date.parse(ask.at), tz),
+      opens: ask.conversation_id ? { kind: "conversation", id: ask.conversation_id } : null,
+      done: true,
+    });
+  const asked = steps.at(-1)?.words === "Asked for a review";
+  return { steps, fine: asked ? "Chanlytics can't tell who wrote a review on Google, so it ends at the ask." : null };
 }

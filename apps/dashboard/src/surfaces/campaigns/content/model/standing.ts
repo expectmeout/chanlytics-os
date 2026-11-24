@@ -34,5 +34,5 @@ export interface PieceStanding {
    */
   version: VersionStanding & { instead: (fileId: string) => void };
   /** What its results are read by (00699): the piece's file, and a post of it that went up, null before one did. */
-  results: { fileId: string; upPostId: string | null };
+  results: { fileId: string; upPostId: string | null; made: boolean };
 }

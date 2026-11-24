@@ -141,7 +141,7 @@ const read = async (tables, query = "") => {
 const NOTHING = { made: 0, posted: 0, needs: 0, making: 0, scheduled: 0, library: 0, aside: 0, waiting: 0 };
 /** Ask's three ideas of what it can make, each with the files it would start from: none, where the Library holds none. */
 /** With nothing kept, no idea has what it is made from: none is offered (contracts contentIdeasReady). */
-const IDEAS_NONE = ["before_after", "review", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
+const IDEAS_NONE = ["before_after", "video", "photo_post"].map((key) => ({ key, files: [], ready: false }));
 
 /** Where Ask looked, with nothing known anywhere (contracts content/sources.ts): each place unnamed and never read. */
 const NOWHERE = {
@@ -522,13 +522,12 @@ test("Being made is what is being made and what was not, and a view this build d
   await assert.rejects(read({}, "view=everything"), (e) => e.code === "validation");
 });
 
-test("an idea is ready only where what it is made from is there: a photo for a post, a review of four or five stars that says something for its video", async () => {
+test("an idea is ready only where what it is made from is there: a photo for a post; a Google review is never one", async () => {
   const none = await read({});
   assert.deepEqual(
     none.body.ideas.map((i) => [i.key, i.ready]),
     [
       ["before_after", false],
-      ["review", false],
       ["video", false],
       ["photo_post", false],
     ],
@@ -547,25 +546,13 @@ test("an idea is ready only where what it is made from is there: a photo for a p
     ],
   });
   const ready = Object.fromEntries(body.ideas.map((i) => [i.key, i.ready]));
-  assert.deepEqual(ready, { before_after: false, review: true, video: false, photo_post: true });
+  // A review of five stars offers nothing: Google asks that its writer agree first (Ruben, 24 Nov 2026).
+  assert.deepEqual(ready, { before_after: false, video: false, photo_post: true });
   assert.deepEqual(
     body.ideas.find((i) => i.key === "photo_post").files.map((f) => f.name),
     ["a-photo"],
     "the photo its row shows is the one Ask is asked to use",
   );
-  // A review of three stars or fewer is never quoted as one (packages/db listReviewWords), so it offers no video of itself.
-  const faint = await read({
-    google_reviews: [
-      {
-        id: "r-3",
-        tenant_id: A,
-        rating: 2,
-        body: "Lovely cut, but I waited an hour.",
-        published_at: "2026-11-03T12:00:00Z",
-      },
-    ],
-  });
-  assert.equal(faint.body.ideas.find((i) => i.key === "review").ready, false);
 });
 
 test("a post its owner put up by hand is read with its piece, apart from what was sent, and Posted leaves it out", async () => {

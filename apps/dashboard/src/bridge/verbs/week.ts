@@ -3,6 +3,7 @@
  * (left out, approved by itself, Try again, a made reel's Approve), and what Settings › Content keeps. Each answers what
  * the route said, or its refusal in the owner's words; what it changed is read again by the refresh map.
  */
+import { REVIEW_ASK_START } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 
 /** "Plan this week": the week drafted now, as the clock would on Sunday evening. */
@@ -28,3 +29,10 @@ export const keepOffer = (offer: { text: string; valid_until: string | null }) =
 
 /** An offer withdrawn: a post that says it waits for the owner. */
 export const withdrawOffer = (claimId: string) => api()("DELETE content/claims", { body: { claim_id: claimId } });
+
+/** The plan's proposal to ask every client for a review (pass 6): Approve starts the after-visit ask, by its starter. */
+export const startReviewAsk = () =>
+  api()("POST playbooks", { body: { ...REVIEW_ASK_START, params: REVIEW_ASK_START.params.map((p) => ({ ...p })) } });
+
+/** Not now on the proposal: it rests for 30 days. */
+export const restTheReviewAsk = () => api()("POST content/review-ask", { body: { act: "rest" } });

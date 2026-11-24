@@ -22,6 +22,15 @@ export const NEW = {
   kickerLeft: (name: string) => `New ad · left by ${name}`,
   /** Fix it's draft of an ad Meta turned down (the Ads plan's 4.5). */
   kickerFix: (name: string) => `New ad · fixing ${name}`,
+  /** The post its picture went up as, in the band under the head (from-post.tsx; the content canvas's Loop1, pass 6). */
+  from: {
+    top: (name: string, where: string) => `From ${name} · ${where}`,
+    up: (place: string, since: string) => `on ${place} since ${since}`,
+    story: (since: string) => `a story, ${since}`,
+    down: "taken down",
+    downNote: (place: string) => `The ad uses the file, not the post. Nothing goes back up on ${place}.`,
+    minutes: (n: number) => `${n} min ago`,
+  },
   opening: "New ad",
   close: "Close",
 

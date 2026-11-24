@@ -3,6 +3,7 @@
  * through `evaluate`, which every moment calls with the facts it read. Every public name, named.
  */
 export type { FootageFact, GoalFact } from "./plan/candidates";
+export { contentPatternsOf } from "./plan/patterns";
 export { planWeek } from "./plan/week";
 export type { DraftedSlot, WeekAsked, WeekDrafted } from "./plan/week";
 export { wordsNeedAbout } from "./policy/checks";

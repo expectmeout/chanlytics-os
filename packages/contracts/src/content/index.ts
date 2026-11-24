@@ -17,14 +17,7 @@ export {
 export type { ContentList, ContentPlace, ContentView } from "./address";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
 export type { BringIn, BringInRefusal } from "./bring-in";
-export {
-  CONTENT_IDEAS,
-  contentIdeaAsk,
-  contentIdeaFilesOf,
-  contentIdeasFor,
-  contentIdeasReady,
-  reviewIdeaTitleOf,
-} from "./ideas";
+export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./ideas";
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
@@ -214,6 +207,17 @@ export type {
   PlanStatus,
   SlotState,
 } from "./plan/sets";
+export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./plan/patterns";
+export type { ContentPattern, PatternDimension, PatternLevel, PostOutcome } from "./plan/patterns";
+export {
+  REVIEW_ASK_QUIET_DAYS,
+  REVIEW_ASK_REST_DAYS,
+  REVIEW_ASK_START,
+  REVIEW_ASK_WORDS,
+  reviewAskLineOf,
+  reviewAskOf,
+} from "./plan/review-ask";
+export type { ReviewAskDto, ReviewAskFacts, ReviewAskWhy } from "./plan/review-ask";
 export { cadenceSaid, contentLinesOf } from "./plan/settings-lines";
 export type { ContentLineEdit, ContentLineView } from "./plan/settings-lines";
 export {
@@ -285,13 +289,16 @@ export type { Credit, CreditSubject, CreditTouch, CreditVisit } from "./results/
 export type { CommentAnswerDto, CommentRowDto, CommentsDto, ContentReportDto, ContentWeekDto } from "./results/dtos";
 export { nextObserveStep, observeDueAt } from "./results/observe";
 export type { Observation } from "./results/observe";
-export { pieceResultsSaid } from "./results/piece-results";
+export { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "./results/piece-results";
 export type {
   BroughtPersonDto,
   BroughtSaid,
+  ChainOpens,
+  ChainStep,
   PieceResultsDto,
   PieceResultsSaid,
   PostNumbersDto,
+  ResultLinePart,
 } from "./results/piece-results";
 export { postChatLinkOf, postCodeIn } from "./results/post-code";
 export type { PostChatPlaces } from "./results/post-code";

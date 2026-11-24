@@ -240,7 +240,7 @@ export const CONTENT_WORDS = {
   /** Make's sheet over the page (sheets/make.tsx): what Ask can make now, and its line for anything else. */
   makeSheet: {
     title: "Make something",
-    sub: "From your photos, clips and reviews",
+    sub: "From your photos and clips",
     say: "Or say what you want",
   },
   makingTitle: "Being made",

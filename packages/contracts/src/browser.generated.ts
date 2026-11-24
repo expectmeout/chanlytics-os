@@ -23,6 +23,7 @@ export { adAmountAfter, adApprovedMiles, adChangeFactsOf, adChangeIssue, adChang
 export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adMostOf, adPictureIssue, adRightsOf, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
+export { pieceAdBroughtOf, pieceAdLineOf } from "./ads/on-piece";
 export { AD_TOLD_MAX } from "./ads/said";
 export { adAccountStateOf, adStateOf } from "./ads/states";
 export { AD_WAY_IN_SAID, adWayInOf, adWayInRowOf } from "./ads/way-in";
@@ -266,7 +267,7 @@ export { askCode, askDoneOf, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, find
 export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } from "./console/support/reports";
 export { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, CONTENT_VIEWS, CONTENT_WEEK_ROUTE, contentPlaceOf, contentPlanOf, contentPreviewOf, contentRouteOf, isContentParam } from "./content/address";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./content/bring-in";
-export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady, reviewIdeaTitleOf } from "./content/ideas";
+export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./content/ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { pieceCuesOf } from "./content/making/cues";
 export { HOUSE_LOUDNESS, RENDITION_RULES, renditionRefusalOf } from "./content/making/renditions";
@@ -290,6 +291,8 @@ export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_D
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/placements/take-down-late";
 export { takeDownSpec } from "./content/placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./content/plan/claims";
+export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./content/plan/patterns";
+export { REVIEW_ASK_QUIET_DAYS, REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf } from "./content/plan/review-ask";
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";
 export { cadenceSaid, contentLinesOf } from "./content/plan/settings-lines";
 export { cadenceOf, creativesOf, FOOTAGE_ASKS_MOST, planWeekOf, SLOT_CAPTION_MAX, slotWordsOf, weekdayShortOf, weekSizeSaid } from "./content/plan/week";
@@ -303,7 +306,7 @@ export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./con
 export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./content/results/comment-stage";
 export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./content/results/credit";
 export { nextObserveStep, observeDueAt } from "./content/results/observe";
-export { pieceResultsSaid } from "./content/results/piece-results";
+export { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "./content/results/piece-results";
 export { postChatLinkOf, postCodeIn } from "./content/results/post-code";
 export { COMMENT_ANSWER_STATES, LINK_LANDS, LINK_SUBJECTS, METRIC_AVAILABILITY, OBSERVE_STEPS, POST_METRICS, TOUCH_KEPT_SUBJECTS, TOUCH_KINDS, TOUCH_SUBJECTS, VISIT_THROUGH_TYPES } from "./content/results/sets";
 export { contentTotalsOf, contentWeekOf, contentWeekSaid } from "./content/results/totals";

@@ -50,15 +50,7 @@ import {
   type MetaPartEdge,
   type MetaUsage,
 } from "@chanlytics/channels/ads";
-import {
-  MIN_MS,
-  SECOND_MS,
-  filePathOf,
-  isFileMime,
-  recordOrEmpty,
-  type AdStopped,
-  type TenantId,
-} from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, recordOrEmpty, type AdStopped, type TenantId } from "@chanlytics/contracts";
 import {
   isAdLaunchCancelled,
   keepAdLaunch,
@@ -67,11 +59,11 @@ import {
   type AdLaunchStep,
   type AdPartKept,
 } from "@chanlytics/db/ads";
-import { filesBucket, findFileForWork } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { logger } from "../shared/log.js";
+import { checksumOf, readAdPhoto } from "./approval.js";
 import { readWayIn } from "./chat/answered.js";
 import { approvedOf, launchDiffers, type LaunchApproved, type LaunchMoment } from "./launch-parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
@@ -257,12 +249,14 @@ async function makePart(pass: Pass, ask: PartAsk): Promise<Step> {
   return partMadeOf(pass, ask, await send(pass, `${ask.kind}_${ask.version}`, ask.make(randomUUID())));
 }
 
-/** The picture's bytes, read from Files: a photo of this workspace's, or null where there is none to send. */
+/**
+ * The picture's bytes, read from Files: a photo of this workspace's, as it was approved (the content loop PRD's 3.3:
+ * checked again right before the outside act), or null where there is none to send or its bytes are not those approved.
+ */
 async function pictureBytes(pass: Pass): Promise<Uint8Array | null> {
-  const row = await findFileForWork(pass.db, pass.who.tenantId, pass.approved.picture);
-  if (!row || row.removed_at !== null || !isFileMime(row.mime) || !row.mime.startsWith("image/")) return null;
-  const read = await filesBucket(pass.db).download(filePathOf(row.tenant_id, row.id, row.mime));
-  return read.data ? new Uint8Array(await read.data.arrayBuffer()) : null;
+  const bytes = await readAdPhoto(pass.db, pass.who.tenantId, pass.approved.picture);
+  const approved = pass.approved.pictureChecksum;
+  return bytes && (approved === null || checksumOf(bytes) === approved) ? bytes : null;
 }
 
 /** Every part made, paused, in Meta's order: Meta's ids for them, or how the pass ended. */

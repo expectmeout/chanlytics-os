@@ -36,6 +36,7 @@ import { ViewerFoot, statusOpensOf } from "./foot";
 import { shrinkIntoTile } from "./into-tile";
 import { ViewerMore, type PieceMoreActs } from "./more";
 import { ViewerPicture } from "./picture";
+import { PieceResultLine } from "./results";
 import { RunAsAd, type RunAsAdActs } from "./run-as-ad";
 import { ViewerAskChange, ViewerDrafts, ViewerRename } from "./sheets";
 
@@ -164,15 +165,24 @@ export function removeAsk(hands: Pick<ViewerHands, "made" | "presses">) {
   );
 }
 
+/** The post the piece's results are read by, and whether it was taken down: its line is then said in the past. */
+function resultLineOf(hands: ViewerHands): { fileId: string; upPostId: string | null; down: boolean } {
+  const { fileId, upPostId } = hands.standing.results;
+  const post = hands.made.posts.find((one) => one.id === upPostId);
+  return { fileId, upPostId, down: post?.status === "taken_down" };
+}
+
 /**
- * What the foot reads of where the piece stands, for the viewer and the desk's pane alike: its one status, the act that
- * leads, Run as an ad where it may run, Take down while something is up, More, and the line to AI on a piece AI made.
+ * What the foot reads of where the piece stands, for the viewer and the desk's pane alike: its one status, what its posts
+ * already did right above Run as an ad where it may run (pass 6), the act that leads, Run as an ad, Take down while
+ * something is up, More, and the line to AI on a piece AI made.
  */
 export function footStandingOf(hands: ViewerHands, at: { more: ReactNode; onTold: () => void }) {
   const { standing, runAsAd, made, may } = hands;
   const ad = runAsAd.line?.is === "press" ? { words: runAsAd.line.words, press: runAsAd.acts.run } : null;
   return {
     pill: standing.pill,
+    results: ad ? <PieceResultLine {...resultLineOf(hands)} /> : null,
     leads: standing.lead,
     ad,
     takeDown: standing.takeDown,

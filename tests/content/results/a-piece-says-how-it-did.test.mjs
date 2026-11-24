@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pieceResultsSaid } from "@chanlytics/contracts";
+import { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
 const n = (metric, value, availability = "available") => ({ metric, value, availability });
@@ -142,4 +142,86 @@ test("what it brought: conversations, then booked by class, new people and known
 test("nothing brought yet is said, not hidden", () => {
   const said = pieceResultsSaid({ posts: [reel], ...empty }, TZ);
   assert.equal(said.whatItBrought.head, "No one has written about it yet");
+});
+
+test("the one line beside Run as an ad, in the canvas's four states, its numbers set apart (pass 6, Loop1)", () => {
+  const line = (dto, down = false) => {
+    const parts = pieceResultLineOf({ ...empty, ...dto }, { down });
+    return parts === null ? null : resultLineText(parts);
+  };
+  assert.equal(line({ posts: [] }), null, "nothing went up: nothing is said");
+  const fresh = { ...reel, step: null, read_at: null, numbers: [] };
+  assert.equal(line({ posts: [fresh] }), "Its numbers come an hour after it went up.");
+  const brought = { posts: [reel], conversations: 3, direct: 1 };
+  assert.equal(line(brought), "Reached 2,140 on Instagram · 3 conversations · 1 booked from it");
+  const story = {
+    ...reel,
+    kind: "story",
+    numbers: [n("reach", null, "withheld"), n("views", null, "withheld")],
+  };
+  assert.equal(
+    line({ posts: [story], conversations: 1 }),
+    "Story: not available · fewer than 5 people saw it · 1 conversation",
+    "kept back: why, never a zero",
+  );
+  assert.equal(line(brought, true), "Reached 2,140 while it was up · 3 conversations · 1 booked from it");
+  assert.equal(line({ posts: [reel] }), "Reached 2,140 on Instagram · 0 conversations", "a real zero is said");
+  const parts = pieceResultLineOf({ ...empty, ...brought }, { down: false });
+  assert.deepEqual(
+    parts.filter((part) => typeof part !== "string").map((part) => part.number),
+    ["2,140", "3", "1"],
+    "the numbers are set apart, as the canvas draws them",
+  );
+});
+
+test("a person's chain, from the post to the review ask, each step opening its record; it ends at the ask (pass 6, Loop3)", () => {
+  const ana = {
+    contact_id: "c-ana",
+    name: "Ana Ruiz",
+    new_person: true,
+    touch: "reply",
+    touched_at: "2026-12-01T00:12:00Z", // Mon 7:12 PM in New York
+    class: "direct",
+    visit: { starts_at: "2026-12-03T15:00:00Z", status: "kept" }, // Thu 10:00 AM
+    chain: {
+      conversation_id: "cv-1",
+      visit: { id: "v-1", asked_at: "2026-12-01T00:20:00Z" },
+      review_ask: { at: "2026-12-04T15:00:00Z", conversation_id: "cv-1" },
+    },
+  };
+  const chain = broughtChainOf(ana, "reel", TZ);
+  assert.deepEqual(
+    chain.steps.map((step) => [step.words, step.when]),
+    [
+      ["Replied to the reel", "Mon 7:12 PM"],
+      ["Asked for Thu 10:00 AM · confirmed", "Mon 7:20 PM"],
+      ["Kept", "Thu 10:00 AM"],
+      ["Asked for a review", "Fri 10:00 AM"],
+    ],
+  );
+  assert.deepEqual(
+    chain.steps.map((step) => step.opens),
+    [
+      { kind: "conversation", id: "cv-1" },
+      { kind: "visit", id: "v-1", day: "2026-12-03" },
+      { kind: "visit", id: "v-1", day: "2026-12-03" },
+      { kind: "conversation", id: "cv-1" },
+    ],
+  );
+  assert.equal(chain.fine, "Chanlytics can't tell who wrote a review on Google, so it ends at the ask.");
+  // Where a chain stops: at the last thing the record holds.
+  const waiting = broughtChainOf({ ...ana, visit: { ...ana.visit, status: "proposed" } }, "reel", TZ);
+  assert.deepEqual(
+    waiting.steps.map((step) => [step.words, step.done]),
+    [
+      ["Replied to the reel", true],
+      ["Asked for Thu 10:00 AM · waiting to be confirmed", false],
+    ],
+  );
+  assert.equal(waiting.fine, null);
+  const missed = broughtChainOf({ ...ana, visit: { ...ana.visit, status: "missed" } }, "reel", TZ);
+  assert.deepEqual(missed.steps.at(-1).words, "Missed", "a missed visit is never asked for a review here");
+  const noAsk = broughtChainOf({ ...ana, chain: { ...ana.chain, review_ask: null } }, "reel", TZ);
+  assert.equal(noAsk.steps.at(-1).words, "Kept", "no review ask on: it ends at the visit");
+  assert.equal(broughtChainOf({ ...ana, visit: null }, "reel", TZ), null, "no booking yet: no chain to open");
 });

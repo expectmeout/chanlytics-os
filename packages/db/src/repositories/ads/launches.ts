@@ -17,14 +17,16 @@ type Db = SupabaseClient<Database>;
 export interface AdTurnOnKept {
   outcome: "kept" | "same" | "not_allowed" | "not_connected" | "stopped" | "busy" | "stale" | "no_door";
   adId: string | null;
+  /** The approval the press was kept with (00710); null for any other outcome, or before that migration. */
+  approvalId: string | null;
 }
 
 const TURN_ON_OUTCOMES = ["kept", "same", "not_allowed", "not_connected", "stopped", "busy", "stale"] as const;
 const launchTextOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /**
- * An owner's Turn on (ad_turn_on, 00666): the kept draft, as the press judged it, becomes the ad, setting up, with the
- * decision, the event and the account's job, in one transaction.
+ * An owner's Turn on (ad_turn_on, 00666, 00710): the kept draft, as the press judged it, becomes the ad, setting up, with
+ * the decision, the event, its approval and the account's job, in one transaction.
  */
 export async function keepTurnOn(
   db: Db,
@@ -39,13 +41,13 @@ export async function keepTurnOn(
     p_ad: press.ad,
   });
   if (error) {
-    if (isMissingDoor(error)) return { outcome: "no_door", adId: null };
+    if (isMissingDoor(error)) return { outcome: "no_door", adId: null, approvalId: null };
     throw new DbFailure(error, "ad_turn_on");
   }
   const answer = recordOrEmpty(data);
   const outcome = TURN_ON_OUTCOMES.find((one) => one === answer.outcome);
   if (!outcome) throw new Error("ad_turn_on answered no outcome");
-  return { outcome, adId: launchTextOf(answer.ad_id) };
+  return { outcome, adId: launchTextOf(answer.ad_id), approvalId: launchTextOf(answer.approval_id) };
 }
 
 /** One part a launch made, sent or left, as its door keeps it. */

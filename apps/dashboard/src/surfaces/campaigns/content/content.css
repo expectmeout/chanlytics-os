@@ -831,6 +831,70 @@
 .cnv-desk-body .cnv-ad-said {
   text-align: start;
 }
+/* What its posts already did, right above Run as an ad (viewer/results.tsx ResultLine; the canvas's Loop1, pass 6): a glyph
+   and one line, its numbers set apart. On the glass over the picture on a phone, on the pane's own ground on a desk. */
+.cnv-res {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--row-said-line);
+  color: var(--viewer-ink-dim);
+}
+.cnv-res > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.cnv-res b {
+  font-weight: var(--weight-semibold);
+  color: var(--media-ink);
+}
+.cnv-desk-body .cnv-res {
+  color: var(--ink-dim);
+}
+.cnv-desk-body .cnv-res b {
+  color: var(--ink);
+}
+/* A person who booked, and the chain under them (viewer/results.tsx BroughtChain; the canvas's Loop3, pass 6): one quiet
+   press opens the steps from the post to the chair, each a line that opens its record, on a rule under the person. */
+.cnv-brx {
+  display: grid;
+  gap: 2px;
+}
+.cnv-brx-press {
+  justify-self: start;
+  margin-inline-start: 40px;
+}
+.cnv-chain {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0 40px;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-inline-start: 1px solid var(--line);
+  font-size: var(--text-sm);
+  line-height: var(--row-said-line);
+  color: var(--ink-dim);
+}
+.cnv-chain li[data-done] {
+  color: var(--ink);
+}
+.cnv-chain a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+.cnv-chain-when {
+  color: var(--ink-faint);
+}
+/* Where the chain ends, said under it, on its rule's line. */
+.cnv-brx .cnv-note {
+  margin: 6px 0 4px 54px;
+}
 /* Delete, asked in place of the acts, on the glass so its words read over the picture. */
 .cnv-viewer-ask {
   padding: 10px 12px;

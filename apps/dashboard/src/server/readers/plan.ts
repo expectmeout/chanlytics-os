@@ -30,9 +30,11 @@ import {
 } from "@chanlytics/db/files";
 import { findGoogleConnection } from "@chanlytics/db/google";
 import { findWorkspaceRuntimeRow, findWorkspaceZone } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import { loadFeed } from "../calendar/openings";
 import { recordBusy } from "../calendar/record-busy";
 import { readInstagramPostable } from "../connections/meta";
+import { readReviewAsk } from "../content/review-ask";
 import { readBrandKit } from "../workspace/brand-kit";
 import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -101,11 +103,13 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
     const { zone, parsed, claims, goals } = await readWeekBasics(rc);
     const content = parsed?.content;
     const weekOf = args.week ?? planWeekOf(zone, rc.now.getTime());
-    const [week, places, runtime, brand] = await Promise.all([
+    const [week, places, runtime, brand, reviewAsk] = await Promise.all([
       readContentWeek(rc.ctx.supabase, rc.tenantId, weekOf),
       readWeekPlaces(rc),
       findWorkspaceRuntimeRow(rc.ctx.supabase, rc.tenantId),
       readBrandKit(rc.ctx, rc.tenantId, parsed),
+      // The plan's proposal to ask for reviews (pass 6): a read that fails leaves the Week as it was.
+      readReviewAsk(rc.ctx.supabase, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
     ]);
     return {
       data: {
@@ -115,6 +119,7 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
         ...(await readWeekMade(rc, week)),
         paused_at: runtime.data?.sending_stopped_at ?? null,
         places,
+        review_ask: reviewAsk,
         planned: parsed?.features?.content_plan === true,
         claims,
         goals: goals.map((g) => ({ goal: g.goal, detail: g.words })),

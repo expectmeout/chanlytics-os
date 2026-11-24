@@ -517,6 +517,8 @@ test("the writes listed as untold are still untold, and each says why", () => {
  * paid by every reply; these are the ones left, and may only fall.
  */
 const NOT_READ = {
+  "POST content/review-ask -> content_week":
+    "Not now keeps a decision of the workspace's through shared/verbs.ts recordDecision, which the trace does not follow; it writes decisions, which the Week's proposal to ask for reviews reads (server/content/review-ask.ts readReviewAsk), so the Week reads again and the proposal is gone.",
   "PUT lead-suggestions -> leads":
     "The ideas are kept through an object the trace does not follow (ideaStore.saveLine in server/leads/suggestions.ts); it writes lead_suggestions, which Leads reads for a new search's ideas (GET lead-suggestions).",
   "POST ask/alone -> reports_campaigns":

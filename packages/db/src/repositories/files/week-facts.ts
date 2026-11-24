@@ -27,6 +27,8 @@ export interface FootageRow {
   kind: "image" | "video";
   name: string;
   at: string;
+  /** A clip's length; null for a photo, or a clip not measured. */
+  seconds: number | null;
   /** The look's own words of what it shows: its line, what a post could use it for, its moments' words. */
   shows: string[];
   issues: string[];
@@ -34,26 +36,38 @@ export interface FootageRow {
   stock: boolean;
 }
 
+/** A look's moments: each frame's second and what it shows. */
+const momentsOfLook = (look: Record<string, unknown>): { at: number; what: string }[] =>
+  listOrEmpty(look.moments).flatMap((m) =>
+    isObjectRecord(m) && typeof m.at === "number" && typeof m.what === "string" ? [{ at: m.at, what: m.what }] : [],
+  );
+
+/** What a file's look said it shows: its line, what a post could use it for, its moments' words. */
+export function showsOfLook(json: unknown): string[] {
+  const look = recordOrEmpty(json);
+  return [nonBlankOrNull(look.use), ...momentsOfLook(look).map((m) => m.what), nonBlankOrNull(look.line)].filter(
+    (s): s is string => !!s,
+  );
+}
+
 const footageOf = (row: {
   id: string;
   kind: string;
   name: string;
   created_at: string;
+  seconds: number | null;
   look: unknown;
 }): FootageRow | null => {
   if (row.kind !== "image" && row.kind !== "video") return null;
   const look = recordOrEmpty(row.look);
-  const moments = listOrEmpty(look.moments).flatMap((m) =>
-    isObjectRecord(m) && typeof m.at === "number" && typeof m.what === "string" ? [{ at: m.at, what: m.what }] : [],
-  );
+  const moments = momentsOfLook(look);
   return {
     id: row.id,
     kind: row.kind,
     name: row.name,
     at: row.created_at,
-    shows: [nonBlankOrNull(look.use), ...moments.map((m) => m.what), nonBlankOrNull(look.line)].filter(
-      (s): s is string => !!s,
-    ),
+    seconds: row.seconds,
+    shows: showsOfLook(look),
     issues: listOrEmpty(look.issues).filter((s): s is string => typeof s === "string"),
     moments,
     stock: look.looks_like_stock === true,
@@ -70,7 +84,7 @@ const FOOTAGE_MOST = 40;
 export async function listWeekFootage(db: Db, tenantId: TenantId, sinceIso: string): Promise<FootageRow[]> {
   const { data, error } = await db
     .from("files")
-    .select("id, kind, name, created_at, look")
+    .select("id, kind, name, created_at, seconds, look")
     .eq("tenant_id", tenantId)
     .eq("status", "filed")
     .is("removed_at", null)

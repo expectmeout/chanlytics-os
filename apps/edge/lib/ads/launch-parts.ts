@@ -27,6 +27,11 @@ export interface LaunchApproved {
   whatsapp: string;
   pageId: string;
   currency: string;
+  /**
+   * The SHA-256 of the photo's bytes as they were at the press (approval.ts): the launch sends no other. Null for an ad
+   * turned on before Turn on kept it, or where its bytes could not be read then.
+   */
+  pictureChecksum: string | null;
 }
 
 const textAt = (row: Record<string, unknown>, key: string): string => {
@@ -71,6 +76,7 @@ export function approvedOf(json: unknown): LaunchApproved | null {
     whatsapp: textAt(row, "whatsapp"),
     pageId: textAt(row, "page_id"),
     currency: textAt(row, "currency"),
+    pictureChecksum: textAt(row, "picture_checksum") || null,
   };
   const whole =
     approved.name !== "" &&

@@ -30,6 +30,25 @@ export async function listAdsOfAccount(db: Db, tenantId: TenantId, accountId: st
   return data;
 }
 
+/** The most ads made from one picture a piece says: a picture run as an ad again and again is still a handful. */
+const PICTURE_ADS_MAX = 20;
+
+/**
+ * The ads made here from one picture, by its file's id (what Run as an ad drafted around, kept on ads.approved at Turn
+ * on), newest first: what the piece says it ran as (the content loop's pass 6).
+ */
+export async function listAdIdsOfPicture(db: Db, tenantId: TenantId, fileId: string): Promise<string[]> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("ads")
+    .select("id")
+    .eq("origin", "chanlytics")
+    .eq("approved->>picture", fileId)
+    .order("created_at", { ascending: false })
+    .limit(PICTURE_ADS_MAX);
+  if (error) throw new DbFailure(error, "a picture's ads");
+  return data.map((row) => row.id);
+}
+
 /** One ad of the workspace's, by Chanlytics' own id. */
 /**
  * Ads by their own ids, whichever account each is of: the ones a window's counts name that an account's list did not

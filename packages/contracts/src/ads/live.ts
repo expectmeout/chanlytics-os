@@ -59,7 +59,8 @@ const AD_WAY_IN_UNREAD_MS = HOUR_MS;
  * what was approved; a make whose answer never came was never found; AI was stopped; AI could no longer answer the chat
  * it opens, checked just before it was switched on; it was cancelled (by its owner, or for a yes taken back on its
  * picture); the account was disconnected or
- * signed out; the picture could not be sent (a video, or one Files no longer holds); what was approved could not be
+ * signed out; the picture could not be sent (a video, one Files no longer holds, or a photo whose bytes are no longer
+ * those approved); what was approved could not be
  * read whole; or turning ads on from here was switched off on this deployment before it finished.
  */
 export type AdStopped =

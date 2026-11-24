@@ -28,6 +28,7 @@ import {
   type ContentReportDto,
   type ContentTotals,
   type ContentWeekDto,
+  type PieceAdDto,
   type PieceResultsDto,
   type PostNumbersDto,
   type RecordedTouch,
@@ -37,6 +38,7 @@ import {
   findComment,
   listComments,
   listPostTouches,
+  listReviewAsksOf,
   listTouchesIn,
   listTouchesOf,
   listVisitsMadeIn,
@@ -46,12 +48,16 @@ import {
   readPostNumbers,
   type CommentRead,
   type PostNumber,
+  type ReviewAskRead,
   type VisitForCredit,
 } from "@chanlytics/db/content";
+import { listAdIdsOfPicture } from "@chanlytics/db/ads";
 import { listFilePosts, listPostsInSpan } from "@chanlytics/db/files";
+import { logAndGoOn } from "@chanlytics/log";
 import { listNamesOfPeople } from "@chanlytics/db/people";
 import type { ReportWindow } from "@chanlytics/db/reports";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
+import { adPeople, adsPage } from "./ads-page";
 import * as facts from "./facts";
 import type { RouteContext } from "../shared/with-route";
 
@@ -84,6 +90,8 @@ function postsNumbersOf(posts: readonly PostShape[], numbers: readonly PostNumbe
         post_id: post.id,
         place: post.place,
         kind: post.kind,
+        published_at: post.published_at,
+        down: post.status === "taken_down",
         step: newest?.step ?? null,
         read_at: newest?.observedAt ?? null,
         numbers: mine.map((number) => ({
@@ -99,7 +107,14 @@ function postsNumbersOf(posts: readonly PostShape[], numbers: readonly PostNumbe
 /** One person's row: their newest touch of these posts, and their best visit's class for any of them. */
 function broughtPersonOf(
   contactId: string,
-  of: { mine: RecordedTouch[]; all: RecordedTouch[]; visits: VisitForCredit[]; posts: Set<string>; name: string },
+  of: {
+    mine: RecordedTouch[];
+    all: RecordedTouch[];
+    visits: VisitForCredit[];
+    posts: Set<string>;
+    name: string;
+    asks: readonly ReviewAskRead[];
+  },
 ): BroughtPersonDto {
   const newest = of.mine[0];
   let best: { klass: BroughtPersonDto["class"]; visit: VisitForCredit } | null = null;
@@ -117,7 +132,23 @@ function broughtPersonOf(
     words: newest?.said?.words ?? null,
     class: best?.klass ?? "none",
     visit: best ? { starts_at: best.visit.starts_at, status: best.visit.status } : null,
+    // Where its chain's steps live (pass 6; the canvas's Loop3): the review ask is the first sent after the visit.
+    chain: {
+      conversation_id: newest?.conversation_id ?? null,
+      visit: best ? { id: best.visit.id, asked_at: best.visit.created_at } : null,
+      review_ask: chainAskOf(of.asks, best?.visit.starts_at ?? null),
+    },
   };
+}
+
+/** The first review ask sent after a visit, where one went; none before a visit, or for a person with none. */
+function chainAskOf(
+  asks: readonly ReviewAskRead[],
+  afterIso: string | null,
+): { at: string; conversation_id: string | null } | null {
+  if (!afterIso) return null;
+  const ask = asks.find((one) => one.at > afterIso);
+  return ask ? { at: ask.at, conversation_id: ask.conversationId } : null;
 }
 
 /** What a piece's posts brought: its numbers, its people, its link. */
@@ -131,10 +162,14 @@ async function readPieceResults(db: Db, tenantId: TenantId, fileId: string): Pro
   ]);
   const people = [...new Set(touches.flatMap((touch) => (touch.contact_id ? [asContactId(touch.contact_id)] : [])))];
   const since = new Date(Math.min(...posts.map((post) => Date.parse(post.published_at ?? "")), Date.now()) - DAY_MS);
-  const [all, visits, names] = await Promise.all([
+  const [all, visits, names, asks] = await Promise.all([
     listTouchesOf(db, tenantId, { contactIds: people, since: since.toISOString() }),
     listVisitsOf(db, tenantId, { contactIds: people, since: since.toISOString() }),
     listNamesOfPeople(db, tenantId, people),
+    // What each chain ends at (pass 6): a read that fails leaves the chains without their last step.
+    listReviewAsksOf(db, tenantId, people, since.toISOString()).catch(
+      logAndGoOn("review asks of a piece's people", []),
+    ),
   ]);
   const nameOf = new Map(names.map((row) => [row.id, personName(row)]));
   const postSet = new Set(ids);
@@ -145,6 +180,7 @@ async function readPieceResults(db: Db, tenantId: TenantId, fileId: string): Pro
       visits: visits.filter((visit) => visit.contact_id === contactId),
       posts: postSet,
       name: nameOf.get(contactId) ?? "",
+      asks: asks.filter((ask) => ask.contactId === contactId),
     }),
   );
   const link = [...links.values()][0] ?? null;
@@ -215,12 +251,59 @@ const COMMENT_DAYS = 30;
 /** The days the week's line counts. */
 const WEEK_LINE_DAYS = 7;
 
-/** A piece's How it did and What it brought. */
-export const pieceResults: Reader<{ file: string }, PieceResultsDto> = {
+/** Someone an ad made from the piece brought: who, when they first wrote, and whether they booked since. */
+interface PieceAdPersonDto {
+  id: string;
+  name: string;
+  first_at: string;
+  booked: boolean;
+}
+
+/**
+ * A piece's results, and the ads made from it as the Ads page reads them, with the people they brought (the content
+ * loop's pass 6; the canvas's Loop2): never added to the post's.
+ */
+export type PieceResultsAnswer = PieceResultsDto & { ads: PieceAdDto[]; ad_people: PieceAdPersonDto[] };
+
+const NO_ADS = { ads: [], ad_people: [] } satisfies Pick<PieceResultsAnswer, "ads" | "ad_people">;
+
+/** The ads made here from the piece's file, each as the Ads page says it, and who they brought, each person once. */
+async function pieceAdsOf(rc: ReaderContext, fileId: string): Promise<Pick<PieceResultsAnswer, "ads" | "ad_people">> {
+  const ids = new Set(await listAdIdsOfPicture(rc.ctx.supabase, rc.tenantId, fileId));
+  if (ids.size === 0) return NO_ADS;
+  const page = (await load(rc, adsPage, undefined)).data;
+  const ads = (page?.ads ?? []).filter((ad) => ids.has(ad.id));
+  const people = await Promise.all(ads.map(async (ad) => (await load(rc, adPeople, { ad: ad.id, offset: 0 })).data));
+  const first = new Map<string, PieceAdPersonDto>();
+  for (const person of people.flatMap((one) => one.people))
+    if (!first.has(person.id) || (first.get(person.id)?.first_at ?? "") > person.first_at) first.set(person.id, person);
+  return {
+    ads: ads.map((ad) => ({
+      id: ad.id,
+      state: ad.state,
+      shown_on: ad.shown_on,
+      spend_minor: ad.spend_minor,
+      total_minor: ad.budget?.kind === "total" ? ad.budget.minor : null,
+      currency: page?.account.currency ?? null,
+      ends_at: ad.ends_at,
+      paused_by: ad.paused_by,
+      people: ad.people,
+      booked: ad.booked,
+    })),
+    ad_people: [...first.values()],
+  };
+}
+
+/** A piece's How it did and What it brought, and what the ads made from it brought apart (pass 6). */
+export const pieceResults: Reader<{ file: string }, PieceResultsAnswer> = {
   name: "piece_results",
   async read(rc, args) {
-    const data = await readPieceResults(rc.ctx.supabase, rc.tenantId, args.file);
-    return { data, rows: [], stamp: readerStamp() };
+    const [data, ads] = await Promise.all([
+      readPieceResults(rc.ctx.supabase, rc.tenantId, args.file),
+      // The ads are the piece's second half: a read of them that fails leaves the post's results standing.
+      pieceAdsOf(rc, args.file).catch(logAndGoOn("a piece's ads", NO_ADS)),
+    ]);
+    return { data: { ...data, ...ads }, rows: [], stamp: readerStamp() };
   },
 };
 

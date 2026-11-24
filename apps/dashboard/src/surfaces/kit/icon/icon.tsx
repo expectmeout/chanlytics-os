@@ -296,6 +296,12 @@ const GLYPHS: Record<string, Drawing> = {
       <path d="M4 10l4-4 4 4" />
     </svg>
   ),
+  // What a post did: three bars on a line (the piece's results line, pass 6).
+  chart: (p) => (
+    <svg {...p}>
+      <path d="M3 13h10M5 11V8.5M8 11V5.5M11 11V7" />
+    </svg>
+  ),
   edit: (p) => (
     <svg {...p}>
       <path d="M3 13h2.5l7-7-2.5-2.5-7 7V13z" />

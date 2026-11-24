@@ -170,6 +170,45 @@ test(
 );
 
 test(
+  "what the owner approved is kept as the ad's approval, hashed in the database and named on the decision (00710)",
+  { skip },
+  async () => {
+    const ws = await workspace("approved");
+    const approval = {
+      ad: { name: "First visit", service: "Consultation" },
+      picture: { file_id: crypto.randomUUID(), kind: "photo", checksum: "a".repeat(64) },
+      words: [{ n: 1, text: "A first visit. Message us on WhatsApp.", headline: "First visit" }],
+      shown_on: ["facebook"],
+      where: { miles: 5, address: "12 Harbor St, Miami" },
+      opens: { door: "whatsapp", number: "+13055550142" },
+      spend: { most_minor: 7500, currency: "USD", end_day: "2027-01-04", ends_at: "2027-01-05T04:59:00.000Z" },
+      page_id: "page-1",
+      declared: "none",
+      uses: ["ad"],
+    };
+    const kept = await turnOn(ws, { p_ad: { ...AD, approval } });
+    assert.equal(kept.outcome, "kept");
+    const [row, ...more] = ok(
+      await db
+        .from("approvals")
+        .select("id, subject_type, snapshot, snapshot_hash, approved_by")
+        .eq("subject_id", kept.ad_id),
+    );
+    assert.equal(more.length, 0, "one approval");
+    assert.deepEqual([row.subject_type, row.snapshot, row.approved_by], ["ad", approval, ws.owner]);
+    assert.match(row.snapshot_hash, /^[0-9a-f]{64}$/);
+    assert.equal(kept.approval_id, row.id, "the answer names it");
+    const [decision] = ok(await db.from("decisions").select("payload").eq("subject_id", kept.ad_id));
+    assert.equal(decision.payload.approval_id, row.id, "and so does the decision");
+    // A press from a build that sends none keeps none.
+    const plain = await workspace("plain");
+    const none = await turnOn(plain);
+    assert.equal(none.approval_id, null);
+    assert.deepEqual(ok(await db.from("approvals").select("id").eq("subject_id", none.ad_id)), []);
+  },
+);
+
+test(
   "a draft changed since, another launch on its way, AI stopped, or anyone but the owner: refused, nothing kept",
   { skip },
   async () => {
