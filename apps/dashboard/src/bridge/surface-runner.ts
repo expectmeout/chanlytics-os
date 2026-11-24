@@ -133,6 +133,16 @@ async function inLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<
 }
 
 /**
+ * The pages not on screen, started at once, their first reads gathered (client/api.ts `gather`) into one GET open/rest
+ * (piece 8) where each asked its own, four at a time; a move made once they left asks its page's alone (bridge/api.ts).
+ */
+async function bootTogether(strangers: SurfaceOverride[], boot: (o: SurfaceOverride) => Promise<void>): Promise<void> {
+  // None to start, nothing gathered: a read asked meanwhile (a write's re-read) goes alone, never into a request of others.
+  if (!strangers.length) return;
+  await Promise.all(api().gather(() => strangers.splice(0).map(boot)));
+}
+
+/**
  * The order a pass reads surfaces in, for a route (the address's, or one a move asks for): the surface it asks for first,
  * then the ones its page draws beside it in the page's own order (surface-registry.ts ROUTE_DRAWS), then the rest.
  *
@@ -636,7 +646,7 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     dropPrefetched(window);
     return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
   });
-  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
+  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : bootTogether(strangers, boot)));
   void booted.then(stopFollowing, stopFollowing);
   // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this
   // one; what is read ahead for a press (afterBoot("page")) waits for the page on screen, drawn.

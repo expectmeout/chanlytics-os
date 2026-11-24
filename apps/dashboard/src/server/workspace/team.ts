@@ -342,15 +342,31 @@ interface InviteToAccept {
  * accept (acceptOpenInvites), which is the one place that writes on them. Never rejects.
  */
 async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
+  return (await readOpenInvites(email)) ?? [];
+}
+
+/** The invitations still open for this address: none without one, null where they cannot be read. Never rejects. */
+async function readOpenInvites(email: string | null): Promise<InviteToAccept[] | null> {
   if (!email) return [];
   try {
     // A person's open invitations, whichever workspaces they are to: by design, read by their address.
     const { data, error } = await listInvitesForAddress(serviceDb(), email.toLowerCase(), new Date().toISOString());
-    return error ? [] : (data ?? []);
+    return error ? null : (data ?? []);
   } catch (e) {
     logKeptGoing("open invitations of an address", e);
-    return [];
+    return null;
   }
+}
+
+/**
+ * Whether an invitation is open for this address, as the list of workspaces says it (GET workspaces, user.invited): the
+ * shell makes its accept (POST me/invitations/accept) only where one is, where it made it on every load, 52 in 52 in the
+ * phone sweep of 23 Nov 2026, for the few that seat someone. Null where they cannot be read: the shell accepts then, as it
+ * always did. It reads; the accept is still the one place that writes on them.
+ */
+export async function hasOpenInvites(email: string | null): Promise<boolean | null> {
+  const open = await readOpenInvites(email);
+  return open === null ? null : open.length > 0;
 }
 
 /**

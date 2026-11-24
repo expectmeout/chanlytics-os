@@ -64,16 +64,26 @@ const routeWordsOf = (key: string): string => key.replace(/\?.*$/, "");
 /** The answer's content type: one JSON object a line, each written as its read settles. */
 const OPEN_CONTENT_TYPE = "application/x-ndjson; charset=utf-8";
 
+/** Whether a key's query names a workspace of its own (`contacts?workspace=…`), which only the request may. */
+const namesWorkspace = (key: string): boolean => new URLSearchParams(key.replace(/^[^?]*\??/, "")).has("workspace");
+
+/** A request's context as a route hands it on, its params with it. */
+type OpenContext = RouteContext & { params: Record<string, string | string[] | undefined> };
+
+/** What a streamed answer came to: its time from its first read to its last, and the database calls its reads made. */
+type OpenWhole = OpenSum["o"];
+
 /**
- * The page's reads, as one streamed answer: the page, the period this device last picked and the thread its address names
- * (contracts openReads). `routeOf` names the route that answers a read by its key; a key no route answers is the page's to
- * ask for itself (route-prefetch.test.mjs holds every key to its route).
+ * Reads answered as one streamed request, past the one session check its route made: the membership read once for all of
+ * them, the readers sharing one turn and the database asked each question once. `each` answers the reads in the order it
+ * chooses (`answer` writes a read's line as it settles); `logWhole` is told what the answer came to, as its last line is.
  */
-export function openPage(
-  ctx: RouteContext & { params: Record<string, string | string[] | undefined> },
+function streamed(
+  ctx: OpenContext,
   req: Request,
-  input: { page: string; period: string | null; thread: string | null },
   routeOf: (key: string) => OpenRead | undefined,
+  each: (answer: (key: string) => Promise<void>) => Promise<void>,
+  logWhole: (whole: OpenWhole, reads: Record<string, number>) => void,
 ): Response {
   shareMembership(ctx);
   shareTurn(ctx);
@@ -85,25 +95,111 @@ export function openPage(
       const write = (line: OpenLine | OpenSum) => out.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
       const began = Date.now();
       const reads: Record<string, number> = {};
-      for (const tier of openReads(input.page, input.period, input.thread)) {
-        await Promise.all(
-          tier.map(async (key) => {
-            const route = routeOf(key);
-            if (!route) return;
-            const from = Date.now();
-            write(await partAnswerOf(ctx, req, workspace, key, route));
-            reads[routeWordsOf(key)] = Date.now() - from;
-          }),
-        );
-      }
+      await each(async (key) => {
+        const route = routeOf(key);
+        if (!route) return;
+        const from = Date.now();
+        write(await partAnswerOf(ctx, req, workspace, key, route));
+        reads[routeWordsOf(key)] = Date.now() - from;
+      });
       const calls = requestTimings().get("db");
       const whole = { ms: Date.now() - began, db_ms: Math.round(calls?.ms ?? 0), db_n: calls?.n ?? 0 };
       write({ o: whole });
-      log.info("page_opened", { page: input.page, ...whole, reads });
+      logWhole(whole, reads);
       out.close();
     },
   });
   return new Response(body, { headers: { "content-type": OPEN_CONTENT_TYPE } });
+}
+
+/**
+ * The page's reads, as one streamed answer: the page, the period this device last picked and the thread its address names
+ * (contracts openReads). `routeOf` names the route that answers a read by its key; a key no route answers is the page's to
+ * ask for itself (route-prefetch.test.mjs holds every key to its route).
+ */
+export function openPage(
+  ctx: OpenContext,
+  req: Request,
+  input: { page: string; period: string | null; thread: string | null },
+  routeOf: (key: string) => OpenRead | undefined,
+): Response {
+  return streamed(
+    ctx,
+    req,
+    routeOf,
+    async (answer) => {
+      for (const tier of openReads(input.page, input.period, input.thread))
+        await Promise.all(tier.map(async (key) => answer(key)));
+    },
+    (whole, reads) => log.info("page_opened", { page: input.page, ...whole, reads }),
+  );
+}
+
+/**
+ * How many of the rest's reads are worked on at once: as many as the boot's lanes in the browser were (surface-runner.ts
+ * BOOT_LANES, four), and two more, since one function answers all of them where four requests each started their own.
+ * Every read at once is what took 7.8 s for 23 reads on the salon's workspace (24 Sep 2026); a few at a time, each read's
+ * line still leaves the moment it settles.
+ */
+const REST_LANES = 6;
+
+/**
+ * The most reads one GET open/rest answers: every path it answers (contracts OPEN_READ_PATHS, 37), and room for a few asked
+ * twice over, as Leads' list in two orders. More are let go, and the client asks for each of those alone.
+ */
+const REST_READS_MAX = 48;
+
+/** The longest `reads` GET open/rest takes: its most reads, each a key of a path and its query, URI-encoded. */
+export const REST_READS_TEXT_MAX = 8_000;
+
+/**
+ * The reads a GET open/rest asks for, from its `reads`: each key URI-decoded, the ones a route answers (`routeOf`), each
+ * once, in the order asked, at most REST_READS_MAX. A key that does not decode is passed over, as one no route answers is,
+ * and so is one that names a workspace: the request names it once, for all of them.
+ */
+export function restKeysOf(reads: string, routeOf: (key: string) => OpenRead | undefined): string[] {
+  const keys: string[] = [];
+  for (const part of reads.split(",")) {
+    let key: string;
+    try {
+      key = decodeURIComponent(part);
+    } catch {
+      // Not a key the client spells (a stray `%`): passed over, as one no route answers is.
+      continue;
+    }
+    if (routeOf(key) && !namesWorkspace(key) && !keys.includes(key)) keys.push(key);
+    if (keys.length === REST_READS_MAX) break;
+  }
+  return keys;
+}
+
+/**
+ * The rest of a load's reads, as one streamed answer (GET open/rest, "Pages that open at once" piece 8): the reads of the
+ * pages not on screen, which the boot asks for once the page on screen is drawn, each answered by its own route as GET open
+ * answers a page's, in the order the boot asked for them (the page a move went to first), a few at a time. Where the boot
+ * asked each in a request of its own, every one was a function started, a session checked and a membership read (36
+ * requests a load, 23 Nov 2026); and the database was asked again what a read beside it had just asked (the workspace's
+ * settings 363 times over 52 loads). A key no route answers has no line, and the client asks for it alone.
+ */
+export function openRest(
+  ctx: OpenContext,
+  req: Request,
+  keys: readonly string[],
+  routeOf: (key: string) => OpenRead | undefined,
+): Response {
+  return streamed(
+    ctx,
+    req,
+    routeOf,
+    async (answer) => {
+      const queue = [...keys];
+      const lane = async (): Promise<void> => {
+        for (let key = queue.shift(); key !== undefined; key = queue.shift()) await answer(key);
+      };
+      await Promise.all(Array.from({ length: Math.min(REST_LANES, queue.length) }, lane));
+    },
+    (whole, reads) => log.info("page_rest_opened", { asked: keys.length, ...whole, reads }),
+  );
 }
 
 /** One read's answer, as its own route answers it: the data in its envelope, or its refusal. */

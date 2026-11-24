@@ -7,11 +7,14 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { readBegins } from "../client/page-speed";
+import { restReads } from "../client/rest-reads";
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { sealSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
+import { getActiveWorkspace, onRouteAsked, rememberWorkspace, signInHref } from "./workspace";
 import {
   CONSOLE_PATH,
+  openReads,
+  PREFETCH_READS,
   PREFETCH_SLOT,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_STAFF_PATH,
@@ -195,6 +198,24 @@ export function serversClockOf(browserMs: number): number {
   return browserMs - api().clockLead() - CLOCK_SKEW_MS;
 }
 
+/**
+ * The rest of a load's reads, asked as one (GET open/rest, client/rest-reads.ts), over the tab's fetch. A move while it is
+ * out sends what the page moved to opens on to be asked alone (`hurry`): sent as the boot asked them, its reads would wait
+ * their turn among the rest, as Today waited behind the Calendar's in the boot's first order (16 Nov 2026). A route of a
+ * page's own family (`clients/c-1`) opens on its page's reads.
+ */
+function restOverWindow(): ReturnType<typeof restReads> {
+  const rest = restReads((url, init) => {
+    readBegins(url);
+    return window.fetch(url, init);
+  });
+  onRouteAsked((route) => {
+    const page = route in PREFETCH_READS ? route : route.split("/")[0];
+    if (page) rest.hurry(openReads(page).flat());
+  });
+  return rest;
+}
+
 export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => {
@@ -204,6 +225,8 @@ export function api(): Api {
     },
     prefetched: (url) => takePrefetched(window, url),
     prefetchedFrom: pageBegan,
+    // The rest of a load's reads, as one (GET open/rest): what the boot gathers as it starts the pages not on screen.
+    together: restOverWindow(),
     workspace: getActiveWorkspace,
     onSignedOut: () => toSignIn(window),
     onSessionEnded: () => void endSession(window),
