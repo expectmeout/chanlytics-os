@@ -940,6 +940,49 @@ test("no push where the list has a box of its own (a desk), under reduced motion
   assert.ok(untouched(), "and nothing moves it after");
 });
 
+test("where the frame's top is drawn in the page's flow (721 to 900 px), a row's page opens where it stands and a thumb carries it alone", async () => {
+  // Production, 24 Nov 2026, at 768 and 887 px wide: People's list, held from 900 px down, has no box scrolling its head, so
+  // the window was taken for its scroller, and a person was pushed in as on a phone. The frame's top is no box there
+  // (display: contents): the list's head drawn again under the page took the page's room, the page slid in 120 px down and
+  // moved up 76 px as it landed (layout shift 0.07 to 0.08, a second after the press).
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = 0;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  top.shown = false;
+  const stopTop = watchFrameTop(top);
+  const written = [];
+  const write = html.style.setProperty;
+  html.style.setProperty = (name, value) => {
+    written.push(value);
+    write(name, value);
+  };
+  try {
+    const { list } = inbox();
+    assert.equal(pushesOver(list), false, "no press waits for a push");
+    const el = rowPage();
+    const p = page(list, { page: () => el, going: carriedOver });
+    p.draw(false);
+    assert.equal(p.draw(true), true, "the list is held under the page all the same");
+    await Promise.resolve();
+    assert.ok(!el.hasAttribute("data-pushed") && el.style.transform === undefined, "the page is simply there");
+    assert.equal(idle.length, 0, "no picture of the list is made for a thumb to uncover");
+    showHeld(true);
+    assert.equal(list.dataset.held, "", "a thumb's carry shows nothing under the page");
+    assert.ok(!html.attrs.has("data-carrying"), "and the frame draws no head again in the page's room");
+    assert.deepEqual([heldUnder(), heldAlong()], [[], []], "nothing goes under it or with it");
+    showHeld(false);
+    assert.deepEqual(written, [], "the top's height is never written");
+    p.draw(false);
+    p.leave();
+    top.shown = true;
+    assert.equal(pushesOver(inbox().list), true, "a phone's top, standing over the page: pushed in");
+  } finally {
+    html.style.setProperty = write;
+    stopTop();
+  }
+});
+
 test("a press may wait for the row's page only where it would be pushed in: the window scrolls the list, motion not reduced", () => {
   // People's press waits for a person not read yet, so the page the push takes is theirs (people-route.tsx openPerson): by
   // the hold's own reading of the list, so it never waits where nothing is pushed.
