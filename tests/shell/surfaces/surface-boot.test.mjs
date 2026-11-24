@@ -43,6 +43,8 @@ const { startSurfaces, getConnection, getSurfaceStatuses, markHydrated, onSurfac
   await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 const { read } = await importSrc("apps/dashboard/src/bridge/api.ts");
+const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
+const { restReads } = await importSrc("apps/dashboard/src/client/rest-reads.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n) => {
@@ -1369,9 +1371,6 @@ test("a rest refused whole leaves no page without its read: each is asked alone"
   assert.deepEqual([got.inbox.from, got.reports.from], ["alone", "alone"]);
   assert.equal(sent.filter((u) => u.startsWith("/api/v1/open/rest")).length, 1, "the rest asked once, not again");
 });
-
-const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
-const { restReads } = await importSrc("apps/dashboard/src/client/rest-reads.ts");
 
 /** A client over `fetch` whose gathered reads go as one GET open/rest, as the tab's does (bridge/api.ts). */
 const gatheringClient = (fetch) => {
