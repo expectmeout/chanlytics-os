@@ -5,7 +5,7 @@
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",
   "campaigns": "audiences broadcasts channels content content_week files playbooks sequences settings",
-  "campaigns/ads": "settings",
+  "campaigns/ads": "content settings",
   "campaigns/broadcasts": "audiences broadcasts playbooks settings",
   "campaigns/content": "content content_week files settings",
   "campaigns/forms": "",

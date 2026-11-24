@@ -103,6 +103,10 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   // Campaigns › Content (decision 0125), with the library that was Settings › Files (RETIRED_PAGES).
   "campaigns/content",
   "campaigns/content:library",
+  // Campaigns › Content › Ads (decision 0147): where Ads is drawn, the last of Made's views; elsewhere its address opens Made.
+  "campaigns/ads",
+  // Campaigns › Forms (00680): the forms people fill in, made here or on the business's own website.
+  "campaigns/forms",
   ...LENS_ROUTES,
   "start",
   "admin/workspace",

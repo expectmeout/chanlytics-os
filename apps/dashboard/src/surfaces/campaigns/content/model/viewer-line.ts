@@ -20,6 +20,7 @@ import {
   postCaptionOf,
   type FileDto,
   type FileMade,
+  type PieceAdUseDto,
   type PiecePlan,
   type PostDto,
 } from "@chanlytics/contracts";
@@ -125,6 +126,8 @@ export function viewerStandsSaid(stands: PieceStandsAt, clock: ViewerClock): str
 export interface ViewerRecord {
   made: FileMade | null;
   video: PiecePlan | null;
+  /** The ads it is shown in, once its record is read (Campaigns in three tabs); none for a piece in no ad. */
+  usedIn?: readonly PieceAdUseDto[];
 }
 
 /** One row of Details: what it says of the piece, and what is true of it. */
@@ -145,6 +148,8 @@ export interface ViewerDetailsShown {
   words: string | null;
   from: ViewerFrom | null;
   facts: readonly ViewerFact[];
+  /** The ads it is shown in ("Used in N ads"), every one; none for a piece in no ad. */
+  usedIn: readonly PieceAdUseDto[];
 }
 
 /**
@@ -208,6 +213,7 @@ export function viewerSaidOf(
         madeAt: viewerMadeAtOf(created, clock.zone, now),
         madeInLine: viewerMadeInLineOf(created, clock.zone, now),
       }),
+      usedIn: record.usedIn ?? [],
     },
   };
 }

@@ -11,6 +11,7 @@ import type {
   FileRecordDto,
   FileSound,
   PiecePlan,
+  PieceAdUseDto,
   PieceTakeDownDto,
   PieceVersionsDto,
   PostDto,
@@ -23,6 +24,9 @@ import { fileVerbs } from "./verbs";
  * reads. Nothing is said until it comes. A video's is read again as what it is heard changes (its list's `sound_said`), and a
  * post's as the page it is open on says its posts moved (`moved`: a post that landed brings its See it without a reopen).
  */
+/** A piece's standing for an ad and the ads it is in, before its record is read or for another file's: none. */
+const NO_AD: { stands: PieceAdStands | null; usedIn: PieceAdUseDto[] } = { stands: null, usedIn: [] };
+
 export function usePostRecord(file: FileDto, moved = "") {
   const [made, setMade] = useState<FileMade | null>(null);
   const [connected, setConnected] = useState(false);
@@ -37,7 +41,8 @@ export function usePostRecord(file: FileDto, moved = "") {
   const [video, setVideo] = useState<PiecePlan | null>(null);
   // A made piece's standing for an ad, where Ads is on: what Content's Run as an ad says. Kept with the file it was read
   // for, so the piece beside never says this one's word while its own record is on its way.
-  const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
+  // With it, the ads it is already shown in ("Used in N ads", Campaigns in three tabs), running or not.
+  const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null; usedIn: PieceAdUseDto[] } | null>(null);
   // A made piece's newest take-down (00682). Kept with the file it was read for.
   const [standing, setStanding] = useState<{ id: string; takeDown: PieceTakeDownDto | null } | null>(null);
   // A made video's versions (00708), kept with the file they were read for; none from a server before versions.
@@ -63,7 +68,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       setPosts(data.posts ?? data.instagram?.posts ?? null);
       setSound(data.sound ?? null);
       setVideo(data.video?.plan ?? null);
-      setAd({ id: file.id, stands: data.ad ?? null });
+      setAd({ id: file.id, stands: data.ad ?? null, usedIn: data.used_in ?? [] });
       setStanding({ id: file.id, takeDown: data.take_down ?? null });
       setVersions({ id: file.id, version: data.version ?? null });
     });
@@ -71,7 +76,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       live = false;
     };
   }, [file.id, isPost, isVideo, heard, asked, moved]);
-  const adHere = ad?.id === file.id ? ad.stands : null;
+  const adHere = ad?.id === file.id ? ad : NO_AD;
   const here = standing?.id === file.id ? standing : null;
   return {
     made,
@@ -83,7 +88,9 @@ export function usePostRecord(file: FileDto, moved = "") {
     facebook,
     posts,
     video,
-    ad: adHere,
+    ad: adHere.stands,
+    /** The ads it is shown in, once its record is read: none before, and none for a piece in no ad. */
+    usedIn: adHere.usedIn,
     /** Whether this file's record has been read: nothing is said of a place before it is. */
     read: here !== null,
     takeDown: here?.takeDown ?? null,

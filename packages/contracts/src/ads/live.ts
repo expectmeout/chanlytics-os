@@ -122,6 +122,11 @@ export interface AdLiveDto {
   launch: AdLaunchLive | null;
   /** An ad made here: what its owner changes from its drawer. Null for an ad made at the platform. */
   made_here: AdMadeHereLive | null;
+  /**
+   * The piece of Content an ad made here shows (Campaigns in three tabs: its "Made from"); null where it shows no file of the
+   * business's (made in Meta, a post as it is, a search ad) or where the files could not be read.
+   */
+  made_from: AdMadeFromLive | null;
   opens: AdOpens;
   /** Its badge, worked out once (adStateOf). */
   state: AdState | "draft";
@@ -303,6 +308,45 @@ export function adWayClosedOf(
   const sinceMs = typeof row.way_in_at === "string" ? Date.parse(row.way_in_at) : Number.NaN;
   return Number.isFinite(sinceMs) && nowMs - sinceMs >= AD_WAY_IN_UNREAD_MS ? closed : null;
 }
+
+/** The file an ad made here shows, and its name: null once it is gone from Made (a piece removed pauses its ads, 00682). */
+export interface AdMadeFromLive {
+  file_id: string;
+  name: string | null;
+}
+
+/** One ad a made piece of Content is shown in, for the piece's "Used in N ads" (Campaigns in three tabs). */
+export interface PieceAdUseDto {
+  id: string;
+  name: string;
+  state: AdState | "draft";
+}
+
+/** The file an ad made here shows, from what its owner approved (00666 `ads.approved`, its `picture`); null where none. */
+export const adPictureFileOf = (approved: unknown): string | null => {
+  const picture = recordOrEmpty(approved).picture;
+  return typeof picture === "string" && picture !== "" ? picture : null;
+};
+
+/**
+ * An ad's state in a few words, wherever one is named: an Ads row's first word, and an ad a piece is used in (docs/words.md:
+ * one word for each thing).
+ */
+export const AD_STATE_WORDS: Readonly<Record<AdState | "draft", string>> = {
+  on: "On",
+  paused: "Paused",
+  review: "In review",
+  "needs-you": "Needs you",
+  ended: "Ended",
+  finished: "Finished",
+  "setting-up": "Setting up",
+  "couldnt-finish": "Couldn't finish",
+  unconfirmed: "Couldn't confirm it's on",
+  draft: "Draft",
+};
+
+/** The states an ad is said in amber for, wherever it is named: each needs the owner to know it, or to do one thing. */
+export const AD_WARN_STATES: readonly (AdState | "draft")[] = ["needs-you", "couldnt-finish", "unconfirmed"];
 
 /**
  * An ad's badge from its row, at a moment in its account's zone: the one reading of a row into what adStateOf asks.

@@ -128,7 +128,7 @@ test("paused by a remediation of its picture: never turned back on here, nor sen
   assert.deepEqual(drawerOf(held).foot, {
     kind: "held",
     head: "Its picture can't run any more",
-    body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
+    body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from New ad.",
   });
   const row = {
     origin: "chanlytics",
@@ -223,7 +223,7 @@ test("Couldn't finish: why in a word, Meta's own reason in quotes, what was left
   const removed = drawerOf(ad({ state: "couldnt-finish", launch: { stopped: "differs", said: null, left: [] } }));
   assert.deepEqual(removed.foot, {
     kind: "none",
-    line: "Nothing of it was left at Meta, and nothing was spent. Make it again from + New.",
+    line: "Nothing of it was left at Meta, and nothing was spent. Make it again from New ad.",
   });
   assert.equal(removed.reason, null);
   assert.equal(

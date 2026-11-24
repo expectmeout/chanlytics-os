@@ -51,7 +51,7 @@ import {
   type ReviewAskRead,
   type VisitForCredit,
 } from "@chanlytics/db/content";
-import { listAdIdsOfPicture } from "@chanlytics/db/ads";
+import { findLiveAdAccount, listAdsShowingFile } from "@chanlytics/db/ads";
 import { listFilePosts, listPostsInSpan } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import { listNamesOfPeople } from "@chanlytics/db/people";
@@ -269,7 +269,11 @@ const NO_ADS = { ads: [], ad_people: [] } satisfies Pick<PieceResultsAnswer, "ad
 
 /** The ads made here from the piece's file, each as the Ads page says it, and who they brought, each person once. */
 async function pieceAdsOf(rc: ReaderContext, fileId: string): Promise<Pick<PieceResultsAnswer, "ads" | "ad_people">> {
-  const ids = new Set(await listAdIdsOfPicture(rc.ctx.supabase, rc.tenantId, fileId));
+  // A narrow read first (the one a piece's "Used in N ads" makes): most pieces never ran as an ad, and the Ads page's
+  // read is made only for one that did.
+  const account = await findLiveAdAccount(rc.ctx.supabase, rc.tenantId, "meta");
+  if (!account) return NO_ADS;
+  const ids = new Set((await listAdsShowingFile(rc.ctx.supabase, rc.tenantId, account.id, fileId)).map((ad) => ad.id));
   if (ids.size === 0) return NO_ADS;
   const page = (await load(rc, adsPage, undefined)).data;
   const ads = (page?.ads ?? []).filter((ad) => ids.has(ad.id));

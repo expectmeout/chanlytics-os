@@ -30,23 +30,25 @@ export async function listAdsOfAccount(db: Db, tenantId: TenantId, accountId: st
   return data;
 }
 
-/** The most ads made from one picture a piece says: a picture run as an ad again and again is still a handful. */
-const PICTURE_ADS_MAX = 20;
-
 /**
- * The ads made here from one picture, by its file's id (what Run as an ad drafted around, kept on ads.approved at Turn
- * on), newest first: what the piece says it ran as (the content loop's pass 6).
+ * An account's ads made from one file of the business's, the newest first: those whose approved picture is it (00666
+ * `ads.approved`, its `picture`, the link a removed file's ads are paused by), for a piece's "Used in N ads".
  */
-export async function listAdIdsOfPicture(db: Db, tenantId: TenantId, fileId: string): Promise<string[]> {
+export async function listAdsShowingFile(
+  db: Db,
+  tenantId: TenantId,
+  accountId: string,
+  fileId: string,
+): Promise<AdRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("ads")
-    .select("id")
-    .eq("origin", "chanlytics")
+    .select("*")
+    .eq("account_id", accountId)
     .eq("approved->>picture", fileId)
     .order("created_at", { ascending: false })
-    .limit(PICTURE_ADS_MAX);
-  if (error) throw new DbFailure(error, "a picture's ads");
-  return data.map((row) => row.id);
+    .limit(ADS_MAX);
+  if (error) throw new DbFailure(error, "the ads a file is shown in");
+  return data;
 }
 
 /** One ad of the workspace's, by Chanlytics' own id. */
