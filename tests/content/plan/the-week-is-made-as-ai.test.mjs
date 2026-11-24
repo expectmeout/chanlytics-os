@@ -291,3 +291,107 @@ test("with no secret to verify by, the door opens for nobody", async () => {
     process.env.EDGE_CALL_SECRET = kept;
   }
 });
+
+/* ------------------------------------------------------------------------------------ one post a slot (00714) -- */
+
+test("AI places a slot through the one door: placed, taken where it has its post, past where its time came; a refusal in the owner's words", async () => {
+  const { placeSlotAsAI } = await import(at("apps/dashboard/src/server/posts/approve.ts"));
+  const asked = [];
+  const ctxFor = (fate) => ({
+    supabase: fakeDb(
+      {},
+      {},
+      {
+        plan_slot_place: (args) => {
+          asked.push(args);
+          return { fate, posts: [] };
+        },
+      },
+    ),
+  });
+  const member = { tenantId: T };
+  const slot = { id: "eeee5555-7712-4000-8000-000000000240", fileId: "abab7777-7712-4000-8000-000000000241" };
+  const approval = { via: "rung", placements: [] };
+  assert.equal(await placeSlotAsAI(ctxFor("approved"), member, { ...slot, approval }), "placed");
+  assert.deepEqual(asked[0], { p_tenant_id: T, p_slot_id: slot.id, p_file_id: slot.fileId, p_approval: approval });
+  // A making asked twice, or two at once: the second finds the slot has its post, and goes on.
+  assert.equal(await placeSlotAsAI(ctxFor("taken"), member, { ...slot, approval }), "taken");
+  assert.equal(await placeSlotAsAI(ctxFor("past"), member, { ...slot, approval }), "past");
+  await assert.rejects(placeSlotAsAI(ctxFor("busy"), member, { ...slot, approval }), { name: "AppError", status: 409 });
+  await assert.rejects(placeSlotAsAI(ctxFor("changed"), member, { ...slot, approval }), { name: "AppError" });
+  await assert.rejects(placeSlotAsAI(ctxFor("no such fate"), member, { ...slot, approval }), /no fate answered/);
+});
+
+test("a picture drawn ahead is reused only while its slot still shows the footage it was drawn from", async () => {
+  const { readContentWeek } = await import("@chanlytics/db/files");
+  const FOOTAGE = "abab7777-7712-4000-8000-000000000250";
+  const DRAWN = "abab7777-7712-4000-8000-000000000251";
+  const slot = (id, fileId) => ({
+    id,
+    tenant_id: T,
+    plan_id: PLAN,
+    creative: "ffff6666-7712-4000-8000-000000000252",
+    place: "instagram",
+    kind: "picture",
+    at: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+    state: "proposed",
+    title: "The finish",
+    reason: null,
+    file_id: fileId,
+    piece_id: null,
+    post_id: null,
+    intent: null,
+    words: null,
+    blocked_why: null,
+    blocked_reason: null,
+    ask: null,
+    score: null,
+    approval_id: null,
+    prepared: { file_id: DRAWN, from: FOOTAGE, at: "2026-12-08T15:00:00Z", approval: {} },
+  });
+  const AS_DRAWN = "eeee5555-7712-4000-8000-000000000253";
+  const SWAPPED = "eeee5555-7712-4000-8000-000000000254";
+  const db = fakeDb({
+    content_plans: [
+      {
+        id: PLAN,
+        tenant_id: T,
+        week_of: WEEK,
+        status: "ready",
+        fewer: null,
+        ready_at: null,
+        approved_at: null,
+        approved_by: null,
+        approval_id: null,
+        asked_by: "clock",
+        goes_at: null,
+        stopped_at: null,
+        stopped_by: null,
+        edited: false,
+      },
+    ],
+    // One slot as it was drawn; one given another photo since.
+    plan_slots: [slot(AS_DRAWN, FOOTAGE), slot(SWAPPED, "abab7777-7712-4000-8000-000000000255")],
+  });
+  const week = await readContentWeek(db, T, WEEK);
+  const preparedOf = (id) => week.slots.find((s) => s.id === id).prepared_file_id;
+  assert.equal(preparedOf(AS_DRAWN), DRAWN);
+  assert.equal(preparedOf(SWAPPED), null, "drawn again, never placed as it was");
+});
+
+test("a week says it goes up by itself only while its rung holds it and its time is not long past", async () => {
+  const { weekAsHeld } = await import(at("apps/dashboard/src/server/readers/week-today.ts"));
+  const goesAt = "2026-12-07T13:00:00.000Z";
+  const at8 = Date.parse(goesAt);
+  const week = { plan: { id: PLAN, week_of: WEEK, status: "ready", goes_at: goesAt }, slots: [] };
+  const saidAt = (rung, nowMs) => weekAsHeld(week, rung, nowMs).plan.goes_at;
+  assert.equal(saidAt("veto", at8 - 3_600_000), goesAt);
+  assert.equal(saidAt("auto", at8 - 60_000), goesAt);
+  assert.equal(saidAt("veto", at8 + 45 * 60_000), goesAt, "through the hour its approval is spread over");
+  assert.equal(saidAt("ask", at8 - 3_600_000), null, "a rung set back to asking says nothing goes by itself");
+  assert.equal(saidAt(null, at8 - 3_600_000), null);
+  // Its job stopped for good, or the runner stood still: no screen goes on saying 8:00 AM, and Approve is offered again.
+  assert.equal(saidAt("veto", at8 + 3 * 3_600_000), null);
+  const asking = { plan: { ...week.plan, goes_at: null }, slots: [] };
+  assert.equal(weekAsHeld(asking, "veto", at8), asking, "a week that asks is left as read");
+});

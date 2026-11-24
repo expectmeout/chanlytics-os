@@ -181,6 +181,7 @@ function world({
   const approvals = [];
   const holds = [];
   const starts = [];
+  const left = [];
   const tables = {
     tenants: [{ id: T, timezone: ZONE, slug: "studio", name: "Studio", sending_stopped_at: paused }],
     content_plans: [
@@ -263,14 +264,20 @@ function world({
         if (!args.p_goes_at) tables.content_plans[0].goes_at = null;
         return { fate: args.p_goes_at ? "held" : "let_go" };
       },
+      // A pass said done: the place is given back, and the next in turn begins.
+      content_week_made: (args) => {
+        left.push(args);
+        return { fate: "moved_on", started: 1 };
+      },
     },
   );
   setPg(db);
   const made = [];
   const make = async (body) => {
     made.push(body);
+    return "taken";
   };
-  return { db, tables, approvals, holds, starts, made, make };
+  return { db, tables, approvals, holds, starts, left, made, make };
 }
 
 const job = { id: "job-1", tenant_id: T, kind: "content_week_go", payload: { plan_id: PLAN }, attempts: 1 };
@@ -350,11 +357,18 @@ test("a slot whose time has passed is left out; with nothing left, the hold is l
 });
 
 test("the door's own reading wins: a rung that asks again, a week stopped meanwhile, nothing queued", async () => {
-  for (const fate of ["asks", "stopped", "held", "changed"]) {
+  for (const fate of ["asks", "stopped", "held"]) {
     const w = world({ approveFate: fate });
     assert.deepEqual(await putTheWeekUp(w.db, job), { skipped: fate });
     assert.equal(w.starts.length, 0, fate);
   }
+});
+
+test("a week changed in the instant it was approved is read again by the next try, never left saying it goes up", async () => {
+  const w = world({ approveFate: "changed" });
+  await assert.rejects(putTheWeekUp(w.db, job), /changed as it was approved/);
+  assert.equal(w.starts.length, 0);
+  assert.ok(w.tables.content_plans[0].goes_at, "still held: the job's next try reads it as it now stands");
 });
 
 /* --------------------------------------------------------------------------------------------- the making job -- */
@@ -375,6 +389,11 @@ test("a held week the queue began overnight is asked of the dashboard too, to be
   const stopped = world({ makingSince: new Date().toISOString(), stoppedAt: new Date().toISOString() });
   assert.deepEqual(await makeTheWeek(stopped.db, making, stopped.make), { skipped: "not_the_rung_s" });
   assert.equal(stopped.made.length, 0);
+  assert.deepEqual(
+    stopped.left,
+    [{ p_tenant_id: T, p_plan_id: PLAN, p_pass: "prepare", ...QUEUE }],
+    "its place given back",
+  );
 });
 
 test("made already, not begun yet, or the owner's own approval: the dashboard is not asked", async () => {
@@ -385,6 +404,16 @@ test("made already, not begun yet, or the owner's own approval: the dashboard is
   const theirs = world({ ...begun, approvedBy: "abab7777-7712-4000-8000-000000000108" });
   assert.deepEqual(await makeTheWeek(theirs.db, making, theirs.make), { skipped: "not_the_rung_s" });
   assert.equal(made.made.length + waiting.made.length + theirs.made.length, 0);
+  // A week its owner approved by hand after the queue began it holds no place until its lease ends: it is given back.
+  assert.equal(theirs.left.length, 1);
+  assert.equal(made.left.length + waiting.left.length, 0, "nothing to give back where none was held for it");
+});
+
+test("a held week whose rung asks by the time its turn comes: the dashboard says so, the place is given back, no failure", async () => {
+  const w = world({ makingSince: new Date().toISOString() });
+  const notAIs = async () => "not_ai_s";
+  assert.deepEqual(await makeTheWeek(w.db, making, notAIs), { skipped: "not_the_rung_s" });
+  assert.deepEqual(w.left, [{ p_tenant_id: T, p_plan_id: PLAN, p_pass: "prepare", ...QUEUE }]);
 });
 
 test("a making the dashboard did not take throws, so the ledger asks again while the week holds its place", async () => {

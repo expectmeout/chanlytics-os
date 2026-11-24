@@ -94,6 +94,15 @@ type PlanRead = Pick<
   "id" | "week_of" | "status" | "fewer" | "ready_at" | "approved_at" | "approved_by" | "goes_at"
 >;
 
+/**
+ * The made file a slot's picture was drawn into ahead (00714), only while the slot still shows the footage it was drawn
+ * from: a slot given other footage since is drawn again, never placed as it was.
+ */
+function preparedFileOf(row: Pick<SlotRead, "prepared" | "file_id">): string | null {
+  const prepared = recordOrEmpty(row.prepared);
+  return prepared.from === row.file_id ? nonBlankOrNull(prepared.file_id) : null;
+}
+
 /** One slot as the page reads it; null for a row whose sets this build does not know. */
 function slotDtoOf(row: SlotRead): PlanSlotDto | null {
   if (!isOneOf(POST_PLACES, row.place) || !isOneOf(POST_KINDS, row.kind) || !isOneOf(SLOT_STATES, row.state))
@@ -116,7 +125,7 @@ function slotDtoOf(row: SlotRead): PlanSlotDto | null {
     blocked_reason: row.blocked_reason,
     ask: footageAskOf(row.ask),
     score: slotScoreOf(row.score),
-    prepared_file_id: nonBlankOrNull(recordOrEmpty(row.prepared).file_id),
+    prepared_file_id: preparedFileOf(row),
   };
 }
 
@@ -455,6 +464,44 @@ export async function markSlotPrepared(
   });
   if (error) throw new DbFailure(error, "a slot prepared");
   return data === true;
+}
+
+/**
+ * What placing a slot came to (plan_slot_place): post_approve's own answer, or taken where the slot has its post already or
+ * is no longer AI's to place, and past where its time has come.
+ */
+const SLOT_PLACED = [
+  "approved",
+  "taken",
+  "past",
+  "busy",
+  "gone",
+  "not_a_post",
+  "wrong_kind",
+  "late",
+  "changed",
+] as const;
+type SlotPlaced = (typeof SLOT_PLACED)[number];
+
+/**
+ * A slot of a week AI approved placed (plan_slot_place, 00714), under the service role: its post approved via rung and the
+ * slot linked to it in one write, so a making asked twice, or two at once, place a slot once.
+ */
+export async function placeSlot(
+  db: Db,
+  tenantId: TenantId,
+  slot: { id: string; fileId: string; approval: Json },
+): Promise<SlotPlaced> {
+  const { data, error } = await db.rpc("plan_slot_place", {
+    p_tenant_id: tenantId,
+    p_slot_id: slot.id,
+    p_file_id: slot.fileId,
+    p_approval: slot.approval,
+  });
+  if (error) throw new DbFailure(error, "a slot placed");
+  const fate = recordOrEmpty(data).fate;
+  if (!isOneOf(SLOT_PLACED, fate)) throw new Error("plan slot place: no fate answered");
+  return fate;
 }
 
 /** The making queue's cap and lease, as its doors take them (contracts WEEKS_MAKING_AT_ONCE, WEEK_MAKING_LEASE_S). */

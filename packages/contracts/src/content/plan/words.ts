@@ -23,7 +23,7 @@ export const WEEK_WORDS = {
   readyBodyHeld: (size: string, days: string) => `${size}, ${days}. They go up at 8:00 AM unless you stop them.`,
   /** And for a week AI sends as soon as it is ready (00714). */
   readyBodySent: (size: string, days: string) =>
-    `${size}, ${days}. AI approved them, as you set it. Each goes up at its time.`,
+    `${size}, ${days}. AI approves them, as you set it. Each goes up at its time.`,
   /** The notice of what to film (footage_ask). */
   askSubject: (count: number) => (count === 1 ? "A clip to film for the week" : `${count} clips to film for the week`),
   /** A week with nothing to post: its head. */

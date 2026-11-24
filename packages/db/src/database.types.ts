@@ -13910,6 +13910,15 @@ export type Database = {
         Args: { p_made: Json; p_slot_id: string; p_tenant_id: string }
         Returns: Json
       }
+      plan_slot_place: {
+        Args: {
+          p_approval: Json
+          p_file_id: string
+          p_slot_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       plan_slot_prepared: {
         Args: { p_prepared: Json; p_slot_id: string; p_tenant_id: string }
         Returns: boolean

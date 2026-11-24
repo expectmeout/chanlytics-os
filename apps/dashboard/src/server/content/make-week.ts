@@ -39,6 +39,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import { placeSlotAsAI } from "../posts/approve";
 import { makePost } from "../posts/make";
 import { postFileToGoogle, prepareOnGoogle } from "../posts/google";
 import { postFileToInstagram, prepareOnInstagram } from "../posts/instagram";
@@ -79,7 +80,8 @@ type Hold = (reason: string) => Promise<void>;
 /**
  * Who makes a week: a member's press (after their Approve the week, or a row's own), or AI under the rung the owner set
  * (00714: a held week at its time, through the edge's job and app/api/content/week-made). AI's placements go via rung,
- * and a reel it begins is keyed by its slot, so the job's try again begins no second video.
+ * each with its slot in one write, and a reel it begins is keyed by its slot: its making asked again, or twice at once,
+ * places no slot twice and begins no second video.
  */
 export type WeekMadeBy = "press" | "rung";
 
@@ -115,6 +117,57 @@ const preparedFileOf = (slots: readonly PlanSlotDto[]): string | null => {
   return first && slots.every((s) => s.prepared_file_id === first) ? first : null;
 };
 
+/** One slot of a drawn picture, to be placed: the slot, the made file and the words it goes with. */
+interface SlotPlacing {
+  slot: PlanSlotDto;
+  row: FileMemberRow;
+  words: SlotWords;
+}
+
+/** A slot's placement readied for AI under the rung (00714): every check, its drawn piece's words kept, nothing approved. */
+const readySlot = (ctx: RouteContext, member: Member, { slot, row, words }: SlotPlacing) =>
+  slot.place === "google"
+    ? prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about: aboutOf(slot.intent) })
+    : prepareOnInstagram(ctx, member, row, {
+        as: slot.kind === "story" ? "story" : "picture",
+        caption: words.caption,
+        when: slot.at,
+        about: aboutOf(slot.intent),
+      });
+
+/** A slot held because its time came before it could be made (00714): AI never posts it late. */
+async function holdLate(ctx: RouteContext, member: Member, slot: PlanSlotDto): Promise<void> {
+  await markSlotMade(ctx.supabase, member.tenantId, {
+    id: slot.id,
+    made: { held: { why: "late", reason: UNMADE.late } },
+  });
+}
+
+/**
+ * A slot placed as AI under the rung (00714): readied, then its post and the slot's link to it in one write
+ * (plan_slot_place). A making asked twice, or two at once, place it once: the second finds it taken and goes on.
+ */
+async function placeAsAI(ctx: RouteContext, member: Member, placing: SlotPlacing): Promise<void> {
+  const approval = await readySlot(ctx, member, placing);
+  const slot = { id: placing.slot.id, fileId: placing.row.id, approval };
+  if ((await placeSlotAsAI(ctx, member, slot)) === "past") await holdLate(ctx, member, placing.slot);
+}
+
+/** A slot placed by the member's press: each place's own door, at its time. */
+async function placeByPress(ctx: RouteContext, member: Member, { slot, row, words }: SlotPlacing): Promise<void> {
+  const about = aboutOf(slot.intent);
+  const placed =
+    slot.place === "google"
+      ? await postFileToGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about }).then(() => null)
+      : await postFileToInstagram(ctx, member, row, {
+          as: slot.kind === "story" ? "story" : "picture",
+          caption: words.caption,
+          when: slot.at,
+          about,
+        });
+  if (placed) await markSlotMade(ctx.supabase, member.tenantId, { id: slot.id, made: { post_id: placed.post_id } });
+}
+
 /** A picture or a story: drawn (or the one drawn ahead), then each of its places at its time. */
 async function makePicture(
   ctx: RouteContext,
@@ -122,26 +175,11 @@ async function makePicture(
   creative: { slots: readonly PlanSlotDto[]; file: FileMemberRow; words: SlotWords; by: WeekMadeBy },
 ): Promise<void> {
   const { slots, file, words } = creative;
-  const via = creative.by === "rung" ? ("rung" as const) : undefined;
   const prepared = preparedFileOf(slots);
   const row =
     (prepared ? await findFile(ctx.supabase, prepared) : null) ?? (await drawPicture(ctx, member, { file, words }));
-  for (const slot of slots) {
-    const about = aboutOf(slot.intent);
-    const placed =
-      slot.place === "google"
-        ? await postFileToGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about, via }).then(
-            () => null,
-          )
-        : await postFileToInstagram(ctx, member, row, {
-            as: slot.kind === "story" ? "story" : "picture",
-            caption: words.caption,
-            when: slot.at,
-            about,
-            via,
-          });
-    if (placed) await markSlotMade(ctx.supabase, member.tenantId, { id: slot.id, made: { post_id: placed.post_id } });
-  }
+  const place = creative.by === "rung" ? placeAsAI : placeByPress;
+  for (const slot of slots) await place(ctx, member, { slot, row, words });
 }
 
 /** A reel: its video begun from its clip's best moment, with the words the Week showed. */
@@ -184,11 +222,7 @@ async function makeCreative(
   };
   // AI makes nothing it would post late (00714, the making queue): a slot whose time is too near is held, with why.
   if (by === "rung" && Math.min(...slots.map((s) => Date.parse(s.at))) - Date.now() < WEEK_MADE_AHEAD_MS) {
-    for (const slot of slots)
-      await markSlotMade(ctx.supabase, member.tenantId, {
-        id: slot.id,
-        made: { held: { why: "late", reason: UNMADE.late } },
-      });
+    for (const slot of slots) await holdLate(ctx, member, slot);
     return;
   }
   if (!first.words) return hold(UNMADE.words);
@@ -233,18 +267,9 @@ async function prepareCreative(ctx: RouteContext, member: Member, slots: readonl
   try {
     const row = await drawPicture(ctx, member, { file, words });
     for (const slot of slots) {
-      const about = aboutOf(slot.intent);
-      const approval =
-        slot.place === "google"
-          ? await prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about })
-          : await prepareOnInstagram(ctx, member, row, {
-              as: slot.kind === "story" ? "story" : "picture",
-              caption: words.caption,
-              when: slot.at,
-              about,
-              via: "rung",
-            });
-      const prepared = jsonCopyOf({ file_id: row.id, at: slot.at, approval });
+      const approval = await readySlot(ctx, member, { slot, row, words });
+      // With the footage it was drawn from: a slot given other footage since is drawn again, never placed as this.
+      const prepared = jsonCopyOf({ file_id: row.id, from: file.id, at: slot.at, approval });
       if (await markSlotPrepared(ctx.supabase, member.tenantId, { id: slot.id, prepared })) readied += 1;
     }
   } catch (e) {

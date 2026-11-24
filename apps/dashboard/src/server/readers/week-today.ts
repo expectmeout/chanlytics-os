@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  HOUR_MS,
   clockTime,
   contentPlanOf,
   creativesOf,
@@ -45,12 +46,22 @@ export async function readReviewAsk(
 }
 
 /**
- * A week as the owner reads it: held to its time (00714) only while the rung still lets AI approve it. A rung moved back
- * to asking since the week was held says nothing goes by itself, whatever the plan still keeps.
+ * How long past its time a week still ready is said to go up by itself: its approval is spread over the hour after its
+ * time, and its job is tried again for some minutes more. Past that, its job has stopped or the runner stands still.
  */
-export function weekAsHeld(week: WeekPlanDto, rung: string | null): WeekPlanDto {
-  if (!week.plan?.goes_at || rung === "veto" || rung === "auto") return week;
-  return { ...week, plan: { ...week.plan, goes_at: null } };
+const HELD_SAID_FOR_MS = 2 * HOUR_MS;
+
+/**
+ * A week as the owner reads it: held to its time (00714) only while the rung still lets AI approve it. A rung moved back
+ * to asking since the week was held says nothing goes by itself, whatever the plan still keeps; and so does a week still
+ * ready long after its time, so a screen never goes on saying it goes up at 8:00 AM when it did not: the owner's own
+ * Approve the week is offered again.
+ */
+export function weekAsHeld(week: WeekPlanDto, rung: string | null, nowMs: number): WeekPlanDto {
+  if (!week.plan?.goes_at) return week;
+  const holds = rung === "veto" || rung === "auto";
+  const overdue = nowMs - Date.parse(week.plan.goes_at) > HELD_SAID_FOR_MS;
+  return holds && !overdue ? week : { ...week, plan: { ...week.plan, goes_at: null } };
 }
 
 /**
@@ -69,7 +80,7 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
     findWeekRung(db, rc.tenantId),
     readReviewAsk(db, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
   ]);
-  const week = weekAsHeld(read, rung);
+  const week = weekAsHeld(read, rung, rc.now.getTime());
   if (!week.plan) return reviewAsk ? { ready: null, film: [], review_ask: reviewAsk } : null;
   const live = week.slots.filter((s) => s.state !== "needs_footage" && s.state !== "removed");
   const ready =

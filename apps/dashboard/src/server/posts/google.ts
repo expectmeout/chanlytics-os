@@ -111,8 +111,6 @@ export async function postFileToGoogle(
     when?: string | undefined;
     about?: PostAbout | undefined;
     facts?: OwnersFact[] | undefined;
-    /** AI's approval under the owner's rung (00714), never a person's press. */
-    via?: "rung" | undefined;
   },
 ): Promise<{ name: string | null; search_url: string | null; state: string | null }> {
   // Google takes a picture: a video made here is not a post for it.
@@ -133,7 +131,7 @@ export async function postFileToGoogle(
     ],
     intent: intentOfAbout(input.about),
     facts: input.facts ?? [],
-    via: input.via ?? "press",
+    via: "press",
     connections: { google: "yes" },
   }).catch((e: unknown) => {
     throw e instanceof AppError && e.message === ON_INSTAGRAM.busy
@@ -155,8 +153,7 @@ export async function postFileToGoogle(
     {
       op: "post",
       tenant_id: member.tenantId,
-      // AI under the owner's rung (00714) is nobody: the post is written down as no person's.
-      ...(ctx.userId ? { user_id: ctx.userId } : {}),
+      user_id: ctx.userId,
       file_id: row.id,
       summary: input.summary,
       photo_url: photoUrl,
@@ -203,10 +200,10 @@ export async function postFileToGoogle(
   return posted;
 }
 
-/** DELETE files/[id]/google: the post comes off the profile. It stays in Files. */
 /**
- * A held week's Google placement readied overnight (00714): the picture drawn and kept for Google, every check, nothing
- * approved; the door takes it at 8:00, and the post's job asks Google at its time. Only for a time later than soon.
+ * A week's Google placement readied for AI under the owner's rung (00714): the picture drawn and kept for Google, every
+ * check, nothing approved. The door that places it takes what this answers (the 8:00 approval's for a slot readied
+ * overnight, plan_slot_place's after), and the post's job asks Google at its time: a slot AI places is always later than soon.
  */
 export async function prepareOnGoogle(
   ctx: RouteContext,
@@ -227,6 +224,7 @@ export async function prepareOnGoogle(
   });
 }
 
+/** DELETE files/[id]/google: the post comes off the profile. It stays in Files. */
 export async function takeFileOffGoogle(
   ctx: RouteContext,
   member: Member,

@@ -279,5 +279,5 @@ test("under Sends it, a ready week goes now, and its notice says AI approved it 
   const w = world({ rung: "auto" });
   await planTheWeek(w.db, job, wordsFor());
   assert.ok(Math.abs(Date.parse(w.tables.content_plans[0].goes_at) - Date.now()) < 60_000, "held to now");
-  assert.match(w.tables.notifications.find((n) => n.kind === "plan_ready").body, /AI approved them, as you set it/);
+  assert.match(w.tables.notifications.find((n) => n.kind === "plan_ready").body, /AI approves them, as you set it/);
 });

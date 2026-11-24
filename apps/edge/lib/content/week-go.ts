@@ -16,7 +16,9 @@
  * 8:00 has cost its pictures' drawing alone: no reel is begun, no model asked.
  *
  * A try again after the approval starts the queue again (it begins only what waits). A week the owner approved by hand
- * before its time is theirs: the job leaves it.
+ * before its time is theirs: the job leaves it, and a making the queue had begun for it gives its place back at once
+ * (leaveTheQueue), as one does whose week was stopped or whose rung now asks. A week changed in the instant it was
+ * approved is read again by the job's next try, never left saying it goes up.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -34,6 +36,7 @@ import {
   findPlanForJob,
   findWeekRung,
   holdWeek,
+  markWeekMade,
   readContentWeek,
   startWeeksMaking,
   type WeekHold,
@@ -70,8 +73,14 @@ export async function holdReadyWeek(
   return mode === "auto" ? "sent" : "held";
 }
 
-/** Asks the dashboard to make a week AI approved; throws where it did not take it, so the ledger asks again. */
-type WeekMaker = (week: WeekMadeBody) => Promise<void>;
+/** The dashboard's answer for a week that is not AI's to make (its door's 409): not held any more, or not the rung's. */
+const NOT_AI_S = 409;
+
+/**
+ * Asks the dashboard to make a week AI approved: whether it took it, or found it not AI's to make (the rung asks now, the
+ * week was stopped, its owner approved it). Throws where it gave no such answer, so the ledger asks again.
+ */
+type WeekMaker = (week: WeekMadeBody) => Promise<"taken" | "not_ai_s">;
 
 /** The real ask: one call, signed for the dashboard's door, that workspace and that body. */
 const askDashboardToMake: WeekMaker = async (week) => {
@@ -81,7 +90,9 @@ const askDashboardToMake: WeekMaker = async (week) => {
     { origin: dashboardOrigin(), secret, path: WEEK_MADE_DOOR.path },
     { workspace: week.tenant_id, body: week, timeoutMs: DASHBOARD_ANSWER_MS },
   );
+  if (answer.status === NOT_AI_S) return "not_ai_s";
   if (!answer.ok) throw new Error(`content_week_make: the dashboard did not take the week (${answer.status})`);
+  return "taken";
 };
 
 /** A held week let go: nothing on a screen says it goes up, and it waits for the owner's press. */
@@ -103,6 +114,18 @@ async function startTheQueue(db: Db, tenantId: TenantId, planId: string): Promis
   log.info("week_queued", { plan_id: planId, started });
 }
 
+/**
+ * A making the queue began for a week that is not AI's to make: its place is given back now, not when its lease ends, and
+ * the next in turn begins. Said as a prepare pass done (content_week_made): a week still ready leaves the queue, and one
+ * that has moved on only frees the place.
+ */
+async function leaveTheQueue(db: Db, tenantId: TenantId, planId: string): Promise<{ skipped: string }> {
+  const started = await markWeekMade(db, tenantId, { planId, pass: "prepare" }, WEEK_MAKING_QUEUE);
+  const log = logger({ tenant_id: tenantId });
+  log.info("week_queued", { plan_id: planId, started, left: true });
+  return { skipped: "not_the_rung_s" };
+}
+
 /** The job (content_week_go): a held week approved at its time, as the owner's press would, under the rung, and queued. */
 export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { skipped: string }> {
   const planId = typeof job.payload.plan_id === "string" ? job.payload.plan_id : "";
@@ -121,8 +144,10 @@ export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { sk
   const { going, leftOut, snapshot } = weekApprovalOf(week.slots, zone, Date.now());
   if (going.length === 0) return letTheWeekGo(db, at, "nothing");
   const answer = await approveWeek(db, tenantId, { planId: plan.id, snapshot: jsonCopyOf(snapshot) });
+  // A slot moved or left out between the read and the approval: the week still says it goes up, so it is read again by
+  // the ledger's next try, never skipped for good.
+  if (answer.fate === "changed") throw new Error("content_week_go: the week changed as it was approved");
   // The door read the rung, the stop and the time again: anything but approved leaves the week to its owner.
-  if (answer.fate === "asks") return { skipped: "asks" };
   if (answer.fate !== "approved") return { skipped: answer.fate };
   const log = logger({ tenant_id: tenantId });
   log.info("week_went", {
@@ -148,10 +173,13 @@ export async function makeTheWeek(
   if (!plan) return { skipped: "gone" };
   if (plan.made_at) return { skipped: "made" };
   if (!plan.making_since) return { skipped: "waiting" };
+  const tenantId = asTenantId(plan.tenant_id);
   // Held and not stopped (prepared ahead), or approved by the rung (what is left made). The owner's press makes the week
   // it approves; a week stopped or let go waits for that press.
   const held = plan.status === "ready" && !!plan.goes_at && !plan.stopped_at;
   const rungs = plan.status === "approved" && plan.approved_by === null;
-  if (!held && !rungs) return { skipped: "not_the_rung_s" };
-  await make({ tenant_id: asTenantId(plan.tenant_id), plan_id: plan.id });
+  if (!held && !rungs) return leaveTheQueue(db, tenantId, plan.id);
+  // The dashboard reads the rung too: a held week whose rung now asks is not AI's to prepare.
+  if ((await make({ tenant_id: tenantId, plan_id: plan.id })) === "not_ai_s")
+    return leaveTheQueue(db, tenantId, plan.id);
 }

@@ -98,15 +98,15 @@ declare
 begin
   perform set_config('request.jwt.claim.role', 'service_role', true);
   perform set_config('request.jwt.claim.sub', '', true);
-  create temporary table sim (i integer primary key, tenant uuid, plan uuid, first_min integer, due integer, approved integer)
-    on commit drop;
+  create temporary table sim (i integer primary key, tenant uuid, plan uuid, footage uuid, first_min integer, due integer,
+                              approved integer) on commit drop;
   create temporary table sim_slot (slot uuid primary key, i integer, deadline integer, placed integer,
                                    held_late boolean not null default false) on commit drop;
   create temporary table busy (plan uuid primary key, i integer, tenant uuid, began integer, pass text) on commit drop;
 
   -- The workspaces, their first posts as plans place them (minutes after Monday 8:00).
-  insert into sim (i, tenant, plan, first_min)
-  select g, gen_random_uuid(), gen_random_uuid(),
+  insert into sim (i, tenant, plan, footage, first_min)
+  select g, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
          case when g % 10 < 4 then 60 + (g * 7919) % 180
               when g % 10 < 7 then 240 + (g * 7919) % 540
               when g % 10 < 9 then 1500 + (g * 7919) % 720
@@ -115,12 +115,15 @@ begin
   insert into public.tenants (id, slug, name, timezone)
   select s.tenant, 'held-' || s.i || '-' || substr(s.tenant::text, 1, 8), 'Held ' || s.i, 'America/New_York' from sim s;
   update public.policies p set mode = 'veto' from sim s where p.tenant_id = s.tenant and p.class = 'plan_approve';
+  -- The footage each week's posts are drawn from: a slot is prepared, and placed, only as the footage it shows.
+  insert into public.files (id, tenant_id, kind, source, status, name, mime, bytes, fingerprint)
+  select s.footage, s.tenant, 'image', 'upload', 'filed', 'clip-' || s.i, 'image/jpeg', 1000, s.footage::text from sim s;
   insert into public.content_plans (id, tenant_id, week_of, status, asked_by, ready_at)
   select s.plan, s.tenant, date_trunc('week', now() + interval '7 days')::date, 'ready', 'clock', now() from sim s;
   -- Three posts a week: its first, a story the next day, a post the day after.
-  insert into public.plan_slots (tenant_id, plan_id, creative, place, kind, at, title, state)
+  insert into public.plan_slots (tenant_id, plan_id, creative, place, kind, at, title, state, file_id)
   select s.tenant, s.plan, gen_random_uuid(), 'instagram', k.kind, v_at8 + make_interval(mins => s.first_min + k.later),
-         'Week ' || s.i, 'proposed'
+         'Week ' || s.i, 'proposed', s.footage
     from sim s
    cross join (values ('picture', 0), ('story', 1440), ('picture', 2880)) as k(kind, later);
   insert into sim_slot (slot, i, deadline)
@@ -177,7 +180,7 @@ begin
           insert into public.files (id, tenant_id, kind, source, status, name, mime, bytes, fingerprint)
           values (v_file, v_week.tenant, 'image', 'made', 'filed', 'drawn-' || substr(v_file::text, 1, 8), 'image/jpeg', 1000, v_file::text);
           perform public.plan_slot_prepared(v_week.tenant, v_slot.id, jsonb_build_object(
-            'file_id', v_file, 'at', v_slot.at,
+            'file_id', v_file, 'from', v_slot.file_id, 'at', v_slot.at,
             'approval', jsonb_build_object(
               'snapshot', jsonb_build_object('revision', null, 'renditions', '[]'::jsonb, 'placements', '[]'::jsonb,
                                              'uses', jsonb_build_array('post'), 'spend', null, 'facts', '[]'::jsonb),
@@ -199,14 +202,16 @@ begin
             v_file := gen_random_uuid();
             insert into public.files (id, tenant_id, kind, source, status, name, mime, bytes, fingerprint)
             values (v_file, v_week.tenant, 'image', 'made', 'filed', 'drawn-' || substr(v_file::text, 1, 8), 'image/jpeg', 1000, v_file::text);
-            v_answer := public.post_approve(v_week.tenant, v_file, jsonb_build_object(
+            -- Its post and the slot's link to it in one write, as the dashboard places what was not prepared.
+            v_answer := public.plan_slot_place(v_week.tenant, v_slot.id, v_file, jsonb_build_object(
               'snapshot', jsonb_build_object('revision', null, 'renditions', '[]'::jsonb, 'placements', '[]'::jsonb,
                                              'uses', jsonb_build_array('post'), 'spend', null, 'facts', '[]'::jsonb),
               'intent', null, 'renditions', '[]'::jsonb, 'via', 'rung',
               'placements', jsonb_build_array(jsonb_build_object('place', v_slot.place, 'kind', v_slot.kind,
                 'at', v_slot.at, 'caption', 'Week', 'good_until', null, 'capability_edition', 1))));
-            perform public.plan_slot_made(v_week.tenant, v_slot.id,
-              jsonb_build_object('post_id', v_answer -> 'posts' -> 0 ->> 'post_id'));
+            if v_answer ->> 'fate' <> 'approved' then
+              raise exception 'held weeks broke: a slot of week % was not placed (%)', v_week.i, v_answer;
+            end if;
             update sim_slot set placed = v_tick where slot = v_slot.id;
           end if;
         end loop;

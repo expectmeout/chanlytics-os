@@ -49,24 +49,6 @@ export async function approvePostsWhole(
   return postsApprovedOf(data);
 }
 
-/**
- * AI's approval under the owner's rung (00714: post_approve takes the service role for via rung alone): the approval and its
- * placements in one write, or why not. A member's press is whole (approvePostsWhole); AI's has no member to sign it in, and
- * its facts and words were kept as it was readied.
- */
-export async function approvePostsAsAI(
-  db: Db,
-  press: { tenantId: TenantId; fileId: string; approval: Json },
-): Promise<PostsApproved> {
-  const { data, error } = await db.rpc("post_approve", {
-    p_tenant_id: press.tenantId,
-    p_file_id: press.fileId,
-    p_approval: press.approval,
-  });
-  if (error) throw new DbFailure(error, "post approve as AI");
-  return postsApprovedOf(data);
-}
-
 /** The approval door's answer read (post_approve, and 00708 piece_posts_replace, which answers what it answered). */
 function postsApprovedOf(data: unknown): PostsApproved {
   const answer = recordOrEmpty(data);

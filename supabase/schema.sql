@@ -7263,7 +7263,7 @@ begin
     select p.mode into v_rung from public.policies p
      where p.tenant_id = p_tenant_id and p.class = 'plan_approve' and p.subject_type is null;
     if v_rung is null or v_rung not in ('veto', 'auto') then
-      update public.content_plans set goes_at = null where id = v_plan.id;
+      update public.content_plans set goes_at = null, make_queued_at = null where id = v_plan.id;
       return jsonb_build_object('fate', 'asks');
     end if;
     v_snapshot := p_snapshot || jsonb_build_object('rung', jsonb_build_object('class', 'plan_approve', 'mode', v_rung));
@@ -7286,28 +7286,30 @@ begin
   update public.plan_slots s set state = 'approved', approval_id = v_approval, updated_at = now()
     from jsonb_array_elements(v_wanted) w
    where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (w ->> 'id')::uuid;
+  -- 00714: a held week its owner approves by their own press leaves AI's making queue: that press makes it.
   update public.content_plans set status = 'approved', approval_id = v_approval, approved_at = now(),
-                                  approved_by = v_actor
+                                  approved_by = v_actor, make_queued_at = null
    where id = p_plan_id;
   -- 00714: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
-  -- bytes and words drawn for it, only while its time stands as it was prepared and is more than five minutes off.
-  -- What is not placed is made in turn after, the week queued for it, its earliest slot first.
+  -- bytes and words drawn for it (plan_slot_place: one post a slot), only while its time and its footage stand as they
+  -- were prepared and its time is more than five minutes off. What is not placed is made in turn after, the week queued
+  -- for it, its earliest slot first.
   if v_service then
     for v_slot in
       select s.* from public.plan_slots s
        where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.approval_id = v_approval
          and s.prepared is not null and s.post_id is null
          and (s.prepared ->> 'at')::timestamptz = s.at and s.at > now() + interval '5 minutes'
+         and (s.prepared ->> 'from')::uuid is not distinct from s.file_id
        order by s.at
     loop
       begin
-        v_placed := public.post_approve(p_tenant_id, (v_slot.prepared ->> 'file_id')::uuid, v_slot.prepared -> 'approval');
+        v_placed := public.plan_slot_place(p_tenant_id, v_slot.id, (v_slot.prepared ->> 'file_id')::uuid,
+                                           v_slot.prepared -> 'approval');
       exception when others then
         v_placed := jsonb_build_object('fate', 'refused');
       end;
       if v_placed ->> 'fate' = 'approved' then
-        update public.plan_slots set post_id = (v_placed -> 'posts' -> 0 ->> 'post_id')::uuid, updated_at = now()
-         where id = v_slot.id;
         v_put := v_put + 1;
       end if;
     end loop;
@@ -7329,7 +7331,7 @@ end $$;
 -- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver and the rung rides on its snapshot. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver, the rung rides on its snapshot, each slot prepared ahead is placed in the same transaction (plan_slot_place) and the week is queued for what is left; a member''s own approval takes a held week out of that queue. Answers {fate: approved, approval_id, slots, placed} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
 
 
 --
@@ -7508,11 +7510,14 @@ begin
   if v_free <= 0 then
     return 0;
   end if;
+  -- Held and not stopped (prepared ahead), or approved by nobody's press under the rung (what is left made). A week its
+  -- owner approved by hand is made by that press, never here.
   for v_plan in
     select p.id, p.tenant_id from public.content_plans p
      where p.make_queued_at is not null and p.made_at is null and p.make_tries < 3
        and (p.making_since is null or p.making_since <= now() - make_interval(secs => p_lease_seconds))
-       and ((p.status = 'ready' and p.goes_at is not null and p.stopped_at is null) or p.status = 'approved')
+       and ((p.status = 'ready' and p.goes_at is not null and p.stopped_at is null)
+            or (p.status = 'approved' and p.approved_by is null))
      order by p.first_post_at nulls last, p.make_queued_at, p.id
      limit v_free
      for update skip locked
@@ -29531,6 +29536,63 @@ COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_ma
 
 
 --
+-- Name: plan_slot_place(uuid, uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_slot    public.plan_slots;
+  v_place   jsonb := p_approval -> 'placements' -> 0;
+  v_placed  jsonb;
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' then
+    raise exception 'Only the service places a slot of a week.' using errcode = '42501';
+  end if;
+  select * into v_slot from public.plan_slots s where s.tenant_id = p_tenant_id and s.id = p_slot_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone', 'posts', '[]'::jsonb);
+  end if;
+  -- One post a slot: placed already, begun as a video, or no longer approved, it takes nothing. So a making asked twice,
+  -- or two at once, place a slot once.
+  if v_slot.state <> 'approved' or v_slot.post_id is not null or v_slot.piece_id is not null then
+    return jsonb_build_object('fate', 'taken', 'post_id', v_slot.post_id, 'posts', '[]'::jsonb);
+  end if;
+  -- Only under the rung's own approval: a slot its owner approved by hand (Try again) is placed by that press.
+  if not exists (select 1 from public.approvals a
+                  where a.tenant_id = p_tenant_id and a.id = v_slot.approval_id and a.approved_by is null
+                    and a.voided_at is null and a.snapshot -> 'rung' ->> 'class' = 'plan_approve') then
+    return jsonb_build_object('fate', 'taken', 'post_id', null, 'posts', '[]'::jsonb);
+  end if;
+  -- The slot's own placement and no other: where, as what and when it stands on the week.
+  if jsonb_typeof(p_approval -> 'placements') is distinct from 'array' or jsonb_array_length(p_approval -> 'placements') <> 1
+     or v_place ->> 'place' is distinct from v_slot.place or v_place ->> 'kind' is distinct from v_slot.kind
+     or (v_place ->> 'at')::timestamptz is distinct from v_slot.at then
+    return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+  end if;
+  -- Never late: a slot whose time has come is not posted now in its place.
+  if v_slot.at <= now() then
+    return jsonb_build_object('fate', 'past', 'posts', '[]'::jsonb);
+  end if;
+  v_placed := public.post_approve(p_tenant_id, p_file_id, p_approval);
+  if v_placed ->> 'fate' = 'approved' then
+    update public.plan_slots set post_id = (v_placed -> 'posts' -> 0 ->> 'post_id')::uuid, updated_at = now()
+     where id = v_slot.id;
+  end if;
+  return v_placed;
+end $$;
+
+
+--
+-- Name: FUNCTION plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) IS 'A slot of a week AI approved placed (00714), by the service: its post approved via rung (post_approve) and the slot linked to it in one transaction, only for a slot still approved under the rung''s own approval with no post and no video, and only its own placement (its place, kind and time as they stand, a time still ahead). Answers post_approve''s answer, or {fate: taken | changed | past | gone} with nothing written. One post a slot, however often it is asked.';
+
+
+--
 -- Name: plan_slot_prepared(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29543,12 +29605,15 @@ begin
     raise exception 'Only the service prepares a slot.' using errcode = '42501';
   end if;
   if jsonb_typeof(p_prepared) is distinct from 'object' or (p_prepared ->> 'file_id') is null
-     or (p_prepared ->> 'at') is null or jsonb_typeof(p_prepared -> 'approval') is distinct from 'object' then
-    raise exception 'A prepared slot names its made file, its time and its approval.' using errcode = '22023';
+     or (p_prepared ->> 'from') is null or (p_prepared ->> 'at') is null
+     or jsonb_typeof(p_prepared -> 'approval') is distinct from 'object' then
+    raise exception 'A prepared slot names its made file, the footage it was drawn from, its time and its approval.' using errcode = '22023';
   end if;
+  -- Only as the slot stands: its footage swapped while its picture was drawn, the drawing is of what it no longer shows.
   update public.plan_slots s set prepared = p_prepared, updated_at = now()
     from public.content_plans p
    where s.tenant_id = p_tenant_id and s.id = p_slot_id and s.state = 'proposed'
+     and s.file_id = (p_prepared ->> 'from')::uuid
      and p.tenant_id = p_tenant_id and p.id = s.plan_id and p.status = 'ready';
   return found;
 end $$;
@@ -29558,7 +29623,7 @@ end $$;
 -- Name: FUNCTION plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) IS 'A slot of a held week prepared ahead (00714), by the service: {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready takes it. Answers whether it was kept. Approves and places nothing.';
+COMMENT ON FUNCTION public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) IS 'A slot of a held week prepared ahead (00714), by the service: {file_id, from, at, approval}, the made file its picture was drawn into, the footage it was drawn from, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready, still showing that footage, takes it. Answers whether it was kept. Approves and places nothing.';
 
 
 --
@@ -53425,7 +53490,7 @@ COMMENT ON TABLE public.plan_slots IS 'One creative at one place in a week''s pl
 -- Name: COLUMN plan_slots.prepared; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.plan_slots.prepared IS 'A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time still stands. Never an approval itself.';
+COMMENT ON COLUMN public.plan_slots.prepared IS 'A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, from, at, approval}, the made file its picture was drawn into, the footage it was drawn from, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time and its footage still stand. Never an approval itself.';
 
 
 --
@@ -58072,7 +58137,7 @@ CREATE INDEX content_plans_stopped_by ON public.content_plans USING btree (stopp
 -- Name: content_plans_to_make; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX content_plans_to_make ON public.content_plans USING btree (first_post_at, make_queued_at) WHERE ((make_queued_at IS NOT NULL) AND (made_at IS NULL));
+CREATE INDEX content_plans_to_make ON public.content_plans USING btree (first_post_at, make_queued_at) WHERE ((make_queued_at IS NOT NULL) AND (made_at IS NULL) AND (make_tries < 3));
 
 
 --
@@ -72840,6 +72905,14 @@ GRANT ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, 
 REVOKE ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
 
 
 --

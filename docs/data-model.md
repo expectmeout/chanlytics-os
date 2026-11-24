@@ -3976,7 +3976,7 @@ One creative at one place in a week's plan (00706; the content loop PRD's 5.3 an
 | `approval_id` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `prepared` | jsonb | yes |  | A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week's approval under the rung places it in its own transaction while its time still stands. Never an approval itself. |
+| `prepared` | jsonb | yes |  | A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, from, at, approval}, the made file its picture was drawn into, the footage it was drawn from, the time it was prepared for and the approval post_approve takes for it, via rung. The week's approval under the rung places it in its own transaction while its time and its footage still stand. Never an approval itself. |
 
 Foreign keys:
 

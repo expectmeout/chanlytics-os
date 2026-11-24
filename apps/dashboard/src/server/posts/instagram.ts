@@ -43,16 +43,15 @@ interface InstagramPress {
   when?: string | undefined;
   about?: PostAbout | undefined;
   facts?: OwnersFact[] | undefined;
-  /** AI's approval under the owner's rung (00714), never a person's press. */
-  via?: "rung" | undefined;
 }
 
-/**
- * POST files/[id]/instagram: the post approved for Instagram (00681), a picture as a post or a story, a video as a reel,
- * now or at a time the person chose. The press is the approval: of these bytes, these words, this place (posts/approve.ts).
- */
-/** What a press on Instagram asks of the approval, after the place's own refusals. */
-async function instagramAsked(member: Member, row: FileMemberRow, input: InstagramPress) {
+/** What Instagram is asked for, as the approval takes it, after the place's own refusals: a person's press, or AI under the rung. */
+async function instagramAsked<Via extends "press" | "rung">(
+  member: Member,
+  row: FileMemberRow,
+  input: InstagramPress,
+  via: Via,
+) {
   const refused = await refusalBefore(member, row);
   if (refused) throw refused;
   // A story shows no caption, so none is kept for one. The words that go are kept on the piece by the approval, once its
@@ -62,23 +61,30 @@ async function instagramAsked(member: Member, row: FileMemberRow, input: Instagr
     placements: [{ place: "instagram" as const, kind: input.as, caption, when: input.when ?? null }],
     intent: intentOfAbout(input.about),
     facts: input.facts ?? [],
-    via: input.via ?? ("press" as const),
+    via,
     connections: { instagram: "yes" as const },
   };
 }
 
-/** A held week's Instagram placement readied overnight (00714): every check, nothing approved; the door takes it at 8:00. */
+/**
+ * A week's Instagram placement readied for AI under the owner's rung (00714): every check, nothing approved. The door that
+ * places it takes what this answers: the 8:00 approval's for a slot readied overnight, plan_slot_place's after.
+ */
 export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
-  return prepareApproval(ctx, member, row, await instagramAsked(member, row, input));
+  return prepareApproval(ctx, member, row, await instagramAsked(member, row, input, "rung"));
 }
 
+/**
+ * POST files/[id]/instagram: the post approved for Instagram (00681), a picture as a post or a story, a video as a reel,
+ * now or at a time the person chose. The press is the approval: of these bytes, these words, this place (posts/approve.ts).
+ */
 export async function postFileToInstagram(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   input: InstagramPress,
 ): Promise<{ post_id: string; status: "queued" }> {
-  const approved = await approvePlacements(ctx, member, row, await instagramAsked(member, row, input));
+  const approved = await approvePlacements(ctx, member, row, await instagramAsked(member, row, input, "press"));
   const postId = approved.posts[0]?.post_id;
   if (!postId) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   return { post_id: postId, status: "queued" };

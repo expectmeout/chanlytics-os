@@ -113,8 +113,8 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
       // The plan's proposal to ask for reviews (pass 6): a read that fails leaves the Week as it was.
       readReviewAsk(rc.ctx.supabase, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
     ]);
-    // Held to its time only while the rung still lets AI approve it (00714).
-    const week = weekAsHeld(read, rung);
+    // Held to its time only while the rung still lets AI approve it, and its time is not long past (00714).
+    const week = weekAsHeld(read, rung, rc.now.getTime());
     return {
       data: {
         week_of: weekOf,
