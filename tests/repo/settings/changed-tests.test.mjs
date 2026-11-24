@@ -3,9 +3,10 @@
  * and database.yml for its database suites): a source file its domain's tests and every test its imports reach, a test
  * file itself, the rules and ratchets always, and never past the budget (Ruben, 10 Oct 2026: under ten minutes). The
  * graph (checks/test-reach.mjs) is proved on a small tree of its own, then on the repository's: the five tests main left
- * red on 28 Oct 2026, and the links the hand-kept TESTED_IN said before it. Executed over the real folder names, so a
- * folder renamed under tests is seen here. A migration's own text reaches the database suites that read what it changes,
- * proved on the migrations behind main's Database reds of 3 to 5 Nov 2026.
+ * red on 28 Oct 2026, the tests that bundle their sources from a string (#2408 ran none, 17 Nov 2026), and the links the
+ * hand-kept TESTED_IN said before it. Executed over the real folder names, so a folder renamed under tests is seen
+ * here. A migration's own text reaches the database suites that read what it changes, proved on the migrations behind
+ * main's Database reds of 3 to 5 Nov 2026.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -134,6 +135,108 @@ test("a test reaches the paths it reads by name, a bundle as its sources; a tree
   assert.deepEqual(reaches("apps/dashboard/README.md"), {}, "a directory named is not followed");
   assert.deepEqual(reaches(`${T}/web/words.test.mjs`), { "words.test.mjs": 0 });
   assert.deepEqual(reaches(`${T}/_at.mjs`), { "page.test.mjs": 1 });
+});
+
+/**
+ * Tests that bundle their sources: each hands esbuild a string of import and export lines (`stdin.contents`) with the
+ * folder to read them from (`resolveDir`), and loads the bundle. No import of the test's own names those modules.
+ */
+const BUNDLING = {
+  ...TREE,
+  "apps/dashboard/src/card.tsx": 'import { shout } from "./shout";\nexport const Card = () => shout("hi");',
+  "apps/dashboard/src/badge.tsx": "export const Badge = () => null;",
+  "tooling/harness/entries.tsx": "export const ENTRIES = [];",
+  // A chain of lines, read from the test's own folder: a module by its path, a package by a name, and React, no file.
+  [`${T}/bundled/card.test.mjs`]: [
+    "const out = await build({",
+    "  stdin: {",
+    "    contents:",
+    "      'export { Card } from \"../../apps/dashboard/src/card.tsx\";\\n' +",
+    "      'export { farewell } from \"@chanlytics/kit\";\\n' +",
+    "      'export { createElement } from \"react\";\\n',",
+    '    resolveDir: path.join(ROOT, "tests/bundled"),',
+    '    loader: "ts",',
+    "  },",
+    "  bundle: true,",
+    "});",
+  ].join("\n"),
+  // A folder deeper than the one its lines are read from; a template of a constant, a constant chain, a whole module.
+  [`${T}/bundled/deep/probe.test.mjs`]: [
+    'const SRC = "../../apps/dashboard/src";',
+    "const PROBE =",
+    '  `import { shout } from "${SRC}/shout.ts";\\n` +',
+    '  "export const probe = () => shout(1);\\n";',
+    "const out = await build({",
+    "  stdin: {",
+    '    contents: `export * from "${SRC}/page.ts";\\n` + PROBE,',
+    '    resolveDir: path.join(ROOT, "tests/bundled"),',
+    '    loader: "ts",',
+    "  },",
+    "});",
+  ].join("\n"),
+  // The folder said once, as a constant of the file, and nowhere near the test.
+  [`${T}/bundled/harness.test.mjs`]: [
+    'const HARNESS = path.join(ROOT, "tooling/harness");',
+    "const out = await build({",
+    '  stdin: { contents: \'export { ENTRIES } from "./entries.tsx";\\n\', resolveDir: HARNESS, loader: "tsx" },',
+    "});",
+  ].join("\n"),
+  // Lines put together as the test runs cannot be read; and a line that is handed to no bundler is only a string.
+  [`${T}/bundled/unread.test.mjs`]: [
+    "const NOTE = 'export { Badge } from \"../../apps/dashboard/src/badge.tsx\";\\n';",
+    'const out = await build({ stdin: { contents: lines().join("\\n"), resolveDir: path.join(ROOT, "tests/bundled") } });',
+  ].join("\n"),
+};
+const BUNDLED = reachOf({ files: Object.keys(BUNDLING), read: (f) => BUNDLING[f] ?? "" });
+/** What a change reaches of the tests that bundle, each by its name in tests/bundled and its distance. */
+const bundles = (...changed) =>
+  Object.fromEntries(
+    [...BUNDLED.testsReaching(changed)]
+      .filter(([t]) => t.startsWith(`${T}/bundled/`))
+      .map(([t, d]) => [t.slice(`${T}/bundled/`.length), d])
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+
+test("a test that bundles its sources from a string reaches the modules the string's lines name, and what they import", () => {
+  assert.deepEqual(bundles("apps/dashboard/src/card.tsx"), { "card.test.mjs": 1 });
+  // The card imports shout, and so does the page the deep test bundles whole; its own probe imports shout itself.
+  assert.deepEqual(bundles("apps/dashboard/src/shout.ts"), { "card.test.mjs": 2, "deep/probe.test.mjs": 1 });
+  assert.deepEqual(bundles("apps/dashboard/src/page.ts"), { "deep/probe.test.mjs": 1 }, "`export *`, all of it");
+  // A package by a name, as an import asks it: farewell's module, never greet's beside it in the barrel.
+  assert.deepEqual(bundles("packages/kit/src/words/farewell.ts"), { "card.test.mjs": 1 });
+  assert.deepEqual(bundles("packages/kit/src/words/greet.ts"), { "deep/probe.test.mjs": 2 }, "through the page alone");
+});
+
+test("the string's lines are read from the folder the test hands the bundler, which need not be the test's own", () => {
+  // tests/bundled/deep's test says `../../apps/…` from tests/bundled: from its own folder that path names nothing.
+  assert.equal(bundles("apps/dashboard/src/page.ts")["deep/probe.test.mjs"], 1);
+  assert.deepEqual(bundles("tooling/harness/entries.tsx"), { "harness.test.mjs": 1 }, "a constant of the file");
+});
+
+test("a string no bundler is handed reaches nothing, and a test whose lines are built as it runs is said unread", () => {
+  assert.deepEqual(bundles("apps/dashboard/src/badge.tsx"), {});
+  assert.deepEqual(BUNDLED.unread, [`${T}/bundled/unread.test.mjs`]);
+});
+
+test("REGRESSION: a test that bundles its sources from a string runs for a module the string names (#2408, 17 Nov 2026)", () => {
+  // #2408 took Messages out of Campaigns' strip (campaigns/routes.ts) and went green: the Content page's test bundles
+  // that module from a string and imports nothing of it, its folder is no part of the path, and main was left red.
+  const BUNDLES = {
+    "apps/dashboard/src/surfaces/campaigns/routes.ts": "content/the-content-page-is-drawn.test.mjs",
+    "apps/dashboard/src/surfaces/ask/card-piece.tsx": "content/a-video-card-says-where-it-stands.test.mjs",
+    "apps/dashboard/src/surfaces/campaigns/content/piece-presses.tsx": "content/page/a-piece-opens.test.mjs",
+    "apps/dashboard/src/surfaces/ask/line/attached.tsx": "files/photos-beside-the-field.test.mjs",
+    "apps/dashboard/src/surfaces/files/sending.ts": "files/photos-on-their-way.test.mjs",
+    "apps/dashboard/src/surfaces/preview/heard.tsx": "previews/preview-page.test.mjs",
+    "tooling/scripts/e2e-harness/kit-behaves-entries.tsx": "styles/kit-behaves.test.mjs",
+  };
+  for (const [changed, t] of Object.entries(BUNDLES))
+    assert.equal(REACH.testsReaching([changed]).get(`${T}/${t}`), 1, `${changed}: ${t}`);
+  const routes = "apps/dashboard/src/surfaces/campaigns/routes.ts";
+  assert.ok(!run(routes).includes(`${T}/content`), "the folders its path names never held the Content page's test");
+  assert.ok(picked(routes).targets.includes(`${T}/${BUNDLES[routes]}`), "and the run now does");
+  // One the graph cannot read would run on no pull request again: say its lines as strings and its folder from ROOT.
+  assert.deepEqual(REACH.unread, [], "a test that bundles from a string the graph cannot read");
 });
 
 test("the tests the imports reach join a distance at a time, nearest first, until the next would pass the budget", () => {
