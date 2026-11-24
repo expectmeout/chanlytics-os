@@ -926,6 +926,13 @@
       "rate": "settings",
       "spend": false
     },
+    "POST content/review-ask": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
     "GET content/plan": {
       "kind": "read",
       "scope": "workspace",

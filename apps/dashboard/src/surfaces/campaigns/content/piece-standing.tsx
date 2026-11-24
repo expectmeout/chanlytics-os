@@ -171,7 +171,12 @@ export function usePieceStanding(
     /** Take down, where something of it is up and this person may: opens its card. Null where it is not offered. */
     takeDown: may && aiMade && takeDownOffered(posts, Date.now()) && !down.asking ? () => setTakingDown(true) : null,
     sheets,
-    results: { fileId: file.id, upPostId: aiMade ? (posts.find((p) => p.published_at)?.id ?? null) : null },
+    results: {
+      fileId: file.id,
+      upPostId: aiMade ? (posts.find((p) => p.published_at)?.id ?? null) : null,
+      // A piece AI made may have run as an ad without going up: its results are read for its ads too (pass 6).
+      made: aiMade,
+    },
     version: { ...version, instead: (fileId) => void run(pressPieceVersion(fileId, "approve")) },
   };
 }

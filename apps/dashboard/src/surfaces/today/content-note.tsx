@@ -23,6 +23,8 @@ import {
   CONTENT_WEEK_ROUTE,
   WEEK_WORDS,
   CONTENT_WORDS,
+  REVIEW_ASK_WORDS,
+  reviewAskLineOf,
   MIN_MS,
   clockNear,
   clockTime,
@@ -98,7 +100,8 @@ function VersionLine({ version }: { version: NonNullable<ContentTodayDto["versio
 
 /**
  * The week's points (00706; the approved boards, Today 1 and the pass 3 rows): the week ready to approve, its size and
- * days under it, and what AI asks to be filmed. Each opens the Week, where it is approved or added; Today approves nothing.
+ * days under it, what AI asks to be filmed, and the plan's proposal to ask every client for a review (pass 6; the canvas's
+ * Loop4). Each opens the Week, where it is approved, added or opened; Today approves nothing.
  */
 function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
   return (
@@ -119,6 +122,15 @@ function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
           said={plan.film.join(" · ")}
           door={routeDoor(CONTENT_WEEK_ROUTE)}
           testid="today-week-film"
+        />
+      ) : null}
+      {plan.review_ask ? (
+        <CalmRow
+          first={{ mark: <Icon name="star" size={14} /> }}
+          name={REVIEW_ASK_WORDS.title}
+          said={reviewAskLineOf(plan.review_ask)}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-review-ask"
         />
       ) : null}
     </>

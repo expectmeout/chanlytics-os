@@ -242,6 +242,8 @@ const standingOf = (over = {}) => ({
   clock: { day: (at) => at, ahead: (at) => at },
   takeDown: null,
   sheets: null,
+  // What its results are read by (00699, pass 6): nothing up yet, so nothing is read.
+  results: { fileId: "ffffffff-0000-4000-8000-000000000001", upPostId: null, made: false },
   // One version (00708): nothing being made, no version line, nothing listed.
   version: {
     making: null,

@@ -26,16 +26,14 @@ export const weekOverride: SurfaceOverride = {
   // the config its lines say and its switch; whether AI is paused. The week's own rows are told to no page
   // (tests/baselines/reads-not-heard.json says why).
   ...declareReads("content_week", {
-    reads: ["file", "review", "facts", "channel", "workspace", "brought"],
+    // A review and a campaign since pass 6: its proposal to ask for reviews reads the newest review, the review link and
+    // whether an ask runs, and goes once a new review comes or the ask starts.
+    reads: ["file", "review", "campaign", "facts", "channel", "workspace", "brought"],
     fresh: "its-page",
     omit: [
       {
         tables: ["imports"],
         why: "the week reads the look the website read proposed (the brand kit), never the ledger of what was brought in",
-      },
-      {
-        tables: ["google_reviews", "google_listings"],
-        why: "the week reads whether a Google place is bound, never its reviews",
       },
       {
         tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],

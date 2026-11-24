@@ -12,6 +12,7 @@ import {
   type ScorePart,
   type SlotScore,
 } from "@chanlytics/contracts";
+import { expectedValueOf, type WeekLean } from "./lean";
 
 /** A photo or a clip the week could be made from, as the plan reads it. */
 export interface FootageFact {
@@ -29,6 +30,8 @@ export interface FootageFact {
   postedRecently: boolean;
   /** Its best moments, where a clip has them (file_moments, or the look's own). */
   moments: number;
+  /** A clip's length; null for a photo, or a clip not measured. */
+  seconds: number | null;
 }
 
 /** A goal as the plan reads it. */
@@ -76,7 +79,7 @@ const WEIGHTS: Readonly<Record<Exclude<ScorePart, "eligibility">, number>> = {
   expected_value: 0.05,
 };
 
-const totalOf = (parts: SlotScore["parts"]): number => {
+export const totalOf = (parts: SlotScore["parts"]): number => {
   if (parts.eligibility.value === 0) return 0;
   const sum = keysOf(WEIGHTS).reduce((n, k) => n + parts[k].value * WEIGHTS[k], 0);
   return Math.round(sum * 100) / 100;
@@ -126,6 +129,8 @@ interface ScoreAsked {
   eligible: { value: boolean; why: string };
   /** Whether the reason was used in a post in the last 21 days. */
   reasonUsed: boolean;
+  /** What the week leans on of the business's own patterns (lean.ts). */
+  lean: WeekLean;
 }
 
 /** A candidate's score, each part with its reason (PRD 10.2, step 3). */
@@ -140,6 +145,7 @@ export function candidateScoreOf(given: ScoreAsked): SlotScore {
         goal ? 0.5 * goal.weight + 0.2 : 0.3,
         goal ? "It serves a goal you set" : "No reason this week but to be seen",
       );
+  const expected = expectedValueOf(given.lean, given.kind, file);
   const parts: SlotScore["parts"] = {
     relevance,
     footage_fit: file ? footageFit(file) : scorePart(0.8, "Drawn from words, so no clip is needed"),
@@ -153,7 +159,7 @@ export function candidateScoreOf(given: ScoreAsked): SlotScore {
       given.kind === "reel"
         ? scorePart(0.6, "A reel takes the most to make")
         : scorePart(0.8, "A picture is quick to make"),
-    expected_value: scorePart(0.5, "Not known yet: too few posts to compare"),
+    expected_value: scorePart(expected.value, expected.why),
     timeliness: opportunity?.day
       ? scorePart(1, `About ${opportunity.says.split(" ")[0] ?? "its day"}`)
       : scorePart(0.6, "Not tied to a day"),

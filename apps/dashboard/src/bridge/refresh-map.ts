@@ -410,7 +410,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
   // A playbook named by a starter files its message too (A0): the Library, and every picker that is made of it, move with it.
-  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates()],
+  // A campaign started from the Week's review-ask card (pass 6) ends its proposal there: the Week reads again where drawn.
+  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates(), ...weekIfDrawn()],
   "PUT playbooks/[id]": () => [...savedAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
@@ -570,6 +571,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST content/plan/slots": weekAndContentIfDrawn,
   "POST content/claims": weekIfDrawn,
   "DELETE content/claims": weekIfDrawn,
+  // The plan's proposal to ask for reviews rested (pass 6): the Week reads again; Today's note reads itself as the day moves.
+  "POST content/review-ask": weekIfDrawn,
   // The config's content section is the settings read's too; nothing else drawn reads it.
   "PUT content/aims": () => [settingsOverride, ...weekIfDrawn()],
   "POST content/line": () => [settingsOverride, ...weekIfDrawn()],

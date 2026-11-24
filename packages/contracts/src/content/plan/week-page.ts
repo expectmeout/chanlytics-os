@@ -8,6 +8,7 @@ import type { FileDto } from "../../files/views";
 import type { ContentMadeDto } from "../page";
 import type { PieceStatus } from "../piece-making";
 import type { OwnerClaim } from "./claims";
+import type { ReviewAskDto } from "./review-ask";
 import type { ContentGoal } from "./sets";
 import type { WeekPlanDto, cadenceOf } from "./week";
 
@@ -46,6 +47,11 @@ export interface WeekPageDto {
   cadence: ReturnType<typeof cadenceOf>;
   quiet_days: string[];
   languages: string[];
+  /**
+   * The plan's proposal to ask every client for a review (pass 6; the canvas's Loop4): at the Week's foot, beside what to
+   * film. Absent from an older build's answer; null where there is none.
+   */
+  review_ask?: ReviewAskDto | null;
   /** The owner's own sentence for a line of Settings › Content, where they said one. */
   lines: Partial<Record<"goals" | "cadence" | "quiet_days" | "languages" | "look", string>>;
   /**

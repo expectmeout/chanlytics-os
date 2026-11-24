@@ -148,3 +148,118 @@ export async function readPostLinks(
   }
   return out;
 }
+
+/** The most people one read of review asks names, under the gateway's line for one `.in()`. */
+const ASKED_PEOPLE_MAX = 100;
+
+/** A review ask sent to a person: when, and the conversation it went in. */
+export interface ReviewAskRead {
+  contactId: string;
+  at: string;
+  conversationId: string | null;
+}
+
+/**
+ * The review asks these people were sent since a moment, oldest first (the content loop's pass 6; the canvas's Loop3):
+ * a campaign's message that went, from a step whose words fill the business's review link (the after-visit ask, #2521),
+ * with the conversation it went in. What the chain on a piece ends at: nothing here says who wrote a review on Google.
+ */
+export async function listReviewAsksOf(
+  db: Db,
+  tenantId: TenantId,
+  contactIds: readonly ContactId[],
+  sinceIso: string,
+): Promise<ReviewAskRead[]> {
+  const people = [...new Set(contactIds)].slice(0, ASKED_PEOPLE_MAX);
+  if (people.length === 0) return [];
+  const steps = await tenantDb(db, tenantId)
+    .from("sequence_steps")
+    .select("id")
+    .contains("params", [{ kind: "review_link" }])
+    // A workspace's campaigns that ask for a review: a handful.
+    .limit(50);
+  if (steps.error) throw new DbFailure(steps.error, "the steps that ask for a review");
+  if (steps.data.length === 0) return [];
+  const sends = await tenantDb(db, tenantId)
+    .from("sequence_sends")
+    .select("contact_id, sent_at, message_id")
+    .in(
+      "step_id",
+      steps.data.map((row) => row.id),
+    )
+    .in("contact_id", people)
+    .eq("state", "sent")
+    .gte("sent_at", sinceIso)
+    .order("sent_at", { ascending: true })
+    .limit(people.length * 3);
+  if (sends.error) throw new DbFailure(sends.error, "review asks sent");
+  const messageIds = sends.data.flatMap((row) => (row.message_id ? [row.message_id] : []));
+  const where = new Map<string, string>();
+  if (messageIds.length > 0) {
+    const messages = await tenantDb(db, tenantId)
+      .from("messages")
+      .select("id, conversation_id")
+      .in("id", messageIds)
+      .limit(messageIds.length);
+    if (messages.error) throw new DbFailure(messages.error, "review asks' conversations");
+    for (const row of messages.data) where.set(row.id, row.conversation_id);
+  }
+  return sends.data.flatMap((row) =>
+    row.contact_id && row.sent_at
+      ? [
+          {
+            contactId: row.contact_id,
+            at: row.sent_at,
+            conversationId: row.message_id ? (where.get(row.message_id) ?? null) : null,
+          },
+        ]
+      : [],
+  );
+}
+
+/** What the plan reads to propose the review ask (pass 6; the canvas's Loop4), each a narrow read. */
+export interface ReviewAskFactsRead {
+  /** Whether a campaign whose step fills the review link is running. */
+  askOn: boolean;
+  /** When the owner last said Not now to the proposal; null where never. */
+  restedAt: string | null;
+  /** The newest review on Google, of any stars; null where there has been none. */
+  newestReviewAt: string | null;
+}
+
+/**
+ * Whether a review ask runs, when its proposal was last rested (a `snooze` of the workspace's, about `review_ask`), and
+ * when the newest review came: what contracts reviewAskOf decides from, with the goal and the review link.
+ */
+export async function readReviewAskFacts(db: Db, tenantId: TenantId): Promise<ReviewAskFactsRead> {
+  const [on, rested, newest] = await Promise.all([
+    tenantDb(db, tenantId)
+      .from("sequence_steps")
+      .select("id")
+      .eq("state", "running")
+      .contains("params", [{ kind: "review_link" }])
+      .limit(1),
+    tenantDb(db, tenantId)
+      .from("decisions")
+      .select("created_at")
+      .eq("subject_type", "workspace")
+      .eq("verb", "snooze")
+      .eq("payload->>about", "review_ask")
+      .order("created_at", { ascending: false })
+      .limit(1),
+    tenantDb(db, tenantId)
+      .from("google_reviews")
+      .select("published_at")
+      .not("published_at", "is", null)
+      .order("published_at", { ascending: false })
+      .limit(1),
+  ]);
+  if (on.error) throw new DbFailure(on.error, "a running review ask");
+  if (rested.error) throw new DbFailure(rested.error, "the review ask's rest");
+  if (newest.error) throw new DbFailure(newest.error, "the newest review");
+  return {
+    askOn: on.data.length > 0,
+    restedAt: rested.data[0]?.created_at ?? null,
+    newestReviewAt: newest.data[0]?.published_at ?? null,
+  };
+}

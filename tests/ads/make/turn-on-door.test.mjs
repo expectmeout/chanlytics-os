@@ -9,6 +9,7 @@
  * The same press twice is one ad. The read folds the three ads Meta holds for an ad made here into the one the owner
  * made, adds their days together, never adopts a launch's own parts, and keeps no tag in any name a page shows.
  */
+import { createHash } from "node:crypto";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -66,7 +67,7 @@ after(() => {
 });
 
 /** A workspace whose owner is U, its ad account connected with a Page, and 00666's door as it answers. */
-function world({ owner = true, account = {}, stopped = null, door } = {}) {
+function world({ owner = true, account = {}, stopped = null, door, photo = null } = {}) {
   resetBreakers();
   Object.assign(process.env, APP);
   const kept = [];
@@ -85,6 +86,8 @@ function world({ owner = true, account = {}, stopped = null, door } = {}) {
         ...account,
       },
     ],
+    // The ad's photo, where the test keeps one in Files: its bytes are read at the press for the approval's checksum.
+    files: photo ? [{ id: AD.picture, tenant_id: T, mime: "image/png", removed_at: null }] : [],
   };
   const db = fakeDb(
     tables,
@@ -99,6 +102,7 @@ function world({ owner = true, account = {}, stopped = null, door } = {}) {
       },
     },
   );
+  if (photo) db.storage = { from: () => ({ download: async () => ({ data: new Blob([photo]), error: null }) }) };
   setPg(db);
   const pressed = (body = {}) =>
     runAdTurnOn(auth, { tenant_id: T, user_id: U, key: KEY, draft_at: "2026-11-20T21:00:00Z", ad: AD, ...body });
@@ -127,6 +131,32 @@ test("the press is kept with what was approved, its end in the account's zone, a
   assert.equal((await across.pressed({ ad: { ...wide, area: { kind: "region", key: "3847" } } })).status, 202);
   const [kept] = across.kept;
   assert.deepEqual([kept.p_ad.approved.area, kept.p_ad.approved.address], [{ kind: "region", key: "3847" }, undefined]);
+});
+
+test("the press keeps what the owner approved as an approval: the photo by its bytes, the words, the money, the place", async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+  const checksum = createHash("sha256").update(bytes).digest("hex");
+  const w = world({ photo: bytes });
+  assert.equal((await w.pressed()).status, 202);
+  const [{ p_ad: ad }] = w.kept;
+  assert.deepEqual(ad.approval, {
+    ad: { name: AD.name, service: AD.service },
+    picture: { file_id: AD.picture, kind: "photo", checksum },
+    words: AD.versions.map((version, nth) => ({ n: nth + 1, text: version.text, headline: version.headline })),
+    shown_on: ["facebook"],
+    where: { miles: AD.miles, address: AD.address },
+    opens: { door: "whatsapp", number: AD.whatsapp },
+    spend: { most_minor: AD.most_minor, currency: "USD", end_day: AD.end_day, ends_at: "2026-12-04T04:59:00.000Z" },
+    page_id: PAGE,
+    declared: "none",
+    uses: ["ad"],
+  });
+  assert.equal(ad.approved.picture_checksum, checksum, "the launch holds the photo it sends to the same bytes");
+  // A photo Files no longer holds is approved with no checksum: the launch then finds no photo to send.
+  const gone = world();
+  assert.equal((await gone.pressed()).status, 202);
+  assert.equal(gone.kept[0].p_ad.approval.picture.checksum, null);
+  assert.equal(gone.kept[0].p_ad.approved.picture_checksum, null);
 });
 
 test("the same press twice is one ad; a draft changed since, or another ad still being set up, is refused", async () => {

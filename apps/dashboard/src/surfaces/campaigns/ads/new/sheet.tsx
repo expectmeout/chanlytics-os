@@ -28,6 +28,7 @@ import { newAdView } from "./model";
 import type { LineAct, NewAdVM } from "./model";
 import { NewAdLine, NewEditor, NewSentence, NewWhy } from "./parts";
 import type { AdEditing } from "./parts";
+import { FromPost } from "./from-post";
 import { AdShown } from "./shown";
 import type { AdSource } from "./source";
 import { useAdDraft } from "./use-draft";
@@ -156,7 +157,10 @@ interface DraftProps {
   preview: AdSource["preview"];
 }
 
-/** The draft's body: the sentence, the word being changed, why that amount, the one line, and the ad as it will look. */
+/**
+ * The draft's body: the post its picture went up as, where it did (pass 6), the sentence, the word being changed, why that
+ * amount, the one line, and the ad as it will look.
+ */
 function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps) {
   const [editing, setEditing] = useState<AdEditing>(null);
   const act = (line: LineAct) => {
@@ -171,6 +175,11 @@ function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps)
   };
   return (
     <div className="ads-new" data-words={stand.words.at} data-testid="ads-new-body">
+      <FromPost
+        picture={{ ...stand.answer.draft.picture, src: vm.shown.picture.src }}
+        // The workspace's own routes ask Meta's preview; the page's example has none, and holds no piece to read.
+        example={preview === undefined}
+      />
       <NewSentence vm={vm} editing={editing} still={telling} onEdit={setEditing} />
       {editing && !telling ? (
         <NewEditor

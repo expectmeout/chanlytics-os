@@ -55,6 +55,7 @@ const clip = (id, part) => ({
   at: "2026-11-21T15:00:00Z",
   postedRecently: false,
   moments: 2,
+  seconds: 20,
   ...part,
 });
 let n = 0;
@@ -70,6 +71,7 @@ const week = (part) => ({
   opportunities: [],
   footage: [],
   usedReasons: new Set(),
+  patterns: [],
   ...part,
 });
 
@@ -203,26 +205,44 @@ test("a slot a check refuses at the propose moment is blocked with its words and
 test("a picture goes to Google too where it is connected and the cadence allows; a quiet day takes nothing", () => {
   const drafted = planWeek(
     week({
-      opportunities: opportunitiesFrom(
-        facts({
-          busy: null,
-          reviews: [
-            { id: "r1", rating: 5, by: "Ana R.", words: "The best cut in years, truly.", at: "2026-11-20T10:00:00Z" },
-          ],
-        }),
-      ),
+      footage: [clip("p1", { kind: "image", shows: ["the front desk"], seconds: null })],
       places: { instagram: "yes", google: "yes" },
       quietDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     }),
     newId,
   );
-  const review = drafted.slots.filter((s) => s.title === "Ana R. left 5 stars");
-  assert.deepEqual(review.map((s) => [s.place, s.kind, s.file_id]).sort(), [
-    ["google", "picture", null],
-    ["instagram", "picture", null],
+  const picture = drafted.slots.filter((s) => s.file_id === "p1");
+  assert.deepEqual(picture.map((s) => [s.place, s.kind]).sort(), [
+    ["google", "picture"],
+    ["instagram", "picture"],
   ]);
-  assert.equal(review[0].creative, review[1].creative, "one creative, two places");
-  for (const slot of review) assert.equal(new Date(slot.at).getUTCDay(), 0, "Sunday: the only day not quiet");
+  assert.equal(picture[0].creative, picture[1].creative, "one creative, two places");
+  for (const slot of picture) assert.equal(new Date(slot.at).getUTCDay(), 0, "Sunday: the only day not quiet");
+});
+
+test("a new review is a reason the plan reads and never a post: Google asks that its writer agree first", () => {
+  const reviewed = opportunitiesFrom(
+    facts({
+      busy: null,
+      reviews: [
+        { id: "r1", rating: 5, by: "Ana R.", words: "The best cut in years, truly.", at: "2026-11-20T10:00:00Z" },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    reviewed.map((o) => o.kind),
+    ["new_review"],
+    "it is read",
+  );
+  const drafted = planWeek(
+    week({ opportunities: reviewed, goals: [{ goal: "reviews", service: null, days: [], weight: 1 }] }),
+    newId,
+  );
+  assert.deepEqual(drafted.slots, [], "no slot, and no ask to film for it");
+  assert.equal(
+    drafted.slots.some((s) => s.intent?.opportunity_id === "new_review:r1"),
+    false,
+  );
 });
 
 test("drafting a week makes nothing and asks no model: the plan holds no cost", () => {

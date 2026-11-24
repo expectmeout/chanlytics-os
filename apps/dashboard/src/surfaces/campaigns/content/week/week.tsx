@@ -30,6 +30,7 @@ import { autonomyVerbs } from "../../../settings/autonomy/verbs";
 import { useSurface } from "../../../use-surface";
 import { PartShown } from "../../parts/view-shown";
 import { WeekPlanned } from "./planned";
+import { ReviewAskRow, ReviewAskSheet } from "./review-ask";
 import { FilmRow, WeekRowView } from "./rows";
 
 /** How often the Week asks again while AI drafts it or makes what was approved, and how many times before it rests. */
@@ -162,7 +163,9 @@ export function ContentWeek({
   const view = useMemo(() => (dto ? weekViewOf(dto, Date.now()) : null), [dto]);
   useAsksWhileMoving(!!view && weekMoving(view));
   const { busy, onAct: act, onFix } = useWeekPresses(flash, onOpen);
+  const [asking, setAsking] = useState(false);
   if (!view || !dto) return mark;
+  const reviewAsk = dto.review_ask ?? null;
   const onAct = () => act(view, dto);
   if (view.state === "unconnected")
     return (
@@ -193,15 +196,16 @@ export function ContentWeek({
           ))}
         </section>
       ))}
-      {view.film.length ? (
+      {view.film.length || reviewAsk ? (
         <section className="cwk-group">
           <h4>
             {view.filmHead}
-            <em>{view.film.length}</em>
+            <em>{view.film.length + (reviewAsk ? 1 : 0)}</em>
           </h4>
           {view.film.map((ask) => (
             <FilmRow key={ask.what} what={ask.what} why={ask.why} />
           ))}
+          {reviewAsk ? <ReviewAskRow ask={reviewAsk} onOpen={() => setAsking(true)} /> : null}
           {view.state === "nothing" ? (
             <div className="cwk-acts">
               {/* The Library's Add: AI matches what comes in to what it asked for. */}
@@ -213,6 +217,7 @@ export function ContentWeek({
           ) : null}
         </section>
       ) : null}
+      {reviewAsk ? <ReviewAskSheet ask={reviewAsk} open={asking} onClose={() => setAsking(false)} /> : null}
     </div>
   );
 }

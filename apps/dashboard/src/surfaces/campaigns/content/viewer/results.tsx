@@ -6,14 +6,25 @@
  * sentence is contracts' (pieceResultsSaid); this reads `GET files/[id]/results` once the piece has a post up, and again
  * after its link is made. Nothing here moves by itself.
  */
-import { useCallback, useEffect, useId, useState } from "react";
-import { addressOf, pieceResultsSaid, type BroughtSaid, type PieceResultsDto } from "@chanlytics/contracts";
+import { Fragment, useCallback, useEffect, useId, useState } from "react";
+import {
+  addressOf,
+  broughtChainOf,
+  type ChainOpens,
+  type PieceAdDto,
+  pieceResultLineOf,
+  pieceResultsSaid,
+  type BroughtSaid,
+  type PieceResultsDto,
+  type ResultLinePart,
+} from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { makePiecePostLink } from "@/bridge/verbs/pieces";
 import { routeDoor } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
 import { Face } from "../../../kit/face/face";
 import { Icon } from "../../../kit/icon/icon";
+import { AdsBrought } from "./ads-on-piece";
 import { viewerClockOf } from "./clock";
 
 /** What the part says of a link, by where it lands. */
@@ -35,16 +46,36 @@ const LINK_WORDS = {
 const RESULTS_WORDS = {
   howItDid: "How it did",
   brought: "What it brought",
+  fromPost: "From the post",
+  chainOpen: "How they got here",
+  chainClose: "Hide",
+  fromAd: (booked: boolean) => (booked ? "Wrote from the ad · booked" : "Wrote from the ad"),
+  once: "Someone who wrote from both counts once, under the first.",
   newPeople: "New to you",
   known: "People you knew",
 } as const;
 
-/** The piece's results, read once it has a post up; null until then, or where the read did not answer. */
-function usePieceResults(fileId: string, up: boolean): { data: PieceResultsDto | null; again: () => void } {
-  const [data, setData] = useState<PieceResultsDto | null>(null);
+/** A piece's results as its route answers them: the post's, and the ads made from it apart (pass 6). */
+type PieceResultsRead = PieceResultsDto & {
+  ads?: readonly PieceAdDto[];
+  ad_people?: readonly { id: string; name: string; first_at: string; booked: boolean }[];
+};
+
+/** The piece's results and how to read them again (after its link is made). */
+interface PieceResultsHeld {
+  data: PieceResultsRead | null;
+  again: () => void;
+}
+
+/**
+ * The piece's results, read once for a piece AI made (its posts' numbers, and the ads made from it); null until then, or
+ * where the read did not answer. The sheet reads it once and hands it to Where it goes and to its own part.
+ */
+export function usePieceResults(fileId: string, on: boolean): PieceResultsHeld {
+  const [data, setData] = useState<PieceResultsRead | null>(null);
   const [turn, setTurn] = useState(0);
   useEffect(() => {
-    if (!up) return undefined;
+    if (!on) return undefined;
     let live = true;
     read("GET files/[id]/results", { params: { id: fileId } }).then(
       (answer) => {
@@ -57,7 +88,7 @@ function usePieceResults(fileId: string, up: boolean): { data: PieceResultsDto |
     return () => {
       live = false;
     };
-  }, [fileId, up, turn]);
+  }, [fileId, on, turn]);
   return { data, again: useCallback(() => setTurn((n) => n + 1), []) };
 }
 
@@ -84,8 +115,74 @@ function BroughtLine({ row }: { row: BroughtSaid }) {
   );
 }
 
-/** A group of people under its small heading, or nothing where it holds none. */
-function BroughtGroup({ title, rows }: { title: string; rows: readonly BroughtSaid[] }) {
+/** A person's chain, as the piece says it. */
+type Chain = NonNullable<ReturnType<typeof broughtChainOf>>;
+
+/** Where a step of a chain opens: the conversation in Inbox, or the visit in Calendar on its day. */
+const chainDoorOf = (opens: ChainOpens): string =>
+  opens.kind === "conversation"
+    ? addressOf({ kind: "conversation", id: opens.id })
+    : addressOf({ kind: "visit", id: opens.id, day: opens.day });
+
+/**
+ * A person who booked, with their chain under them (pass 6; the canvas's Loop3): one press opens the steps that took
+ * them from the post to the chair, each opening its own record, and the line that says where it ends.
+ */
+function BroughtChain({ row, chain }: { row: BroughtSaid; chain: Chain }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  return (
+    <div className="cnv-brx" data-open={open || undefined} data-testid="cnv-brought-chain">
+      <BroughtLine row={row} />
+      <Button
+        variant="quiet"
+        size="sm"
+        className="cnv-brx-press"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((was) => !was)}
+        data-testid="cnv-chain-open"
+      >
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={13} />
+        {open ? RESULTS_WORDS.chainClose : RESULTS_WORDS.chainOpen}
+      </Button>
+      {open ? (
+        <div id={listId}>
+          <ol className="cnv-chain">
+            {chain.steps.map((step) => (
+              <li key={`${step.words}-${step.when}`} data-done={step.done || undefined}>
+                {step.opens ? (
+                  <a {...routeDoor(chainDoorOf(step.opens))} data-testid="cnv-chain-step">
+                    <span>
+                      {step.words} <span className="cnv-chain-when">· {step.when}</span>
+                    </span>
+                    <Icon name="chevron" size={11} />
+                  </a>
+                ) : (
+                  <span data-testid="cnv-chain-step">
+                    {step.words} <span className="cnv-chain-when">· {step.when}</span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+          {chain.fine ? <p className="cnv-note">{chain.fine}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A group of people under its small heading, or nothing where it holds none; one who booked opens their chain. */
+function BroughtGroup({
+  title,
+  rows,
+  chains = new Map(),
+}: {
+  title: string;
+  rows: readonly BroughtSaid[];
+  chains?: ReadonlyMap<string, Chain>;
+}) {
   if (rows.length === 0) return null;
   return (
     <>
@@ -93,9 +190,14 @@ function BroughtGroup({ title, rows }: { title: string; rows: readonly BroughtSa
         {title} · {rows.length}
       </p>
       <div className="cnv-goes">
-        {rows.map((row) => (
-          <BroughtLine key={row.contactId} row={row} />
-        ))}
+        {rows.map((row) => {
+          const chain = chains.get(row.contactId);
+          return chain ? (
+            <BroughtChain key={row.contactId} row={row} chain={chain} />
+          ) : (
+            <BroughtLine key={row.contactId} row={row} />
+          );
+        })}
       </div>
     </>
   );
@@ -157,14 +259,91 @@ function PostLink({
   );
 }
 
-/** How it did, What it brought and its link, for a piece with a post up; nothing before then. */
-export function PieceResults({ fileId, upPostId }: { fileId: string; upPostId: string | null }) {
+/** The one line, its numbers set apart: on the piece's foot and in New ad's band (the canvas's Loop1). */
+export function ResultLine({ parts }: { parts: readonly ResultLinePart[] }) {
+  return (
+    <p className="cnv-res" data-testid="cnv-res">
+      <Icon name="chart" size={15} />
+      <span>
+        {parts.map((part, nth) =>
+          typeof part === "string" ? <Fragment key={nth}>{part}</Fragment> : <b key={nth}>{part.number}</b>,
+        )}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * What a piece's posts already did, in one line right above Run as an ad (the content loop's pass 6; the canvas's Loop1,
+ * approved by Ruben on 24 Nov 2026): read once a post of it went up, said in the past once it was taken down; nothing
+ * before one went up.
+ */
+export function PieceResultLine({
+  fileId,
+  upPostId,
+  down,
+}: {
+  fileId: string;
+  upPostId: string | null;
+  down: boolean;
+}) {
+  const { data } = usePieceResults(fileId, upPostId !== null);
+  const parts = upPostId && data ? pieceResultLineOf(data, { down }) : null;
+  return parts ? <ResultLine parts={parts} /> : null;
+}
+
+/**
+ * The people its post and its ads brought, each once, under what they wrote from first (pass 6; the canvas's Loop2): one
+ * who wrote from the ad first leaves the post's rows, one who wrote from the post first is not an ad's row. Everyone an
+ * ad brought first got in touch through it, so they are new to the business.
+ */
+function broughtApartOf(
+  data: PieceResultsRead,
+  brought: { newPeople: readonly BroughtSaid[]; known: readonly BroughtSaid[] },
+): { post: { newPeople: BroughtSaid[]; known: BroughtSaid[] }; ad: BroughtSaid[] } {
+  const postAt = new Map(data.people.map((person) => [person.contact_id, person.touched_at]));
+  const adPeople = data.ad_people ?? [];
+  const adFirst = new Set(
+    adPeople.filter((one) => (postAt.get(one.id) ?? one.first_at) > one.first_at).map((one) => one.id),
+  );
+  const keep = (rows: readonly BroughtSaid[]) => rows.filter((row) => !adFirst.has(row.contactId));
+  return {
+    post: { newPeople: keep(brought.newPeople), known: keep(brought.known) },
+    ad: adPeople
+      .filter((one) => !postAt.has(one.id) || adFirst.has(one.id))
+      .map((one) => ({ contactId: one.id, name: one.name, line: RESULTS_WORDS.fromAd(one.booked) })),
+  };
+}
+
+/**
+ * How it did, What it brought and its link, for a piece with a post up; nothing before then. Where it also ran as an ad,
+ * What it brought says the post and the ad apart (pass 6; the canvas's Loop2), each person once, under what they wrote
+ * from first.
+ */
+export function PieceResults({
+  fileId,
+  upPostId,
+  held,
+}: {
+  fileId: string;
+  upPostId: string | null;
+  held: PieceResultsHeld;
+}) {
   const titleId = useId();
-  const { data, again } = usePieceResults(fileId, upPostId !== null);
+  const { data, again } = held;
   if (!upPostId || !data) return null;
   const shown = pieceResultsSaid(data, viewerClockOf().zone);
   const how = shown.howItDid;
   const brought = shown.whatItBrought;
+  const people = broughtApartOf(data, brought);
+  const zone = viewerClockOf().zone;
+  const kind = (data.posts[0]?.kind ?? "picture") === "picture" ? "post" : (data.posts[0]?.kind ?? "post");
+  const chains = new Map(
+    data.people.flatMap((person) => {
+      const chain = broughtChainOf(person, kind, zone);
+      return chain ? [[person.contact_id, chain] as const] : [];
+    }),
+  );
   return (
     <section className="cnv-goes-part cnv-results" aria-labelledby={titleId} data-testid="cnv-results">
       <h3 className="cnv-sect" id={titleId}>
@@ -182,11 +361,14 @@ export function PieceResults({ fileId, upPostId }: { fileId: string; upPostId: s
       ))}
       {how.fine ? <p className="cnv-note">{how.fine}</p> : null}
       <h3 className="cnv-sect cnv-results-head">{RESULTS_WORDS.brought}</h3>
+      {data.ads && data.ads.length > 0 ? <p className="cnv-results-sub">{RESULTS_WORDS.fromPost}</p> : null}
       <p className="cnv-results-nums" data-testid="cnv-brought-head">
         {brought.head}
       </p>
-      <BroughtGroup title={RESULTS_WORDS.newPeople} rows={brought.newPeople} />
-      <BroughtGroup title={RESULTS_WORDS.known} rows={brought.known} />
+      <AdsBrought ads={data.ads} />
+      <BroughtGroup title={RESULTS_WORDS.newPeople} rows={[...people.post.newPeople, ...people.ad]} chains={chains} />
+      <BroughtGroup title={RESULTS_WORDS.known} rows={people.post.known} chains={chains} />
+      {people.ad.length > 0 ? <p className="cnv-note">{RESULTS_WORDS.once}</p> : null}
       <p className="cnv-note">{brought.fine}</p>
       <PostLink dto={data} fileId={fileId} postId={upPostId} onMade={again} />
     </section>

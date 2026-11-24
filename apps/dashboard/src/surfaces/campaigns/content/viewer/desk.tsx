@@ -18,7 +18,8 @@ import { NameField } from "../../../files/file-fields";
 import { CmPane } from "../../parts/split";
 import { useSave } from "../piece-foot";
 import { draftBody, draftFoot } from "../piece-presses";
-import { PieceResults } from "./results";
+import { PieceAdLines } from "./ads-on-piece";
+import { PieceResults, usePieceResults } from "./results";
 import { pieceNextOf } from "../model/piece-open";
 import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
@@ -362,6 +363,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 {presses.problem ?? save.said}
               </p>
             ) : null}
+            {standing.results}
             {removeAsk(hands) ?? (
               <ViewerActs
                 file={file}
@@ -402,6 +404,8 @@ function DeskSheetAtRest(props: {
 }) {
   const { hands } = props;
   const { presses, standing } = hands;
+  // One read of its results, for its ads' lines under Where it goes and its own part below (pass 6).
+  const held = usePieceResults(standing.results.fileId, standing.results.made);
   return (
     <>
       {presses.asking ? null : (
@@ -417,14 +421,18 @@ function DeskSheetAtRest(props: {
           {props.tell}
         </>
       )}
-      <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <WhereItGoes
+        lines={standing.lines}
+        on={standing.goes}
+        ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+      />
       <PieceVersions
         list={standing.version.list}
         instead={standing.version.instead}
         may={hands.may}
         busy={standing.goes.busy}
       />
-      <PieceResults {...standing.results} />
+      <PieceResults {...standing.results} held={held} />
       <ViewerFacts
         shown={props.details}
         may={hands.may}
