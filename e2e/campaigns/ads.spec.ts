@@ -19,7 +19,11 @@ import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/context";
  */
 const PEOPLE_READ = /\/api\/v1\/reports\/people\?/;
 
-/** The settings read says Ads is drawn here, or not, whatever the server answered. */
+/**
+ * The settings read says Ads is drawn here, or not, whatever the server answered: asked alone, and as its line where a
+ * page's first reads (GET open) or the rest of a load's (GET open/rest) come as one answer, a line a read
+ * (server/workspace/page-open.ts). Where a page reads settings in the rest, as Connections does, its own request is none.
+ */
 async function adsHere(page: Page, on: boolean) {
   await page.route("**/api/v1/settings?*", async (route) => {
     const res = await route.fetch();
@@ -27,6 +31,20 @@ async function adsHere(page: Page, on: boolean) {
     json.data.ads = on;
     await route.fulfill({ response: res, json });
   });
+  await page.route(
+    (url) => /^\/api\/v1\/open(\/rest)?$/.test(url.pathname),
+    async (route) => {
+      const res = await route.fetch();
+      const lines = (await res.text()).split("\n").map((raw) => {
+        if (!raw.trim()) return raw;
+        const line = JSON.parse(raw);
+        if (line.k !== "settings" || line.s !== 200 || !line.b?.data) return raw;
+        line.b.data.ads = on;
+        return JSON.stringify(line);
+      });
+      await route.fulfill({ response: res, body: lines.join("\n") });
+    },
+  );
 }
 
 /** What the page drew from its first script: every test id, as they first appear. */
