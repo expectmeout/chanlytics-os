@@ -610,6 +610,7 @@ export const LOG_EVENTS = [
   "playbooks_swept",
   "playbooks_yielded",
   "policy_block_price",
+  "post_gone",
   "post_held",
   "post_no_answer",
   "post_not_seen",

@@ -86,3 +86,14 @@ export async function tellTakeDownMoved(
     db,
   );
 }
+
+/**
+ * A post its place no longer holds, found by a read of its numbers (content/observe.ts): removed on the place itself,
+ * by its owner there or by the place. Told once, in the words a take-down that came through has, since the piece is
+ * down there all the same; it closes a "Delete it in" line of the piece's too. Never a failed job, as above.
+ */
+export async function tellPostGone(db: Db, post: PostRow): Promise<void> {
+  if (!isOneOf(POST_PLACES, post.place)) return;
+  const kept = { kept: true, fileId: post.file_id, place: post.place, down: [post.place] };
+  await tellTakeDownMoved(db, post.tenant_id, kept, { toOwner: false });
+}

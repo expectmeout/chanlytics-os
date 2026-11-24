@@ -189,6 +189,14 @@ test("a take-down says what the place said: asked, by hand with the place's link
   const gone = one({ ...up, status: "taken_down" }, down({ outcome: "done", finished_at: ago(0) }));
   assert.equal(gone.said, "Taken down · @18:00");
   assert.equal(gone.tone, "gone");
+  // Found gone at its place while the take-down still waited on its owner (deleted there, no "I deleted it" pressed):
+  // down is down, and nothing is left to press.
+  for (const outcome of ["needs_person", "pending"]) {
+    const foundGone = one({ ...up, status: "taken_down" }, down({ outcome, finished_at: ago(0) }));
+    assert.equal(foundGone.said, "Taken down");
+    assert.equal(foundGone.tone, "gone");
+    assert.deepEqual(foundGone.acts, []);
+  }
 });
 
 test("a post its owner chose to leave up says who kept it and when, in green, and nothing is to press for it", () => {
