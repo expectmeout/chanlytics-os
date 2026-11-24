@@ -27,6 +27,9 @@ import {
 import { bellFeed } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 
 const NOW = Date.parse("2026-10-11T18:00:00Z");
 const HOUR = 3_600_000;
@@ -377,12 +380,9 @@ test("a row the server closed reads as read and wears no warning, on every devic
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
-const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
 // until 11 Nov 2026): every bell here is a workspace whose team read landed with none open.
 setSurfaceValue("settings", settingsRead());
-const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const requests = [];
 const was = globalThis.window;
 globalThis.window = {
