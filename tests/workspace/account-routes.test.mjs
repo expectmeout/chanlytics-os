@@ -135,6 +135,8 @@ test("where you are: every workspace with who is signed in; the active one by ge
     tenants: tenants(),
     profiles: [{ user_id: USER, display_name: "Ada" }],
   };
+  // The invitations open to this address, whichever workspace's (team.ts hasOpenInvites, read as the service role): none.
+  setServiceClient(fakeDb({ invitations: [] }));
   const home = await workspaces.GET.run(get(), ctxFor(tables, {}, { platform_staff_state: () => "none" }));
   assert.deepEqual(
     home.workspaces.map((w) => w.name),
@@ -151,6 +153,8 @@ test("where you are: every workspace with who is signed in; the active one by ge
     partner: null,
     // No workspace handed to them (0016): handover.test.mjs proves one that is.
     handovers: [],
+    // No invitation open: the shell makes no accept (an-accept-is-asked-only-where-an-invitation-is-open.test.mjs).
+    invited: false,
   });
   const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { platform_staff_state: () => "none" }));
   assert.deepEqual(
@@ -180,6 +184,25 @@ test("where you are: every workspace with who is signed in; the active one by ge
   );
   const admin = await workspaces.GET.run(get(), ctxFor(tables, {}, { platform_staff_state: () => "owner" }));
   assert.equal(admin.user.platform_admin, true, "the nav's one bit rides along");
+  // Nowhere yet, with an invitation open to this address (and one to another, accepted and expired ones, none of them its):
+  // the list says so, and the shell's accept is the one that seats them.
+  const open = {
+    tenant_id: A,
+    role: "viewer",
+    accepted_at: null,
+    revoked_at: null,
+    expires_at: "2999-01-01T00:00:00Z",
+  };
+  setServiceClient(
+    fakeDb({
+      invitations: [
+        { ...open, id: "i1", email: "ada@example.com" },
+        { ...open, id: "i2", email: "bo@example.com" },
+        { ...open, id: "i3", email: "ada@example.com", accepted_at: "2026-09-03T00:00:00Z" },
+        { ...open, id: "i4", email: "ada@example.com", expires_at: "2026-01-01T00:00:00Z" },
+      ],
+    }),
+  );
   const nowhere = await workspaces.GET.run(
     get(),
     ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { platform_staff_state: () => "none" }),
@@ -199,8 +222,16 @@ test("where you are: every workspace with who is signed in; the active one by ge
       platform_admin: false,
       partner: null,
       handovers: [],
+      invited: true,
     },
   });
+  // The invitations unreadable: the list cannot say, and the shell accepts as it always did.
+  setServiceClient(fakeDb({ invitations: [] }, { "invitations.select": { message: "statement timeout" } }));
+  const unsure = await workspaces.GET.run(
+    get(),
+    ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { platform_staff_state: () => "none" }),
+  );
+  assert.equal(unsure.user.invited, null, "unreadable is neither yes nor no");
 });
 
 test("the zone: the owner's, the workspace named, checked against Intl, and a change that landed on no row is a refusal rather than a success", async () => {

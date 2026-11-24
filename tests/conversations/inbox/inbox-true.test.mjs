@@ -89,6 +89,22 @@ const asked = (over = {}) => ({
 });
 const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installStubReact({
+  __chrome: { state: stateOf },
+  __identity: { member: memberWords },
+  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
+  __surfaceState: () => "live",
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
+(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+const { InboxThread } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
+
 /* ------------------------------- the view model ------------------------------- */
 
 test("a teammate's name on a thread nobody flagged is not a claim: the thread is quiet, and says who had the last word", () => {
@@ -266,22 +282,6 @@ test("an email's hold says its line, and what the email claimed to be in the rea
 });
 
 /* ------------------------------ the pane, drawn ------------------------------ */
-
-const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installStubReact({
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  setTimeout: () => 1,
-  clearTimeout() {},
-  setInterval: () => 1,
-  clearInterval() {},
-});
-after(() => Object.assign(globalThis, timers));
-// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-const { InboxThread } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;

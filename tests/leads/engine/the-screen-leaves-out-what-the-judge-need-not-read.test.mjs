@@ -29,6 +29,9 @@ import { INPUT_TOKENS, JEV, aKey, failing, jev } from "../../ai/_system-one-worl
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "TYPESAFE_API_KEY", "TYPESAFE_SCREEN", "TYPESAFE_SHADOW"])
   delete process.env[k];
+const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
+const { screened } = await import(at("apps/edge/lib/leads/screen.ts"));
 
 /** A choice as Jev answers it: the option, and how sure. */
 const choice = (option, confidence) => ({ type: "choice", choice: option, probabilities: {}, confidence });
@@ -207,9 +210,6 @@ test("a screen that is off, leaves nothing out or throws changes nothing: the ju
 
 /* ------------------------------------------------------------------ the edge */
 
-const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
-const { screened } = await import(at("apps/edge/lib/leads/screen.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);

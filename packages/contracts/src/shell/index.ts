@@ -170,7 +170,9 @@ export type { ReportedError, ReportKind } from "./report-problem";
 export { ReportProblemInput } from "./report-problem-schema";
 export type { ReportProblemInputDto } from "./report-problem-schema";
 export {
+  OPEN_READ_PATHS,
   OPENING_MARK,
+  openReadPathOf,
   openReads,
   PREFETCH_BESIDE,
   PREFETCH_OPEN,

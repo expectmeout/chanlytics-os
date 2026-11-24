@@ -120,6 +120,37 @@ const saveEs = tpl("save_our_number", {
 });
 const welcome = tpl("welcome_new", { variables: valued("Dani", "Luna Studio", "https://booksy.com/luna-studio") });
 
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installStubReact({
+  location: {
+    pathname: "/w/marisas",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "t1",
+  __chrome: { state: stateOf },
+  __identity: { member: memberWords },
+  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
+  __surfaceState: () => "live",
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
+});
+globalThis.document.visibilityState = "hidden";
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pages spread and call (gate, the toast, canDo), as the app publishes them.
+(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+const S = "../../../apps/dashboard/src/surfaces";
+const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
+const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
+const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+
 /* ------------------------------ the contracts ------------------------------ */
 
 test("the templates a person can be sent: every slot a fact the Inbox has, a promotion only to someone who said yes to offers -- in the owner's words, with why the rest are not offered", () => {
@@ -395,36 +426,6 @@ test("the thread knows what the composer needs: whether they said yes to offers,
 
 /* -------------------------------- a browser -------------------------------- */
 
-const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installStubReact({
-  location: {
-    pathname: "/w/marisas",
-    hash: "",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  setTimeout: () => 1,
-  clearTimeout() {},
-  setInterval: () => 1,
-  clearInterval() {},
-});
-globalThis.document.visibilityState = "hidden";
-after(() => Object.assign(globalThis, timers));
-// The shell's own helpers the pages spread and call (gate, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-const S = "../../../apps/dashboard/src/surfaces";
-const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
-const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
-const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
-const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 /**
  * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
  * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
