@@ -22,8 +22,9 @@
  * is the folder they are read from (`path.join(ROOT, "tests/content")`, in place or as a constant of the file). The
  * string is read as the module it is, and each line is an import of the test's. On 17 Nov 2026 seven tests bundled so
  * and imported nothing of what they drew: #2408 changed Campaigns' strip, ran none of them, and left the Content
- * page's red on main. A string or a folder that cannot be folded is said (`unread`), and changed-tests.test.mjs fails
- * it, so such a test is never again one no pull request runs.
+ * page's red on main. A string or a folder that cannot be folded, a `stdin` handed as anything but such an object, and
+ * one that names no folder are said (`unread`), and changed-tests.test.mjs fails it, so such a test is never again one
+ * no pull request runs.
  *
  * What it does not see, so changed-tests.mjs keeps it: a module only evaluated, never named (a bundle evaluates every
  * module of its package, and one that throws at load breaks every test of the package; the typecheck and the nightly
@@ -171,18 +172,13 @@ function constsOf(sf) {
   return consts;
 }
 
-/** The source a bundler is handed in place of a file: esbuild's `stdin: { contents, … }`. */
-const isStdin = (node) =>
-  ts.isPropertyAssignment(node) &&
-  ts.isIdentifier(node.name) &&
-  node.name.text === "stdin" &&
-  ts.isObjectLiteralExpression(node.initializer);
-
-/** What an object literal gives as the property of this name, or null. */
+/** What an object literal gives as the property of this name (the name itself where written `{ contents }`), or null. */
 function givenAs(object, name) {
-  for (const p of object.properties)
+  for (const p of object.properties) {
+    if (ts.isShorthandPropertyAssignment(p) && p.name.text === name) return p.name;
     if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === name)
       return p.initializer;
+  }
   return null;
 }
 
@@ -197,6 +193,19 @@ function declaredAs(sf, name) {
   };
   visit(sf);
   return found;
+}
+
+/**
+ * The source a bundler is handed in place of a file, esbuild's `stdin: { contents, … }`: the object, written in place
+ * or once as a constant of the file. Undefined where the node hands none; null where it hands one this cannot read (a
+ * helper's parameter, `{ stdin }`, or a call), which is said unread rather than passed over.
+ */
+function stdinOf(node, sf) {
+  if (!ts.isPropertyAssignment(node) && !ts.isShorthandPropertyAssignment(node)) return undefined;
+  if (!(ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) || node.name.text !== "stdin") return undefined;
+  const given = ts.isShorthandPropertyAssignment(node) ? node.name : node.initializer;
+  const object = ts.isIdentifier(given) ? declaredAs(sf, given.text) : given;
+  return object && ts.isObjectLiteralExpression(object) ? object : null;
 }
 
 /**
@@ -217,13 +226,16 @@ function folderSaid(node, consts, sf) {
 /**
  * What a test bundles from a string: the object it hands esbuild as `stdin`, whose `contents` is import and export
  * lines and whose `resolveDir` is the folder they are read from. The string is read as the module it is, and each line
- * is an import of the test's, asked `from` that folder. Null where the string or the folder cannot be folded.
+ * is an import of the test's, asked `from` that folder. Null where the string or the folder cannot be folded, or no
+ * folder is named: esbuild then reads the lines from wherever the run stands, which is not the test's to say.
  */
 function bundledBy(stdin, consts, sf) {
+  // What a spread puts in the object is not read here: its lines and its folder may be anything.
+  if (stdin.properties.some((p) => ts.isSpreadAssignment(p))) return null;
   const contents = givenAs(stdin, "contents");
   const resolveDir = givenAs(stdin, "resolveDir");
-  // With no folder to read them from, esbuild resolves none of the lines either.
-  if (!contents || !resolveDir) return [];
+  if (!contents) return [];
+  if (!resolveDir) return null;
   const text = folded(contents, consts);
   const folder = folderSaid(resolveDir, consts, sf);
   if (text === null || folder === null) return null;
@@ -257,6 +269,7 @@ function scanModule(file, text) {
   const consts = byName ? constsOf(sf) : new Map();
   const specifiers = new Set();
   const visit = (node) => {
+    const stdin = byName ? stdinOf(node, sf) : undefined;
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       if (node.moduleSpecifier) specifiers.add(node.moduleSpecifier);
     } else if (ts.isCallExpression(node) && node.arguments.length) {
@@ -266,8 +279,8 @@ function scanModule(file, text) {
         m.body.push({ spec, names: isImport ? askedOf(node) : null });
         specifiers.add(node.arguments[0]);
       }
-    } else if (byName && isStdin(node)) {
-      const lines = bundledBy(node.initializer, consts, sf);
+    } else if (stdin !== undefined) {
+      const lines = stdin && bundledBy(stdin, consts, sf);
       if (lines) m.body.push(...lines);
       else m.unread = true;
     } else if (byName && !specifiers.has(node) && (textOf(node) !== null || ts.isTemplateExpression(node))) {

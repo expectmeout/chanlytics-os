@@ -186,6 +186,19 @@ const BUNDLING = {
     "const NOTE = 'export { Badge } from \"../../apps/dashboard/src/badge.tsx\";\\n';",
     'const out = await build({ stdin: { contents: lines().join("\\n"), resolveDir: path.join(ROOT, "tests/bundled") } });',
   ].join("\n"),
+  "apps/dashboard/src/chip.tsx": "export const Chip = () => null;",
+  // The object said once as a constant of the file, its lines by a name of the file's.
+  [`${T}/bundled/given.test.mjs`]: [
+    "const contents = 'export { Chip } from \"../../apps/dashboard/src/chip.tsx\";\\n';",
+    'const STDIN = { contents, resolveDir: path.join(ROOT, "tests/bundled") };',
+    "const out = await build({ stdin: STDIN });",
+  ].join("\n"),
+  // Unread too: an object a helper is handed, one a spread fills, and lines with no folder to read them from.
+  [`${T}/bundled/helper.test.mjs`]: "export const bundle = (stdin) => build({ stdin, bundle: true });",
+  [`${T}/bundled/spread.test.mjs`]:
+    "const out = await build({ stdin: { ...BASE, contents: 'export { Chip } from \"../../apps/dashboard/src/chip.tsx\";\\n' } });",
+  [`${T}/bundled/nowhere.test.mjs`]:
+    "const out = await build({ stdin: { contents: 'export { Chip } from \"../../apps/dashboard/src/chip.tsx\";\\n' } });",
 };
 const BUNDLED = reachOf({ files: Object.keys(BUNDLING), read: (f) => BUNDLING[f] ?? "" });
 /** What a change reaches of the tests that bundle, each by its name in tests/bundled and its distance. */
@@ -211,11 +224,14 @@ test("the string's lines are read from the folder the test hands the bundler, wh
   // tests/bundled/deep's test says `../../apps/…` from tests/bundled: from its own folder that path names nothing.
   assert.equal(bundles("apps/dashboard/src/page.ts")["deep/probe.test.mjs"], 1);
   assert.deepEqual(bundles("tooling/harness/entries.tsx"), { "harness.test.mjs": 1 }, "a constant of the file");
+  assert.deepEqual(bundles("apps/dashboard/src/chip.tsx"), { "given.test.mjs": 1 }, "the object as a constant");
 });
 
-test("a string no bundler is handed reaches nothing, and a test whose lines are built as it runs is said unread", () => {
+test("a string no bundler is handed reaches nothing, and a bundle this cannot read is said unread, never passed over", () => {
   assert.deepEqual(bundles("apps/dashboard/src/badge.tsx"), {});
-  assert.deepEqual(BUNDLED.unread, [`${T}/bundled/unread.test.mjs`]);
+  // Lines built as it runs, an object a helper is handed, one a spread fills, and lines read from no folder named.
+  const unread = ["helper", "nowhere", "spread", "unread"].map((n) => `${T}/bundled/${n}.test.mjs`);
+  assert.deepEqual(BUNDLED.unread, unread);
 });
 
 test("REGRESSION: a test that bundles its sources from a string runs for a module the string names (#2408, 17 Nov 2026)", () => {
@@ -229,6 +245,11 @@ test("REGRESSION: a test that bundles its sources from a string runs for a modul
     "apps/dashboard/src/surfaces/files/sending.ts": "files/photos-on-their-way.test.mjs",
     "apps/dashboard/src/surfaces/preview/heard.tsx": "previews/preview-page.test.mjs",
     "tooling/scripts/e2e-harness/kit-behaves-entries.tsx": "styles/kit-behaves.test.mjs",
+    // Four more bundled so by 24 Nov 2026: Content's results, and three of Forms'.
+    "apps/dashboard/src/surfaces/campaigns/content/viewer/results.tsx": "content/results/the-loop-is-drawn.test.mjs",
+    "apps/dashboard/src/surfaces/campaigns/forms/no-email.tsx": "forms/a-form-says-where-email-cannot-go.test.mjs",
+    "apps/dashboard/src/surfaces/campaigns/forms/share-part.tsx": "forms/an-owner-s-test-is-a-test.test.mjs",
+    "apps/dashboard/src/surfaces/inbox/request/time.tsx": "forms/time/a-time-is-answered-on-its-request.test.mjs",
   };
   for (const [changed, t] of Object.entries(BUNDLES))
     assert.equal(REACH.testsReaching([changed]).get(`${T}/${t}`), 1, `${changed}: ${t}`);
