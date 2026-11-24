@@ -69,10 +69,10 @@ what the script writes.
 | [`files`](#files) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_days`](#form_days) | none | on, 1 policy |
-| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/outside.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
-| [`form_sites`](#form_sites) | none | on, 1 policy |
+| [`form_sites`](#form_sites) | `packages/db/src/repositories/forms/outside.ts` | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
 | [`forms`](#forms) | `packages/db/src/repositories/forms/forms.ts` | on, 4 policies |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
@@ -116,7 +116,7 @@ what the script writes.
 | [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/ops/pages.ts` | on, no policy, so only the service role reaches it |
-| [`outside_forms`](#outside_forms) | none | on, 1 policy |
+| [`outside_forms`](#outside_forms) | `packages/db/src/repositories/forms/outside.ts` | on, 1 policy |
 | [`owner_claims`](#owner_claims) | `packages/db/src/repositories/files/claims.ts` | on, 1 policy |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
@@ -1910,7 +1910,7 @@ Foreign keys:
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
 
-- Owned by: `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/outside.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2022,7 +2022,7 @@ Foreign keys:
 
 A website a business sends form entries from (00709; Campaigns in three tabs, Lane B): the name the owner gave it with its first key, its host as its entries' pages name it, when its first and last real entry came, and when a test last came. Its keys name it (form_keys.site_id), so a key changed keeps the site. Members read them; form_key_make makes one, and form_entry_take stamps it.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/forms/outside.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3438,7 +3438,7 @@ Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backl
 
 A form owned elsewhere (00709; Campaigns in three tabs, Lane B): a website's own form now, Meta's lead forms later. Its site, a request or a sign-up, the site's own stable id for it, the name the site last sent and the owner's own, listed or hidden (hidden never stops its entries), from when its entries are requests (requests_from), and its first and last entry. One per workspace, site, kind of form and id, so a form renamed on the site keeps its history. Members read them; form_entry_take makes them, and outside_form_rename and outside_form_listed are a member's.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/forms/outside.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
