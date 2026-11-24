@@ -348,11 +348,15 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // (#852). What Today must never be quiet about is the failure itself: since Today in three zones (2 Nov 2026) a reply
       // of yours that never left is yours to answer (today/facts.ts YOURS_STILL_WAIT), one row of Need you with its words
       // kept and Try again, and nothing under the head. Try again is not pressed here: it sends.
-      const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
-      await expect(row).toHaveCount(1);
-      await expect(row).toContainText("Your reply didn't reach them");
-      // Its verb on the row, or in its work where it is the row opened.
-      await expect(row.getByRole("button", { name: "Try again" }).first()).toBeVisible();
+      // Since Today, calm (19-21 Nov 2026), who waits is a line of Need you, and the first the page's card with its work: the
+      // words kept and Try again. A line that is not the card opens its work where it is pressed.
+      const line = queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name });
+      await expect(line).toHaveCount(1);
+      await expect(line).toContainText("Your reply didn't reach them");
+      const tryAgain = page.getByRole("button", { name: "Try again" });
+      if ((await page.getByTestId("today-card").filter({ hasText: ROBIN.name }).count()) === 0)
+        await line.getByRole("button").first().click();
+      await expect(tryAgain.first()).toBeVisible();
       await expect(page.getByTestId("today-failed-reply")).toHaveCount(0);
     });
 

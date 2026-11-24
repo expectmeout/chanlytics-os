@@ -345,7 +345,7 @@ test("a screen that keeps no copy says why in the copy's place: scrolled, typed 
     open: () => holding('[aria-modal="true"]'),
     typed: () => {
       const none = SCREEN.querySelectorAll;
-      SCREEN.querySelectorAll = (selectors) => (selectors.includes("textarea") ? [{ value: "ana" }] : []);
+      SCREEN.querySelectorAll = (selectors) => (selectors.includes('input[type="search"]') ? [{ value: "ana" }] : []);
       return () => (SCREEN.querySelectorAll = none);
     },
     long: () => {
@@ -369,6 +369,39 @@ test("a screen that keeps no copy says why in the copy's place: scrolled, typed 
     assert.equal(copiesKept().length, 1, "the same screen at rest keeps one, in the word's place");
     assert.equal(whyUnkept(), undefined);
   }
+});
+
+test("words the page wrote in a box are its own first screen; words a person is still typing are not", () => {
+  stand(null);
+  fresh();
+  installFirstRows(globalThis);
+  // Today's card offers AI's draft in its box (or a reply that never left, kept for Try again): no search narrows the page,
+  // and nothing has the keys. Counted as typed, Today kept no copy wherever its card offered one (20 Nov 2026).
+  const none = SCREEN.querySelectorAll;
+  // The box, to whatever asks the screen for its boxes with words in them; nothing else on the screen.
+  SCREEN.querySelectorAll = (selectors) => (selectors.includes("textarea") ? [{ value: "Checking in" }] : []);
+  onDevice.clear();
+  putAway();
+  assert.equal(copiesKept().length, 1, "a draft the page wrote is kept with the screen");
+
+  // The same box with the keys and words in it: a person in the middle of a reply.
+  const box = { tagName: "TEXTAREA", value: "Checking in, and" };
+  globalThis.document.activeElement = box;
+  SCREEN.contains = (el) => el === box;
+  onDevice.clear();
+  putAway();
+  assert.equal(whyUnkept(), "typed");
+  assert.deepEqual(copiesKept(), []);
+
+  // A switch with the keys holds a value of the page's, never words.
+  globalThis.document.activeElement = { tagName: "INPUT", type: "checkbox", value: "on" };
+  SCREEN.contains = () => true;
+  onDevice.clear();
+  putAway();
+  assert.equal(copiesKept().length, 1, "a switch pressed last is no typing");
+  delete globalThis.document.activeElement;
+  delete SCREEN.contains;
+  SCREEN.querySelectorAll = none;
 });
 
 test("a copy that may still be drawn is never given up for a word", () => {
