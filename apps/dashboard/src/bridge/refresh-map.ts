@@ -568,6 +568,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // The Week and Settings › Content (00706): what a press there changes is the week's, and Made's once it is made.
   "POST content/plan": weekIfDrawn,
   "POST content/plan/approve": weekAndContentIfDrawn,
+  // Stop it (00714): the Week's head asks again; Today's note reads itself as the day moves.
+  "POST content/plan/stop": weekIfDrawn,
   "POST content/plan/slots": weekAndContentIfDrawn,
   "POST content/claims": weekIfDrawn,
   "DELETE content/claims": weekIfDrawn,

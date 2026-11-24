@@ -234,7 +234,7 @@ export { composeSystemPrompt, describeNow, noteAsTold, notesInForce, PROMPT_OPEN
 export { ASK_GOAL_MAX, DAY_NAMES, dayProblems, DAYS, GUARDRAIL_KEYS, guardrailsInForce, INSTRUCTIONS_MAX, isE164, isRealDate, isReplyOffer, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, PROFILE_LIMITS, REACH_OUT_LIMITS, REPLY_OFFERS, BOOKING_RULE_BOUNDS } from "./config/workspace-config/config-rules";
 export { EARLIER_FALLBACK_DEFAULTS, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FALLBACK_ROWS, fallbackMessages, isProductFallback, unknownDetails } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
-export { bookingHeld, HELD_DRAFTS_DAYS, heldDraftsByClass, heldDraftsLine, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_CLASSES, POLICY_COVERS, POLICY_MODE_WORDS, POLICY_MODES, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassQuestion, policyModeOffered, policyModeRefusal, policyRules } from "./config/workspace-config/policy-classes";
+export { bookingHeld, CONTENT_POLICY_CLASSES, HELD_DRAFTS_DAYS, heldDraftsByClass, heldDraftsLine, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_CLASSES, POLICY_COVERS, POLICY_MODE_WORDS, POLICY_MODES, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassQuestion, policyModeOffered, policyModeRefusal, policyRules } from "./config/workspace-config/policy-classes";
 export { allowedPrices, ownersSayings, priceAllowance } from "./config/workspace-config/price-allowance";
 export { hoursRuns } from "./config/workspace-config/prompt-hours";
 export { applyReachOutChange, ASK_REACH_OUT_ROWS, describeReachOutChange, isReachOutChange, writeReachOutKey } from "./config/workspace-config/reach-out-change";
@@ -291,6 +291,7 @@ export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_D
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/placements/take-down-late";
 export { takeDownSpec } from "./content/placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./content/plan/claims";
+export { CALLS_A_WEEK_MADE, MAKING_CALLS_A_SECOND, RUNG_SUGGESTION_USE, rungSuggestionOf, SECONDS_A_WEEK_MADE, WEEK_MADE_AHEAD_MS, WEEK_MAKING_LEASE_S, WEEK_MAKING_QUEUE, weekGoesAtOf, WEEKS_MAKING_AT_ONCE } from "./content/plan/held-week";
 export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./content/plan/patterns";
 export { REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf, reviewAskWordsOf } from "./content/plan/review-ask";
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";

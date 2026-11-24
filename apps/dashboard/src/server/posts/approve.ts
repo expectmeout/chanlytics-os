@@ -8,6 +8,11 @@
  * length, codec and sound; contracts content/making/renditions.ts), before anything is kept. One door writes it all, in one
  * transaction (00713 post_approve_whole): the facts the owner stated, the piece's words, and the approval; a door that refuses
  * keeps none of it. An owner's own words are never judged by a guess: what they type and press is theirs.
+ *
+ * AI's approval under the owner's rung (00714) has no member to sign it in: a week's placements are readied (prepareApproval:
+ * every check, its drawn piece's words kept) and each is placed with its slot in one write, by the 8:00 approval's own door
+ * for what was readied overnight and by plan_slot_place for what is made after (placeSlotAsAI). One post a slot, however often
+ * its making is asked.
  */
 import "server-only";
 import { createHash } from "node:crypto";
@@ -29,11 +34,21 @@ import {
   type RenditionShape,
   type SnapshotRendition,
   type TenantId,
+  type POST_VIAS,
 } from "@chanlytics/contracts";
 import { measureMedia } from "@chanlytics/channels/files";
-import { approvePostsWhole, type FileMemberRow, type PostsApproved } from "@chanlytics/db/files";
+import {
+  approvePostsWhole,
+  keepClaim,
+  keepPieceWords,
+  placeSlot,
+  type ApproveFate,
+  type FileMemberRow,
+  type PostsApproved,
+} from "@chanlytics/db/files";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { Json } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
@@ -49,7 +64,8 @@ interface ApprovalAsked {
   placements: PlacementAsked[];
   intent: PieceIntent | null;
   facts: OwnersFact[];
-  via: "press" | "card";
+  /** A person's press, their Approve on AI's card, or AI under the owner's rung (00714: the door takes rung from the service alone). */
+  via: (typeof POST_VIAS)[number];
   /** Whether each place's connection takes a post now (the caller read it). */
   connections: Readonly<Partial<Record<PostPlace, InstagramPostable>>>;
   /**
@@ -95,28 +111,35 @@ const factClaims = (facts: readonly OwnersFact[]) =>
   facts.map((fact) => ({ kind: "fact" as const, text: fact.says, source: "said" as const, valid_until: fact.until }));
 
 /** A door's answer that approved nothing, in the owner's words. */
-function refusedFate(answer: PostsApproved): AppError {
-  if (answer.fate === "busy") return new AppError("conflict", ON_INSTAGRAM.busy, 409);
-  if (answer.fate === "gone") return new AppError("not_found", ON_INSTAGRAM.gone, 404);
-  if (answer.fate === "not_a_post") return new AppError("validation", ON_INSTAGRAM.notAPost);
-  if (answer.fate === "wrong_kind") return new AppError("validation", ON_INSTAGRAM.wrongKind);
-  if (answer.fate === "changed") return new AppError("conflict", ON_INSTAGRAM.held.changed, 409);
+function refusedFate(fate: ApproveFate): AppError {
+  if (fate === "busy") return new AppError("conflict", ON_INSTAGRAM.busy, 409);
+  if (fate === "gone") return new AppError("not_found", ON_INSTAGRAM.gone, 404);
+  if (fate === "not_a_post") return new AppError("validation", ON_INSTAGRAM.notAPost);
+  if (fate === "wrong_kind") return new AppError("validation", ON_INSTAGRAM.wrongKind);
+  if (fate === "changed") return new AppError("conflict", ON_INSTAGRAM.held.changed, 409);
   return new AppError("validation", CONTENT_CHECK_WORDS.afterItsDay);
 }
 
 /** The words a placement goes with: none for a story, else what was written, trimmed. */
 const placementWordsOf = (p: PlacementAsked): string | null => (p.kind === "story" ? null : p.caption?.trim() || null);
 
+/** What the approving door takes (post_approve's p_approval) and the words it changes, read and held before anything is kept. */
+interface ApprovalRead {
+  body: object;
+  /** The piece's words from now on, where they change; null where they are its own already. */
+  words: string | null;
+}
+
 /**
- * The approval: the checks, the words kept, the shapes' bytes read and summed, then the one door. Answers what the door
- * wrote, or throws the owner's words for what stands in the way; nothing is kept or written for a press that is refused.
+ * The approval read: the checks, the shapes' bytes read and summed, the words held to what the piece takes, and what the door
+ * takes. Throws the owner's words for what stands in the way; nothing is kept.
  */
-export async function approvePlacements(
+async function readApproval(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   approval: ApprovalAsked,
-): Promise<PostsApproved> {
+): Promise<ApprovalRead> {
   const zone = member.facts?.timezone ?? "UTC";
   const refused = await readPlacementRefusals(ctx.supabase, {
     tenantId: member.tenantId,
@@ -142,8 +165,8 @@ export async function approvePlacements(
     const refusal = shape ? renditionRefusalOf(p.place, p.kind, shape.measured) : null;
     if (refusal) throw new AppError("validation", refusal.words);
   }
-  // The words that go are the piece's own from now on, held now to what it takes (posts/caption.ts readWordsToKeep) and
-  // kept by the door with the approval.
+  // The words that go are the piece's own from now on, held now to what it takes (posts/caption.ts readWordsToKeep): kept
+  // by the owner's door with the approval, or as AI's is readied (prepareApproval).
   const placementWords = approval.placements.map(placementWordsOf).find((w) => w !== null);
   const words = placementWords ? await readWordsToKeep(ctx, member, row, placementWords) : null;
   const goodUntil = goodUntilOf(approval.intent, zone);
@@ -167,22 +190,81 @@ export async function approvePlacements(
     spend: null,
     facts: [],
   };
+  const body = {
+    snapshot,
+    intent: approval.intent,
+    renditions: shapes.map(({ shape, path, checksum, bytes }) => ({ shape, path, checksum, bytes })),
+    placements: approval.placements.map((p) => ({
+      place: p.place,
+      kind: p.kind,
+      at: p.when,
+      caption: placementWordsOf(p),
+      good_until: goodUntil,
+      capability_edition: PLACE_CAPABILITIES[p.place].edition,
+    })),
+    via: approval.via,
+  };
+  return { body, words };
+}
+
+/** How it was made says the same words from now on (Details, AI's card), the service role's to write: logged where it could not be. */
+async function keepWordsMade(member: Member, row: FileMemberRow, words: string | null): Promise<void> {
+  if (words !== null)
+    await keepMadeWords(member, row, words).catch(logAndGoOn("a post's words kept on how it was made", false));
+}
+
+/**
+ * AI's approval readied (00714), for a door that keeps neither facts nor words: the 8:00 approval's, which places each slot
+ * readied overnight, and plan_slot_place's for what is made after. Its facts and its drawn piece's words are kept now, as the
+ * owner's press keeps them with its approval; what the door takes is answered. Throws the owner's words for what stands in
+ * the way.
+ */
+export async function prepareApproval(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  approval: ApprovalAsked,
+): Promise<Json> {
+  const { body, words } = await readApproval(ctx, member, row, approval);
+  for (const claim of factClaims(approval.facts)) await keepClaim(ctx.supabase, member.tenantId, claim);
+  if (words !== null) await keepPieceWords(ctx.supabase, { tenantId: member.tenantId, fileId: row.id, caption: words });
+  await keepWordsMade(member, row, words);
+  return jsonCopyOf(body);
+}
+
+/**
+ * AI's placement of a week's slot under the owner's rung (00714 plan_slot_place): the slot's post and the slot's link to it in
+ * one write, so a making asked twice, or two at once, place a slot once. Answers whether it was placed now (`placed`), has
+ * its post already or is no longer AI's (`taken`), or its time has come (`past`); throws the owner's words for a refusal.
+ */
+export async function placeSlotAsAI(
+  ctx: RouteContext,
+  member: Member,
+  slot: { id: string; fileId: string; approval: Json },
+): Promise<"placed" | "taken" | "past"> {
+  const fate = await placeSlot(ctx.supabase, member.tenantId, slot);
+  if (fate === "approved") return "placed";
+  if (fate === "taken" || fate === "past") return fate;
+  throw refusedFate(fate);
+}
+
+/**
+ * The approval, then the one door: the owner's press whole (00713 post_approve_whole), the facts they stated, the piece's
+ * words and the approval or none of it. Answers what the door wrote, or throws the owner's words for what stands in the way.
+ * AI's under the rung never comes here: it is readied (prepareApproval) and placed with its slot (placeSlotAsAI).
+ */
+export async function approvePlacements(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  approval: ApprovalAsked & { via: "press" | "card" },
+): Promise<PostsApproved> {
+  const { body, words } = await readApproval(ctx, member, row, approval);
   const answer = await approvePostsWhole(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,
     approval: jsonCopyOf({
-      snapshot,
-      intent: approval.intent,
-      renditions: shapes.map(({ shape, path, checksum, bytes }) => ({ shape, path, checksum, bytes })),
-      placements: approval.placements.map((p) => ({
-        place: p.place,
-        kind: p.kind,
-        at: p.when,
-        caption: placementWordsOf(p),
-        good_until: goodUntil,
-        capability_edition: PLACE_CAPABILITIES[p.place].edition,
-      })),
-      via: approval.via,
+      ...body,
       // A fact the owner stated is kept as their own claim (owner_claims, 00706; PRD 6.1), valid until its day ends: the
       // send's check reads it there, and an approval no longer carries it.
       claims: factClaims(approval.facts),
@@ -190,10 +272,8 @@ export async function approvePlacements(
       ...(approval.replace ? { replace: true, expected: approval.replace.expected } : {}),
     }),
   });
-  if (answer.fate !== "approved") throw refusedFate(answer);
-  // How it was made says the same words from now on (Details, AI's card), the service role's to write. The approval and the
-  // piece's words are kept already, so one that could not be written is logged and the press stands.
-  if (words !== null)
-    await keepMadeWords(member, row, words).catch(logAndGoOn("a post's words kept on how it was made", false));
+  if (answer.fate !== "approved") throw refusedFate(answer.fate);
+  // The approval and the piece's words are kept already, so made words that could not be written are logged and the press stands.
+  await keepWordsMade(member, row, words);
   return answer;
 }

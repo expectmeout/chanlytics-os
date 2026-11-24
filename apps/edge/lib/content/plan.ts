@@ -5,7 +5,7 @@
  * and how often, the footage the business added and what went out in the last three weeks; plans the week (core planWeek);
  * keeps the moments of the clips it picked where none are kept (PRD 10.3, from the look's own moments: no model asked);
  * has AI word the week in one call (week-words.ts), each creative's words held to the one claims rule; writes the week
- * ready; and tells the owner (plan-notices.ts). Nothing is made: a week's posts are made after its approval (Ruben, 23 Nov
+ * ready; holds it to its time where the owner let AI approve the week (week-go.ts); and tells the owner (plan-notices.ts). Nothing is made: a week's posts are made after its approval (Ruben, 23 Nov
  * 2026), so a week nobody approves costs its words alone. A plan no longer drafting is left as it is, so a try again is
  * safe.
  */
@@ -52,9 +52,11 @@ import { findWorkspaceZone, getTenantConfig } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
+import { logAndGoOn } from "@chanlytics/log";
 import { FOOTAGE_DAYS, readOpportunityFacts } from "../opportunities/book.js";
 import { logger } from "../shared/log.js";
 import { notifyWeek } from "./plan-notices.js";
+import { holdReadyWeek, type WeekGoes } from "./week-go.js";
 import { creativesAsked, ownerWordsOf, slotsWithWords, writeWeekWords, type WordsWriter } from "./week-words.js";
 
 type Db = SupabaseClient<Database>;
@@ -231,5 +233,10 @@ export async function planTheWeek(
     opportunities: week.opportunities.length,
     patterns: week.patterns.filter((p) => p.level !== "too_little").length,
   });
-  await notifyWeek(db, { tenantId, planId: plan.id, weekOf: plan.week_of, zone: week.zone, slots, asks });
+  // Under a rung that lets AI approve the week, it is held to its time (00714): 8:00 AM, or now where it sends it.
+  // A hold that fails leaves the week waiting for the owner's press, as a week that asks does, and the owner is told.
+  const held = await holdReadyWeek(db, { tenantId, planId: plan.id, zone: week.zone, nowMs }).catch(
+    logAndGoOn<WeekGoes>("holding a ready week to its time", "asks"),
+  );
+  await notifyWeek(db, { tenantId, planId: plan.id, weekOf: plan.week_of, zone: week.zone, slots, asks, held });
 }

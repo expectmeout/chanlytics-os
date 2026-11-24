@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   isOneOf,
+  CONTENT_POLICY_CLASSES,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
@@ -48,6 +49,8 @@ async function proposePolicy(
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
   if (cls === "outreach") return refuse("a cold email's runs are set where cold emails are made, not here");
+  // Content's rows (00714): only the owner moves a rung, on the Autonomy pane, where AI suggests one with its record.
+  if (isOneOf(CONTENT_POLICY_CLASSES, cls)) return refuse("content's rows are set by the owner on the Autonomy page");
   if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
   const notOffered = mode ? policyModeRefusal(cls, mode as PolicyMode) : null;
@@ -96,7 +99,9 @@ export const autonomyAction = actAction({
   input: z.object({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
     class: z
-      .enum(POLICY_CLASSES.filter((c) => c !== "outreach") as [string, ...string[]])
+      .enum(
+        POLICY_CLASSES.filter((c) => c !== "outreach" && !isOneOf(CONTENT_POLICY_CLASSES, c)) as [string, ...string[]],
+      )
       .describe("The class of message."),
     mode: z
       .enum(POLICY_MODES)

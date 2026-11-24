@@ -13,6 +13,7 @@
  */
 import { useState, type ReactNode, type ComponentProps } from "react";
 import {
+  CONTENT_POLICY_CLASSES,
   MIN_MS,
   REPLY_DELAY_DEFAULT_MS,
   budgetDial,
@@ -32,6 +33,7 @@ import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
+import { contentGroupOf } from "./content-rows";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { stopLineOf, stopSaid, stoppedAdsLineOf, type StoppedAd } from "./stop-words";
@@ -218,6 +220,8 @@ function replyDials(reply: UiRow): DialRow[] {
  * Settings, where the switch or the rule they go with is (business/choices); money is said once, on Limits.
  */
 const AUT_ASKED_ELSEWHERE = new Set(["reply", "booking", "faq", "money"]);
+/** Content's rows (00714; board B5): their own card, under the matrix, never inside it. */
+const AUT_CONTENT: ReadonlySet<string> = new Set(CONTENT_POLICY_CLASSES);
 
 /** One row for what goes to many (D41 of the answers canvas): a page's merge, and nothing stored changes. */
 const AUT_MOVES_WITH: Record<string, readonly string[]> = { campaign: ["reengage", "follow_up"] };
@@ -228,16 +232,23 @@ const AUT_MANY_ROW = {
 };
 
 /** What else it may do without you, as a table at a desk and a list on a phone. */
-const AutMatrix = ({ phone, rows, put, busy, lines }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
+const AutMatrix = ({
+  phone,
+  rows,
+  put,
+  busy,
+  lines,
+  groups,
+}: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
   <section className="rec-card set-card">
     <div className="rec-card-head">
       <h2 className="rec-card-title">What AI does on its own</h2>
       <span className="rec-card-sub">What else it may do without you.</span>
     </div>
     {phone ? (
-      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} />
+      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} groups={groups} />
     ) : (
-      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} />
+      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} groups={groups} />
     )}
   </section>
 );
@@ -422,7 +433,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
   const putDial = (r: UiRow, m: undefined, d: PolicyDials) => void put(r, m, d);
   const putMode = (r: UiRow, m: string) => void put(r, m);
   const matrix = rows
-    .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls))
+    .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls) && !AUT_CONTENT.has(r.cls))
     .map((r) => (r.cls === "campaign" ? { ...r, ...AUT_MANY_ROW } : r));
   const ask = (read.settings?.config as { ask?: { alone?: boolean; stopped?: AskStopped } } | null | undefined)?.ask;
 
@@ -442,7 +453,18 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
 
       <AskOnItsOwn alone={ask?.alone === true} stopped={ask?.stopped ?? null} flash={flash} />
 
-      <AutMatrix phone={phone} rows={matrix} put={putMode} busy={busy} lines={lines} />
+      <AutMatrix
+        phone={phone}
+        rows={matrix}
+        put={putMode}
+        busy={busy}
+        lines={lines}
+        groups={contentGroupOf({
+          rows: CONTENT_POLICY_CLASSES.flatMap((cls) => rows.filter((r) => r.cls === cls)),
+          weeks: policies.weeksApproved ?? null,
+          put: putMode,
+        })}
+      />
 
       <section className="rec-card set-card">
         <div className="rec-card-head">

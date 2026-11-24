@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  HOUR_MS,
+  clockTime,
   contentPlanOf,
   creativesOf,
   planWeekOf,
@@ -10,10 +12,11 @@ import {
   type ContentTodayDto,
   type ReviewAskDto,
   type TenantId,
+  type WeekPlanDto,
 } from "@chanlytics/contracts";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import { readReviewAskFacts } from "@chanlytics/db/content";
-import { listGoals, readContentWeek } from "@chanlytics/db/files";
+import { findWeekRung, listGoals, readContentWeek } from "@chanlytics/db/files";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
 import { getAppointmentWord } from "../people/deals";
@@ -43,6 +46,25 @@ export async function readReviewAsk(
 }
 
 /**
+ * How long past its time a week still ready is said to go up by itself: its approval is spread over the hour after its
+ * time, and its job is tried again for some minutes more. Past that, its job has stopped or the runner stands still.
+ */
+const HELD_SAID_FOR_MS = 2 * HOUR_MS;
+
+/**
+ * A week as the owner reads it: held to its time (00714) only while the rung still lets AI approve it. A rung moved back
+ * to asking since the week was held says nothing goes by itself, whatever the plan still keeps; and so does a week still
+ * ready long after its time, so a screen never goes on saying it goes up at 8:00 AM when it did not: the owner's own
+ * Approve the week is offered again.
+ */
+export function weekAsHeld(week: WeekPlanDto, rung: string | null, nowMs: number): WeekPlanDto {
+  if (!week.plan?.goes_at) return week;
+  const holds = rung === "veto" || rung === "auto";
+  const overdue = nowMs - Date.parse(week.plan.goes_at) > HELD_SAID_FOR_MS;
+  return holds && !overdue ? week : { ...week, plan: { ...week.plan, goes_at: null } };
+}
+
+/**
  * Today's points of the week (the PRD's 12.5; the approved boards, Today 1 and the pass 3 rows): the week ready to
  * approve, with its size and days, what AI asks to be filmed, and the plan's proposal to ask every client for a review
  * (pass 6; the canvas's Loop4). Null where the workspace plans no weeks, or nothing of the week waits on the owner. Each
@@ -53,10 +75,12 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
   const [row, zone] = await Promise.all([findConfigRow(db, rc.tenantId), findWorkspaceZone(db, rc.tenantId)]);
   if (!contentPlanOf(row?.config ?? null)) return null;
   const at = zone ?? "UTC";
-  const [week, reviewAsk] = await Promise.all([
+  const [read, rung, reviewAsk] = await Promise.all([
     readContentWeek(db, rc.tenantId, planWeekOf(at, rc.now.getTime())),
+    findWeekRung(db, rc.tenantId),
     readReviewAsk(db, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
   ]);
+  const week = weekAsHeld(read, rung, rc.now.getTime());
   if (!week.plan) return reviewAsk ? { ready: null, film: [], review_ask: reviewAsk } : null;
   const live = week.slots.filter((s) => s.state !== "needs_footage" && s.state !== "removed");
   const ready =
@@ -64,6 +88,8 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
       ? {
           size: weekSizeSaid(creativesOf(live)),
           days: weekDaysSaid(live.map((s) => zoneDayKey(Date.parse(s.at), at))),
+          // Held to its time (00714): "8:00 AM", which Today says the week goes up at unless the owner stops it.
+          held: week.plan.goes_at ? clockTime(Date.parse(week.plan.goes_at), at) : null,
         }
       : null;
   const film = week.slots.flatMap((s) => (s.state === "needs_footage" && s.ask ? [s.ask.what] : []));

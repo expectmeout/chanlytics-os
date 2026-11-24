@@ -83,11 +83,26 @@ function mayKeep(): boolean {
   }
 }
 
-/** Whether a field in the frame holds words: a list narrowed by them is no first screen. */
+/** The fields a person types words into, by their tag or their type: a switch or a choice holds a value of the page's. */
+const WORDS_FIELDS = /^(textarea|text|search|email|tel|url|number|password)$/;
+
+/** Whether the field that has the keys is in the frame with words in it: a person in the middle of typing. */
+const keysHoldWords = (root: Element): boolean => {
+  const keys = document.activeElement;
+  if (!keys || !("value" in keys) || !root.contains(keys)) return false;
+  const kind = keys.tagName === "TEXTAREA" ? "textarea" : "type" in keys ? String(keys.type) : "";
+  return WORDS_FIELDS.test(kind) && !!keys.value;
+};
+
+/**
+ * Whether the frame holds words a person typed: a list narrowed by a search's words is no first screen, nor one with words
+ * still being typed. Words the page itself wrote in a box are its own first screen: AI's draft on Today's card, a reply that
+ * never left kept for Try again. Counted as typed, they kept Today from ever keeping a copy wherever its card offered a draft
+ * (Today, calm, 20 Nov 2026: the nightly's phone copy of Today, red from that night).
+ */
 const somethingTyped = (root: Element): boolean =>
-  Array.from(
-    root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="checkbox"]), textarea'),
-  ).some((f) => !!f.value);
+  Array.from(root.querySelectorAll<HTMLInputElement>('input[type="search"]')).some((f) => !!f.value) ||
+  keysHoldWords(root);
 
 /**
  * A canvas clones blank and says nothing as words: what one on the screen drew (Ask's three, on the phone's circle) is kept as a

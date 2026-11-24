@@ -188,6 +188,19 @@ export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/
 export { takeDownSpec } from "./placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
 export type { OwnerClaim } from "./plan/claims";
+export {
+  CALLS_A_WEEK_MADE,
+  MAKING_CALLS_A_SECOND,
+  RUNG_SUGGESTION_USE,
+  rungSuggestionOf,
+  SECONDS_A_WEEK_MADE,
+  WEEK_MADE_AHEAD_MS,
+  WEEK_MAKING_LEASE_S,
+  WEEK_MAKING_QUEUE,
+  weekGoesAtOf,
+  WEEKS_MAKING_AT_ONCE,
+} from "./plan/held-week";
+export type { RungSuggestion, WeekApprovedRecord } from "./plan/held-week";
 export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./plan/patterns";
 export type { ContentPattern, PatternDimension, PatternLevel, PostOutcome } from "./plan/patterns";
 export {
@@ -240,6 +253,8 @@ export type {
   SlotWords,
   WeekPlanDto,
 } from "./plan/week";
+export { WEEK_MADE_DOOR } from "./plan/week-made-door";
+export type { WeekMadeBody } from "./plan/week-made-door";
 export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";
 export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./plan/week-view";
 export type { WeekFix, WeekGroup, WeekMark, WeekRow, WeekState, WeekView } from "./plan/week-view";

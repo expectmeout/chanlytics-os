@@ -20,6 +20,7 @@ import {
 import { freshFilesOf, newServicesOf, opportunitiesFrom } from "@chanlytics/core";
 import {
   findPiece,
+  findWeekRung,
   listClaims,
   listFilesByIds,
   listGoals,
@@ -39,7 +40,7 @@ import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { fileDtoOf } from "./files";
 import { sentPostsOf } from "./content";
-import { readReviewAsk } from "./week-today";
+import { readReviewAsk, weekAsHeld } from "./week-today";
 
 /**
  * A week of posts as the Week, Settings › Content and AI read it (00706; the content loop PRD's 10.1, 21.1, 21.2): the
@@ -103,19 +104,23 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
     const { zone, parsed, claims, goals } = await readWeekBasics(rc);
     const content = parsed?.content;
     const weekOf = args.week ?? planWeekOf(zone, rc.now.getTime());
-    const [week, places, runtime, brand, reviewAsk] = await Promise.all([
+    const [read, rung, places, runtime, brand, reviewAsk] = await Promise.all([
       readContentWeek(rc.ctx.supabase, rc.tenantId, weekOf),
+      findWeekRung(rc.ctx.supabase, rc.tenantId),
       readWeekPlaces(rc),
       findWorkspaceRuntimeRow(rc.ctx.supabase, rc.tenantId),
       readBrandKit(rc.ctx, rc.tenantId, parsed),
       // The plan's proposal to ask for reviews (pass 6): a read that fails leaves the Week as it was.
       readReviewAsk(rc.ctx.supabase, rc.tenantId, rc.now.getTime()).catch(logAndGoOn("the week's review ask", null)),
     ]);
+    // Held to its time only while the rung still lets AI approve it, and its time is not long past (00714).
+    const week = weekAsHeld(read, rung, rc.now.getTime());
     return {
       data: {
         week_of: weekOf,
         zone,
         week,
+        rung,
         ...(await readWeekMade(rc, week)),
         paused_at: runtime.data?.sending_stopped_at ?? null,
         places,

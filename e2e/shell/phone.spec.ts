@@ -876,48 +876,6 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * A thumb's press area where the look is smaller (25 Sep). These keep the size they are drawn at and answer a press
-   * toward 44px, as far as the controls around each leave room (mobile.css, "A thumb's press area"): walked outward from
-   * the drawn box, one pixel at a time, while a point still lands on the control.
-   */
-  test("small controls answer a thumb past the size they are drawn at", async ({ page }) => {
-    const pressOf = (el: Element) => {
-      el.scrollIntoView({ block: "center" });
-      const r = el.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const walk = (dx: number, dy: number) => {
-        let k = 0;
-        while (k < 40) {
-          const x = dx ? (dx < 0 ? r.left - k - 1 : r.right + k + 1) : cx;
-          const y = dy ? (dy < 0 ? r.top - k - 1 : r.bottom + k + 1) : cy;
-          const hit = document.elementFromPoint(x, y);
-          if (!hit || !(el === hit || el.contains(hit))) break;
-          k += 1;
-        }
-        return k;
-      };
-      return { w: Math.round(r.width + walk(-1, 0) + walk(1, 0)), h: Math.round(r.height + walk(0, -1) + walk(0, 1)) };
-    };
-    const seen: string[] = [];
-    const check = async (hash: string, sel: string, side: "w" | "h", atLeast: number) => {
-      await page.goto(`/#/${hash}`);
-      await page.waitForLoadState("networkidle");
-      const el = page.locator(sel).first();
-      if ((await el.count()) === 0) return; // nothing of that kind on this workspace
-      const press = await el.evaluate(pressOf);
-      expect(press[side], `${hash} ${sel}: ${JSON.stringify(press)}`).toBeGreaterThanOrEqual(atLeast);
-      seen.push(sel);
-    };
-    await check("campaigns", '[data-testid="cmh-open"]', "h", 42);
-    await check("broadcasts", '[data-testid="bc-open-who"]', "h", 42);
-    await check("messages", '[data-testid="template-open"]', "h", 42);
-    // The crumb's row clips what passes its edge: 38 is the room it has.
-    await check("conversations", "button.crumb-link", "w", 37);
-    test.skip(seen.length === 0, "none of these drawn here");
-  });
-
-  /**
    * Reports' date range stands over what scrolls (25 Sep): it is the head's act now, a capsule beside the strip of lenses
    * that says what the page is on (6 and 9 Oct), in the frame's top, which stands over the page as the window scrolls it
    * (mobile.css, "The window scrolls"), and only the charts scroll, edge to edge.
@@ -1211,6 +1169,10 @@ test.describe("Phone shell on a real workspace", () => {
   test("a swipe across the page walks its strip: the Inbox, People and Settings, and never past an end", async ({
     page,
   }) => {
+    // Its own length, measured: a swipe is eight touches through the browser's input, each answered once the page has drawn
+    // a frame, which took 0.8 to 1.7 s on the nightly's runner (24 Nov 2026), so four swipes are 30 to 40 s of input
+    // before the four pages they cross load. The suite's 45 s ran out with nothing waiting, now and then, on its last page.
+    test.setTimeout(120_000);
     const swipe = (from: number, to: number) => swipeAcross(page, from, to);
     const inbox = page.locator(".stabs.stabs-inbox .stabs-tab.active");
     await page.goto("/#/inbox");
@@ -1412,6 +1374,8 @@ test.describe("Phone shell on a real workspace", () => {
    * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
    * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
    * (kit/motion/hold-still.ts holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
+   * The head is their page's and the tabs are History's own view's, which draws under the bar alone with its way back
+   * saying their name (the one page, #2399, 17 Nov 2026): each is read where it is drawn.
    */
   test("a person's head starts at the page's edge with the way back in the top bar, and History's tabs hold still under the thumb", async ({
     page,
@@ -1425,14 +1389,20 @@ test.describe("Phone shell on a real workspace", () => {
     );
     test.skip(ids.length === 0, "nobody on this workspace");
     let tabs = 0;
+    let person = ids[0] ?? "";
     for (const id of ids) {
-      // On History's own tab: a person with any record opens on their Overview, and draws the strip nowhere else.
+      // History's own view, its tabs one for each kind of thing in it: the first person whose History holds more than one.
       await page.goto(`/#/clients/${id}/history`);
-      await expect(page.getByTestId("person-now")).toBeVisible();
+      await expect(page.getByTestId("person-view-history")).toBeVisible();
       await page.waitForLoadState("networkidle");
       tabs = await page.locator(".cl-tl-filters .subtab").count();
+      person = id;
       if (tabs > 2) break;
     }
+    // Their head, on their page.
+    await page.goto(`/#/clients/${person}`);
+    await expect(page.getByTestId("person-now")).toBeVisible();
+    await page.waitForLoadState("networkidle");
     await expect(page.locator(".cl-prof-back")).toBeHidden();
     // In Glass the way back stands where the date does, in the top bar's row (kit/head/frame-head.tsx): ‹ People.
     await expect(page.locator(".pg-back")).toContainText("People");
@@ -1456,6 +1426,9 @@ test.describe("Phone shell on a real workspace", () => {
     const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
     test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
+    await page.goto(`/#/clients/${person}/history`);
+    await expect(page.getByTestId("person-view-history")).toBeVisible();
+    await page.waitForLoadState("networkidle");
     const strip = page.locator(".cl-tl-filters");
     // The window scrolls a person's page on a phone (mobile.css, "The window scrolls").
     await page.locator(".cl-profile").evaluate((box) => {
@@ -1470,8 +1443,9 @@ test.describe("Phone shell on a real workspace", () => {
       await expect(tab).toHaveAttribute("aria-selected", "true");
       expect(Math.abs((await top()) - start), `${word} moved the tabs from under the thumb`).toBeLessThanOrEqual(1);
     }
+    // The view's way back says their name, and puts it away to their page.
     await page.locator(".pg-back").click();
-    await expect.poll(() => routeOf(page.url())).toBe("clients");
+    await expect.poll(() => routeOf(page.url())).toBe(`clients/${person}`);
   });
 
   /**

@@ -29,11 +29,11 @@ const PARTS: Record<string, string[]> = {
     ".tab-bar-tab",
   ],
   people: [".frame-top", ".pg-head-slot", ".stabs", ".pl-card-row", ".list-row-name", ".tab-bar", ".tab-bar-tab"],
-  // The setup card's own parts where the workspace shows it: dashboard-a-v2.css draws them by their test ids.
-  today: [".frame-top", ".pg-head-slot", ".tq", ".setup-card-title", ".setup-card-left", ".tab-bar", ".tab-bar-tab"],
+  // Today, calm (19-21 Nov 2026): the card at the page's start where one holds it, then who waits, a line each.
+  today: [".frame-top", ".pg-head-slot", ".calm-lead", ".calm-lines", ".calm-line", ".tab-bar", ".tab-bar-tab"],
 };
 /** What says a page's copy is up: a block of its rows. */
-const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".tq" };
+const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".calm-line" };
 
 type Rect = [number, number, number, number];
 
@@ -76,18 +76,23 @@ test.describe("the rows a phone last showed", () => {
     await page.waitForLoadState("networkidle");
     await motionSettled(page);
     await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide")));
-    // A slot may hold why no copy was kept in a copy's place (contracts FirstRowsUnkept): a copy is one that holds the screen.
+    // A slot may hold why no copy was kept in a copy's place (contracts FirstRowsUnkept): a copy is one that holds the screen,
+    // and where none is, the check says the keeper's own word for why ("scrolled", "open", "reading"), not a bare zero.
     await expect
       .poll(() =>
         page.evaluate(
-          (s) =>
-            Object.keys(localStorage).filter(
-              (k) => k.startsWith(s) && (localStorage.getItem(k) ?? "").includes('"html"'),
-            ).length,
-          SLOT,
+          ([s, w]) => {
+            const held = Object.keys(localStorage)
+              .filter((k) => k.startsWith(s) && k.endsWith(`:${w}`))
+              .map((k) => localStorage.getItem(k) ?? "");
+            if (held.some((v) => v.includes('"html"'))) return "kept";
+            const why = held.map((v) => /"why":"([^"]+)"/.exec(v)?.[1]).find(Boolean);
+            return why ? `not kept, the keeper says ${why}` : "no slot";
+          },
+          [SLOT, word] as const,
         ),
       )
-      .toBeGreaterThan(0);
+      .toBe("kept");
   }
 
   for (const word of ["inbox", "people", "today"]) {

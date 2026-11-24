@@ -20,7 +20,7 @@ import { readInstagramPostable } from "@/server/connections/meta";
 import { postDtoOf } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { approvePlacements } from "./approve";
+import { approvePlacements, prepareApproval } from "./approve";
 
 /** A file's posts on Instagram, newest first, as the sheet shows them, of the file's posts read under the member's session. */
 export const instagramPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
@@ -45,6 +45,35 @@ interface InstagramPress {
   facts?: OwnersFact[] | undefined;
 }
 
+/** What Instagram is asked for, as the approval takes it, after the place's own refusals: a person's press, or AI under the rung. */
+async function instagramAsked<Via extends "press" | "rung">(
+  member: Member,
+  row: FileMemberRow,
+  input: InstagramPress,
+  via: Via,
+) {
+  const refused = await refusalBefore(member, row);
+  if (refused) throw refused;
+  // A story shows no caption, so none is kept for one. The words that go are kept on the piece by the approval, once its
+  // checks have passed (posts/approve.ts).
+  const caption = input.as === "story" ? null : input.caption?.trim() || null;
+  return {
+    placements: [{ place: "instagram" as const, kind: input.as, caption, when: input.when ?? null }],
+    intent: intentOfAbout(input.about),
+    facts: input.facts ?? [],
+    via,
+    connections: { instagram: "yes" as const },
+  };
+}
+
+/**
+ * A week's Instagram placement readied for AI under the owner's rung (00714): every check, nothing approved. The door that
+ * places it takes what this answers: the 8:00 approval's for a slot readied overnight, plan_slot_place's after.
+ */
+export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
+  return prepareApproval(ctx, member, row, await instagramAsked(member, row, input, "rung"));
+}
+
 /**
  * POST files/[id]/instagram: the post approved for Instagram (00681), a picture as a post or a story, a video as a reel,
  * now or at a time the person chose. The press is the approval: of these bytes, these words, this place (posts/approve.ts).
@@ -55,18 +84,7 @@ export async function postFileToInstagram(
   row: FileMemberRow,
   input: InstagramPress,
 ): Promise<{ post_id: string; status: "queued" }> {
-  const refused = await refusalBefore(member, row);
-  if (refused) throw refused;
-  // A story shows no caption, so none is kept for one. The words that go are kept on the piece by the approval, once its
-  // checks have passed (posts/approve.ts).
-  const caption = input.as === "story" ? null : input.caption?.trim() || null;
-  const approved = await approvePlacements(ctx, member, row, {
-    placements: [{ place: "instagram", kind: input.as, caption, when: input.when ?? null }],
-    intent: intentOfAbout(input.about),
-    facts: input.facts ?? [],
-    via: "press",
-    connections: { instagram: "yes" },
-  });
+  const approved = await approvePlacements(ctx, member, row, await instagramAsked(member, row, input, "press"));
   const postId = approved.posts[0]?.post_id;
   if (!postId) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   return { post_id: postId, status: "queued" };

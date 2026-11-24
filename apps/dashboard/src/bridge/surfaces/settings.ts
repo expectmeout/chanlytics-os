@@ -196,6 +196,8 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
     replyTokens: pol.reply_tokens ?? null,
     // What each sequence's batches did (decision 0064, step 5): absent from a server from before, read as unread.
     evidence: pol.evidence ?? null,
+    // The weeks approved (00714): AI's suggested rung reads them; absent from a server from before, read as unread.
+    weeksApproved: pol.weeks_approved ?? null,
   };
 }
 
