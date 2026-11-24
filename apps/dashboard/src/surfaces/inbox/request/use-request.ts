@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BOOKING_REQUEST_WORDS,
   DRAFT_ABOUT_MAX,
+  DRAFT_ASKED_MAX,
   NEW_CONVERSATION_WORDS,
   otherTimeWords,
   SECOND_MS,
@@ -217,7 +218,10 @@ export interface RequestPage {
 interface DraftFor {
   personId: string | null;
   wire: WriteWay["wire"] | null;
-  note: string;
+  /** What the reply is about, in the owner's words: a reply to their request, and what became of the time it asked for. */
+  about: string;
+  /** What they asked (the request's note): their own words, told to AI as theirs, never as the owner's. */
+  asked: string;
   /** Whether AI drafts by itself: the form asks it to, a reply can go, and nothing stands in its way. */
   alone: boolean;
 }
@@ -237,11 +241,17 @@ function useRequestDraft(id: string, from: DraftFor) {
     [id],
   );
   useEffect(() => setDraftState(KEPT_DRAFTS.get(id) ?? NO_DRAFT), [id]);
-  const { personId, wire, note } = from;
+  const { personId, wire, about, asked } = from;
   const askAi = useCallback(() => {
     if (!personId || !wire) return;
     setDraft({ state: "writing", text: "", subject: "", changed: false });
-    void askDraft(personId, { how: "message", wire, about: note.slice(0, DRAFT_ABOUT_MAX) }).then(
+    const theirs = asked.slice(0, DRAFT_ASKED_MAX).trim();
+    void askDraft(personId, {
+      how: "message",
+      wire,
+      about: about.slice(0, DRAFT_ABOUT_MAX),
+      ...(theirs ? { asked: theirs } : {}),
+    }).then(
       (answer) =>
         setDraft(
           answer.ok && answer.data.text
@@ -250,7 +260,7 @@ function useRequestDraft(id: string, from: DraftFor) {
         ),
       () => setDraft({ ...NO_DRAFT, state: "failed" }),
     );
-  }, [personId, wire, note, setDraft]);
+  }, [personId, wire, about, asked, setDraft]);
   const alone = from.alone && draft.state === "none";
   useEffect(() => {
     if (alone) askAi();
@@ -307,11 +317,11 @@ function useTimeTold(time: FormRequestDto["time"] | undefined): TimeTold {
  * for, and whether AI drafts by itself (never while that time waits on Booked it or Can't).
  */
 function replyDraftOf(dto: FormRequestDto | null, wire: WriteWay["wire"] | null, timeReply: TimeTold): DraftFor {
-  const note = dto?.note ?? "";
   return {
     personId: dto?.person?.id ?? null,
     wire,
-    note: timeReply.about ? `${note}\n${timeReply.about}` : note,
+    about: timeReply.about ? `${W.draft.about} ${timeReply.about}` : W.draft.about,
+    asked: dto?.note ?? "",
     alone: dto?.standing === "open" && dto.drafts && !!wire && !dto.unreached && timeReply.ready,
   };
 }

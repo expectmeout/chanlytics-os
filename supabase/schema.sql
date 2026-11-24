@@ -12895,17 +12895,28 @@ COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid,
 
 
 --
--- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text, p_form_ref text DEFAULT NULL::text, p_form_name text DEFAULT NULL::text, p_host text DEFAULT NULL::text, p_source jsonb DEFAULT NULL::jsonb, p_test boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 declare
-  v_entry   uuid;
-  v_contact uuid;
-  v_person  jsonb;
+  v_site      uuid;
+  v_outside   uuid;
+  v_entry     uuid;
+  v_contact   uuid;
+  v_person    jsonb;
+  v_same      boolean;
+  v_clash     boolean := false;
+  v_test      boolean := coalesce(p_test, false);
+  v_ref       text := nullif(btrim(coalesce(p_ref, '')), '');
+  v_form_ref  text := left(nullif(btrim(coalesce(p_form_ref, '')), ''), 100);
+  v_form_name text := left(nullif(btrim(coalesce(p_form_name, '')), ''), 120);
+  v_host      text := lower(nullif(btrim(coalesce(p_host, '')), ''));
+  v_source    jsonb := case when jsonb_typeof(p_source) = 'object' and octet_length(p_source::text) <= 4000
+                            then p_source end;
 begin
   if p_tenant_id is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -12919,33 +12930,74 @@ begin
   if p_words is null or p_words !~ '^[0-9a-f]{64}$' then
     raise exception 'The words are a digest.' using errcode = '22023';
   end if;
+  if v_host is not null and (char_length(v_host) > 253 or v_host !~ '^[a-z0-9][a-z0-9.-]*$') then
+    v_host := null;
+  end if;
 
-  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on.
+  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on. Its row is held
+  -- until this write ends, so two first entries at once make one site.
   if p_key_id is null then
     insert into public.form_keys as k (tenant_id, first, last_used_at)
     values (p_tenant_id, true, now())
     on conflict (tenant_id) where first do update set last_used_at = now()
-    returning k.id into p_key_id;
+    returning k.id, k.site_id into p_key_id, v_site;
   else
-    update public.form_keys set last_used_at = now() where tenant_id = p_tenant_id and id = p_key_id;
+    update public.form_keys k set last_used_at = now()
+     where k.tenant_id = p_tenant_id and k.id = p_key_id
+    returning k.site_id into v_site;
+  end if;
+  if v_site is null then
+    insert into public.form_sites (tenant_id, name)
+    values (p_tenant_id, (select k.name from public.form_keys k where k.tenant_id = p_tenant_id and k.id = p_key_id))
+    returning id into v_site;
+    update public.form_keys k set site_id = v_site where k.tenant_id = p_tenant_id and k.id = p_key_id;
+  end if;
+  update public.form_sites s set host = v_host
+   where s.tenant_id = p_tenant_id and s.id = v_site and s.host is null and v_host is not null;
+
+  -- A test tells nobody, keeps nobody and names no form: the site stands at "test received" from now.
+  if v_test then
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, words, owed, source, test)
+    values (p_tenant_id, null, p_key_id, p_form, p_answers, p_words, '{}', v_source, true)
+    returning id into v_entry;
+    update public.form_sites s set test_at = now() where s.tenant_id = p_tenant_id and s.id = v_site;
+    return jsonb_build_object('outcome', 'test', 'entry_id', v_entry, 'contact_id', null, 'clash', false);
   end if;
 
-  -- Once. The site's own id is the entry's; with none, the same words within ten minutes are a retry (call 19), and
-  -- later they are a new entry. Two posts of the same words at once wait for each other here.
-  if nullif(btrim(coalesce(p_ref, '')), '') is not null then
-    select e.id, e.contact_id into v_entry, v_contact
-      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
-  else
-    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || p_words, 0));
+  -- Its form: found by its site, kind and id, or made, its requests from now. The name the site sends is kept as sent.
+  insert into public.outside_forms as o (tenant_id, kind, site_id, form, ref, sent_name)
+  values (p_tenant_id, 'website', v_site, p_form, v_form_ref, v_form_name)
+  on conflict (tenant_id, site_id, form, ref) do update set sent_name = coalesce(excluded.sent_name, o.sent_name)
+  returning o.id into v_outside;
+
+  -- Once, within its form. The site's own id is the entry's: the same id with the same words is the same entry, and
+  -- with other words a new one, its id left with the first and said (`clash`), never merged. With no id, the same
+  -- words within ten minutes are a retry (call 19), and later they are a new entry. Two at once wait for each other.
+  if v_ref is not null then
+    select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
+    if v_entry is not null and v_same then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
+    if v_entry is not null then
+      v_clash := true;
+      v_ref := null;
+      v_entry := null;
+      v_contact := null;
+    end if;
+  end if;
+  if v_ref is null then
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || v_outside::text || '|' || p_words, 0));
     select e.id, e.contact_id into v_entry, v_contact
       from public.form_entries e
-     where e.tenant_id = p_tenant_id and e.words = p_words and e.ref is null
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.words = p_words and e.ref is null
        and e.created_at > now() - interval '10 minutes'
      order by e.created_at desc
      limit 1;
-  end if;
-  if v_entry is not null then
-    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+    if v_entry is not null then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
   end if;
 
   -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
@@ -12955,36 +13007,56 @@ begin
       p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
       coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
   exception when sqlstate 'PE001' then
-    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null, 'clash', false);
   end;
   v_contact := (v_person ->> 'contact_id')::uuid;
 
+  -- The entry, where its visitor came from, its form: one write.
   begin
-    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed)
-    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, nullif(btrim(coalesce(p_ref, '')), ''), p_words,
-            coalesce(p_owed, '{}'))
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
+                                     source)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, v_ref, p_words, coalesce(p_owed, '{}'), v_outside,
+            v_source)
     returning id into v_entry;
   exception when unique_violation then
-    -- The same site id at the same moment: the other post kept it.
-    select e.id, e.contact_id into v_entry, v_contact
-      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
-    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+    -- The same site id at the same moment, kept by the other post: the same entry where its words are these, and
+    -- where they are not, a new one, its id left with the first and said, as above.
+    select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
+    if v_same then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
+    v_clash := true;
+    v_contact := (v_person ->> 'contact_id')::uuid;
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
+                                     source)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, null, p_words, coalesce(p_owed, '{}'), v_outside,
+            v_source)
+    returning id into v_entry;
   end;
+
+  update public.outside_forms o
+     set first_entry_at = coalesce(o.first_entry_at, now()), last_entry_at = now()
+   where o.tenant_id = p_tenant_id and o.id = v_outside;
+  update public.form_sites s
+     set first_entry_at = coalesce(s.first_entry_at, now()), last_entry_at = now()
+   where s.tenant_id = p_tenant_id and s.id = v_site;
 
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry,
           jsonb_build_object('form', p_form, 'owed', to_jsonb(coalesce(p_owed, '{}'))));
 
   return jsonb_build_object('outcome', 'accepted', 'entry_id', v_entry, 'contact_id', v_contact,
-                            'person', v_person ->> 'outcome');
+                            'person', v_person ->> 'outcome', 'clash', v_clash);
 end $_$;
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) IS 'The website form door''s one write (00675, 00709): the key''s last use and its site (the first key''s row and site made at their first use), the form the entry is of (found by its site, kind and the site''s id for it, or made), the once rule within that form (the site''s own id, the same words with it; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry with where its visitor came from, and its form_entry.accepted event, together. A test keeps no person, owes nothing, names no form, writes no event and stamps its site''s test_at. Answers {outcome: accepted|again|forgotten|test, entry_id, contact_id, person, clash}: clash is an id the form had with other words, kept as a new entry. The service role''s alone.';
 
 
 --
@@ -12999,6 +13071,7 @@ declare
   v_old  public.form_keys%rowtype;
   v_id   uuid;
   v_name text;
+  v_site uuid;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -13016,10 +13089,15 @@ begin
   if not found then
     raise exception 'That key is ending or has ended already.' using errcode = 'P0002';
   end if;
-  -- The new key keeps the site's name; the first key had none, and its new one is the website's.
+  -- The new key keeps the site and its name; the first key had none, and its new one is the website's.
   v_name := coalesce(v_old.name, 'Website');
-  insert into public.form_keys (tenant_id, name, hash, made_by)
-  values (p_tenant_id, v_name, p_hash, auth.uid())
+  v_site := v_old.site_id;
+  if v_site is null then
+    insert into public.form_sites (tenant_id, name) values (p_tenant_id, v_old.name) returning id into v_site;
+    update public.form_keys k set site_id = v_site where k.tenant_id = p_tenant_id and k.id = p_key_id;
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by, site_id)
+  values (p_tenant_id, v_name, p_hash, auth.uid(), v_site)
   returning id into v_id;
   -- The old one keeps working for a day, so the site can be given the new one without a form refused.
   update public.form_keys set ends_at = now() + interval '1 day' where tenant_id = p_tenant_id and id = p_key_id;
@@ -13034,7 +13112,7 @@ end $_$;
 -- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675, 00709): a key that works and is not already ending changed for a new one by the same name and for the same site (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
 
 
 --
@@ -13075,15 +13153,16 @@ COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An 
 
 
 --
--- Name: form_key_make(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_key_make(uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) RETURNS uuid
+CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid DEFAULT NULL::uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 declare
-  v_id uuid;
+  v_id   uuid;
+  v_site uuid;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -13097,14 +13176,23 @@ begin
   if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'A key is kept as its digest.' using errcode = '22023';
   end if;
-  -- One key a site: a workspace has at most ten that still work.
+  -- At most ten keys that still work a workspace.
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_keys', 0));
   if (select count(*) from public.form_keys k
        where k.tenant_id = p_tenant_id and (k.ends_at is null or k.ends_at > now())) >= 10 then
     raise exception 'A workspace has at most ten keys that work. End one first.' using errcode = '22023';
   end if;
-  insert into public.form_keys (tenant_id, name, hash, made_by)
-  values (p_tenant_id, btrim(p_name), p_hash, auth.uid())
+  -- Its site: the one named, or a new one, named as the key is.
+  if p_site_id is null then
+    insert into public.form_sites (tenant_id, name) values (p_tenant_id, btrim(p_name)) returning id into v_site;
+  else
+    select s.id into v_site from public.form_sites s where s.tenant_id = p_tenant_id and s.id = p_site_id;
+    if v_site is null then
+      raise exception 'That site isn''t here any more.' using errcode = 'P0002';
+    end if;
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by, site_id)
+  values (p_tenant_id, btrim(p_name), p_hash, auth.uid(), v_site)
   returning id into v_id;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
@@ -13114,10 +13202,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) IS 'An owner''s or a partner''s door (00675, 00709; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard, for the site named (p_site_id) or a new site named as the key is. At most ten keys that still work a workspace (22023); a site that is not the workspace''s, P0002. Answers the key''s id.';
 
 
 --
@@ -13307,15 +13395,17 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
     SET search_path TO 'public'
     AS $$
   -- A request is open until a link answers it: a member's word, a conversation that took it over, or a reply whose
-  -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list. A request that
-  -- asked for a time says the time as its visit stands now (00691).
+  -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list. A hosted
+  -- form's request says the time it asked for as its visit stands now (00691); a website's is a request from its form's
+  -- requests_from on (00709), its heading the form's name, its answers the site's own fields.
   select coalesce(jsonb_agg(r.line order by r.created_at desc), '[]'::jsonb)
     from (
       select e.created_at,
              jsonb_build_object(
-               'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'contact_id', e.contact_id,
-               'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach, 'place', l.place,
-               'heading', v.description ->> 'heading',
+               'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'outside_form_id', e.outside_form_id,
+               'contact_id', e.contact_id, 'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach,
+               'place', l.place,
+               'heading', coalesce(v.description ->> 'heading', o.name, o.sent_name),
                'unreached', exists (
                  select 1 from form_entry_links k
                    join messages m on m.tenant_id = k.tenant_id and m.id = k.message_id
@@ -13331,10 +13421,13 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
                   order by k.created_at desc
                   limit 1)) as line
         from form_entries e
-        join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+        left join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+        left join outside_forms o on o.tenant_id = e.tenant_id and o.id = e.outside_form_id
         left join links l on l.tenant_id = e.tenant_id and l.id = e.link_id
        where e.tenant_id = p_tenant_id
-         and e.form_id is not null and e.state <> 'held' and not e.test
+         and e.state <> 'held' and not e.test
+         and ((e.form_id is not null and v.id is not null)
+              or (o.id is not null and e.form = 'request' and e.created_at >= o.requests_from))
          and e.created_at > now() - interval '60 days'
          and not exists (
                select 1 from form_entry_links k
@@ -13353,7 +13446,43 @@ $$;
 -- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s hosted forms nobody has answered (00680, 00691; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: each with its answers, who it is about as typed, its form''s heading, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now (time: null where it asked for none). Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back.';
+COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s forms nobody has answered (00680, 00691, 00709; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: a hosted form''s, and a website form''s from its requests_from on. Each with its answers, who it is about as typed (reach: a hosted form''s), its form''s heading (a website form''s name, null where it has none yet), the outside form it is of, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now. Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back. Counted whole by form_requests_open_count.';
+
+
+--
+-- Name: form_requests_open_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_requests_open_count(p_tenant_id uuid) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- form_requests_open's rule, counted with no cap: what Needs you and Today say.
+  select count(*)::integer
+    from form_entries e
+    left join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+    left join outside_forms o on o.tenant_id = e.tenant_id and o.id = e.outside_form_id
+   where e.tenant_id = p_tenant_id
+     and e.state <> 'held' and not e.test
+     and ((e.form_id is not null and v.id is not null)
+          or (o.id is not null and e.form = 'request' and e.created_at >= o.requests_from))
+     and e.created_at > now() - interval '60 days'
+     and not exists (
+           select 1 from form_entry_links k
+            where k.tenant_id = e.tenant_id and k.entry_id = e.id
+              and (k.kind in ('marked', 'conversation')
+                   or (k.kind = 'reply' and exists (
+                         select 1 from messages m
+                          where m.tenant_id = k.tenant_id and m.id = k.message_id
+                            and m.status not in ('failed', 'canceled')))));
+$$;
+
+
+--
+-- Name: FUNCTION form_requests_open_count(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) IS 'How many of a workspace''s requests nobody has answered (00709): form_requests_open''s rule over its sixty days, with no cap, read under the member''s own row rules. What Needs you and Today count, never the list that stops at 200.';
 
 
 --
@@ -13367,12 +13496,15 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
   with win as (
     select now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 366))) as since
   ), asked as (
-    -- Each request in the window: whether its person was new with it, whether it became a conversation (a reply that
-    -- left, or their own message with its code), whether it asked for a time (00691), and whether a visit followed:
-    -- the time it asked for, confirmed (00691), or by the rule an ad's is read by (00678), a visit asked for in a chat
-    -- and confirmed there, or one a member added, made after the request and starting after.
-    select e.form_id, e.link_id, e.contact_id,
+    -- Each entry of a form in the window, made here or owned elsewhere: whether its person was new with it, whether it
+    -- became a conversation (a reply that left, or their own message with its code), whether it asked for a time
+    -- (00691), and whether a visit followed: the time it asked for, confirmed (00691), or by the rule an ad's is read by
+    -- (00678), a visit asked for in a chat and confirmed there, or one a member added, made after it and starting after.
+    select e.form_id, e.outside_form_id, e.link_id, e.contact_id,
            c.created_at > e.created_at - interval '1 minute' as new_person,
+           -- A sign-up confirmed: its person said yes to offers from the email it sent them, after it came (00489).
+           (e.form = 'signup' and c.email_marketing = 'opted_in' and c.email_marketing_source = 'confirmed_signup'
+            and c.email_marketing_updated_at >= e.created_at) as confirmed,
            exists (select 1 from form_entry_links k
                     where k.tenant_id = e.tenant_id and k.entry_id = e.id
                       and (k.kind = 'conversation'
@@ -13402,7 +13534,7 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
       join contacts c on c.tenant_id = e.tenant_id and c.id = e.contact_id
       cross join win
      where e.tenant_id = p_tenant_id
-       and e.form_id is not null and e.state <> 'held' and not e.test
+       and (e.form_id is not null or e.outside_form_id is not null) and e.state <> 'held' and not e.test
        and e.created_at > win.since
   )
   select jsonb_build_object(
@@ -13416,7 +13548,18 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
                      count(*) filter (where a.timed) as asked,
                      count(distinct a.contact_id) filter (where a.booked) as visits,
                      count(distinct a.contact_id) filter (where a.new_person) as new_people
-                from asked a group by a.form_id, a.link_id) x), '[]'::jsonb),
+                from asked a where a.form_id is not null group by a.form_id, a.link_id) x), '[]'::jsonb),
+    'outside', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'outside_form_id', y.outside_form_id, 'entries', y.entries, 'talked', y.talked, 'visits', y.visits,
+               'people', y.people, 'new_people', y.new_people, 'confirmed', y.confirmed))
+        from (select a.outside_form_id, count(*) as entries,
+                     count(distinct a.contact_id) as people,
+                     count(*) filter (where a.talked) as talked,
+                     count(distinct a.contact_id) filter (where a.booked) as visits,
+                     count(distinct a.contact_id) filter (where a.new_person) as new_people,
+                     count(distinct a.contact_id) filter (where a.confirmed) as confirmed
+                from asked a where a.outside_form_id is not null group by a.outside_form_id) y), '[]'::jsonb),
     'opens', coalesce((
       select jsonb_agg(jsonb_build_object('link_id', o.link_id, 'opens', o.opens))
         from (select d.link_id, sum(d.opens) as opens
@@ -13436,7 +13579,7 @@ $$;
 -- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s hosted forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680, 00691): by form and by the link each request came through (link_id null: none), the requests, how many asked for a time (asked), how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; each link''s opens; and how often each form''s business''s own booking page was opened from it (booking_opens). Held entries and tests are in no count.';
+COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680, 00691, 00709): each hosted form by the link each request came through (places; link_id null: none), with the requests, how many asked for a time (asked), how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; each form owned elsewhere (outside) with its entries and the same counts, and for a sign-up how many of its people confirmed from its email (confirmed); each link''s opens; and how often each form''s business''s own booking page was opened from it (booking_opens). Held entries and tests are in no count.';
 
 
 --
@@ -24454,6 +24597,72 @@ CREATE FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'owner' and rr.undone_at is null
 $$;
+
+
+--
+-- Name: outside_form_listed(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_set integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.outside_forms o set listed = coalesce(p_listed, true)
+   where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_set = row_count;
+  return v_set > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) IS 'A member''s door (00709; is_acting_member): a form owned elsewhere listed or hidden. Hidden only takes it off the list: its entries still arrive, reach the Inbox and count. Answers whether the form was the workspace''s.';
+
+
+--
+-- Name: outside_form_rename(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name    text := nullif(btrim(coalesce(p_name, '')), '');
+  v_renamed integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_name is not null and char_length(v_name) > 120 then
+    raise exception 'A form''s name is at most 120 characters.' using errcode = '22023';
+  end if;
+  -- Blank goes back to the name the site sends.
+  update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_renamed = row_count;
+  return v_renamed > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) IS 'A member''s door (00709; is_acting_member, as form_turn): the owner''s own name for a form owned elsewhere, which wins over the name the site sends; blank goes back to it. Answers whether the form was the workspace''s.';
 
 
 --
@@ -49559,6 +49768,7 @@ CREATE TABLE public.form_entries (
     held_why text,
     code text,
     code_used_at timestamp with time zone,
+    outside_form_id uuid,
     CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
     CONSTRAINT form_entries_code_check CHECK (((code IS NULL) OR (code ~ '^[A-HJ-NP-Z2-9]{6}$'::text))),
     CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
@@ -49566,6 +49776,7 @@ CREATE TABLE public.form_entries (
     CONSTRAINT form_entries_form_names_version CHECK (((form_id IS NULL) = (version_id IS NULL))),
     CONSTRAINT form_entries_held_says_why CHECK (((state = 'held'::text) = (held_why IS NOT NULL))),
     CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text, 'elsewhere'::text])))),
+    CONSTRAINT form_entries_one_form CHECK (((form_id IS NULL) OR (outside_form_id IS NULL))),
     CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
     CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
     CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
@@ -49661,6 +49872,13 @@ COMMENT ON COLUMN public.form_entries.code IS 'The short code the thank-you carr
 
 
 --
+-- Name: COLUMN form_entries.outside_form_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.outside_form_id IS 'The form owned elsewhere this entry is of (00709): a website''s. An entry names a form made here (form_id) or one of these, never both; a test names neither.';
+
+
+--
 -- Name: form_entry_links; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -49700,6 +49918,7 @@ CREATE TABLE public.form_keys (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_used_at timestamp with time zone,
     ends_at timestamp with time zone,
+    site_id uuid,
     CONSTRAINT form_keys_hash_check CHECK (((hash IS NULL) OR (hash ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT form_keys_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60)))),
     CONSTRAINT form_keys_one_way CHECK (((first = (hash IS NULL)) AND (first = (name IS NULL))))
@@ -49718,6 +49937,38 @@ COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675;
 --
 
 COMMENT ON COLUMN public.form_keys.ends_at IS 'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
+
+
+--
+-- Name: COLUMN form_keys.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_keys.site_id IS 'The site the key proves (00709): set as the key is made, carried to the key it is changed for, and made at the first key''s first use.';
+
+
+--
+-- Name: form_sites; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_sites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text,
+    host text,
+    first_entry_at timestamp with time zone,
+    last_entry_at timestamp with time zone,
+    test_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT form_sites_host_check CHECK (((host IS NULL) OR (((char_length(host) >= 1) AND (char_length(host) <= 253)) AND (host ~ '^[a-z0-9][a-z0-9.-]*$'::text)))),
+    CONSTRAINT form_sites_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60))))
+);
+
+
+--
+-- Name: TABLE form_sites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_sites IS 'A website a business sends form entries from (00709; Campaigns in three tabs, Lane B): the name the owner gave it with its first key, its host as its entries'' pages name it, when its first and last real entry came, and when a test last came. Its keys name it (form_keys.site_id), so a key changed keeps the site. Members read them; form_key_make makes one, and form_entry_take stamps it.';
 
 
 --
@@ -51912,6 +52163,40 @@ CREATE TABLE public.operator_pages (
 --
 
 COMMENT ON TABLE public.operator_pages IS 'Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backlog) keyed by condition. alerted_at is the suppression stamp: one page per key per window, stamped only after delivery.';
+
+
+--
+-- Name: outside_forms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.outside_forms (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text DEFAULT 'website'::text NOT NULL,
+    site_id uuid,
+    form text NOT NULL,
+    ref text,
+    sent_name text,
+    name text,
+    listed boolean DEFAULT true NOT NULL,
+    requests_from timestamp with time zone DEFAULT now() NOT NULL,
+    first_entry_at timestamp with time zone,
+    last_entry_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT outside_forms_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
+    CONSTRAINT outside_forms_kind_check CHECK ((kind = 'website'::text)),
+    CONSTRAINT outside_forms_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 120)))),
+    CONSTRAINT outside_forms_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
+    CONSTRAINT outside_forms_sent_name_check CHECK (((sent_name IS NULL) OR ((char_length(sent_name) >= 1) AND (char_length(sent_name) <= 120)))),
+    CONSTRAINT outside_forms_website_has_site CHECK (((kind <> 'website'::text) OR (site_id IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE outside_forms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.outside_forms IS 'A form owned elsewhere (00709; Campaigns in three tabs, Lane B): a website''s own form now, Meta''s lead forms later. Its site, a request or a sign-up, the site''s own stable id for it, the name the site last sent and the owner''s own, listed or hidden (hidden never stops its entries), from when its entries are requests (requests_from), and its first and last entry. One per workspace, site, kind of form and id, so a form renamed on the site keeps its history. Members read them; form_entry_take makes them, and outside_form_rename and outside_form_listed are a member''s.';
 
 
 --
@@ -55246,6 +55531,22 @@ ALTER TABLE ONLY public.form_keys
 
 
 --
+-- Name: form_sites form_sites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_sites form_sites_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: form_versions form_versions_n_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -55763,6 +56064,22 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.operator_pages
     ADD CONSTRAINT operator_pages_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: outside_forms outside_forms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: outside_forms outside_forms_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -57694,10 +58011,24 @@ CREATE INDEX form_entries_made ON public.form_entries USING btree (tenant_id, cr
 
 
 --
+-- Name: form_entries_outside; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_outside ON public.form_entries USING btree (tenant_id, outside_form_id, created_at);
+
+
+--
 -- Name: form_entries_ref; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE (ref IS NOT NULL);
+CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE ((ref IS NOT NULL) AND (outside_form_id IS NULL));
+
+
+--
+-- Name: form_entries_ref_outside; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entries_ref_outside ON public.form_entries USING btree (tenant_id, outside_form_id, ref) WHERE ((ref IS NOT NULL) AND (outside_form_id IS NOT NULL));
 
 
 --
@@ -57789,6 +58120,13 @@ CREATE UNIQUE INDEX form_keys_first ON public.form_keys USING btree (tenant_id) 
 --
 
 CREATE UNIQUE INDEX form_keys_hash ON public.form_keys USING btree (hash) WHERE (hash IS NOT NULL);
+
+
+--
+-- Name: form_keys_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_keys_site ON public.form_keys USING btree (tenant_id, site_id);
 
 
 --
@@ -58517,6 +58855,13 @@ CREATE UNIQUE INDEX notifications_source_event ON public.notifications USING btr
 --
 
 CREATE INDEX notifications_tenant_created ON public.notifications USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: outside_forms_one; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX outside_forms_one ON public.outside_forms USING btree (tenant_id, site_id, form, ref) NULLS NOT DISTINCT;
 
 
 --
@@ -62842,6 +63187,14 @@ ALTER TABLE ONLY public.form_entries
 
 
 --
+-- Name: form_entries form_entries_outside_form_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_outside_form_id_same_workspace FOREIGN KEY (tenant_id, outside_form_id) REFERENCES public.outside_forms(tenant_id, id);
+
+
+--
 -- Name: form_entries form_entries_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -62898,11 +63251,27 @@ ALTER TABLE ONLY public.form_entry_links
 
 
 --
+-- Name: form_keys form_keys_site_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_site_id_same_workspace FOREIGN KEY (tenant_id, site_id) REFERENCES public.form_sites(tenant_id, id);
+
+
+--
 -- Name: form_keys form_keys_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.form_keys
     ADD CONSTRAINT form_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_sites form_sites_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -63447,6 +63816,22 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: outside_forms outside_forms_site_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_site_id_same_workspace FOREIGN KEY (tenant_id, site_id) REFERENCES public.form_sites(tenant_id, id);
+
+
+--
+-- Name: outside_forms outside_forms_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -65581,6 +65966,21 @@ CREATE POLICY form_keys_member_select ON public.form_keys FOR SELECT TO authenti
 
 
 --
+-- Name: form_sites; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_sites ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_sites form_sites_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_sites_member_select ON public.form_sites FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: form_versions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -66197,6 +66597,21 @@ CREATE POLICY notifications_member_select ON public.notifications FOR SELECT TO 
 --
 
 ALTER TABLE public.operator_pages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: outside_forms; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.outside_forms ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: outside_forms outside_forms_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY outside_forms_member_select ON public.outside_forms FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
 
 --
 -- Name: owner_claims; Type: ROW SECURITY; Schema: public; Owner: -
@@ -69250,11 +69665,11 @@ GRANT ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uui
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) TO service_role;
+REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) TO service_role;
 
 
 --
@@ -69276,12 +69691,12 @@ GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO se
 
 
 --
--- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO authenticated;
-GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO service_role;
+REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) TO service_role;
 
 
 --
@@ -69308,6 +69723,15 @@ GRANT ALL ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid,
 REVOKE ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_requests_open_count(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -71097,6 +71521,24 @@ GRANT ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_
 
 REVOKE ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) TO authenticated;
+GRANT ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) TO service_role;
 
 
 --
@@ -75869,6 +76311,14 @@ GRANT ALL ON TABLE public.form_keys TO service_role;
 
 
 --
+-- Name: TABLE form_sites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_sites TO authenticated;
+GRANT ALL ON TABLE public.form_sites TO service_role;
+
+
+--
 -- Name: TABLE form_versions; Type: ACL; Schema: public; Owner: -
 --
 
@@ -76637,6 +77087,14 @@ GRANT ALL ON TABLE public.notifications TO service_role;
 --
 
 GRANT ALL ON TABLE public.operator_pages TO service_role;
+
+
+--
+-- Name: TABLE outside_forms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.outside_forms TO authenticated;
+GRANT ALL ON TABLE public.outside_forms TO service_role;
 
 
 --

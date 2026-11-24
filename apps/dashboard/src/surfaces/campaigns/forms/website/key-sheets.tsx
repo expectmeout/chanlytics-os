@@ -1,22 +1,33 @@
 /**
- * The sheets a website's key opens (00675): a key made for a site, by its name; the key itself, shown this once with
- * where the site sends its forms; and one key's own, to change it for a new one (the old one honoured a day) or end it.
+ * The sheets a website's key opens (00675, 00709): a key made for a site, by its name (a new site's name, where it is for
+ * none yet); the key itself, shown this once with where the site sends its forms and the lines its developer pastes with
+ * a test; and one key's own, to change it for a new one (the old one honoured a day) or end it.
  */
 import { useEffect, useState } from "react";
 import type { WebsiteFormKeyMade, WebsiteFormsDto } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { CopyButton } from "../../kit/copy-button/copy-button";
-import { Field } from "../../kit/field/field";
-import { Icon } from "../../kit/icon/icon";
-import { Sheet } from "../../kit/sheet/sheet";
-import { WEBSITE_FORM_WORDS as W, keyHint, keyName, keyUsed, type SaysWhen, type WebsiteKey } from "./words";
+import { Button } from "../../../kit/button/button";
+import { CopyButton } from "../../../kit/copy-button/copy-button";
+import { Field } from "../../../kit/field/field";
+import { Icon } from "../../../kit/icon/icon";
+import { Sheet } from "../../../kit/sheet/sheet";
+import {
+  WEBSITE_FORM_WORDS as W,
+  keyHint,
+  keyName,
+  keyUsed,
+  siteDoorLinesOf,
+  type SaysWhen,
+  type WebsiteKey,
+} from "./words";
 
 /** A sheet's Close, made as it is drawn: nothing here draws while the module loads. */
 const keySheetClose = () => ({ label: W.close, glyph: <Icon name="x" size={13} /> });
 
-/** A key made for a site: its name asked, then the press. */
+/** A key made for a site (`site`, named in the title) or for a new site: its name asked, then the press. */
 export function MakeKeySheet(props: {
   open: boolean;
+  /** The site it is for; null for a new site, named as the key is. */
+  site: string | null;
   busy: boolean;
   onMake: (name: string) => void;
   onClose: () => void;
@@ -27,7 +38,7 @@ export function MakeKeySheet(props: {
     <Sheet
       open={props.open}
       onClose={props.onClose}
-      title={W.makeSheet.title}
+      title={props.site ? W.makeSheet.titleFor(props.site) : W.makeSheet.title}
       close={keySheetClose()}
       flatFoot
       fit
@@ -49,7 +60,7 @@ export function MakeKeySheet(props: {
       }
     >
       <Field
-        label={W.makeSheet.label}
+        label={props.site ? W.makeSheet.label : W.makeSheet.labelNew}
         value={name}
         onValueChange={setName}
         placeholder={W.makeSheet.placeholder}
@@ -120,6 +131,18 @@ export function MadeKeySheet(props: {
           />
         ) : null}
         {props.graceUntil ? <p>{W.madeSheet.graceUntil(props.graceUntil)}</p> : null}
+        {made && door ? (
+          <>
+            <p data-strong="true">{W.madeSheet.lines}</p>
+            <p>{W.madeSheet.linesSays}</p>
+            <CopiedLine
+              label={W.madeSheet.lines}
+              text={siteDoorLinesOf(door, made.key)}
+              copy={W.madeSheet.copyLines}
+              testid="wf-made-lines"
+            />
+          </>
+        ) : null}
       </div>
     </Sheet>
   );

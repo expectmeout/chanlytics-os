@@ -72,6 +72,7 @@ what the script writes.
 | [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/links.ts`, `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/forms/times.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
+| [`form_sites`](#form_sites) | none | on, 1 policy |
 | [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
 | [`forms`](#forms) | `packages/db/src/repositories/forms/forms.ts` | on, 4 policies |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
@@ -115,6 +116,7 @@ what the script writes.
 | [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/ops/pages.ts` | on, no policy, so only the service role reaches it |
+| [`outside_forms`](#outside_forms) | none | on, 1 policy |
 | [`owner_claims`](#owner_claims) | `packages/db/src/repositories/files/claims.ts` | on, 1 policy |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
@@ -1936,6 +1938,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form's address and not from its own page (elsewhere, 00703). |
 | `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
 | `code_used_at` | timestamp with time zone | yes |  |  |
+| `outside_form_id` | uuid | yes |  | The form owned elsewhere this entry is of (00709): a website's. An entry names a form made here (form_id) or one of these, never both; a test names neither. |
 
 Foreign keys:
 
@@ -1943,6 +1946,7 @@ Foreign keys:
 - `tenant_id`, `form_id` → [`forms`](#forms) (`tenant_id`, `id`)
 - `tenant_id`, `key_id` → [`form_keys`](#form_keys) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `link_id` → [`links`](#links) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `outside_form_id` → [`outside_forms`](#outside_forms) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `tenant_id`, `version_id` → [`form_versions`](#form_versions) (`tenant_id`, `id`)
 
@@ -2003,6 +2007,35 @@ A website's key for the form door (00675; the Forms plan, F0): named, made at ra
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `last_used_at` | timestamp with time zone | yes |  |  |
 | `ends_at` | timestamp with time zone | yes |  | From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end. |
+| `site_id` | uuid | yes |  | The site the key proves (00709): set as the key is made, carried to the key it is changed for, and made at the first key's first use. |
+
+Foreign keys:
+
+- `tenant_id`, `site_id` → [`form_sites`](#form_sites) (`tenant_id`, `id`)
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_keys_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### form_sites
+
+A website a business sends form entries from (00709; Campaigns in three tabs, Lane B): the name the owner gave it with its first key, its host as its entries' pages name it, when its first and last real entry came, and when a test last came. Its keys name it (form_keys.site_id), so a key changed keeps the site. Members read them; form_key_make makes one, and form_entry_take stamps it.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `name` | text | yes |  |  |
+| `host` | text | yes |  |  |
+| `first_entry_at` | timestamp with time zone | yes |  |  |
+| `last_entry_at` | timestamp with time zone | yes |  |  |
+| `test_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
 
 Foreign keys:
 
@@ -2010,7 +2043,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `form_keys_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `form_sites_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### form_versions
 
@@ -3400,6 +3433,39 @@ Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backl
 | `last_at` | timestamp with time zone | no | `now()` |  |
 | `count` | integer | no | `1` |  |
 | `alerted_at` | timestamp with time zone | yes |  |  |
+
+### outside_forms
+
+A form owned elsewhere (00709; Campaigns in three tabs, Lane B): a website's own form now, Meta's lead forms later. Its site, a request or a sign-up, the site's own stable id for it, the name the site last sent and the owner's own, listed or hidden (hidden never stops its entries), from when its entries are requests (requests_from), and its first and last entry. One per workspace, site, kind of form and id, so a form renamed on the site keeps its history. Members read them; form_entry_take makes them, and outside_form_rename and outside_form_listed are a member's.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no | `'website'::text` |  |
+| `site_id` | uuid | yes |  |  |
+| `form` | text | no |  |  |
+| `ref` | text | yes |  |  |
+| `sent_name` | text | yes |  |  |
+| `name` | text | yes |  |  |
+| `listed` | boolean | no | `true` |  |
+| `requests_from` | timestamp with time zone | no | `now()` |  |
+| `first_entry_at` | timestamp with time zone | yes |  |  |
+| `last_entry_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `site_id` → [`form_sites`](#form_sites) (`tenant_id`, `id`)
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `outside_forms_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### owner_claims
 

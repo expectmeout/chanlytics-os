@@ -56,6 +56,8 @@ interface TodayInput {
   previewsTried: PreviewTriedDto[];
   /** The requests sent through a form that nobody has answered (00680), newest first; empty where none was read. */
   formRequests: FormOpenRequestDto[];
+  /** The requests nobody has answered past those listed (the list stops at 200, 00709): counted, never drawn. */
+  formRequestsBeyond?: number;
   /** Each form's entries held for a look that nobody has looked at in three days (00680); empty where none was read. */
   formHeld: FormHeldDto[];
   /** The comments on the business's posts that wait on the owner (00699), newest first; empty where none was read. */

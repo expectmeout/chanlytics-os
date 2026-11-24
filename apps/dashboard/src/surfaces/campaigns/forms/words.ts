@@ -19,6 +19,17 @@ const SILENT_AFTER_MS = 14 * DAY_MS;
 
 export const FORMS_WORDS = {
   tab: "Forms",
+  close: "Close",
+  /** The list's two heads where the business's own website sends forms too (00709). */
+  heads: { here: "Made here", onSite: (site: string) => `On your site · ${site}` },
+  /** The empty page's second start, and the head's way to the website connection (00709). */
+  connect: {
+    title: "Already have a form on your website?",
+    body: "Send its entries here with a key. Your site keeps its own questions.",
+    act: "Connect your website",
+    head: "Website",
+  },
+  hidden: { some: (n: number) => `${n} hidden`, show: "Show them", hide: "Hide them" },
   viewsLabel: "Campaigns' views",
   ask: {
     first: "What would you like to collect?",
@@ -41,7 +52,7 @@ export const FORMS_WORDS = {
   },
   viewer: "Only an owner or operator can make or change a form.",
   state: { draft: "Draft", live: "Live", off: "Off" } satisfies Record<FormStateDto, string>,
-  parts: { form: "Form", next: "Next", share: "Share" } satisfies Record<FormPart, string>,
+  parts: { form: "Form", next: "Next", share: "Share", site: "Site" } satisfies Record<FormPart, string>,
   partsLabel: "The form's parts",
   pill: {
     turnOff: "Turn off",

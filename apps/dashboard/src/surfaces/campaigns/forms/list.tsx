@@ -2,9 +2,15 @@
  * Campaigns › Forms' list (the Forms canvas, "The list"): one line to AI, and each form as a row that says whether it
  * is live and when it last took a request. No builder, no template list and no kinds of question to pick from: a form
  * is made by saying what to collect. While AI drafts, its three work and the words stay still.
+ *
+ * Where the business's own website sends forms too (00709; Campaigns in three tabs, Lane B), the forms made here stand
+ * under their head and each site's under its own, by their real names, a hidden one folded away. With no form at all, the
+ * page offers two starts: say what to collect, or connect the website's own form.
  */
 import { useState } from "react";
-import type { FormListRowDto, FormsDto } from "@chanlytics/contracts";
+import { agoWords, type FormListRowDto, type FormsDto, type OutsideFormRowDto } from "@chanlytics/contracts";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { WEBSITE_FORM_WORDS } from "./website/words";
 import { AskLooking } from "../../files/looking";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
@@ -138,16 +144,120 @@ function FormRow({ row, now, open, onOpen }: { row: FormListRowDto; now: number;
   );
 }
 
+/** A site's form's row: its name, what it is and when its last one came, and that it is on the site. */
+function SiteFormRow(props: { row: OutsideFormRowDto; now: number; open: boolean; onOpen: () => void }) {
+  const { row, now, open, onOpen } = props;
+  const last = row.last_entry_at ? WEBSITE_FORM_WORDS.lastOne(agoWords(Date.parse(row.last_entry_at), now)) : null;
+  return (
+    <ListRow
+      className="fmv-row"
+      data-open={open || undefined}
+      data-off={!row.listed || undefined}
+      mark={<Icon name="globe" size={15} />}
+      name={row.name}
+      said={<span>{[WEBSITE_FORM_WORDS.formKind[row.form], last].filter(Boolean).join(" · ")}</span>}
+      end={(place) => (
+        <span className={place}>
+          <StatePill kind="tone" value="plain" label={SITE_LABEL} />
+          <Icon name="chevron" size={12} />
+        </span>
+      )}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onOpen();
+      }}
+      data-testid="forms-site-row"
+    />
+  );
+}
+
+/** What a site's form's row says it is. */
+const SITE_LABEL = "On your site";
+
+/** Each site's forms under its own head, the hidden ones folded away until asked for. */
+function SiteGroups(props: {
+  rows: readonly OutsideFormRowDto[];
+  now: number;
+  openId: string | null;
+  onOpen: (id: string) => void;
+}) {
+  const [showHidden, setShowHidden] = useState(false);
+  const hidden = props.rows.filter((row) => !row.listed).length;
+  const shown = props.rows.filter((row) => row.listed || showHidden);
+  const sites = [...new Set(shown.map((row) => row.site_id))];
+  return (
+    <>
+      {sites.map((siteId) => {
+        const rows = shown.filter((row) => row.site_id === siteId);
+        return (
+          <section key={siteId} className="fmv-group" data-testid="forms-site-group">
+            <h3>{W.heads.onSite(rows[0]?.site ?? "")}</h3>
+            <Panel variant="pane" size="flush" className="fmv-rows">
+              {rows.map((row) => (
+                <SiteFormRow
+                  key={row.id}
+                  row={row}
+                  now={props.now}
+                  open={row.id === props.openId}
+                  onOpen={() => props.onOpen(row.id)}
+                />
+              ))}
+            </Panel>
+          </section>
+        );
+      })}
+      {hidden > 0 ? (
+        <p className="fmv-note">
+          {W.hidden.some(hidden)}{" "}
+          <LinkButton onClick={() => setShowHidden(!showHidden)} data-testid="forms-hidden-toggle">
+            {showHidden ? W.hidden.hide : W.hidden.show}
+          </LinkButton>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** The empty page's second start: the website's own form, connected. */
+function ConnectStart({ onWebsite }: { onWebsite: () => void }) {
+  return (
+    <div className="fmv-ask-head" data-testid="forms-connect">
+      <span className="fmv-three">
+        <Icon name="globe" size={22} />
+      </span>
+      <div>
+        <h3>{W.connect.title}</h3>
+        <p>{W.connect.body}</p>
+        <div className="fmv-acts">
+          <Button size="sm" onClick={onWebsite} data-testid="forms-connect-go">
+            {W.connect.act}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface FormsListProps {
   dto: FormsDto | null;
   failed: boolean;
   again: () => Promise<void>;
   openId: string | null;
   onOpen: (formId: string) => void;
+  /** A site's form opened, and the website connection opened (00709). */
+  onOpenSite: (formId: string) => void;
+  onWebsite: () => void;
+  /** The connection as a quiet line under the list, where the head has no room for it (a phone). */
+  websiteLine?: boolean;
 }
 
 /** The list: the forms, and the line to AI over them where there is none yet, under them once there is one. */
-export function FormsList({ dto, failed, again, openId, onOpen }: FormsListProps) {
+export function FormsList(props: FormsListProps) {
+  const { dto, failed, again, openId, onOpen, onOpenSite, onWebsite, websiteLine = false } = props;
   const [now] = useState(() => Date.now());
   if (failed)
     return (
@@ -165,22 +275,37 @@ export function FormsList({ dto, failed, again, openId, onOpen }: FormsListProps
     void again();
     onOpen(formId);
   };
+  const outside = dto.outside ?? [];
   const ask = dto.can_change ? <AskForForm first={dto.forms.length === 0} onMade={made} /> : null;
-  if (dto.forms.length === 0)
+  if (dto.forms.length === 0 && outside.length === 0)
     return (
       <div className="fmv-list" data-testid="forms-list">
         <Panel variant="pane" size="sm">
           {ask ?? <p className="fmv-note">{W.viewer}</p>}
+          {dto.sites === 0 ? <ConnectStart onWebsite={onWebsite} /> : null}
         </Panel>
       </div>
     );
+  // Heads only where both kinds stand: a page of forms made here alone reads as it always has.
+  const heads = outside.length > 0;
   return (
     <div className="fmv-list" data-testid="forms-list">
-      <Panel variant="pane" size="flush" className="fmv-rows">
-        {dto.forms.map((row) => (
-          <FormRow key={row.id} row={row} now={now} open={row.id === openId} onOpen={() => onOpen(row.id)} />
-        ))}
-      </Panel>
+      {dto.forms.length > 0 ? (
+        <section className="fmv-group">
+          {heads ? <h3>{W.heads.here}</h3> : null}
+          <Panel variant="pane" size="flush" className="fmv-rows">
+            {dto.forms.map((row) => (
+              <FormRow key={row.id} row={row} now={now} open={row.id === openId} onOpen={() => onOpen(row.id)} />
+            ))}
+          </Panel>
+        </section>
+      ) : null}
+      {heads ? <SiteGroups rows={outside} now={now} openId={openId} onOpen={onOpenSite} /> : null}
+      {websiteLine ? (
+        <LinkButton onClick={onWebsite} data-testid="forms-website-line">
+          {WEBSITE_FORM_WORDS.title}
+        </LinkButton>
+      ) : null}
       {ask}
     </div>
   );

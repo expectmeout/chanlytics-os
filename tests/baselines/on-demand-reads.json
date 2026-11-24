@@ -515,9 +515,9 @@
     "fresh": "Read once as Today draws its lines, and again on the next visit.",
     "why": "Let AI do more offers one Autonomy row a step on from 30 days of its drafts, which move over days; the change it offers is the policies route's own write, which refuses a mode the row cannot take and says so."
   },
-  "apps/dashboard/src/surfaces/settings/website/use-website-forms.ts GET website-forms": {
+  "apps/dashboard/src/surfaces/campaigns/forms/website/use-website-forms.ts GET website-forms": {
     "kind": "on-open",
-    "fresh": "Read as Connections draws its Website forms card, after each press on a key, and when the owner comes back to the tab.",
+    "fresh": "Read as Forms opens its website connection, after each press on a key, and when the owner comes back to the tab.",
     "why": "A key's last use moves when the site sends a form, not when anyone here acts, so the card reads it again when the owner looks. The feed does not tell of form_keys or form_entries: no surface holds them yet (00675)."
   },
   "apps/dashboard/src/surfaces/today/calm/days.ts GET reports/headline": {
@@ -534,6 +534,11 @@
     "kind": "on-open",
     "fresh": "Read as a form's sheet opens, after each press on the form, its links or one of its entries, and when the owner comes back to the tab.",
     "why": "The sheet is one form's own page: its draft is the owner's to change, kept as it is typed and read back after. Its counts move once a request arrives, and are read again when the owner looks."
+  },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/site-sheet": {
+    "kind": "on-open",
+    "fresh": "Read as a form the business's own website owns is opened in Forms, after each press on it, and when the owner comes back to the tab.",
+    "why": "A site's form moves when its site sends an entry, not when anyone here acts, so its sheet reads it again when the owner looks (00709)."
   },
   "apps/dashboard/src/bridge/verbs/forms.ts GET forms/requests": {
     "kind": "on-open",

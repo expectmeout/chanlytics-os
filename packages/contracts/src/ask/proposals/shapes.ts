@@ -79,6 +79,8 @@ export const ASK_PRESS_WORDS = [
   "delete",
   "merge",
   "open",
+  // A form drafted from the owner's sentence, in Forms (forms/draft-card.ts).
+  "draft",
 ] as const;
 export type AskPressWord = (typeof ASK_PRESS_WORDS)[number];
 
@@ -196,6 +198,7 @@ export const ASK_KIND_TRAITS = {
   piece: t("make", "keeps", null, "press", "make"),
   // A new ad drafted and kept, and New ad opened on it: nothing runs or is spent until the owner's Turn on there.
   ad_draft: t("make", "keeps", null, "press", "open"),
+  form_draft: t("make", "keeps", null, "press", "draft"),
   // A website's or an Instagram's photos and videos brought in: nothing is kept until its Keep, but it reads, so it waits.
   bring_in: t("find", "keeps", null, "press", "add"),
   // A post put up in public: always pressed, as the page's Post it is.

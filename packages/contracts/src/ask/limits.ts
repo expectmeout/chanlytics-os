@@ -1,6 +1,6 @@
 /** Ask: limits. */
 
-import { MIN_MS } from "../shared/time";
+import { MIN_MS, SECOND_MS } from "../shared/time";
 import { isOneOf } from "../shared/unknown";
 
 /* ------------------------------------------------------------------ limits */
@@ -42,6 +42,14 @@ export const ASK_MAX_ROUNDS = 8;
  * cards over many reads (the operator, 15 Oct 2026; his rule that cost never outranks the experience).
  */
 export const ASK_TURN_BUDGET_MS = 2 * MIN_MS;
+
+/**
+ * How long a tab waits for Ask's act door to press a card: the door's own limit (app/api/v1/ask/act, maxDuration 150 s),
+ * which holds the longest call a card makes (a form AI drafts, FORM_PRESS_WAIT_MS) and the door's own reads around it,
+ * and a little more. A tab that gave up sooner would press the card itself while the door's call still ran, and be told
+ * the card is being approved already.
+ */
+export const ASK_ACT_WAIT_MS = 155 * SECOND_MS;
 
 /**
  * A spoken turn end to end (the voice door): a person is listening, so it keeps the budget a turn had before the operator,

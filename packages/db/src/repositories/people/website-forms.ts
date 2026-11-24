@@ -1,7 +1,7 @@
 /**
- * A website's form entries and its keys (00675; the Forms plan, F0). The edge's door keeps an entry through one write,
- * form_entry_take: the key's last use, the once rule, the person through resolve_person, the entry and its event, all
- * in one transaction. What follows it (the note, the notice, a sign-up's ask) is each settled on the entry by
+ * A website's form entries and its keys (00675, 00709; the Forms plan, F0). The edge's door keeps an entry through one
+ * write, form_entry_take: the key's last use and its site, the form it is of, the once rule within that form, the person
+ * through resolve_person, the entry with where its visitor came from, and its event, all in one transaction. What follows it (the note, the notice, a sign-up's ask) is each settled on the entry by
  * form_entry_settled. The keys are an owner's: made, changed and ended through their own doors on the caller's client,
  * read under its row security; the edge reads them by hash on the service role. A read that fails THROWS, but for a
  * database before 00675, whose missing tables read as no keys and no entries.
@@ -23,10 +23,14 @@ type Db = SupabaseClient<Database>;
 /** The codes PostgREST and Postgres answer for a table that is not there yet: before 00675, no keys and no entries. */
 const NOT_THERE_YET = new Set(["PGRST205", "42P01"]);
 
-/** What the door's one write came to: kept now, kept before (the same entry again), or a person who asked to be forgotten. */
+/**
+ * What the door's one write came to: kept now, kept before (the same entry again), a test kept as one (no person), or a
+ * person who asked to be forgotten. `clash`: kept now, though its form had the site's id for it with other words.
+ */
 export type FormEntryTaken =
-  | { outcome: "accepted" | "again"; entryId: string; contactId: ContactId }
-  | { outcome: "forgotten"; entryId: null; contactId: null };
+  | { outcome: "accepted" | "again"; entryId: string; contactId: ContactId; clash: boolean }
+  | { outcome: "test"; entryId: string; contactId: null; clash: false }
+  | { outcome: "forgotten"; entryId: null; contactId: null; clash: false };
 
 /** What the door hands its one write. `keyId` null is the first key, made from the platform's own. */
 interface FormEntryToTake {
@@ -38,6 +42,14 @@ interface FormEntryToTake {
   ref: string | null;
   words: string;
   owed: readonly FormEffect[];
+  /** Which of the site's forms it is: the site's own id for it and its name, where the site sends them (00709). */
+  formRef: string | null;
+  formName: string | null;
+  /** The host the form's page is on, which names its site once (contracts websiteHostOf). */
+  host: string | null;
+  /** Where the visitor came from (contracts Source), kept in the same write as the entry. */
+  source: Json | null;
+  test: boolean;
 }
 
 /** The entry kept with its person and its event, or found again, or nothing for a person who asked to be forgotten. */
@@ -52,31 +64,26 @@ export async function takeFormEntry(db: Db, entry: FormEntryToTake): Promise<For
     p_ref: entry.ref ?? undefined,
     p_words: entry.words,
     p_owed: [...entry.owed],
+    p_form_ref: entry.formRef ?? undefined,
+    p_form_name: entry.formName ?? undefined,
+    p_host: entry.host ?? undefined,
+    p_source: entry.source ?? undefined,
+    p_test: entry.test,
   });
   if (error) throw new DbFailure(error, "form_entry_take");
   const row = recordOrEmpty(data);
-  if (row.outcome === "forgotten") return { outcome: "forgotten", entryId: null, contactId: null };
-  if ((row.outcome !== "accepted" && row.outcome !== "again") || typeof row.entry_id !== "string")
+  if (row.outcome === "forgotten") return { outcome: "forgotten", entryId: null, contactId: null, clash: false };
+  if (typeof row.entry_id !== "string") throw new Error("form_entry_take answered without an entry");
+  if (row.outcome === "test") return { outcome: "test", entryId: row.entry_id, contactId: null, clash: false };
+  if (row.outcome !== "accepted" && row.outcome !== "again")
     throw new Error("form_entry_take answered without an entry");
   if (typeof row.contact_id !== "string") throw new Error("form_entry_take answered without a person");
-  return { outcome: row.outcome, entryId: row.entry_id, contactId: heldContactId(row.contact_id) };
-}
-
-/**
- * Where an entry came from, kept beside its answers (00680; the Ads tracking plan's T4): the one shape, as the door
- * cleaned it. Its own small write after the entry is kept: where it fails the entry stands, and says nothing of where
- * its visitor came from.
- */
-export async function keepFormEntrySource(
-  db: Db,
-  kept: { tenantId: TenantId; entryId: string; source: Json },
-): Promise<void> {
-  const { error } = await db
-    .from("form_entries")
-    .update({ source: kept.source })
-    .eq("tenant_id", kept.tenantId)
-    .eq("id", kept.entryId);
-  if (error) throw new DbFailure(error, "form_entries");
+  return {
+    outcome: row.outcome,
+    entryId: row.entry_id,
+    contactId: heldContactId(row.contact_id),
+    clash: row.clash === true,
+  };
 }
 
 /** One effect's outcome as the entry keeps it: done, or failed with why, and what else the effect says of itself. */
@@ -98,6 +105,8 @@ export interface FormEntryRow {
   version_id: string | null;
   /** The link a hosted form's entry came through, where it came through one. */
   link_id: string | null;
+  /** The form owned by the business's own website it is of (00709); null for a hosted form's, or one from before. */
+  outside_form_id: string | null;
   /** Who a hosted form's entry is about, as typed; null for a website's own form, whose answers say it. */
   reach: { name: string | null; email: string | null; phone: string | null } | null;
   /** Where the entry came from, in the one shape (contracts Source); null where nothing was seen. */
@@ -134,7 +143,9 @@ function effectOf(kept: unknown): FormEffectOutcome | null {
 export async function findFormEntry(db: Db, tenantId: TenantId, entryId: string): Promise<FormEntryRow | null> {
   const { data, error } = await db
     .from("form_entries")
-    .select("id, contact_id, form, version_id, link_id, reach, source, answers, owed, effects, created_at")
+    .select(
+      "id, contact_id, form, version_id, link_id, outside_form_id, reach, source, answers, owed, effects, created_at",
+    )
     .eq("tenant_id", tenantId)
     .eq("id", entryId)
     .maybeSingle();
@@ -146,6 +157,7 @@ export async function findFormEntry(db: Db, tenantId: TenantId, entryId: string)
     form: data.form === "signup" ? "signup" : "request",
     version_id: data.version_id,
     link_id: data.link_id,
+    outside_form_id: data.outside_form_id,
     reach: data.version_id ? reachKept(data.reach) : null,
     source: data.source,
     answers: data.answers,
@@ -234,6 +246,8 @@ export async function findFirstFormKey(db: Db, tenantId: TenantId): Promise<Form
 /** A website's key as Settings shows it: never its hash. */
 interface FormKeyListed {
   id: string;
+  /** The site it proves (00709); null only on a database from before it. */
+  site_id: string | null;
   name: string | null;
   first: boolean;
   created_at: string;
@@ -248,7 +262,7 @@ interface FormKeyListed {
 export async function listFormKeys(db: Db, tenantId: TenantId): Promise<FormKeyListed[]> {
   const { data, error } = await db
     .from("form_keys")
-    .select("id, name, first, created_at, last_used_at, ends_at")
+    .select("id, site_id, name, first, created_at, last_used_at, ends_at")
     .eq("tenant_id", tenantId)
     .order("ends_at", { ascending: false, nullsFirst: true })
     .order("created_at", { ascending: false })
@@ -272,12 +286,17 @@ export async function findLastFormEntryAt(db: Db, tenantId: TenantId): Promise<s
   return data?.created_at ?? null;
 }
 
-/** A key kept by its name and its hash, on the caller's client: its id. */
-export async function makeFormKey(db: Db, key: { tenantId: TenantId; name: string; hash: string }): Promise<string> {
+/** A key kept by its name and its hash, on the caller's client, for its site or a new one named as it is: its id. */
+export async function makeFormKey(
+  db: Db,
+  key: { tenantId: TenantId; name: string; hash: string; siteId: string | null },
+): Promise<string> {
   const { data, error } = await db.rpc("form_key_make", {
     p_tenant_id: key.tenantId,
     p_name: key.name,
     p_hash: key.hash,
+    // None: the door makes a site, named as the key is.
+    p_site_id: key.siteId ?? undefined,
   });
   if (error) throw new DbFailure(error, "form_key_make");
   return String(data);

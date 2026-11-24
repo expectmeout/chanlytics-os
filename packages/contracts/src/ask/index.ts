@@ -50,6 +50,7 @@ export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from 
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./language";
 export type { AskLanguage } from "./language";
 export {
+  ASK_ACT_WAIT_MS,
   ASK_CORE_TOOLS_CHARS_CEILING,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,

@@ -96,6 +96,7 @@ export const ROUTE_KEYS = [
   "GET forms",
   "GET forms/requests",
   "GET forms/sheet",
+  "GET forms/site-sheet",
   "GET google",
   "GET google/callback",
   "GET google/connect",

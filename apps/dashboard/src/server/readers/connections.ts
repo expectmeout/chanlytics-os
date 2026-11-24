@@ -2,12 +2,12 @@ import "server-only";
 import {
   ROLE_PERMS,
   reviewReplyModeOf,
-  websiteKeyWorks,
   type GoogleReadDto,
   type SetupDto,
   type WebsiteFormsDto,
 } from "@chanlytics/contracts";
-import { findLastFormEntryAt, listFormKeys } from "@chanlytics/db/people";
+import { findLastFormEntryAt } from "@chanlytics/db/people";
+import { readWebsiteSites } from "../forms/outside";
 import { getGoogle } from "../connections/google";
 import { edgeUrl } from "../shared/edge";
 import { setupDtoFor } from "../setup/setup";
@@ -58,9 +58,9 @@ export const googleReader: Reader<undefined, GoogleReadDto> = {
 };
 
 /**
- * A website's forms as Settings › Connections shows them (GET website-forms, 00675): the workspace's keys that still
- * work on the turn's clock (contracts websiteKeyWorks, the door's own rule), newest first, the first key made from the
- * platform's own among them once a site has used it, each with its last use and its end; when an entry last arrived;
+ * The website connection as Campaigns › Forms shows it (GET website-forms; 00675, 00709): each site the business sends
+ * entries from, where it stands, its keys that still work on the turn's clock (contracts websiteKeyWorks, the door's own
+ * rule), newest first, and the forms found on it (server/forms/outside.ts readWebsiteSites); when an entry last arrived;
  * the door a site's server posts to; and whether this member may change a key. Read on the member's own session,
  * under its row security. No row a citation names.
  */
@@ -68,22 +68,12 @@ export const websiteForms: Reader<undefined, WebsiteFormsDto> = {
   name: "website_forms",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [keys, lastReceived] = await Promise.all([
-      listFormKeys(db, rc.tenantId),
+    const [sites, lastReceived] = await Promise.all([
+      readWebsiteSites(db, rc.tenantId, rc.now.getTime()),
       findLastFormEntryAt(db, rc.tenantId),
     ]);
-    const working = keys
-      .filter((key) => websiteKeyWorks(key, rc.now.getTime()))
-      .sort((one, other) => other.created_at.localeCompare(one.created_at));
     const data: WebsiteFormsDto = {
-      keys: working.map((key) => ({
-        id: key.id,
-        name: key.name,
-        first: key.first,
-        made_at: key.created_at,
-        last_used_at: key.last_used_at,
-        ends_at: key.ends_at,
-      })),
+      sites,
       last_received_at: lastReceived,
       door: { address: `${edgeUrl()}/api/website-form`, workspace: rc.tenantId },
       can_change: ROLE_PERMS[rc.role].settings,

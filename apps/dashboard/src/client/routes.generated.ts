@@ -93,6 +93,7 @@ export const ROUTES = {
   "GET forms": { method: "GET", path: "/api/v1/forms" },
   "GET forms/requests": { method: "GET", path: "/api/v1/forms/requests" },
   "GET forms/sheet": { method: "GET", path: "/api/v1/forms/sheet" },
+  "GET forms/site-sheet": { method: "GET", path: "/api/v1/forms/site-sheet" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -567,6 +568,7 @@ export type Routes = {
   "GET forms": typeof import("../../app/api/v1/forms/route").GET;
   "GET forms/requests": typeof import("../../app/api/v1/forms/requests/route").GET;
   "GET forms/sheet": typeof import("../../app/api/v1/forms/sheet/route").GET;
+  "GET forms/site-sheet": typeof import("../../app/api/v1/forms/site-sheet/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;

@@ -3,7 +3,8 @@
  * (a member's), form_request_take (the visitor's one write: the version checked, once by the page's own id, the person
  * through the door the suite hands it, the entry and its event; held with no person, a test with neither),
  * form_entry_let_through and form_entry_hold, form_code_person and form_code_link (a request carried into a chat),
- * link_open (where a link lands, and its open counted), and the two reads (form_requests_open, form_results' shape).
+ * link_open (where a link lands, and its open counted), and the reads (form_requests_open, form_requests_open_count,
+ * form_results' shape), each taking a website form's requests from its requests_from on beside the hosted ones (00709).
  * The real SQL is proved on a database by the suite's own .db test; this is what lets the page, the routes and the
  * edge's steps run here.
  */
@@ -28,6 +29,27 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
   const now = () => new Date(clock()).toISOString();
   let made = 0;
   const forms = () => (tables.forms ??= []);
+  /** The form owned elsewhere an entry is of (00709). */
+  const outsideOf = (e) =>
+    e.outside_form_id ? (tables.outside_forms ?? []).find((o) => o.id === e.outside_form_id) : undefined;
+  /**
+   * form_requests_open's rule: a hosted form's entry with its version, or a website form's request from its form's
+   * requests_from on; not held, not a test, inside sixty days, and answered by nothing.
+   */
+  const openRequest = (e, tenantId) => {
+    const outside = outsideOf(e);
+    const ofAForm =
+      (e.form_id && versions().some((v) => v.id === e.version_id)) ||
+      (outside && e.form === "request" && e.created_at >= outside.requests_from);
+    return (
+      e.tenant_id === tenantId &&
+      ofAForm &&
+      e.state !== "held" &&
+      !e.test &&
+      Date.parse(e.created_at) > clock() - 60 * DAY_MS &&
+      !answered(e)
+    );
+  };
   const versions = () => (tables.form_versions ??= []);
   const entries = () => (tables.form_entries ??= []);
   const links = () => (tables.links ??= []);
@@ -271,27 +293,24 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
     },
     form_requests_open: (a) =>
       entries()
-        .filter(
-          (e) =>
-            e.tenant_id === a.p_tenant_id &&
-            e.form_id &&
-            e.state !== "held" &&
-            !e.test &&
-            Date.parse(e.created_at) > clock() - 60 * DAY_MS &&
-            !answered(e),
-        )
+        .filter((e) => openRequest(e, a.p_tenant_id))
         .sort((x, y) => y.created_at.localeCompare(x.created_at))
         .slice(0, 200)
         .map((e) => ({
           id: e.id,
           form_id: e.form_id,
           version_id: e.version_id,
+          outside_form_id: e.outside_form_id ?? null,
           contact_id: e.contact_id,
           created_at: e.created_at,
           answers: e.answers,
           reach: e.reach,
           place: links().find((l) => l.id === e.link_id)?.place ?? null,
-          heading: versions().find((v) => v.id === e.version_id)?.description?.heading ?? null,
+          heading:
+            versions().find((v) => v.id === e.version_id)?.description?.heading ??
+            outsideOf(e)?.name ??
+            outsideOf(e)?.sent_name ??
+            null,
           unreached: entryLinks().some(
             (l) =>
               l.entry_id === e.id &&
@@ -299,23 +318,27 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
               (tables.messages ?? []).find((m) => m.id === l.message_id)?.status === "failed",
           ),
         })),
+    form_requests_open_count: (a) => entries().filter((e) => openRequest(e, a.p_tenant_id)).length,
     form_results: (a) => {
       const since = clock() - Math.max(1, Math.min(a.p_days ?? 30, 366)) * DAY_MS;
       const places = new Map();
       for (const e of entries()) {
-        const counted = e.tenant_id === a.p_tenant_id && e.form_id && e.state !== "held" && !e.test;
+        const counted =
+          e.tenant_id === a.p_tenant_id && (e.form_id || e.outside_form_id) && e.state !== "held" && !e.test;
         if (!counted || Date.parse(e.created_at) <= since) continue;
         const person = (tables.contacts ?? []).find((c) => c.id === e.contact_id);
         if (!person) continue;
-        const key = `${e.form_id} ${e.link_id ?? ""}`;
+        const key = e.form_id ? `${e.form_id} ${e.link_id ?? ""}` : `outside ${e.outside_form_id}`;
         const place = places.get(key) ?? {
-          form_id: e.form_id,
+          form_id: e.form_id ?? null,
+          outside_form_id: e.form_id ? null : e.outside_form_id,
           link_id: e.link_id ?? null,
           requests: 0,
           talked: 0,
           people: new Set(),
           booked: new Set(),
           fresh: new Set(),
+          confirmed: new Set(),
         };
         places.set(key, place);
         place.requests += 1;
@@ -340,21 +363,37 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
         if (booked) place.booked.add(e.contact_id);
         if (person.created_at && Date.parse(person.created_at) > Date.parse(e.created_at) - 60_000)
           place.fresh.add(e.contact_id);
+        // A sign-up confirmed: its person said yes to offers from the email it sent them, after it came (00489, 00709).
+        const confirmed =
+          e.form === "signup" &&
+          person.email_marketing === "opted_in" &&
+          person.email_marketing_source === "confirmed_signup" &&
+          person.email_marketing_updated_at >= e.created_at;
+        if (confirmed) place.confirmed.add(e.contact_id);
       }
       const day = new Date(since).toISOString().slice(0, 10);
       const opens = new Map();
       for (const d of tables.link_days ?? [])
         if (d.tenant_id === a.p_tenant_id && d.day >= day) opens.set(d.link_id, (opens.get(d.link_id) ?? 0) + d.opens);
+      const counts = (p) => ({
+        talked: p.talked,
+        visits: p.booked.size,
+        people: p.people.size,
+        new_people: p.fresh.size,
+      });
+      const all = [...places.values()];
       return {
-        places: [...places.values()].map((p) => ({
-          form_id: p.form_id,
-          link_id: p.link_id,
-          requests: p.requests,
-          talked: p.talked,
-          visits: p.booked.size,
-          people: p.people.size,
-          new_people: p.fresh.size,
-        })),
+        places: all
+          .filter((p) => p.form_id)
+          .map((p) => ({ form_id: p.form_id, link_id: p.link_id, requests: p.requests, ...counts(p) })),
+        outside: all
+          .filter((p) => p.outside_form_id)
+          .map((p) => ({
+            outside_form_id: p.outside_form_id,
+            entries: p.requests,
+            ...counts(p),
+            confirmed: p.confirmed.size,
+          })),
         opens: [...opens].map(([link_id, n]) => ({ link_id, opens: n })),
       };
     },

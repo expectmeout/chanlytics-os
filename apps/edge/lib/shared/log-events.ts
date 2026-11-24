@@ -306,7 +306,7 @@ export const LOG_EVENTS = [
   "form_entries_purge_failed",
   "form_entry_accepted",
   "form_entry_processed",
-  "form_entry_source_unkept",
+  "form_entry_ref_clashed",
   "form_entry_untold",
   "form_key_refused",
   "forwarding_evidence",

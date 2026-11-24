@@ -468,6 +468,8 @@ export interface TodayReadDto {
   previews_tried: PreviewTriedDto[] | null;
   /** The requests sent through a form that nobody has answered (readers/forms.ts formRequestsOpen); absent before 00680. */
   form_requests?: FormOpenRequestDto[] | null;
+  /** How many requests nobody has answered, counted whole (form_requests_open_count): the list stops at 200 (00709). */
+  form_requests_count?: number | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same reader); absent before 00680. */
   form_held?: FormHeldDto[] | null;
   /** The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting); absent before 00699. */

@@ -27,6 +27,17 @@ export {
 } from "./links";
 export type { LinkOpened, LinkRead } from "./links";
 export {
+  countOpenFormRequests,
+  findFormSite,
+  findOutsideForm,
+  listFormSites,
+  listOutsideFormEntries,
+  listOutsideForms,
+  renameOutsideForm,
+  setOutsideFormListed,
+} from "./outside";
+export type { FormSiteRead, OutsideEntryRead, OutsideFormRead } from "./outside";
+export {
   addRequestCodeNumber,
   countHeldFormEntries,
   findFormRequest,
@@ -55,6 +66,7 @@ export type {
   HeldFormEntry,
   OpenFormRequest,
   OpenFormRequestTime,
+  OutsideFormResult,
 } from "./requests";
 export { countFormBookingOpen, listFormEntriesOfVisits, takeFormTimeRequest } from "./times";
 export type { FormTimeAsked, FormTimeHeld } from "./times";
