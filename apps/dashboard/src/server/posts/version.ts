@@ -38,7 +38,7 @@ import { readFacebookPostable } from "./facebook";
 export const versionInput = z.strictObject({ to: z.enum(["approve", "again"]) });
 
 /** The piece's words for what stands in the way, said where a press is refused. */
-const SAYS = {
+const VERSION_REFUSED = {
   notAVersion: "This isn't one of a made video's versions.",
   nothingWaits: "Nothing of this video waits to go up.",
   notFailed: "Nothing to try again: its newest version was made.",
@@ -46,7 +46,7 @@ const SAYS = {
 } as const;
 
 /** The posts of a piece still set to go: what a version's approval sets in their place. */
-const WAITING = ["queued", "preparing", "held"] as const;
+const STILL_SET_TO_GO = ["queued", "preparing", "held"] as const;
 
 /** POST files/[id]/version: approve this version for every place the piece was set for, or draw a new one again. */
 export async function pressVersion(
@@ -55,9 +55,9 @@ export async function pressVersion(
   row: FileMemberRow,
   input: z.infer<typeof versionInput>,
 ): Promise<{ fate: string }> {
-  if (row.source !== "made" || row.kind !== "video") throw new AppError("validation", SAYS.notAVersion);
+  if (row.source !== "made" || row.kind !== "video") throw new AppError("validation", VERSION_REFUSED.notAVersion);
   const piece = await findPieceOfVideo(ctx.supabase, member.tenantId, row.id);
-  if (!piece) throw new AppError("validation", SAYS.notAVersion);
+  if (!piece) throw new AppError("validation", VERSION_REFUSED.notAVersion);
   return input.to === "again" ? drawAgain(ctx, member, piece.id) : approveVersion(ctx, member, row, piece);
 }
 
@@ -68,8 +68,8 @@ async function approveVersion(
   piece: { id: string; file_id: string | null },
 ): Promise<{ fate: string }> {
   const posts = await listPiecePosts(ctx.supabase, member.tenantId, { id: piece.id, fileId: piece.file_id ?? row.id });
-  const waiting = posts.filter((p) => isOneOf(WAITING, p.status) && p.place !== "hand");
-  if (waiting.length === 0) throw new AppError("validation", SAYS.nothingWaits);
+  const waiting = posts.filter((p) => isOneOf(STILL_SET_TO_GO, p.status) && p.place !== "hand");
+  if (waiting.length === 0) throw new AppError("validation", VERSION_REFUSED.nothingWaits);
   const [instagram, facebook] = await Promise.all([
     readInstagramPostable(member.tenantId),
     readFacebookPostable(member.tenantId),
@@ -103,12 +103,12 @@ async function approveVersion(
 
 async function drawAgain(ctx: RouteContext, member: Member, pieceId: string): Promise<{ fate: string }> {
   const drawing = await findVersionDrawing(ctx.supabase, member.tenantId, pieceId);
-  if (!drawing) throw new AppError("validation", SAYS.notFailed);
-  if (!drawing.failed) throw new AppError("validation", SAYS.making);
+  if (!drawing) throw new AppError("validation", VERSION_REFUSED.notFailed);
+  if (!drawing.failed) throw new AppError("validation", VERSION_REFUSED.making);
   const plan = recordOrEmpty(drawing.plan);
   const config = await getStoredConfig(ctx.supabase, member.tenantId);
   const checked = await checkPieceClips(ctx, member.tenantId, piecePlanOf(plan), config);
-  if (!checked.ok) throw new AppError("validation", SAYS.notFailed);
+  if (!checked.ok) throw new AppError("validation", VERSION_REFUSED.notFailed);
   const begun = await beginPieceVersion(ctx.supabase, {
     tenantId: member.tenantId,
     pieceId,

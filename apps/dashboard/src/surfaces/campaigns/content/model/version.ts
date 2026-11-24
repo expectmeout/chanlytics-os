@@ -66,7 +66,7 @@ export interface VersionStanding {
   list: VersionListed[];
 }
 
-const NONE: VersionStanding = {
+const NO_VERSION_STANDING: VersionStanding = {
   making: null,
   ver: null,
   pill: null,
@@ -77,13 +77,13 @@ const NONE: VersionStanding = {
 };
 
 /** The posts still set to go, soonest first: what waits. */
-const waitingOf = (posts: readonly PostDto[]): PostDto[] =>
+const postsStillSetOf = (posts: readonly PostDto[]): PostDto[] =>
   posts
     .filter((p) => p.status === "queued" || p.status === "preparing" || p.status === "held")
     .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for));
 
 /** The versions list: each drawn version, newest first, with "Post this one instead" on an older one where posts wait. */
-function listOf(
+function versionsListedOf(
   version: PieceVersionsDto,
   fileId: string,
   waits: boolean,
@@ -114,15 +114,15 @@ export function versionStandingOf(
   fileId: string,
   when: (iso: string) => string,
 ): VersionStanding {
-  if (!version) return NONE;
-  const waiting = waitingOf(posts);
+  if (!version) return NO_VERSION_STANDING;
+  const waiting = postsStillSetOf(posts);
   const soonest = waiting[0] ? when(waiting[0].scheduled_for) : null;
-  const list = listOf(version, fileId, waiting.length > 0, when);
+  const list = versionsListedOf(version, fileId, waiting.length > 0, when);
   const next = version.n + 1;
   if (version.drawing !== null) {
     const stage = isOneOf(PIECE_STAGES, version.drawing) ? version.drawing : "drawing";
     return {
-      ...NONE,
+      ...NO_VERSION_STANDING,
       making: {
         title: VERSION_WORDS.making(next),
         stage: pieceWordsIn("en").follows.stage[stage](0),
@@ -142,7 +142,7 @@ export function versionStandingOf(
     : null;
   if (version.failed)
     return {
-      ...NONE,
+      ...NO_VERSION_STANDING,
       ver: VERSION_WORDS.couldnt(next),
       under: soonest ? VERSION_WORDS.stillGoes(version.n, soonest) : null,
       lead: { words: VERSION_WORDS.again, is: "again" },
@@ -151,7 +151,7 @@ export function versionStandingOf(
   const asking = waiting.filter((p) => version.waiting.includes(p.id));
   if (asking.length && soonest)
     return {
-      ...NONE,
+      ...NO_VERSION_STANDING,
       ver,
       pill: { said: GOES_WORDS.pill.changed, tone: "you" },
       under: VERSION_WORDS.replaced(version.n, soonest),
@@ -159,5 +159,5 @@ export function versionStandingOf(
       lines: new Map(asking.map((p) => [p.id, VERSION_WORDS.waitsApproval(version.n, when(p.scheduled_for))])),
       list,
     };
-  return { ...NONE, ver, list };
+  return { ...NO_VERSION_STANDING, ver, list };
 }
