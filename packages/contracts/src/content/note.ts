@@ -63,7 +63,7 @@ export interface ContentTodayDto {
    */
   plan?: {
     /**
-     * The week ready, its size and days; `held`, the time a week AI may approve goes up at ("8:00 AM", 00712), absent
+     * The week ready, its size and days; `held`, the time a week AI may approve goes up at ("8:00 AM", 00714), absent
      * from an older build's answer and null where nothing goes without the owner's press.
      */
     ready: { size: string; days: string; held?: string | null } | null;

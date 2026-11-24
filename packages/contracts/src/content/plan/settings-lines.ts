@@ -80,7 +80,7 @@ export function cadenceSaid(cadence: ReturnType<typeof cadenceOf>): string {
   return `Up to ${places.join(", and ")}, each week. Fewer when the clips are thin.`;
 }
 
-/** Approve the week's rung as Settings › Content says it (00712): the Autonomy pane is where it is moved. */
+/** Approve the week's rung as Settings › Content says it (00714): the Autonomy pane is where it is moved. */
 const RUNG_SAID = {
   ask: "AI asks you first.",
   veto: "AI holds the week and puts it up at 8:00 AM unless you stop it.",

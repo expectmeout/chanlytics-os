@@ -1,5 +1,5 @@
 /**
- * A week AI may approve (00712; the content loop PRD's 12.4, canvas v18 board B5). The owner sets Approve the week on the
+ * A week AI may approve (00714; the content loop PRD's 12.4, canvas v18 board B5). The owner sets Approve the week on the
  * Autonomy pane: holding it, a ready week goes up at 8:00 AM in the business's zone unless they stop it; sending it, it
  * goes as soon as it is ready. The plan job holds each ready week here (holdReadyWeek), and content_week_go puts it up at
  * its time (putTheWeekUp): everything read again first (the week still ready and not stopped, AI not paused, the rung

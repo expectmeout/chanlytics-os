@@ -119,7 +119,7 @@ export interface PlanSlotDto {
   blocked_reason: string | null;
   ask: FootageAsk | null;
   score: SlotScore | null;
-  /** The made file a held week's slot was drawn into ahead of its approval (00712), reused by whoever places it; else null. */
+  /** The made file a held week's slot was drawn into ahead of its approval (00714), reused by whoever places it; else null. */
   prepared_file_id: string | null;
 }
 
@@ -135,7 +135,7 @@ export interface WeekPlanDto {
     approved_at: string | null;
     approved_by: string | null;
     /**
-     * When a week AI may approve goes (00712, the content loop PRD's 12.4): 8:00 in the business's zone for a week held,
+     * When a week AI may approve goes (00714, the content loop PRD's 12.4): 8:00 in the business's zone for a week held,
      * while it is ready and the rung still holds it; null when nothing goes without the owner's press.
      */
     goes_at: string | null;

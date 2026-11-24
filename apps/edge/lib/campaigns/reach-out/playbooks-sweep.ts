@@ -205,7 +205,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   } catch (e) {
     L.error("content_plans_hand_out_failed", { error: e instanceof Error ? e.message : String(e) });
   }
-  // The weeks AI approved under the owner's rung, made in turn (00712): each made week begins the next, and the hour's
+  // The weeks AI approved under the owner's rung, made in turn (00714): each made week begins the next, and the hour's
   // clock begins the queue too, so a making that never reported back frees its place once its lease ends.
   try {
     out.making = await startWeeksMaking(db, WEEK_MAKING_QUEUE);

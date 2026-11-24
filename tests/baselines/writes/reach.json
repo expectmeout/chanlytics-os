@@ -164,7 +164,7 @@
     },
     "DELETE mailbox-connections/[id]": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -430,7 +430,7 @@
     },
     "PATCH mailbox-connections/[id]": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -705,7 +705,7 @@
     },
     "POST capabilities/[kind]": {
       "changes": "capability_activations INSERT UPDATE",
-      "doors": "ad_entries · anthropic_profiles · appointments · billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
+      "doors": "ad_entries · anthropic_profiles · appointments · billing_accounts · business_reads · business_records · contacts · conversations · form_entry_links · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
     "POST channels/instagram/disconnect": {
       "changes": "",
@@ -947,7 +947,7 @@
     },
     "POST contacts/[id]/signup-confirm": {
       "changes": "",
-      "doors": "ad_entries · contacts · conversations · messages",
+      "doors": "ad_entries · contacts · conversations · form_entry_links · messages",
       "door": {
         "conversations": "every page",
         "inbox": "every page",
@@ -1213,7 +1213,7 @@
       }
     },
     "POST conversations/[id]/reply": {
-      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · conversation_drafts DELETE · conversations INSERT UPDATE · escalations INSERT UPDATE · mailbox_senders DELETE INSERT UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
+      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · conversation_drafts DELETE · conversations INSERT UPDATE · escalations INSERT UPDATE · form_entry_links INSERT · mailbox_senders DELETE INSERT UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
       "tells": "contacts · notifications",
       "extra": {
         "reports_campaigns": "reports"
@@ -1892,7 +1892,7 @@
       }
     },
     "POST leads/[id]/send": {
-      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · leads UPDATE · messages INSERT UPDATE · notifications UPDATE · person_doubts INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends INSERT UPDATE · sequences UPDATE",
+      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · form_entry_links INSERT · leads UPDATE · messages INSERT UPDATE · notifications UPDATE · person_doubts INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends INSERT UPDATE · sequences UPDATE",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -1928,7 +1928,7 @@
       }
     },
     "POST leads/[id]/stage": {
-      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · lead_operations INSERT · lead_suppressions INSERT · leads UPDATE · messages INSERT UPDATE · notifications UPDATE · person_doubts INSERT · sequence_enrollments INSERT UPDATE · sequence_sends INSERT",
+      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · form_entry_links INSERT · lead_operations INSERT · lead_suppressions INSERT · leads UPDATE · messages INSERT UPDATE · notifications UPDATE · person_doubts INSERT · sequence_enrollments INSERT UPDATE · sequence_sends INSERT",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
@@ -2091,35 +2091,35 @@
     },
     "POST mailbox-connections/[id]/check": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/history": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/resume": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/test": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-senders": {
       "changes": "mailbox_senders DELETE INSERT UPDATE",
-      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · form_entry_links · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "audiences": "broadcasts",
         "conversations": "every page",
@@ -2174,7 +2174,7 @@
     },
     "POST messages/[id]/steer": {
       "changes": "",
-      "doors": "ad_entries · contacts · conversations · messages · notifications",
+      "doors": "ad_entries · contacts · conversations · form_entry_links · messages · notifications",
       "door": {
         "conversations": "every page",
         "inbox": "every page",
@@ -2221,7 +2221,7 @@
       }
     },
     "POST people/[id]/message": {
-      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · conversation_drafts DELETE · conversations INSERT UPDATE · escalations INSERT UPDATE · mailbox_senders DELETE INSERT UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
+      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · conversation_drafts DELETE · conversations INSERT UPDATE · escalations INSERT UPDATE · form_entry_links INSERT · mailbox_senders DELETE INSERT UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
       "tells": "contacts · notifications",
       "extra": {
         "reports_campaigns": "reports"
@@ -2357,7 +2357,7 @@
       }
     },
     "POST reach-out-sends/[id]/said": {
-      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · leads UPDATE · messages INSERT · notifications UPDATE · person_doubts INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
+      "changes": "ad_entries INSERT UPDATE · contacts INSERT UPDATE · conversations INSERT · form_entry_links INSERT · leads UPDATE · messages INSERT · notifications UPDATE · person_doubts INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -2479,7 +2479,7 @@
       }
     },
     "POST reach-outs/leads/[id]/said": {
-      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · lead_suppressions INSERT UPDATE · leads UPDATE · messages INSERT · notifications INSERT UPDATE · person_notes INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_replies INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
+      "changes": "ad_entries INSERT UPDATE · contacts UPDATE · form_entry_links INSERT · lead_suppressions INSERT UPDATE · leads UPDATE · messages INSERT · notifications INSERT UPDATE · person_notes INSERT · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_replies INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"

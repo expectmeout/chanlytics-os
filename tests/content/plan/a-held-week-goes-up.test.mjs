@@ -1,5 +1,5 @@
 /**
- * A week AI may approve (00712; the content loop PRD's 12.4, canvas v18 board B5): when a held week goes (the next 8:00 AM
+ * A week AI may approve (00714; the content loop PRD's 12.4, canvas v18 board B5): when a held week goes (the next 8:00 AM
  * in the business's zone, or now under Sends it), what AI suggests and on what record, the Week's head while it waits,
  * Settings › Content's line, and the job that puts it up at its time (apps/edge/lib/content/week-go.ts over
  * tests/_fake-db.mjs): everything read again first, each slot held to the checks the owner's press holds it to, the

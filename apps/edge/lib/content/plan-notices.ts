@@ -33,7 +33,7 @@ interface WeekWritten {
   zone: string;
   slots: readonly DraftedSlot[];
   asks: number;
-  /** Whether the rung let AI approve it (00712): held to 8:00 AM, or going now; else it waits for the owner. */
+  /** Whether the rung let AI approve it (00714): held to 8:00 AM, or going now; else it waits for the owner. */
   held?: WeekGoes | undefined;
 }
 

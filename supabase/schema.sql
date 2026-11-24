@@ -7225,7 +7225,7 @@ CREATE FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_
     AS $$
 declare
   v_actor     uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_plan      public.content_plans;
   v_wanted    jsonb := coalesce(p_snapshot -> 'slots', '[]'::jsonb);
@@ -7289,7 +7289,7 @@ begin
   update public.content_plans set status = 'approved', approval_id = v_approval, approved_at = now(),
                                   approved_by = v_actor
    where id = p_plan_id;
-  -- 00712: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
+  -- 00714: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
   -- bytes and words drawn for it, only while its time stands as it was prepared and is more than five minutes off.
   -- What is not placed is made in turn after, the week queued for it, its earliest slot first.
   if v_service then
@@ -7329,7 +7329,7 @@ end $$;
 -- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00712: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver and the rung rides on its snapshot. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver and the rung rides on its snapshot. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
 
 
 --
@@ -7398,7 +7398,7 @@ end $$;
 -- Name: FUNCTION content_week_hold(p_tenant_id uuid, p_plan_id uuid, p_goes_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_hold(p_tenant_id uuid, p_plan_id uuid, p_goes_at timestamp with time zone) IS 'A ready week held to its time (00712; the content loop PRD''s 12.4), by the service when the plan job writes it: under a plan_approve rung that holds (veto) or sends (auto) it, goes_at set, the week queued to be prepared ahead, and its content_week_go job scheduled within the hour after goes_at, before its first post (moved there when one waits). Null, or a week no longer ready, stopped, or under a rung that asks, lets it go (goes_at null, out of the queue). Answers {fate: held, goes_at, due_at, mode} or {fate: let_go | asks | stopped | gone | <status>}.';
+COMMENT ON FUNCTION public.content_week_hold(p_tenant_id uuid, p_plan_id uuid, p_goes_at timestamp with time zone) IS 'A ready week held to its time (00714; the content loop PRD''s 12.4), by the service when the plan job writes it: under a plan_approve rung that holds (veto) or sends (auto) it, goes_at set, the week queued to be prepared ahead, and its content_week_go job scheduled within the hour after goes_at, before its first post (moved there when one waits). Null, or a week no longer ready, stopped, or under a rung that asks, lets it go (goes_at null, out of the queue). Answers {fate: held, goes_at, due_at, mode} or {fate: let_go | asks | stopped | gone | <status>}.';
 
 
 --
@@ -7436,7 +7436,7 @@ end $$;
 -- Name: FUNCTION content_week_made(p_tenant_id uuid, p_plan_id uuid, p_pass text, p_cap integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_made(p_tenant_id uuid, p_plan_id uuid, p_pass text, p_cap integer, p_lease_seconds integer) IS 'A week''s pass done (00712): p_pass prepare (a held week''s pictures drawn and approvals readied) or make (what was left after AI approved it). Its place is free and the next in turn begins (content_weeks_start); a pass the week has moved past only frees the place. Answers {fate: made | moved_on, started}. The service''s.';
+COMMENT ON FUNCTION public.content_week_made(p_tenant_id uuid, p_plan_id uuid, p_pass text, p_cap integer, p_lease_seconds integer) IS 'A week''s pass done (00714): p_pass prepare (a held week''s pictures drawn and approvals readied) or make (what was left after AI approved it). Its place is free and the next in turn begins (content_weeks_start); a pass the week has moved past only frees the place. Answers {fate: made | moved_on, started}. The service''s.';
 
 
 --
@@ -7478,7 +7478,7 @@ end $$;
 -- Name: FUNCTION content_week_stop(p_tenant_id uuid, p_plan_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_stop(p_tenant_id uuid, p_plan_id uuid) IS 'Stop it (00712; the content loop PRD''s 12.4), by a member with the settings permission: a held week''s time let go and the stop kept, so it waits for the owner''s own press as a week that asks does; its job finds nothing to do. Answers {fate: stopped, plan_id} or {fate: asks | gone | <status>}.';
+COMMENT ON FUNCTION public.content_week_stop(p_tenant_id uuid, p_plan_id uuid) IS 'Stop it (00714; the content loop PRD''s 12.4), by a member with the settings permission: a held week''s time let go and the stop kept, so it waits for the owner''s own press as a week that asks does; its job finds nothing to do. Answers {fate: stopped, plan_id} or {fate: asks | gone | <status>}.';
 
 
 --
@@ -7531,7 +7531,7 @@ end $$;
 -- Name: FUNCTION content_weeks_start(p_cap integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_weeks_start(p_cap integer, p_lease_seconds integer) IS 'The making queue (00712; the content loop PRD''s 12.4): weeks held (prepared ahead: their pictures drawn, their approvals readied) or approved by AI under the rung (what is left made), begun in turn, the earliest first post first, never more being made at once than p_cap (a making holds its place until said done, or for p_lease_seconds); each begun gets its content_week_make job. A week begun three times in a pass is left. One start at a time platform-wide. Answers how many it began. The service''s.';
+COMMENT ON FUNCTION public.content_weeks_start(p_cap integer, p_lease_seconds integer) IS 'The making queue (00714; the content loop PRD''s 12.4): weeks held (prepared ahead: their pictures drawn, their approvals readied) or approved by AI under the rung (what is left made), begun in turn, the earliest first post first, never more being made at once than p_cap (a making holds its place until said done, or for p_lease_seconds); each begun gets its content_week_make job. A week begun three times in a pass is left. One start at a time platform-wide. Answers how many it began. The service''s.';
 
 
 --
@@ -11996,7 +11996,7 @@ CREATE FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) RETURNS void
     AS $$
 declare
   v_actor uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
 begin
   if v_actor is null and not v_service then
@@ -12020,7 +12020,7 @@ end $$;
 -- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the add_files permission (00596: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven. 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the add_files permission (00596: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven. 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
 
 
 --
@@ -23702,6 +23702,28 @@ COMMENT ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) 
 
 
 --
+-- Name: messages_answer_a_form_request(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_answer_a_form_request() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.form_entry_links (tenant_id, entry_id, kind, message_id, created_by)
+  values (new.tenant_id, (new.meta ->> 'form_entry_id')::uuid, 'reply', new.id, new.sent_by);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION messages_answer_a_form_request(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.messages_answer_a_form_request() IS 'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id, linked as the one who wrote it, under form_entry_links'' own policy. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
+
+
+--
 -- Name: messages_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28811,7 +28833,7 @@ CREATE FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb,
     AS $$
 declare
   v_actor  uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_id     uuid;
   v_status text;
@@ -28877,7 +28899,7 @@ end $$;
 -- Name: FUNCTION piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00613, decision 0122; 00615, decision 0126): a video asked for, by its plan, in blocks or as "Hook first", and the business''s look as it stood, with the first step of the job that makes it. Kept once by its card''s key; one that was not made is tried anew by the same press. Answers {fate: begun, here, busy; piece_id}. 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+COMMENT ON FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00613, decision 0122; 00615, decision 0126): a video asked for, by its plan, in blocks or as "Hook first", and the business''s look as it stood, with the first step of the job that makes it. Kept once by its card''s key; one that was not made is tried anew by the same press. Answers {fate: begun, here, busy; piece_id}. 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
 
 
 --
@@ -29372,7 +29394,7 @@ CREATE FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_capt
     AS $$
 declare
   v_actor     uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_words     text := nullif(btrim(p_caption), '');
   v_piece     public.pieces;
@@ -29446,7 +29468,7 @@ end $$;
 -- Name: FUNCTION piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00681; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}. 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00681; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}. 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
 
 
 --
@@ -29459,7 +29481,7 @@ CREATE FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made j
     AS $$
 declare
   v_actor  uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_slot   public.plan_slots;
   v_post   uuid := nullif(p_made ->> 'post_id', '')::uuid;
@@ -29505,7 +29527,7 @@ end $$;
 -- Name: FUNCTION plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) IS 'What an approved slot was made into (00706; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}. 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) IS 'What an approved slot was made into (00706; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}. 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
 
 
 --
@@ -29536,7 +29558,7 @@ end $$;
 -- Name: FUNCTION plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) IS 'A slot of a held week prepared ahead (00712), by the service: {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready takes it. Answers whether it was kept. Approves and places nothing.';
+COMMENT ON FUNCTION public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) IS 'A slot of a held week prepared ahead (00714), by the service: {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready takes it. Answers whether it was kept. Approves and places nothing.';
 
 
 --
@@ -29634,7 +29656,7 @@ end $$;
 -- Name: FUNCTION plan_slots_mark_edited(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slots_mark_edited() IS 'After a slot of a week is left out, moved or given other footage (00712): its plan is marked edited, the record AI''s suggested rung reads. The trigger plan_slots_edited runs it.';
+COMMENT ON FUNCTION public.plan_slots_mark_edited() IS 'After a slot of a week is left out, moved or given other footage (00714): its plan is marked edited, the record AI''s suggested rung reads. The trigger plan_slots_edited runs it.';
 
 
 --
@@ -30991,7 +31013,7 @@ CREATE FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval
     AS $$
 declare
   v_actor      uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_file       public.files;
   v_piece      public.pieces;
@@ -31171,7 +31193,82 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed; an older version''s own file is approved at its own version, with its own words kept), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}. 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed; an older version''s own file is approved at its own version, with its own words kept), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}. 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.';
+
+
+--
+-- Name: post_approve_whole(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_replace  boolean := coalesce((p_approval ->> 'replace')::boolean, false);
+  v_expected uuid[];
+  v_waiting  uuid[];
+  v_claim    jsonb;
+  v_answer   jsonb;
+  v_refused  boolean := false;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- A version set in place of the posts still waiting: those the owner saw, held still until the swap is made. Where
+  -- one has begun to send, or another is waiting now, it is not what they approved.
+  if v_replace then
+    v_expected := array(select e::uuid from jsonb_array_elements_text(coalesce(p_approval -> 'expected', '[]'::jsonb)) e
+                         order by 1);
+    select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_waiting
+      from (select p.id from public.posts p
+             where p.tenant_id = p_tenant_id and p.place <> 'hand'
+               and p.status = any (array['queued', 'preparing', 'held'])
+               and (p.id = any (v_expected)
+                    or p.piece_id in (select q.piece_id from public.posts q
+                                       where q.tenant_id = p_tenant_id and q.id = any (v_expected)))
+             for update) w;
+    if cardinality(v_expected) = 0 or v_waiting is distinct from v_expected then
+      return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+    end if;
+  end if;
+  begin
+    -- A fact the owner stated, kept as their own claim until its day ends (00706).
+    for v_claim in select * from jsonb_array_elements(coalesce(p_approval -> 'claims', '[]'::jsonb)) loop
+      perform public.owner_claims_keep(p_tenant_id, v_claim);
+    end loop;
+    -- The words that go, the piece's own from now on, and its other posts still waiting with them (00681).
+    if nullif(btrim(p_approval ->> 'words'), '') is not null then
+      perform public.piece_words_keep(p_tenant_id, p_file_id, p_approval ->> 'words');
+    end if;
+    if v_replace then
+      v_answer := public.piece_posts_replace(p_tenant_id, p_file_id, p_approval);
+    else
+      v_answer := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    end if;
+    if v_answer ->> 'fate' is distinct from 'approved' then
+      v_refused := true;
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
+  exception when raise_exception then
+    -- Only this door's own refusal is an answer: the facts and the words go with it. Any other is raised as it came.
+    if not v_refused then
+      raise;
+    end if;
+    return v_answer;
+  end;
+  return v_answer;
+end $$;
+
+
+--
+-- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
 
 
 --
@@ -32625,7 +32722,7 @@ begin
     ('faq','auto'), ('booking','auto'), ('reply','auto'),
     ('reengage','veto'), ('campaign','veto'), ('reviews','ask'), ('money','never'), ('follow_up','veto'),
     ('outreach','veto'),
-    -- 00712: what AI does with content asks the owner first, every row.
+    -- 00714: what AI does with content asks the owner first, every row.
     ('plan_approve','ask'), ('post','ask'), ('ad_change','ask'), ('comment_reply','ask')
   ) as c(class, mode)
   on conflict (tenant_id, class, subject_type, subject_id) do nothing;
@@ -49227,63 +49324,63 @@ COMMENT ON TABLE public.content_plans IS 'A week of posts (00706; the content lo
 -- Name: COLUMN content_plans.goes_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.goes_at IS 'When a week AI may approve goes (00712; the content loop PRD''s 12.4): 8:00 in the business''s zone for a week held, the moment it is ready for one AI sends. Null when nothing will go without the owner''s press. Written by content_week_hold, let go by content_week_stop.';
+COMMENT ON COLUMN public.content_plans.goes_at IS 'When a week AI may approve goes (00714; the content loop PRD''s 12.4): 8:00 in the business''s zone for a week held, the moment it is ready for one AI sends. Null when nothing will go without the owner''s press. Written by content_week_hold, let go by content_week_stop.';
 
 
 --
 -- Name: COLUMN content_plans.stopped_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.stopped_at IS 'When a member stopped a held week (00712, Stop it): it then waits for the owner''s own press, as a week that asks does.';
+COMMENT ON COLUMN public.content_plans.stopped_at IS 'When a member stopped a held week (00714, Stop it): it then waits for the owner''s own press, as a week that asks does.';
 
 
 --
 -- Name: COLUMN content_plans.stopped_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.stopped_by IS 'Who stopped a held week (00712).';
+COMMENT ON COLUMN public.content_plans.stopped_by IS 'Who stopped a held week (00714).';
 
 
 --
 -- Name: COLUMN content_plans.make_queued_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.make_queued_at IS 'When a week joined the making queue (00712): when it was held (to be prepared ahead) and again when AI approved it (what is left to make). Made in turn by content_weeks_start, never more at once than its cap. Null when nothing of it waits.';
+COMMENT ON COLUMN public.content_plans.make_queued_at IS 'When a week joined the making queue (00714): when it was held (to be prepared ahead) and again when AI approved it (what is left to make). Made in turn by content_weeks_start, never more at once than its cap. Null when nothing of it waits.';
 
 
 --
 -- Name: COLUMN content_plans.first_post_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.first_post_at IS 'The earliest slot of the week still to be made (00712): the making queue''s turn, earliest first.';
+COMMENT ON COLUMN public.content_plans.first_post_at IS 'The earliest slot of the week still to be made (00714): the making queue''s turn, earliest first.';
 
 
 --
 -- Name: COLUMN content_plans.making_since; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.making_since IS 'When the week''s current pass began (00712): it holds a place in the queue''s cap until made_at, or until its lease ends and it is tried again.';
+COMMENT ON COLUMN public.content_plans.making_since IS 'When the week''s current pass began (00714): it holds a place in the queue''s cap until made_at, or until its lease ends and it is tried again.';
 
 
 --
 -- Name: COLUMN content_plans.made_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.made_at IS 'When the dashboard said the week''s current pass was done (00712, content_week_made): prepared while held, made once approved. It leaves the queue.';
+COMMENT ON COLUMN public.content_plans.made_at IS 'When the dashboard said the week''s current pass was done (00714, content_week_made): prepared while held, made once approved. It leaves the queue.';
 
 
 --
 -- Name: COLUMN content_plans.make_tries; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.make_tries IS 'How many times the week''s making was begun (00712): a week begun three times is left to the owner.';
+COMMENT ON COLUMN public.content_plans.make_tries IS 'How many times the week''s making was begun (00714): a week begun three times is left to the owner.';
 
 
 --
 -- Name: COLUMN content_plans.edited; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.content_plans.edited IS 'Whether the owner left out, moved or swapped a slot of the week (00712, plan_slots_mark_edited): AI''s suggested rung reads the weeks approved with none as its record. Null for a week from before 00712, where it is not known.';
+COMMENT ON COLUMN public.content_plans.edited IS 'Whether the owner left out, moved or swapped a slot of the week (00714, plan_slots_mark_edited): AI''s suggested rung reads the weeks approved with none as its record. Null for a week from before 00714, where it is not known.';
 
 
 --
@@ -53328,7 +53425,7 @@ COMMENT ON TABLE public.plan_slots IS 'One creative at one place in a week''s pl
 -- Name: COLUMN plan_slots.prepared; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.plan_slots.prepared IS 'A slot of a held week prepared ahead (00712; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time still stands. Never an approval itself.';
+COMMENT ON COLUMN public.plan_slots.prepared IS 'A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time still stands. Never an approval itself.';
 
 
 --
@@ -61364,6 +61461,13 @@ CREATE TRIGGER memberships_start_the_bell AFTER INSERT ON public.memberships FOR
 --
 
 CREATE TRIGGER memberships_wake_their_folders AFTER DELETE ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_wake_their_folders();
+
+
+--
+-- Name: messages messages_answer_a_form_request; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_answer_a_form_request AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.meta ? 'form_entry_id'::text))) EXECUTE FUNCTION public.messages_answer_a_form_request();
 
 
 --
@@ -71801,6 +71905,14 @@ GRANT ALL ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text
 
 
 --
+-- Name: FUNCTION messages_answer_a_form_request(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_answer_a_form_request() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_answer_a_form_request() TO service_role;
+
+
+--
 -- Name: FUNCTION messages_guard(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -72986,6 +73098,15 @@ GRANT ALL ON FUNCTION public.post_again(p_post_id uuid, p_from text) TO service_
 REVOKE ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
 
 
 --

@@ -13,7 +13,7 @@ export const planThisWeek = () => api()("POST content/plan", { body: {} });
 export const approveTheWeek = (week: { plan_id: string; week_of: string }) =>
   api()("POST content/plan/approve", { body: week });
 
-/** Stop it (00712): a week AI may approve, held to 8:00 AM, waits for the owner's own press instead. */
+/** Stop it (00714): a week AI may approve, held to 8:00 AM, waits for the owner's own press instead. */
 export const stopTheWeek = (planId: string) => api()("POST content/plan/stop", { body: { plan_id: planId } });
 
 /** One row's own press: Try again and Approve once mended (`approved`), or a made reel up at its time (`post`). */

@@ -1,5 +1,5 @@
 /**
- * A week AI may approve (00712; the content loop PRD's 12.4, canvas v18 board B5): when it goes, and what AI suggests as
+ * A week AI may approve (00714; the content loop PRD's 12.4, canvas v18 board B5): when it goes, and what AI suggests as
  * a rung and why.
  *
  * The owner sets Approve the week on the Autonomy pane. Holding it, a ready week goes up at 8:00 AM in the business's zone
@@ -71,7 +71,7 @@ export function rungSuggestionOf(
 export const RUNG_SUGGESTION_USE = "Use it";
 
 /**
- * The making queue's setting (00712), sized from what the database's front can take, never from a count of today's
+ * The making queue's setting (00714), sized from what the database's front can take, never from a count of today's
  * workspaces: the front slows past about 60 calls a second (the load review), and the queue may take a third of it.
  */
 export const MAKING_CALLS_A_SECOND = 20;

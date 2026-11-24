@@ -316,7 +316,7 @@ test("only these nineteen paths are reachable without a session", () => {
   // since the vendor appends /chat/completions to the address it is given.
   // Ask's morning joined with Ask's answers (#2211): the platform's clock calls it with its CRON_SECRET and no cookie;
   // anything else is a 401 (the test above). One exact path.
-  // The edge's week, made as AI (00712): the edge's content_week_go job calls it with a token it signs for that path, that
+  // The edge's week, made as AI (00714): the edge's content_week_go job calls it with a token it signs for that path, that
   // workspace and that body, and no cookie; anything else is a 401, and it makes only a week the owner's rung approved.
   // One exact path.
   // The warm-ups joined with the load review of 12 Nov 2026: the platform's clock asks for them with no cookie, so the

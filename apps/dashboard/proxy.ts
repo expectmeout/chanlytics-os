@@ -51,7 +51,7 @@ const PUBLIC_PATHS = new Set([
   // The platform's clock, with its own secret (app/api/ask/morning-sweep/route.ts): no cookie, so no gate here; the route
   // answers 401 to anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all.
   "/api/ask/morning-sweep",
-  // The edge's one call here (00712, app/api/content/week-made/route.ts): a week a rung let AI approve, made as AI. No
+  // The edge's one call here (00714, app/api/content/week-made/route.ts): a week a rung let AI approve, made as AI. No
   // cookie, so no gate here; the route answers 401 to anything but a token the edge signs for that path, that workspace
   // and that body with the secret the two apps share, and it makes only a week the rung approved.
   "/api/content/week-made",

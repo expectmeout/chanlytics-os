@@ -43,7 +43,7 @@ interface AutonomyMatrix {
    */
   evidence: SequenceEvidenceDto[] | null;
   /**
-   * The weeks approved, newest first, by whose press and whether edited (00712): the record AI's suggested rung for
+   * The weeks approved, newest first, by whose press and whether edited (00714): the record AI's suggested rung for
    * Approve the week reads (contracts rungSuggestionOf). Null where the read failed.
    */
   weeks_approved: WeekApprovedRecord[] | null;

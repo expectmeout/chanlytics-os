@@ -111,7 +111,7 @@ export async function postFileToGoogle(
     when?: string | undefined;
     about?: PostAbout | undefined;
     facts?: OwnersFact[] | undefined;
-    /** AI's approval under the owner's rung (00712), never a person's press. */
+    /** AI's approval under the owner's rung (00714), never a person's press. */
     via?: "rung" | undefined;
   },
 ): Promise<{ name: string | null; search_url: string | null; state: string | null }> {
@@ -155,7 +155,7 @@ export async function postFileToGoogle(
     {
       op: "post",
       tenant_id: member.tenantId,
-      // AI under the owner's rung (00712) is nobody: the post is written down as no person's.
+      // AI under the owner's rung (00714) is nobody: the post is written down as no person's.
       ...(ctx.userId ? { user_id: ctx.userId } : {}),
       file_id: row.id,
       summary: input.summary,
@@ -205,7 +205,7 @@ export async function postFileToGoogle(
 
 /** DELETE files/[id]/google: the post comes off the profile. It stays in Files. */
 /**
- * A held week's Google placement readied overnight (00712): the picture drawn and kept for Google, every check, nothing
+ * A held week's Google placement readied overnight (00714): the picture drawn and kept for Google, every check, nothing
  * approved; the door takes it at 8:00, and the post's job asks Google at its time. Only for a time later than soon.
  */
 export async function prepareOnGoogle(

@@ -1,5 +1,5 @@
 /**
- * The making queue at full production volume (00712; the content loop PRD's 12.4): ten thousand workspaces in one zone
+ * The making queue at full production volume (00714; the content loop PRD's 12.4): ten thousand workspaces in one zone
  * hold their week from Sunday evening, and every one goes up at the same 8:00. Their first posts fall as real plans place
  * them, most on Monday (four in ten between 9:00 and noon), the rest through the week.
  *

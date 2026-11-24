@@ -1,4 +1,4 @@
--- 00712 · A week AI may approve goes up at 8:00 unless the owner stops it (the content loop PRD v3.7, 12.4; pass 6, B5).
+-- 00714 · A week AI may approve goes up at 8:00 unless the owner stops it (the content loop PRD v3.7, 12.4; pass 6, B5).
 --
 -- Until now a week of posts went up only by the owner's own press: Approve the week, then the week made right after it,
 -- inside that press. The Autonomy pane now has a row for each thing AI could do with content, in the matrix's own modes,
@@ -14,7 +14,7 @@
 --                             from before this file, unknown): what AI's suggested rung reads as its record.
 --   posts.via                 gains rung: a placement AI approved under the owner's rung, never by a press.
 --                             make_queued_at, first_post_at, making_since, made_at, make_tries: a week AI approved,
---                             waiting in turn to be made (00712's making queue, below).
+--                             waiting in turn to be made (00714's making queue, below).
 --   job_kinds                 content_week_go and content_week_make, in the bulk lane, one a plan each.
 --
 -- Doors: content_week_hold (the service's: a ready week held to a time, its job scheduled, or let go); content_week_stop (a
@@ -84,7 +84,7 @@ begin
     ('faq','auto'), ('booking','auto'), ('reply','auto'),
     ('reengage','veto'), ('campaign','veto'), ('reviews','ask'), ('money','never'), ('follow_up','veto'),
     ('outreach','veto'),
-    -- 00712: what AI does with content asks the owner first, every row.
+    -- 00714: what AI does with content asks the owner first, every row.
     ('plan_approve','ask'), ('post','ask'), ('ad_change','ask'), ('comment_reply','ask')
   ) as c(class, mode)
   on conflict (tenant_id, class, subject_type, subject_id) do nothing;
@@ -101,7 +101,7 @@ end $$;
 alter table public.content_plans add column if not exists goes_at timestamptz;
 alter table public.content_plans add column if not exists stopped_at timestamptz;
 alter table public.content_plans add column if not exists stopped_by uuid references auth.users (id) on delete set null;
--- The making queue (00712): queued when the week is held (prepared ahead) and again once AI approved it (what is left to
+-- The making queue (00714): queued when the week is held (prepared ahead) and again once AI approved it (what is left to
 -- make), its earliest slot's time its turn, the making's start and end, and how often it was begun.
 alter table public.content_plans add column if not exists make_queued_at timestamptz;
 alter table public.content_plans add column if not exists first_post_at timestamptz;
@@ -120,29 +120,29 @@ create index if not exists content_plans_to_make on public.content_plans (first_
 create index if not exists content_plans_making on public.content_plans (making_since)
   where making_since is not null and made_at is null;
 
--- A slot prepared ahead (00712): the made file its picture was drawn into, the time it was prepared for, and the approval
+-- A slot prepared ahead (00714): the made file its picture was drawn into, the time it was prepared for, and the approval
 -- of that placement as post_approve takes it. Placed at 8:00 only as it still stands.
 alter table public.plan_slots add column if not exists prepared jsonb;
 comment on column public.plan_slots.prepared is
-  'A slot of a held week prepared ahead (00712; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time still stands. Never an approval itself.';
+  'A slot of a held week prepared ahead (00714; plan_slot_prepared): {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes for it, via rung. The week''s approval under the rung places it in its own transaction while its time still stands. Never an approval itself.';
 
 comment on column public.content_plans.goes_at is
-  'When a week AI may approve goes (00712; the content loop PRD''s 12.4): 8:00 in the business''s zone for a week held, the moment it is ready for one AI sends. Null when nothing will go without the owner''s press. Written by content_week_hold, let go by content_week_stop.';
+  'When a week AI may approve goes (00714; the content loop PRD''s 12.4): 8:00 in the business''s zone for a week held, the moment it is ready for one AI sends. Null when nothing will go without the owner''s press. Written by content_week_hold, let go by content_week_stop.';
 comment on column public.content_plans.stopped_at is
-  'When a member stopped a held week (00712, Stop it): it then waits for the owner''s own press, as a week that asks does.';
-comment on column public.content_plans.stopped_by is 'Who stopped a held week (00712).';
+  'When a member stopped a held week (00714, Stop it): it then waits for the owner''s own press, as a week that asks does.';
+comment on column public.content_plans.stopped_by is 'Who stopped a held week (00714).';
 comment on column public.content_plans.make_queued_at is
-  'When a week joined the making queue (00712): when it was held (to be prepared ahead) and again when AI approved it (what is left to make). Made in turn by content_weeks_start, never more at once than its cap. Null when nothing of it waits.';
+  'When a week joined the making queue (00714): when it was held (to be prepared ahead) and again when AI approved it (what is left to make). Made in turn by content_weeks_start, never more at once than its cap. Null when nothing of it waits.';
 comment on column public.content_plans.first_post_at is
-  'The earliest slot of the week still to be made (00712): the making queue''s turn, earliest first.';
+  'The earliest slot of the week still to be made (00714): the making queue''s turn, earliest first.';
 comment on column public.content_plans.making_since is
-  'When the week''s current pass began (00712): it holds a place in the queue''s cap until made_at, or until its lease ends and it is tried again.';
+  'When the week''s current pass began (00714): it holds a place in the queue''s cap until made_at, or until its lease ends and it is tried again.';
 comment on column public.content_plans.made_at is
-  'When the dashboard said the week''s current pass was done (00712, content_week_made): prepared while held, made once approved. It leaves the queue.';
+  'When the dashboard said the week''s current pass was done (00714, content_week_made): prepared while held, made once approved. It leaves the queue.';
 comment on column public.content_plans.make_tries is
-  'How many times the week''s making was begun (00712): a week begun three times is left to the owner.';
+  'How many times the week''s making was begun (00714): a week begun three times is left to the owner.';
 comment on column public.content_plans.edited is
-  'Whether the owner left out, moved or swapped a slot of the week (00712, plan_slots_mark_edited): AI''s suggested rung reads the weeks approved with none as its record. Null for a week from before 00712, where it is not known.';
+  'Whether the owner left out, moved or swapped a slot of the week (00714, plan_slots_mark_edited): AI''s suggested rung reads the weeks approved with none as its record. Null for a week from before 00714, where it is not known.';
 
 /** A slot left out, moved or given other footage marks its week edited: what the owner changed of what AI planned. */
 create or replace function public.plan_slots_mark_edited() returns trigger
@@ -155,7 +155,7 @@ end $$;
 revoke all on function public.plan_slots_mark_edited() from public, anon, authenticated;
 
 comment on function public.plan_slots_mark_edited() is
-  'After a slot of a week is left out, moved or given other footage (00712): its plan is marked edited, the record AI''s suggested rung reads. The trigger plan_slots_edited runs it.';
+  'After a slot of a week is left out, moved or given other footage (00714): its plan is marked edited, the record AI''s suggested rung reads. The trigger plan_slots_edited runs it.';
 
 drop trigger if exists plan_slots_edited on public.plan_slots;
 create trigger plan_slots_edited after update on public.plan_slots
@@ -260,7 +260,7 @@ revoke all on function public.content_week_hold(uuid, uuid, timestamptz) from pu
 grant execute on function public.content_week_hold(uuid, uuid, timestamptz) to service_role;
 
 comment on function public.content_week_hold(uuid, uuid, timestamptz) is
-  'A ready week held to its time (00712; the content loop PRD''s 12.4), by the service when the plan job writes it: under a plan_approve rung that holds (veto) or sends (auto) it, goes_at set, the week queued to be prepared ahead, and its content_week_go job scheduled within the hour after goes_at, before its first post (moved there when one waits). Null, or a week no longer ready, stopped, or under a rung that asks, lets it go (goes_at null, out of the queue). Answers {fate: held, goes_at, due_at, mode} or {fate: let_go | asks | stopped | gone | <status>}.';
+  'A ready week held to its time (00714; the content loop PRD''s 12.4), by the service when the plan job writes it: under a plan_approve rung that holds (veto) or sends (auto) it, goes_at set, the week queued to be prepared ahead, and its content_week_go job scheduled within the hour after goes_at, before its first post (moved there when one waits). Null, or a week no longer ready, stopped, or under a rung that asks, lets it go (goes_at null, out of the queue). Answers {fate: held, goes_at, due_at, mode} or {fate: let_go | asks | stopped | gone | <status>}.';
 
 create or replace function public.content_week_stop(p_tenant_id uuid, p_plan_id uuid) returns jsonb
   language plpgsql security definer set search_path = public as $$
@@ -294,7 +294,7 @@ revoke all on function public.content_week_stop(uuid, uuid) from public, anon;
 grant execute on function public.content_week_stop(uuid, uuid) to authenticated, service_role;
 
 comment on function public.content_week_stop(uuid, uuid) is
-  'Stop it (00712; the content loop PRD''s 12.4), by a member with the settings permission: a held week''s time let go and the stop kept, so it waits for the owner''s own press as a week that asks does; its job finds nothing to do. Answers {fate: stopped, plan_id} or {fate: asks | gone | <status>}.';
+  'Stop it (00714; the content loop PRD''s 12.4), by a member with the settings permission: a held week''s time let go and the stop kept, so it waits for the owner''s own press as a week that asks does; its job finds nothing to do. Answers {fate: stopped, plan_id} or {fate: asks | gone | <status>}.';
 
 /* ------------------------------------------------------------------------------------------- 6. the making queue -- */
 
@@ -341,7 +341,7 @@ revoke all on function public.content_weeks_start(integer, integer) from public,
 grant execute on function public.content_weeks_start(integer, integer) to service_role;
 
 comment on function public.content_weeks_start(integer, integer) is
-  'The making queue (00712; the content loop PRD''s 12.4): weeks held (prepared ahead: their pictures drawn, their approvals readied) or approved by AI under the rung (what is left made), begun in turn, the earliest first post first, never more being made at once than p_cap (a making holds its place until said done, or for p_lease_seconds); each begun gets its content_week_make job. A week begun three times in a pass is left. One start at a time platform-wide. Answers how many it began. The service''s.';
+  'The making queue (00714; the content loop PRD''s 12.4): weeks held (prepared ahead: their pictures drawn, their approvals readied) or approved by AI under the rung (what is left made), begun in turn, the earliest first post first, never more being made at once than p_cap (a making holds its place until said done, or for p_lease_seconds); each begun gets its content_week_make job. A week begun three times in a pass is left. One start at a time platform-wide. Answers how many it began. The service''s.';
 
 drop function if exists public.content_week_made(uuid, uuid, integer, integer);
 
@@ -375,7 +375,7 @@ revoke all on function public.content_week_made(uuid, uuid, text, integer, integ
 grant execute on function public.content_week_made(uuid, uuid, text, integer, integer) to service_role;
 
 comment on function public.content_week_made(uuid, uuid, text, integer, integer) is
-  'A week''s pass done (00712): p_pass prepare (a held week''s pictures drawn and approvals readied) or make (what was left after AI approved it). Its place is free and the next in turn begins (content_weeks_start); a pass the week has moved past only frees the place. Answers {fate: made | moved_on, started}. The service''s.';
+  'A week''s pass done (00714): p_pass prepare (a held week''s pictures drawn and approvals readied) or make (what was left after AI approved it). Its place is free and the next in turn begins (content_weeks_start); a pass the week has moved past only frees the place. Answers {fate: made | moved_on, started}. The service''s.';
 
 create or replace function public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) returns boolean
   language plpgsql security definer set search_path = public as $$
@@ -398,7 +398,7 @@ revoke all on function public.plan_slot_prepared(uuid, uuid, jsonb) from public,
 grant execute on function public.plan_slot_prepared(uuid, uuid, jsonb) to service_role;
 
 comment on function public.plan_slot_prepared(uuid, uuid, jsonb) is
-  'A slot of a held week prepared ahead (00712), by the service: {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready takes it. Answers whether it was kept. Approves and places nothing.';
+  'A slot of a held week prepared ahead (00714), by the service: {file_id, at, approval}, the made file its picture was drawn into, the time it was prepared for and the approval post_approve takes. Only a proposed slot of a week still ready takes it. Answers whether it was kept. Approves and places nothing.';
 
 /* ---------------------------------------------------------------- 7. the week approved under the rung, and made -- */
 
@@ -406,7 +406,7 @@ create or replace function public.content_week_approve(p_tenant_id uuid, p_plan_
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor     uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_plan      public.content_plans;
   v_wanted    jsonb := coalesce(p_snapshot -> 'slots', '[]'::jsonb);
@@ -470,7 +470,7 @@ begin
   update public.content_plans set status = 'approved', approval_id = v_approval, approved_at = now(),
                                   approved_by = v_actor
    where id = p_plan_id;
-  -- 00712: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
+  -- 00714: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
   -- bytes and words drawn for it, only while its time stands as it was prepared and is more than five minutes off.
   -- What is not placed is made in turn after, the week queued for it, its earliest slot first.
   if v_service then
@@ -509,7 +509,7 @@ create or replace function public.file_start(p_tenant_id uuid, p_id uuid) return
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
 begin
   if v_actor is null and not v_service then
@@ -532,7 +532,7 @@ create or replace function public.piece_words_keep(p_tenant_id uuid, p_file_id u
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor     uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_words     text := nullif(btrim(p_caption), '');
   v_piece     public.pieces;
@@ -605,7 +605,7 @@ create or replace function public.post_approve(p_tenant_id uuid, p_file_id uuid,
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor      uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_file       public.files;
   v_piece      public.pieces;
@@ -784,7 +784,7 @@ create or replace function public.plan_slot_made(p_tenant_id uuid, p_slot_id uui
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor  uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_slot   public.plan_slots;
   v_post   uuid := nullif(p_made ->> 'post_id', '')::uuid;
@@ -829,7 +829,7 @@ create or replace function public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_
   language plpgsql security definer set search_path = public as $$
 declare
   v_actor  uuid := auth.uid();
-  -- 00712: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
   v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
   v_id     uuid;
   v_status text;
@@ -904,14 +904,14 @@ begin
     'public.piece_begin(uuid, jsonb, jsonb, text, integer)'
   ] loop
     v_said := coalesce(obj_description(v_fn::regprocedure, 'pg_proc'), '');
-    if position('00712' in v_said) = 0 then
+    if position('00714' in v_said) = 0 then
       execute format('comment on function %s is %L', v_fn, v_said
-        || ' 00712: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.');
+        || ' 00714: the service role too, as it makes a week a rung let AI approve; nobody is its actor, a version it writes is made by ai, a placement it approves goes via rung.');
     end if;
   end loop;
   v_said := coalesce(obj_description('public.content_week_approve(uuid, uuid, jsonb)'::regprocedure, 'pg_proc'), '');
-  if position('00712' in v_said) = 0 then
+  if position('00714' in v_said) = 0 then
     comment on function public.content_week_approve(uuid, uuid, jsonb) is
-      'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00712: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver and the rung rides on its snapshot. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
+      'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver and the rung rides on its snapshot. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
   end if;
 end $$;

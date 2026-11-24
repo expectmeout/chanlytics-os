@@ -220,14 +220,14 @@ export const JOB_KINDS = [
    */
   "content_plan",
   /**
-   * A week AI may approve goes up (00712; the content loop PRD's 12.4), payload { plan_id }, in the bulk lane: at a held
+   * A week AI may approve goes up (00714; the content loop PRD's 12.4), payload { plan_id }, in the bulk lane: at a held
    * week's time (8:00 in the business's zone), or as soon as it is ready under a rung that sends it, the plan, the rung and
    * the stop read again, the week approved as the owner's press would under the rung, and made by the dashboard as AI.
    * Scheduled by the plan job, never by a clock.
    */
   "content_week_go",
   /**
-   * A week AI approved, made in its turn (00712), payload { plan_id }, in the bulk lane: begun by the making queue
+   * A week AI approved, made in its turn (00714), payload { plan_id }, in the bulk lane: begun by the making queue
    * (content_weeks_start), never more at once than its cap, the earliest first post first; it asks the dashboard to make
    * the week as AI, and the dashboard says when it is made, which begins the next.
    */

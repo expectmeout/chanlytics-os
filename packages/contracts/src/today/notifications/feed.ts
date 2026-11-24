@@ -187,9 +187,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
   // A week of posts planned (00706). Not sent (kinds.ts: the platform's to mend); the owner can ask AI for the week.
   content_plan: { stopped: "Couldn't plan this week's posts", to: CONTENT_ROUTE },
-  // A week AI was let approve (00712). Sent to the owner (kinds.ts): the week still waits on the Week for their press.
+  // A week AI was let approve (00714). Sent to the owner (kinds.ts): the week still waits on the Week for their press.
   content_week_go: { stopped: "Couldn't put this week's posts up", to: CONTENT_ROUTE },
-  // Its making (00712). Sent to the owner (kinds.ts): the week is approved and its rows say what was not made.
+  // Its making (00714). Sent to the owner (kinds.ts): the week is approved and its rows say what was not made.
   content_week_make: { stopped: "Couldn't make this week's posts", to: CONTENT_ROUTE },
   // A post's numbers (00699). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
   // reads it again.

@@ -121,7 +121,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     },
   },
   { id: "money", cls: "money", ...W("money"), locked: true },
-  // Content (00712; canvas v18, board B5): a row per act, drawn in the pane's own Content card (content-rows.tsx).
+  // Content (00714; canvas v18, board B5): a row per act, drawn in the pane's own Content card (content-rows.tsx).
   { id: "post", cls: "post", ...W("post") },
   {
     id: "plan_approve",
@@ -161,7 +161,7 @@ export interface PoliciesSurface {
   replyTokens?: { replies: number; tokens: number } | null;
   /** What each sequence's batches did (decision 0064): the sequences' rows' line; null where unread or old. */
   evidence?: SequenceEvidenceDto[] | null;
-  /** The weeks approved, newest first (00712): AI's suggested rung for Approve the week; null where unread or old. */
+  /** The weeks approved, newest first (00714): AI's suggested rung for Approve the week; null where unread or old. */
   weeksApproved?: WeekApprovedRecord[] | null;
 }
 

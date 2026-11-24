@@ -88,7 +88,7 @@ function world({ footage = true, rung = "ask" } = {}) {
     ],
     notifications: [],
     jobs: [],
-    // Approve the week's rung (00712): the workspace's row, as provision_tenant gives it.
+    // Approve the week's rung (00714): the workspace's row, as provision_tenant gives it.
     policies: [
       {
         id: "abab7777-4444-4000-8000-000000000037",
@@ -117,9 +117,9 @@ function world({ footage = true, rung = "ask" } = {}) {
         moments.push(args);
         return args.p_moments.length;
       },
-      // The making queue started once a week is held (00712): it prepares the week ahead, in turn.
+      // The making queue started once a week is held (00714): it prepares the week ahead, in turn.
       content_weeks_start: () => 1,
-      // content_week_hold (00712), as the door: held under a rung that holds or sends the week, else let go.
+      // content_week_hold (00714), as the door: held under a rung that holds or sends the week, else let go.
       content_week_hold: (args) => {
         holds.push(args);
         const plan = tables.content_plans.find((p) => p.id === args.p_plan_id);

@@ -1,6 +1,6 @@
 import "server-only";
 /**
- * A week a rung let AI approve, made here (00712; the content loop PRD's 12.4, canvas v18 board B5). The edge keeps the
+ * A week a rung let AI approve, made here (00714; the content loop PRD's 12.4, canvas v18 board B5). The edge keeps the
  * time (its content_week_go job approves the held week under the rung at 8:00 AM, or as soon as it is ready where the
  * owner lets AI send it) and asks this door to make the week; the making is the code the owner's own press runs
  * (make-week.ts), run as AI: no person, the service role at the doors, each placement approved via rung.
@@ -10,7 +10,7 @@ import "server-only";
  * does. It makes only a week approved under the rung, and only what is not made yet, so the job asked again (or the same
  * call seen twice) makes nothing twice.
  *
- * The making queue (00712): the edge asks this door for no more weeks at once than WEEKS_MAKING_AT_ONCE. A held week is
+ * The making queue (00714): the edge asks this door for no more weeks at once than WEEKS_MAKING_AT_ONCE. A held week is
  * PREPARED here overnight (its pictures drawn, each placement readied, nothing approved), and what is left after the 8:00
  * approval is MADE; each pass holds its place until it is said done here (content_week_made), which begins the next in
  * turn. A pass that throws is not said done: its place frees when its lease ends, and the queue begins it again.
@@ -62,7 +62,7 @@ export async function takeWeekMade(request: Request, later: Later = after): Prom
   // Held: prepared ahead. Approved by the rung: what is left made. Anything else is not AI's.
   const week = await findWeekForAI(db, tenantId, body.data.plan_id);
   if (!week) return { status: 409, said: "not_the_rung_s" };
-  // AI under the rung: the service role at the doors (00712), nobody as its person, the business's own clock and name.
+  // AI under the rung: the service role at the doors (00714), nobody as its person, the business's own clock and name.
   const ctx: RouteContext = { supabase: db, userId: "", email: undefined, metadata: {} };
   // The rung is the owner's grant, so AI acts as the owner's press would: the role the making's checks read.
   const member = mint({ tenantId, role: "owner", facts: await getTenantFacts(db, tenantId) });

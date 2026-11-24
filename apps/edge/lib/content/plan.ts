@@ -233,7 +233,7 @@ export async function planTheWeek(
     opportunities: week.opportunities.length,
     patterns: week.patterns.filter((p) => p.level !== "too_little").length,
   });
-  // Under a rung that lets AI approve the week, it is held to its time (00712): 8:00 AM, or now where it sends it.
+  // Under a rung that lets AI approve the week, it is held to its time (00714): 8:00 AM, or now where it sends it.
   // A hold that fails leaves the week waiting for the owner's press, as a week that asks does, and the owner is told.
   const held = await holdReadyWeek(db, { tenantId, planId: plan.id, zone: week.zone, nowMs }).catch(
     logAndGoOn<WeekGoes>("holding a ready week to its time", "asks"),

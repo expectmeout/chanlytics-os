@@ -41,7 +41,7 @@ export interface WeekPageDto {
   /** Which places take a post now. */
   places: { instagram: boolean; google: boolean };
   /**
-   * Approve the week's rung (00712; policies, class plan_approve): `ask`, `veto` (held to 8:00 AM) or `auto`; absent from
+   * Approve the week's rung (00714; policies, class plan_approve): `ask`, `veto` (held to 8:00 AM) or `auto`; absent from
    * an older build's answer, and null where none was read. Settings › Content says it.
    */
   rung?: string | null;

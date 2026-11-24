@@ -1,5 +1,5 @@
 /**
- * Content's rows on the Autonomy pane (00712; the content loop PRD's 12.4, canvas v18 board B5): what AI does with posts,
+ * Content's rows on the Autonomy pane (00714; the content loop PRD's 12.4, canvas v18 board B5): what AI does with posts,
  * a row per act (a post outside the week, Approve the week, a change to a running ad, a public answer under a comment), a
  * group of the one matrix in its own modes, headed "Content" (a desk's table, a phone's lines). A mode a row cannot honour
  * has no dot, as on every row: only the week has a runtime that acts on its own yet (contracts POLICY_CLASS_MODES).

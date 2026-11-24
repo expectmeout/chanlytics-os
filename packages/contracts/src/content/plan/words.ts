@@ -19,9 +19,9 @@ export const WEEK_WORDS = {
   /** The notice of a week ready (plan_ready): its subject, and its body. */
   readySubject: "This week's posts are ready",
   readyBody: (size: string, days: string) => `${size}, ${days}. Nothing goes up until you approve them.`,
-  /** The same notice for a week AI may approve (00712): it goes up at 8:00 AM unless the owner stops it. */
+  /** The same notice for a week AI may approve (00714): it goes up at 8:00 AM unless the owner stops it. */
   readyBodyHeld: (size: string, days: string) => `${size}, ${days}. They go up at 8:00 AM unless you stop them.`,
-  /** And for a week AI sends as soon as it is ready (00712). */
+  /** And for a week AI sends as soon as it is ready (00714). */
   readyBodySent: (size: string, days: string) =>
     `${size}, ${days}. AI approved them, as you set it. Each goes up at its time.`,
   /** The notice of what to film (footage_ask). */
@@ -36,7 +36,7 @@ export const WEEK_WORDS = {
   /** The head's line under a ready week's size: how often it goes up, and where. */
   goingUp: (count: number, places: string) => `Going up ${count === 1 ? "once" : `${count} times`} on ${places}`,
   approve: "Approve the week",
-  /** A week AI may approve, held (00712, board B5): the Week's head, Today's point, the press that stops it, and after. */
+  /** A week AI may approve, held (00714, board B5): the Week's head, Today's point, the press that stops it, and after. */
   held: (at: string) => `Goes up at ${at} unless you stop it`,
   todayHeld: (at: string) => `Your week goes up at ${at} unless you stop it`,
   stop: "Stop it",

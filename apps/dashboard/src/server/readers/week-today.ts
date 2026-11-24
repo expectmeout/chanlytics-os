@@ -45,7 +45,7 @@ export async function readReviewAsk(
 }
 
 /**
- * A week as the owner reads it: held to its time (00712) only while the rung still lets AI approve it. A rung moved back
+ * A week as the owner reads it: held to its time (00714) only while the rung still lets AI approve it. A rung moved back
  * to asking since the week was held says nothing goes by itself, whatever the plan still keeps.
  */
 export function weekAsHeld(week: WeekPlanDto, rung: string | null): WeekPlanDto {
@@ -77,7 +77,7 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
       ? {
           size: weekSizeSaid(creativesOf(live)),
           days: weekDaysSaid(live.map((s) => zoneDayKey(Date.parse(s.at), at))),
-          // Held to its time (00712): "8:00 AM", which Today says the week goes up at unless the owner stops it.
+          // Held to its time (00714): "8:00 AM", which Today says the week goes up at unless the owner stops it.
           held: week.plan.goes_at ? clockTime(Date.parse(week.plan.goes_at), at) : null,
         }
       : null;

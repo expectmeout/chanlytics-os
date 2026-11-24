@@ -83,7 +83,7 @@ function WeekHead({ view, busy, onAct }: { view: WeekView; busy: boolean; onAct:
       {view.line ? <p>{view.line}</p> : null}
       {act ? (
         <div className="cwk-acts">
-          {/* A held week's one press stops it (00712, board B5): the quiet one; Approve stays the strong one. */}
+          {/* A held week's one press stops it (00714, board B5): the quiet one; Approve stays the strong one. */}
           <Button
             variant={view.act === "stop" ? "secondary" : "primary"}
             onClick={onAct}

@@ -1,5 +1,5 @@
 /**
- * What approving a week takes (00706, the content loop PRD's 6.2 and 8.4; 00712, 12.4): every slot that is ready, each
+ * What approving a week takes (00706, the content loop PRD's 6.2 and 8.4; 00714, 12.4): every slot that is ready, each
  * held to the checks a press is held to before the week is approved, the reason it was made for first. A slot one
  * refuses is left out of the approval and said in words; the rest go under one snapshot of what the door holds of each
  * slot: by id, where, as what, when, from which footage, and why. The owner's press (the dashboard) and a rung's job at a

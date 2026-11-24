@@ -1,5 +1,5 @@
 /**
- * Content's rows on the Autonomy pane, drawn (00712; the content loop PRD's 12.4, canvas v18 board B5): four rows, a row
+ * Content's rows on the Autonomy pane, drawn (00714; the content loop PRD's 12.4, canvas v18 board B5): four rows, a row
  * per act, in the matrix's own modes, a mode a row cannot honour drawn as no dot (only Approve the week offers more than
  * asking); AI's suggested rung under Approve the week only with its record behind it, with Use it; and none once taken.
  * Drawn with react-dom/server from the pane's own module, over the bridge's own rows.

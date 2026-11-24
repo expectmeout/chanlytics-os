@@ -43,7 +43,7 @@ export const polMode = (m: UiMode | null): ModeWords => (m ? UI_MODE_WORDS[m] : 
 type PutMode = (r: UiRow, mode: string) => void;
 
 /**
- * Rows under a name of their own after the matrix's own (00712, canvas v18 board B5: Content), and a line under them (AI's
+ * Rows under a name of their own after the matrix's own (00714, canvas v18 board B5: Content), and a line under them (AI's
  * suggested rung): one matrix, its headings said once.
  */
 export interface RowGroup {

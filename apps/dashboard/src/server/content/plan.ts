@@ -39,7 +39,7 @@ const PLAN_REFUSED = {
   past: "Pick a time that hasn't passed.",
   slotGone: "That post isn't in this week any more.",
   notMade: "Its video isn't made yet. It says so on its row once it is.",
-  /** Stop it on a week no longer held (00712): approved meanwhile, or already waiting for the owner. */
+  /** Stop it on a week no longer held (00714): approved meanwhile, or already waiting for the owner. */
   notHeld: "This week isn't set to go up by itself any more. Look again.",
 } as const;
 
@@ -137,7 +137,7 @@ export async function setSlotFor(
 }
 
 /**
- * Stop it (00712; the content loop PRD's 12.4): a week AI may approve, held to its time, let go by the member's own
+ * Stop it (00714; the content loop PRD's 12.4): a week AI may approve, held to its time, let go by the member's own
  * press, so it waits for their Approve the week as a week that asks does.
  */
 export async function stopWeekFor(

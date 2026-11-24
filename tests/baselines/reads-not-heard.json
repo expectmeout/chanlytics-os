@@ -1310,7 +1310,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The weeks the owner approved, read for AI's suggested rung under Approve the week on Settings › Autonomy (00712: how many weeks in a row were approved with no edits, contracts rungSuggestionOf), which the feed does not tell a workspace of. They move at most once a week, by a press on the Week, another page: Settings reads them again when it is next read, and the suggestion's own press (Use it, PUT policies) reads Settings again, which takes the suggestion away.",
+      "why": "The weeks the owner approved, read for AI's suggested rung under Approve the week on Settings › Autonomy (00714: how many weeks in a row were approved with no edits, contracts rungSuggestionOf), which the feed does not tell a workspace of. They move at most once a week, by a press on the Week, another page: Settings reads them again when it is next read, and the suggestion's own press (Use it, PUT policies) reads Settings again, which takes the suggestion away.",
       "reads": {
         "settings": [
           "content_plans"

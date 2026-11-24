@@ -220,7 +220,7 @@ function replyDials(reply: UiRow): DialRow[] {
  * Settings, where the switch or the rule they go with is (business/choices); money is said once, on Limits.
  */
 const AUT_ASKED_ELSEWHERE = new Set(["reply", "booking", "faq", "money"]);
-/** Content's rows (00712; board B5): their own card, under the matrix, never inside it. */
+/** Content's rows (00714; board B5): their own card, under the matrix, never inside it. */
 const AUT_CONTENT: ReadonlySet<string> = new Set(CONTENT_POLICY_CLASSES);
 
 /** One row for what goes to many (D41 of the answers canvas): a page's merge, and nothing stored changes. */

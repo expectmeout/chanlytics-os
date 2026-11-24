@@ -21,7 +21,7 @@ export const POLICY_CLASSES = [
   "money",
   "follow_up",
   "outreach",
-  // What AI does with content (00712; the content loop PRD's 12.4): the four acts, a row each.
+  // What AI does with content (00714; the content loop PRD's 12.4): the four acts, a row each.
   "post",
   "plan_approve",
   "ad_change",
@@ -76,7 +76,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
     short: "Cold email",
     note: "how a new cold email campaign starts · each keeps its own on its page, and asks you before its first batch and after new words",
   },
-  // Content (00712; canvas v18, board B5): a row per act, in the words the board drew.
+  // Content (00714; canvas v18, board B5): a row per act, in the words the board drew.
   post: { name: "Post", short: "Posts", note: "a post AI makes outside the week, on Instagram and Google" },
   plan_approve: {
     name: "Approve the week",
@@ -159,7 +159,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   money: ["never"],
   follow_up: ["auto", "veto", "ask"],
   outreach: ["veto", "ask"],
-  // Content (00712): only the week has a runtime that can act on its own (the content_week_go job), so only its row
+  // Content (00714): only the week has a runtime that can act on its own (the content_week_go job), so only its row
   // offers more than asking; a post outside the week, a change to a running ad and a public answer under a comment each
   // ask the owner until theirs exists.
   post: ["ask"],
@@ -168,7 +168,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   comment_reply: ["ask"],
 };
 
-/** The Autonomy pane's Content group (00712; board B5), in the order it draws them. */
+/** The Autonomy pane's Content group (00714; board B5), in the order it draws them. */
 export const CONTENT_POLICY_CLASSES = [
   "post",
   "plan_approve",

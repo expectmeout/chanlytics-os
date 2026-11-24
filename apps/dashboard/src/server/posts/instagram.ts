@@ -43,7 +43,7 @@ interface InstagramPress {
   when?: string | undefined;
   about?: PostAbout | undefined;
   facts?: OwnersFact[] | undefined;
-  /** AI's approval under the owner's rung (00712), never a person's press. */
+  /** AI's approval under the owner's rung (00714), never a person's press. */
   via?: "rung" | undefined;
 }
 
@@ -67,7 +67,7 @@ async function instagramAsked(member: Member, row: FileMemberRow, input: Instagr
   };
 }
 
-/** A held week's Instagram placement readied overnight (00712): every check, nothing approved; the door takes it at 8:00. */
+/** A held week's Instagram placement readied overnight (00714): every check, nothing approved; the door takes it at 8:00. */
 export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
   return prepareApproval(ctx, member, row, await instagramAsked(member, row, input));
 }

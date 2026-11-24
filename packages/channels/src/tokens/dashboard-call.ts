@@ -1,5 +1,5 @@
 /**
- * The edge's one call to the dashboard (00712; the content loop PRD's 12.4): a week a rung let AI approve, made by the
+ * The edge's one call to the dashboard (00714; the content loop PRD's 12.4): a week a rung let AI approve, made by the
  * code the owner's press runs. Signed as the dashboard's own calls to the edge are (edge-token.ts): bound to the door's
  * path, the workspace and the exact body, valid for a minute. The dashboard verifies it with the secret the two already
  * share (EDGE_CALL_SECRET); without one, nothing is sent.

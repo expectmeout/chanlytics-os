@@ -58,18 +58,18 @@ test("every class offered is one the runtime consults, and each offers only the 
       "reply",
       "reviews",
     ],
-    "reply by the handlers; booking and faq in both prompts and after generation; reengage, campaign and follow_up by the playbooks sweep; outreach by the reach-out step's run (Part 4); reviews by the profile sync and the draft route; money is locked in the database; plan_approve by the week's jobs (content_week_hold, content_week_approve, 00712); post, ad_change and comment_reply ask, which every path does without a rung",
+    "reply by the handlers; booking and faq in both prompts and after generation; reengage, campaign and follow_up by the playbooks sweep; outreach by the reach-out step's run (Part 4); reviews by the profile sync and the draft route; money is locked in the database; plan_approve by the week's jobs (content_week_hold, content_week_approve, 00714); post, ad_change and comment_reply ask, which every path does without a rung",
   );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "plan_approve").modes,
     ["Auto", "Veto", "Ask"],
-    "the week sent as soon as it is ready, held until 8:00 AM unless stopped, or waiting for the owner's press (00712)",
+    "the week sent as soon as it is ready, held until 8:00 AM unless stopped, or waiting for the owner's press (00714)",
   );
   for (const id of ["post", "ad_change", "comment_reply"])
     assert.deepEqual(
       UI_ROWS.find((r) => r.id === id).modes,
       ["Ask"],
-      `${id}: nothing acts on its own here yet, so the row offers no mode it cannot honour (00712, board B5)`,
+      `${id}: nothing acts on its own here yet, so the row offers no mode it cannot honour (00714, board B5)`,
     );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "outreach").modes,
@@ -126,7 +126,7 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
       "ad_change",
       "comment_reply",
     ],
-    "every workspace's pane (0008, amended 18 Oct 2026): nine rows, the follow-ups' beside Win-back, the reach-outs' beside the campaigns; then content's four (00712), drawn as the matrix's Content group",
+    "every workspace's pane (0008, amended 18 Oct 2026): nine rows, the follow-ups' beside Win-back, the reach-outs' beside the campaigns; then content's four (00714), drawn as the matrix's Content group",
   );
   assert.equal(by.follow_up.mode, null, "no row, no mode");
   const asked = uiRows({ ...REAL, rows: [...REAL.rows, { class: "follow_up", mode: "ask" }] });

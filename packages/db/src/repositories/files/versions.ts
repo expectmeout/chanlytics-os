@@ -14,7 +14,6 @@ import {
 } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import { postsApprovedOf, type PostsApproved } from "./approvals";
 import { MEMBER_POST_COLUMNS, type MemberPostRow } from "./posts";
 
 type Db = SupabaseClient<Database>;
@@ -85,20 +84,6 @@ export async function readyPieceVersion(db: Db, fileId: string): Promise<PieceVe
         again: answer.again === true,
       }
     : null;
-}
-
-/** A member's press: the piece's posts still waiting let go, then this file approved in their place, in one step. */
-export async function replacePiecePosts(
-  db: Db,
-  press: { tenantId: TenantId; fileId: string; approval: Json },
-): Promise<PostsApproved> {
-  const { data, error } = await db.rpc("piece_posts_replace", {
-    p_tenant_id: press.tenantId,
-    p_file_id: press.fileId,
-    p_approval: press.approval,
-  });
-  if (error) throw new DbFailure(error, "piece posts replace");
-  return postsApprovedOf(data);
 }
 
 /** One version of a piece as its sheet lists it: its number, what moved, when, and the file its video is. */

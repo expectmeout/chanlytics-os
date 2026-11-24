@@ -273,12 +273,14 @@ function failedSaid(post: PostDto, known: GoesKnown): Said {
 
 /** Where one post stands, or null where it says nothing of its placement any more (let go by the owner). */
 function postSaid(post: PostDto, known: GoesKnown): Said | null {
-  const down = comingDownSaid(post, known);
-  if (down) return down;
+  // Down is down, whatever a take-down still says: a post found gone at its place (removed there, or off Google from
+  // its sheet) while a take-down waited on its owner or the place.
   if (post.status === "taken_down") {
     const at = postCameDownAt(post, known.takeDown);
     return lineSaysOf(TAKE_DOWN_WORDS.cameDown(at ? known.when(at) : null), "gone");
   }
+  const down = comingDownSaid(post, known);
+  if (down) return down;
   if (post.status === "published") return upSaid(post, known);
   if (post.status === "held") return heldSaid(post, known);
   if (post.status === "failed") return failedSaid(post, known);

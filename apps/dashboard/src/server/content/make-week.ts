@@ -49,7 +49,7 @@ const UNMADE = {
   words: "AI couldn't write its words. Try again.",
   footage: "Its photo or clip isn't there any more.",
   failed: "It couldn't be made. Try again.",
-  /** A week AI approved, whose slot's time came before its turn to be made (00712): never posted late. */
+  /** A week AI approved, whose slot's time came before its turn to be made (00714): never posted late. */
   late: "Its time came before it could be made. Pick another time.",
 } as const;
 
@@ -78,7 +78,7 @@ type Hold = (reason: string) => Promise<void>;
 
 /**
  * Who makes a week: a member's press (after their Approve the week, or a row's own), or AI under the rung the owner set
- * (00712: a held week at its time, through the edge's job and app/api/content/week-made). AI's placements go via rung,
+ * (00714: a held week at its time, through the edge's job and app/api/content/week-made). AI's placements go via rung,
  * and a reel it begins is keyed by its slot, so the job's try again begins no second video.
  */
 export type WeekMadeBy = "press" | "rung";
@@ -109,7 +109,7 @@ async function drawPicture(
   return row;
 }
 
-/** The made file every slot of a creative was drawn into ahead (00712), where they share one: whoever places it reuses it. */
+/** The made file every slot of a creative was drawn into ahead (00714), where they share one: whoever places it reuses it. */
 const preparedFileOf = (slots: readonly PlanSlotDto[]): string | null => {
   const first = slots[0]?.prepared_file_id ?? null;
   return first && slots.every((s) => s.prepared_file_id === first) ? first : null;
@@ -182,7 +182,7 @@ async function makeCreative(
     for (const slot of slots)
       await markSlotMade(ctx.supabase, member.tenantId, { id: slot.id, made: { held: { why: "unmade", reason } } });
   };
-  // AI makes nothing it would post late (00712, the making queue): a slot whose time is too near is held, with why.
+  // AI makes nothing it would post late (00714, the making queue): a slot whose time is too near is held, with why.
   if (by === "rung" && Math.min(...slots.map((s) => Date.parse(s.at))) - Date.now() < WEEK_MADE_AHEAD_MS) {
     for (const slot of slots)
       await markSlotMade(ctx.supabase, member.tenantId, {
@@ -197,7 +197,7 @@ async function makeCreative(
   try {
     if (first.kind === "reel")
       // A key a press of its own: each approval that makes it (the week's, or its own Try again) begins its own video.
-      // AI's is its slot's own (00712): the job asked again finds the video it began.
+      // AI's is its slot's own (00714): the job asked again finds the video it began.
       await beginReel(ctx, member, {
         slots,
         file,
@@ -254,7 +254,7 @@ async function prepareCreative(ctx: RouteContext, member: Member, slots: readonl
 }
 
 /**
- * A held week prepared ahead (00712; the making queue's overnight pass): each picture or story drawn once into its made
+ * A held week prepared ahead (00714; the making queue's overnight pass): each picture or story drawn once into its made
  * file, and each of its places readied for the door (posts/approve.ts prepareApproval), kept on its slot. Nothing approved,
  * nothing placed, no reel begun: a reel costs, and waits for the owner's look whatever the rung. A creative that cannot be
  * readied is left to be made after the approval, where it says its one fix if it cannot be then either. How many slots.

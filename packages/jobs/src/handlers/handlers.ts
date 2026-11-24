@@ -473,13 +473,13 @@ async function contentPlan(ctx: JobContext, job: ClaimedJob): Promise<void | { s
   return ctx.plans.plan(job, ctx.deadline);
 }
 
-/** content_week_go: a week AI may approve goes up (00712), through what the edge injects. payload: { plan_id } */
+/** content_week_go: a week AI may approve goes up (00714), through what the edge injects. payload: { plan_id } */
 async function contentWeekGo(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.plans?.go) throw new Error("content_week_go: this runtime holds no week to put up");
   return ctx.plans.go(job, ctx.deadline);
 }
 
-/** content_week_make: a week AI approved, made in its turn (00712), through what the edge injects. payload: { plan_id } */
+/** content_week_make: a week AI approved, made in its turn (00714), through what the edge injects. payload: { plan_id } */
 async function contentWeekMake(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.plans?.make) throw new Error("content_week_make: this runtime holds no week to make");
   return ctx.plans.make(job, ctx.deadline);

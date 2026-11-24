@@ -68,7 +68,7 @@ const SLOW_TWICE = [5 * MIN_MS, 30 * MIN_MS] as const;
 const ONCE = [2 * MIN_MS] as const;
 const NO_FIELDS = [] as const;
 
-/** The two kinds of a week AI may approve (00712): neither speaks, each tried twice more, the owner told of one that fails. */
+/** The two kinds of a week AI may approve (00714): neither speaks, each tried twice more, the owner told of one that fails. */
 const WEEK_ON_ITS_OWN: KindPolicy = {
   speaks: false,
   retryWaitsMs: TWICE,
@@ -476,7 +476,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["plan_id"],
     never: [],
   },
-  // A week AI may approve (00712; the content loop PRD's 12.4): goes up at its time (content_week_go: the approval is the
+  // A week AI may approve (00714; the content loop PRD's 12.4): goes up at its time (content_week_go: the approval is the
   // door's, once, and only queues the rest) and is prepared or made in its turn (content_week_make: the dashboard makes
   // only what is not made yet and keys a reel by its slot). A try again repeats nothing. The posts it queues speak at their
   // own times, as their own kinds. The owner hears one that failed for good: the week waits on the Week for their press.

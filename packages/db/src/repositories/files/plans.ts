@@ -164,7 +164,7 @@ export async function readContentWeek(db: Db, tenantId: TenantId, weekOf: string
 
 /** What approving the week came to. */
 export interface WeekApproved {
-  // A rung's approval may also find the week held to a later time, stopped, or under a rung that now asks (00712).
+  // A rung's approval may also find the week held to a later time, stopped, or under a rung that now asks (00714).
   fate: "approved" | "changed" | "gone" | "nothing" | "drafting" | "done" | "held" | "stopped" | "asks";
   approvalId: string | null;
   slots: number;
@@ -174,7 +174,7 @@ const WEEK_FATES = ["approved", "changed", "gone", "nothing", "drafting", "done"
 
 /**
  * Approve the week (content_week_approve): as the member, the snapshot's slots under one approval of the plan; as the
- * service at a held week's time, the same under the rung the door reads again (00712).
+ * service at a held week's time, the same under the rung the door reads again (00714).
  */
 export async function approveWeek(
   db: Db,
@@ -334,7 +334,7 @@ export type WeekHold = "held" | "let_go" | "asks" | "stopped" | "gone" | "other"
 const HOLD_FATES = ["held", "let_go", "asks", "stopped", "gone"] as const;
 
 /**
- * A ready week held to its time (content_week_hold, 00712), under the service role: its goes_at kept and its job
+ * A ready week held to its time (content_week_hold, 00714), under the service role: its goes_at kept and its job
  * scheduled for then while the plan_approve rung holds or sends it; null lets it go. The door reads the rung itself.
  */
 export async function holdWeek(
@@ -353,7 +353,7 @@ export async function holdWeek(
   return isOneOf(HOLD_FATES, fate) ? fate : "other";
 }
 
-/** Stop it (content_week_stop, 00712), as the member: a held week let go, so it waits for their press. */
+/** Stop it (content_week_stop, 00714), as the member: a held week let go, so it waits for their press. */
 export async function stopWeek(
   db: Db,
   tenantId: TenantId,
@@ -381,7 +381,7 @@ export async function findWeekRung(db: Db, tenantId: TenantId): Promise<string |
 /** How many approved weeks AI's suggested rung reads, newest first. */
 const RECORD_WEEKS = 8;
 
-/** The weeks approved, newest first, as AI's suggested rung reads them: by whose press, and whether edited (00712). */
+/** The weeks approved, newest first, as AI's suggested rung reads them: by whose press, and whether edited (00714). */
 export async function listWeeksApproved(
   db: Db,
   tenantId: TenantId,
@@ -398,11 +398,11 @@ export async function listWeeksApproved(
   return data.map((row) => ({ by_owner: row.approved_by !== null, edited: row.edited }));
 }
 
-/** What AI does with a week the dashboard's door is asked for (00712): prepare it while it is held, make what is left once approved. */
+/** What AI does with a week the dashboard's door is asked for (00714): prepare it while it is held, make what is left once approved. */
 export type WeekPass = "prepare" | "make";
 
 /**
- * A week AI is to work on, as the dashboard's door reads it under the service role (00712): held under a rung that still
+ * A week AI is to work on, as the dashboard's door reads it under the service role (00714): held under a rung that still
  * holds or sends it and not stopped (prepare its pictures ahead), or approved by nobody's press under the rung (make what
  * is left). Null for any other week: one the owner approved, one that asks, one not this workspace's.
  */
@@ -440,7 +440,7 @@ export async function findWeekForAI(
 }
 
 /**
- * A slot of a held week readied ahead (plan_slot_prepared, 00712), under the service role: the made file its picture was
+ * A slot of a held week readied ahead (plan_slot_prepared, 00714), under the service role: the made file its picture was
  * drawn into, the time it was readied for, and the approval the door takes at 8:00. Whether it was kept.
  */
 export async function markSlotPrepared(
@@ -464,7 +464,7 @@ export interface MakingQueue {
 }
 
 /**
- * The making queue started (content_weeks_start, 00712), under the service role: the weeks AI approved begun in turn,
+ * The making queue started (content_weeks_start, 00714), under the service role: the weeks AI approved begun in turn,
  * never more at once than the cap, the earliest first post first, each with its content_week_make job. How many began.
  */
 export async function startWeeksMaking(db: Db, queue: MakingQueue): Promise<number> {
@@ -476,7 +476,7 @@ export async function startWeeksMaking(db: Db, queue: MakingQueue): Promise<numb
   return typeof data === "number" ? data : 0;
 }
 
-/** A week's pass done (content_week_made, 00712): its place in the queue is free, and the next in turn begins. */
+/** A week's pass done (content_week_made, 00714): its place in the queue is free, and the next in turn begins. */
 export async function markWeekMade(
   db: Db,
   tenantId: TenantId,

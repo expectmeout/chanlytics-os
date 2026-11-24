@@ -1,5 +1,5 @@
 /**
- * The dashboard's door for a week a rung let AI approve (00712; apps/dashboard/src/server/content/week-made.ts over
+ * The dashboard's door for a week a rung let AI approve (00714; apps/dashboard/src/server/content/week-made.ts over
  * tests/_fake-db.mjs): opened only by a token the edge signs for that door, that workspace and that exact body; it makes
  * only a week approved under the rung (never one the owner approved by hand, never one not approved), answers at once
  * and makes after, as AI, with the code the owner's press runs. Made, the week leaves the making queue and the next
