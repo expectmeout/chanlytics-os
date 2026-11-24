@@ -28,12 +28,12 @@ import {
 } from "@chanlytics/db/files";
 import { asJson } from "@chanlytics/db/shared";
 import { readInstagramPostable } from "@/server/connections/meta";
-import { checkPieceClips } from "@/server/content/piece";
+import { checkPieceClips } from "./piece";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { getStoredConfig } from "@/server/workspace/config-row";
-import { approvePlacements } from "./approve";
-import { readFacebookPostable } from "./facebook";
+import { approvePlacements } from "../posts/approve";
+import { readFacebookPostable } from "../posts/facebook";
 
 export const versionInput = z.strictObject({ to: z.enum(["approve", "again"]) });
 

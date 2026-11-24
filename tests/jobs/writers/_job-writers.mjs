@@ -105,6 +105,10 @@ export const JOB_WRITERS = {
   "apps/edge/lib/instagram/post-ready.ts|post_publish": {
     ledger: "the prepare that made the post ready runs again, asks after the same container, and schedules the send",
   },
+  "apps/edge/lib/instagram/post-send.ts|post_publish": {
+    ledger:
+      "the send that waits a minute for a version being made (00708), written from inside its own job: lost, the claimed send runs again and finds the version still being made",
+  },
   "apps/edge/lib/leads/apify-delivery.ts|lead_collect": {
     provider: "answers 503, and the leads clock collects a run whose webhook was lost",
   },

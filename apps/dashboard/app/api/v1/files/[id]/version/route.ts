@@ -1,6 +1,6 @@
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
-import { pressVersion, versionInput } from "@/server/posts/version";
+import { pressVersion, versionInput } from "@/server/content/piece-version";
 
 /**
  * POST /api/v1/files/:id/version — `{ to }`: a made video's version pressed (00708; the version board). `approve`: this
@@ -9,7 +9,7 @@ import { pressVersion, versionInput } from "@/server/posts/version";
  * that could not be made drawn once more ("Try again"). Whoever may save a post, on their press alone: the press is the
  * approval, of these bytes and these words. Answers `{ fate }`.
  *
- * The handle is in src/server/posts/version.ts.
+ * The handle is in src/server/content/piece-version.ts.
  */
 export const POST = write({
   scope: fileScope,

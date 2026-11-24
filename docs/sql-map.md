@@ -37,10 +37,6 @@ being read is dropped by a migration.
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
-| `piece_posts_replace` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `piece_version_begin` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `piece_version_kept` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `piece_version_ready` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
 | `resume_email_offers` | the back office turns a workspace's offers by email back on by hand once its list is fixed; the notice that stopped them says the statement (apps/edge/lib/email/offer-gates.ts) |
@@ -596,13 +592,13 @@ being read is dropped by a migration.
 | `piece_end` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A video that could not be made (00613): |
 | `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613; |
 | `piece_of_made_file` | the server's | the server | SQL `post_approve` | The piece a made file is (00681, 00708): |
-| `piece_posts_replace` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00708; |
+| `piece_posts_replace` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708; |
 | `piece_sent` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video's bytes have all gone into the video platform (00613): |
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
-| `piece_version_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00708): |
-| `piece_version_kept` | the server's | the server | nothing at run time | When a new version's drawn bytes are kept (00708; |
-| `piece_version_ready` | the server's | the server | nothing at run time | When a new version's file plays (00708; |
+| `piece_version_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708): |
+| `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
+| `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
 | `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00706): |

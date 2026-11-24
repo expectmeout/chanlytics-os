@@ -5062,6 +5062,10 @@
             "type": "boolean",
             "description": "false only when the owner asked for no spoken words on the video."
           },
+          "revises": {
+            "description": "The made video's name when the owner asked to change it: its next version, not a new video.",
+            "type": "string"
+          },
           "looked": {
             "type": "string",
             "description": "The storyboard's look_key, once you have looked at it and it is right."
@@ -8443,6 +8447,10 @@
           "captions": {
             "type": "boolean",
             "description": "false only when the owner asked for no spoken words on the video."
+          },
+          "revises": {
+            "description": "The made video's name when the owner asked to change it: its next version, not a new video.",
+            "type": "string"
           },
           "looked": {
             "type": "string",

@@ -20,7 +20,7 @@ export const pieceCompositionOf = (shape: PieceShape | PiecePlan["shape"]): stri
  * a change to the template is a new edition here, with its image built before the change is merged (tooling/video/README.md).
  * tests/content/the-template-has-its-image.test.mjs fails the change that forgets.
  */
-export const PIECE_TEMPLATE = { edition: 3, hash: "da6e2dcd9648" } as const;
+export const PIECE_TEMPLATE = { edition: 3, hash: "a8d2c5acc36e" } as const;
 
 /** Where a video asked for stands (00613 `pieces`): being made, a file under Made by Ask, or not made. */
 export const PIECE_STATUSES = ["making", "made", "failed"] as const;
