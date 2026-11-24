@@ -27,6 +27,8 @@ export const FORMS_WORDS = {
     title: "Already have a form on your website?",
     body: "Send its entries here with a key. Your site keeps its own questions.",
     act: "Connect your website",
+    /** What the act does, as a member who may not do it is told: "Only an owner can connect your website." */
+    doing: "connect your website",
     head: "Website",
   },
   hidden: { some: (n: number) => `${n} hidden`, show: "Show them", hide: "Hide them" },
