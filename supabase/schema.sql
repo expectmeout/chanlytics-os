@@ -23444,7 +23444,7 @@ COMMENT ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) 
 --
 
 CREATE FUNCTION public.messages_answer_a_form_request() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
 begin
@@ -23458,7 +23458,7 @@ end $$;
 -- Name: FUNCTION messages_answer_a_form_request(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.messages_answer_a_form_request() IS 'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
+COMMENT ON FUNCTION public.messages_answer_a_form_request() IS 'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id, linked as the one who wrote it, under form_entry_links'' own policy. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
 
 
 --

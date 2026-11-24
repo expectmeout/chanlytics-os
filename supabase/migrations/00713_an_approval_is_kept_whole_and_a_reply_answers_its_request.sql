@@ -18,7 +18,8 @@
 -- customer answered and the request open.
 --
 --   messages_answer_a_form_request   A message that says which request it answers (meta.form_entry_id) is linked to it
---                                as it is written, in the same statement: a link that cannot be written is a message
+--                                as it is written, in the same statement, as the member who wrote it (the table's own
+--                                policy, as the dashboard's insert was): a link that cannot be written is a message
 --                                that is not, so the reply verb's own failure path lets its key go and nothing is sent.
 --
 -- Locks: one trigger added on messages (a brief SHARE ROW EXCLUSIVE). Three seconds and no more. Re-runnable.
@@ -100,10 +101,12 @@ comment on function public.post_approve_whole(uuid, uuid, jsonb) is
 
 /* ----------------------------------------------------------------------- 2. a reply answers its request -- */
 
+-- As the one who writes the message, never more: a member's reply is linked under form_entry_links' own policy (an acting
+-- member's reply, as themselves), exactly as the dashboard's own insert was, so this is no door of its own.
 create or replace function public.messages_answer_a_form_request()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 begin
@@ -113,7 +116,7 @@ begin
 end $$;
 revoke all on function public.messages_answer_a_form_request() from public, anon, authenticated;
 comment on function public.messages_answer_a_form_request() is
-  'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
+  'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id, linked as the one who wrote it, under form_entry_links'' own policy. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
 
 create or replace trigger messages_answer_a_form_request after insert on public.messages
   for each row

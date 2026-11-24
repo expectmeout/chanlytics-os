@@ -91,7 +91,7 @@ async function readShapes(tenantId: TenantId, row: FileMemberRow, shapes: readon
 }
 
 /** Each fact the owner stated, as their claim until its day ends (owner_claims, 00706): kept by the approval's own door. */
-const claimsOf = (facts: readonly OwnersFact[]) =>
+const factClaims = (facts: readonly OwnersFact[]) =>
   facts.map((fact) => ({ kind: "fact" as const, text: fact.says, source: "said" as const, valid_until: fact.until }));
 
 /** A door's answer that approved nothing, in the owner's words. */
@@ -144,8 +144,8 @@ export async function approvePlacements(
   }
   // The words that go are the piece's own from now on, held now to what it takes (posts/caption.ts readWordsToKeep) and
   // kept by the door with the approval.
-  const said = approval.placements.map(placementWordsOf).find((w) => w !== null);
-  const words = said ? await readWordsToKeep(ctx, member, row, said) : null;
+  const placementWords = approval.placements.map(placementWordsOf).find((w) => w !== null);
+  const words = placementWords ? await readWordsToKeep(ctx, member, row, placementWords) : null;
   const goodUntil = goodUntilOf(approval.intent, zone);
   const now = new Date().toISOString();
   const renditions: SnapshotRendition[] = shapes.map(({ shape, path, checksum }) => ({
@@ -185,7 +185,7 @@ export async function approvePlacements(
       via: approval.via,
       // A fact the owner stated is kept as their own claim (owner_claims, 00706; PRD 6.1), valid until its day ends: the
       // send's check reads it there, and an approval no longer carries it.
-      claims: claimsOf(approval.facts),
+      claims: factClaims(approval.facts),
       ...(words === null ? {} : { words }),
       ...(approval.replace ? { replace: true, expected: approval.replace.expected } : {}),
     }),

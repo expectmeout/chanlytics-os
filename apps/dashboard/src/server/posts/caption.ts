@@ -127,11 +127,11 @@ export async function readWordsToKeep(
   words: string,
 ): Promise<string | null> {
   const { caption, posts } = await readCaptionKept(ctx, member.tenantId, row.id);
-  const said = words.trim();
-  if (caption === (said || null)) return null;
-  const refused = captionRefusalOf(row, said, posts);
+  const trimmed = words.trim();
+  if (caption === (trimmed || null)) return null;
+  const refused = captionRefusalOf(row, trimmed, posts);
   if (refused) throw new AppError(refused.code, refused.words);
-  return said;
+  return trimmed;
 }
 
 /** The caption a made post keeps, with the posts it was read from: its posts under the caller's RLS, how it was made by the service role. */

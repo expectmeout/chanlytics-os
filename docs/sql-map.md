@@ -22,8 +22,8 @@ nothing calls is neither named below with why nor dropped.
 | reader | 98 | 0 |
 | the server's | 459 | 389 |
 | computed column | 3 | 0 |
-| trigger | 124 | 92 |
-| all | 900 | 697 |
+| trigger | 124 | 91 |
+| all | 900 | 696 |
 
 ## Called by nothing
 
