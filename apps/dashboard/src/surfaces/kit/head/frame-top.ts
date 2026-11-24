@@ -19,8 +19,8 @@ export function watchPageEdges(): () => void {
   return () => document.removeEventListener("scroll", moved, { capture: true });
 }
 
-/** The tops watched now, each with the measure that sets its height. */
-const watched = new Map<HTMLElement, () => void>();
+/** The tops watched now, each with the measure that sets its height and the way to have its observer report it afresh. */
+const watched = new Map<HTMLElement, { size: () => void; afresh: () => void }>();
 /** Whether the top's height is held where it is (holdFrameTop). */
 let heightHeld = false;
 
@@ -50,7 +50,13 @@ export function watchFrameTop(top: HTMLElement): () => void {
   sized.observe(top);
   under();
   size();
-  watched.set(top, size);
+  // Watched anew, an observer reports the box's size as the frame is next laid out, changed or not (a second observe of the
+  // same box is nothing in Chromium, so it is let go first).
+  const afresh = () => {
+    sized.unobserve(top);
+    sized.observe(top);
+  };
+  watched.set(top, { size, afresh });
   return () => {
     window.removeEventListener("scroll", under);
     sized.disconnect();
@@ -64,7 +70,7 @@ export function watchFrameTop(top: HTMLElement): () => void {
  * the observer's answer came after, a frame late, with the page a strip's height out.
  */
 export function measureFrameTop(): void {
-  for (const size of watched.values()) size();
+  for (const { size } of watched.values()) size();
 }
 
 /** The tops watched now: what a list put back where it stood keeps its row under (kit/motion/held-list.ts). */
@@ -77,10 +83,21 @@ export function frameTopsWatched(): HTMLElement[] {
  * carries a row's page back, the frame draws its chrome again under that page (kit motion/held-list.ts showHeld), and the
  * page, which starts under the top, would have moved down by all of it under the finger. Only a measure asked for by name
  * (measureFrameTop) is taken while it is held.
+ *
+ * Let go, it is measured by its observer as the frame is next laid out, never in the draw that lets it go: that draw takes
+ * away the list's head drawn under the page a moment before the page's own comes back, and the top, measured between the
+ * two, was 10 px; a person's page pushed in moved 34 px up as it landed and down again a frame later, and each height
+ * written to the document restyles every box on the page (a slow phone, 24 Nov 2026: 43 to 66 ms a time).
  */
 export function holdFrameTop(on: boolean): void {
   if (heightHeld === on) return;
-  // Held at the height it is drawn at now: a page pushed in drew its own head in the draw that held it.
-  measureFrameTop();
   heightHeld = on;
+  if (on) {
+    // Held at the height it is drawn at now: a page pushed in drew its own head in the draw that held it.
+    measureFrameTop();
+    return;
+  }
+  // Its observer asked afresh: what it reported while the top was held was not written, and the top may stand now at the
+  // size it last reported (a carry that lands on the list's head, a turn of the phone), which it would not report again.
+  for (const { afresh } of watched.values()) afresh();
 }
