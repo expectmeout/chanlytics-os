@@ -297,8 +297,9 @@ async function theCampaignsLens(page: Page, report: Locator) {
 
     // Robin was held back because a person had his thread, and nothing the run sent failed: the card says so in its own words.
     await expect(report.getByTestId("chart-campaigns-held")).toContainText("A person had the conversation");
+    // The words pass of 16 Nov 2026 (#2373) says it as "came back" (contracts FAILED_WHY_EMPTY).
     await expect(report.getByTestId("chart-campaigns-failed-why")).toContainText(
-      "No sent message failed in this period.",
+      "No message sent in this period came back.",
     );
   }
 

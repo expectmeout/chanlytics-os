@@ -171,9 +171,9 @@ test.describe("Leads on a real workspace", () => {
     // out. The database still holds the three it set aside (read above): they are the team's, in the Console.
     await expectStripEnding(page, "Found 3 personal trainers · 3 you can email");
     await expect(page.getByTestId("lead-strip")).not.toContainText(/left out|need a look|needs review/i);
-    const classes = page.getByTestId("lead-classes").getByRole("tab");
-    await expect(classes).toHaveCount(1);
-    await expect(page.getByTestId("lead-class-qualified").locator(".n")).toHaveText("3");
+    // A band of one tab narrowed nothing and said the count again over the strip's, so a search with one class draws none
+    // (#2359, 16 Nov 2026: leads/scope/search-head.tsx bandOf).
+    await expect(page.getByTestId("lead-classes")).toHaveCount(0);
     const shown = page.locator(".cl-table tbody tr[id^='lead-']");
     await expect(shown).toHaveCount(qualified.length);
     for (const name of qualified) await expect(shown.filter({ hasText: name })).toHaveCount(1);

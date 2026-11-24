@@ -191,12 +191,6 @@ test.describe("The kit's table on a real workspace", () => {
   }) => {
     await holdSaves(page, "leads");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/#/clients/leads");
-    await page.waitForLoadState("networkidle");
-    // The nightly's seeded search (tooling/scripts/ops/e2e-workspace.mjs LEADS); another workspace's leads, as they come.
-    const search = page.locator(".cl-rail-row", { hasText: "Personal trainers · Austin" }).locator(".ld-search-pick");
-    if ((await search.count()) > 0) await search.first().click();
-    await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr[id^='lead-']");
     const picked = page.locator(".cl-table tbody tr[aria-selected='true']");
     const flip = async (word: string) => {
@@ -209,31 +203,47 @@ test.describe("The kit's table on a real workspace", () => {
       await expect(page.locator(".leads-scope[data-loading]")).toHaveCount(0);
     };
     // The first view and switch that keep some of the leads and not all of them: the view at rest, then the leads that
-    // need review (the seeded search's qualified leads all have a checked email, and those under review none).
+    // need review. The nightly's seeded search shows its three qualified leads alone (decision 0133), each with an email
+    // and a number that were checked, so it is the owner's own list beside it whose leads differ (Mueller and FitCorp have
+    // a website the number was checked on, Kettlebell none: tooling/scripts/ops/e2e-workspace.mjs LEADS,
+    // tooling/scripts/e2e-harness/copy-states.mjs OWN_LIST). Another workspace's leads are read as they come.
+    const places = ["Personal trainers · Austin", "e2e copy: a list of my own"];
     const views: Array<string | null> = [null, "lead-class-review"];
-    let found: { word: string; all: number; kept: number } | null = null;
-    for (const view of views) {
-      if (view && (await page.getByTestId(view).count()) === 0) continue;
-      if (view) {
-        // The chip says how many it holds; its rows are drawn once the view has them.
-        const chip = page.getByTestId(view);
-        const holds = Number((await chip.locator(".n").textContent()) ?? "0");
-        await chip.click();
-        await expect(chip).toHaveAttribute("aria-selected", "true");
-        await expect(rows).toHaveCount(holds);
-      }
-      const all = await rows.count();
-      for (const word of ["Checked email", "Checked phone"]) {
-        if (all === 0) break;
-        await flip(word);
-        const kept = await rows.count();
-        if (kept > 0 && kept < all) {
-          found = { word, all, kept };
-          break;
+    /** The first view and switch here that keep some of the leads shown and not all of them, or null. */
+    const filterSplits = async () => {
+      for (const view of views) {
+        if (view && (await page.getByTestId(view).count()) === 0) continue;
+        if (view) {
+          // The chip says how many it holds; its rows are drawn once the view has them.
+          const chip = page.getByTestId(view);
+          const holds = Number((await chip.locator(".n").textContent()) ?? "0");
+          await chip.click();
+          await expect(chip).toHaveAttribute("aria-selected", "true");
+          await expect(rows).toHaveCount(holds);
         }
-        await flip(word);
+        const all = await rows.count();
+        for (const word of ["Checked email", "Checked phone"]) {
+          if (all === 0) break;
+          await flip(word);
+          const kept = await rows.count();
+          if (kept > 0 && kept < all) return { word, all, kept };
+          await flip(word);
+        }
       }
+      return null;
+    };
+    let found: Awaited<ReturnType<typeof filterSplits>> = null;
+    for (const place of [...places, null]) {
       if (found) break;
+      await page.goto("/#/clients/leads");
+      await page.waitForLoadState("networkidle");
+      if (place) {
+        const pick = page.locator(".cl-rail-row", { hasText: place }).locator(".ld-search-pick");
+        if ((await pick.count()) === 0) continue;
+        await pick.first().click();
+        await page.waitForLoadState("networkidle");
+      }
+      found = await filterSplits();
     }
     test.skip(!found, "no view here has leads the Filter keeps beside leads it leaves out");
     const { word, all, kept } = found!;

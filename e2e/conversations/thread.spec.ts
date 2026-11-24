@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { activeWorkspace, scoped, apiGet } from "../workspace";
+import { reasonSummaryOf } from "../../packages/contracts/src/index";
 
 /**
  * The conversation thread, in a real browser, in the nightly's own workspace.
@@ -266,7 +267,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
       // The mark's title is the hold's reason as its label says it (contracts escalations.ts, send_failed).
       await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply didn't reach them/);
-      await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
+      // The dock of a thread that is yours says why it was held in the hold's own sentence (contracts ESCALATION_SUMMARIES,
+      // read by the thread's summary): the words pass of 15 Nov 2026 (#2346) said it "didn't reach them".
+      await expect(pane.getByTestId("ix-yours")).toContainText(reasonSummaryOf("send_failed"));
       await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
       await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");
     });

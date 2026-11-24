@@ -27,6 +27,23 @@ const entries = (page: Page): Promise<number> => page.evaluate(() => window.hist
 /** The first row of a run waiting for an OK on a page's queue: a run's own, or the one row two or more fold into. */
 const runRow = (page: Page) => page.getByTestId("brief-run-row").or(page.getByTestId("brief-runs-row")).first();
 
+/** Each row of what waits for an OK under the Inbox's conversations: a run's, the one row two or more runs fold into, To send's. */
+const WAIT_ROWS = '[data-testid="brief-run-row"], [data-testid="brief-runs-row"], [data-testid="brief-to-send"]';
+
+/**
+ * What waits for an OK, open on the Inbox, once its reads are in: from three rows on they are one line that opens in place
+ * into them (#2445, decision 0142, 19 Nov 2026), so a row of a run or To send's is pressed once that line is opened, as a
+ * person opens it. Fewer than three are drawn as they are, and an open line is left open.
+ */
+async function openInboxWaits(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
+  const fold = page.getByTestId("inbox-approve-fold");
+  if ((await fold.count()) === 0) return;
+  if ((await page.getByTestId("inbox-runs-waiting").locator(WAIT_ROWS).count()) > 0) return;
+  await fold.locator(".cl-attn-who").click();
+  await expect(page.getByTestId("inbox-runs-waiting").locator(WAIT_ROWS).first()).toBeVisible();
+}
+
 /**
  * The same run as Today draws it since Today, calm (19 Nov 2026): a line among who waits, or the page's card where
  * nobody waits before it. Looked for inside Today's own page, since an address moved by its hash leaves the page before
@@ -82,6 +99,7 @@ test.describe("Campaigns opens in place on a real workspace", () => {
           continue;
         }
       } else {
+        await openInboxWaits(page);
         await expect(row).toBeVisible();
         await row.locator(".cl-attn-who").click();
       }
@@ -102,8 +120,8 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     await page.goto("/#/inbox");
     await expect(page).toHaveURL(atRoute(/^inbox/));
     const row = page.getByTestId("brief-to-send");
-    // The Inbox's Needs you draws once its reads are in: a row of runs, To send's or none.
-    await page.waitForLoadState("networkidle");
+    // The Inbox's Needs you draws once its reads are in: a row of runs, To send's or none, or the one line they fold into.
+    await openInboxWaits(page);
     test.skip((await row.count()) === 0, "no email here is handed to its owner to send");
     const before = await entries(page);
     await row.locator(".cl-attn-who").click();
@@ -197,6 +215,7 @@ test.describe("Campaigns opens in place on a phone", () => {
     await page.goto("/#/inbox");
     const tabs = page.getByTestId("phone-tabs");
     await expect(tabs).toBeVisible();
+    await openInboxWaits(page);
     await runRow(page).locator(".cl-attn-who").click();
     await expect(page.getByTestId("see-run")).toBeVisible();
     await expect(tabs).toBeHidden();
