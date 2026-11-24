@@ -43,7 +43,6 @@ export {
   findFormRequest,
   holdFormEntry,
   letFormEntryThrough,
-  linkFormReply,
   linkRequestCode,
   listFormEntries,
   listFormEntriesHeldBefore,

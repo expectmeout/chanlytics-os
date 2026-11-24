@@ -99,7 +99,9 @@ async function approveVersion(
     facts: [],
     via: "press",
     connections,
-    replace: true,
+    // The posts the owner saw still waiting: held still while they are swapped, and one that began to go up since is
+    // no longer what they approved (00713).
+    replace: { expected: waiting.map((p) => p.id) },
   });
   return { fate: "approved" };
 }

@@ -562,7 +562,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // What a watched folder brought, removed with Stop watching or Disconnect (00657): the Library and Content read again.
   "POST sources/remove": filesAndContentIfDrawn,
   // A post put on a place, moved to another time (00621) or taken off it is told to no page (00611): Content reads, and the
-  // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
+  // Calendar's posts at their times. One sent keeps its words on its file in the same step (00713 post_approve_whole): Files reads too.
   "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/google": postMoved,
   // The Week and Settings › Content (00706): what a press there changes is the week's, and Made's once it is made.
