@@ -75,7 +75,7 @@ const PANE_READS: Readonly<Record<string, PaneRead>> = {
   },
   profile: { held: () => savedViewsRead.held() !== null, warm: () => savedViewsRead.warm() },
   outreach: { held: () => reachOutSettingsRead.held() !== null, warm: () => reachOutSettingsRead.warm() },
-  activity: { held: () => activity.peek({}) !== null, warm: () => activity.warm({}) },
+  activity: { held: () => activity.peek({})?.ok === true, warm: () => activity.warm({}) },
 };
 
 /**

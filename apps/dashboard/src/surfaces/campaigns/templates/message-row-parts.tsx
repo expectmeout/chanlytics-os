@@ -1,10 +1,9 @@
 /**
- * What one message draws (moved from MessageRow in legacy/pages/messages.jsx, decision 0015): the closed line in the list,
- * two lines (its name, and why it needs you, what sends it or what it is for; at its right how many went out or when the
- * last did: Messages, the canvas of 10 Nov 2026), and what it opens into, in the pane beside the list (parts/split.tsx):
- * its one language control, the message as a customer reads it, its foot, and the verbs that change it, which are the
- * menu on the pane head's caret. Each is a function that returns its element, called by the row and the pane and not
- * drawn as a component of its own, so their trees are the trees they were.
+ * What one message opens into (moved from MessageRow in legacy/pages/messages.jsx, decision 0015), in the pane beside the
+ * list (parts/split.tsx): its one language control, the message as a customer reads it, its foot, and the verbs that change
+ * it, which are the menu on the pane head's caret. Each is a function that returns its element, called by the pane and not
+ * drawn as a component of its own, so their trees are the trees they were. Its closed line in the list (`closedLine`) went
+ * with no caller left once Messages moved into Campaigns.
  */
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -28,7 +27,6 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuItem } from "../../kit/menu/menu";
 import { Picker } from "../../kit/picker/picker";
-import { cmRowPress } from "../parts/head";
 import { cmLanguageSearch, cmLanguages } from "../parts/picker";
 import { cmChevron } from "../parts/picks";
 import { MessagePreview } from "../parts/message-preview";
@@ -39,25 +37,6 @@ import { languageStatus } from "./message-row-facts";
 import type { StarterLibrary } from "./verbs";
 import { wordsPencil } from "./sheet-head";
 import { TPL_LIST_WORDS, TPL_SHEET_WORDS, tplTitle } from "./words";
-
-/** What a closed line reads: its name, the one line under it, and what stands at its right. */
-interface LineCtx {
-  g: TemplateGroup;
-  /** The mark before its name, where it wears one (a cold email wears the mail's); a message wears none. */
-  mark?: ReactNode;
-  /** A language of it that is not simply approved ("Spanish in review"), beside its name. */
-  tag: { words: string; tone: string } | null;
-  /** The line under its name: why it needs you, what sends it, or what it is for. */
-  said: string;
-  /** That line says what sends it. */
-  saysUse: boolean;
-  /** The line is why it needs you: said in the warn ink. */
-  warn: boolean;
-  /** At its right: how many went out, or when the last did; null for nothing. */
-  aside: string | null;
-  open: boolean;
-  onOpen: () => void;
-}
 
 /** Everything the open message's parts read: its props, its state and setters, and what it worked out from them. */
 export interface RowCtx {
@@ -157,52 +136,6 @@ function rowHints(row: TemplateDto | null) {
         </p>
       )}
     </>
-  );
-}
-
-/**
- * The closed line: a press anywhere on it that is not one of its controls opens it (cmRowPress), as a person's row
- * does. Two lines, as the canvas draws a row: its name, and under it why it needs you, what sends it or what it is for;
- * at its right how many went out, or when the last did. What sends it opens from the pane, where it is a fact with its
- * own Open; the words, the languages and the channels are the pane's too.
- */
-export function closedLine(c: LineCtx) {
-  const { g, mark, tag, said, saysUse, warn, aside, open, onOpen } = c;
-  return (
-    // A line that wears a mark says so: its name stands a face further in, and on a phone the hairline over it starts there.
-    <div className="msg-row-line" data-marked={mark ? "" : undefined} role="presentation" onClick={cmRowPress}>
-      <LinkButton
-        className="msg-row-what"
-        onClick={onOpen}
-        aria-expanded={open}
-        data-row-open
-        data-testid="template-open"
-      >
-        {mark ?? null}
-        <span className="msg-row-said">
-          <span className="msg-row-titles">
-            <span className="msg-row-title">{g.title}</span>
-            {/* The one pill (the kit's StatePill), in the tone and the words the pane's pill wears: a refused version is
-                "Refused" on the row, the pane and the Inbox's picker (contracts TEMPLATE_STATUS_WORDS). */}
-            {tag && (
-              <StatePill kind="tone" value={tag.tone} label={tag.words} className="msg-tag" testid="template-status" />
-            )}
-          </span>
-          <span
-            className="msg-row-words"
-            data-tone={warn ? "warn" : undefined}
-            data-testid={saysUse ? "template-users" : undefined}
-          >
-            {said}
-          </span>
-        </span>
-      </LinkButton>
-      {aside ? (
-        <span className="msg-row-sent" data-testid="template-sent">
-          {aside}
-        </span>
-      ) : null}
-    </div>
   );
 }
 

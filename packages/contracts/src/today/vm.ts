@@ -276,9 +276,10 @@ export interface TodayQueueRowVM {
   /**
    * On the row of a reply that never reached them (a hold for a failed send, Today in three zones, 2 Nov 2026): the words
    * that failed, which Try again sends again as written, and why the wire refused them in a sentence (message-words.ts
-   * sendFailureWords). Absent on every other row, and where the thread's failed message was not read.
+   * sendFailureWords), and whose they are: AI's, or the team's own (`by`, messageAuthor's), which the words' label says.
+   * Absent on every other row, and where the thread's failed message was not read.
    */
-  failed?: { text: string; said: string; way: FailedWay; plain: string };
+  failed?: { text: string; said: string; way: FailedWay; plain: string; by: "ai" | "team" };
   /**
    * What the reach-out read this reply as, where one was read, a no and an automatic reply among them: its sheet says what was
    * already done about it and offers only what is left (its sheet's readingMomentOf).

@@ -86,10 +86,18 @@ function stateOf(d: ActivityPageDto, prev: LogState | null, append = false): Log
   };
 }
 
-/** What this tab read last time, painted at once (and read again behind); nothing yet, reading, where it has none. */
+/** Why a read of the log came back with nothing, as the failed line says it. */
+const failedWhy = (r: { message?: string }): string => r.message || "Couldn't be read right now.";
+
+/**
+ * What this tab read last time, painted at once (and read again behind); nothing yet, reading, where it has none. Where
+ * the last read was refused (the opening read, begun before the pane), the failed line from the first frame, read again
+ * behind it: the log's waiting shape stood first and gave way to it.
+ */
 function firstPaint(): LogState {
   const seed = activity.peek({});
-  return seed && seed.ok ? { ...stateOf(seed.data, null), loading: true } : NOTHING_READ;
+  if (!seed) return NOTHING_READ;
+  return seed.ok ? { ...stateOf(seed.data, null), loading: true } : { ...NOTHING_READ, error: failedWhy(seed) };
 }
 
 /** Where the log opens: the whole of it, or the part of the product an address names (`activity/team`: Team's door). */
@@ -116,12 +124,14 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
   const load = useCallback(
     async (cursor: string | null = null, append = false) => {
       const mine = ++asked.current;
-      setSt((c) => ({ ...c, loading: true, error: null }));
+      // A failed line stays while the log is read again, its Retry busy, until the answer lands: taken away as the read
+      // began, the log's waiting shape stood in its place and gave way to it again on another refusal.
+      setSt((c) => ({ ...c, loading: true }));
       const today = pageClock().dayKey(Date.now());
       const r = await activity.list({ ...readOf(n, today), ...(cursor ? { cursor } : {}) });
       if (mine !== asked.current) return;
       if (!r.ok) {
-        setSt((c) => ({ ...c, loading: false, error: r.message || "Couldn't be read right now." }));
+        setSt((c) => ({ ...c, loading: false, error: failedWhy(r) }));
         return;
       }
       setSt((c) => stateOf(r.data, c, append));

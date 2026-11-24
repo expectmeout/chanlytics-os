@@ -175,6 +175,13 @@ export const NEED_YOU_WORDS = {
     retry: "Try again",
     later: "Try again later",
     tryWire: (wire: string) => `Try ${wire} again`,
+    /**
+     * Over the words that failed where the team wrote them, not AI: AI's draft is said of AI's words alone, and this is its
+     * pair, with no "Your" (docs/words.md: possessives sparingly).
+     */
+    byTeam: "Team's reply",
+    /** Where they were changed: the team's words back in their place, as Back to AI's puts AI's back. */
+    backToTeam: "Back to the team's",
   },
   /**
    * Whoever has waited past a week, at the end: a person by themself where there is one, how many and who where there
