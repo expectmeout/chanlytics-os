@@ -29,11 +29,11 @@ const PARTS: Record<string, string[]> = {
     ".tab-bar-tab",
   ],
   people: [".frame-top", ".pg-head-slot", ".stabs", ".pl-card-row", ".list-row-name", ".tab-bar", ".tab-bar-tab"],
-  // The setup card's own parts where the workspace shows it: dashboard-a-v2.css draws them by their test ids.
-  today: [".frame-top", ".pg-head-slot", ".tq", ".setup-card-title", ".setup-card-left", ".tab-bar", ".tab-bar-tab"],
+  // Today, calm (19-21 Nov 2026): the card at the page's start where one holds it, then who waits, a line each.
+  today: [".frame-top", ".pg-head-slot", ".calm-lead", ".calm-lines", ".calm-line", ".tab-bar", ".tab-bar-tab"],
 };
 /** What says a page's copy is up: a block of its rows. */
-const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".tq" };
+const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".calm-line" };
 
 type Rect = [number, number, number, number];
 

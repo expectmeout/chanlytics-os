@@ -94,9 +94,10 @@ async function freshLoad(page: Page, hash: string): Promise<void> {
  * shows a thread of the selected bucket only, so finding the row there is
  * itself what the page says about the thread. Retried while a load settles.
  * Needs you holds what is yours to do and nothing else, Waiting what is someone
- * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102).
+ * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102). A snoozed thread stands in Waiting,
+ * which comes back by itself (decision 0142: the Inbox's three tabs; Snoozed had one of its own until 19 Nov 2026).
  */
-async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed" | "Waiting"): Promise<Locator> {
+async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Waiting"): Promise<Locator> {
   const list = page.locator(".ix-list");
   const pane = page.locator(".ix-thread-pane");
   await expect(async () => {
@@ -368,7 +369,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
       await page.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
-      pane = await openRobin(page, "Snoozed");
+      pane = await openRobin(page, "Waiting");
       await expect(pane.getByText(/still waiting for you/)).toBeVisible();
       await pane.getByRole("button", { name: /Wake now/ }).click();
       await expect(page.getByText(/back in Needs you/)).toBeVisible();
