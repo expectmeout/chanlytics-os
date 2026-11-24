@@ -95,27 +95,39 @@ function Signature({ signed, onSigned }: { signed: string; onSigned: (() => void
 /** A press beside words being typed answers its click without taking the keys from them first. */
 const keepKeys = (event: MouseEvent) => event.preventDefault();
 
+/** What stands over words written ahead, and the way back to them, by who wrote them: AI, or the team (a failed reply). */
+const WRITTEN_BY = {
+  ai: { by: W.drafted, back: W.useAsks },
+  team: { by: W.failed.byTeam, back: W.failed.backToTeam },
+} as const;
+
 /**
  * Whose a row's words are, and the way back to the drafted ones, from what was drafted and what the member has typed: the
- * drafted words' own (`by`, Ask's unless said) until the member's differ, theirs where nothing was drafted, and the way back
- * only once there is a draft to go back to.
+ * drafted words' own (AI's unless `writer` says the team's) until the member's differ, theirs where nothing was drafted, and
+ * the way back only once there is a draft to go back to. AI's mark stands beside AI's words alone.
  */
 export function whoseWords(
   drafted: string,
   mine: string | null,
   restore: () => void,
-  by: string = W.drafted,
-): { by: string; asks: boolean; onRestore: (() => void) | null } {
+  writer: keyof typeof WRITTEN_BY = "ai",
+): { by: string; asks: boolean; onRestore: (() => void) | null; back: string } {
   const changed = mine !== null && mine !== drafted;
   const asks = !!drafted && !changed;
-  return { by: asks ? by : W.yours, asks: asks && by === W.drafted, onRestore: changed && drafted ? restore : null };
+  const { by, back } = WRITTEN_BY[writer];
+  return {
+    by: asks ? by : W.yours,
+    asks: asks && writer === "ai",
+    onRestore: changed && drafted ? restore : null,
+    back,
+  };
 }
 
 /**
  * Two lines of what Ask has ready, on a phone's Up next, with no box round them: a press opens the sheet, where they are a
  * field (one row, 9 Nov 2026: a box in a box, with Edit beside Send).
  */
-function Peek({ text, onRead, who }: { text: string; onRead: () => void; who: string }) {
+function Peek({ text, onRead, who, asks }: { text: string; onRead: () => void; who: string; asks: boolean }) {
   return (
     <span
       className="ny-glimpse"
@@ -125,7 +137,7 @@ function Peek({ text, onRead, who }: { text: string; onRead: () => void; who: st
       onClick={onRead}
       onKeyDown={pressKeys(onRead)}
     >
-      <AskMark />
+      {asks ? <AskMark /> : null}
       <span className="ny-glimpse-words">{text}</span>
     </span>
   );
@@ -143,6 +155,7 @@ export function Words({
   who,
   onChange,
   onRestore = null,
+  back = W.useAsks,
   undo = null,
   open = false,
   busy = false,
@@ -160,6 +173,8 @@ export function Words({
   onChange: ((text: string) => void) | null;
   /** Where the member's words differ from what was drafted: the drafted words back in their place. */
   onRestore?: (() => void) | null;
+  /** That press's words, by whose the drafted words were (whoseWords): Back to AI's unless said. */
+  back?: string;
   /** Right after Ask changed them: the words they had before. */
   undo?: (() => void) | null;
   /** Opened by a press (Write it myself): the words take the keys as they are drawn, where the screen lets them. */
@@ -180,7 +195,7 @@ export function Words({
   useEffect(() => {
     if (open && focusAsDrawn()) box.current?.focus();
   }, [open]);
-  if (onRead) return <Peek text={text} onRead={onRead} who={who} />;
+  if (onRead) return <Peek text={text} onRead={onRead} who={who} asks={asks} />;
   const signature = signed ? <Signature signed={signed} onSigned={onSigned} /> : null;
   // Escape lets the words go and goes no further: in the walk's sheet it would have closed the sheet too.
   const keys = (event: KeyboardEvent) => {
@@ -199,7 +214,7 @@ export function Words({
       ) : null}
       {!busy && onRestore ? (
         <Button variant="quiet" size="text" onMouseDown={keepKeys} onClick={onRestore}>
-          {W.useAsks}
+          {back}
         </Button>
       ) : null}
     </span>

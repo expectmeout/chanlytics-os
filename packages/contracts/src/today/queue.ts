@@ -16,6 +16,7 @@ import {
   clipAtWord,
   sendFailureWords,
 } from "../conversations/message-words";
+import { messageAuthor } from "../conversations/message-author";
 import { NEEDS_YOU_WORD } from "../conversations/standing";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
@@ -255,7 +256,8 @@ function callbackRow(escalation: EscalationRecord, todayFacts: TodayFacts): Toda
 
 /**
  * The words of the newest reply on a thread that never reached them, and why, where the thread was read and holds it: what
- * Try again sends again as written (Today in three zones, 2 Nov 2026). Null where the read holds no failed reply.
+ * Try again sends again as written (Today in three zones, 2 Nov 2026), and whose they are by the one statement of who sent
+ * a message (messageAuthor): AI's where AI wrote them, else the team's. Null where the read holds no failed reply.
  */
 function failedReplyOf(conv: ConversationDto | undefined): TodayQueueRowVM["failed"] {
   const m = conv
@@ -266,6 +268,7 @@ function failedReplyOf(conv: ConversationDto | undefined): TodayQueueRowVM["fail
     text: messageText(m),
     said: sendFailureWords(m.error, m.channel) ?? NEED_YOU_WORDS.failed.wire,
     ...failedWayOf(m.error, m.channel),
+    by: messageAuthor(m)?.kind === "receptionist" ? "ai" : "team",
   };
 }
 

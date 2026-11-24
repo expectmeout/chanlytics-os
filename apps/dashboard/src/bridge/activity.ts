@@ -12,6 +12,7 @@ import { activityTone, personName, type ActivityFamily, type ActivityPageDto } f
 import { api } from "./api";
 import type { ApiResult } from "../client/api";
 import { readCache } from "./read-cache";
+import { getActiveWorkspace } from "./workspace";
 import { workspaceZone } from "./zone";
 
 /**
@@ -22,6 +23,14 @@ import { workspaceZone } from "./zone";
 const pages = readCache<ApiResult<ActivityPageDto>>("activity", (r) => r.ok, { tab: true });
 const keyOf = (f: ActivityFilters) =>
   [f.person, f.kind, f.family, f.only, f.actor, f.day, f.from, f.to, f.cursor].map((v) => v ?? "").join("|");
+
+/**
+ * The last refusal of each set of filters, by workspace, until an answer lands; in memory alone, never in the tab. A pane
+ * drawn after its opening read was refused (a 429 among them) says so in its first frame: it drew the log's waiting shape
+ * and then took it away for the failed line, its card 469 px and then 290 (the nightly's settings-loads, 24 Nov 2026).
+ */
+const refusedReads = new Map<string, ApiResult<ActivityPageDto>>();
+const refusedKeyOf = (f: ActivityFilters) => `${getActiveWorkspace() || "-"}|${keyOf(f)}`;
 
 export interface ActivityFilters {
   person?: string;
@@ -52,10 +61,16 @@ export const activity = {
         }),
         workspaceZone().catch(() => null),
       ]);
+      if (r.ok) refusedReads.delete(refusedKeyOf(f));
+      else refusedReads.set(refusedKeyOf(f), r);
       return r;
     }),
-  /** The last answer for these filters, if this tab has one. Synchronous: the first paint. */
-  peek: (f: ActivityFilters = {}): ApiResult<ActivityPageDto> | null => pages.peek(keyOf(f)),
+  /**
+   * The last answer for these filters this tab has: the page, else the refusal of the last read where no page has
+   * landed since. Synchronous: the first paint.
+   */
+  peek: (f: ActivityFilters = {}): ApiResult<ActivityPageDto> | null =>
+    pages.peek(keyOf(f)) ?? refusedReads.get(refusedKeyOf(f)) ?? null,
   /**
    * Read the first page now, before anybody asks for it -- the rail calls this
    * when a pointer or the keyboard reaches the tab, so the pane it opens has
@@ -66,7 +81,10 @@ export const activity = {
   warm: (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> | null =>
     pages.warm(keyOf(f), () => activity.list(f)),
   /** Somebody wrote; the answers describe the world as it was. */
-  forget: (): void => pages.clear(),
+  forget: (): void => {
+    pages.clear();
+    refusedReads.clear();
+  },
   /** What a row means, in the product's six tones. Pure, from contracts. */
   tone: activityTone,
   /** Up to ten people matching a name, a number or an address, to filter by one of them. */
