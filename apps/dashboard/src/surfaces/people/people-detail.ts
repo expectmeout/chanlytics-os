@@ -109,19 +109,17 @@ export function warmPerson(id: string): Promise<PersonVM | null> | null {
 /** How old a person's page may be while it is on screen: its visits, steps and waits are said by the clock. */
 const PERSON_READ_EVERY_MS = 5 * MIN_MS;
 
-/** How many of a list's first rows are read ahead, and how many of those reads are out at once. */
+/** How many of a list's first rows are read ahead. */
 const AHEAD = 12;
-const AHEAD_LANES = 2;
 let ahead: string[] = [];
-let aheadOut = 0;
 
 /**
  * Read the people a list shows before any of them is pressed: `warmPeople(ids)`, the rows on screen in their
  * order. A person the tab does not hold opens on nothing of theirs until their whole page is in (client-profile.jsx),
  * so the one way their page opens at once is to have read them already. Measured on production (24 Sep 2026): a person
- * never opened drew their page 289 ms after the press; one the tab held, in 8. Only after the boot (afterBoot), two at
- * a time, the first twelve, and only those the tab does not hold at all (a copy from before is read again as a pointer
- * reaches it). A later list replaces what an earlier one was still waiting to read.
+ * never opened drew their page 289 ms after the press; one the tab held, in 8. Only after the boot (afterBoot), as one
+ * request, the first twelve, and only those the tab does not hold at all (a copy from before is read again as a pointer
+ * reaches it). A later list replaces what an earlier one was still waiting for the boot to read.
  */
 export function warmPeople(ids: string[]): void {
   if (!getActiveWorkspace()) return;
@@ -135,17 +133,11 @@ export function warmPeople(ids: string[]): void {
 }
 
 function readAhead(): void {
-  while (aheadOut < AHEAD_LANES && ahead.length) {
-    const id = ahead.shift() as string;
-    if (people().peek(id)) continue;
-    aheadOut += 1;
-    personDetail(id)
-      .catch(() => null)
-      .finally(() => {
-        aheadOut -= 1;
-        readAhead();
-      });
-  }
+  // Asked as one (GET open/rest, "Pages that open at once" piece 8), which the server answers a few at a time: two at a
+  // time, the twelve were a request each on every load of People. Nothing waits on them: each lands in the tab's people
+  // as it comes, and one that fails is read as its row is pressed.
+  const ids = ahead.splice(0).filter((id) => !people().peek(id));
+  if (ids.length) void Promise.all(api().gather(() => ids.map((id) => personDetail(id).catch(() => null))));
 }
 
 /** The person whose page is on screen, by the id in the address; null on any other page. */

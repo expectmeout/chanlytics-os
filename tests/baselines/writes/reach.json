@@ -2835,7 +2835,8 @@
     "POST team/invite/[id]/resend": {
       "changes": "invitations UPDATE",
       "missing": {
-        "setup": "every page"
+        "setup": "every page",
+        "workspace": "every page"
       }
     },
     "POST templates": {

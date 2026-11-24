@@ -2678,6 +2678,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `period` | string | no | at most 16 characters |
 | `thread` | string (uuid) | no |  |
 
+### `GET /api/v1/open/rest`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `reads` | string | yes | at least 1 characters; at most 8000 characters |
+
 ## partner
 
 ### `GET /api/v1/partner`

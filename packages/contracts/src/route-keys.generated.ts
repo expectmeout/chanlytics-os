@@ -121,6 +121,7 @@ export const ROUTE_KEYS = [
   "GET metrics",
   "GET notifications",
   "GET open",
+  "GET open/rest",
   "GET partner",
   "GET partner/invitations",
   "GET partner/workspaces",

@@ -1947,6 +1947,13 @@
       "rate": null,
       "spend": false
     },
+    "GET open/rest": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST partner/invitations/[id]/accept": {
       "kind": "write",
       "scope": "account",
