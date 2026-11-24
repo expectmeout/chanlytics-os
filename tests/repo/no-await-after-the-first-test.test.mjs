@@ -9,7 +9,9 @@
  * made it red every time. So in such a file every awaited import and seed comes before the first test.
  *
  * A top-level hook is an `after` called outside any function: in the file, in a function of its own it calls there,
- * or in a module beside it that it loads (`tests/today/zones/_world.mjs` registers one as it loads). One inside a
+ * or in a module beside it that it loads (`tests/today/zones/_world.mjs` registers one as it loads). Such a module
+ * counts when it calls `after` anywhere: a helper it gives the file (`stubFetch()`) may register one when called, and
+ * where the file calls it is not read, so the file holds the rule either way. One inside a
  * `describe` (or `suite`) is the suite's, and a suite's tests wait for its body, so an await there is not one either;
  * nor is an await inside a function. A test is a call of `test`, `it`, `describe` or `suite` as `node:test` gives them
  * (`.skip`, `.only`, `.todo` too), or of a function of the file's own that makes one, anywhere in a top-level statement.
@@ -124,7 +126,7 @@ function awaitsAfterTheFirstTest(sf) {
   return out;
 }
 
-/** The scripts beside a file it loads by a relative path, statically or by an `import("./x.mjs")` written out. */
+/** The scripts beside a file it loads by a relative path: an import, a re-export, or an `import("./x.mjs")` written out. */
 function besideImports(sf) {
   const out = [];
   const add = (spec) => {
@@ -132,7 +134,8 @@ function besideImports(sf) {
     if (spec.startsWith(".") && /\.m?js$/.test(file)) out.push(file);
   };
   const visit = (n) => {
-    if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier)) add(n.moduleSpecifier.text);
+    const from = ts.isImportDeclaration(n) || ts.isExportDeclaration(n) ? n.moduleSpecifier : null;
+    if (from && ts.isStringLiteral(from)) add(from.text);
     const arg = ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword ? n.arguments[0] : null;
     if (arg && ts.isStringLiteralLike(arg)) add(arg.text);
     ts.forEachChild(n, visit);
@@ -143,15 +146,26 @@ function besideImports(sf) {
 
 const besideOnDisk = (file) => (fs.existsSync(path.join(ROOT, file)) ? parse(file) : null);
 
-/** Whether a file registers a top-level `after` hook: itself, or a module beside it it loads, as that loads. */
-function hooksAfter(sf, read = besideOnDisk, seen = new Set()) {
+/** The modules beside a file that it loads, each read once. */
+const besideOnce = (sf, read, seen) =>
+  besideImports(sf).flatMap((f) => {
+    if (seen.has(f)) return [];
+    seen.add(f);
+    const beside = read(f);
+    return beside ? [beside] : [];
+  });
+
+/** Whether a module beside a test calls `after` anywhere, or loads one that does. */
+const callsAfter = (sf, read, seen) =>
+  holds(sf, callOf(sf, AFTER, new Set()), { intoFunctions: true }) ||
+  besideOnce(sf, read, seen).some((b) => callsAfter(b, read, seen));
+
+/** Whether a file registers a top-level `after` hook: itself, or through a module beside it that it loads. */
+function hooksAfter(sf, read = besideOnDisk) {
   const isAfter = callOf(sf, AFTER, new Set());
   if (sf.statements.some((s) => !definesOnly(s) && holds(s, isAfter, { intoFunctions: false }))) return true;
-  seen.add(sf.fileName);
-  return besideImports(sf).some((f) => {
-    const beside = seen.has(f) ? null : read(f);
-    return !!beside && hooksAfter(beside, read, seen);
-  });
+  const seen = new Set([sf.fileName]);
+  return besideOnce(sf, read, seen).some((b) => callsAfter(b, read, seen));
 }
 
 const written = (text) =>
@@ -197,6 +211,10 @@ test("the measure finds a top-level after hook: the file's, a function's it call
   assert.equal(hooks('import { W } from "./_world.mjs";', world), true, "a module beside it, as it loads");
   assert.equal(hooks('const w = await import("./_world.mjs");', world), true, "loaded by an import()");
   assert.equal(hooks('import { W } from "./_world.mjs";', { "tests/_world.mjs": "export const W = {};" }), false);
+  const stub = { "tests/_stub.mjs": `${head}export function stubFetch() { after(() => restore()); }` };
+  assert.equal(hooks('import { stubFetch } from "./_stub.mjs";\nstubFetch();', stub), true, "a helper it gives");
+  const deeper = { ...world, "tests/_both.mjs": 'export * from "./_world.mjs";' };
+  assert.equal(hooks('import { W } from "./_both.mjs";', deeper), true, "a module that module loads");
 });
 
 test("no test file with a top-level after hook awaits at its top level after its first test", () => {
