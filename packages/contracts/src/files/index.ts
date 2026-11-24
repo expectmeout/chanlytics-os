@@ -206,12 +206,12 @@ export type {
   FilePeople,
   FilePosted,
   FileRecordDto,
-  PieceVersionDto,
-  PieceVersionsDto,
   FileShelf,
   FileShelfFilter,
   FilesPageDto,
   FilesTally,
+  PieceVersionDto,
+  PieceVersionsDto,
 } from "./views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";
 export type { ZoomBox, ZoomSize, ZoomWont } from "./zoom";

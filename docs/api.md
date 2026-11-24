@@ -1630,6 +1630,7 @@ Body 1:
 | `caption` | string or null | no |  |
 | `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 Body 2:
 
@@ -1645,6 +1646,7 @@ Body 2:
 | `caption` | string or null | no |  |
 | `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 ### `GET /api/v1/files/video/[id]`
 

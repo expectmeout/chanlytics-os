@@ -1437,7 +1437,7 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
-        "today": "today"
+        "today": "inbox, today"
       }
     },
     "POST files/keep": {
