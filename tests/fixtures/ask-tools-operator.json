@@ -5005,7 +5005,7 @@
                 },
                 "text": {
                   "type": "string",
-                  "description": "quote: a client's words exactly as written, at most 140 characters, from a four or five star review this workspace holds (report, lens reviews), or pasted here by the owner as a client's (client_said). Never reworded, never yours or the business's, never their name: code says where it was said."
+                  "description": "quote: a client's words exactly as written, at most 140 characters, pasted here by the owner as a client's (client_said). Never a Google review, never reworded, never yours or the business's, never their name: code says where it was said."
                 },
                 "over": {
                   "type": "string",
@@ -8391,7 +8391,7 @@
                 },
                 "text": {
                   "type": "string",
-                  "description": "quote: a client's words exactly as written, at most 140 characters, from a four or five star review this workspace holds (report, lens reviews), or pasted here by the owner as a client's (client_said). Never reworded, never yours or the business's, never their name: code says where it was said."
+                  "description": "quote: a client's words exactly as written, at most 140 characters, pasted here by the owner as a client's (client_said). Never a Google review, never reworded, never yours or the business's, never their name: code says where it was said."
                 },
                 "over": {
                   "type": "string",

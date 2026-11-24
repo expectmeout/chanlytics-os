@@ -39,7 +39,8 @@ import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-
 import { viewerClockOf } from "./viewer/clock";
 import { WhereItGoes } from "./viewer/goes";
 import { PieceVersions } from "./viewer/versions";
-import { PieceResults } from "./viewer/results";
+import { PieceAdLines } from "./viewer/ads-on-piece";
+import { PieceResults, usePieceResults } from "./viewer/results";
 
 const COMPOSER_SAYS = CONTENT_WORDS.post;
 const SHEET = CONTENT_SHEET_WORDS.post;
@@ -252,13 +253,21 @@ export function PostBoth({
   standing?: Pick<PieceStanding, "lines" | "goes" | "results" | "version">;
 }) {
   const { draft, takes, wont, offers } = both;
+  // One read of its results, for its ads' lines under Where it goes and its own part below (pass 6).
+  const held = usePieceResults(standing?.results.fileId ?? "", standing?.results.made ?? false);
   if (!draft || !takes || !wont || !offers) return null;
   const clock = viewerClockOf();
   const lines = standing?.lines ?? [];
   const places = placesOf(both.posts, { takes, wont, offers }, Date.now()).flatMap((at) => rowUnderLines(at, lines));
   return (
     <div className="cnv-compose" data-testid="cnv-compose">
-      {standing ? <WhereItGoes lines={lines} on={standing.goes} /> : null}
+      {standing ? (
+        <WhereItGoes
+          lines={lines}
+          on={standing.goes}
+          ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+        />
+      ) : null}
       {standing ? (
         <PieceVersions
           list={standing.version.list}
@@ -267,7 +276,7 @@ export function PostBoth({
           busy={standing.goes.busy}
         />
       ) : null}
-      {standing ? <PieceResults {...standing.results} /> : null}
+      {standing ? <PieceResults {...standing.results} held={held} /> : null}
       {/* Named as its sheet is. */}
       {places.length > 0 ? (
         <div className="cnv-dests" role="group" aria-label={postBothTitleOf(both)}>

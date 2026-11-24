@@ -2419,6 +2419,7 @@ declare
   v_ends    timestamptz;
   v_due     timestamptz;
   v_asked   integer;
+  v_approval uuid;
 begin
   if p_key is null or p_ad is null or jsonb_typeof(p_ad) <> 'object' or jsonb_typeof(p_ad -> 'approved') <> 'object' then
     raise exception 'ad_turn_on: a key, and the ad with what was approved' using errcode = '22023';
@@ -2480,11 +2481,20 @@ begin
      set closed_at = now()
    where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
 
+  -- What the owner approved, kept as an approval (the content loop PRD's 3.3 and 5.3; the Ads PRD's join 6): the same
+  -- record a post's approval is, its hash taken here. A press from a build that sends none keeps none.
+  if jsonb_typeof(p_ad -> 'approval') = 'object' then
+    insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+    values (p_tenant_id, 'ad', v_ad, p_ad -> 'approval', public.approval_hash(p_ad -> 'approval'), p_actor)
+    returning id into v_approval;
+  end if;
+
   insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
   values (p_tenant_id, 'ad', v_ad, 'turn_on_ad', 'user', p_actor,
           jsonb_build_object('platform', 'meta', 'name', v_name, 'total_minor', v_total,
                              'currency', v_account.currency, 'ends_at', v_ends,
-                             'declared', coalesce(p_ad -> 'approved' -> 'declared', '"none"'::jsonb)));
+                             'declared', coalesce(p_ad -> 'approved' -> 'declared', '"none"'::jsonb),
+                             'approval_id', v_approval));
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad.turned_on', 'ads', 'ad', v_ad,
           jsonb_build_object('platform', 'meta', 'name', v_name, 'by', p_actor, 'total_minor', v_total,
@@ -2504,7 +2514,7 @@ begin
          and j.payload ->> 'account_id' = v_account.id::text and j.due_at > v_due;
     end if;
   end if;
-  return jsonb_build_object('outcome', 'kept', 'ad_id', v_ad, 'status', 'sending');
+  return jsonb_build_object('outcome', 'kept', 'ad_id', v_ad, 'status', 'sending', 'approval_id', v_approval);
 end $$;
 
 
@@ -2512,7 +2522,7 @@ end $$;
 -- Name: FUNCTION ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00666; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
+COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00666, 00710; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, the approval (00710: p_ad.approval, where the press sends one, kept in approvals with subject ad and its hash taken by approval_hash, its id on the decision) and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id and its approval''s; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
 
 
 --

@@ -18,6 +18,7 @@ import {
   dayInZone,
   metaLinesOf,
   parseTenantConfig,
+  PATTERN_DAYS,
   recordOrEmpty,
   shiftKey,
   type InstagramPostable,
@@ -25,6 +26,7 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import {
+  contentPatternsOf,
   newServicesOf,
   opportunitiesFrom,
   planWeek,
@@ -39,6 +41,7 @@ import {
   keepMoments,
   listClaims,
   listGoals,
+  listPostOutcomes,
   listWeekFootage,
   readRecentlyPosted,
   writePlan,
@@ -89,6 +92,7 @@ const footageFactOf = (
   at: row.at,
   postedRecently: posted.has(row.id),
   moments: Math.max(moments.get(row.id) ?? 0, row.moments.length),
+  seconds: row.seconds,
 });
 
 /** What the week is planned from, read for one workspace. */
@@ -104,10 +108,11 @@ async function readWeekAsked(db: Db, plan: { tenant_id: string; week_of: string 
   const parsed = parseTenantConfig(config);
   const content = parsed?.content;
   const since = (days: number) => new Date(nowMs - days * DAY_MS).toISOString();
-  const [places, footage, posted, facts] = await Promise.all([
+  const [places, footage, posted, outcomes, facts] = await Promise.all([
     postablePlacesOf(db, tenantId, config),
     listWeekFootage(db, tenantId, since(FOOTAGE_DAYS)),
     readRecentlyPosted(db, tenantId, since(POSTED_DAYS)),
+    listPostOutcomes(db, tenantId, since(PATTERN_DAYS)),
     readOpportunityFacts(
       db,
       {
@@ -142,6 +147,8 @@ async function readWeekAsked(db: Db, plan: { tenant_id: string; week_of: string 
     opportunities: opportunitiesFrom(facts),
     footage: footage.map((row) => footageFactOf(row, posted.files, moments)),
     usedReasons: posted.reasons,
+    // What the business's own posts of the last 90 days showed, and how sure each is (PRD 9.4).
+    patterns: contentPatternsOf(outcomes, zone ?? "UTC"),
   };
   return { tenantId, week: given, footage, config: parsed, claims, languages: content?.languages ?? [] };
 }
@@ -222,6 +229,7 @@ export async function planTheWeek(
     fewer: drafted.fewer !== null,
     moments,
     opportunities: week.opportunities.length,
+    patterns: week.patterns.filter((p) => p.level !== "too_little").length,
   });
   await notifyWeek(db, { tenantId, planId: plan.id, weekOf: plan.week_of, zone: week.zone, slots, asks });
 }

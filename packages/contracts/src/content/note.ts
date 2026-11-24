@@ -4,6 +4,7 @@
  */
 import type { FileDto } from "../files/views";
 import type { ContentLineDto, ContentMadeDto, ContentMakingDto } from "./page";
+import type { ReviewAskDto } from "./plan/review-ask";
 import { POST_PLACE_SAID, type PostPlace } from "./posts";
 import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 
@@ -60,7 +61,12 @@ export interface ContentTodayDto {
    * size and days, and what AI asks to be filmed. Each opens the Week. Absent from an older build's answer, and null
    * where nothing of the week waits on the owner.
    */
-  plan?: { ready: { size: string; days: string } | null; film: string[] } | null;
+  plan?: {
+    ready: { size: string; days: string } | null;
+    film: string[];
+    /** The plan's proposal to ask every client for a review (pass 6; the canvas's Loop4); absent from an older build's. */
+    review_ask?: ReviewAskDto | null;
+  } | null;
   /**
    * A post set to go that waits for a new version's approval (00708; the version board, cell 5): the soonest, with its
    * piece's file (the version that asks) and that version's number. Absent from an older build's answer; null where none.

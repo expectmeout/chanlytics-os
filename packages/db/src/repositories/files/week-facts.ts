@@ -1,16 +1,22 @@
 /**
  * What a week's plan reads of a workspace (00706; the content loop PRD's 10.1, 10.2), under the service role: the
  * footage it could be made from, what went out in the last three weeks and why, the new reviews of four or five stars,
- * and the plans asked for. Each a narrow read with its bound; the reasons are worked out from them in core
- * (opportunities, content/plan), never here.
+ * and the plans asked for; and, for the week's patterns (the PRD's 9.4), what each of its own posts did: its kind, when,
+ * its file's length and what its look said it shows, its reach seven days after it went up, and whether any of its
+ * numbers then came while it also ran as an ad. Each a narrow read with its bound; the reasons and the patterns are
+ * worked out from them in core (opportunities, content/plan, contentPatternsOf), never here.
  */
 import {
   DbFailure,
   isObjectRecord,
+  isOneOf,
   listOrEmpty,
   nonBlankOrNull,
   pieceIntentOf,
+  PLAN_PLACES,
+  POST_KINDS,
   recordOrEmpty,
+  type PostOutcome,
   type TenantId,
 } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -27,6 +33,8 @@ export interface FootageRow {
   kind: "image" | "video";
   name: string;
   at: string;
+  /** A clip's length; null for a photo, or a clip not measured. */
+  seconds: number | null;
   /** The look's own words of what it shows: its line, what a post could use it for, its moments' words. */
   shows: string[];
   issues: string[];
@@ -34,26 +42,38 @@ export interface FootageRow {
   stock: boolean;
 }
 
+/** A look's moments: each frame's second and what it shows. */
+const momentsOfLook = (look: Record<string, unknown>): { at: number; what: string }[] =>
+  listOrEmpty(look.moments).flatMap((m) =>
+    isObjectRecord(m) && typeof m.at === "number" && typeof m.what === "string" ? [{ at: m.at, what: m.what }] : [],
+  );
+
+/** What a file's look said it shows: its line, what a post could use it for, its moments' words. */
+function showsOfLook(json: unknown): string[] {
+  const look = recordOrEmpty(json);
+  return [nonBlankOrNull(look.use), ...momentsOfLook(look).map((m) => m.what), nonBlankOrNull(look.line)].filter(
+    (s): s is string => !!s,
+  );
+}
+
 const footageOf = (row: {
   id: string;
   kind: string;
   name: string;
   created_at: string;
+  seconds: number | null;
   look: unknown;
 }): FootageRow | null => {
   if (row.kind !== "image" && row.kind !== "video") return null;
   const look = recordOrEmpty(row.look);
-  const moments = listOrEmpty(look.moments).flatMap((m) =>
-    isObjectRecord(m) && typeof m.at === "number" && typeof m.what === "string" ? [{ at: m.at, what: m.what }] : [],
-  );
+  const moments = momentsOfLook(look);
   return {
     id: row.id,
     kind: row.kind,
     name: row.name,
     at: row.created_at,
-    shows: [nonBlankOrNull(look.use), ...moments.map((m) => m.what), nonBlankOrNull(look.line)].filter(
-      (s): s is string => !!s,
-    ),
+    seconds: row.seconds,
+    shows: showsOfLook(look),
     issues: listOrEmpty(look.issues).filter((s): s is string => typeof s === "string"),
     moments,
     stock: look.looks_like_stock === true,
@@ -70,7 +90,7 @@ const FOOTAGE_MOST = 40;
 export async function listWeekFootage(db: Db, tenantId: TenantId, sinceIso: string): Promise<FootageRow[]> {
   const { data, error } = await db
     .from("files")
-    .select("id, kind, name, created_at, look")
+    .select("id, kind, name, created_at, seconds, look")
     .eq("tenant_id", tenantId)
     .eq("status", "filed")
     .is("removed_at", null)
@@ -166,4 +186,60 @@ export async function listNewReviews(db: Db, tenantId: TenantId, sinceIso: strin
         ]
       : [],
   );
+}
+
+/**
+ * The most posts one read compares: 90 days at the cadence's most is about sixty, and past about 200 ids one `.in()`
+ * passes the gateway's 8 KiB.
+ */
+const OUTCOMES_MOST = 150;
+
+/** The posts up since a moment, with what the patterns compare of each, oldest first. */
+export async function listPostOutcomes(db: Db, tenantId: TenantId, sinceIso: string): Promise<PostOutcome[]> {
+  const { data: posts, error } = await db
+    .from("posts")
+    .select("id, place, kind, published_at, file_id")
+    .eq("tenant_id", tenantId)
+    .in("place", [...PLAN_PLACES])
+    .gte("published_at", sinceIso)
+    .order("published_at", { ascending: true })
+    .limit(OUTCOMES_MOST);
+  if (error) throw new DbFailure(error, "post outcomes");
+  const up = posts.flatMap((post) =>
+    post.published_at && isOneOf(PLAN_PLACES, post.place) && isOneOf(POST_KINDS, post.kind)
+      ? [{ ...post, at: post.published_at, place: post.place, kind: post.kind }]
+      : [],
+  );
+  if (up.length === 0) return [];
+  const fileIds = [...new Set(up.map((post) => post.file_id))];
+  const postIds = up.map((post) => post.id);
+  const [files, numbers] = await Promise.all([
+    db.from("files").select("id, seconds, look").eq("tenant_id", tenantId).in("id", fileIds).limit(fileIds.length),
+    db
+      .from("post_observations")
+      .select("post_id, availability, value, paid_mixed")
+      .eq("tenant_id", tenantId)
+      .in("post_id", postIds)
+      .eq("metric", "reach")
+      .eq("step", "7d")
+      .limit(postIds.length),
+  ]);
+  if (files.error) throw new DbFailure(files.error, "post outcomes' files");
+  if (numbers.error) throw new DbFailure(numbers.error, "post outcomes' reach");
+  const fileOf = new Map(files.data.map((file) => [file.id, file]));
+  const reachOf = new Map(numbers.data.map((row) => [row.post_id, row]));
+  return up.map((post): PostOutcome => {
+    const file = fileOf.get(post.file_id);
+    const reach = reachOf.get(post.id);
+    return {
+      postId: post.id,
+      place: post.place,
+      kind: post.kind,
+      at: post.at,
+      seconds: file?.seconds ?? null,
+      shows: file ? showsOfLook(file.look) : [],
+      paid: reach?.paid_mixed === true,
+      reach: reach?.availability === "available" && reach.value !== null ? Number(reach.value) : null,
+    };
+  });
 }

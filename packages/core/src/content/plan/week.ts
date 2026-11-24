@@ -16,6 +16,7 @@ import {
   shiftKey,
   weekdayShortOf,
   type ContentCadence,
+  type ContentPattern,
   type InstagramPostable,
   type Opportunity,
   type PostHeldWhy,
@@ -34,12 +35,14 @@ import {
   candidateScoreOf,
   shows,
   footageTitleOf,
+  totalOf,
   weakestWhy,
   type Candidate,
   type FilmAsk,
   type FootageFact,
   type GoalFact,
 } from "./candidates";
+import { dayLeanOf, slotHourOf, weekLeanOf, type WeekLean } from "./lean";
 
 /** Below this a candidate is weak: the week leaves it out rather than fill the cadence with it. */
 const WEAK_BELOW = 0.5;
@@ -59,6 +62,8 @@ export interface WeekAsked {
   footage: readonly FootageFact[];
   /** The reasons a post went out for in the last 21 days (an intent's opportunity_id). */
   usedReasons: ReadonlySet<string>;
+  /** What the business's own posts have shown, with how sure each is (PRD 9.4; core contentPatternsOf). */
+  patterns: readonly ContentPattern[];
 }
 
 /** One slot, as content_plan_write keeps it. */
@@ -106,12 +111,18 @@ function footageFor(given: WeekAsked, opportunity: Opportunity | null, goal: Goa
 /** The kind a candidate goes as: a clip a reel, a photo or words a picture post. */
 const postKindOf = (file: FootageFact | null): PostKind => (file?.kind === "video" ? "reel" : "picture");
 
-/** The reasons and goals the week tries to tell, each once: every opportunity, then each goal no opportunity served. */
+/**
+ * The reasons and goals the week tries to tell, each once: every opportunity, then each goal no opportunity served. A new
+ * review is never one: Google asks that a review's writer agree before it is used in a business's marketing, so no review
+ * goes into a post or an ad (Ruben, 24 Nov 2026). It stays a reason the plan reads for the review ask.
+ */
 function weekReasonsOf(given: WeekAsked): { opportunity: Opportunity | null; goal: GoalFact | null }[] {
-  const byOpportunity = given.opportunities.map((opportunity) => ({
-    opportunity,
-    goal: goalFor(given.goals, opportunity),
-  }));
+  const byOpportunity = given.opportunities
+    .filter((opportunity) => opportunity.kind !== "new_review")
+    .map((opportunity) => ({
+      opportunity,
+      goal: goalFor(given.goals, opportunity),
+    }));
   const served = new Set(byOpportunity.map((r) => r.goal?.goal).filter(Boolean));
   const goalsLeft = given.goals
     .filter((goal) => !served.has(goal.goal) && goal.goal !== "reviews")
@@ -126,31 +137,30 @@ const eligibleOf = (given: WeekAsked, kind: PostKind): { value: boolean; why: st
   return { value, why: value ? "A connected place takes it" : "No connected place takes it" };
 };
 
-/** How a row says a candidate: a review by its words, open time by its day, footage by what it shows. */
-function candidateTitleOf(opportunity: Opportunity | null, file: FootageFact | null): string {
-  if (opportunity?.kind === "new_review") return opportunity.says;
+/** How a row says a candidate: open time by its day, footage by what it shows. */
+function candidateTitleOf(opportunity: Opportunity | null, file: FootageFact): string {
   if (opportunity?.kind === "open_capacity") return `${opportunity.says.split(" ")[0] ?? "This day"} has openings`;
-  return file ? footageTitleOf(file) : "A post";
+  return footageTitleOf(file);
 }
 
 /** One reason as a candidate, scored; or what to film for it where no footage can tell it; or nothing. */
 function candidateFor(
   given: WeekAsked,
   reason: { opportunity: Opportunity | null; goal: GoalFact | null },
-  usedFiles: Set<string>,
+  seen: { usedFiles: Set<string>; lean: WeekLean },
 ): Candidate | FilmAsk | null {
+  const { usedFiles, lean } = seen;
   const { opportunity, goal } = reason;
-  const quote = opportunity?.kind === "new_review";
-  const file = quote ? null : footageFor(given, opportunity, goal);
-  if (!quote && (!file || usedFiles.has(file.id)))
+  const file = footageFor(given, opportunity, goal);
+  if (!file || usedFiles.has(file.id))
     return opportunity?.kind === "fresh_footage" ? null : filmAskOf(opportunity, goal);
-  if (file) usedFiles.add(file.id);
+  usedFiles.add(file.id);
   const kind = postKindOf(file);
   return {
     title: candidateTitleOf(opportunity, file),
     reason: opportunity?.says ?? null,
     kind,
-    fileId: file?.id ?? null,
+    fileId: file.id,
     opportunity,
     intent: candidateIntentOf(opportunity, goal),
     score: candidateScoreOf({
@@ -160,22 +170,23 @@ function candidateFor(
       kind,
       eligible: eligibleOf(given, kind),
       reasonUsed: !!opportunity && given.usedReasons.has(opportunity.key),
+      lean,
     }),
     day: opportunity?.day ?? null,
   };
 }
 
 /** Every candidate, scored; and what to film for a reason no footage can tell. */
-function candidatesOf(given: WeekAsked): { candidates: Candidate[]; asks: FilmAsk[] } {
+function candidatesOf(given: WeekAsked, lean: WeekLean): { candidates: Candidate[]; asks: FilmAsk[] } {
   const candidates: Candidate[] = [];
   const asks: FilmAsk[] = [];
   const usedFiles = new Set<string>();
   for (const reason of weekReasonsOf(given)) {
-    const one = candidateFor(given, reason, usedFiles);
+    const one = candidateFor(given, reason, { usedFiles, lean });
     if (one && "score" in one) candidates.push(one);
     else if (one) asks.push(one);
   }
-  candidates.push(...beSeen(given, usedFiles));
+  candidates.push(...beSeen(given, { usedFiles, lean }));
   return { candidates: candidates.sort((a, b) => b.score.total - a.score.total), asks };
 }
 
@@ -186,7 +197,8 @@ const BE_SEEN: GoalFact = { goal: "awareness", service: null, days: [], weight: 
  * The footage no reason used, as candidates of being seen (PRD 10.2, step 2): the best of what came in, scored lower than a
  * reason, so a week with good footage and few reasons still fills its cadence, and a week with neither says fewer.
  */
-function beSeen(given: WeekAsked, usedFiles: Set<string>): Candidate[] {
+function beSeen(given: WeekAsked, seen: { usedFiles: Set<string>; lean: WeekLean }): Candidate[] {
+  const { usedFiles, lean } = seen;
   const goal = given.goals.find((g) => g.goal === "awareness") ?? BE_SEEN;
   return given.footage
     .filter((file) => !usedFiles.has(file.id))
@@ -207,6 +219,7 @@ function beSeen(given: WeekAsked, usedFiles: Set<string>): Candidate[] {
           kind,
           eligible: eligibleOf(given, kind),
           reasonUsed: false,
+          lean,
         }),
         day: null,
       };
@@ -237,15 +250,26 @@ const instantOf = (zone: string, day: string, hour: number): string => {
   return new Date(localToUtcMs(zone, y, m, d, hour, 0)).toISOString();
 };
 
-/** The day a pick goes up: the evening before the day it is about, else the open day used least. */
-function dayFor(candidate: Candidate, days: readonly string[], used: Map<string, number>): string | null {
+const isWeekend = (day: string): boolean => ["sat", "sun"].includes(weekdayShortOf(day).toLowerCase());
+
+/**
+ * The day a pick goes up: the evening before the day it is about; else the open day used least, on the side of the week
+ * a pattern leans to (a weekday or the weekend) where it leans and such a day is open.
+ */
+function dayFor(
+  candidate: Candidate,
+  days: readonly string[],
+  at: { used: Map<string, number>; side: "weekday" | "weekend" | null },
+): string | null {
   if (candidate.day) {
     const before = shiftKey(candidate.day, -1);
     if (days.includes(before)) return before;
     if (days.includes(candidate.day)) return candidate.day;
     return null;
   }
-  return [...days].sort((a, b) => (used.get(a) ?? 0) - (used.get(b) ?? 0) || a.localeCompare(b))[0] ?? null;
+  const leaned = at.side ? days.filter((day) => isWeekend(day) === (at.side === "weekend")) : [];
+  const pool = leaned.length > 0 ? leaned : days;
+  return [...pool].sort((a, b) => (at.used.get(a) ?? 0) - (at.used.get(b) ?? 0) || a.localeCompare(b))[0] ?? null;
 }
 
 /** The checks at the propose moment (PRD 6.2): the place takes it and the connection allows it. */
@@ -281,16 +305,31 @@ function cadenceLeft(given: WeekAsked): Map<string, number> {
   ]);
 }
 
-/** The slots of one pick, one a place, each through the propose moment's checks. */
-function slotsOf(candidate: Candidate, given: WeekAsked, at: { day: string; places: PlanPlace[]; creative: string }) {
+/** A slot's score with its audience fit as its hour's lean says it, where one does; else the candidate's own. */
+function scoreAt(score: SlotScore, fit: { value: number; why: string } | null): SlotScore {
+  if (!fit) return score;
+  const parts = { ...score.parts, audience_fit: fit };
+  return { total: totalOf(parts), parts };
+}
+
+/** The slots of one pick, one a place, each through the propose moment's checks, each at its hour. */
+function slotsOf(
+  candidate: Candidate,
+  given: WeekAsked,
+  at: { day: string; places: PlanPlace[]; creative: string; lean: WeekLean; placed: Map<string, number> },
+) {
   return at.places.map((place): DraftedSlot => {
     const verdict = proposeVerdict(given, place, candidate.kind, candidate.kind === "reel" ? "video" : "image");
     const [first] = verdict.ok ? [] : verdict.refusals;
+    const key = `${place}:${candidate.kind}`;
+    const nth = at.placed.get(key) ?? 0;
+    at.placed.set(key, nth + 1);
+    const timing = slotHourOf(at.lean, { place, kind: candidate.kind, nth }, HOUR_OF[place][candidate.kind]);
     return {
       creative: at.creative,
       place,
       kind: candidate.kind,
-      at: instantOf(given.zone, at.day, HOUR_OF[place][candidate.kind]),
+      at: instantOf(given.zone, at.day, timing.hour),
       title: candidate.title,
       reason: candidate.reason,
       file_id: candidate.fileId,
@@ -299,7 +338,7 @@ function slotsOf(candidate: Candidate, given: WeekAsked, at: { day: string; plac
       blocked_why: first ? first.code : null,
       blocked_reason: first ? verdictWords(verdict) : null,
       ask: null,
-      score: candidate.score,
+      score: scoreAt(candidate.score, timing.fit),
     };
   });
 }
@@ -342,7 +381,8 @@ function fewerOf(
 
 /** The week, planned (PRD 10.2): the slots to write, and why it is fewer where it is. */
 export function planWeek(given: WeekAsked, newId: () => string): WeekDrafted {
-  const { candidates, asks } = candidatesOf(given);
+  const lean = weekLeanOf(given.patterns);
+  const { candidates, asks } = candidatesOf(given, lean);
   const days = openDays(given);
   const left = cadenceLeft(given);
   const cadence = cadenceOf(given.cadence);
@@ -351,16 +391,21 @@ export function planWeek(given: WeekAsked, newId: () => string): WeekDrafted {
     cadence.google.picture[end];
   const wanted = { low: ends(0), high: ends(1) };
   const used = new Map<string, number>();
+  const placed = new Map<string, number>();
+  const undated = new Map<PostKind, number>();
   const slots: DraftedSlot[] = [];
   let picked = 0;
   for (const candidate of candidates.filter((one) => one.score.total >= WEAK_BELOW)) {
     const places = placesFor(candidate, given, left);
-    const day = places.length > 0 ? dayFor(candidate, days, used) : null;
+    const nth = candidate.day ? -1 : (undated.get(candidate.kind) ?? 0);
+    const side = nth < 0 ? null : dayLeanOf(lean, candidate.kind, nth);
+    const day = places.length > 0 ? dayFor(candidate, days, { used, side }) : null;
     if (!day) continue;
+    if (!candidate.day) undated.set(candidate.kind, nth + 1);
     for (const place of places)
       left.set(`${place}:${candidate.kind}`, (left.get(`${place}:${candidate.kind}`) ?? 0) - 1);
     used.set(day, (used.get(day) ?? 0) + 1);
-    slots.push(...slotsOf(candidate, given, { day, places, creative: newId() }));
+    slots.push(...slotsOf(candidate, given, { day, places, creative: newId(), lean, placed }));
     picked += 1;
   }
   const askDay = days.at(-1) ?? shiftKey(given.weekOf, 6);

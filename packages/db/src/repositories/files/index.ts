@@ -252,5 +252,5 @@ export {
 } from "./versions";
 export type { PieceVersionBegun, PieceVersionReady, PieceVersionRow, VideoPieceRow } from "./versions";
 export { movePostTime } from "./waiting-posts";
-export { listNewReviews, listWeekFootage, readRecentlyPosted } from "./week-facts";
+export { listNewReviews, listPostOutcomes, listWeekFootage, readRecentlyPosted } from "./week-facts";
 export type { FootageRow, RecentlyPosted, ReviewRow } from "./week-facts";

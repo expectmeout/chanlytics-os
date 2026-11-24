@@ -272,6 +272,7 @@ export const ROUTE_KEYS = [
   "POST content/plan",
   "POST content/plan/approve",
   "POST content/plan/slots",
+  "POST content/review-ask",
   "POST conversations/[id]/archive",
   "POST conversations/[id]/booking-request",
   "POST conversations/[id]/draft",

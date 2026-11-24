@@ -1,7 +1,7 @@
 {
-  "rows": 195,
+  "rows": 196,
   "same": 10,
-  "differ": 185,
+  "differ": 186,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -139,6 +139,7 @@
         "broadcasts": "every page",
         "calendar": "every page",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -200,6 +201,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
@@ -221,6 +223,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -238,6 +241,7 @@
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "person": "clients/person",
         "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
@@ -259,6 +263,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -276,6 +281,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -569,6 +575,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -587,6 +594,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments",
@@ -607,6 +615,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments",
@@ -625,6 +634,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -727,6 +737,7 @@
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "person": "clients/person",
         "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
@@ -835,6 +846,7 @@
         "calendar": "every page",
         "calendar_runs": "calendar",
         "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
+        "content_week": "admin/content",
         "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/content/week, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
         "live": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
@@ -1063,6 +1075,12 @@
         "files": "admin/files",
         "notifications": "every page",
         "today": "inbox, today"
+      }
+    },
+    "POST content/review-ask": {
+      "changes": "",
+      "extra": {
+        "content_week": "admin/content"
       }
     },
     "POST conversations/[id]/archive": {
@@ -1555,6 +1573,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -1872,6 +1891,7 @@
         "calendar": "every page",
         "calendar_runs": "calendar",
         "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -2302,6 +2322,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -2334,6 +2355,7 @@
         "calendar": "every page",
         "calendar_runs": "calendar",
         "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
+        "content_week": "admin/content",
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/content, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
@@ -2359,6 +2381,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -2393,6 +2416,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -2428,6 +2452,7 @@
         "broadcasts": "every page",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -2452,6 +2477,7 @@
         "calendar": "every page",
         "calendar_runs": "calendar",
         "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -2481,6 +2507,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -2545,6 +2572,7 @@
         "ask_morning": "today",
         "broadcasts": "every page",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -2562,6 +2590,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -2594,6 +2623,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
@@ -2611,6 +2641,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -2630,6 +2661,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
@@ -2643,6 +2675,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -2660,6 +2693,7 @@
         "broadcasts": "every page",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -2681,6 +2715,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -2695,6 +2730,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -2804,6 +2840,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -2822,6 +2859,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -2850,6 +2888,7 @@
         "broadcasts": "every page",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -3136,6 +3175,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
@@ -3174,6 +3214,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
@@ -3206,6 +3247,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
@@ -3219,6 +3261,7 @@
       "missing": {
         "ask_morning": "today",
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -3260,6 +3303,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "content_week": "admin/content",
         "leads": "clients/leads, leads",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",

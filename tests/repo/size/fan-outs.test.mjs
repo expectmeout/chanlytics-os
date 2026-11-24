@@ -34,6 +34,8 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/posts/compose.ts|FONT_FILES": "a fixed list",
   "apps/dashboard/src/server/posts/compose.ts|spots":
     "a storyboard's stills: two a block at most, of PIECE_LIMITS.blocksMax blocks",
+  "apps/dashboard/src/server/readers/results.ts|ads":
+    "the ads made of one piece's picture, among the one page the Ads page reads (adsPage)",
   "apps/dashboard/src/server/workspace/billing.ts|list": "the workspaces one person's deletion emptied",
   "apps/dashboard/src/server/workspace/page-open.ts|tier": "a page's fixed first reads",
   "apps/dashboard/src/server/workspace/team.ts|seated": "one person's open invitations",

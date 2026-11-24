@@ -52,9 +52,9 @@ import {
   type MetaPlaceKind,
 } from "@chanlytics/channels/ads";
 import { findLiveAdAccount, mayRunAds } from "@chanlytics/db/ads";
-import { filesBucket, findFileForWork } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
-import { filePathOf, isFileMime, isTenantId, metaAdConfigOf, UUID, type TenantId } from "@chanlytics/contracts";
+import { isTenantId, metaAdConfigOf, UUID, type TenantId } from "@chanlytics/contracts";
+import { readAdPhoto } from "./approval.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
@@ -180,14 +180,6 @@ function checkDiffers(
   return out;
 }
 
-/** The picture's bytes, read from Files: a photo of this workspace's, or null where there is none to send. */
-async function pictureBytes(db: Db, tenantId: TenantId, fileId: string): Promise<Uint8Array | null> {
-  const row = await findFileForWork(db, tenantId, fileId);
-  if (!row || row.removed_at !== null || !isFileMime(row.mime) || !row.mime.startsWith("image/")) return null;
-  const read = await filesBucket(db).download(filePathOf(row.tenant_id, row.id, row.mime));
-  return read.data ? new Uint8Array(await read.data.arrayBuffer()) : null;
-}
-
 interface CheckAt {
   db: Db;
   log: Log;
@@ -264,7 +256,7 @@ async function makeUnder(
   const setId = (await sendStep(log, steps, "ad_set", metaAdSetRequest(token, appSecret, setAsk, keyed()))).madeId;
   if (!setId) return null;
 
-  const bytes = await pictureBytes(at.db, at.tenantId, draft.picture);
+  const bytes = await readAdPhoto(at.db, at.tenantId, draft.picture);
   if (!bytes) {
     steps.push({ at: "picture", outcome: "unread", said: "The picture could not be read from Files.", id: null });
     return null;

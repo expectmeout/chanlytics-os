@@ -26,7 +26,6 @@ import {
   CONTENT_TODAY_PIECES,
   contentDownOf,
   contentIdeaFilesOf,
-  reviewIdeaTitleOf,
   contentPieceMarkOf,
   type ContentDownDto,
   type ContentLineDto,
@@ -61,7 +60,6 @@ import {
   type MemberPostRow,
   type PieceStandingRow,
 } from "@chanlytics/db/files";
-import { listReviewWords } from "@chanlytics/db/google";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
 import { readWeekToday } from "./week-today";
@@ -256,17 +254,8 @@ const IDEAS_FROM = 24;
  * page alone, where the first day and Make show them.
  */
 async function ideaFilesOf(db: Db, tenantId: TenantId) {
-  const [kept, reviews] = await Promise.all([
-    listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM }),
-    // One review of four or five stars that says something is enough to offer its idea (the ones a quote may come
-    // from); a read that failed offers none, and fails no page.
-    listReviewWords(db, tenantId, 1),
-  ]);
-  const newest = reviews.error ? null : (reviews.data[0] ?? null);
-  return contentIdeaFilesOf(kept.map(fileDtoOf), {
-    review: newest !== null,
-    reviewTitle: newest ? reviewIdeaTitleOf(newest) : null,
-  });
+  const kept = await listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM });
+  return contentIdeaFilesOf(kept.map(fileDtoOf));
 }
 
 /**

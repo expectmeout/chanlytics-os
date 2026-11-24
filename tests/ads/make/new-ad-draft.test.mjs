@@ -1414,3 +1414,43 @@ test("AI's tool asked about a made piece: a card drafted around it where Content
   assert.match(gone.refusal, /isn't in Files any more/);
   assert.doesNotMatch(gone.refusal, new RegExp(FILE(7)));
 });
+
+test("AI's card for a piece already up: the model is told what its posts did, in the sheet's own sentences; before, nothing", async () => {
+  const POST = "e0000007-0000-4000-8000-000000000000";
+  const up = {
+    posts: [
+      {
+        id: POST,
+        tenant_id: A,
+        file_id: FILE(7),
+        place: "instagram",
+        kind: "picture",
+        status: "published",
+        published_at: "2026-11-12T17:00:00Z",
+        created_at: "2026-11-12T16:00:00Z",
+      },
+    ],
+    post_observations: [
+      {
+        id: "e1000007-0000-4000-8000-000000000000",
+        tenant_id: A,
+        post_id: POST,
+        step: "7d",
+        metric: "reach",
+        availability: "available",
+        value: 2140,
+        observed_at: "2026-11-19T17:00:00Z",
+      },
+    ],
+  };
+  const who = seatedMade(world({ tables: { files: [file(1), piece(7)], ...up } }));
+  const card = await toolOf(null, "owner", "Run this as an ad", { who, about: FILE(7) })({});
+  assert.ok(card.proposal, "the card is drafted as before");
+  assert.match(card.noted, /^What Post 7's posts did so far: /);
+  assert.match(card.noted, /2,140 reached/, "its reach, as the sheet says it");
+  assert.match(card.noted, /No one has written about it yet/, "and what it brought, as the sheet says it");
+  assert.doesNotMatch(card.proposal.summary, /reached/, "said to the model, never put on the card");
+  // A piece not up anywhere yet: nothing is said of results.
+  const before = await pieceToolOf([piece(7)]).tool({});
+  assert.equal(before.noted, undefined);
+});

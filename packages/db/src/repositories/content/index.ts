@@ -30,5 +30,12 @@ export {
   scrubOldTouches,
 } from "./touches";
 export type { CommentKept, CommentToKeep, TouchToKeep } from "./touches";
-export { listVisitsMadeIn, listVisitsOf, makePostLink, readPostLinks } from "./visits";
-export type { PostLinkRead, VisitForCredit } from "./visits";
+export {
+  listReviewAsksOf,
+  listVisitsMadeIn,
+  listVisitsOf,
+  makePostLink,
+  readPostLinks,
+  readReviewAskFacts,
+} from "./visits";
+export type { PostLinkRead, ReviewAskFactsRead, ReviewAskRead, VisitForCredit } from "./visits";

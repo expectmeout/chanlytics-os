@@ -76,7 +76,7 @@ being read is dropped by a migration.
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `ad_touches_of`, `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ads_remediate_files` | Service-role only: ads paused together, each through ad_set_intent, in one transaction, in the ads' own order (00671, 00676; |
-| `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
+| `ad_people` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/results.ts`, `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
 | `ad_people_back` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The people an ad brought back (the Ads tracking plan's T3 and its call 2, 00678): |
 | `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
 | `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` and 1 more | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
@@ -85,7 +85,7 @@ being read is dropped by a migration.
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_launch_keep`, `ad_pause_all` and 1 more | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `ad_touches_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/touches.ts` | The shared record's reader over ad_entries for a thread (the content loop PRD's Appendix A.2; |
-| `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666; |
+| `ad_turn_on` | the server's | the server | code `apps/edge/lib/ads/approval.ts`, `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666, 00710; |
 | `ad_way_in_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
@@ -109,7 +109,7 @@ being read is dropped by a migration.
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
 | `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00699; |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
-| `approval_hash` | the server's | the server | SQL `content_week_approve`, `piece_words_keep` and 3 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
+| `approval_hash` | the server's | the server | SQL `ad_turn_on`, `content_week_approve` and 4 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
 | `ask_for_tick` | the server's | the server | SQL `event_outbox_wake`, `job_kind_resume` and 2 more | Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00333, 00334). |
 | `ask_journal_open_days` | the server's | the server | SQL `ask_journal_write`, `trigger_notes_sweep` | The journal's days due (decision 0070): |

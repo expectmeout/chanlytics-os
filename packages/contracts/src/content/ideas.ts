@@ -4,9 +4,9 @@
  * words Ask is asked in both languages.
  *
  * Each is one Ask can make today, and is asked for as it makes it. A picture post is one photo and the owner's own words
- * (Ask's post tool, which never puts a customer's words on a post), so a before and after (two pictures) and a review (a
- * customer's words) are made as videos: a pair, and a quote card from a review the workspace holds (Ask's video tool). Where
- * the workspace takes no videos, the one idea is a post from a photo.
+ * (Ask's post tool, which never puts a customer's words on a post), so a before and after (two pictures) is made as a video.
+ * Where the workspace takes no videos, the one idea is a post from a photo. A Google review is never one: Google asks that
+ * its writer agree before a business uses it in its marketing, so no review goes into a post or an ad (Ruben, 24 Nov 2026).
  *
  * Each idea that is made from files names the ones it would use (contentIdeaFilesOf), chosen from the newest kept: its row
  * shows them, and Ask is asked to use them (contentIdeaAsk), so what the owner saw is what is made.
@@ -15,7 +15,7 @@ import type { FileDto } from "../files/views";
 
 /** One idea: what it is called, the line under it, what Ask is asked, and whether it is offered where videos are taken. */
 export interface ContentIdea {
-  key: "before_after" | "review" | "video" | "photo_post";
+  key: "before_after" | "video" | "photo_post";
   title: string;
   sub: string;
   ask: Readonly<Record<"en" | "es", string>>;
@@ -31,16 +31,6 @@ export const CONTENT_IDEAS: readonly ContentIdea[] = [
     ask: {
       en: "Make a short before and after video from two of my photos.",
       es: "Haz un video corto de antes y después con dos de mis fotos.",
-    },
-    videos: true,
-  },
-  {
-    key: "review",
-    title: "Your newest review, as a post",
-    sub: "What someone said about you on Google",
-    ask: {
-      en: "Make a short video from my newest Google review, in the words it was written.",
-      es: "Haz un video corto con mi reseña de Google más reciente, con sus palabras tal cual.",
     },
     videos: true,
   },
@@ -85,15 +75,6 @@ export interface ContentIdeaFiles {
   title?: string;
 }
 
-/** A review's writer as an idea names them: their first name, and nothing where none was read. */
-const reviewerFirstNameOf = (author: string | null): string | null => author?.trim().split(/\s+/)[0] || null;
-
-/** The newest review's idea, named by who wrote it and its stars: "Rosa's 5 stars, as a post". */
-export const reviewIdeaTitleOf = (review: { author: string | null; rating: number | null }): string | null => {
-  const reviewer = reviewerFirstNameOf(review.author);
-  return reviewer && review.rating ? `${reviewer}'s ${review.rating} stars, as a post` : null;
-};
-
 /**
  * Which files each idea would use, from the newest kept files, newest first: the two newest photos of the work for a before
  * and after, up to four clips that can be played for a video, the newest photo for a post. A before and after with fewer
@@ -101,7 +82,6 @@ export const reviewIdeaTitleOf = (review: { author: string | null; rating: numbe
  */
 export function contentIdeaFilesOf(
   kept: readonly Pick<FileDto, "id" | "name" | "kind" | "shows" | "media_status">[],
-  holds: { review: boolean; reviewTitle?: string | null },
 ): ContentIdeaFiles[] {
   const named = (files: typeof kept) => files.map((f) => ({ id: f.id, name: f.name }));
   const photos = kept.filter((f) => f.kind !== "video");
@@ -109,8 +89,6 @@ export function contentIdeaFilesOf(
   const clips = kept.filter((f) => f.kind === "video" && f.media_status === "ready");
   return [
     { key: "before_after", files: work.length >= 2 ? named(work.slice(0, 2)) : [], ready: photos.length >= 2 },
-    // Made from a review's own words, which no file holds: there where the workspace holds a review that says something.
-    { key: "review", files: [], ready: holds.review, ...(holds.reviewTitle ? { title: holds.reviewTitle } : {}) },
     { key: "video", files: named(clips.slice(0, 4)), ready: clips.length > 0 },
     { key: "photo_post", files: named(photos.slice(0, 1)), ready: photos.length > 0 },
   ];
@@ -118,7 +96,7 @@ export function contentIdeaFilesOf(
 
 /**
  * The ideas that can be made now: each whose material the read found, and each it says nothing of (before the page is read,
- * nothing is known). Never "your newest photo" with no photo, nor "your newest review" with no review.
+ * nothing is known). Never "your newest photo" with no photo.
  */
 export const contentIdeasReady = (
   ideas: readonly ContentIdea[],

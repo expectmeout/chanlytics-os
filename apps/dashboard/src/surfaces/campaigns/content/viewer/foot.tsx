@@ -320,6 +320,8 @@ export function ViewerFoot(props: {
   /** The piece's status from its lines, the act that leads, Run as an ad, Take down, More, and the line to AI. */
   standing?: {
     pill: { said: string; tone: GoesTone; moving: boolean } | null;
+    /** What its posts already did, in one line right above Run as an ad (pass 6); null where it says nothing. */
+    results: ReactNode;
     leads: { words: string; press: () => void } | null;
     ad: { words: string; press: () => void } | null;
     takeDown: (() => void) | null;
@@ -361,6 +363,7 @@ export function ViewerFoot(props: {
           {props.problem}
         </p>
       ) : null}
+      {props.asking ? null : props.standing?.results}
       {props.asking ?? (
         <ViewerActs
           file={file}
