@@ -18,6 +18,19 @@ import {
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
+const was = { EDGE_URL: process.env.EDGE_URL, EDGE_CALL_SECRET: process.env.EDGE_CALL_SECRET };
+Object.assign(process.env, { EDGE_URL: "https://edge.example.com", EDGE_CALL_SECRET: "edge-secret-for-this-file" });
+const realFetch = globalThis.fetch;
+after(() => {
+  globalThis.fetch = realFetch;
+  for (const [k, v] of Object.entries(was)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+});
+const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+const route = await importSrc("apps/dashboard/app/api/v1/leads/[id]/preview/route.ts");
+
 const NOW = new Date("2026-11-02T15:00:00Z");
 const DAY = 86_400_000;
 const TOKEN = "TokenTokenTokenToken01";
@@ -112,19 +125,6 @@ test("what they said is not right, under the line: by the fact's name, in their 
 });
 
 /* ---- the route and the edge's door ---- */
-
-const was = { EDGE_URL: process.env.EDGE_URL, EDGE_CALL_SECRET: process.env.EDGE_CALL_SECRET };
-Object.assign(process.env, { EDGE_URL: "https://edge.example.com", EDGE_CALL_SECRET: "edge-secret-for-this-file" });
-const realFetch = globalThis.fetch;
-after(() => {
-  globalThis.fetch = realFetch;
-  for (const [k, v] of Object.entries(was)) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
-});
-const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
-const route = await importSrc("apps/dashboard/app/api/v1/leads/[id]/preview/route.ts");
 
 const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LEAD = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
