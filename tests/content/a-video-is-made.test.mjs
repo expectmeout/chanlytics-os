@@ -230,6 +230,8 @@ function world({
         Object.assign(row(), { file_id: a.p_id, stage: "saving" });
         return { fate: "kept", file_id: a.p_id };
       },
+      // No version here: a video of its own (00708's door answers null for a file that is no version).
+      piece_version_ready: () => null,
       piece_sent: () => {
         if (row().status !== "making") return false;
         row().machine = null;
@@ -292,14 +294,22 @@ function world({
     }
     throw new Error(`nothing answers ${url}`);
   };
-  const machine = { started: [], states: [], stopped: [], video: new Uint8Array(4096).fill(7), pauses: 0 };
+  // A machine draws the video and, where it was asked for one, its cover (pass 4): none until a test hands it one.
+  const machine = {
+    started: [],
+    states: [],
+    stopped: [],
+    video: new Uint8Array(4096).fill(7),
+    cover: null,
+    pauses: 0,
+  };
   setPieceMachines({
     start: async (snapshotId, job) => {
       machine.started.push({ snapshotId, job });
       return { name: `machine-${machine.started.length}`, cmdId: "cmd-1" };
     },
     read: async () => machine.states.shift() ?? { stage: "working", progress: 0.5 },
-    bytes: async () => machine.video,
+    bytes: async (_m, which) => (which === "cover" ? machine.cover : machine.video),
     stop: async (m) => void machine.stopped.push(m.name),
     pause: async () => void machine.pauses++,
   });
@@ -598,6 +608,30 @@ test("a drawing done is sent into the video platform as a file made here, and th
   // Still being made: the platform's word that it can be played is what makes it made.
   assert.equal(row().status, "making");
   assert.deepEqual(tables.jobs, []);
+});
+
+test("a cover the machine drew beside the video is kept in its folder; one it could not draw leaves the video as it is", async () => {
+  const drawn = world({ piece: pieceRow({ machine: drawing() }) });
+  drawn.machine.cover = new Uint8Array(900).fill(9);
+  drawn.machine.states = [{ stage: "done", bytes: 4096 }];
+  await makePiece(drawn.db, job("wait"), soon());
+  const made = drawn.tables.files.find((f) => f.source === "made");
+  assert.deepEqual(drawn.kept, [
+    { path: `${T}/${made.id}/video.mp4`, bytes: 4096, type: "video/mp4" },
+    { path: `${T}/${made.id}/cover.jpg`, bytes: 900, type: "image/jpeg" },
+  ]);
+  assert.equal(drawn.row().file_id, made.id);
+});
+
+test("the machine is asked for its cover: the best moment of the video's clips, as a frame of the video", async () => {
+  const { db, machine } = world();
+  await makePiece(db, job("start"), soon());
+  const props = machine.started[0]?.job.props;
+  assert.ok(props, "a machine was started");
+  assert.ok(
+    Number.isInteger(props.cover) && props.cover >= 0 && props.cover < props.timeline.frames,
+    String(props.cover),
+  );
 });
 
 test("as a made video is sent its copy on the shelf is begun, held to the very bytes that went, and is never the video's to fail", async () => {

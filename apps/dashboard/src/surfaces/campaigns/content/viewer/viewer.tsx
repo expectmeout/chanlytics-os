@@ -177,6 +177,9 @@ export function footStandingOf(hands: ViewerHands, at: { more: ReactNode; onTold
     ad,
     takeDown: standing.takeDown,
     holdsLead: standing.holdsLead,
+    /** Its versions' line under its name ("Version 2 · a new cut") and the sentence under its status (the version board). */
+    ver: standing.version.ver,
+    under: standing.version.under,
     more: at.more,
     tell:
       may && made.file.source === "made" ? (
@@ -244,7 +247,7 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
       data-testid="cnv-piece"
     >
       <div className="cnv-viewer-slide">
-        <ViewerPicture file={file} name={name} sound={sound} />
+        <ViewerPicture file={file} name={name} sound={sound} making={hands.standing.version.making} />
         <ViewerFoot
           file={file}
           posts={posts}

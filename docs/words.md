@@ -135,6 +135,7 @@ What AI suggests and waits on is a **draft** or a **suggestion**, never said as 
 | **Settings**                                                                            | preferences, configuration, config                       |                                                                                                                                 |
 | **This week**                                                                           | plan, schedule, calendar, pieces                         | The Week: this week's posts as one list, said as what it is ("A reel and 2 posts"), never "4 pieces"                            |
 | **Film**                                                                                | footage request, shot list, upload request               | What AI asks to be filmed for the week: "Film 10 seconds of…", with the reason under it                                         |
+| **The look**                                                                            | brand kit, branding, style guide, template               | How a business's videos look and sound: one sentence in Settings › Content, its colours beside it as swatches                   |
 
 The page is Campaigns and its things are campaigns, so the tab that lists them is renamed in that page's pass: a tab
 never repeats its page's name.

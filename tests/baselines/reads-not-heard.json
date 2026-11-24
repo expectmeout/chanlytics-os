@@ -1468,6 +1468,26 @@
           "conversations"
         ]
       }
+    },
+    {
+      "kind": "unfed",
+      "why": "A made video's versions (00708): each version's shape is written by the job that keeps its bytes and by an approval, and the feed does not tell of piece_renditions. Made reads them for one tile a piece; the video's own file is told when it is made and when it plays (the bell's video_ready), which reads Content again, so a version moved past leaves Made with it.",
+      "reads": {
+        "content": [
+          "piece_renditions"
+        ]
+      },
+      "heardWith": {
+        "content": [
+          "files"
+        ]
+      },
+      "rereadAfter": {
+        "content": [
+          "POST files/video",
+          "POST files/[id]/version"
+        ]
+      }
     }
   ]
 }

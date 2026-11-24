@@ -7,7 +7,9 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { CONTENT_WORDS as W, fileViewOf, type FileDto } from "@chanlytics/contracts";
+import { Meter } from "../../../kit/meter/meter";
 import { Press } from "../../../kit/press";
+import { AskLooking } from "../../../files/looking";
 import { VideoOpened } from "../../../files/video-player";
 import { postShapeAddress } from "../../../files/post-shapes";
 import { fileVerbs } from "../../../files/verbs";
@@ -68,7 +70,51 @@ function ReelRun({ seconds }: { seconds: number | null }) {
   );
 }
 
-export function ViewerPicture({ file, name, sound }: { file: FileDto; name: string; sound: boolean }) {
+/** A new version being made over the one standing (the version board, cell 1): what plays dims under AI's three at work. */
+export interface PictureMaking {
+  title: string;
+  stage: string;
+  share: number;
+}
+
+/**
+ * Over the reel while its next version is made: the reel dimmed, AI's three in the middle with "Making version 2 · <where it
+ * is at>" under them and how far it has come under those, as a video being made is drawn on its tile (body.tsx).
+ */
+function VersionMaking({ making }: { making: PictureMaking | null }) {
+  if (!making) return null;
+  const said = `${making.title} · ${making.stage}`;
+  return (
+    <div className="cnv-viewer-making" role="status" data-testid="cnv-version-making">
+      <span className="cnv-making-work">
+        <AskLooking looking />
+        <span className="cnv-making-says">{said}</span>
+        <Meter
+          className="cnv-making-run"
+          size="sm"
+          parts={[
+            { share: making.share, color: "var(--media-ink)" },
+            { share: 1 - making.share, tone: "ground" },
+          ]}
+          aria-label={said}
+        />
+      </span>
+    </div>
+  );
+}
+
+export function ViewerPicture({
+  file,
+  name,
+  sound,
+  making = null,
+}: {
+  file: FileDto;
+  name: string;
+  sound: boolean;
+  /** Its next version being made, drawn over it; none for any other. */
+  making?: PictureMaking | null;
+}) {
   const player = usePlayerAddress(file);
   if (file.kind === "video")
     return (
@@ -87,6 +133,7 @@ export function ViewerPicture({ file, name, sound }: { file: FileDto; name: stri
         {/* Drawn again with the sound, as the reel starts again with it. */}
         <ReelRun key={sound ? "sound" : "muted"} seconds={file.seconds} />
         <OpenFull href={player} />
+        <VersionMaking making={making} />
       </div>
     );
   // A post Ask made, at the shape it is drawn in; a photo of the Library as it is.

@@ -24,6 +24,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DbFailure,
   FILE_MADE_OF_VIDEO_MIMES,
   MIN_MS,
   PIECE_FRAME,
@@ -37,6 +38,7 @@ import {
   filePathOf,
   isPieceStep,
   pieceCompositionOf,
+  pieceCuesOf,
   pieceFileIdsOf,
   pieceLookOf,
   pieceMachineOf,
@@ -45,6 +47,8 @@ import {
   pieceRoundsOf,
   pieceWordsIn,
   recordOrEmpty,
+  revisionChangesOf,
+  renditionRefusalOf,
   workspaceLogoSrc,
   type PieceFail,
   type PieceMachine,
@@ -61,6 +65,7 @@ import {
   FINGERPRINT_BYTES,
   deleteStreamVideo,
   fileFingerprintOf,
+  measureMedia,
   readRender,
   readRenderBytes,
   readStreamCopy,
@@ -83,6 +88,8 @@ import {
   findPieceForWork,
   findPieceImage,
   keepPieceMachine,
+  keepPieceVersion,
+  readyPieceVersion,
   markPieceSent,
   sayPieceStage,
   type MediaFate,
@@ -99,6 +106,7 @@ import { logger } from "../shared/log.js";
 import { ensureCopy } from "./copy/ensure.js";
 import { makeRoom } from "./copy/let-go.js";
 import { beginShelving } from "./shelf/shelve.js";
+import { clipMomentsOf, pieceCoverOf, type ClipMoment } from "./piece-cover.js";
 import { streamKeys } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;
@@ -140,7 +148,7 @@ const LOGO_FILE = "logo.png";
 interface PieceMachines {
   start(snapshotId: string, job: RenderJob): Promise<RenderMachine>;
   read(machine: RenderMachine): Promise<RenderState>;
-  bytes(machine: RenderMachine): Promise<Uint8Array<ArrayBuffer> | null>;
+  bytes(machine: RenderMachine, which: "video" | "cover"): Promise<Uint8Array<ArrayBuffer> | null>;
   stop(machine: RenderMachine): Promise<void>;
   pause(ms: number): Promise<void>;
 }
@@ -218,6 +226,7 @@ const sourceFromFile = (file: FileForWork, seconds: number | null): PieceSource 
   source: file.source,
   media_status: file.media_status,
   seconds: seconds ?? (file.seconds === null ? null : Number(file.seconds)),
+  cues: file.kind === "video" ? pieceCuesOf(file.sound) : null,
 });
 
 /** What was read of a plan's files: each as the checker reads it, each clip's playback copy, each photo's address. */
@@ -225,6 +234,8 @@ interface FilesRead {
   sources: PieceSource[];
   copies: Map<string, StreamCopy>;
   photos: Map<string, string>;
+  /** Each clip's moments as its look named them, best first: where its cover is taken from. */
+  moments: Map<string, ClipMoment[]>;
 }
 type CopiesRead = ({ ok: true } & FilesRead) | { ok: false; why: "clips" | "not_yet" | "from_drive" };
 
@@ -253,7 +264,7 @@ async function readClipCopy(file: FileForWork, mediaRef: string): Promise<Stream
  * One that is gone is left out, and a clip no longer ready is read with no length: the checker says which.
  */
 async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<CopiesRead> {
-  const read: FilesRead = { sources: [], copies: new Map(), photos: new Map() };
+  const read: FilesRead = { sources: [], copies: new Map(), photos: new Map(), moments: new Map() };
   for (const id of pieceFileIdsOf(plan)) {
     // Through the copy's door: a watched folder's clip may have been let go since AI proposed the video.
     const held = await ensureCopy(db, piece.tenant_id, id, "piece");
@@ -268,6 +279,7 @@ async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<Cop
     const copy = ready ? await readClipCopy(file, ready) : null;
     if (ready && !copy) return { ok: false, why: "not_yet" };
     if (copy) read.copies.set(id, copy);
+    if (file.kind === "video") read.moments.set(id, clipMomentsOf(file.look));
     read.sources.push(sourceFromFile(file, copy?.seconds ?? null));
   }
   return { ok: true, ...read };
@@ -331,6 +343,9 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
     name: look.name,
     book: look.book,
     address: look.address,
+    face: look.face,
+    second: look.second,
+    call: look.call,
   });
   if (!compiled.ok) {
     log.warn("piece_plan_refused", { piece: piece.id, wont: compiled.wont, cut: compiled.cut ?? null });
@@ -345,10 +360,13 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
     return again("image");
   }
   const fetches = fetchesOf(compiled.timeline, read);
+  // Its cover: the best moment of its clips, drawn by the machine as a still beside the video (piece-cover.ts).
+  const cover = pieceCoverOf(compiled.timeline, read.moments);
   const material: PieceMaterial = {
     timeline: compiled.timeline,
     files: fetches.map((own) => own.map((f) => f.to)),
     logo: logoUrl ? LOGO_FILE : null,
+    cover: Math.min(Math.round(cover.at * compiled.timeline.fps), compiled.timeline.frames - 1),
   };
   const machine = await machines.start(image.snapshot_id, {
     fetch: [...fetches.flat(), ...(logoUrl ? [{ to: LOGO_FILE, parts: [logoUrl] }] : [])],
@@ -443,7 +461,7 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine, deadline: 
   const machine = machineOf(kept);
   const keys = streamKeys();
   if (!keys) throw new Error("piece_make: Stream is not configured here");
-  const bytes = await machines.bytes(machine);
+  const bytes = await machines.bytes(machine, "video");
   if (!bytes?.length) return drawAgainOrEnd(db, piece, kept, "the machine no longer has the video");
   const plan = piecePlanOf(recordOrEmpty(piece.plan));
   // The video's length is its timeline's, kept with its machine as the start compiled it: no clip is read again here.
@@ -488,23 +506,82 @@ async function keepDrawn(db: Db, piece: PieceRow, kept: PieceMachine, deadline: 
   });
   if (stored.error) return endUnkept(db, piece, machine, { fate: file.fate, error: stored.error.message });
   if (!(await sendStreamBytes(reserved.uploadUrl, bytes))) return endUnkept(db, piece, machine, { fate: file.fate });
+  // Its cover, where the machine drew one: never the video's to fail, as its shelf copy below is not.
+  await keepCover(db, piece, machine, id).catch(logAndGoOn("piece_make: keep a made video's cover"));
+  // What it is, measured from its own bytes, against each place a made video goes as (content/making/renditions.ts).
+  sayRendition(piece, bytes);
   // Its bytes all went: its row says so first, in one step with its machine let go, so nothing after this can throw it away.
   await markPieceSent(db, piece.id);
   await machines.stop(machine);
-  // Its copy on Chanlytics' own shelf is begun (the archive plan's B2), held to these very bytes: their SHA-256 is
-  // taken here, as they pass. Never the video's to fail: without a shelf copy it only keeps its place at the platform.
-  await beginShelving(db, {
-    tenantId: piece.tenant_id,
-    fileId: id,
-    bytes: bytes.length,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  }).catch(logAndGoOn("shelf: begin a made video's copy"));
+  // Their SHA-256, taken once as they pass: what the shelf's copy is held to, and a new version's standing shape.
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  // A new version of a piece (00708): its root gains the version and its shape now, while the bytes are in hand.
+  if (piece.revises) await keepVersionOf(db, piece, { sha256, bytes: bytes.length });
+  // Its copy on Chanlytics' own shelf is begun (the archive plan's B2), held to these very bytes. Never the video's to
+  // fail: without a shelf copy it only keeps its place at the platform.
+  await beginShelving(db, { tenantId: piece.tenant_id, fileId: id, bytes: bytes.length, sha256 }).catch(
+    logAndGoOn("shelf: begin a made video's copy"),
+  );
   logger({ tenant_id: piece.tenant_id }).info("piece_drawn", {
     piece: piece.id,
     bytes: bytes.length,
     fate: file.fate,
     frames,
     ...machineTook(kept),
+  });
+}
+
+/**
+ * A new version's bytes kept as its root's next version (00708): what moved from the version it replaces (contracts
+ * revisionChangesOf), and its shape by its full SHA-256. A failure is logged and the video goes on: the root keeps
+ * standing at the version it was, and the drawn video stays in Files.
+ */
+async function keepVersionOf(db: Db, piece: PieceRow, kept: { sha256: string; bytes: number }): Promise<void> {
+  const root = piece.revises ? await findPieceForWork(db, piece.tenant_id, piece.revises) : null;
+  if (!root) return;
+  const changed = revisionChangesOf(piecePlanOf(recordOrEmpty(root.plan)), piecePlanOf(recordOrEmpty(piece.plan)));
+  const n = await keepPieceVersion(db, piece.id, { checksum: kept.sha256, bytes: kept.bytes, changed }).catch(
+    logAndGoOn("piece_make: keep a new version", null),
+  );
+  logger({ tenant_id: piece.tenant_id }).info("piece_version_kept", {
+    piece: root.id,
+    drawn: piece.id,
+    version: n,
+    changed,
+  });
+}
+
+/** The cover the machine drew beside the video, kept in the made file's folder; nothing where it drew none. */
+async function keepCover(db: Db, piece: PieceRow, machine: RenderMachine, fileId: string): Promise<void> {
+  const cover = await machines.bytes(machine, "cover");
+  if (!cover?.length) return;
+  const stored = await filesBucket(db).upload(fileMadePathOf(piece.tenant_id, fileId, "cover"), cover, {
+    contentType: FILE_MADE_OF_VIDEO_MIMES.cover,
+    upsert: true,
+  });
+  if (stored.error) throw new DbFailure(stored.error, "keep a made video's cover");
+}
+
+/**
+ * A made video's rendition, as its bytes say it is, against the places a made video goes as (a reel, a story): kept in
+ * the log line `rendition_made`, so a video a place would refuse is seen the day it is made, not the day it is sent.
+ */
+function sayRendition(piece: PieceRow, bytes: Uint8Array): void {
+  const measured = measureMedia(bytes);
+  const refused = (["reel", "story"] as const).flatMap((kind) => {
+    const refusal = renditionRefusalOf("instagram", kind, measured);
+    return refusal ? [`${kind}: ${refusal.why}`] : [];
+  });
+  logger({ tenant_id: piece.tenant_id }).info("rendition_made", {
+    piece: piece.id,
+    shape: "9x16",
+    seconds: measured.seconds,
+    width: measured.width,
+    height: measured.height,
+    fps: measured.fps,
+    codec: measured.codec,
+    sound: measured.sound !== null,
+    refused,
   });
 }
 
@@ -557,6 +634,9 @@ export async function tellPieceMoved(db: Db, fate: MediaFate): Promise<void> {
   const file = await findFileForWork(db, fate.tenant_id, fate.file_id);
   const plan = piecePlanOf(recordOrEmpty(recordOrEmpty(file?.made).plan));
   const says = pieceWordsIn(plan.language);
+  // A new version that now plays (00708): its piece stands at it, and what was set to go of the one before asks again.
+  const version = fate.fate === "ready" ? await readyPieceVersion(db, fate.file_id) : null;
+  const versionWaits = version !== null && !version.again && version.voided > 0;
   const about = { type: "file", id: fate.file_id };
   await recordNotification(
     fate.tenant_id,
@@ -564,7 +644,7 @@ export async function tellPieceMoved(db: Db, fate: MediaFate): Promise<void> {
       ? {
           kind: "video_ready",
           title: says.bell.ready,
-          body: says.bell.readyBody(file?.name ?? ""),
+          body: versionWaits ? says.bell.versionWaits(version.revision) : says.bell.readyBody(file?.name ?? ""),
           // Open in Content, where it plays.
           route: contentRouteOf({ list: "made", view: "all", open: fate.file_id }),
           about,

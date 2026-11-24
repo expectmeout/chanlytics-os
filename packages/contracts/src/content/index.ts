@@ -28,6 +28,15 @@ export {
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
+export type { PieceCaption, PieceCue } from "./making/captions";
+export { pieceCuesOf } from "./making/cues";
+export { brandKitOf, lookSaidOf, neverSaidIn, siteKitOf } from "./making/kit";
+export type { BrandKit } from "./making/kit";
+export { HOUSE_LOUDNESS, RENDITION_RULES, renditionRefusalOf } from "./making/renditions";
+export type { MediaMeasured, RenditionRefusal, RenditionRule, RenditionWhy } from "./making/renditions";
+export { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } from "./making/safe-areas";
+export type { SafeArea, WordBox } from "./making/safe-areas";
+export { revisionChangesOf, shapesReachedOf } from "./making/versions";
 export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./note";
 export type { ContentDownDto, ContentTodayDto } from "./note";
 export {
@@ -63,7 +72,7 @@ export type {
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
-export type { PieceWordsBox } from "./piece-frame";
+export type { PieceFace, PieceWordsBox } from "./piece-frame";
 export {
   isPieceStep,
   PIECE_FAILS,

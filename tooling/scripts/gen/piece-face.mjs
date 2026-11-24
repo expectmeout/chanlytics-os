@@ -21,6 +21,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 export const OUT = "packages/contracts/src/content/piece-face.generated.ts";
 export const FACE_FILE = "apps/dashboard/src/server/posts/fonts/mona-sans-800.woff";
+/** The brand kit's other face (contracts KIT_FACES `serif`): Source Serif 4 at its weight the posts set a quote in. */
+export const SERIF_FILE = "apps/dashboard/src/server/posts/fonts/source-serif-4-600-italic.woff";
 
 /** What the words may hold: Western Latin, its punctuation, and the few marks beyond it a post's words may. */
 const RANGES = [
@@ -34,9 +36,9 @@ function fontParser() {
   return createRequire(dashboard.resolve("satori"))("@shuding/opentype.js");
 }
 
-/** Each character's advance, in thousandths of the type's size. */
-export function faceAdvances() {
-  const bytes = fs.readFileSync(path.join(ROOT, FACE_FILE));
+/** Each character's advance in a face's file (Mona Sans unless another is named), in thousandths of the type's size. */
+export function faceAdvances(file = FACE_FILE) {
+  const bytes = fs.readFileSync(path.join(ROOT, file));
   const font = fontParser().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   const points = [
     ...RANGES.flatMap(([from, to]) => Array.from({ length: to - from + 1 }, (_, i) => from + i)),
@@ -50,9 +52,11 @@ export function faceAdvances() {
   );
 }
 
-/** The module, as the font says it. */
-export function faceModule(advances = faceAdvances()) {
-  const rows = Object.entries(advances).map(([ch, width]) => `  ${JSON.stringify(ch)}: ${width},`);
+const rowsOf = (advances) => Object.entries(advances).map(([ch, width]) => `  ${JSON.stringify(ch)}: ${width},`);
+
+/** The module, as the fonts say it: Mona Sans first, then the kit's serif. */
+export function faceModule(advances = faceAdvances(), serif = faceAdvances(SERIF_FILE)) {
+  const rows = rowsOf(advances);
   return [
     "// Written by `node tooling/scripts/gen/piece-face.mjs` from the posts' own font file. Do not edit by hand.",
     "",
@@ -63,6 +67,13 @@ export function faceModule(advances = faceAdvances()) {
     "",
     "/** A character the table does not hold is taken at the widest it holds, so a line can only come out smaller. */",
     `export const PIECE_FACE_WIDEST = ${Math.max(...Object.values(advances))};`,
+    "",
+    "/** The brand kit's serif (Source Serif 4, its italic at 600), measured the same way. */",
+    "export const PIECE_SERIF_ADVANCES: Readonly<Record<string, number>> = {",
+    ...rowsOf(serif),
+    "};",
+    "",
+    `export const PIECE_SERIF_WIDEST = ${Math.max(...Object.values(serif))};`,
     "",
   ].join("\n");
 }

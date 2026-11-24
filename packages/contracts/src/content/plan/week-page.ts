@@ -47,5 +47,10 @@ export interface WeekPageDto {
   quiet_days: string[];
   languages: string[];
   /** The owner's own sentence for a line of Settings › Content, where they said one. */
-  lines: Partial<Record<"goals" | "cadence" | "quiet_days" | "languages", string>>;
+  lines: Partial<Record<"goals" | "cadence" | "quiet_days" | "languages" | "look", string>>;
+  /**
+   * The look its videos wear (the brand kit, pass 4): its sentence as its line says it, and its colours (the workspace's
+   * own, then the kit's second), which the line shows as swatches and nothing else. Absent from a dashboard a deploy behind.
+   */
+  look?: { words: string; colours: string[] };
 }

@@ -6,6 +6,9 @@
 //              { "to": "block-1.img", "parts": ["https://...a photo"] }],
 //     "composition": "blocks", "props": { ... }, "out": "video.mp4" }
 //
+// Where the props name a cover (`props.cover`, a frame), that frame is drawn as a still beside the video (cover.jpg): what a
+// place shows before it plays. A cover that cannot be drawn is left out; the video is never failed for it.
+//
 // It decides nothing: which seconds of which clip, which photo, the words and where they sit were all worked out before it
 // was started. A playback copy's init part followed by the segments that cover a cut is a playable file, which is why parts
 // are joined as they come. A photo is one part, asked for as a kind a browser draws whatever the phone that took it kept
@@ -13,7 +16,7 @@
 // the addresses are short-lived and arrive with the job.
 import fs from "node:fs";
 import path from "node:path";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const BUNDLE = path.join(HERE, "remotion-bundle");
@@ -80,7 +83,33 @@ try {
       say({ stage: "drawing", progress, fetched_bytes: fetchedBytes });
     },
   });
-  say({ stage: "done", progress: 1, bytes: fs.statSync(out).size, frames: composition.durationInFrames });
+  const cover = Number.isInteger(job.props?.cover) ? job.props.cover : null;
+  let coverBytes = 0;
+  if (cover !== null) {
+    const still = path.join(WORK, "cover.jpg");
+    try {
+      await renderStill({
+        composition,
+        serveUrl: BUNDLE,
+        output: still,
+        inputProps: job.props ?? {},
+        frame: Math.min(Math.max(0, cover), composition.durationInFrames - 1),
+        imageFormat: "jpeg",
+        jpegQuality: 90,
+        overwrite: true,
+      });
+      coverBytes = fs.statSync(still).size;
+    } catch (e) {
+      console.error("the cover could not be drawn", e);
+    }
+  }
+  say({
+    stage: "done",
+    progress: 1,
+    bytes: fs.statSync(out).size,
+    frames: composition.durationInFrames,
+    cover_bytes: coverBytes,
+  });
 } catch (e) {
   say({ stage: "error", message: e instanceof Error ? e.message : String(e) });
   console.error(e);

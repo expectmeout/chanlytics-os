@@ -31,6 +31,7 @@ import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
 import { WhereItGoes } from "./goes";
+import { PieceVersions } from "./versions";
 import { byHandOffered, footStandingOf, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
@@ -216,7 +217,12 @@ function DeskPicture(props: {
   const { hands, name, sound } = props;
   return (
     <div className="cnv-desk-media" data-theme="dark" data-small={props.small || undefined}>
-      <ViewerPicture file={hands.made.file} name={name} sound={sound?.on ?? false} />
+      <ViewerPicture
+        file={hands.made.file}
+        name={name}
+        sound={sound?.on ?? false}
+        making={hands.standing.version.making}
+      />
       {sound ? (
         <Button
           variant="glass"
@@ -330,6 +336,11 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           <p className="cnv-desk-line" data-testid="cnv-line">
             {says.line}
           </p>
+          {standing.ver ? (
+            <p className="cnv-desk-line" data-testid="cnv-version-line">
+              {standing.ver}
+            </p>
+          ) : null}
         </div>
         {opened ? (
           <>
@@ -340,6 +351,11 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           <>
             {viewerHasStatus(file, next) ? (
               <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} pill={standing.pill} desk />
+            ) : null}
+            {standing.under ? (
+              <p className="cnv-desk-line" data-testid="cnv-version-under">
+                {standing.under}
+              </p>
             ) : null}
             {(presses.problem ?? save.said) ? (
               <p className="cnv-desk-line" role="alert" data-testid="cnv-problem">
@@ -402,6 +418,12 @@ function DeskSheetAtRest(props: {
         </>
       )}
       <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <PieceVersions
+        list={standing.version.list}
+        instead={standing.version.instead}
+        may={hands.may}
+        busy={standing.goes.busy}
+      />
       <PieceResults {...standing.results} />
       <ViewerFacts
         shown={props.details}

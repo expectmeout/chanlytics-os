@@ -8,12 +8,14 @@ import { fade } from "@remotion/transitions/fade";
 import type { ReactNode } from "react";
 import { AbsoluteFill, Freeze, Img, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { PIECE_FRAME } from "../../../packages/contracts/src/content/piece-frame";
+import type { PieceFace } from "../../../packages/contracts/src/content/piece-frame";
 import type {
   PieceBlockDrawn,
   PieceMaterial,
   PieceShotDrawn,
+  PieceTimeline,
 } from "../../../packages/contracts/src/content/piece-timeline";
-import { EndCard, INK, Label, QuoteCard, Words, WordsCard, useFace } from "./look";
+import { EndCard, INK, Label, QuoteCard, Spoken, Words, WordsCard, useFace } from "./look";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const FILL = { width: "100%", height: "100%" } as const;
@@ -52,31 +54,41 @@ function Still({ file, shot, fps }: { file: string; shot: PieceShotDrawn; fps: n
 type Drawn<K extends PieceBlockDrawn["is"]> = Extract<PieceBlockDrawn, { is: K }>;
 
 /** A clip's moment: its stretch of its clip, filling the frame, pushing in slightly. */
-function ClipBlock({ block, file, fps }: { block: Drawn<"clip">; file: string; fps: number }) {
+function ClipBlock({ block, file, fps, face }: { block: Drawn<"clip">; file: string; fps: number; face: Face }) {
   return (
     <AbsoluteFill>
       <Pushed frames={block.frames} scales={[1, 1.05]}>
         <Video src={staticFile(file)} trimBefore={Math.round(block.trim * fps)} muted objectFit="cover" style={FILL} />
       </Pushed>
-      {block.label ? <Label label={block.label} /> : null}
+      {block.label ? <Label label={block.label} face={face} /> : null}
     </AbsoluteFill>
   );
 }
 
 /** A photo, filling the frame: it pushes in and drifts up, so a still is never a frozen frame. */
-function PhotoBlock({ block, file, fps }: { block: Drawn<"photo">; file: string; fps: number }) {
+function PhotoBlock({ block, file, fps, face }: { block: Drawn<"photo">; file: string; fps: number; face: Face }) {
   return (
     <AbsoluteFill>
       <Pushed frames={block.frames} scales={[1.02, 1.1]} drift={24}>
         <Still file={file} shot={{ source: block.source, at: null }} fps={fps} />
       </Pushed>
-      {block.label ? <Label label={block.label} /> : null}
+      {block.label ? <Label label={block.label} face={face} /> : null}
     </AbsoluteFill>
   );
 }
 
 /** Before over after: each fills its half of the frame, a rule of the paper between, each under its own name. */
-function PairBlock({ block, files, fps }: { block: Drawn<"pair">; files: readonly string[]; fps: number }) {
+function PairBlock({
+  block,
+  files,
+  fps,
+  face,
+}: {
+  block: Drawn<"pair">;
+  files: readonly string[];
+  fps: number;
+  face: Face;
+}) {
   const half = (PIECE_FRAME.height - PIECE_FRAME.pairRule) / 2;
   const lower = half + PIECE_FRAME.pairRule;
   const held = (shot: PieceShotDrawn, file: string, top: number) => (
@@ -90,37 +102,28 @@ function PairBlock({ block, files, fps }: { block: Drawn<"pair">; files: readonl
     <AbsoluteFill style={{ backgroundColor: PIECE_FRAME.paper }}>
       {held(block.before, files[0] ?? "", 0)}
       {held(block.after, files[1] ?? "", lower)}
-      <Label label={block.labels[0]} bottom={lower + PIECE_FRAME.labelLift} />
-      <Label label={block.labels[1]} />
+      <Label label={block.labels[0]} face={face} bottom={lower + PIECE_FRAME.labelLift} />
+      <Label label={block.labels[1]} face={face} />
     </AbsoluteFill>
   );
 }
 
 /** One block, by its kind. `files` are the names its own files were fetched under, in its own order. */
-function Block({
-  block,
-  files,
-  fps,
-  accent,
-}: {
-  block: PieceBlockDrawn;
-  files: readonly string[];
-  fps: number;
-  accent: string;
-}) {
+function Block({ block, files, timeline }: { block: PieceBlockDrawn; files: readonly string[]; timeline: Kit }) {
   const first = files[0] ?? "";
+  const { fps, accent, face, ground } = timeline;
   switch (block.is) {
     case "clip":
-      return <ClipBlock block={block} file={first} fps={fps} />;
+      return <ClipBlock block={block} file={first} fps={fps} face={face} />;
     case "photo":
-      return <PhotoBlock block={block} file={first} fps={fps} />;
+      return <PhotoBlock block={block} file={first} fps={fps} face={face} />;
     case "pair":
-      return <PairBlock block={block} files={files} fps={fps} />;
+      return <PairBlock block={block} files={files} fps={fps} face={face} />;
     case "words":
-      return <WordsCard lines={block.lines} size={block.size} accent={accent} />;
+      return <WordsCard lines={block.lines} size={block.size} accent={accent} face={face} ground={ground} />;
     case "quote":
       return (
-        <QuoteCard lines={block.lines} size={block.size} from={block.from} accent={accent}>
+        <QuoteCard lines={block.lines} size={block.size} from={block.from} accent={accent} face={face} ground={ground}>
           {block.over ? (
             <Pushed frames={block.frames} scales={[1.02, 1.08]}>
               <Still file={first} shot={block.over} fps={fps} />
@@ -132,6 +135,10 @@ function Block({
 }
 
 const isCard = (block: PieceBlockDrawn | undefined): boolean => block?.is === "words" || block?.is === "quote";
+
+/** The kit as a timeline carries it: one drawn by an edge a deploy behind holds none, and is drawn as every video was. */
+type Face = PieceFace | undefined;
+type Kit = Pick<PieceTimeline, "fps" | "accent"> & { face: Face; ground: string | undefined };
 
 function Reel({ timeline, files }: Pick<PieceMaterial, "timeline" | "files">) {
   const frame = useCurrentFrame();
@@ -148,10 +155,11 @@ function Reel({ timeline, files }: Pick<PieceMaterial, "timeline" | "files">) {
     <AbsoluteFill>
       {timeline.blocks.map((block, i) => (
         <Sequence key={i} from={starts[i] ?? 0} durationInFrames={block.frames}>
-          <Block block={block} files={files[i] ?? []} fps={timeline.fps} accent={timeline.accent} />
+          <Block block={block} files={files[i] ?? []} timeline={timeline} />
         </Sequence>
       ))}
-      {worded ? <Words words={timeline.words} /> : null}
+      {worded ? <Words words={timeline.words} face={timeline.face} /> : null}
+      <Spoken captions={timeline.captions} face={timeline.face} />
     </AbsoluteFill>
   );
 }
@@ -170,7 +178,7 @@ export function Blocks({ timeline, files, logo }: PieceMaterial) {
           timing={linearTiming({ durationInFrames: PIECE_FRAME.fade })}
         />
         <TransitionSeries.Sequence durationInFrames={PIECE_FRAME.end}>
-          <EndCard end={timeline.end} logo={logo} accent={timeline.accent} />
+          <EndCard end={timeline.end} logo={logo} accent={timeline.accent} face={timeline.face} />
         </TransitionSeries.Sequence>
       </TransitionSeries>
     </AbsoluteFill>

@@ -19,6 +19,7 @@ import {
   bookingToolOfLink,
   businessReadFactsOf,
   filmShotsOf,
+  siteKitOf,
   feedUrlOk,
   fenced,
   listingFactsOf,
@@ -180,6 +181,9 @@ export async function readWebsite(
   }
   const facts = businessReadFactsOf(answer);
   const film = filmShotsOf(answer);
+  // The look AI proposes for the business's videos (the brand kit, pass 4): the feel, the call and the music the reading
+  // wrote, and the second colour and the type the site's own branding uses. The owner's own look, once said, wins.
+  const kit = siteKitOf(answer, home.brand);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
   log.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
   const kept: Json = {
@@ -194,6 +198,7 @@ export async function readWebsite(
     ...(media ? { media } : {}),
     // What to film for a video, from what the site says it does (Content's empty state): kept only where it wrote some.
     ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how, seconds: f.seconds })) } : {}),
+    ...(kit ? { kit } : {}),
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
 }

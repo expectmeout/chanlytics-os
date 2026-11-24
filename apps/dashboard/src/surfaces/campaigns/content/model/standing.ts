@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 import type { GoesPresses } from "../viewer/goes";
 import type { GoesLine, goesPillOf } from "./goes";
+import type { VersionStanding } from "./version";
 import type { ViewerClock } from "./viewer-line";
 
 export interface PieceStanding {
@@ -27,6 +28,11 @@ export interface PieceStanding {
   takeDown: (() => void) | null;
   /** The sheet a piece opens over itself: Take down's card. */
   sheets: ReactNode;
+  /**
+   * Its versions (00708; the version board): version 2 being made, its line, the sentence under the pill, the list with
+   * "Post this one instead" on an older one (its press, by the older version's file).
+   */
+  version: VersionStanding & { instead: (fileId: string) => void };
   /** What its results are read by (00699): the piece's file, and a post of it that went up, null before one did. */
   results: { fileId: string; upPostId: string | null };
 }

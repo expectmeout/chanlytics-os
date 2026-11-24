@@ -28560,9 +28560,14 @@ begin
     return null;
   end if;
   if v_file.kind = 'video' then
-    select p.id into v_id from public.pieces p
+    -- A version's file is its root's (00708), the root itself first; an older version's, by the shape it was sent as.
+    select coalesce(p.revises, p.id) into v_id from public.pieces p
      where p.tenant_id = p_tenant_id and p.file_id = v_file.id and p.shape <> 'picture'
-     order by p.created_at desc limit 1;
+     order by (p.revises is null) desc, p.created_at desc limit 1;
+    if v_id is null then
+      select r.piece_id into v_id from public.piece_renditions r
+       where r.tenant_id = p_tenant_id and r.file_id = v_file.id order by r.revision desc limit 1;
+    end if;
     return v_id;
   end if;
   insert into public.pieces (tenant_id, shape, plan, look, status, edition, file_id, card_key, created_by, made_at)
@@ -28578,7 +28583,56 @@ end $$;
 -- Name: FUNCTION piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00681): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00681, 00708): a video''s own, the newest that became it (a version''s file its root''s; an older version''s by its shape), or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+
+
+--
+-- Name: piece_posts_replace(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_piece  uuid;
+  v_answer jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select coalesce(p.revises, p.id) into v_piece from public.pieces p
+   where p.tenant_id = p_tenant_id and p.file_id = p_file_id order by (p.revises is null) desc limit 1;
+  if v_piece is null then
+    select r.piece_id into v_piece from public.piece_renditions r
+     where r.tenant_id = p_tenant_id and r.file_id = p_file_id limit 1;
+  end if;
+  begin
+    -- Its posts still waiting, at any of its versions, are let go as "Don't post" lets one go: the approval below sets
+    -- what goes up in their place. Where it is refused, nothing was let go.
+    if v_piece is not null then
+      update public.posts p set status = 'pulled', updated_at = now()
+       where p.tenant_id = p_tenant_id and p.piece_id = v_piece and p.status = any (array['queued', 'preparing', 'held']);
+    end if;
+    v_answer := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    if v_answer ->> 'fate' <> 'approved' then
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
+  exception when raise_exception then
+    return v_answer;
+  end;
+  return v_answer;
+end $$;
+
+
+--
+-- Name: FUNCTION piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00708; the version board: "Approve version 2", "Post this one instead"): the piece''s posts still waiting, at any of its versions, let go, then post_approve of this file, in one transaction; where the approval is refused nothing was let go. Answers post_approve''s answer.';
 
 
 --
@@ -28662,6 +28716,166 @@ $$;
 --
 
 COMMENT ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) IS 'The machine a video is being drawn on, kept or let go (00613); one kept is the drawing begun (stage). Answers whether the video is still being made. The service role''s.';
+
+
+--
+-- Name: piece_version_begin(uuid, uuid, jsonb, jsonb, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_root   public.pieces;
+  v_making uuid;
+  v_begun  jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_root from public.pieces p where p.tenant_id = p_tenant_id and p.id = p_piece_id;
+  if not found then
+    return jsonb_build_object('fate', 'gone', 'piece_id', null);
+  end if;
+  -- A version of a version is its root's.
+  if v_root.revises is not null then
+    select * into v_root from public.pieces p where p.tenant_id = p_tenant_id and p.id = v_root.revises;
+  end if;
+  if v_root.status <> 'made' or v_root.shape = 'picture' or v_root.file_id is null then
+    return jsonb_build_object('fate', 'not_made', 'piece_id', null);
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|pieces', 42));
+  -- One version drawn at a time: another card's version still drawing is the one there is.
+  select p.id into v_making from public.pieces p
+   where p.tenant_id = p_tenant_id and p.revises = v_root.id and p.status = 'making' and p.card_key <> p_key
+   limit 1;
+  if found then
+    return jsonb_build_object('fate', 'drawing', 'piece_id', v_making, 'revises', v_root.id);
+  end if;
+  v_begun := public.piece_begin(p_tenant_id, p_plan, p_look, p_key, p_edition);
+  if (v_begun ->> 'piece_id') is not null then
+    update public.pieces p set revises = v_root.id
+     where p.id = (v_begun ->> 'piece_id')::uuid and p.revises is distinct from v_root.id;
+  end if;
+  return v_begun || jsonb_build_object('revises', v_root.id);
+end $$;
+
+
+--
+-- Name: FUNCTION piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00708): a new version of a made video asked for, by its plan and the look as it stands; drawn as piece_begin draws a video, on a row that names its root (`revises`). One version drawn at a time a piece. Answers piece_begin''s {fate: begun, here, busy; piece_id} with `revises`, or {fate: gone, not_made, drawing (another version is drawn now; piece_id: that one)}.';
+
+
+--
+-- Name: piece_version_kept(uuid, text, bigint, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_new  public.pieces;
+  v_root public.pieces;
+  v_rev  public.piece_revisions;
+  v_n    integer;
+begin
+  if p_checksum is null or p_checksum !~ '^[0-9a-f]{64}$' or p_bytes is null or p_bytes < 1 then
+    raise exception 'A version is kept by its bytes and their SHA-256.' using errcode = '22023';
+  end if;
+  select * into v_new from public.pieces p where p.id = p_piece_id;
+  if not found or v_new.revises is null or v_new.file_id is null then
+    return null;
+  end if;
+  select * into v_root from public.pieces p where p.id = v_new.revises for update;
+  if not found then
+    return null;
+  end if;
+  -- Kept once: a second keep of the same file answers the version it is.
+  select r.revision into v_n from public.piece_renditions r where r.piece_id = v_root.id and r.file_id = v_new.file_id limit 1;
+  if found then
+    return v_n;
+  end if;
+  -- The version it stood at, written where nothing approved it yet, so the next has one before it.
+  select * into v_rev from public.piece_revisions r where r.piece_id = v_root.id and r.n = v_root.revision;
+  if not found then
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (v_root.tenant_id, v_root.id, v_root.revision, v_root.plan, '{}'::jsonb, array['first'], 'ai', v_root.created_by)
+    returning * into v_rev;
+  end if;
+  select max(r.n) + 1 into v_n from public.piece_revisions r where r.piece_id = v_root.id;
+  insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+  values (v_root.tenant_id, v_root.id, v_n, v_new.plan, v_rev.captions,
+          array(select c from unnest(coalesce(p_changed, '{}'::text[])) c
+                 where c = any (array['caption', 'trim', 'order', 'sound', 'layout'])),
+          'owner', v_new.created_by);
+  insert into public.piece_renditions (tenant_id, piece_id, revision, shape, file_id, path, checksum, bytes)
+  values (v_root.tenant_id, v_root.id, v_n, '9x16', v_new.file_id,
+          v_root.tenant_id::text || '/' || v_new.file_id::text || '/video.mp4', p_checksum, p_bytes);
+  return v_n;
+end $_$;
+
+
+--
+-- Name: FUNCTION piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) IS 'When a new version''s drawn bytes are kept (00708; the edge''s piece_make): its root gains version n+1, its plan and what moved (p_changed, the record''s own set), and its standing shape, the new file by path and full SHA-256. The root still stands at n until the file plays (piece_version_ready). Once a file. Answers n+1, or null for a drawing that is no version. The service role''s.';
+
+
+--
+-- Name: piece_version_ready(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_ready(p_file_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_new    public.pieces;
+  v_root   public.pieces;
+  v_n      integer;
+  v_voided integer;
+begin
+  select * into v_new from public.pieces p
+   where p.file_id = p_file_id and p.revises is not null order by p.created_at desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select r.revision into v_n from public.piece_renditions r
+   where r.piece_id = v_new.revises and r.file_id = p_file_id order by r.revision desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select * into v_root from public.pieces p where p.id = v_new.revises for update;
+  if v_root.revision >= v_n then
+    return jsonb_build_object('piece_id', v_root.id, 'revision', v_root.revision, 'voided', 0, 'again', true);
+  end if;
+  update public.pieces p
+     set revision = v_n, file_id = p_file_id, plan = v_new.plan, look = v_new.look, made_at = now(), updated_at = now()
+   where p.id = v_root.id;
+  -- What was approved of the version before and still waits stops standing: it asks again (call 14).
+  update public.approvals a set voided_at = now(), voided_why = 'changed'
+   where a.voided_at is null
+     and a.id in (select p.approval_id from public.posts p
+                   where p.tenant_id = v_root.tenant_id and p.piece_id = v_root.id and p.approval_id is not null
+                     and p.status = any (array['queued', 'preparing']));
+  get diagnostics v_voided = row_count;
+  return jsonb_build_object('piece_id', v_root.id, 'revision', v_n, 'voided', v_voided, 'again', false);
+end $$;
+
+
+--
+-- Name: FUNCTION piece_version_ready(p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_ready(p_file_id uuid) IS 'When a new version''s file plays (00708; the edge, where the video platform''s word is heard): its root stands at that version (revision, file, plan, look), and the approvals of its posts still waiting are voided as changed, so each asks again. Once. Answers {piece_id, revision, voided, again}, or null for a file that is no version. The service role''s.';
 
 
 --
@@ -30250,6 +30464,8 @@ declare
   v_posts      jsonb := '[]'::jsonb;
   v_snapshot   jsonb;
   v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
+  -- An older version's own file approved again (00708: "Post this one instead"): the version its shape was kept at.
+  v_older      integer;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -30316,10 +30532,15 @@ begin
   if not found then
     return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
   end if;
+  -- A video's file that is no longer its piece's own is an older version's (00708): it is approved at that version.
+  if v_file.kind = 'video' and v_piece.file_id is distinct from p_file_id then
+    select r.revision into v_older from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.file_id = p_file_id order by r.revision desc limit 1;
+  end if;
   -- A shape already kept with other bytes is not what the owner saw: nothing is written past here.
   for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
     select * into v_kept from public.piece_renditions r
-     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_piece.revision
+     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= coalesce(v_older, v_piece.revision)
      order by r.revision desc limit 1;
     if found and (v_kept.checksum <> v_rendition ->> 'checksum' or v_kept.path <> v_rendition ->> 'path') then
       return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
@@ -30336,13 +30557,14 @@ begin
       v_captions := v_captions || jsonb_build_object(v_place ->> 'place', coalesce(v_place ->> 'caption', ''));
     end if;
   end loop;
-  v_n := v_piece.revision;
+  v_n := coalesce(v_older, v_piece.revision);
   select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_n;
   if not found then
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
     values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], 'owner', v_actor)
     returning * into v_rev;
-  elsif exists (select 1 from jsonb_each_text(v_captions) c
+  -- An older version keeps its own words: the placements carry what goes, and a later version is never written over.
+  elsif v_older is null and exists (select 1 from jsonb_each_text(v_captions) c
                  where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
     v_n := v_n + 1;
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
@@ -30400,7 +30622,7 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed; an older version''s own file is approved at its own version, with its own words kept), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 
 --
@@ -52275,6 +52497,7 @@ CREATE TABLE public.pieces (
     made_at timestamp with time zone,
     revision integer DEFAULT 1 NOT NULL,
     intent jsonb,
+    revises uuid,
     CONSTRAINT pieces_card_key_shape CHECK (((char_length(card_key) >= 1) AND (char_length(card_key) <= 120))),
     CONSTRAINT pieces_failed_shape CHECK (((status = 'failed'::text) = (failed_why IS NOT NULL))),
     CONSTRAINT pieces_failed_why_check CHECK ((failed_why = ANY (ARRAY['clips'::text, 'draw'::text, 'store'::text, 'unknown'::text]))),
@@ -52341,6 +52564,13 @@ COMMENT ON COLUMN public.pieces.revision IS 'The version the piece stands at (00
 --
 
 COMMENT ON COLUMN public.pieces.intent IS 'Why it exists (00681; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
+
+
+--
+-- Name: COLUMN pieces.revises; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pieces.revises IS 'The piece this one is drawn as a new version of (00708): its root, never a version. Null for a piece of its own. Written by piece_version_begin; the drawn file becomes the root''s next version (piece_version_kept, piece_version_ready).';
 
 
 --
@@ -58563,6 +58793,13 @@ CREATE UNIQUE INDEX pieces_one_picture ON public.pieces USING btree (tenant_id, 
 
 
 --
+-- Name: pieces_revises; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX pieces_revises ON public.pieces USING btree (tenant_id, revises) WHERE (revises IS NOT NULL);
+
+
+--
 -- Name: pieces_tenant_making; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -63514,6 +63751,14 @@ ALTER TABLE ONLY public.pieces
 
 ALTER TABLE ONLY public.pieces
     ADD CONSTRAINT pieces_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: pieces pieces_revises_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pieces
+    ADD CONSTRAINT pieces_revises_same_workspace FOREIGN KEY (tenant_id, revises) REFERENCES public.pieces(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -71476,6 +71721,15 @@ GRANT ALL ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid
 
 
 --
+-- Name: FUNCTION piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION piece_sent(p_piece_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -71497,6 +71751,31 @@ GRANT ALL ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) TO servi
 
 REVOKE ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) TO authenticated;
+GRANT ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_version_ready(p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_ready(p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_ready(p_file_id uuid) TO service_role;
 
 
 --
@@ -76586,6 +76865,13 @@ GRANT SELECT(revision) ON TABLE public.pieces TO authenticated;
 --
 
 GRANT SELECT(intent) ON TABLE public.pieces TO authenticated;
+
+
+--
+-- Name: COLUMN pieces.revises; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(revises) ON TABLE public.pieces TO authenticated;
 
 
 --

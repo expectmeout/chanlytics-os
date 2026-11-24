@@ -238,6 +238,19 @@ export {
   type TakeDownKept,
 } from "./take-down";
 export type { PieceTakeDownKept, TakeDownBegun } from "./take-down";
+export {
+  beginPieceVersion,
+  findPieceOfVideo,
+  findPostWaitingOnVersion,
+  findVersionDrawing,
+  keepPieceVersion,
+  listPiecePosts,
+  listPieceVersions,
+  readVersionsOfFiles,
+  readyPieceVersion,
+  replacePiecePosts,
+} from "./versions";
+export type { PieceVersionBegun, PieceVersionReady, PieceVersionRow, VideoPieceRow } from "./versions";
 export { movePostTime } from "./waiting-posts";
 export { listNewReviews, listWeekFootage, readRecentlyPosted } from "./week-facts";
 export type { FootageRow, RecentlyPosted, ReviewRow } from "./week-facts";

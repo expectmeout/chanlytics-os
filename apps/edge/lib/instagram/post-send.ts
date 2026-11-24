@@ -15,7 +15,7 @@
  * asks after the first container again before it makes anything).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend } from "@chanlytics/contracts";
+import { MIN_MS, ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend } from "@chanlytics/contracts";
 import {
   closePostAttempt,
   findPostForWork,
@@ -26,7 +26,8 @@ import {
 } from "@chanlytics/db/files";
 import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
-import { markSpoke, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { markSpoke, scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { findVersionDrawing } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
@@ -125,6 +126,30 @@ async function refusedSend(
   throw new CertainFailure(refused.message, error.words);
 }
 
+/** How long a send waits for a new version of its piece, a minute at a time: a version is drawn in a minute or two. */
+const VERSION_WAIT_MS = MIN_MS;
+const VERSION_WAITS_MOST = 10;
+
+/**
+ * Nothing of a piece goes up while a new version of it is drawn (00708, the version board's call 14): the send asks again a
+ * minute on. Once the version plays, what was approved of the one before stops standing and the recheck holds it; a
+ * version that could not be made leaves the post to go as approved. Past its most waits, it goes as approved.
+ */
+async function waitsForVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<boolean> {
+  if (!post.piece_id) return false;
+  const drawing = await findVersionDrawing(db, post.tenant_id, post.piece_id);
+  const waits = Number(job.payload.wait ?? 0) || 0;
+  if (!drawing || drawing.failed || waits >= VERSION_WAITS_MOST) return false;
+  await scheduleJobOnce(db, {
+    tenantId: post.tenant_id,
+    kind: "post_publish",
+    dueAt: new Date(Date.now() + VERSION_WAIT_MS),
+    payload: { post_id: post.id, attempt: String(postJobOf(job).attempt), wait: String(waits + 1) },
+  });
+  logger({ tenant_id: post.tenant_id }).info("placement_waits_for_version", { post_id: post.id, waits: waits + 1 });
+  return true;
+}
+
 /** post_publish: the recheck, then the one send. */
 export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promise<void | { skipped: string }> {
   const { postId, attempt } = postJobOf(job);
@@ -132,6 +157,7 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   if (!post) return { skipped: "gone" };
   if (post.status !== "preparing" || !post.container_id) return { skipped: post.status };
   instagramKindOf(post);
+  if (await waitsForVersion(db, post, job)) return { skipped: "version" };
   const posting = await recheck(db, post, deps);
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   if (!(await movePost(db, { postId: post.id, from: ["preparing"], to: "publishing" }))) return { skipped: "moved" };

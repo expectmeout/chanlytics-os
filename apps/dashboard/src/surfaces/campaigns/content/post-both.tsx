@@ -38,6 +38,7 @@ import { PlaceRow } from "./post-both-places";
 import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-both-sends";
 import { viewerClockOf } from "./viewer/clock";
 import { WhereItGoes } from "./viewer/goes";
+import { PieceVersions } from "./viewer/versions";
 import { PieceResults } from "./viewer/results";
 
 const COMPOSER_SAYS = CONTENT_WORDS.post;
@@ -248,7 +249,7 @@ export function PostBoth({
   both: PostBothState;
   doors?: PlaceDoors;
   /** The piece's placements, a line each (viewer/goes.tsx): said over the places, which then keep only their switch. */
-  standing?: Pick<PieceStanding, "lines" | "goes" | "results">;
+  standing?: Pick<PieceStanding, "lines" | "goes" | "results" | "version">;
 }) {
   const { draft, takes, wont, offers } = both;
   if (!draft || !takes || !wont || !offers) return null;
@@ -258,6 +259,14 @@ export function PostBoth({
   return (
     <div className="cnv-compose" data-testid="cnv-compose">
       {standing ? <WhereItGoes lines={lines} on={standing.goes} /> : null}
+      {standing ? (
+        <PieceVersions
+          list={standing.version.list}
+          instead={standing.version.instead}
+          may={both.may}
+          busy={standing.goes.busy}
+        />
+      ) : null}
       {standing ? <PieceResults {...standing.results} /> : null}
       {/* Named as its sheet is. */}
       {places.length > 0 ? (

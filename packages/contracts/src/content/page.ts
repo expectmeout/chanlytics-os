@@ -67,6 +67,8 @@ export interface ContentMadeDto {
   posts: PostDto[];
   /** Where its owner said they posted it themselves (00620), or none: read apart from its posts, which a press sends. */
   by_hand?: HandPostDto | null;
+  /** A new version of this video being made now (00708), by its number: its tile shows it dimmed under the three. Absent otherwise. */
+  version_drawing?: number;
 }
 
 /** One post at one place, with the piece it is of: a line of Needs you, Scheduled or Posted. */

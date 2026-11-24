@@ -195,7 +195,7 @@ export async function keepPieceImage(
 /** What a member reads of a video on the Content page: where it stands and the plan it was pressed with, never its machine. */
 export type PieceStandingRow = Pick<
   PieceRow,
-  "id" | "status" | "stage" | "failed_why" | "plan" | "file_id" | "created_at"
+  "id" | "status" | "stage" | "failed_why" | "plan" | "file_id" | "created_at" | "revises"
 >;
 
 /**
@@ -228,7 +228,7 @@ export async function listPiecesStanding(
 ): Promise<PieceStandingRow[]> {
   const { data, error } = await db
     .from("pieces")
-    .select("id, status, stage, failed_why, plan, file_id, created_at")
+    .select("id, status, stage, failed_why, plan, file_id, created_at, revises")
     .eq("tenant_id", tenantId)
     .or(`status.eq.making,and(status.eq.failed,created_at.gte.${page.failedSince})`)
     .order("created_at", { ascending: false })

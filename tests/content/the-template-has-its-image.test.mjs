@@ -42,6 +42,19 @@ test("the hash reads the template, what its machine runs, its pinned versions, t
   assert.ok(!files.some((f) => /node_modules|\/build\/|\/public\//.test(f)));
 });
 
+test("the template asks for what its lock pins, so `npm ci` installs what its image is built from", () => {
+  const read = (file) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/video", file), "utf8"));
+  const asked = read("package.json");
+  const pinned = read("package-lock.json").packages[""];
+  // The lock is what the hash reads and what the image is built from; a version moved in package.json alone fails `npm ci`
+  // there (24 Nov 2026: Remotion 4.0.545 asked, 4.0.542 pinned, after a dependency bump moved one side).
+  assert.deepEqual(
+    { ...asked.dependencies, ...asked.devDependencies },
+    { ...pinned.dependencies, ...pinned.devDependencies },
+    "tooling/video: move a version in package.json and its lock together (npm install there), then build the edition's image",
+  );
+});
+
 test("a plan is drawn by `blocks`, however it was kept; a shape's own composition is its name as the renderer takes one", async () => {
   const { piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
   // What a row kept as "Hook first" is read as is drawn by the one composition every plan is.

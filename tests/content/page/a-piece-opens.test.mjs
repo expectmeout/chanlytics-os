@@ -242,6 +242,17 @@ const standingOf = (over = {}) => ({
   clock: { day: (at) => at, ahead: (at) => at },
   takeDown: null,
   sheets: null,
+  // One version (00708): nothing being made, no version line, nothing listed.
+  version: {
+    making: null,
+    ver: null,
+    pill: null,
+    under: null,
+    lead: null,
+    lines: new Map(),
+    list: [],
+    instead: noop,
+  },
   ...over,
 });
 /** What piece.tsx hands the desk's pane and the phone's viewer alike. */

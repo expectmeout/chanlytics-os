@@ -324,6 +324,9 @@ export function ViewerFoot(props: {
     ad: { words: string; press: () => void } | null;
     takeDown: (() => void) | null;
     holdsLead: boolean;
+    /** Its versions' line under its name, and the sentence under its status (the version board); null where none. */
+    ver: string | null;
+    under: string | null;
     more: ReactNode;
     tell: ReactNode;
   };
@@ -339,9 +342,19 @@ export function ViewerFoot(props: {
         <p className="cnv-viewer-line" data-testid="cnv-line">
           {props.line}
         </p>
+        {props.standing?.ver ? (
+          <p className="cnv-viewer-line" data-testid="cnv-version-line">
+            {props.standing.ver}
+          </p>
+        ) : null}
       </div>
       {viewerHasStatus(file, props.next) ? (
         <ViewerStatus posts={posts} next={props.next} clock={clock} opens={acts.onStatus} pill={props.standing?.pill} />
+      ) : null}
+      {props.standing?.under ? (
+        <p className="cnv-viewer-line" data-testid="cnv-version-under">
+          {props.standing.under}
+        </p>
       ) : null}
       {props.problem ? (
         <p className="cnv-viewer-line" role="alert" data-testid="cnv-problem">
