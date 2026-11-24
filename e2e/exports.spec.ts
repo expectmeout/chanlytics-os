@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
+import { EXPORT_SECTIONS, PERSON_EXPORT_SECTIONS } from "../packages/contracts/src/index";
 
 /**
  * Exports, on a real workspace, from the routes that write the files.
@@ -14,32 +15,13 @@ const PEOPLE_HEADER =
   // Appended by the wiring's second audit (R14 X3, #1595): email's own answer about offers, and what each yes covers.
   "email_offers,email_offers_source,email_offers_updated,email_unreachable_since,consent_covers,offers_covers";
 
-/** The workspace's file's sections, in its order (contracts EXPORT_SECTIONS). */
-const WORKSPACE_SECTIONS = [
-  "people",
-  "conversations",
-  "files",
-  "calls",
-  "consent_history",
-  "notes_and_steps",
-  "deals",
-  "business",
-  "team",
-  "bookings",
-  "lists",
-  "list_members",
-  "campaigns",
-  "sends",
-  "templates",
-  "holds",
-  "rules",
-  "reviews",
-  "leads",
-  "reach_out_replies",
-];
-/** One person's (contracts PERSON_EXPORT_SECTIONS): the workspace's, less its own five. */
-const WORKSPACES_OWN = new Set(["business", "team", "campaigns", "templates", "reviews"]);
-const PERSON_SECTIONS = WORKSPACE_SECTIONS.filter((s) => !WORKSPACES_OWN.has(s));
+/**
+ * The workspace's file's sections, in its order, and one person's: contracts' own lists, which the node suite holds the
+ * export to (tests/workspace/exports.test.mjs). Restated here, each section a new kind of record added (a form's entries, #2511)
+ * turned the nightly red with nothing wrong; what this proves is that the file the route writes holds them in that order.
+ */
+const WORKSPACE_SECTIONS: readonly string[] = EXPORT_SECTIONS;
+const PERSON_SECTIONS: readonly string[] = PERSON_EXPORT_SECTIONS;
 
 test.describe("Exports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);

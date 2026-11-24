@@ -136,6 +136,14 @@ function boxWordsOf(box: { textContent: string | null }, el: HTMLElement | null,
   return kept;
 }
 
+/**
+ * What a save that has answered holds in the box until the page reads it back: what was typed, unless the page has read it
+ * already, in the spelling it was stored in ("Ana@Example.COM" kept as "ana@example.com"). Held then, the typed spelling
+ * stood until a reload, since the value it waits on had already come.
+ */
+const heldOnceSaved = (typed: string, now: Pick<InPlaceOptions, "same">): string | null =>
+  typed && !now.same(typed) ? typed : null;
+
 export function useInPlace(o: InPlaceOptions): InPlace {
   const box = useRef<HTMLElement | null>(null);
   const [typing, setTyping] = useState(false);
@@ -152,6 +160,9 @@ export function useInPlace(o: InPlaceOptions): InPlace {
   // A save asked for from the box: it holds the keys until the door answers. `left` is its typing left meanwhile.
   const asking = useRef(false);
   const left = useRef(false);
+  // What the page draws now, read when a save answers: the read that follows a save can land before the save's own answer.
+  const latest = useRef(o);
+  latest.current = o;
   useEffect(() => setHeld(null), [o.value]);
   const shown = typing ? frozen : (held ?? o.value);
   const setBox = useCallback((el: HTMLElement | null) => {
@@ -180,7 +191,7 @@ export function useInPlace(o: InPlaceOptions): InPlace {
     asking.current = false;
     if (left.current) {
       // The box was left while the door answered: the words stay said, or the value comes back and the page says why.
-      setHeld(refused ? null : typed || null);
+      setHeld(refused ? null : heldOnceSaved(typed, latest.current));
       if (refused) o.said(refused);
       return;
     }
@@ -188,7 +199,7 @@ export function useInPlace(o: InPlaceOptions): InPlace {
       setProblem(refused);
       return;
     }
-    setHeld(typed || null);
+    setHeld(heldOnceSaved(typed, latest.current));
     leaving.current = true;
     blur();
   };

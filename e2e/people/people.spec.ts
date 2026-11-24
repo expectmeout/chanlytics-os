@@ -166,20 +166,26 @@ test.describe("People on a real workspace", () => {
         .count(),
     ).toBeLessThanOrEqual(1);
 
-    // History in full is a view of its own at the person's address with its word, through "All N" where there is more
-    // than the page shows; the view replaces the entry, so Back below still leaves the person.
-    const all = page.getByTestId("person-history-all");
-    if ((await all.count()) > 0) {
-      await all.click();
-      await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}\/history$/));
-      await expect(page.getByTestId("person-view-history")).toBeVisible();
-    }
-
     // Between 901 and 1250px the name's column went to zero beside the header's buttons. The column, not the
     // name: a name's own box is only as wide as its letters, and passes while the column around it is broken.
     await page.setViewportSize({ width: 1000, height: 800 });
     const column = (await page.locator(".cl-prof-name-line").first().boundingBox())!;
     expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(150);
+
+    // History in full is a view of its own at the person's address with its word, through "All N" where there is more
+    // than the page shows. It draws under the bar alone, with no head of the person's (the one page, #2399, 17 Nov 2026),
+    // and its way back says their name and puts the view away to their page; the view replaced the entry, so Back
+    // below still leaves the person.
+    const all = page.getByTestId("person-history-all");
+    if ((await all.count()) > 0) {
+      await all.click();
+      await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}\/history$/));
+      await expect(page.getByTestId("person-view-history")).toBeVisible();
+      await expect(page.locator(".cl-prof-name-line")).toHaveCount(0);
+      await page.locator(".pg-back").click();
+      await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}$/));
+      await expect(page.getByTestId("person-now")).toBeVisible();
+    }
 
     // Back returns to the list, not to a "client not found" page. In Glass the page draws no way back of its own: the
     // frame's head draws it where the date stands (‹ People, kit/head/frame-head.tsx), so that is pressed.
