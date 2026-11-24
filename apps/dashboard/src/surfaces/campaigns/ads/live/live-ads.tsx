@@ -16,7 +16,7 @@ import { ActWords } from "../../../kit/head/act-words";
 import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
-import { AdsBar } from "../ads-bar";
+import { AdsBar } from "../content-bar";
 import { CmSplit, type CmView } from "../../parts/split";
 import type { NeedVM } from "../connect/card-model";
 import { rememberAdNames } from "../crumb-names";

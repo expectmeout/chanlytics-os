@@ -120,7 +120,8 @@ function useLiveRedraws() {
 }
 
 /** A page's own counts on its tabs (SurfaceViews heard): the strip drawn again as what they count moves. */
-function useViewsHeard(heard: SurfaceViews["heard"] | null) {
+function useViewsHeard(views: SurfaceViews | null) {
+  const heard = views?.heard;
   const [, stBump] = useReducer((n: number) => n + 1, 0);
   useEffect(() => (heard ? heard(stBump) : undefined), [heard]);
 }
@@ -147,7 +148,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   const under = useHeadUnder();
   const at: StripAt | null = under ? under.strip : { page, param, views };
   const own = at && at.views && at.views.tabs.length > 1 ? at.views : null;
-  useViewsHeard(own?.heard ?? null);
+  useViewsHeard(own);
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
   // Inbox has been.
   const needs = window.useNeedsYou ? window.useNeedsYou() : 0;

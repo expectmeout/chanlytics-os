@@ -539,15 +539,13 @@ function chatsLineOf(ad: AdLiveDto): SheetVM["chats"] {
 const backLineOf = (back: { people: number; booked: number } | undefined, from: "this ad" | "an ad"): string | null =>
   back && back.people > 0 ? SHEET.back({ people: peopleWord(back.people), booked: back.booked, from }) : null;
 
-/** The piece an ad was made from, as its sheet says it: opened in Made by its file, or gone from it. */
-const sheetFromOf = (ad: AdLiveDto): SheetVM["from"] => {
-  // A server from before the piece was named answers none.
-  const from = ad.made_from ?? null;
-  if (from === null) return null;
-  return from.name === null
-    ? { name: null, route: null }
-    : { name: from.name, route: contentRouteOf({ list: "made", view: "all", open: from.file_id }) };
-};
+/** The piece an ad was made from, as its sheet says it: opened in Made by its file, or gone from it (none from a server before). */
+const sheetFromOf = ({ made_from: from = null }: AdLiveDto): SheetVM["from"] =>
+  from === null
+    ? null
+    : from.name === null
+      ? { name: null, route: null }
+      : { name: from.name, route: contentRouteOf({ list: "made", view: "all", open: from.file_id }) };
 
 /** An ad's drawer; null where the page holds no ad of that id. */
 export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): SheetVM | null {

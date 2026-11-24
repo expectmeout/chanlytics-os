@@ -22,7 +22,7 @@ goes). Where Ads was not drawn, an Ads address (a notice, an email, Meta's retur
 2. **Ads is Made's last view**, after a quiet "Paid", where Ads is drawn (`ads/shown.ts`). Its addresses stay
    `campaigns/ads…`, so every link, email and notice that names one still opens it; they light Content, and the crumbs say
    Campaigns › Content › Ads › the ad. Ads keeps its own code, reads and state as a view kept beside the others
-   (`home/route.tsx`), and is drawn in Content's own split and list under Content's bar (`ads/ads-bar.tsx`: Made lit among
+   (`home/route.tsx`), and is drawn in Content's own split and list under Content's bar (`ads/content-bar.tsx`: Made lit among
    the lists, Ads among the views), so the bar stands to the pixel where it stands on Made's other views, on a desk and a
    phone. Content and Ads share the strip's place, so the deck slides nothing between them.
 3. **Where Ads is not drawn, an Ads address opens Content's Made**, where Ads would be.

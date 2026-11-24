@@ -28,7 +28,7 @@ import {
   useFrameToast,
 } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
-import { AdsBar } from "./ads-bar";
+import { AdsBar } from "./content-bar";
 import { CmSplit, type CmView, useCmPhone } from "../parts/split";
 import { PartShown } from "../parts/view-shown";
 import { useAdsConnection } from "./connect/use-card";

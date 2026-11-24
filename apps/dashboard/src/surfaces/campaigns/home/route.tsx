@@ -265,11 +265,9 @@ export function CampaignsRoute() {
   useEffect(() => {
     if (landing) replaceRoute(landing);
   }, [landing]);
-  // Content's tab, pressed from another view, reopens where Content or Ads was left (left-at.ts).
+  // Content's tab, pressed from another view, reopens where Content or Ads was left (left-at.ts, which keeps their places alone).
   const shownAt = landing ?? route;
-  useEffect(() => {
-    if (view === "content" || view === "ads") noteContentLeft(shownAt);
-  }, [view, shownAt]);
+  useEffect(() => noteContentLeft(shownAt), [shownAt]);
   return (
     <CampaignsToast value={flash}>
       {kept.drawn.has("sequences") ? (
@@ -296,7 +294,7 @@ export function CampaignsRoute() {
       ) : null}
       {/* Ads, a view kept beside the others on the same mount (Ruben, 10 Nov 2026: it was a page of its own, so a press on
           its tab put Campaigns away, said Reading, and drew its head 7px lower than the other views'), drawn as the last of
-          Content's Made views, under Content's bar (ads/ads-bar.tsx). */}
+          Content's Made views, under Content's bar (ads/content-bar.tsx). */}
       {adsShown && kept.drawn.has("ads") ? (
         <Activity mode={view === "ads" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading view={kept.viewOf("ads")} />}>

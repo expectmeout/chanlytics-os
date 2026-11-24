@@ -75,6 +75,7 @@ import {
   LibraryKinds,
   useContentLayout,
   weekCountOf,
+  type AdsChoice,
   type ContentLayout,
   type MadeView,
 } from "./views";
@@ -291,6 +292,22 @@ interface BarGlyph {
 const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
   !!tally && tally.made + tally.making + tally.needs + tally.aside === 0;
 
+/** Ads among Made's views where Ads is on: amber where something in it needed the owner as the Ads page last read it. */
+function useAdsChoice(): AdsChoice | null {
+  const shown = useAdsShown();
+  const needing = useAdsNeeding();
+  return shown ? { owed: needing > 0 } : null;
+}
+
+/**
+ * Whether the list is drawn as Squares or rows, the one choice for both lists: the Library once it holds a file (as its
+ * coral Add waits, heads.tsx WhileLibraryHolds); Made's All, Making and Set aside while it holds anything (not its lines).
+ */
+const laidOutOf = (place: ContentPlace, bare: boolean, libraryHolds: boolean): boolean =>
+  place.list === "library"
+    ? libraryHolds
+    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+
 /**
  * The bar over the list: Made or the Library, then the list's own. On a phone, the search's glyph while the find line rests
  * and the views' pill, which holds Squares or List too (Ruben, 12 Nov 2026: one row as People's and the Inbox's, the glyph
@@ -314,18 +331,12 @@ function ContentBar(props: {
   // Ads, the last of Made's views where it is on, is its own page at its own address (campaigns/ads), drawn in Made's place.
   const onView = (v: MadeView) =>
     navigate(v === "ads" ? ADS_ROUTE : contentRouteOf({ list: "made", view: v, open: null }));
-  // Ads amber where something in it needed the owner as the Ads page last read it (ads/needs-you.ts).
-  const adsShown = useAdsShown();
-  const needing = useAdsNeeding();
-  const ads = adsShown ? { owed: needing > 0 } : null;
+  const ads = useAdsChoice();
   const libraryHolds = useLibraryHolds();
   // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do). The
   // Library's Squares or List waits for its first file, as its coral Add does (heads.tsx WhileLibraryHolds).
   const bare = week || (!library && place.view === "all" && madeHoldsNothing(tally));
-  // Squares or rows, the one choice for both lists, where the list is drawn as either (not Made's lines).
-  const laidOut = library
-    ? libraryHolds
-    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+  const laidOut = laidOutOf(place, bare, libraryHolds);
   const layoutHeld = laidOut ? { value: props.layout, choose: props.choose } : null;
   return (
     <>

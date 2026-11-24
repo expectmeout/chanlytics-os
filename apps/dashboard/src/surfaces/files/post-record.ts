@@ -24,6 +24,9 @@ import { fileVerbs } from "./verbs";
  * reads. Nothing is said until it comes. A video's is read again as what it is heard changes (its list's `sound_said`), and a
  * post's as the page it is open on says its posts moved (`moved`: a post that landed brings its See it without a reopen).
  */
+/** A piece's standing for an ad and the ads it is in, before its record is read or for another file's: none. */
+const NO_AD: { stands: PieceAdStands | null; usedIn: PieceAdUseDto[] } = { stands: null, usedIn: [] };
+
 export function usePostRecord(file: FileDto, moved = "") {
   const [made, setMade] = useState<FileMade | null>(null);
   const [connected, setConnected] = useState(false);
@@ -73,7 +76,7 @@ export function usePostRecord(file: FileDto, moved = "") {
       live = false;
     };
   }, [file.id, isPost, isVideo, heard, asked, moved]);
-  const adHere = ad?.id === file.id ? ad : null;
+  const adHere = ad?.id === file.id ? ad : NO_AD;
   const here = standing?.id === file.id ? standing : null;
   return {
     made,
@@ -85,9 +88,9 @@ export function usePostRecord(file: FileDto, moved = "") {
     facebook,
     posts,
     video,
-    ad: adHere?.stands ?? null,
+    ad: adHere.stands,
     /** The ads it is shown in, once its record is read: none before, and none for a piece in no ad. */
-    usedIn: adHere?.usedIn ?? [],
+    usedIn: adHere.usedIn,
     /** Whether this file's record has been read: nothing is said of a place before it is. */
     read: here !== null,
     takeDown: here?.takeDown ?? null,
