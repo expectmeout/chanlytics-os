@@ -6,7 +6,7 @@
  * a post or a story; one where it is up, going up or set for its time says so, with its door (see it, take it down, Don't
  * post); one that can take none says why. The caption that goes with it is typed under the places, in the same sheet
  * (viewer/details.tsx ViewerFacts), and Post sends the words on screen: each place's door keeps them on the piece in the same
- * step (server posts/caption.ts keepPostWords), so the words that go and the words kept are never two. Post asks first;
+ * step (server posts/caption.ts readWordsToKeep, kept by 00713 post_approve_whole), so the words that go and the words kept are never two. Post asks first;
  * Schedule picks a day and a time; Change time moves a post set for one, itself, in one step (00621). Each press goes through
  * its place's own doors (files/verbs.ts postDoors); what its presses do is post-both-sends.tsx, and a place's row is
  * post-both-places.tsx. A place that went is switched off, so a second press never sends it twice;
