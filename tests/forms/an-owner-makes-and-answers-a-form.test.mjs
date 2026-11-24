@@ -34,7 +34,6 @@ const requests = await import(at("apps/dashboard/app/api/v1/forms/requests/route
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
-const { linkFormReply } = await import("@chanlytics/db/forms");
 const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms.ts"));
 const { CHANNEL_WORDS, formDescriptionProblems } = await import("@chanlytics/contracts");
@@ -403,7 +402,18 @@ test("a reply answers the request it was sent from, and one taken back or failed
     created_at: new Date().toISOString(),
   };
   w.tables.messages.push(message);
-  await linkFormReply(w.db, { tenantId: A, entryId: first.entry_id, messageId: message.id, userId: U });
+  // Linked in the message's own write, as the database links a reply that names its request (00713).
+  w.tables.form_entry_links.push({
+    id: "abababab-abab-4bab-8bab-abababababab",
+    tenant_id: A,
+    entry_id: first.entry_id,
+    kind: "reply",
+    message_id: message.id,
+    conversation_id: null,
+    appointment_id: null,
+    created_by: U,
+    created_at: new Date().toISOString(),
+  });
   const answered = await w.requestOf(first.entry_id);
   assert.equal(answered.standing, "answered");
   assert.equal(answered.answered.how, "reply");

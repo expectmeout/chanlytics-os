@@ -119,23 +119,38 @@ const timers = [];
 const heard = new Map();
 /** The window hears `kind` (a touch, a key, a tap on `target`), as a browser tells every listener. */
 const fire = (kind, target = null) => [...(heard.get(kind) ?? [])].forEach((fn) => fn({ type: kind, target }));
-/** Each ResizeObserver made, with the boxes it watches; `sized(box)` is the browser telling them that box was laid out. */
+/**
+ * Each ResizeObserver made, with the boxes it watches and the height it last told of each; `sized(box)` is the browser
+ * telling them that box was laid out, and `laidOut(box)` the browser as it is: it tells only an observer that last told
+ * another height, a box watched anew from none (a second observe of a box watched is nothing, as in Chromium).
+ */
 const observers = new Set();
 globalThis.ResizeObserver = class {
   constructor(fn) {
     this.fn = fn;
-    this.boxes = new Set();
+    this.boxes = new Map();
     observers.add(this);
   }
   observe(box) {
-    this.boxes.add(box);
+    if (!this.boxes.has(box)) this.boxes.set(box, 0);
+  }
+  unobserve(box) {
+    this.boxes.delete(box);
   }
   disconnect() {
     this.boxes.clear();
     observers.delete(this);
   }
 };
-const sized = (box) => [...observers].filter((o) => o.boxes.has(box)).forEach((o) => o.fn([]));
+const tell = (box, changed) =>
+  [...observers]
+    .filter((o) => o.boxes.has(box) && (!changed || o.boxes.get(box) !== box.offsetHeight))
+    .forEach((o) => {
+      o.boxes.set(box, box.offsetHeight);
+      o.fn([]);
+    });
+const sized = (box) => tell(box, false);
+const laidOut = (box) => tell(box, true);
 const html = element("html", { height: 4000 });
 // The document's own marks (data-carrying) and the frame's top's height (--frame-top), as the hold writes them.
 html.attrs = new Set();
@@ -597,10 +612,47 @@ test("while a thumb carries the row's page, the frame's top keeps its height, so
   p.draw(true);
   showHeld(true);
   top.offsetHeight = 134;
-  sized(top);
+  laidOut(top);
   assert.equal(html.style["--frame-top"], "0px", "the chrome drawn again under the page moves nothing");
   showHeld(false);
-  assert.equal(html.style["--frame-top"], "134px", "measured once the carry is over");
+  laidOut(top);
+  assert.equal(
+    html.style["--frame-top"],
+    "134px",
+    "measured once the carry is over, as the frame is next laid out, though its observer told of 134 px while it was held",
+  );
+  stop();
+  p.leave();
+});
+
+test("a carry let go is measured as the frame is next laid out, never in the draw that swaps the heads: the page does not jump", () => {
+  // As a person's page pushed in landed, the list's head drawn under it went a draw before the page's own came back; the
+  // top, measured between the two, was 10 px, and the page moved 34 px up and down again (a slow phone, 24 Nov 2026).
+  const top = element("frame-top", { height: 44 });
+  top.offsetHeight = 44;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stop = watchFrameTop(top);
+  laidOut(top);
+  assert.equal(html.style["--frame-top"], "44px");
+  const { list } = inbox();
+  const p = page(list);
+  p.draw(false);
+  p.draw(true);
+  showHeld(true);
+  const written = [];
+  const write = html.style.setProperty;
+  html.style.setProperty = (name, value) => {
+    written.push(value);
+    write(name, value);
+  };
+  top.offsetHeight = 10;
+  showHeld(false);
+  assert.deepEqual(written, [], "nothing written between the two heads");
+  top.offsetHeight = 44;
+  laidOut(top);
+  assert.deepEqual(written, ["44px"], "the page's own head, once, as the frame is laid out");
+  html.style.setProperty = write;
   stop();
   p.leave();
 });

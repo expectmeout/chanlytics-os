@@ -109,7 +109,7 @@ type PiecePosts = ReturnType<typeof usePiecePosts>;
 
 /**
  * The caption on screen, as the box under a post's places holds it (viewer/caption.tsx onText): what Post sends, and what each
- * place's door keeps on the piece in the same step (server posts/caption.ts keepPostWords), so words typed just before Post go,
+ * place's door keeps on the piece in the same step (server posts/caption.ts readWordsToKeep, kept by 00713 post_approve_whole), so words typed just before Post go,
  * however the box was left (Ruben, 12 Nov 2026). Null while no box under the places shows it.
  */
 function useCaptionShown(fileId: string) {

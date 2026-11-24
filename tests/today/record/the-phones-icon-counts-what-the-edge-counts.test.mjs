@@ -13,6 +13,8 @@ import assert from "node:assert/strict";
 import { keptUnreadOf, unreadFor } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
+const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 const iso = (min) => new Date(NOW - min * 60_000).toISOString();
@@ -93,8 +95,6 @@ test("a row the server closed counts on neither side, and the unread rows past t
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
-const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const was = globalThis.window;
 globalThis.window = {
   fetch: async () => new Response("{}", { status: 500 }),

@@ -65,6 +65,43 @@ export const callDto = (over = {}) => ({
   ...over,
 });
 
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installStubReact({
+  location: {
+    pathname: "/w/marisas",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "t1",
+  __chrome: { state: stateOf },
+  __identity: { member: memberWords },
+  CHANLY: {
+    nav() {},
+    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
+    IX_NOW: "12:04",
+    CONF: { SAFE: 0.8, MED: 0.5 },
+  },
+  __surfaceState: () => "live",
+  __href: (route, p) => `${route}|${p.id}`,
+  canDo: () => true,
+  gate: () => ({}),
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
+(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+const { InboxThread, ixOpensAt } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
+const { tlFollowBy } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/call.tsx");
+const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+
 /* ------------------------- the call names its own note ------------------------- */
 
 test("a call knows the note it left on its thread, and says its facts as facts -- not only inside sentences", () => {
@@ -169,42 +206,6 @@ test("a connected call with no recording says so; a call that never connected sa
 
 /* ---------------------------------- a browser ---------------------------------- */
 
-const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installStubReact({
-  location: {
-    pathname: "/w/marisas",
-    hash: "",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
-  CHANLY: {
-    nav() {},
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-    IX_NOW: "12:04",
-    CONF: { SAFE: 0.8, MED: 0.5 },
-  },
-  __surfaceState: () => "live",
-  __href: (route, p) => `${route}|${p.id}`,
-  canDo: () => true,
-  gate: () => ({}),
-  setTimeout: () => 1,
-  clearTimeout() {},
-  setInterval: () => 1,
-  clearInterval() {},
-});
-after(() => Object.assign(globalThis, timers));
-// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-const { InboxThread, ixOpensAt } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
-const { tlFollowBy } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/call.tsx");
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 // A kit Menu's items as one list, with a "|" between two groups for the shape.
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 const shapeOf = (menu) => menu.props.groups.flatMap((g, i) => [...(i ? ["|"] : []), ...g.items.map((it) => it.label)]);

@@ -52,7 +52,7 @@ for (const k of [
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
+const { setInboundPorts, realPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
 const later = await import(at("apps/edge/lib/intake/answer-job.ts"));
@@ -1903,8 +1903,6 @@ test("the delivery is kept as it came under the body's digest, with no workspace
 });
 
 /* ------------------------------- answered after the acknowledgement (0031, Phase 3) */
-
-const { realPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
 
 test("a WhatsApp message is recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
   const w = world();

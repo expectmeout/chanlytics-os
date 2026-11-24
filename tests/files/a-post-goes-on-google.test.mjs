@@ -11,6 +11,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { approveWhole } from "../content/places/_approve-whole.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -130,6 +131,16 @@ function world({
   const attempts = [];
   // One table of placements, as the database has: the member's door writes it, the service role's doors move it.
   const doors = placementDoors(posts, attempts);
+  // The words kept as the piece's next version (00681): asked by every press that changes them.
+  // As the door has it: every placement still queued, never a story, goes up with the new words.
+  const keepWords = ({ p_file_id, p_caption }) => {
+    const words = p_caption.trim() || null;
+    const taking = posts.filter(
+      (p) => p.file_id === p_file_id && p.status === "queued" && p.kind !== "story" && p.caption !== words,
+    );
+    for (const post of taking) post.caption = words;
+    return { revision: 1, followed: taking.length };
+  };
   const ctx = {
     supabase: fakeDb(
       {
@@ -170,18 +181,11 @@ function world({
       },
       {},
       {
-        post_approve: doors.approve,
+        // 00713's door: the words and the approval kept whole, through the two doors below.
+        post_approve_whole: approveWhole({ post_approve: doors.approve, piece_words_keep: keepWords }),
+        // A caption changed in Details keeps its words by this door alone.
+        piece_words_keep: keepWords,
         post_pull: doors.pull,
-        // The words kept as the piece's next version (00681): asked by every press.
-        // As the door has it: every placement still queued, never a story, goes up with the new words.
-        piece_words_keep: ({ p_file_id, p_caption }) => {
-          const words = p_caption.trim() || null;
-          const taking = posts.filter(
-            (p) => p.file_id === p_file_id && p.status === "queued" && p.kind !== "story" && p.caption !== words,
-          );
-          for (const post of taking) post.caption = words;
-          return { revision: 1, followed: taking.length };
-        },
       },
     ),
     userId: USER,
