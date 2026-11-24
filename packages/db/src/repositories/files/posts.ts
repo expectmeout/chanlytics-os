@@ -234,7 +234,7 @@ export async function listPostAttempts(db: Db, tenantId: TenantId, postId: strin
 }
 
 /** The columns a member reads of a post (00611's grant): never its container. */
-const MEMBER_POST_COLUMNS =
+export const MEMBER_POST_COLUMNS =
   "id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
 
 export type MemberPostRow = Pick<

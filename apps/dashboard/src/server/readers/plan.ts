@@ -4,6 +4,7 @@ import {
   DAY_MS,
   cadenceOf,
   calendarFeedKeyOf,
+  lookSaidOf,
   offeringHorizon,
   parseIcs,
   parseTenantConfig,
@@ -32,6 +33,7 @@ import { findWorkspaceRuntimeRow, findWorkspaceZone } from "@chanlytics/db/works
 import { loadFeed } from "../calendar/openings";
 import { recordBusy } from "../calendar/record-busy";
 import { readInstagramPostable } from "../connections/meta";
+import { readBrandKit } from "../workspace/brand-kit";
 import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { fileDtoOf } from "./files";
@@ -99,10 +101,11 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
     const { zone, parsed, claims, goals } = await readWeekBasics(rc);
     const content = parsed?.content;
     const weekOf = args.week ?? planWeekOf(zone, rc.now.getTime());
-    const [week, places, runtime] = await Promise.all([
+    const [week, places, runtime, brand] = await Promise.all([
       readContentWeek(rc.ctx.supabase, rc.tenantId, weekOf),
       readWeekPlaces(rc),
       findWorkspaceRuntimeRow(rc.ctx.supabase, rc.tenantId),
+      readBrandKit(rc.ctx, rc.tenantId, parsed),
     ]);
     return {
       data: {
@@ -119,6 +122,10 @@ export const contentPlan: Reader<{ week?: string | undefined }, WeekPageDto> = {
         quiet_days: content?.quiet_days ?? [],
         languages: content?.languages ?? [],
         lines: content?.lines ?? {},
+        look: {
+          words: lookSaidOf(brand.kit, { logo: brand.logo_path !== null, accent: brand.accent !== null }),
+          colours: [brand.accent, brand.kit.second].filter((c): c is string => c !== null),
+        },
       },
       rows: [],
       stamp: readerStamp(),

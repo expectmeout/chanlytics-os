@@ -47,7 +47,7 @@ function Reel({ timeline, cuts }: Pick<HookCutMaterial, "timeline" | "cuts">) {
           </Sequence>
         );
       })}
-      <Words words={timeline.words} />
+      <Words words={timeline.words} face="sans" />
     </AbsoluteFill>
   );
 }
@@ -66,7 +66,7 @@ export function HookCut({ timeline, cuts, logo }: HookCutMaterial) {
           timing={linearTiming({ durationInFrames: PIECE_FRAME.fade })}
         />
         <TransitionSeries.Sequence durationInFrames={PIECE_FRAME.end}>
-          <EndCard end={timeline.end} logo={logo} accent={timeline.accent} />
+          <EndCard end={timeline.end} logo={logo} accent={timeline.accent} face="sans" />
         </TransitionSeries.Sequence>
       </TransitionSeries>
     </AbsoluteFill>

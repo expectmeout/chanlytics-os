@@ -1208,6 +1208,13 @@
       "rate": "settings",
       "spend": false
     },
+    "POST files/[id]/version": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_instagram",
+      "spend": false
+    },
     "GET files/[id]/view": {
       "kind": "read",
       "scope": "row",

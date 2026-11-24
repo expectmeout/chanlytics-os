@@ -7596,6 +7596,7 @@ export type Database = {
           machine: Json | null
           made_at: string | null
           plan: Json
+          revises: string | null
           revision: number
           shape: string
           stage: string
@@ -7616,6 +7617,7 @@ export type Database = {
           machine?: Json | null
           made_at?: string | null
           plan: Json
+          revises?: string | null
           revision?: number
           shape: string
           stage?: string
@@ -7636,6 +7638,7 @@ export type Database = {
           machine?: Json | null
           made_at?: string | null
           plan?: Json
+          revises?: string | null
           revision?: number
           shape?: string
           stage?: string
@@ -7649,6 +7652,13 @@ export type Database = {
             columns: ["tenant_id", "file_id"]
             isOneToOne: false
             referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pieces_revises_same_workspace"
+            columns: ["tenant_id", "revises"]
+            isOneToOne: false
+            referencedRelation: "pieces"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -13660,6 +13670,10 @@ export type Database = {
         Args: { p_actor: string; p_file_id: string; p_tenant_id: string }
         Returns: string
       }
+      piece_posts_replace: {
+        Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       piece_sent: { Args: { p_piece_id: string }; Returns: boolean }
       piece_stage: {
         Args: { p_piece_id: string; p_stage: string }
@@ -13669,6 +13683,27 @@ export type Database = {
         Args: { p_machine: Json; p_piece_id: string }
         Returns: boolean
       }
+      piece_version_begin: {
+        Args: {
+          p_edition: number
+          p_key: string
+          p_look: Json
+          p_piece_id: string
+          p_plan: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      piece_version_kept: {
+        Args: {
+          p_bytes: number
+          p_changed: string[]
+          p_checksum: string
+          p_piece_id: string
+        }
+        Returns: number
+      }
+      piece_version_ready: { Args: { p_file_id: string }; Returns: Json }
       piece_words_keep: {
         Args: { p_caption: string; p_file_id: string; p_tenant_id: string }
         Returns: Json

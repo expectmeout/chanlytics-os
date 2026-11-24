@@ -8,6 +8,14 @@
 .cset > .cnv-ask-line {
   margin-bottom: var(--space-3);
 }
+.cset-look {
+  display: grid;
+  gap: var(--space-2);
+}
+.cset-swatches {
+  display: flex;
+  gap: var(--space-1);
+}
 .cset-offer {
   display: flex;
   align-items: center;

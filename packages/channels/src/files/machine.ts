@@ -40,7 +40,8 @@ export type RenderState =
 const JOB_FILE = "piece/job.json";
 const PROGRESS_FILE = "piece/progress.json";
 const VIDEO_NAME = "video.mp4";
-const VIDEO_FILE = `piece/${VIDEO_NAME}`;
+/** What a drawing leaves on its machine: the video, and the still of its cover where it was asked for one. */
+const DRAWN_FILES = { video: `piece/${VIDEO_NAME}`, cover: "piece/cover.jpg" } as const;
 
 const sdk = () => import("@vercel/sandbox");
 
@@ -150,12 +151,15 @@ export async function readRender(machine: RenderMachine): Promise<RenderState> {
   }
 }
 
-/** The drawn video's bytes, or null where the machine no longer has them. */
-export async function readRenderBytes(machine: RenderMachine): Promise<Uint8Array<ArrayBuffer> | null> {
+/** The drawn video's bytes, or its cover's, or null where the machine no longer has them (or drew no cover). */
+export async function readRenderBytes(
+  machine: RenderMachine,
+  which: keyof typeof DRAWN_FILES,
+): Promise<Uint8Array<ArrayBuffer> | null> {
   try {
     const { Sandbox } = await sdk();
     const sandbox = await Sandbox.get({ name: machine.name });
-    const bytes = await sandbox.readFileToBuffer({ path: VIDEO_FILE });
+    const bytes = await sandbox.readFileToBuffer({ path: DRAWN_FILES[which] });
     return bytes ? new Uint8Array(bytes) : null;
   } catch {
     // Gone, or not answering: the caller draws again or says it could not.

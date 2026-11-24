@@ -169,9 +169,20 @@ function VideoFrame({ file, name }: { file: FileDto; name: string }) {
 
 export /**
  * One photo on the grid: the picture, and the name it goes by, which the look changes under the eye. A page that draws a
- * file at its own shape says which (Campaigns › Content); Files' own grid says none, and its tiles stay square.
+ * file at its own shape says which (Campaigns › Content); Files' own grid says none, and its tiles stay square. A page may
+ * draw over the picture (`over`: Content's video whose next version is being made).
  */
-function Photo({ file, onOpen, shape }: { file: FileDto; onOpen: () => void; shape?: TileShape }) {
+function Photo({
+  file,
+  onOpen,
+  shape,
+  over,
+}: {
+  file: FileDto;
+  onOpen: () => void;
+  shape?: TileShape;
+  over?: ReactNode;
+}) {
   const name = fileSaidOf(file.name);
   const nameFades = useSwapMotion<HTMLSpanElement>(name);
   return (
@@ -183,6 +194,7 @@ function Photo({ file, onOpen, shape }: { file: FileDto; onOpen: () => void; sha
           <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
         )}
         <AskLooking looking={file.look_status === "waiting" && file.media_status !== "failed"} />
+        {over}
       </span>
       <span ref={nameFades} className="files-name">
         {name}

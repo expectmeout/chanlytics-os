@@ -127,9 +127,9 @@ what the script writes.
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`piece_images`](#piece_images) | `packages/db/src/repositories/files/pieces.ts` | on, no policy, so only the service role reaches it |
-| [`piece_renditions`](#piece_renditions) | none | on, 1 policy |
-| [`piece_revisions`](#piece_revisions) | none | on, 1 policy |
-| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
+| [`piece_renditions`](#piece_renditions) | `packages/db/src/repositories/files/versions.ts` | on, 1 policy |
+| [`piece_revisions`](#piece_revisions) | `packages/db/src/repositories/files/versions.ts` | on, 1 policy |
+| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`plan_slots`](#plan_slots) | `packages/db/src/repositories/files/plans.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
@@ -137,7 +137,7 @@ what the script writes.
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`post_observations`](#post_observations) | `packages/db/src/repositories/content/observations.ts` | on, 1 policy |
-| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
+| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/auth/account.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
@@ -3768,7 +3768,7 @@ The machine image a made video is drawn on, one row an edition of the template (
 
 One shape of a piece's version as it is sent (00681; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/versions.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3799,7 +3799,7 @@ Foreign keys:
 
 One version of a piece (00681; the content loop PRD's 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/versions.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3831,7 +3831,7 @@ Foreign keys:
 
 One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/week-facts.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3855,11 +3855,13 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | `made_at` | timestamp with time zone | yes |  |  |
 | `revision` | integer | no | `1` | The version the piece stands at (00681, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep). |
 | `intent` | jsonb | yes |  | Why it exists (00681; the content loop PRD's 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands). |
+| `revises` | uuid | yes |  | The piece this one is drawn as a new version of (00708): its root, never a version. Null for a piece of its own. Written by piece_version_begin; the drawn file becomes the root's next version (piece_version_kept, piece_version_ready). |
 
 Foreign keys:
 
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `revises` → [`pieces`](#pieces) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -4085,7 +4087,7 @@ Foreign keys:
 
 One row per place a post goes (00611, decision 0121): the exact file approved, who approved it and when, its words there, when it goes and where it stands. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/week-facts.ts`
+- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

@@ -12,6 +12,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { CONTENT_CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { madeJpegBytes, madeVideoBytes } from "../content/making/_made-bytes.mjs";
+
+/** What the bucket holds at a made file's path: its own MP4 for a video, a JPEG for each of a post's shapes. */
+const shapeBytesOf = (tenant, at) =>
+  at.endsWith(".mp4") ? madeVideoBytes({ seconds: 13, tag: tenant }) : madeJpegBytes({ tag: tenant });
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -251,9 +256,10 @@ function world({
     },
   ];
   const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows, pieces }, {}, {});
-  // The approval reads each shape it sends, and sums its bytes (posts/approve.ts).
+  // The approval reads each shape it sends, sums its bytes and measures them against the place (posts/approve.ts):
+  // a made post's shapes are JPEGs, a made video its MP4, as the bucket holds them.
   service.storage = {
-    from: () => ({ download: async () => ({ data: new Blob([`bytes of ${tenant}`]), error: null }) }),
+    from: () => ({ download: async (path) => ({ data: new Blob([shapeBytesOf(tenant, path)]), error: null }) }),
   };
   setServiceClient(service);
   return { ctx, tenant, begun, pulled, moved, rows, kept, doors, wordsKept };
@@ -492,9 +498,10 @@ test("the approval is of the exact bytes: each shape by its path and the full SH
   const w = world();
   await route.POST.run(send(w, "POST", { as: "picture", caption: "  Open late on Fridays.  " }), w.ctx);
   const { approval } = w.begun[0];
-  const sum = createHash("sha256").update(`bytes of ${w.tenant}`).digest("hex");
+  const read = shapeBytesOf(w.tenant, `${w.tenant}/${POST_ID}/original.jpg`);
+  const sum = createHash("sha256").update(read).digest("hex");
   assert.deepEqual(approval.renditions, [
-    { shape: "4x5", path: `${w.tenant}/${POST_ID}/original.jpg`, checksum: sum, bytes: `bytes of ${w.tenant}`.length },
+    { shape: "4x5", path: `${w.tenant}/${POST_ID}/original.jpg`, checksum: sum, bytes: read.length },
   ]);
   assert.deepEqual(approval.snapshot.renditions, [
     { shape: "4x5", file_id: POST_ID, path: `${w.tenant}/${POST_ID}/original.jpg`, checksum: sum },

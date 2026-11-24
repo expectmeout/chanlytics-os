@@ -82,8 +82,8 @@ export type { ServicesWordsVM, ServiceWordsInput } from "./business-tab/services
 export { SPEND_TRY, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, TRY_IT_WORDS, tryItVM } from "./business-tab/try-it";
 export type { TryItAnswer, TryItThen, TryItVM } from "./business-tab/try-it";
 export { CADENCE_DEFAULT } from "./content-cadence";
-export { ContentConfigSchema } from "./content-config";
-export type { ContentCadence, ContentConfig } from "./content-config";
+export { BrandKitConfigSchema, ContentConfigSchema, KIT_FACES, KIT_LIMITS } from "./content-config";
+export type { BrandKitConfig, ContentCadence, ContentConfig, KitFace } from "./content-config";
 export {
   changedConfigFields,
   factConflicts,

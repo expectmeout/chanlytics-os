@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-469 handlers in 63 domains.
+470 handlers in 63 domains.
 
 ## activity
 
@@ -1166,7 +1166,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"` | yes |  |
+| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"`, `"look"` | yes |  |
 | `words` | string | yes | at least 1 characters; at most 280 characters |
 
 ### `GET /api/v1/content/note`
@@ -1540,6 +1540,14 @@ Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/results/route.ts`).
 
+### `POST /api/v1/files/[id]/version`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_instagram` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `to` | one of `"approve"`, `"again"` | yes |  |
+
 ### `GET /api/v1/files/[id]/view`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
@@ -1620,7 +1628,9 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 Body 2:
 
@@ -1634,7 +1644,9 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 ### `GET /api/v1/files/video/[id]`
 
@@ -1660,6 +1672,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 Body 2:
 
@@ -1673,6 +1686,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 ## forms
 

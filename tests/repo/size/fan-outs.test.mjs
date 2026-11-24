@@ -22,6 +22,8 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/campaigns/reach-out-replies.ts|candidates": "one page of replies",
   "apps/dashboard/src/server/campaigns/sequences/doors.ts|input.then": "a sequence's steps, in the door's input",
   "apps/dashboard/src/server/connections/email.ts|conversations": "one page of threads",
+  "apps/dashboard/src/server/content/piece.ts|files":
+    "a plan's clips and photos: PIECE_LIMITS.blocksMax blocks at most",
   "apps/dashboard/src/server/content/ad-pictures.ts|unheard":
     "AD_SOUNDS_READ, the videos one draft hears, and the few pictures a request names",
   "apps/dashboard/src/server/connections/mailbox-connections.ts|rows": "a workspace's mailboxes",

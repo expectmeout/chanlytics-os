@@ -10,7 +10,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 
 /** The fonts the template is set in: the posts' own files, copied beside the bundle as it is built. */
-export const FACE_FILES = ["mona-sans-600.woff", "mona-sans-800.woff"];
+export const FACE_FILES = ["mona-sans-600.woff", "mona-sans-800.woff", "source-serif-4-600-italic.woff"];
 export const FACE_DIR = "apps/dashboard/src/server/posts/fonts";
 
 const filesUnder = (dir) =>
