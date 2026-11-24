@@ -17,6 +17,14 @@
  * a template whose parts are constants of the file is folded first. A test that reads a file's text breaks when the
  * text changes, as one that runs it does. A string naming a directory is not followed: a test that reads a tree whole
  * says so in changed-tests.mjs READ_BY.
+ * A test that bundles its sources reaches them too: the object it hands esbuild as `stdin`, whose `contents` is a
+ * string of import and export lines (a `+` chain or a template of the file's constants, folded) and whose `resolveDir`
+ * is the folder they are read from (`path.join(ROOT, "tests/content")`, in place or as a constant of the file). The
+ * string is read as the module it is, and each line is an import of the test's. On 17 Nov 2026 seven tests bundled so
+ * and imported nothing of what they drew: #2408 changed Campaigns' strip, ran none of them, and left the Content
+ * page's red on main. A string or a folder that cannot be folded, a `stdin` handed as anything but such an object, and
+ * one that names no folder are said (`unread`), and changed-tests.test.mjs fails it, so such a test is never again one
+ * no pull request runs.
  *
  * What it does not see, so changed-tests.mjs keeps it: a module only evaluated, never named (a bundle evaluates every
  * module of its package, and one that throws at load breaks every test of the package; the typecheck and the nightly
@@ -130,11 +138,16 @@ function askedOf(call) {
   return names;
 }
 
-/** A template whose every part is a literal or a constant of the file, as the string it is; else null. */
+/** A template or a `+` chain whose every part is a literal or a constant of the file, as the string it is; else null. */
 function folded(node, consts) {
   const plain = textOf(node);
   if (plain !== null) return plain;
   if (ts.isIdentifier(node)) return consts.get(node.text) ?? null;
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = folded(node.left, consts);
+    const right = left === null ? null : folded(node.right, consts);
+    return right === null ? null : left + right;
+  }
   if (!ts.isTemplateExpression(node)) return null;
   let out = node.head.text;
   for (const span of node.templateSpans) {
@@ -159,14 +172,93 @@ function constsOf(sf) {
   return consts;
 }
 
+/** What an object literal gives as the property of this name (the name itself where written `{ contents }`), or null. */
+function givenAs(object, name) {
+  for (const p of object.properties) {
+    if (ts.isShorthandPropertyAssignment(p) && p.name.text === name) return p.name;
+    if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === name)
+      return p.initializer;
+  }
+  return null;
+}
+
+/** What the file declares a name as, or null. */
+function declaredAs(sf, name) {
+  let found = null;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name)
+      found = node.initializer ?? null;
+    else ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/**
+ * The source a bundler is handed in place of a file, esbuild's `stdin: { contents, … }`: the object, written in place
+ * or once as a constant of the file. Undefined where the node hands none; null where it hands one this cannot read (a
+ * helper's parameter, `{ stdin }`, or a call), which is said unread rather than passed over.
+ */
+function stdinOf(node, sf) {
+  if (!ts.isPropertyAssignment(node) && !ts.isShorthandPropertyAssignment(node)) return undefined;
+  if (!(ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) || node.name.text !== "stdin") return undefined;
+  const given = ts.isShorthandPropertyAssignment(node) ? node.name : node.initializer;
+  const object = ts.isIdentifier(given) ? declaredAs(sf, given.text) : given;
+  return object && ts.isObjectLiteralExpression(object) ? object : null;
+}
+
+/**
+ * The folder an expression names, from the repository's root: a string, or the strings a call joins after the root it
+ * is handed (`path.join(ROOT, "tests/content")`), said in place or once as a constant of the file; else null.
+ */
+function folderSaid(node, consts, sf) {
+  const given = ts.isIdentifier(node) && !consts.has(node.text) ? declaredAs(sf, node.text) : node;
+  if (!given) return null;
+  const parts = (ts.isCallExpression(given) ? [...given.arguments] : [given]).map((part) => folded(part, consts));
+  // The root a call joins from is no part of the folder's name: `ROOT`, which no constant of the file holds.
+  if (ts.isCallExpression(given) && parts[0] === null) parts.shift();
+  if (!parts.length || parts.includes(null)) return null;
+  const folder = posix.normalize(posix.join(...parts));
+  return INTO_THE_TREE.test(`${folder}/`) && !folder.startsWith(".") ? folder : null;
+}
+
+/**
+ * What a test bundles from a string: the object it hands esbuild as `stdin`, whose `contents` is import and export
+ * lines and whose `resolveDir` is the folder they are read from. The string is read as the module it is, and each line
+ * is an import of the test's, asked `from` that folder. Null where the string or the folder cannot be folded, or no
+ * folder is named: esbuild then reads the lines from wherever the run stands, which is not the test's to say.
+ */
+function bundledBy(stdin, consts, sf) {
+  // What a spread puts in the object is not read here: its lines and its folder may be anything.
+  if (stdin.properties.some((p) => ts.isSpreadAssignment(p))) return null;
+  const contents = givenAs(stdin, "contents");
+  const resolveDir = givenAs(stdin, "resolveDir");
+  if (!contents) return [];
+  if (!resolveDir) return null;
+  const text = folded(contents, consts);
+  const folder = folderSaid(resolveDir, consts, sf);
+  if (text === null || folder === null) return null;
+  const loader = givenAs(stdin, "loader");
+  const from = `${folder}/stdin.${(loader && folded(loader, consts)) ?? "js"}`;
+  const lines = scanModule(from, text);
+  return [
+    ...lines.always,
+    ...lines.body,
+    ...[...lines.named.values()].map(({ spec, name }) => ({ spec, names: name === null ? null : [name] })),
+    ...lines.stars.map((spec) => ({ spec, names: null })),
+  ].map((line) => ({ ...line, from }));
+}
+
 /**
  * One module as its syntax tree says it: what its body imports (`body`, and `always`, the side-effect imports any
  * request of it runs), what it re-exports by name (`named`) and whole (`stars`), the names it defines (`locals`) and,
- * for code that reads by name, the path-like strings it says (`literals`).
+ * for code that reads by name, the path-like strings it says (`literals`), what it bundles from a string (in `body`,
+ * each with the module it is asked `from`), and whether it bundles from one that cannot be read (`unread`).
  */
 function scanModule(file, text) {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kindOf(file));
-  const m = { body: [], always: [], named: new Map(), stars: [], locals: new Set(), literals: [] };
+  const m = { body: [], always: [], named: new Map(), stars: [], locals: new Set(), literals: [], unread: false };
   const bound = new Map();
   for (const st of sf.statements) if (ts.isImportDeclaration(st)) importOf(st, m, bound);
   for (const st of sf.statements) {
@@ -177,6 +269,7 @@ function scanModule(file, text) {
   const consts = byName ? constsOf(sf) : new Map();
   const specifiers = new Set();
   const visit = (node) => {
+    const stdin = byName ? stdinOf(node, sf) : undefined;
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       if (node.moduleSpecifier) specifiers.add(node.moduleSpecifier);
     } else if (ts.isCallExpression(node) && node.arguments.length) {
@@ -186,6 +279,10 @@ function scanModule(file, text) {
         m.body.push({ spec, names: isImport ? askedOf(node) : null });
         specifiers.add(node.arguments[0]);
       }
+    } else if (stdin !== undefined) {
+      const lines = stdin && bundledBy(stdin, consts, sf);
+      if (lines) m.body.push(...lines);
+      else m.unread = true;
     } else if (byName && !specifiers.has(node) && (textOf(node) !== null || ts.isTemplateExpression(node))) {
       const said = folded(node, consts);
       if (said !== null && said.length < 300 && PATHLIKE.test(said)) m.literals.push(said);
@@ -280,16 +377,21 @@ const EMPTY = { body: [], always: [], named: new Map(), stars: [], locals: new S
 const key = (file, part) => `${file}\0${part}`;
 const fileOfKey = (k) => k.slice(0, k.indexOf("\0"));
 
-/** Each module as its syntax tree says it (`moduleOf`), and every name it exports, through its stars (`exportsOf`). */
+/**
+ * Each module as its syntax tree says it (`moduleOf`), every name it exports, through its stars (`exportsOf`), and of
+ * the modules read so far, those that bundle from a string that cannot be read (`unread`).
+ */
 function namesOf(fileSet, read, resolve) {
   const modules = new Map();
+  const unread = [];
 
   function moduleOf(file) {
     if (modules.has(file)) return modules.get(file);
     let m = EMPTY;
     if (CODE.test(file) && fileSet.has(file)) {
       const scanned = scanModule(file, read(file));
-      const to = ({ spec, names }) => resolve.specifier(file, spec, names);
+      if (scanned.unread) unread.push(file);
+      const to = ({ spec, names, from = file }) => resolve.specifier(from, spec, names);
       m = {
         body: [...scanned.body.flatMap(to), ...scanned.literals.flatMap((s) => resolve.literal(file, s))],
         always: scanned.always.flatMap(to),
@@ -315,7 +417,7 @@ function namesOf(fileSet, read, resolve) {
     for (const s of m.stars) for (const n of exportsOf(s.file)) if (n !== "default") names.add(n);
     return names;
   }
-  return { moduleOf, exportsOf };
+  return { moduleOf, exportsOf, unread };
 }
 
 /**
@@ -325,7 +427,7 @@ function namesOf(fileSet, read, resolve) {
 export function reachOf({ files, read }) {
   const fileSet = new Set(files);
   const resolve = resolverOf(fileSet, read);
-  const { moduleOf, exportsOf } = namesOf(fileSet, read, resolve);
+  const { moduleOf, exportsOf, unread } = namesOf(fileSet, read, resolve);
 
   /** The node a request of a module is: all of it ("*"), its body (""), or a name it passes on. */
   function nodeOf(file, name) {
@@ -386,6 +488,8 @@ export function reachOf({ files, read }) {
 
   return {
     tests,
+    /** The suite's files that bundle from a string or a folder that cannot be folded: no change to its lines reaches one. */
+    unread: unread.sort(),
     /** Each test whose closure reaches one of `changed`, with its distance from the nearest. */
     testsReaching(changed) {
       const dist = new Map();
