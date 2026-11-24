@@ -10,7 +10,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { OPEN_READ_PATHS } from "@chanlytics/contracts";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode } from "../_source.mjs";
 import { asText } from "../_log-lines.mjs";
@@ -161,9 +163,13 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
   assert.ok(RATE.invite.limit <= 20 && RATE.invite.windowMs >= 3_600_000, "invitations send real email");
   assert.ok(RATE.erase.limit <= 10 && RATE.erase.windowMs >= 3_600_000, "erasure is irreversible");
   assert.ok(RATE.reply.limit <= 60 && RATE.reply.windowMs <= 60_000, "a reply reaches a real person");
+  // What a cold load spends of `aggregate`: each of its first reads (GET open, then GET open/rest) that the bucket counts,
+  // once, and its page's own beside them. A read added to the bucket here moves the floor, never the script's ceiling.
+  const policy = JSON.parse(readFileSync(path.join(here, "../route-policy.json"), "utf8")).routes;
+  const counted = OPEN_READ_PATHS.filter((read) => policy[`GET ${read}`]?.rate === "aggregate");
   assert.ok(
-    RATE.aggregate.limit >= 240,
-    "one load of Today spends four aggregate reads; the ceiling must clear sixty loads a minute, not fifteen",
+    RATE.aggregate.limit >= 60 * (counted.length + 1),
+    `a cold load spends ${counted.length} aggregate reads (${counted.join(", ")}) and its page's own; the ceiling must clear sixty loads a minute`,
   );
   assert.ok(RATE.aggregate.limit <= 600 && RATE.aggregate.windowMs <= 60_000, "…and still stop a script");
 });

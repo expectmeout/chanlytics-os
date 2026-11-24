@@ -89,14 +89,17 @@ export const RATE = {
   speech: { limit: 120, windowMs: HOUR_MS, noun: "spoken briefs" },
   /**
    * metrics_summary, report_series, the campaign series and the calendar
-   * feed: the plpgsql aggregates and the one outside read. One load of Today
-   * spends four of these (Today, Reports, Campaigns and Calendar all boot
-   * together), so sixty a minute was fifteen page loads — a person with two
-   * tabs and a refresh habit, or the e2e suite, then saw "Can't reach your
-   * workspace" for a rate limit. Sixty loads a minute clears honest use; a
-   * script still cannot hammer the database.
+   * feed: the plpgsql aggregates and the one outside read, and the reads of
+   * the pages' lines beside them. Sixty loads a minute clears honest use; a
+   * script still cannot hammer the database. A load spent four of these when
+   * the ceiling was sixty (fifteen loads: a person with two tabs and a refresh
+   * habit, or the e2e suite, saw "Can't reach your workspace" for a rate
+   * limit), and nine of a load's first reads spend one now, with its page's own
+   * beside them (24 Nov 2026): 240 was twenty-four loads, and the nightly
+   * suite, its loads a second or two apart once a load's reads went as one
+   * (GET open/rest), was refused 221 reads in a night where it had been nine.
    */
-  aggregate: { limit: 240, windowMs: MIN_MS, noun: "report requests" },
+  aggregate: { limit: 600, windowMs: MIN_MS, noun: "report requests" },
   /** Whole-config writes and policy flips. */
   settings: { limit: 30, windowMs: MIN_MS, noun: "settings changes" },
   /** A new tenant, its rows and its provisioning. */
