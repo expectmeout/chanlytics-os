@@ -25,6 +25,7 @@ import {
   findVersionDrawing,
   listPiecePosts,
   type FileMemberRow,
+  type VideoPieceRow,
 } from "@chanlytics/db/files";
 import { asJson } from "@chanlytics/db/shared";
 import { readInstagramPostable } from "@/server/connections/meta";
@@ -65,7 +66,7 @@ async function approveVersion(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  piece: { id: string; file_id: string | null },
+  piece: VideoPieceRow,
 ): Promise<{ fate: string }> {
   const posts = await listPiecePosts(ctx.supabase, member.tenantId, { id: piece.id, fileId: piece.file_id ?? row.id });
   const waiting = posts.filter((p) => isOneOf(STILL_SET_TO_GO, p.status) && p.place !== "hand");
@@ -92,7 +93,9 @@ async function approveVersion(
           ]
         : [],
     ),
-    intent: null,
+    // The reason the piece was made for goes on with every version: its day or offer still dates each post, is asked
+    // again at the press and at the send, and a version is never a way past a reason that has ended.
+    intent: piece.intent,
     facts: [],
     via: "press",
     connections,
