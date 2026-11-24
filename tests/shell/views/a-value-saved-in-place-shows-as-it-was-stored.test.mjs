@@ -7,10 +7,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, again, unmount, settle, byTestId, textOf } from "../_stub-react.mjs";
+import { installStubReact, again, unmount, byTestId, textOf } from "../../_stub-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 installStubReact();
-const { useInPlace } = await import("../../apps/dashboard/src/surfaces/kit/record/in-place.tsx");
+const { useInPlace } = await import("../../../apps/dashboard/src/surfaces/kit/record/in-place.tsx");
 const W = globalThis.window;
 
 const STORED = "ana@example.com";
@@ -32,46 +33,54 @@ function emailField() {
         }),
       said: () => {},
     });
-    return W.React.createElement("span", { ...edit.box, "data-testid": "box" }, edit.shown);
+    return W.React.createElement(
+      "span",
+      { ...edit.box, "aria-busy": edit.busy || undefined, "data-testid": "box" },
+      edit.shown,
+    );
   };
-  const draw = () => again(() => W.React.createElement(Field));
-  return { world, draw };
+  const box = () =>
+    byTestId(
+      again(() => W.React.createElement(Field)),
+      "box",
+    );
+  return { world, box };
 }
 
 /** Typed into the box and asked for with Enter, as a person does: the box keeps the keys until the door answers. */
-async function typeAndAsk(draw, words) {
-  byTestId(draw(), "box").props.onFocus({ currentTarget: {} });
-  byTestId(draw(), "box").props.onInput({ currentTarget: { textContent: words } });
-  byTestId(draw(), "box").props.onKeyDown({ key: "Enter", nativeEvent: {}, preventDefault() {} });
-  await settle();
+async function typeAndAsk({ world, box }, words) {
+  box().props.onFocus({ currentTarget: {} });
+  box().props.onInput({ currentTarget: { textContent: words } });
+  box().props.onKeyDown({ key: "Enter", nativeEvent: {}, preventDefault() {} });
+  await until(() => world.answer !== null && box().props["aria-busy"] === true, "the save asked for");
 }
 
 /** The door answers, and the box is let go as the browser lets it go once the save asks it to. */
-async function answered(world, draw) {
+async function answered({ world, box }) {
   world.answer(null);
-  await settle();
-  byTestId(draw(), "box").props.onBlur({ currentTarget: {} });
+  await until(() => box().props["aria-busy"] === undefined, "the door's answer taken");
+  box().props.onBlur({ currentTarget: {} });
 }
 
 test("a saved value read back before its save answers shows in its stored spelling, not as it was typed", async () => {
   unmount();
-  const { world, draw } = emailField();
-  await typeAndAsk(draw, `  ${TYPED} `);
+  const field = emailField();
+  await typeAndAsk(field, `  ${TYPED} `);
   // The page reads the person again while the door has not answered yet: the stored spelling is in.
-  world.value = KEPT;
-  draw();
-  await answered(world, draw);
-  assert.equal(textOf(byTestId(draw(), "box")), KEPT, "the stored spelling, as a reload would show it");
+  field.world.value = KEPT;
+  field.box();
+  await answered(field);
+  assert.equal(textOf(field.box()), KEPT, "the stored spelling, as a reload would show it");
 });
 
 test("a saved value whose answer comes first stands as typed until the page reads it back, then in its stored spelling", async () => {
   unmount();
-  const { world, draw } = emailField();
-  await typeAndAsk(draw, `  ${TYPED} `);
-  await answered(world, draw);
-  assert.equal(textOf(byTestId(draw(), "box")), TYPED, "what was typed, trimmed, while the read is on its way");
-  world.value = KEPT;
+  const field = emailField();
+  await typeAndAsk(field, `  ${TYPED} `);
+  await answered(field);
+  assert.equal(textOf(field.box()), TYPED, "what was typed, trimmed, while the read is on its way");
+  field.world.value = KEPT;
   // The read lands, and the hold it lets go draws the page again, as React does after a state change.
-  draw();
-  assert.equal(textOf(byTestId(draw(), "box")), KEPT, "then what the page read");
+  field.box();
+  assert.equal(textOf(field.box()), KEPT, "then what the page read");
 });

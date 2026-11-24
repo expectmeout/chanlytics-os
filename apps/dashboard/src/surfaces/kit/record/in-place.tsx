@@ -141,7 +141,7 @@ function boxWordsOf(box: { textContent: string | null }, el: HTMLElement | null,
  * already, in the spelling it was stored in ("Ana@Example.COM" kept as "ana@example.com"). Held then, the typed spelling
  * stood until a reload, since the value it waits on had already come.
  */
-const keptOf = (typed: string, now: Pick<InPlaceOptions, "same">): string | null =>
+const heldOnceSaved = (typed: string, now: Pick<InPlaceOptions, "same">): string | null =>
   typed && !now.same(typed) ? typed : null;
 
 export function useInPlace(o: InPlaceOptions): InPlace {
@@ -191,7 +191,7 @@ export function useInPlace(o: InPlaceOptions): InPlace {
     asking.current = false;
     if (left.current) {
       // The box was left while the door answered: the words stay said, or the value comes back and the page says why.
-      setHeld(refused ? null : keptOf(typed, latest.current));
+      setHeld(refused ? null : heldOnceSaved(typed, latest.current));
       if (refused) o.said(refused);
       return;
     }
@@ -199,7 +199,7 @@ export function useInPlace(o: InPlaceOptions): InPlace {
       setProblem(refused);
       return;
     }
-    setHeld(keptOf(typed, latest.current));
+    setHeld(heldOnceSaved(typed, latest.current));
     leaving.current = true;
     blur();
   };
