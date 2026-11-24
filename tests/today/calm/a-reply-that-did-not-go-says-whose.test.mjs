@@ -95,7 +95,7 @@ test("a reply the team wrote that never reached them is the team's on Today's ca
   assert.equal(row.failed.by, "team", "whose they are, read off the message that failed");
   assert.deepEqual(
     headOf(cardOver(vm)),
-    { by: "Your team's reply", marked: false, back: null },
+    { by: "Team's reply", marked: false, back: null },
     "REGRESSION: a reply the team wrote stood on Today as AI's draft",
   );
 });
@@ -105,7 +105,7 @@ test("changed on the card, the team's words are yours now, and the way back goes
   const box = find(card, (n) => n.props?.["aria-label"] === `Your reply to ${WHO}` && !!n.props?.onValueChange);
   box.props.onValueChange("Saturday at 3 is fine, see you then.");
   const again = find(redraw(NeedYouOnToday), (n) => n.props?.["data-testid"] === "today-card");
-  assert.deepEqual(headOf(again), { by: "Yours now", marked: false, back: "Back to your team's" });
+  assert.deepEqual(headOf(again), { by: "Yours now", marked: false, back: "Back to the team's" });
 });
 
 test("a reply AI wrote that never reached them is still AI's draft, with AI's mark", () => {
