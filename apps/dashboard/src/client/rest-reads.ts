@@ -110,47 +110,70 @@ interface Waiting {
 const notCarried = (): Error => new Error("not carried");
 
 /**
+ * The URLs asked as one, each with the answer it waits on: the reads the request carries, by key, and the workspace it
+ * names (the first URL's). One of another workspace than the first's, or a key asked twice over, which one request cannot
+ * name, is refused at once, and the client asks for it alone.
+ */
+function readsToCarry(urls: readonly string[]) {
+  const byKey = new Map<string, Waiting>();
+  const answers = new Map<string, Promise<Response>>();
+  let workspace: string | null | undefined;
+  for (const url of urls) {
+    const named = restKeyOf(url);
+    // The first URL's workspace is the request's (null where it names none, which `??=` would not keep).
+    if (workspace === undefined) workspace = named.workspace;
+    const alone = named.workspace !== workspace || byKey.has(named.key);
+    answers.set(
+      url,
+      alone
+        ? Promise.reject(notCarried())
+        : new Promise<Response>((give, refuse) => byKey.set(named.key, { give, refuse })),
+    );
+  }
+  return { byKey, answers, workspace: workspace ?? null };
+}
+
+/** Each line of the answer handed to the read it answers, a task at a time; a line no read waits for is let go of. */
+async function handLines(res: Response, byKey: Map<string, Waiting>, handOver: (give: () => void) => void) {
+  if (!res.ok) throw notCarried();
+  await eachLine(res, (raw) => {
+    const line = readOfLine(raw);
+    const read = line && byKey.get(line.key);
+    if (!line || !read) return;
+    byKey.delete(line.key);
+    handOver(() => read.give(line.answer));
+  });
+}
+
+/** The reads a page opens on, among those still waiting on a line, refused now to be asked alone: a line that comes is let go of. */
+function hurryIn(out: ReadonlySet<Map<string, Waiting>>, keys: readonly string[]): void {
+  for (const { key } of keys.map((k) => restKeyOf(`${READS_AT}${k}`)))
+    for (const byKey of out) {
+      const read = byKey.get(key);
+      if (!read) continue;
+      byKey.delete(key);
+      read.refuse(notCarried());
+    }
+}
+
+/**
  * What the client asks the rest of a load with (client/api.ts `together`), over the tab's own fetch: `ask` sends the URLs
  * as one GET open/rest and answers each as its line comes, a task at a time; a URL whose line never came (a read no route
- * answers, an answer cut short, a request refused whole) is refused, and the client asks for it alone. So is one of
- * another workspace than the first's, or one asked twice over, which one request cannot name. `hurry` sends the reads a
- * page opens on to be asked alone, where they still wait on their line: a move made while the rest is out (bridge/api.ts),
- * whose page would otherwise wait its turn among the reads of every other.
+ * answers, an answer cut short, a request refused whole) is refused, and the client asks for it alone (readsToCarry says
+ * which never go). `hurry` sends the reads a page opens on to be asked alone, where they still wait on their line: a move
+ * made while the rest is out (bridge/api.ts), whose page would otherwise wait its turn among the reads of every other.
  */
 export function restReads(fetchFor: (url: string, init: RequestInit) => Promise<Response>) {
   const handOver = oneATask();
   /** The reads still waiting on a line, by key, of each GET open/rest out. */
   const out = new Set<Map<string, Waiting>>();
   function ask(urls: readonly string[]): ReadonlyMap<string, Promise<Response>> {
-    const byKey = new Map<string, Waiting>();
-    const answers = new Map<string, Promise<Response>>();
-    let workspace: string | null | undefined;
-    for (const url of urls) {
-      const named = restKeyOf(url);
-      // The first URL's workspace is the request's (null where it names none, which `??=` would not keep).
-      if (workspace === undefined) workspace = named.workspace;
-      const alone = named.workspace !== workspace || byKey.has(named.key);
-      answers.set(
-        url,
-        alone
-          ? Promise.reject(notCarried())
-          : new Promise<Response>((give, refuse) => byKey.set(named.key, { give, refuse })),
-      );
-    }
+    const { byKey, answers, workspace } = readsToCarry(urls);
     const query = new URLSearchParams({ reads: [...byKey.keys()].map(encodeURIComponent).join(",") });
     if (workspace) query.set("workspace", workspace);
     out.add(byKey);
     void fetchFor(`${READS_AT}open/rest?${query.toString()}`, { signal: AbortSignal.timeout(REST_WAIT_MS) })
-      .then((res) => {
-        if (!res.ok) throw notCarried();
-        return eachLine(res, (raw) => {
-          const line = readOfLine(raw);
-          const read = line && byKey.get(line.key);
-          if (!line || !read) return;
-          byKey.delete(line.key);
-          handOver(() => read.give(line.answer));
-        });
-      })
+      .then((res) => handLines(res, byKey, handOver))
       .catch(() => {
         // Cut short or refused whole: what had no line is asked alone, below.
       })
@@ -161,15 +184,5 @@ export function restReads(fetchFor: (url: string, init: RequestInit) => Promise<
       });
     return answers;
   }
-  function hurry(keys: readonly string[]): void {
-    for (const byKey of out)
-      for (const { key } of keys.map((k) => restKeyOf(`${READS_AT}${k}`))) {
-        const read = byKey.get(key);
-        if (!read) continue;
-        // Its line, if it comes, is let go of: the read is its own request's now.
-        byKey.delete(key);
-        read.refuse(notCarried());
-      }
-  }
-  return { carries, ask, hurry };
+  return { carries, ask, hurry: (keys: readonly string[]) => hurryIn(out, keys) };
 }
