@@ -61,9 +61,11 @@ export function useWhatsAppListAsked(): void {
       () => {
         if (checkedThisVisit) return;
         checkedThisVisit = true;
-        noteAsked(getActiveWorkspace());
-        // A check that did not answer leaves the rows as they were read: the next visit asks again.
-        void syncWhatsAppList();
+        const workspace = getActiveWorkspace();
+        // A check that did not answer leaves the rows as they were read, and no note: the next visit asks again.
+        void syncWhatsAppList().then((answer) => {
+          if (answer.ok) noteAsked(workspace);
+        });
       },
       undefined,
       { everyLine: true },

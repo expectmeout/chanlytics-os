@@ -1,4 +1,4 @@
-import { OPEN_READ_PATHS, openReadPathOf, type OpenReadPath } from "@chanlytics/contracts";
+import { openReadPathOf, type OPEN_READ_PATHS } from "@chanlytics/contracts";
 import type { OpenRead } from "@/server/workspace/page-open";
 import { GET as workspaces } from "../workspaces/route";
 import { GET as today } from "../today/route";
@@ -43,7 +43,7 @@ import { GET as person } from "../contacts/[id]/route";
  * answered by its own route: the routes are named here by their path, and page-open.test.mjs holds the two lists to one.
  * A page's first reads (GET open) and the rest of a load's (GET open/rest) are the same reads, asked at different moments.
  */
-const READS: Readonly<Record<OpenReadPath, OpenRead>> = {
+const READS: Readonly<Record<(typeof OPEN_READ_PATHS)[number], OpenRead>> = {
   workspaces,
   // Today's day whole, its one read (GET today, Today in three zones, 2 Nov 2026).
   today,
@@ -94,7 +94,7 @@ const READS: Readonly<Record<OpenReadPath, OpenRead>> = {
  */
 export function openReadOf(key: string): OpenRead | undefined {
   const path = key.replace(/\?.*$/, "");
-  const listed = OPEN_READ_PATHS.find((known) => known === openReadPathOf(path));
+  const listed = openReadPathOf(path);
   if (!listed) return undefined;
   const route = READS[listed];
   const id = path.split("/").find((part, at) => listed.split("/")[at] === "[id]");

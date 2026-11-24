@@ -9,6 +9,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 const WROTE = "2026-09-06T16:30:00Z";
@@ -118,15 +119,34 @@ const detail = () => ({
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-/** The wire: the person's read answers `answer()`, a DELETE of them is accepted, anything else is a 404. Every request kept. */
+/**
+ * The wire: the person's read answers `answer()`, a DELETE of them is accepted, anything else is a 404. Every request kept.
+ * GET open/rest (the rest of a load as one, "Pages that open at once" piece 8) answers each person it names with a line.
+ */
 let seen = [];
 let held = null;
 let answer = () => json(200, { ok: true, data: { person: detail() } });
 globalThis.window.fetch = async (url, init = {}) => {
   const u = new URL(String(url), "https://app.chanlytics.com");
   const method = init.method ?? "GET";
-  seen.push({ method, path: u.pathname, workspace: u.searchParams.get("workspace") });
+  seen.push({
+    method,
+    path: u.pathname,
+    workspace: u.searchParams.get("workspace"),
+    reads: u.searchParams.get("reads"),
+  });
   if (method === "GET" && u.pathname === `/api/v1/contacts/${ID}`) return answer();
+  if (method === "GET" && u.pathname === "/api/v1/open/rest") {
+    const keys = (u.searchParams.get("reads") ?? "").split(",").map(decodeURIComponent);
+    const lines = keys.map(
+      (k) => `${JSON.stringify({ k, s: 200, b: { ok: true, data: { person: detail() } } })}
+`,
+    );
+    return new Response(lines.join(""), {
+      status: 200,
+      headers: { "content-type": "application/x-ndjson; charset=utf-8" },
+    });
+  }
   // Anyone else a list shows: answered when the test lets them go (`held`), else at once.
   if (method === "GET" && /^[/]api[/]v1[/]contacts[/][0-9a-f-]{36}$/.test(u.pathname)) {
     if (!held) return json(200, { ok: true, data: { person: detail() } });
@@ -341,41 +361,57 @@ test("a read still out when the tab is cleared is not kept when it lands: a sign
 });
 
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const asked = () =>
-  seen.filter((q) => q.method === "GET" && q.path.startsWith("/api/v1/contacts/")).map((q) => q.path.split("/").pop());
+/** Each GET open/rest asked, as the people it names. */
+const askedTogether = () =>
+  seen
+    .filter((q) => q.method === "GET" && q.path === "/api/v1/open/rest")
+    .map((q) => (q.reads ?? "").split(",").map((k) => decodeURIComponent(k).split("/").pop()));
+/** Every person asked for: alone (GET contacts/:id) or with others (GET open/rest). */
+const asked = () => [
+  ...seen
+    .filter((q) => q.method === "GET" && q.path.startsWith("/api/v1/contacts/"))
+    .map((q) => q.path.split("/").pop()),
+  ...askedTogether().flat(),
+];
 
-test("a list's people are read ahead once the boot is in: the first twelve, two at a time, never one the tab holds", async () => {
+test("a list's people are read ahead once the boot is in, as one request: the first twelve, never one the tab holds", async () => {
   // A person the tab does not hold opens on nothing of theirs until their page is whole (person/person-real.tsx): the way
-  // it opens at once is to have read them before the press.
+  // it opens at once is to have read them before the press. Two at a time, they were twelve requests on every People load.
   const rows = Array.from({ length: 14 }, (_, i) => uuid(i + 1));
   held = null;
   await bridge.personDetail(rows[2]);
   seen = [];
-  held = [];
   bridge.warmPeople(rows);
-  await settle();
-  assert.deepEqual(asked(), [rows[0], rows[1]], "two at a time, in the list's order");
-  for (let i = 0; i < 20 && held.length; i++) {
-    held.shift()();
-    await settle();
-  }
-  const read = asked();
-  assert.equal(read.length, 11, `the first twelve but the one already held: ${read.length}`);
-  assert.ok(!read.includes(rows[2]), "the one the tab holds is not read again");
-  assert.ok(!read.includes(rows[12]) && !read.includes(rows[13]), "and nobody past the twelfth");
-  assert.ok(bridge.peekPerson(rows[11]), "held now: their page opens whole");
+  await until(() => bridge.peekPerson(rows[11]), "the twelfth held: their page opens whole");
+  assert.deepEqual(
+    askedTogether(),
+    [[...rows.slice(0, 2), ...rows.slice(3, 12)]],
+    "one request, in the list's order: the first twelve but the one the tab holds, and nobody past the twelfth",
+  );
+  assert.equal(seen.length, 1, "and nothing alone");
 });
 
-test("a later list replaces what an earlier one was still waiting to read; off a workspace page nothing is read", async () => {
-  held = [];
-  bridge.warmPeople([uuid(21), uuid(22), uuid(23), uuid(24)]);
-  await settle();
-  bridge.warmPeople([uuid(31)]);
-  for (let i = 0; i < 10 && held.length; i++) {
-    held.shift()();
-    await settle();
+test("a later list replaces what an earlier one was still waiting for the boot to read; off a workspace page nothing is read", async () => {
+  let bootIn = null;
+  const slow = {
+    key: "slow",
+    apply: () =>
+      new Promise((r) => {
+        bootIn = r;
+      }),
+  };
+  seen = [];
+  const stop = startSurfaces([slow]);
+  try {
+    await until(() => bootIn, "the boot under way");
+    bridge.warmPeople([uuid(21), uuid(22), uuid(23), uuid(24)]);
+    bridge.warmPeople([uuid(31)]);
+    bootIn();
+    await until(() => bridge.peekPerson(uuid(31)), "the list on screen read");
+    assert.deepEqual(asked(), [uuid(31)], "the list on screen alone");
+  } finally {
+    stop();
   }
-  assert.deepEqual(asked(), [uuid(21), uuid(22), uuid(31)], "the two out finish; the list on screen goes next");
   seen = [];
   globalThis.window.location.pathname = "/";
   bridge.warmPeople([uuid(41)]);

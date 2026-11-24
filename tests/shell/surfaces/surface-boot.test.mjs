@@ -1369,3 +1369,80 @@ test("a rest refused whole leaves no page without its read: each is asked alone"
   assert.deepEqual([got.inbox.from, got.reports.from], ["alone", "alone"]);
   assert.equal(sent.filter((u) => u.startsWith("/api/v1/open/rest")).length, 1, "the rest asked once, not again");
 });
+
+const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
+const { restReads } = await importSrc("apps/dashboard/src/client/rest-reads.ts");
+
+/** A client over `fetch` whose gathered reads go as one GET open/rest, as the tab's does (bridge/api.ts). */
+const gatheringClient = (fetch) => {
+  const rest = restReads(fetch);
+  const client = createApi({
+    fetch,
+    together: rest,
+    workspace: () => "acme",
+    onSignedOut() {},
+    refresh: async () => {},
+  });
+  return { rest, client };
+};
+const alone = () => new Response(JSON.stringify({ ok: true, data: { from: "alone" } }), { status: 200 });
+
+test("a read that fails inside the rest is that read's own refusal: its code, its status, and when it may try again", async () => {
+  const refused = { ok: false, error: { code: "rate_limited", message: "Too many at once." } };
+  const sent = [];
+  const fetch = async (url) => {
+    sent.push(url);
+    if (!url.startsWith("/api/v1/open/rest")) return alone();
+    const line = { k: "conversations", s: 429, b: refused, h: { "retry-after": "30" } };
+    return new Response(`${JSON.stringify(line)}\n`, { status: 200 });
+  };
+  const { client } = gatheringClient(fetch);
+  const [answer] = await Promise.all(client.gather(() => [client("GET conversations")]));
+  assert.deepEqual([answer.ok, answer.status, answer.code, answer.retryAfterS], [false, 429, "rate_limited", 30]);
+  assert.equal(sent.length, 1, "as its own request would have said it, and not asked again alone");
+});
+
+test("a read asked twice while the rest gathers is asked once with it and once alone: neither waits for ever", async () => {
+  // A write landing between the two lets go of the first (forget), so the second is not shared with it: one request
+  // cannot carry two answers to one key.
+  const sent = [];
+  const fetch = async (url) => {
+    sent.push(url);
+    return url.startsWith("/api/v1/open/rest") ? restAnswer(url) : alone();
+  };
+  const { client } = gatheringClient(fetch);
+  const both = client.gather(() => {
+    const first = client("GET conversations");
+    client.forget();
+    return [first, client("GET conversations")];
+  });
+  const [first, second] = await Promise.all(both);
+  assert.deepEqual([first.data.from, second.data.from], ["rest", "alone"]);
+  assert.equal(sent.filter((u) => u.startsWith("/api/v1/open/rest")).length, 1);
+});
+
+test("a move while the rest is out asks the page it moved to for its own reads alone, and lets their lines go", async () => {
+  // Sent as the boot asked them, the page moved to waited its turn among every other page's reads.
+  let answerRest = () => {};
+  const sent = [];
+  const fetch = async (url) => {
+    sent.push(url);
+    if (!url.startsWith("/api/v1/open/rest")) return alone();
+    return new Promise((r) => {
+      answerRest = () => r(restAnswer(url));
+    });
+  };
+  const { rest, client } = gatheringClient(fetch);
+  const reads = client.gather(() => [client("GET calendar"), client("GET reach-outs")]);
+  await until(() => sent.length === 1, "the rest asked");
+  rest.hurry(["calendar"]);
+  const [calendar] = await Promise.all([reads[0]]);
+  assert.equal(calendar.data.from, "alone", "the page moved to has its read now, its own request's");
+  answerRest();
+  const [, reachOuts] = await Promise.all(reads);
+  assert.equal(reachOuts.data.from, "rest", "and the rest still answers the others");
+  assert.deepEqual(
+    sent.map((u) => u.split("?")[0]),
+    ["/api/v1/open/rest", "/api/v1/calendar"],
+  );
+});

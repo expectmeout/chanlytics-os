@@ -540,7 +540,8 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   Everyone else's first reads leave as one streamed request, the rest (`GET open/rest`, `apps/dashboard/app/api/v1/open/rest/route.ts`),
   answered from the same list of reads as the opening (`OPEN_READ_PATHS`) a few at a time and handed to their surfaces a
   task at a time (`apps/dashboard/src/client/rest-reads.ts`, gathered by `client/api.ts` `gather`); People's people ahead
-  leave so too. A read it does not carry goes alone, as before.
+  leave so too. A read it does not carry goes alone, as before, and so does what a page moved to opens on while the rest
+  is out (`bridge/api.ts`, `hurry`), lest it wait its turn among every other page's reads.
 - _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
   (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
   as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in

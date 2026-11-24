@@ -253,6 +253,16 @@
       }
     },
     {
+      "kind": "over-read",
+      "field": null,
+      "why": "Whether an invitation is open to the signed-in address, in any workspace (team.ts hasOpenInvites, read with the workspace list as user.invited): nothing drawn, it decides only whether the boot makes its accept (POST me/invitations/accept), which it made on every load. The rows are mostly other workspaces’, which this workspace’s topic cannot carry, and one sent here is to someone else; the next load reads it anew, and the list is read again when the accept seated someone.",
+      "reads": {
+        "workspace": [
+          "invitations"
+        ]
+      }
+    },
+    {
       "kind": "unfed",
       "why": "The notes an owner's corrections suggest (decision 0063), which Settings › Autonomy lists. The note sweep writes them at most every thirty minutes, the feed does not tell of fact_suggestions, and each is told on the bell instead (a note_to_keep line, which opens the pane). A Keep or a Dismiss reads Settings again behind its verb.",
       "reads": {

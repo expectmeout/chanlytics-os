@@ -313,14 +313,17 @@ export const OPEN_READ_PATHS = [
   // twelve requests of their own on every People load (23 Nov 2026).
   "contacts/[id]",
 ] as const;
-export type OpenReadPath = (typeof OPEN_READ_PATHS)[number];
 
-/** The path a read is listed under in OPEN_READ_PATHS: its own, with an id in it said `[id]` (`contacts/<id>` is `contacts/[id]`). */
-export function openReadPathOf(path: string): string {
-  return path
+/**
+ * The path a read is listed under in OPEN_READ_PATHS, if it is: its own, with an id in it said `[id]` (`contacts/<id>` is
+ * `contacts/[id]`); undefined for a path the list does not name, which GET open/rest does not answer.
+ */
+export function openReadPathOf(path: string): (typeof OPEN_READ_PATHS)[number] | undefined {
+  const pattern = path
     .split("/")
     .map((part) => (isUuid(part) ? "[id]" : part))
     .join("/");
+  return OPEN_READ_PATHS.find((listed) => listed === pattern);
 }
 
 /**

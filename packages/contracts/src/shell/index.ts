@@ -180,7 +180,6 @@ export {
   PREFETCH_SLOT,
   routePrefetchScript,
 } from "./route-prefetch";
-export type { OpenReadPath } from "./route-prefetch";
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./tone";
 export type { LeadPinnable, StateKind, Tone } from "./tone";
 export {

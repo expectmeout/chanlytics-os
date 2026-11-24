@@ -304,25 +304,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   },
   apply: async () => {
-    // The invitations this sign-in completes are one POST (invitations/accept.ts), not a read's doing (a read never writes:
-    // decision 0047, lane 6). Made where the list says an invitation is open for this address, or cannot say (a server from
-    // before it said so): it was made on every load, 52 in 52 (the phone sweep, 23 Nov 2026), for the few that seat someone.
-    // Only a list that holds no workspace, or none the address names, waits for it (acceptedInTime, which makes it if it was
-    // not), since that is the list an invitation is about to change, and is read again when it seated someone. A seat made
-    // beside a whole list reaches the switcher through the live feed (memberships).
-    let data = await read("GET workspaces");
-    // No invitation open, nothing to accept or wait for: a person with no workspace opens on the create screen at once,
-    // where they waited up to four seconds for an accept that could seat them nowhere.
-    const mayBeSeated = data.user.invited !== false;
-    if (mayBeSeated) void acceptInvitations();
-    const named = getActiveWorkspace();
-    const holdsIt = !named || data.workspaces.some((t) => t.slug === named || t.id === named);
-    if (!seatedRead && mayBeSeated && (!data.workspaces.length || !holdsIt) && (await acceptedInTime()).length) {
-      // The seat is made, so what the tab shares or the head started is the list from before it. Read once for it.
-      seatedRead = true;
-      api().forget();
-      data = await read("GET workspaces");
-    }
+    const data = await readWorkspaceList();
     const w = window as Window & {
       __WORKSPACES?: Workspace[];
       __ME?: Me;
@@ -368,20 +350,48 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
         return;
       }
     }
-    // The sidebar renders whoever this says — replacing the mockup's
-    // hardcoded operator, who was a fabricated person shown as "you".
-    if (data.user) {
-      const was = w.__ME?.id ?? null;
-      w.__ME = data.user;
-      // People read before who is looking was known is read again for them (decision 0009): a teammate's thread is
-      // theirs, and a list about "me" can be counted.
-      if (peopleLoaded && was !== (data.user.id ?? null)) {
-        publishPeople();
-        window.dispatchEvent(new CustomEvent("surface:clients"));
-      }
-    }
+    noteWhoIsLooking(w, data.user);
   },
 };
+
+/**
+ * The list of workspaces, with the invitations this sign-in completes. They are one POST (invitations/accept.ts), not a
+ * read's doing (a read never writes: decision 0047, lane 6), made where the list says an invitation is open for this
+ * address, or cannot say: it was made on every load, 52 in 52 (the phone sweep, 23 Nov 2026), for the few that seat
+ * someone. Only a list that holds no workspace, or none the address names, waits for it (acceptedInTime, which makes it if
+ * it was not), since that is the list an invitation is about to change, and is read again when it seated someone. A seat
+ * made beside a whole list reaches the switcher through the live feed (memberships).
+ */
+async function readWorkspaceList() {
+  const data = await read("GET workspaces");
+  // No invitation open, nothing to accept or wait for: a person with no workspace opens on the create screen at once,
+  // where they waited up to four seconds for an accept that could seat them nowhere.
+  const mayBeSeated = data.user.invited !== false;
+  if (!mayBeSeated) return data;
+  void acceptInvitations();
+  const named = getActiveWorkspace();
+  const holdsIt = !named || data.workspaces.some((t) => t.slug === named || t.id === named);
+  if (seatedRead || (data.workspaces.length && holdsIt) || !(await acceptedInTime()).length) return data;
+  // The seat is made, so what the tab shares or the head started is the list from before it. Read once for it.
+  seatedRead = true;
+  api().forget();
+  return read("GET workspaces");
+}
+
+/**
+ * Who is looking, as the list says: the sidebar renders whoever this says, replacing the mockup's hardcoded operator, who
+ * was a fabricated person shown as "you". People read before who is looking was known is read again for them (decision
+ * 0009): a teammate's thread is theirs, and a list about "me" can be counted.
+ */
+function noteWhoIsLooking(w: Window & { __ME?: Me }, user: Me | null | undefined): void {
+  if (!user) return;
+  const was = w.__ME?.id ?? null;
+  w.__ME = user;
+  if (peopleLoaded && was !== (user.id ?? null)) {
+    publishPeople();
+    window.dispatchEvent(new CustomEvent("surface:clients"));
+  }
+}
 
 /**
  * Switch workspace: forget the previous one's rows, then go to its address.

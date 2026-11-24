@@ -18,6 +18,7 @@ import {
   openReads,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
+import { until } from "../../shared/_until.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -346,10 +347,11 @@ test("the rest of a load is answered as one: each read asked a line, a few at a 
   });
   const res = openRest(ctxFor(), openReq("reads=x&workspace=harbor"), keys, routeOf);
   assert.equal(res.headers.get("content-type"), "application/x-ndjson; charset=utf-8");
-  await turns();
+  // A seventh leaves only once one of the six is in, and none is until the test lets it: waiting for six is exact.
+  await until(() => started.length === 6, "six reads started");
   assert.deepEqual(started, keys.slice(0, 6), "six at once, the first asked first");
   held["read-0"].resolve({ k: "read-0" });
-  await turns();
+  await until(() => started.length === 7, "a seventh read started");
   assert.deepEqual(started, keys.slice(0, 7), "one in, the next one leaves");
   for (const k of keys) held[k].resolve({ k });
   const lines = await linesOf(res);
@@ -372,6 +374,14 @@ test("the rest takes the reads a route answers, each once, in the order asked: a
   const reads = ["known?a=1", "unknown", "known?a=1", "known?b=2", "%E0%A4%A"].map(encodeURIComponent).join(",");
   assert.deepEqual(restKeysOf(reads, routeOf), ["known?a=1", "known?b=2"]);
   assert.deepEqual(restKeysOf("%E0%A4%A,known", routeOf), ["known"], "a key that does not decode is passed over");
+  const elsewhere = ["known?workspace=bayside", "known?a=1&workspace=bayside", "known"]
+    .map(encodeURIComponent)
+    .join(",");
+  assert.deepEqual(
+    restKeysOf(elsewhere, routeOf),
+    ["known"],
+    "a key naming a workspace of its own: only the request names it",
+  );
   const many = Array.from({ length: 60 }, (_, i) => encodeURIComponent(`known?i=${i}`)).join(",");
   assert.equal(restKeysOf(many, routeOf).length, 48, "at most 48 a request");
 });
@@ -382,7 +392,7 @@ test("every read the client asks as one has its route, by its path, and none oth
   assert.equal(openReadOf("activity"), undefined, "a read no list names is the client's to ask alone");
   const someone = "33333333-3333-4333-8333-333333333333";
   assert.equal(openReadPathOf(`contacts/${someone}`), "contacts/[id]", "a person's page is listed by its pattern");
-  assert.equal(openReadPathOf(`contacts/${someone}/notes`), "contacts/[id]/notes");
+  assert.equal(openReadPathOf(`contacts/${someone}/notes`), undefined, "a path the list does not name is none of it");
   assert.ok(openReadOf(`contacts/${someone}`), "and answered, by the id its key names");
   assert.equal(openReadOf("contacts/not-an-id"), undefined, "a word where an id goes is no person's page");
   assert.equal(openReadOf(`contacts/${someone}/notes`), undefined, "nor is a path the list does not name");

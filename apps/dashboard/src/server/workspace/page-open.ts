@@ -64,6 +64,9 @@ const routeWordsOf = (key: string): string => key.replace(/\?.*$/, "");
 /** The answer's content type: one JSON object a line, each written as its read settles. */
 const OPEN_CONTENT_TYPE = "application/x-ndjson; charset=utf-8";
 
+/** Whether a key's query names a workspace of its own (`contacts?workspace=…`), which only the request may. */
+const namesWorkspace = (key: string): boolean => new URLSearchParams(key.replace(/^[^?]*\??/, "")).has("workspace");
+
 /** A request's context as a route hands it on, its params with it. */
 type OpenContext = RouteContext & { params: Record<string, string | string[] | undefined> };
 
@@ -73,14 +76,14 @@ type OpenWhole = OpenSum["o"];
 /**
  * Reads answered as one streamed request, past the one session check its route made: the membership read once for all of
  * them, the readers sharing one turn and the database asked each question once. `each` answers the reads in the order it
- * chooses (`answer` writes a read's line as it settles); `said` is told what the answer came to, as its last line is.
+ * chooses (`answer` writes a read's line as it settles); `logWhole` is told what the answer came to, as its last line is.
  */
 function streamed(
   ctx: OpenContext,
   req: Request,
   routeOf: (key: string) => OpenRead | undefined,
   each: (answer: (key: string) => Promise<void>) => Promise<void>,
-  said: (whole: OpenWhole, reads: Record<string, number>) => void,
+  logWhole: (whole: OpenWhole, reads: Record<string, number>) => void,
 ): Response {
   shareMembership(ctx);
   shareTurn(ctx);
@@ -102,7 +105,7 @@ function streamed(
       const calls = requestTimings().get("db");
       const whole = { ms: Date.now() - began, db_ms: Math.round(calls?.ms ?? 0), db_n: calls?.n ?? 0 };
       write({ o: whole });
-      said(whole, reads);
+      logWhole(whole, reads);
       out.close();
     },
   });
@@ -141,7 +144,7 @@ export function openPage(
 const REST_LANES = 6;
 
 /**
- * The most reads one GET open/rest answers: every path it answers (contracts OPEN_READ_PATHS, 36), and room for a few asked
+ * The most reads one GET open/rest answers: every path it answers (contracts OPEN_READ_PATHS, 37), and room for a few asked
  * twice over, as Leads' list in two orders. More are let go, and the client asks for each of those alone.
  */
 const REST_READS_MAX = 48;
@@ -151,7 +154,8 @@ export const REST_READS_TEXT_MAX = 8_000;
 
 /**
  * The reads a GET open/rest asks for, from its `reads`: each key URI-decoded, the ones a route answers (`routeOf`), each
- * once, in the order asked, at most REST_READS_MAX. A key that does not decode is passed over, as one no route answers is.
+ * once, in the order asked, at most REST_READS_MAX. A key that does not decode is passed over, as one no route answers is,
+ * and so is one that names a workspace: the request names it once, for all of them.
  */
 export function restKeysOf(reads: string, routeOf: (key: string) => OpenRead | undefined): string[] {
   const keys: string[] = [];
@@ -163,7 +167,7 @@ export function restKeysOf(reads: string, routeOf: (key: string) => OpenRead | u
       // Not a key the client spells (a stray `%`): passed over, as one no route answers is.
       continue;
     }
-    if (routeOf(key) && !keys.includes(key)) keys.push(key);
+    if (routeOf(key) && !namesWorkspace(key) && !keys.includes(key)) keys.push(key);
     if (keys.length === REST_READS_MAX) break;
   }
   return keys;
