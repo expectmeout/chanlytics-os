@@ -178,8 +178,10 @@ async function makePicture(
   const prepared = preparedFileOf(slots);
   const row =
     (prepared ? await findFile(ctx.supabase, prepared) : null) ?? (await drawPicture(ctx, member, { file, words }));
-  const place = creative.by === "rung" ? placeAsAI : placeByPress;
-  for (const slot of slots) await place(ctx, member, { slot, row, words });
+  for (const slot of slots) {
+    if (creative.by === "rung") await placeAsAI(ctx, member, { slot, row, words });
+    else await placeByPress(ctx, member, { slot, row, words });
+  }
 }
 
 /** A reel: its video begun from its clip's best moment, with the words the Week showed. */
