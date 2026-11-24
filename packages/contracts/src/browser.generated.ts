@@ -21,7 +21,7 @@ export { addDays, daysBetween } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";
 export { adAmountAfter, adApprovedMiles, adChangeFactsOf, adChangeIssue, adChangeLeast, adChangeMostOf, adChangeOnWayOf, adChangeSpendsMore } from "./ads/change";
 export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adMostOf, adPictureIssue, adRightsOf, adSpecialKinds } from "./ads/draft";
-export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./ads/live";
+export { AD_DOORS_COUNTED, AD_STATE_WORDS, AD_WARN_STATES, adLeftOn, adPictureFileOf, adResumeRule, adStateOfRow, adWayClosedOf } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
 export { AD_TOLD_MAX } from "./ads/said";
 export { adAccountStateOf, adStateOf } from "./ads/states";

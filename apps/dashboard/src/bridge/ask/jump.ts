@@ -3,7 +3,15 @@
  * few typed words matched against them and against the people, threads and calls the browser already holds (askJump).
  * A question is not a jump.
  */
-import { CONTENT_LIBRARY_ROUTE, REPORT_LENSES, lensRoute, type LensRow, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import {
+  ADS_ROUTE,
+  CONTENT_LIBRARY_ROUTE,
+  FORMS_ROUTE,
+  REPORT_LENSES,
+  lensRoute,
+  type LensRow,
+  SEQUENCES_ROUTE,
+} from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -78,6 +86,15 @@ export const ASK_PAGES: JumpEntry[] = [
       "wording",
     ],
   },
+  // Forms (00680), Campaigns' third view: the forms people fill in, made here or on the business's own website, whose keys
+  // were Settings' (Campaigns in three tabs, 23 Nov 2026).
+  {
+    label: "Forms",
+    to: FORMS_ROUTE,
+    kind: "page",
+    sub: "forms people fill in, made here or on your website",
+    also: ["form", "request form", "sign-up form", "website forms"],
+  },
   { label: "Reports", to: "reports", kind: "page" },
   ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
@@ -151,7 +168,21 @@ export const ASK_PAGES: JumpEntry[] = [
 interface AskPagesHas {
   /** The person is Chanlytics staff: the rail draws the back office for them alone. */
   platformAdmin: boolean;
+  /** Ads is drawn here (campaigns/ads/shown.ts): the last of Content's Made views. */
+  ads?: boolean;
 }
+
+/**
+ * Ads, where it is drawn: the last of Content's Made views (Campaigns in three tabs, 23 Nov 2026), a press or two deeper on a
+ * phone than its tab stood, so its name and the words people use for it find it at once.
+ */
+const ADS_PAGE: JumpEntry = {
+  label: "Ads",
+  to: ADS_ROUTE,
+  kind: "page",
+  sub: "the ads you pay for, in Content",
+  also: ["ad", "boost", "promote", "meta ads"],
+};
 
 /** The back office, Chanlytics staff's alone (settings.jsx SET_TABS_PLATFORM); anyone else there lands on Profile. */
 const BACK_OFFICE: JumpEntry = {
@@ -161,9 +192,9 @@ const BACK_OFFICE: JumpEntry = {
   sub: "every workspace, for Chanlytics staff",
 };
 
-/** The pages this workspace has, for this person: every workspace's, and the back office for staff. */
+/** The pages this workspace has, for this person: every workspace's, Ads where it is drawn, and the back office for staff. */
 export function askPages(has: AskPagesHas): JumpEntry[] {
-  return has.platformAdmin ? [...ASK_PAGES, BACK_OFFICE] : [...ASK_PAGES];
+  return [...ASK_PAGES, ...(has.ads ? [ADS_PAGE] : []), ...(has.platformAdmin ? [BACK_OFFICE] : [])];
 }
 
 /**

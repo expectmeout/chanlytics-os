@@ -201,13 +201,16 @@ test.describe("Campaigns › Ads, nothing connected", () => {
 test.describe("Campaigns › Ads, where Ads is not drawn", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
-  test("an Ads address is Sequences, and nothing of Ads is drawn or read", async ({ page }) => {
+  test("an Ads address is Content's Made, where Ads would be, and nothing of Ads is drawn or read", async ({
+    page,
+  }) => {
     await signIn(page);
     await adsHere(page, false);
     const asked = readsOfTheReport(page);
     await page.addInitScript(RECORD);
     await page.goto("/#/campaigns/ads");
-    await expect(page.getByTestId("sq-page")).toBeVisible();
+    // Campaigns in three tabs (decision 0147): Ads is the last of Made's views, so where it is not drawn its address is Made.
+    await expect(page.getByTestId("content-page")).toBeVisible();
     await page.waitForLoadState("networkidle");
     const load = await loaded(page);
     expect(load.seen.filter((id) => id.startsWith("ads-"))).toEqual([]);

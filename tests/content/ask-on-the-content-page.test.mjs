@@ -94,8 +94,8 @@ test("anywhere else on Campaigns the line is as it was", () => {
     assert.doesNotMatch(words, /Campaigns › Content/, String(pageView));
   }
   const ads = turnWords({ ...facts, pageView: "ads" });
-  assert.match(ads, /They are on Campaigns › Ads/);
-  assert.doesNotMatch(ads, /Campaigns › Content/);
+  assert.match(ads, /They are on Ads, in Campaigns › Content/);
+  assert.doesNotMatch(ads, /They are on Campaigns › Content/, "Ads is said as Ads, not as Content's own line");
 });
 
 test("the guide has a Content page that holds Content's cards, and Settings holds none of them", () => {

@@ -13,7 +13,7 @@ import type { ContentPageDto } from "@chanlytics/contracts";
 import { refreshSurface } from "../../frame-verbs";
 import { rowPictureOf, smallPictureOf, warmPicture } from "../../files/photo";
 import { surfaceValue } from "../../surface-values";
-import { cmPhoneNow } from "../parts/split";
+import { cmPhoneNow } from "../parts/phone-query";
 import { contentLayoutNow, type ContentLayout } from "./views";
 
 /** How many pieces a first screen shows at most: four rows of three on a phone, a desk's first rows of tiles. */

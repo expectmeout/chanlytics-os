@@ -435,6 +435,9 @@ function ContentRead(props: ContentReadProps) {
   );
 }
 
+/** Content's first part (contracts PRIMARY_PART): Made's body. */
+const MADE_BODY = { page: "content", part: "body" };
+
 /** `held` is the surface's value: undefined until read, null where the read failed. */
 export function ContentBody({
   held,
@@ -444,6 +447,7 @@ export function ContentBody({
   openId = null,
   layout = "grid",
   desk = false,
+  markedAs = MADE_BODY,
 }: {
   held: ContentPageDto | null | undefined;
   acts: ContentActs;
@@ -452,9 +456,11 @@ export function ContentBody({
   openId?: string | null;
   layout?: ContentLayout;
   desk?: boolean;
+  /** The page its draw is said for where the address names another: an Ads address where Ads is not drawn opens Made. */
+  markedAs?: { page: string; part: string };
 }) {
   // Made's draw, said while its view is shown (use-surface.ts PartShown; client/page-speed.ts, contracts PRIMARY_PART).
-  const mark = <PartShown page="content" part="body" ready={held !== undefined} />;
+  const mark = <PartShown page={markedAs.page} part={markedAs.part} ready={held !== undefined} />;
   if (held === undefined)
     return (
       <div className="route-reading" role="status" aria-busy="true">

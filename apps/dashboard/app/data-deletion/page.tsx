@@ -65,9 +65,9 @@ export default function DataDeletionPage() {
         until the workspace is deleted.
       </p>
       <p>
-        Disconnecting a Meta ad account in Campaigns › Ads stops every read of it and deletes the access Meta gave us.
-        Removing Chanlytics in Meta&rsquo;s Business settings, under Integrations, ends that access from Meta&rsquo;s
-        side, and we stop. The ads and their numbers already read stay until the workspace is deleted.
+        Disconnecting a Meta ad account in Campaigns › Content › Ads stops every read of it and deletes the access Meta
+        gave us. Removing Chanlytics in Meta&rsquo;s Business settings, under Integrations, ends that access from
+        Meta&rsquo;s side, and we stop. The ads and their numbers already read stay until the workspace is deleted.
       </p>
 
       <h2>How long it takes</h2>

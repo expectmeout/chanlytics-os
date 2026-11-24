@@ -6,18 +6,19 @@
  * Settings open on and wait for (route-prefetch, surface-registry routeSurfaceFor), so a cold load of an Ads address
  * draws the page first and nothing before it (e2e/campaigns/ads.spec.ts). `useAdsShown` draws again when that read moves.
  */
+import { adsShownIn } from "@/bridge/surfaces/ads-shown";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 
 /** Whether Ads is drawn, as a chrome or a gate asks it as it draws. */
 export function adsShown(): boolean {
   if (typeof window === "undefined") return false;
-  return surfaceValue("settings")?.settings?.ads === true;
+  return adsShownIn(surfaceValue("settings"));
 }
 
 /** The same, for a component: it draws again when the settings surface lands or moves. */
 export function useAdsShown(): boolean {
   const settings = useSurface("settings");
   if (typeof window === "undefined") return false;
-  return settings?.settings?.ads === true;
+  return adsShownIn(settings);
 }
