@@ -20,7 +20,7 @@ import { PartShown } from "../parts/view-shown";
 import { useCampaignsToast } from "../home/route-toast";
 import { CmHead } from "../parts/head";
 import { CmSplit, useCmPhone, type CmView } from "../parts/split";
-import { FormsList } from "./list";
+import { FormsList, websiteDoorOf } from "./list";
 import { FormSheet } from "./sheet";
 import { useFormsList } from "./use-forms";
 import { WebsiteConnection } from "./website/connection";
@@ -42,9 +42,9 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
   // The website connection, from the head, the empty page and a site's form: one entry, so Back closes it.
   const website = () => go({ form: null, website: true });
   const flashOrQuiet = flash ?? (() => undefined);
-  // A phone's head draws its right side as the page's one coral act: the connection is a quiet line under the list there.
+  // Forms always has a way into the connection (websiteDoorOf): the empty page's start, the head's button, or a phone's line.
   const phone = useCmPhone();
-  const sites = (list.dto?.sites ?? 0) > 0;
+  const door = websiteDoorOf(list.dto, phone);
   return (
     <CmSplit
       testid="forms-page"
@@ -60,7 +60,7 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
             quiet
             allowance={false}
             right={
-              sites && !phone ? (
+              door === "head" ? (
                 <Button size="sm" variant="quiet" onClick={website} data-testid="forms-website">
                   <Icon name="globe" size={13} /> {W.connect.head}
                 </Button>
@@ -75,7 +75,7 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
             onOpen={(form) => go({ form })}
             onOpenSite={(form) => go({ form, site: true })}
             onWebsite={website}
-            websiteLine={sites && phone}
+            door={door}
           />
           {place.website ? <WebsiteConnection onClose={() => go({ form: null })} flash={flashOrQuiet} /> : null}
         </>

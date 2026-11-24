@@ -4,8 +4,9 @@
  * is made by saying what to collect. While AI drafts, its three work and the words stay still.
  *
  * Where the business's own website sends forms too (00709; Campaigns in three tabs, Lane B), the forms made here stand
- * under their head and each site's under its own, by their real names, a hidden one folded away. With no form at all, the
- * page offers two starts: say what to collect, or connect the website's own form.
+ * under their head and each site's under its own, by their real names, a hidden one folded away. With no form and no site,
+ * the page offers two starts: say what to collect, or connect the website's own form; past them, the connection is
+ * always one press away (websiteDoorOf).
  */
 import { useState } from "react";
 import { agoWords, type FormListRowDto, type FormsDto, type OutsideFormRowDto } from "@chanlytics/contracts";
@@ -13,6 +14,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { WEBSITE_FORM_WORDS } from "./website/words";
 import { AskLooking } from "../../files/looking";
 import { Button } from "../../kit/button/button";
+import { gate } from "../../frame-verbs";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
@@ -222,7 +224,11 @@ function SiteGroups(props: {
   );
 }
 
-/** The empty page's second start: the website's own form, connected. */
+/**
+ * The empty page's second start: the website's own form, connected. Its act is the connection's own permission's (the
+ * website connection's `can_change`, contracts ROLE_PERMS settings): a member who may not connect a site is told who may,
+ * at the button, rather than sent to an empty connection with nothing to press.
+ */
 function ConnectStart({ onWebsite }: { onWebsite: () => void }) {
   return (
     <div className="fmv-ask-head" data-testid="forms-connect">
@@ -233,12 +239,36 @@ function ConnectStart({ onWebsite }: { onWebsite: () => void }) {
         <h3>{W.connect.title}</h3>
         <p>{W.connect.body}</p>
         <div className="fmv-acts">
-          <Button size="sm" onClick={onWebsite} data-testid="forms-connect-go">
+          <Button size="sm" onClick={onWebsite} data-testid="forms-connect-go" {...gate("settings", W.connect.doing)}>
             {W.connect.act}
           </Button>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Where the page's way into the website connection stands: the empty page's start, the head's button, a line under the list. */
+type WebsiteDoor = "start" | "head" | "line";
+
+/**
+ * Forms always has a way into the website connection once its list is read. With no form made here, none brought over
+ * and no site, the page opens on its two starts, AI's and the website's, and the start is the way in. Everywhere else it
+ * is the head's button on a desk, and on a phone, whose head draws its right side as the page's one coral act, a quiet
+ * line under the list. Unread, or not read, there is none: what could not be read has its one act.
+ */
+export function websiteDoorOf(dto: FormsDto | null, phone: boolean): WebsiteDoor | null {
+  if (!dto) return null;
+  if (dto.forms.length === 0 && (dto.outside ?? []).length === 0 && dto.sites === 0) return "start";
+  return phone ? "line" : "head";
+}
+
+/** The connection as a quiet line, where the head has no room for it. */
+function WebsiteLine({ onWebsite }: { onWebsite: () => void }) {
+  return (
+    <LinkButton onClick={onWebsite} data-testid="forms-website-line">
+      {WEBSITE_FORM_WORDS.title}
+    </LinkButton>
   );
 }
 
@@ -251,13 +281,14 @@ interface FormsListProps {
   /** A site's form opened, and the website connection opened (00709). */
   onOpenSite: (formId: string) => void;
   onWebsite: () => void;
-  /** The connection as a quiet line under the list, where the head has no room for it (a phone). */
-  websiteLine?: boolean;
+  /** Where the way into the website connection stands (websiteDoorOf): the list draws the start and the line. */
+  door: WebsiteDoor | null;
 }
 
 /** The list: the forms, and the line to AI over them where there is none yet, under them once there is one. */
 export function FormsList(props: FormsListProps) {
-  const { dto, failed, again, openId, onOpen, onOpenSite, onWebsite, websiteLine = false } = props;
+  const { dto, failed, again, openId, onOpen, onOpenSite, onWebsite, door } = props;
+  const websiteLine = door === "line" ? <WebsiteLine onWebsite={onWebsite} /> : null;
   const [now] = useState(() => Date.now());
   if (failed)
     return (
@@ -282,8 +313,9 @@ export function FormsList(props: FormsListProps) {
       <div className="fmv-list" data-testid="forms-list">
         <Panel variant="pane" size="sm">
           {ask ?? <p className="fmv-note">{W.viewer}</p>}
-          {dto.sites === 0 ? <ConnectStart onWebsite={onWebsite} /> : null}
+          {door === "start" ? <ConnectStart onWebsite={onWebsite} /> : null}
         </Panel>
+        {websiteLine}
       </div>
     );
   // Heads only where both kinds stand: a page of forms made here alone reads as it always has.
@@ -301,11 +333,7 @@ export function FormsList(props: FormsListProps) {
         </section>
       ) : null}
       {heads ? <SiteGroups rows={outside} now={now} openId={openId} onOpen={onOpenSite} /> : null}
-      {websiteLine ? (
-        <LinkButton onClick={onWebsite} data-testid="forms-website-line">
-          {WEBSITE_FORM_WORDS.title}
-        </LinkButton>
-      ) : null}
+      {websiteLine}
       {ask}
     </div>
   );
