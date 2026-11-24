@@ -32,22 +32,25 @@ export interface PostsApproved {
   posts: { place: PostPlace; kind: PostKind; post_id: string }[];
 }
 
-/** The press: the approval and its placements in one write; or why not. */
-export async function approvePosts(
+/**
+ * The press, whole or not at all (00713 post_approve_whole): the facts the owner stated, the piece's words, and the approval
+ * and its placements, or a version set in place of the posts still waiting the owner saw; or why not, with nothing kept.
+ */
+export async function approvePostsWhole(
   db: Db,
   press: { tenantId: TenantId; fileId: string; approval: Json },
 ): Promise<PostsApproved> {
-  const { data, error } = await db.rpc("post_approve", {
+  const { data, error } = await db.rpc("post_approve_whole", {
     p_tenant_id: press.tenantId,
     p_file_id: press.fileId,
     p_approval: press.approval,
   });
-  if (error) throw new DbFailure(error, "post approve");
+  if (error) throw new DbFailure(error, "post approve whole");
   return postsApprovedOf(data);
 }
 
 /** The approval door's answer read (post_approve, and 00708 piece_posts_replace, which answers what it answered). */
-export function postsApprovedOf(data: unknown): PostsApproved {
+function postsApprovedOf(data: unknown): PostsApproved {
   const answer = recordOrEmpty(data);
   if (!isOneOf(APPROVE_FATES, answer.fate)) throw new Error("post approve: no fate answered");
   const posts = Array.isArray(answer.posts) ? answer.posts.map(recordOrEmpty) : [];

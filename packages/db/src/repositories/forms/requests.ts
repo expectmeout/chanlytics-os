@@ -371,21 +371,6 @@ export async function listFormEntryLinks(
   });
 }
 
-/** The reply a member sent from a request, kept as what answered it. */
-export async function linkFormReply(
-  db: Db,
-  linked: { tenantId: TenantId; entryId: string; messageId: string; userId: string },
-): Promise<void> {
-  const { error } = await db.from("form_entry_links").insert({
-    tenant_id: linked.tenantId,
-    entry_id: linked.entryId,
-    kind: "reply",
-    message_id: linked.messageId,
-    created_by: linked.userId,
-  });
-  if (error) throw new DbFailure(error, "form_entry_links");
-}
-
 /** A member's word that a request was answered another way. Said twice, it is said once. */
 export async function markFormEntryAnswered(
   db: Db,

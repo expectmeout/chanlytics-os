@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { CONTENT_CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { approveWhole } from "../content/places/_approve-whole.mjs";
 import { madeJpegBytes, madeVideoBytes } from "../content/making/_made-bytes.mjs";
 
 /** What the bucket holds at a made file's path: its own MP4 for a video, a JPEG for each of a post's shapes. */
@@ -141,31 +142,34 @@ function world({
       },
       {},
       {
-        // The words kept as the piece's next version (00681): asked by every press.
-        piece_words_keep: (a) => {
-          wordsKept.push(a.p_caption);
-          return { revision: 1, followed: 0 };
-        },
-        // 00681's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
-        post_approve: ({ p_tenant_id, p_file_id, p_approval }) => {
-          const [placed] = p_approval.placements;
-          begun.push({
-            p_tenant_id,
-            p_file_id,
-            p_place: placed.place,
-            p_kind: placed.kind,
-            p_caption: placed.caption ?? "",
-            p_via: p_approval.via,
-            approval: p_approval,
-          });
-          if (rows.some((p) => ["queued", "preparing", "publishing", "checking"].includes(p.status)))
-            return { fate: "busy", post_id: rows[0].id, posts: [] };
-          return {
-            fate: "approved",
-            approval_id: "abab0000-0000-4000-8000-000000000001",
-            posts: [{ place: placed.place, kind: placed.kind, post_id: "00000002-0000-4000-8000-000000000000" }],
-          };
-        },
+        // 00713's door: the words and the approval kept whole, or neither.
+        post_approve_whole: approveWhole({
+          // The words kept as the piece's next version (00681): asked by every press that changes them.
+          piece_words_keep: (a) => {
+            wordsKept.push(a.p_caption);
+            return { revision: 1, followed: 0 };
+          },
+          // 00681's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
+          post_approve: ({ p_tenant_id, p_file_id, p_approval }) => {
+            const [placed] = p_approval.placements;
+            begun.push({
+              p_tenant_id,
+              p_file_id,
+              p_place: placed.place,
+              p_kind: placed.kind,
+              p_caption: placed.caption ?? "",
+              p_via: p_approval.via,
+              approval: p_approval,
+            });
+            if (rows.some((p) => ["queued", "preparing", "publishing", "checking"].includes(p.status)))
+              return { fate: "busy", post_id: rows[0].id, posts: [] };
+            return {
+              fate: "approved",
+              approval_id: "abab0000-0000-4000-8000-000000000001",
+              posts: [{ place: placed.place, kind: placed.kind, post_id: "00000002-0000-4000-8000-000000000000" }],
+            };
+          },
+        }),
         file_change: (a) => {
           doors.push(["file_change", a.p_status ?? null]);
           return null;

@@ -77,42 +77,61 @@ async function keepCaption(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  /** The words as written, and the file's posts where the caller has read them already. */
-  { said, read }: { said: string; read?: readonly MemberPostRow[] },
+  /** The words as written. */
+  { said }: { said: string },
 ): Promise<void> {
-  if (row.source !== "made") throw new AppError("validation", W.captionNotMade);
   const caption = said.trim();
-  const video = row.kind === "video";
-  const most = video ? PIECE_LIMITS.caption : POST_CAPTION_MAX;
-  if (caption.length > most) throw new AppError("validation", W.captionLong(most));
-  const db = serviceDb();
-  if (video) {
-    if (!(await keepVideoCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
-  } else {
-    const posts = read ?? (await listFilePosts(ctx.supabase, member.tenantId, row.id));
-    const refused = waitingRefusalOf(posts, caption);
-    if (refused) throw new AppError("validation", refused);
-    if (!(await keepPostCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
-  }
+  const posts = row.kind === "video" ? [] : await listFilePosts(ctx.supabase, member.tenantId, row.id);
+  const refused = captionRefusalOf(row, caption, posts);
+  if (refused) throw new AppError(refused.code, refused.words);
+  if (!(await keepMadeWords(member, row, caption))) throw new AppError("not_found", W.gone);
   // The piece's next version, and every placement still waiting goes up with the new words: this member's save is their
   // approval of them (00681 piece_words_keep), so a scheduled post is never left behind on the old ones.
   await keepPieceWords(ctx.supabase, { tenantId: member.tenantId, fileId: row.id, caption: caption || null });
 }
 
+/** What stands in the way of these words, trimmed, on this piece and the file's posts still waiting; null where nothing does. */
+function captionRefusalOf(
+  row: FileMemberRow,
+  caption: string,
+  posts: readonly MemberPostRow[],
+): { code: "validation"; words: string } | null {
+  if (row.source !== "made") return { code: "validation", words: W.captionNotMade };
+  const most = row.kind === "video" ? PIECE_LIMITS.caption : POST_CAPTION_MAX;
+  if (caption.length > most) return { code: "validation", words: W.captionLong(most) };
+  const waiting = row.kind === "video" ? null : waitingRefusalOf(posts, caption);
+  return waiting ? { code: "validation", words: waiting } : null;
+}
+
 /**
- * A post's words kept on its piece as it is sent (Ruben, 12 Nov 2026: one step, so the words that go and the words kept are
- * never two): the door that posts it keeps them first, where they differ from what the piece says, and its other posts still
- * waiting for their time follow. Words one of those could not take are refused before anything is posted.
+ * How it was made says the words too (Details, AI's card to put it up): a post's beside its plan, a video's on the plan it was
+ * drawn by, by the service role. Whether there was a made piece to keep them on.
  */
-export async function keepPostWords(
+export async function keepMadeWords(member: Member, row: FileMemberRow, caption: string): Promise<boolean> {
+  const db = serviceDb();
+  return row.kind === "video"
+    ? keepVideoCaption(db, member.tenantId, row.id, caption)
+    : keepPostCaption(db, member.tenantId, row.id, caption);
+}
+
+/**
+ * A post's words, where they change what the piece says, as an approval keeps them (Ruben, 12 Nov 2026: one step, so the words
+ * that go and the words kept are never two). Held to what the piece and its posts still waiting take, and refused in the
+ * owner's words, before anything is kept; the approval's own door keeps them with it (00713 post_approve_whole). Null where
+ * they are the piece's already.
+ */
+export async function readWordsToKeep(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   words: string,
-): Promise<void> {
+): Promise<string | null> {
   const { caption, posts } = await readCaptionKept(ctx, member.tenantId, row.id);
-  if (caption === (words.trim() || null)) return;
-  await keepCaption(ctx, member, row, { said: words, read: posts });
+  const said = words.trim();
+  if (caption === (said || null)) return null;
+  const refused = captionRefusalOf(row, said, posts);
+  if (refused) throw new AppError(refused.code, refused.words);
+  return said;
 }
 
 /** The caption a made post keeps, with the posts it was read from: its posts under the caller's RLS, how it was made by the service role. */

@@ -8,21 +8,28 @@ import "server-only";
  * The reply leaves by the doors every message leaves by: core's beginConversation opens the person's one thread where
  * they have none and queues the message as a reply is queued, with its seconds to take it back, and what the person
  * writes back is AI's to answer by the workspace's own rules (the canvas's call 13). The send door decides whether it
- * may go at all. The reply is then kept as what answered THIS request (form_entry_links), written by the act itself:
- * a reply never closes another request, and one that fails or is taken back answers nothing.
+ * may go at all. The message says which request it answers, and is kept as what answered THIS request (form_entry_links)
+ * in its own write (00713 messages_answer_a_form_request): a reply never closes another request, one that fails or is taken
+ * back answers nothing, and a link that could not be written is a message that was not, so nothing is sent.
  *
  * A person's page is never overwritten by what was typed into a form. Where the request's address is not the one on
  * their page, the reply waits for the member's pick: the request's own (their page takes it, by the member's word) or
  * the one on their page. An address that bounced may be answered at its likely fix, by the same pick.
  */
-import { AppError, asTenantId, emailTypoFix, heldContactId, type FormRequestPress } from "@chanlytics/contracts";
-import { beginConversation } from "@chanlytics/core";
+import {
+  AppError,
+  asTenantId,
+  emailTypoFix,
+  heldContactId,
+  recordOrEmpty,
+  type FormRequestPress,
+} from "@chanlytics/contracts";
+import { beginConversation, type BeginPorts } from "@chanlytics/core";
 import {
   findFormRequest,
   findFormVersion,
   holdFormEntry,
   letFormEntryThrough,
-  linkFormReply,
   markFormEntryAnswered,
   removeFormEntryMark,
   type FormEntryRead,
@@ -102,6 +109,16 @@ async function settleAddress(
   );
 }
 
+/**
+ * The world a reply begins in, with its message saying which request it answers: the database links the two as the message
+ * is written (00713), so a reply queued is a request answered, or neither.
+ */
+function answeringPorts(ports: BeginPorts, entryId: string): BeginPorts {
+  const reply = ports.reply;
+  const meta = (row: { meta?: unknown }) => ({ ...recordOrEmpty(row.meta), form_entry_id: entryId });
+  return { ...ports, reply: { ...reply, queue: (row) => reply.queue({ ...row, meta: meta(row) }) } };
+}
+
 /** The reply sent by the road named, and kept as what answered this request. */
 async function sendReply(
   ctx: RouteContext,
@@ -115,7 +132,7 @@ async function sendReply(
     throw new AppError("conflict", "This entry is held for a look. Let it through before answering it.", 409);
   const to = press.wire === "email" ? await settleAddress(ctx, member, { ...entry, contactId }, press.email_to) : null;
   const subject = press.subject ?? `Re: ${(await requestHeadingOf(ctx, member, entry)) ?? "your request"}`;
-  const receipt = await beginConversation(beginPorts(ctx), {
+  const receipt = await beginConversation(answeringPorts(beginPorts(ctx), entry.id), {
     tenantId: asTenantId(member.tenantId),
     personId: contactId,
     userId: ctx.userId,
@@ -125,12 +142,6 @@ async function sendReply(
     // What they write back is AI's to answer, as with anyone who writes in (the canvas's call 13).
     then: "receptionist",
     idempotencyKey,
-  });
-  await linkFormReply(ctx.supabase, {
-    tenantId: member.tenantId,
-    entryId: entry.id,
-    messageId: receipt.message_id,
-    userId: ctx.userId,
   });
   return {
     message_id: receipt.message_id,

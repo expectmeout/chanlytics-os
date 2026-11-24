@@ -13,9 +13,12 @@
  * - The same read is the same method and address under the same headers, so another person's token, another schema or
  *   another page of rows is another read.
  * - A function's call is never shared. Some count what they are asked (the limiter counts each hit), and a function's
- *   answer is its own to keep or not.
+ *   answer is its own to keep or not. Nor does one end what is shared: a request shares its reads only where every read
+ *   it answers is a GET's (the dashboard's GET open), whose calls write nothing a read of theirs reads back (the limiter
+ *   writes its own counts). A request whose call writes what it then reads does not share.
  * - A write to a table ends what the request shares, as it leaves and as it lands, so a read after a write sees it.
- * - An answer that failed, or that the server could not make (a 5xx), is not kept: the next asks again, as a retry must.
+ * - An answer that failed, that the server could not make (a 5xx), or that says to ask again later (408: it took too
+ *   long; 429: too many at once) is not kept: none is a fact, so the next asks again, as a retry must.
  * - A call that carries a signal of its own may be called off by its caller alone, so it is sent as it came.
  *
  * Every asker reads an answer of its own, made from the bytes read once. The client reads an answer's status, its
@@ -37,6 +40,9 @@ interface SharedCall {
   init: RequestInit | undefined;
   how: string | null;
 }
+
+/** The refusals that pass: the same read asked again a moment later may well be answered. */
+const ASK_AGAIN = new Set([408, 429]);
 
 /** The statuses an answer carries no body under: `Response` refuses one made with any. */
 const NO_BODY = new Set([204, 205, 304]);
@@ -92,9 +98,9 @@ export function readShared(scope: object | null, call: SharedCall, send: () => P
   const forget = () => {
     if (answers.get(key) === kept) answers.delete(key);
   };
-  // Neither a failure nor an answer the server could not make is a fact: the next asks again.
+  // Neither a failure, an answer the server could not make, nor one that says to ask again is a fact: the next asks again.
   void kept.then((answer) => {
-    if (answer.status >= 500) forget();
+    if (answer.status >= 500 || ASK_AGAIN.has(answer.status)) forget();
   }, forget);
   return kept.then(answerFrom);
 }

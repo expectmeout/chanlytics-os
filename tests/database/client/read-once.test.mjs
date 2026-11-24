@@ -128,6 +128,18 @@ test("a read that failed is not kept, and neither is an answer the server could 
   assert.equal(sent.length, 3);
 });
 
+test("an answer that says to ask again later is not kept: too many at once, or too long, is asked again", async () => {
+  for (const status of [429, 408]) {
+    observing(new Map());
+    const { sent, fetch } = counting((n) =>
+      n === 1 ? new Response('{"message":"later"}', { status }) : new Response("[]", { status: 200 }),
+    );
+    assert.equal((await fetch(`${BASE}/lines?select=id`)).status, status);
+    assert.equal((await fetch(`${BASE}/lines?select=id`)).status, 200, `a ${status} is asked again`);
+    assert.equal(sent.length, 2);
+  }
+});
+
 test("a refusal is an answer: the same read is refused the same way, without asking again", async () => {
   observing(new Map());
   const { sent, fetch } = counting(() => new Response('{"code":"42501"}', { status: 403, statusText: "Forbidden" }));

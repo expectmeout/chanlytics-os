@@ -14093,6 +14093,10 @@ export type Database = {
         Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
         Returns: Json
       }
+      post_approve_whole: {
+        Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       post_as_approved: { Args: { p_post_id: string }; Returns: Json }
       post_attempt_close: {
         Args: {

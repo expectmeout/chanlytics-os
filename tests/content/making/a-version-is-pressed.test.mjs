@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { madeVideoBytes } from "./_made-bytes.mjs";
+import { approveWhole } from "../places/_approve-whole.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -121,7 +122,7 @@ const reasonFor = (day) => ({
 });
 
 /** A workspace with a piece at version 2 (its file V2), version 1's file, posts at version 1, and a photo. */
-function world({ role = "owner", posts = [{}], drawing = null, intent = null } = {}) {
+function world({ role = "owner", posts = [{}], drawing = null, intent = null, moved = false } = {}) {
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   const replaced = [];
@@ -167,6 +168,27 @@ function world({ role = "owner", posts = [{}], drawing = null, intent = null } =
         ]
       : []),
   ];
+  const doors = {
+    // 00708's door: the waiting posts let go and this file approved in their place, in one step.
+    piece_posts_replace: ({ p_tenant_id, p_file_id, p_approval }) => {
+      replaced.push({ p_tenant_id, p_file_id, approval: p_approval });
+      return {
+        fate: "approved",
+        approval_id: "abab0000-0000-4000-8000-000000000001",
+        posts: p_approval.placements.map((p, i) => ({
+          place: p.place,
+          kind: p.kind,
+          post_id: `00000002-0000-4000-8000-00000000000${i}`,
+        })),
+      };
+    },
+    // 00681's door, which adds posts beside the waiting ones: a version's press never asks it.
+    post_approve: (a) => {
+      approved.push(a);
+      return { fate: "approved", approval_id: "x", posts: [] };
+    },
+    piece_words_keep: () => ({ revision: 2, followed: 0 }),
+  };
   const ctx = {
     supabase: fakeDb(
       {
@@ -190,25 +212,9 @@ function world({ role = "owner", posts = [{}], drawing = null, intent = null } =
       },
       {},
       {
-        // 00708's door: the waiting posts let go and this file approved in their place, in one step.
-        piece_posts_replace: ({ p_tenant_id, p_file_id, p_approval }) => {
-          replaced.push({ p_tenant_id, p_file_id, approval: p_approval });
-          return {
-            fate: "approved",
-            approval_id: "abab0000-0000-4000-8000-000000000001",
-            posts: p_approval.placements.map((p, i) => ({
-              place: p.place,
-              kind: p.kind,
-              post_id: `00000002-0000-4000-8000-00000000000${i}`,
-            })),
-          };
-        },
-        // 00681's door, which adds posts beside the waiting ones: a version's press never asks it.
-        post_approve: (a) => {
-          approved.push(a);
-          return { fate: "approved", approval_id: "x", posts: [] };
-        },
-        piece_words_keep: () => ({ revision: 2, followed: 0 }),
+        // 00713's door: the approval kept whole, through the doors above; or, where its posts moved since the owner
+        // looked, refused as the door refuses it, with nothing let go.
+        post_approve_whole: (a) => (moved ? { fate: "changed", posts: [] } : approveWhole(doors)(a)),
         piece_version_begin: (a) => {
           begun.push(a);
           return { fate: "begun", piece_id: "99999999-0000-4000-8000-000000000003" };
@@ -267,6 +273,15 @@ test("Approve version 2 approves it for every place still waiting, at each one's
   assert.equal(approval.renditions.length, 1);
   assert.equal(approval.renditions[0].shape, "9x16");
   assert.match(approval.renditions[0].checksum, /^[0-9a-f]{64}$/);
+  // The posts the owner saw still waiting, named, so the door holds them still while it swaps them (00713).
+  assert.equal(approval.replace, true);
+  assert.deepEqual([...approval.expected].sort(), w.rows.map((r) => r.id).sort());
+});
+
+test("a version whose posts moved since the owner looked is refused in their words, and nothing is let go", async () => {
+  const w = world({ moved: true });
+  await assert.rejects(press(w, "approve"), (e) => e.message === "Changed since you approved it. Look again.");
+  assert.deepEqual([w.replaced.length, w.approved.length], [0, 0]);
 });
 
 test("a version carries on the reason its piece was made for: the day still dates each post it sets", async () => {
