@@ -79,6 +79,18 @@ export function frameTopsWatched(): HTMLElement[] {
 }
 
 /**
+ * Whether the frame's top is drawn in the page's flow, no box of its own (display: contents: wider than a phone), rather
+ * than standing over the page as a phone's does. There, what it draws takes the page's room: a list's head drawn again
+ * under a row's page carried back (holdFrameTop holds only a top that stands over the page) moves the page by all of it.
+ * Opening a person from People at 768 and 887 px wide, the page slid in under People's head and strip, 120 px down, and
+ * moved up 76 px as it landed and the person's own head came back (production, 24 Nov 2026).
+ */
+export function frameTopInTheFlow(): boolean {
+  for (const top of watched.keys()) if (top.getClientRects().length === 0) return true;
+  return false;
+}
+
+/**
  * The top's height held where it is (`on`), whatever the top draws, until it is let go and measured again: while a thumb
  * carries a row's page back, the frame draws its chrome again under that page (kit motion/held-list.ts showHeld), and the
  * page, which starts under the top, would have moved down by all of it under the finger. Only a measure asked for by name

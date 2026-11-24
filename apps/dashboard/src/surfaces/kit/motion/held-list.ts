@@ -37,7 +37,7 @@
  */
 import { useLayoutEffect, useRef } from "react";
 import { pagesOwnTop } from "../head/frame-head";
-import { frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
+import { frameTopInTheFlow, frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
 import {
@@ -191,8 +191,21 @@ const cancelIdle = (id: number): void => {
   else window.clearTimeout(id);
 };
 
-/** Whether a row's page is pushed in over a list `scroller` scrolls: the window, on a phone, with motion not reduced. */
-const pushesOverBox = (scroller: HTMLElement): boolean => isDocumentScroller(scroller) && !motionReduced();
+/**
+ * Whether a row's page is pushed in over a list `scroller` scrolls: the window, on a phone, with motion not reduced, and
+ * the frame's top standing over the page (carriedHere). People's list, held from 900 px down, has no box scrolling its
+ * head, so the window was taken for its scroller where the top is drawn in the page's flow too.
+ */
+const pushesOverBox = (scroller: HTMLElement): boolean =>
+  isDocumentScroller(scroller) && !motionReduced() && carriedHere();
+
+/**
+ * Whether a row's page may be carried over its list here, pushed in or by a thumb, with the screen it goes back to under
+ * it: only where the frame's top stands over the page. Drawn in the page's flow (kit/head/frame-top.ts frameTopInTheFlow),
+ * the list's head drawn again under the page moved the page by all of it, so there a page opens where it stands and a
+ * thumb carries the page alone.
+ */
+const carriedHere = (): boolean => !frameTopInTheFlow();
 
 /**
  * How long a press on a phone waits for a row's page the tab has not read, where it would be pushed in (pushesOver), so
@@ -242,7 +255,7 @@ function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   // page keeps out of the document is stood in for by a picture, only where a thumb may carry the row's page away.
   if (list.getClientRects().length > 0) standAt(list, place.box);
   else if (page) pictureOf(now);
-  else if (touchScreen()) now.idle = whenIdle(() => pictureOf(now));
+  else if (touchScreen() && carriedHere()) now.idle = whenIdle(() => pictureOf(now));
   // The row's page starts at its top where the window scrolls it, as a page arriving does (view-deck.ts toTop).
   if (isDocumentScroller(place.scroller)) windowTo(0);
   if (page && arrival) pushOver(now, page, arrival);
@@ -509,9 +522,12 @@ function scrollBoxTo(scroller: HTMLElement, top: number): void {
   else scroller.scrollTop = top;
 }
 
-/** What stands for the held list on the screen: the list itself where it is laid out, else its picture; null with none. */
+/**
+ * What stands for the held list on the screen: the list itself where it is laid out, else its picture; null with none, and
+ * where no page is carried over it (carriedHere).
+ */
 function heldStandIn(): HTMLElement | null {
-  if (!holding) return null;
+  if (!holding || !carriedHere()) return null;
   const { list } = holding.place;
   return holding.copy ?? (list.getClientRects().length > 0 ? list : null);
 }
