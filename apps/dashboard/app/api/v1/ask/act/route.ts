@@ -16,5 +16,11 @@ export const POST = write({
   handle: ({ ctx, req, member, input }) => runAct(ctx, req, member, actOf(input)),
 });
 
-/** A plan's press may make several calls, one of which may file a message with WhatsApp. */
-export const maxDuration = 60;
+/**
+ * A plan's press may make several calls, one of which may file a message with WhatsApp; a card's one call may wait AI's
+ * whole draft of a form (FORM_PRESS_WAIT_MS, 65 s), with the door's own reads around it. The turn's own limit
+ * (app/api/v1/ask): Vercel groups routes by their configuration, so the door is loaded in the function of the turn that
+ * just made the card, never one of its own left cold after each deploy. A tab waits this and a little more (contracts
+ * ASK_ACT_WAIT_MS).
+ */
+export const maxDuration = 150;

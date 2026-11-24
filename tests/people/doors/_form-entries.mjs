@@ -1,7 +1,8 @@
 /**
- * A website form's two SQL doors (00675) over a database in memory, as the migration writes them: form_entry_take (the
- * key's last use, the once rule, the person through the door the suite hands it, the entry and its event, or nothing
- * for a person who asked to be forgotten) and form_entry_settled (an effect's outcome on its entry, the entry processed,
+ * A website form's two SQL doors (00675, 00709) over a database in memory, as the migrations write them: form_entry_take
+ * (the key's last use and its site, the form the entry is of, the once rule within that form, the person through the
+ * door the suite hands it, the entry with where its visitor came from and its event, a test that keeps nothing of
+ * anyone, or nothing for a person who asked to be forgotten) and form_entry_settled (an effect's outcome on its entry, the entry processed,
  * when the owner was first told, and the ask's first outcome as form_entry.asked). The real SQL is proved on a database
  * by website-form-entry.db.test.mjs; this is what lets the edge's door and steps run here.
  *
@@ -36,6 +37,65 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
       data,
       created_at: now(),
     });
+  /** The key's site, made at its first use, learning its host from the first entry whose page names one. */
+  const siteOf = (tenantId, keyId, host) => {
+    const sites = (tables.form_sites ??= []);
+    const key = (tables.form_keys ?? []).find((k) => k.tenant_id === tenantId && k.id === keyId);
+    let site = sites.find((s) => s.tenant_id === tenantId && s.id === key?.site_id);
+    if (!site) {
+      site = { id: randomUUID(), tenant_id: tenantId, name: key?.name ?? null, host: null, first_entry_at: null };
+      Object.assign(site, { last_entry_at: null, test_at: null, created_at: now() });
+      sites.push(site);
+      if (key) key.site_id = site.id;
+    }
+    const named = (host ?? "").trim().toLowerCase();
+    if (!site.host && /^[a-z0-9][a-z0-9.-]*$/.test(named) && named.length <= 253) site.host = named;
+    return site;
+  };
+  /** The form an entry is of: found by its site, kind and the site's id for it, or made, its requests from now. */
+  const outsideFormOf = (a, site) => {
+    const forms = (tables.outside_forms ??= []);
+    const ref = (a.p_form_ref ?? "").trim().slice(0, 100) || null;
+    const sent = (a.p_form_name ?? "").trim().slice(0, 120) || null;
+    let form = forms.find(
+      (o) => o.tenant_id === a.p_tenant_id && o.site_id === site.id && o.form === a.p_form && o.ref === ref,
+    );
+    if (!form) {
+      form = { id: randomUUID(), tenant_id: a.p_tenant_id, kind: "website", site_id: site.id, form: a.p_form, ref };
+      Object.assign(form, { sent_name: null, name: null, listed: true, requests_from: now(), created_at: now() });
+      Object.assign(form, { first_entry_at: null, last_entry_at: null });
+      forms.push(form);
+    }
+    form.sent_name = sent ?? form.sent_name;
+    return form;
+  };
+  /** An entry's row, every column the table has (00675, 00680, 00709), as the table defaults them. */
+  const entryRow = (a, keyId, contactId, ref, source, outsideFormId = null) => ({
+    id: randomUUID(),
+    tenant_id: a.p_tenant_id,
+    contact_id: contactId,
+    key_id: keyId,
+    form: a.p_form,
+    answers: a.p_answers,
+    ref,
+    words: a.p_words,
+    owed: a.p_owed,
+    effects: {},
+    state: "accepted",
+    told_at: null,
+    created_at: now(),
+    // A website's own form has no hosted form, and is never held (00680's columns).
+    form_id: null,
+    version_id: null,
+    link_id: null,
+    outside_form_id: outsideFormId,
+    source,
+    reach: null,
+    test: false,
+    held_why: null,
+    code: null,
+    code_used_at: null,
+  });
   return {
     form_entry_take: (a) => {
       const keys = (tables.form_keys ??= []);
@@ -63,19 +123,41 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
         if (own) own.last_used_at = now();
       }
       const entries = (tables.form_entries ??= []);
-      const ref = (a.p_ref ?? "").trim() || null;
-      const again = ref
-        ? entries.find((e) => e.tenant_id === a.p_tenant_id && e.ref === ref)
-        : entries
-            .filter(
-              (e) =>
-                e.tenant_id === a.p_tenant_id &&
-                e.words === a.p_words &&
-                !e.ref &&
-                Date.parse(e.created_at) > clock() - AGAIN_WITHIN_MS,
-            )
-            .at(-1);
-      if (again) return { outcome: "again", entry_id: again.id, contact_id: again.contact_id };
+      const site = siteOf(a.p_tenant_id, keyId, a.p_host);
+      const source =
+        a.p_source && typeof a.p_source === "object" && JSON.stringify(a.p_source).length <= 4000 ? a.p_source : null;
+      // A test tells nobody, keeps nobody and names no form: its site stands at "test received" from now.
+      if (a.p_test === true) {
+        const test = { ...entryRow(a, keyId, null, null, source), owed: [], test: true };
+        entries.push(test);
+        site.test_at = now();
+        return { outcome: "test", entry_id: test.id, contact_id: null, clash: false };
+      }
+      const form = outsideFormOf(a, site);
+      // Once within its form: the site's id with the same words is the same entry, with other words a new one (clash).
+      let ref = (a.p_ref ?? "").trim() || null;
+      let clash = false;
+      if (ref) {
+        const had = entries.find(
+          (e) => e.tenant_id === a.p_tenant_id && e.outside_form_id === form.id && e.ref === ref,
+        );
+        if (had && had.words === a.p_words)
+          return { outcome: "again", entry_id: had.id, contact_id: had.contact_id, clash };
+        if (had) [clash, ref] = [true, null];
+      }
+      if (!ref) {
+        const again = entries
+          .filter(
+            (e) =>
+              e.tenant_id === a.p_tenant_id &&
+              e.outside_form_id === form.id &&
+              e.words === a.p_words &&
+              !e.ref &&
+              Date.parse(e.created_at) > clock() - AGAIN_WITHIN_MS,
+          )
+          .at(-1);
+        if (again) return { outcome: "again", entry_id: again.id, contact_id: again.contact_id, clash: false };
+      }
       let person;
       try {
         person = resolve({
@@ -93,34 +175,11 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
         if (e && e.code === "PE001") return { outcome: "forgotten", entry_id: null, contact_id: null };
         throw e;
       }
-      const entry = {
-        id: randomUUID(),
-        tenant_id: a.p_tenant_id,
-        contact_id: person.contact_id,
-        key_id: keyId,
-        form: a.p_form,
-        answers: a.p_answers,
-        ref,
-        words: a.p_words,
-        owed: a.p_owed,
-        effects: {},
-        state: "accepted",
-        told_at: null,
-        created_at: now(),
-        // A website's own form has no hosted form, and is never a test or held (00680's columns, as the table defaults them).
-        form_id: null,
-        version_id: null,
-        link_id: null,
-        source: null,
-        reach: null,
-        test: false,
-        held_why: null,
-        code: null,
-        code_used_at: null,
-      };
+      const entry = entryRow(a, keyId, person.contact_id, ref, source, form.id);
       entries.push(entry);
+      for (const row of [form, site]) [row.first_entry_at, row.last_entry_at] = [row.first_entry_at ?? now(), now()];
       event(a.p_tenant_id, "form_entry.accepted", entry.id, { form: a.p_form, owed: a.p_owed });
-      return { outcome: "accepted", entry_id: entry.id, contact_id: entry.contact_id, person: person.outcome };
+      return { outcome: "accepted", entry_id: entry.id, contact_id: entry.contact_id, person: person.outcome, clash };
     },
     form_entry_settled: (a) => {
       const entry = (tables.form_entries ?? []).find((e) => e.tenant_id === a.p_tenant_id && e.id === a.p_entry_id);

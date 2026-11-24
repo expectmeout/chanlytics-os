@@ -38,6 +38,8 @@ export const REQUEST_WORDS = {
     again: "Ask AI again",
     couldNot: "AI couldn't write a reply just now. Write it here, or ask again.",
     aria: "The reply",
+    /** What AI's reply is told it is about, in the owner's words; what they asked goes beside it, as theirs. */
+    about: "A reply to what they asked on the form.",
   },
   sent: {
     waiting: (recipient: string) => `Message to ${recipient} waiting`,
@@ -128,7 +130,7 @@ export const REQUEST_WORDS = {
     },
     /** What the page says once a press is taken: the reply that tells them is below. */
     said: { booked: "Booked. Tell them below.", cant: "Let go. Tell them below." },
-    /** What AI's reply is told of the time, beside what they asked (the request's note). */
+    /** What AI's reply is told of the time, beside what they asked (the request's note, told as theirs). */
     aboutBooked: (when: string) =>
       `The business booked the time they asked for: ${when}. Tell them they are booked, and promise nothing else.`,
     aboutGone: (offer: string) =>
@@ -137,8 +139,13 @@ export const REQUEST_WORDS = {
 } as const;
 
 /** "Colour consultation · 2h ago": which form and how long ago, under the person's name. */
-export const requestSubline = (request: Pick<FormRequestDto, "heading" | "created_at">, nowMs: number): string =>
-  `${request.heading} · ${agoWords(Date.parse(request.created_at), nowMs)}`;
+export const requestSubline = (
+  request: Pick<FormRequestDto, "heading" | "created_at"> & { site?: string | null },
+  nowMs: number,
+): string =>
+  [request.heading, request.site ? `from ${request.site}` : null, agoWords(Date.parse(request.created_at), nowMs)]
+    .filter(Boolean)
+    .join(" · ");
 
 /** Who a request is from, as its head names them: what they typed, else their address or their number. */
 export const requestWho = (request: Pick<FormRequestDto, "reach" | "person">): string =>

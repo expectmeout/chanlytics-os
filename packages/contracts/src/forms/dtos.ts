@@ -5,7 +5,9 @@
  * what each screen says of them is the screen's own.
  */
 import { z } from "zod";
+import { FORM_LIMITS } from "./limits";
 import { FormDescription } from "./shape";
+import type { OutsideFormRowDto } from "./outside";
 import type { RequestLine } from "./request-words";
 import type { FormTimeStatus } from "./times";
 
@@ -32,6 +34,12 @@ export interface FormListRowDto {
 
 export interface FormsDto {
   forms: FormListRowDto[];
+  /**
+   * The forms the business's own website sends (00709), each once its first entry arrived, listed or hidden; and how
+   * many sites it has keys for, so an empty page offers the website connection, and a page with sites opens it.
+   */
+  outside: OutsideFormRowDto[];
+  sites: number;
   /** Whether this member may make and change forms. */
   can_change: boolean;
 }
@@ -129,7 +137,10 @@ export interface FormRequestTimeDto {
 /** One request as Inbox answers it. */
 export interface FormRequestDto {
   id: string;
+  /** The form it came through: one made here, or one the business's own website owns (`site`). */
   form_id: string;
+  /** The site its form is on, as Forms names it (contracts formSiteNameOf); null for a form made here. */
+  site: string | null;
   heading: string;
   created_at: string;
   lines: RequestLine[];
@@ -163,7 +174,10 @@ export interface FormRequestDto {
  */
 export interface FormOpenRequestDto {
   id: string;
+  /** The form it came through: one made here, or one the business's own website owns (`site`). */
   form_id: string;
+  /** The site its form is on; null for a form made here. */
+  site: string | null;
   /** The form's heading, as the visitor saw it. */
   heading: string;
   created_at: string;
@@ -215,16 +229,20 @@ export interface FormsReportDto {
 /** What a member's press on Campaigns › Forms asks. */
 export const FormPress = z.discriminatedUnion("act", [
   // A form made by saying what to collect: AI drafts it.
-  z.strictObject({ act: z.literal("make"), sentence: z.string().trim().min(2).max(600) }),
+  z.strictObject({ act: z.literal("make"), sentence: z.string().trim().min(2).max(FORM_LIMITS.sentence) }),
   // The draft kept as its owner changed it, in place.
   z.strictObject({ act: z.literal("save"), form_id: z.uuid(), draft: FormDescription }),
   // AI told what to change, or asked for one question to add.
   z.strictObject({
     act: z.enum(["tell", "question"]),
     form_id: z.uuid(),
-    sentence: z.string().trim().min(2).max(600),
+    sentence: z.string().trim().min(2).max(FORM_LIMITS.sentence),
   }),
   z.strictObject({ act: z.enum(["publish", "turn_on", "turn_off", "delete", "duplicate"]), form_id: z.uuid() }),
+  // A form the business's own website owns (00709): its owner's own name for it (blank: the name the site sends), and
+  // whether it is on the list (hidden never stops its entries).
+  z.strictObject({ act: z.literal("site_rename"), form_id: z.uuid(), name: z.string().trim().max(120) }),
+  z.strictObject({ act: z.literal("site_list"), form_id: z.uuid(), listed: z.boolean() }),
 ]);
 export type FormPress = z.infer<typeof FormPress>;
 

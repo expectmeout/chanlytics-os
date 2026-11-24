@@ -249,6 +249,7 @@ export const SCHEMA_SETS = {
     "ads_paused", "booking_lapsed", "form_request", "post_down", "post_by_hand", "plan_ready",
     "footage_ask",
   ],
+  "outside_forms.form": ["signup", "request"],
   "owner_claims.kind": ["price", "offer", "guarantee", "fact"],
   "owner_claims.source": ["said", "settings", "website"],
   "page_vitals.device": ["desk", "phone"],

@@ -1,0 +1,106 @@
+/* The website connection's own parts (00675, 00709): each site with its keys and the forms found on it, the key shown
+   once with where the site sends its forms and the lines to paste, and a key's own words. Every primitive is the kit's
+   (the sheet, the row, the field, the copy, the pill); here is where they stand. Every value is a token. */
+
+.wf-sites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.wf-site,
+.wf-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.wf-site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.wf-site-head > h3,
+.wf-empty > h3 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.wf-site-says {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.wf-site-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+.wf-site-forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-site-forms > li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.wf-site-forms > li > span:last-child {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+.wf-made {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.wf-made > p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.wf-made > p[data-strong] {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* One thing to copy: what it is over its words, the copy beside them; the words wrap rather than run off a phone. */
+.wf-made-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.wf-made-label {
+  grid-column: 1 / -1;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.wf-made-text {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}

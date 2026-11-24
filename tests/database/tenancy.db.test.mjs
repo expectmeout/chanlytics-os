@@ -321,6 +321,9 @@ before(async () => {
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // A website's key and an entry it sent (00675): members read them, only their doors write them.
   await seed("form_keys", { tenant_id: A, name: "Seeded site", hash: "a".repeat(64) });
+  // A website and a form it sends (00709): members read them; form_entry_take and a member's doors write them.
+  ctx.formSite = await seed("form_sites", { tenant_id: A, name: "Seeded site" });
+  await seed("outside_forms", { tenant_id: A, site_id: ctx.formSite, form: "request" });
   ctx.formEntry = await seed("form_entries", {
     tenant_id: A,
     contact_id: ctx.contact,
@@ -932,6 +935,8 @@ const TENANT_TABLES = {
   files: ["member", () => fileRow("a-strangers")],
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
   form_keys: ["member", () => ({ tenant_id: A, name: "A stranger's site", hash: "c".repeat(64) })],
+  form_sites: ["member", () => ({ tenant_id: A, name: "A stranger's site" })],
+  outside_forms: ["member", () => ({ tenant_id: A, site_id: ctx.formSite, form: "signup", ref: "a-strangers" })],
   form_entries: [
     "member",
     () => ({ tenant_id: A, contact_id: ctx.contact, form: "request", answers: {}, words: "d".repeat(64), owed: [] }),

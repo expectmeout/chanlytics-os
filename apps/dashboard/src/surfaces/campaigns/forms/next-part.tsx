@@ -17,7 +17,7 @@ import { FORMS_WORDS as W } from "./words";
 const N = W.next;
 
 /** One line: what it is, what it does, and how it stands (a fixed word, or a switch). */
-function NextLine({ title, body, end }: { title: string; body: string; end: React.ReactNode }) {
+export function NextLine({ title, body, end }: { title: string; body: string; end: React.ReactNode }) {
   return (
     <div className="fmv-next">
       <div>

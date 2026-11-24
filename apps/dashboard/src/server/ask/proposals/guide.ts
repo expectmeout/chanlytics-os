@@ -6,7 +6,7 @@
  * Pure words and kinds: nothing here reads a workspace.
  */
 import type { AskProposal } from "@chanlytics/contracts";
-import { ADS_ROUTE, CONTENT_ROUTE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { ADS_ROUTE, CONTENT_ROUTE, FORMS_ROUTE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 
 type Kind = AskProposal["kind"];
 
@@ -44,6 +44,8 @@ const WHY = {
     "it reads an email the owner pastes under New's draft to leads; told in a conversation how they write, AI keeps a line of memory with its own card",
   add: "AI adds leads to a campaign with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
+  publish: "it puts a form in front of customers, which only the owner's own press in Forms does",
+  key: "a website's key is shown once, to be copied into the site, which happens in Forms' website connection",
   memory:
     "it changes or forgets a line of what AI remembers, which a member does on Settings › Memory where every line is listed; AI keeps a line with its own card and its Undo",
 } as const;
@@ -179,6 +181,16 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     for: "The posts and videos made for the business, and the Library of its own photos and videos: a post or a video made, one put up on Instagram or Google, and photos and videos brought in from their website or Instagram by a link, or from a Google Drive folder that is watched from then on.",
     verbs: ["post", "piece", "publish", "take_down", "bring_in", "week", "claim"],
     pageOnly: [],
+  },
+  {
+    page: "Forms",
+    route: FORMS_ROUTE,
+    for: "The forms people fill in: those made here, drafted by AI from one sentence and shared by a link or a printed code, and the business's own website's forms, whose requests are answered like any other.",
+    verbs: ["form_draft"],
+    pageOnly: [
+      { what: "Publish a form, turn it off, or share it", why: WHY.publish },
+      { what: "Make, change or end a website's key", why: WHY.key },
+    ],
   },
   {
     page: "Ads",

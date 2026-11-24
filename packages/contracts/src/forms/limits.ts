@@ -4,12 +4,17 @@
  * reads these and carries no schema (decision 0024). Pure.
  */
 
+import { SECOND_MS } from "../shared/time";
+
 /** The kinds a field may be (Ruben's call 6): eight, from the start, and no list a person picks from. */
 export const FORM_FIELD_KINDS = ["short", "long", "email", "phone", "service", "one", "several", "when"] as const;
 export type FormFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
 /** The kinds that are a choice among the field's own: a service, one, several, or when they would like to come. */
 export const CHOICE_KINDS: ReadonlySet<FormFieldKind> = new Set(["service", "one", "several", "when"]);
+
+/** How far back a form's sheet counts what it brought: a form made here and a site's alike (00680, 00709). */
+export const FORM_RESULT_DAYS = 30;
 
 /** After this many days with nobody looking, a form's held entries are said on Today (the Forms plan, 3.10). */
 export const FORM_HELD_SAID_AFTER_DAYS = 3;
@@ -27,6 +32,14 @@ export const FORM_LIMITS = {
   heading: 80,
   intro: 300,
   thanks: 300,
+  /** What the owner says to AI of a form: Forms' line, and Ask's card that hands it there (draft-card.ts). */
+  sentence: 600,
 } as const;
+
+/**
+ * How long a press that asks AI to draft waits for its answer: the drafter has the route's whole minute (app/api/v1/forms,
+ * maxDuration), and a little more. Forms' own line and Ask's card that hands a sentence to it (draft-card.ts) wait as one.
+ */
+export const FORM_PRESS_WAIT_MS = 65 * SECOND_MS;
 
 /** A field's id or a choice's: short, plain, and its own for as long as the form lives. */

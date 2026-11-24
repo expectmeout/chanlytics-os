@@ -36,6 +36,8 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const U = "11111111-1111-4111-8111-111111111111";
 const PERSON = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const DAY = 86_400_000;
+/** The site 00709 fills in for the first key. */
+const FIRST_SITE = "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e";
 const sha = (key) => createHash("sha256").update(key, "utf8").digest("hex");
 
 /** The owner's doors as 00675 writes them: an owner or a partner, at most ten keys that work, a change's day. */
@@ -43,6 +45,8 @@ function world(role = "owner") {
   const tables = {
     memberships: [{ user_id: U, tenant_id: A, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" }],
     form_keys: [],
+    form_sites: [],
+    outside_forms: [],
     form_entries: [
       {
         id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -77,8 +81,22 @@ function world(role = "owner") {
             code: "22023",
           });
         const id = crypto.randomUUID();
+        // Its site (00709): the one named, or a new one named as the key is.
+        const site = a.p_site_id ?? crypto.randomUUID();
+        if (!a.p_site_id)
+          tables.form_sites.push({
+            id: site,
+            tenant_id: a.p_tenant_id,
+            name: a.p_name.trim(),
+            host: null,
+            first_entry_at: null,
+            last_entry_at: null,
+            test_at: null,
+            created_at: new Date().toISOString(),
+          });
         tables.form_keys.push({
           id,
+          site_id: site,
           tenant_id: a.p_tenant_id,
           name: a.p_name.trim(),
           hash: a.p_hash,
@@ -181,9 +199,21 @@ test("a viewer or an operator may press none of it, and a body that is not one i
 
 test("the read: each key's last use and end, the last entry, where a site sends them; never a key or its hash", async () => {
   const w = world();
+  // The first key, with the site 00709 filled in for it, made before the others.
+  w.tables.form_sites.push({
+    id: FIRST_SITE,
+    tenant_id: A,
+    name: null,
+    host: "harbor.example.com",
+    first_entry_at: null,
+    last_entry_at: null,
+    test_at: null,
+    created_at: "2026-11-01T00:00:00Z",
+  });
   const made = (await route.POST.run(press({ act: "make", name: "Main site" }), w.ctx)).made;
   w.tables.form_keys.push({
     id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    site_id: FIRST_SITE,
     tenant_id: A,
     name: null,
     hash: null,
@@ -197,12 +227,22 @@ test("the read: each key's last use and end, the last entry, where a site sends 
   const gone = (await route.POST.run(press({ act: "make", name: "Old site" }), w.ctx)).made;
   w.tables.form_keys.find((k) => k.id === gone.id).ends_at = new Date(Date.now() - DAY).toISOString();
   const dto = await route.GET.run(looked(), w.ctx);
-  assert.ok(!dto.keys.some((k) => k.id === gone.id), "a key that no longer works is not shown");
+  const keys = dto.sites.flatMap((site) => site.keys);
+  assert.ok(!keys.some((k) => k.id === gone.id), "a key that no longer works is not shown");
+  assert.deepEqual(
+    dto.sites.map((site) => [site.name, site.keys.length]).sort(),
+    [
+      ["Main site", 1],
+      ["Old site", 0],
+      ["harbor.example.com", 1],
+    ],
+    "each key under its site; a site whose keys ended stays, with none",
+  );
   assert.equal(dto.last_received_at, "2026-11-20T10:00:00Z");
   assert.deepEqual(dto.door, { address: "https://edge.test/api/website-form", workspace: A });
   assert.equal(dto.can_change, true);
   assert.deepEqual(
-    dto.keys.map((k) => [k.name, k.first, k.last_used_at]).sort(),
+    keys.map((k) => [k.name, k.first, k.last_used_at]).sort(),
     [
       ["Main site", false, null],
       [null, true, "2026-11-19T09:00:00Z"],

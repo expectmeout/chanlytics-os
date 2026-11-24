@@ -30,6 +30,7 @@
  * every branch for real.
  */
 import {
+  ASK_ACT_WAIT_MS,
   PROPOSAL_WORDS,
   askCardLapsed,
   cardWithSteps,
@@ -156,9 +157,12 @@ async function actThroughDoor(
   // A press carries the card as this tab holds it: the server takes from it only what the card's own steps settle here
   // (its spec's `settles`, AI's folder card's folder), and reads the rest again from the turn. An undo carries nothing.
   const card = { message_id: messageId, proposal_id: p.id, by: "press" };
+  // The door is waited for as long as it may run (a card may wait AI's draft of a form): a tab that gave up sooner would
+  // press the card itself while the door's call still ran, and be told the card is being approved already.
   const r = await client(route, {
     body: route === "POST ask/act" ? { ...card, settled: p.payload } : card,
     once: true,
+    timeoutMs: ASK_ACT_WAIT_MS,
   });
   // A door down or a server's fault: the verb's own key means the walk that follows can never act twice.
   if (!r.ok && (r.status === 0 || r.status >= 500)) return WALK_HERE;

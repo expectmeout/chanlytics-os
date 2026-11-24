@@ -518,6 +518,9 @@ function triedRow(previewTried: PreviewTriedDto, todayFacts: TodayFacts): TodayQ
   };
 }
 
+/** The requests past those the list holds (it stops at 200): people waiting too, counted and never drawn (00709). */
+const requestsBeyondOf = (todayFacts: TodayFacts): number => todayFacts.formRequestsBeyond ?? 0;
+
 /** The queue: the rows in order, the rest as a count, what the rows hold in words, and how many people are waiting on you. */
 export function todayQueue(
   todayFacts: TodayFacts,
@@ -569,7 +572,8 @@ export function todayQueue(
   // rest, so a week's old mail never takes the seats of the new asks.
   queueAll.sort(needYouOrder);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
-  const needN = countOf("handoff", "callback", "form", "comment");
+  const beyond = requestsBeyondOf(todayFacts);
+  const needN = countOf("handoff", "callback", "form", "comment") + beyond;
   const winN = countOf("window");
   const earN = countOf("call");
   const searchN = countOf("search");
@@ -587,7 +591,7 @@ export function todayQueue(
   ].filter(Boolean);
   // What each group draws past its cap: the people past those waiting on you, and the searches past those to decide.
   const groups = needYouGroupsOf(queueAll);
-  const morePeople = Math.max(0, groups.waiting.length - NEED_YOU_CAPS.waiting);
+  const morePeople = Math.max(0, groups.waiting.length - NEED_YOU_CAPS.waiting) + beyond;
   return {
     rows: queueAll,
     more: morePeople + Math.max(0, groups.ok.length - NEED_YOU_CAPS.ok),

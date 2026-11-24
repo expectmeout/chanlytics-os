@@ -58,6 +58,8 @@ interface TodayRead {
   previewsTried: PreviewTriedDto[] | null;
   /** The requests sent through a form that nobody has answered (00680); null where the read failed. */
   formRequests: FormOpenRequestDto[] | null;
+  /** How many requests nobody has answered, counted whole: the list stops at 200 (00709). Null: not read. */
+  formRequestsCount: number | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same read); null: not read. */
   formHeld: FormHeldDto[] | null;
   /** The comments on the business's posts that wait on the owner (00699); null where the read failed. */
@@ -177,6 +179,8 @@ export const today: Reader<undefined, TodayRead> = {
         going: g ? g.data.runs : null,
         previewsTried: t ? t.data.previews : null,
         formRequests: f ? f.data.requests : null,
+        // All of them, counted whole: the list stops at 200 (00709).
+        formRequestsCount: f ? f.data.count : null,
         formHeld: f ? f.data.held : null,
         comments: w ? w.data.comments : null,
         ai,

@@ -15,6 +15,8 @@ export type DraftTone = (typeof DRAFT_TONES)[number];
 export const DRAFT_ABOUT_MAX = 500;
 export const DRAFT_ASKS_MAX = 2;
 export const DRAFT_ANSWER_MAX = 300;
+/** How much of what they asked on a form a reply's draft is told (Inbox's request): its note, their words in it. */
+export const DRAFT_ASKED_MAX = 2000;
 /** A note the receptionist reads is short: it is one fact, not a brief. */
 export const PLAN_NOTE_MAX = 280;
 

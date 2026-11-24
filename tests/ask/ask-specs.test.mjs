@@ -114,6 +114,8 @@ const KINDS = [
   "review_reply_stop",
   "follow_up",
   "answer_style",
+  // A form handed to Forms to draft (decision 0148): Forms' own make, its press.
+  "form_draft",
   // What Ask remembers (decision 0070): Ask's line kept, and the Memory pane's change and forget.
   "memory",
   "memory_change",
@@ -214,6 +216,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     review_reply_stop: "approve",
     follow_up: "approve",
     answer_style: "approve",
+    form_draft: "approve",
     // A line Ask keeps is the approve permission's, as the door's keep is; changing one is the settings', forgetting the
     // approve permission's, the door letting the keeper forget their own (decision 0070).
     memory: "approve",
@@ -656,6 +659,7 @@ const SHAPES = {
     }),
   ],
   answer_style: [card("answer_style", { words: "Short answers, in Spanish", previous: "" })],
+  form_draft: [card("form_draft", { sentence: "a consultation form for new colour clients" })],
   memory: [card("memory", { text: "We close at noon on Fridays.", thread_id: "t1" })],
   memory_change: [
     card("memory_change", {
@@ -1023,6 +1027,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     review_reply_stop: ["POST google/reviews/[id]/stop"],
     follow_up: ["PUT views/[page]"],
     answer_style: ["PUT views/[page]"],
+    form_draft: ["POST forms"],
     memory: ["DELETE ask/memory/[id]", "POST ask/memory"],
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],

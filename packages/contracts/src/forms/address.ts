@@ -1,7 +1,9 @@
 /**
- * Forms' addresses (00680; the Forms plan, 3.6): Campaigns › Forms (`campaigns/forms`), a view of Campaigns beside
- * Content and Ads, a form's sheet open over it on one of its three parts (`campaigns/forms:<form id>[:next|share]`),
- * and a request where it is answered, in Inbox (`inbox/rq-<entry id>`, as `th-<id>` names a conversation).
+ * Forms' addresses (00680, 00709; the Forms plan, 3.6): Campaigns › Forms (`campaigns/forms`), a view of Campaigns beside
+ * Content, a form's sheet open over it on one of its three parts (`campaigns/forms:<form id>[:next|share]`), a form
+ * owned by the business's own website on one of its own (`campaigns/forms:site:<form id>[:next|site]`), the website
+ * connection (`campaigns/forms:website`), and a request where it is answered, in Inbox (`inbox/rq-<entry id>`, as
+ * `th-<id>` names a conversation).
  *
  * A module of its own and small: the frame's route chunk and the record's one address read it, so nothing of the pages
  * (their words, a form's shape) may ride in here.
@@ -14,14 +16,22 @@ export const FORMS_ROUTE = "campaigns/forms";
 /** Whether a param of `campaigns` is the Forms view's: `forms`, or `forms:` and more. */
 export const isFormsParam = (param: string | null | undefined): boolean => !!param && /^forms(:|$)/.test(param);
 
-/** A form's sheet in its three parts: the form as a visitor sees it, what happens next, and where it is shared. */
-export const FORM_PARTS = ["form", "next", "share"] as const;
+/**
+ * A form's sheet in its three parts: the form as a visitor sees it (a site's: what Chanlytics receives from it), what
+ * happens next, and where it is shared (a form made here) or where it comes from (a site's, `site`).
+ */
+export const FORM_PARTS = ["form", "next", "share", "site"] as const;
 export type FormPart = (typeof FORM_PARTS)[number];
 
-/** Where Forms stands: the form whose sheet is open, and on which part. */
+/**
+ * Where Forms stands: the form whose sheet is open, and on which part; whether it is a form owned by the business's own
+ * website (`site`), and whether the website connection is open over the list (`website`).
+ */
 export interface FormsPlace {
   form: string | null;
   part: FormPart;
+  site?: boolean;
+  website?: boolean;
 }
 
 const isFormPart = (word: string): word is FormPart => FORM_PARTS.some((part) => part === word);
@@ -32,15 +42,25 @@ const isFormPart = (word: string): word is FormPart => FORM_PARTS.some((part) =>
  */
 export function formsPlaceOf(param: string | null | undefined): FormsPlace | null {
   if (!param || !isFormsParam(param)) return null;
-  const [, id = "", part = ""] = param.split(":");
+  const words = param.split(":").slice(1);
+  if (words[0] === "website") return { form: null, part: "form", website: true };
+  const site = words[0] === "site";
+  const [id = "", part = ""] = site ? words.slice(1) : words;
   if (!UUID.test(id)) return { form: null, part: "form" };
-  return { form: id, part: isFormPart(part) ? part : "form" };
+  // A part the form's kind has not (a site's form is shared nowhere, a form made here comes from no site) is its first.
+  const known = isFormPart(part) && part !== (site ? "share" : "site") ? part : "form";
+  return site ? { form: id, part: known, site: true } : { form: id, part: known };
 }
 
-/** Forms' address for a place: the list, or a form's sheet on a part (the first part is the address with none). */
+/**
+ * Forms' address for a place: the list, the website connection, or a form's sheet on a part (the first part is the
+ * address with none), a site's form under `site:`.
+ */
 export function formsRouteOf(place: Partial<FormsPlace> = {}): string {
+  if (place.website) return `${FORMS_ROUTE}:website`;
   if (!place.form) return FORMS_ROUTE;
-  return `${FORMS_ROUTE}:${place.form}${place.part && place.part !== "form" ? `:${place.part}` : ""}`;
+  const part = place.part && place.part !== "form" ? `:${place.part}` : "";
+  return `${FORMS_ROUTE}:${place.site ? "site:" : ""}${place.form}${part}`;
 }
 
 /** A form's own public address under its business's page (`/b/<workspace>/<form>`), without its site. */
