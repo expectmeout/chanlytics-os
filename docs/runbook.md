@@ -223,6 +223,13 @@ to slow. A wait before asserting that nothing more happened stays a count: there
 count of turns or of time is the `counted-waits` measure's (`corepack pnpm check:debt`), so a new one is argued in its
 pull request.
 
+**Every import before the first test.** Node's runner starts a file's tests while the file is still being read, and
+runs its top-level `after` hooks once the tests registered so far are done. An `await` between two tests (an
+`import()`, a seed) is such a moment when it outlasts the tests above it: the hooks put back the real `fetch`, close the
+database or unset the environment, and the tests below run without them (cron-doors-b mailed the real provider so,
+23 Nov 2026). A file with a top-level `after` awaits everything before its first test
+(`tests/repo/no-await-after-the-first-test.test.mjs`), and `TEST_SLOW_IMPORTS=1` shows one that does not.
+
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
 dashboard's routes (`apps/dashboard/app/api`), in `tests/baselines/coverage.json`. Under a floor is a

@@ -26,6 +26,9 @@ import { LABELS, PLAN } from "../../_lead-fixtures.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at, withEnv } from "../../_cron-doors-world.mjs";
 import { INPUT_TOKENS, JEV, aKey, failing, jev } from "../../ai/_system-one-world.mjs";
+const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
+const { screened } = await import(at("apps/edge/lib/leads/screen.ts"));
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "TYPESAFE_API_KEY", "TYPESAFE_SCREEN", "TYPESAFE_SHADOW"])
   delete process.env[k];
@@ -207,9 +210,6 @@ test("a screen that is off, leaves nothing out or throws changes nothing: the ju
 
 /* ------------------------------------------------------------------ the edge */
 
-const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
-const { screened } = await import(at("apps/edge/lib/leads/screen.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);

@@ -95,6 +95,25 @@ const channels = [
   { id: "ch1", kind: "voice", number_e164: "+13055550100", status: "active", created_at: iso(86_400_000), config: {} },
 ];
 
+const flashes = [];
+const went = [];
+const sent = [];
+installStubReact({
+  CHANLY: { nav: (to) => went.push(to) },
+  setInterval: () => 1,
+  clearInterval() {},
+});
+const S = "../../../apps/dashboard/src";
+// What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
+globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
+const { StatePill } = globalThis;
+const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
+const { hearSurfaces } = await import(`${S}/bridge/surface-status.ts`);
+
 /* -------------------------------- the view model -------------------------------- */
 
 test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it ended, what to do next, and its length in words", () => {
@@ -122,25 +141,6 @@ test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it
 });
 
 /* ------------------------------ the page, drawn ------------------------------ */
-
-const flashes = [];
-const went = [];
-const sent = [];
-installStubReact({
-  CHANLY: { nav: (to) => went.push(to) },
-  setInterval: () => 1,
-  clearInterval() {},
-});
-const S = "../../../apps/dashboard/src";
-// What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
-const { StatePill } = globalThis;
-const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
-const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
-const { hearSurfaces } = await import(`${S}/bridge/surface-status.ts`);
 
 // The hand-over is the bridge's verb (inbox-verbs.ts), imported by the page and run for real over the client: this is the
 // wire. The client's answer is the route's body under data (client/api.ts), never flat.
