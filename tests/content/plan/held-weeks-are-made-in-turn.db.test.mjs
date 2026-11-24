@@ -3,8 +3,13 @@
  * hold their week from Sunday evening, and every one goes up at the same 8:00. Their first posts fall as real plans place
  * them, most on Monday (four in ten between 9:00 and noon), the rest through the week.
  *
+ * Played here at a twentieth of that, five hundred workspaces held a twentieth of the night before 8:00, so the queue is as
+ * full at 8:00 as at full volume (some six weeks in seven prepared, the rest made after their approval) and the run takes
+ * seconds: CI's push stays under its ten minutes. The full ten thousand is played by hand on PGlite with the same block
+ * (dev-tools/db-without-docker example-see-held-weeks.mjs, weeks 10000: late 0 on 24 Nov 2026, in 734 s).
+ *
  * Played tick by tick, thirty seconds a tick, through the doors the jobs call:
- *   - Sunday 20:00: each week held (content_week_hold), the queue begun (content_weeks_start).
+ *   - The evening (Sunday 20:00 at full volume): each week held (content_week_hold), the queue begun (content_weeks_start).
  *   - Through the night: each week PREPARED in turn, the earliest first post first, never more at once than the cap the
  *     contracts derive from what the database's front can take (WEEKS_MAKING_AT_ONCE): its pictures drawn into made files
  *     and each placement's approval readied on its slot (plan_slot_prepared), as the dashboard does; a pass takes a tick.
@@ -52,13 +57,14 @@ function run(sql) {
   return { failed: r.status !== 0, said: [r.stderr, r.stdout].map((s) => (s ?? "").trim()).join("\n") };
 }
 
-/** Workspaces held in one zone at one 8:00. */
-const WEEKS = 10000;
+/** Workspaces held in one zone at one 8:00: a twentieth of the full volume, which is FULL_VOLUME. */
+const WEEKS = 500;
+const FULL_VOLUME = 10000;
 /** A tick is thirty seconds; a week's pass takes SECONDS_A_WEEK_MADE. */
 const TICK_S = 30;
 const PASS_TICKS = Math.ceil(SECONDS_A_WEEK_MADE / TICK_S);
-/** Held at 20:00 on Sunday: twelve hours of ticks before 8:00. */
-const NIGHT_TICKS = (12 * 3600) / TICK_S;
+/** Held at 20:00 on Sunday at full volume, twelve hours of ticks before 8:00; a smaller morning's night in proportion. */
+const NIGHT_TICKS = (12 * 3600 * WEEKS) / (FULL_VOLUME * TICK_S);
 /** A post is made ready ten minutes ahead; a slot placed later than five minutes before its time counts late. */
 const AHEAD_TICKS = (5 * 60) / TICK_S;
 /** The reads and writes one week's 8:00 job makes at the database's front (its plan, the stop, the zone, the week, the approval, the queue). */
@@ -98,7 +104,7 @@ begin
                                    held_late boolean not null default false) on commit drop;
   create temporary table busy (plan uuid primary key, i integer, tenant uuid, began integer, pass text) on commit drop;
 
-  -- Ten thousand workspaces, their first posts as plans place them (minutes after Monday 8:00).
+  -- The workspaces, their first posts as plans place them (minutes after Monday 8:00).
   insert into sim (i, tenant, plan, first_min)
   select g, gen_random_uuid(), gen_random_uuid(),
          case when g % 10 < 4 then 60 + (g * 7919) % 180
@@ -121,7 +127,7 @@ begin
   select ps.id, s.i, v_night + (extract(epoch from (ps.at - v_at8))::integer / v_tick_s) - v_ahead
     from public.plan_slots ps join sim s on s.plan = ps.plan_id;
 
-  -- Sunday 20:00: each week held to 8:00 as the plan job holds it, its approval's job due within the hour after.
+  -- The evening: each week held to 8:00 as the plan job holds it, its approval's job due within the hour after.
   for v_week in select * from sim order by i loop
     v_answer := public.content_week_hold(v_week.tenant, v_week.plan, v_at8);
     if v_answer ->> 'fate' <> 'held' then
