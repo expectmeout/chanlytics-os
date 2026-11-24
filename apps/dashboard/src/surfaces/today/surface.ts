@@ -28,6 +28,7 @@ function publishToday(h: TodayReadDto, now: Date): boolean {
       heldThreads: h.held_threads,
       previewsTried: h.previews_tried,
       formRequests: h.form_requests ?? null,
+      formRequestsCount: h.form_requests_count ?? null,
       formHeld: h.form_held ?? null,
       comments: h.comments ?? null,
       doneToday: h.done_today,

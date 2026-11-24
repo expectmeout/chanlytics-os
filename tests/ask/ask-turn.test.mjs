@@ -511,6 +511,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "propose_call",
     "propose_deal",
     "propose_follow_up",
+    "propose_form",
     "propose_leads",
     "propose_list",
     "propose_people",

@@ -116,7 +116,7 @@ test(
 );
 
 test(
-  "once: the same words within ten minutes are the same entry, the site's id always, another id another",
+  "once: the same words within ten minutes are the same entry, the site's id with its words, another id another",
   { skip },
   async () => {
     const before = ok(await entryRows()).length;
@@ -132,13 +132,16 @@ test(
         .eq("id", first.id),
     );
     assert.equal(ok(await take(), "later").outcome, "accepted");
-    // The site's own id: the same one is the same entry whatever the words; two at once are one.
+    // The site's own id (00709): the same one with the same words is the same entry, two at once one; with other words
+    // a new entry, said as a clash and never merged (a-site-s-forms-are-forms.db.test.mjs has the rest).
     const both = await Promise.all([
       take({ p_ref: "site-7", p_words: hex("b") }),
-      take({ p_ref: "site-7", p_words: hex("c") }),
+      take({ p_ref: "site-7", p_words: hex("b") }),
     ]);
     const outcomes = both.map((r) => ok(r, "ref").outcome).sort();
     assert.deepEqual(outcomes, ["accepted", "again"]);
+    const other = ok(await take({ p_ref: "site-7", p_words: hex("c") }));
+    assert.deepEqual([other.outcome, other.clash], ["accepted", true]);
     assert.equal(ok(await take({ p_ref: "site-8", p_words: hex("b") })).outcome, "accepted");
   },
 );
@@ -164,7 +167,7 @@ test("a person who asked to be forgotten: nothing is written at all, and the ans
       p_words: hex("d"),
     }),
   );
-  assert.deepEqual(r, { outcome: "forgotten", entry_id: null, contact_id: null });
+  assert.deepEqual(r, { outcome: "forgotten", entry_id: null, contact_id: null, clash: false });
   assert.equal(ok(await entryRows()).length, entries, "no entry");
   assert.equal(
     ok(await db.from("events").select("id").eq("tenant_id", tenantId)).length,

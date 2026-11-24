@@ -1474,6 +1474,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_call", ["whisper", "hand_over"]],
       ["propose_deal", []],
       ["propose_follow_up", ["keep", "clear"]],
+      ["propose_form", []],
       ["propose_lead_search", ["find", "more"]],
       ["propose_leads", ["stage", "mark", "later", "bulk", "check", "addressee", "list", "said"]],
       ["propose_list", ["make", "change", "delete"]],

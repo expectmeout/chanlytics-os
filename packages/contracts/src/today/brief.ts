@@ -65,6 +65,8 @@ interface TodayBeside {
   previewsTried?: readonly PreviewTriedDto[] | null;
   /** The requests sent through a form that nobody has answered (00680): each a row. Null or absent: not read. */
   formRequests?: readonly FormOpenRequestDto[] | null;
+  /** How many requests nobody has answered, counted whole (00709): more than the list where it stopped at 200. */
+  formRequestsCount?: number | null;
   /** Each form's entries held for a look that nobody has looked at in three days (00680). Null or absent: not read. */
   formHeld?: readonly FormHeldDto[] | null;
   /** The comments on the business's posts that wait on the owner (00699): each a row. Null or absent: not read. */
@@ -102,6 +104,7 @@ export function toTodayVM(
     heldThreads: [...(beside.heldThreads ?? [])],
     previewsTried: [...(beside.previewsTried ?? [])],
     formRequests: [...(beside.formRequests ?? [])],
+    formRequestsBeyond: Math.max(0, (beside.formRequestsCount ?? 0) - (beside.formRequests?.length ?? 0)),
     formHeld: [...(beside.formHeld ?? [])],
     comments: [...(beside.comments ?? [])],
   });

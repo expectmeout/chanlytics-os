@@ -9,6 +9,7 @@
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
 import { adDraftSpec } from "../../ads/draft-card";
+import { formDraftSpec } from "../../forms/draft-card";
 import { takeDownSpec } from "../../content/placements/take-down-spec";
 import { claimSpec, planWeekSpec } from "../../content/plan/week-spec";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
@@ -54,6 +55,8 @@ export const ASK_ONLY_SPECS = {
   fix: fixSpec,
   // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts).
   ad_draft: adDraftSpec,
+  // A new form drafted on Forms' own press from the owner's sentence, and Forms opened on it (forms/draft-card.ts).
+  form_draft: formDraftSpec,
   // A made piece taken down everywhere it is up (00682; content/take-down.ts).
   take_down: takeDownSpec,
   // A week of posts, and what a post may say (00706; content/plan/week-spec.ts).

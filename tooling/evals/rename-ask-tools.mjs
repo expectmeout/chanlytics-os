@@ -50,6 +50,7 @@ export const ADDED_SINCE = [
   "propose_call.hand_over",
   "propose_follow_up.clear",
   "propose_follow_up.keep",
+  "propose_form",
   "propose_lead_search.more",
   "propose_leads.addressee",
   "propose_leads.bulk",

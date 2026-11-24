@@ -29,6 +29,7 @@ import {
 } from "@chanlytics/db/forms";
 import { findPersonAddress, setPersonEmail } from "@chanlytics/db/people";
 import { beginPorts } from "../new-conversation/ports";
+import { readSiteRequestShapes } from "../connections/outside-forms";
 import { answerRequestTime } from "./request-time";
 import type { Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";
@@ -51,6 +52,17 @@ const NOTHING_SENT: FormRequestPressed = {
   conversation_id: null,
   reply: null,
 };
+
+/** A request's heading, as its reply's subject says it: its version's, or its site form's name (00709); null where unread. */
+async function requestHeadingOf(ctx: RouteContext, member: Member, entry: FormEntryRead): Promise<string | null> {
+  if (entry.versionId) {
+    const version = await findFormVersion(ctx.supabase, member.tenantId, entry.versionId);
+    return version?.description?.heading ?? null;
+  }
+  if (!entry.outsideFormId) return null;
+  const shapes = await readSiteRequestShapes(ctx.supabase, member.tenantId);
+  return shapes.get(entry.outsideFormId)?.description.heading ?? null;
+}
 
 /** The request a press names, or a refusal in the house's words. */
 async function requestOrRefuse(ctx: RouteContext, member: Member, entryId: string): Promise<FormEntryRead> {
@@ -102,8 +114,7 @@ async function sendReply(
   if (!contactId || entry.state === "held" || entry.test)
     throw new AppError("conflict", "This entry is held for a look. Let it through before answering it.", 409);
   const to = press.wire === "email" ? await settleAddress(ctx, member, { ...entry, contactId }, press.email_to) : null;
-  const version = await findFormVersion(ctx.supabase, member.tenantId, entry.versionId);
-  const subject = press.subject ?? `Re: ${version?.description?.heading ?? "your request"}`;
+  const subject = press.subject ?? `Re: ${(await requestHeadingOf(ctx, member, entry)) ?? "your request"}`;
   const receipt = await beginConversation(beginPorts(ctx), {
     tenantId: asTenantId(member.tenantId),
     personId: contactId,

@@ -895,6 +895,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "going",
     "previewsTried", // not done today or the word: GET today's route reads those beside this reader
     "formRequests", // the requests sent through a form that nobody has answered (00680)
+    "formRequestsCount", // how many in all, past the list's 200 (00709)
     "formHeld", // each form's entries held for a look that nobody has looked at in three days
     "comments", // the comments on the posts that wait on the owner: AI can't answer, or the answer didn't go (00699)
     "ai",

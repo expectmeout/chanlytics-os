@@ -8,6 +8,7 @@ import { CONSENT_CHANNELS } from "../consent/channels";
 import {
   DRAFT_ABOUT_MAX,
   DRAFT_ANSWER_MAX,
+  DRAFT_ASKED_MAX,
   DRAFT_ASKS_MAX,
   DRAFT_HOWS,
   DRAFT_TONES,
@@ -20,6 +21,12 @@ export const PersonDraftInputSchema = z
     how: z.enum(DRAFT_HOWS),
     wire: z.enum(CONSENT_CHANNELS).optional(),
     about: z.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+    /**
+     * What they asked on a form, as its request says it (Inbox; a hosted form's or a website's): their own words, told to
+     * the model fenced as theirs and never read as the owner's, so a price or an offer they typed is not one the owner
+     * gave.
+     */
+    asked: z.string().trim().min(1).max(DRAFT_ASKED_MAX).optional(),
     answers: z
       .array(
         z

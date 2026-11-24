@@ -50,7 +50,8 @@ function requestRow(request: FormOpenRequestDto, todayFacts: TodayFacts): TodayQ
     who: asker,
     initials: initialsOf(asker),
     channel: "Form",
-    via: request.heading,
+    // A site's form says the site it is on (00709): "Consultation · lumasalon.com".
+    via: request.site ? `${request.heading} · ${request.site}` : request.heading,
     when: `waited ${formatWaited(waitedMs)}`,
     // A reply that left and never reached them is said as a failed reply to anyone is, in the house's one sentence.
     sentence: request.unreached ? NEED_YOU_WORDS.failed.sentence : (timeLine ?? (request.words || request.heading)),

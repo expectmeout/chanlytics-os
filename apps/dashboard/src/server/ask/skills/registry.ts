@@ -4,6 +4,7 @@
  */
 import { AD_SKILL } from "./ad/skill";
 import { CUSTOMER_MESSAGE_SKILL } from "./customer-message/skill";
+import { FORM_SKILL } from "./form/skill";
 import { VIDEO_SKILL } from "./video/skill";
 import { guideBlock, type AskSkill, keysOf } from "@chanlytics/contracts";
 
@@ -17,6 +18,8 @@ const ASK_SKILLS = {
   customer_message: CUSTOMER_MESSAGE_SKILL,
   video: VIDEO_SKILL,
   ad: AD_SKILL,
+  // Asked for a form, its guide hands the sentence to Forms on one card (propose_form).
+  form: FORM_SKILL,
 } as const satisfies Record<string, GuidedSkill>;
 export type AskSkillId = keyof typeof ASK_SKILLS;
 export const ASK_SKILL_IDS = keysOf(ASK_SKILLS);

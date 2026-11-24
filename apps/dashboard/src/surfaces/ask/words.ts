@@ -52,6 +52,7 @@ const PRESS_EN: Record<AskPressWord, (n: number | null) => string> = {
   delete: () => "Delete it",
   merge: () => "Merge them",
   open: () => "Open it",
+  draft: () => "Draft it in Forms",
 };
 
 /** The same, in Spanish. */
@@ -101,6 +102,7 @@ const PRESS_ES: Record<AskPressWord, (n: number | null) => string> = {
   delete: () => "Borrarlo",
   merge: () => "Unirlos",
   open: () => "Abrirlo",
+  draft: () => "Redactarlo en Formularios",
 };
 
 /**
@@ -126,6 +128,7 @@ const PRESSING_EN: Partial<Record<AskPressWord, string>> = {
   pause: "Pausing…",
   resume: "Resuming…",
   delete: "Deleting…",
+  draft: "Drafting it in Forms…",
 };
 const PRESSING_ES: Partial<Record<AskPressWord, string>> = {
   send: "Enviando…",
@@ -144,6 +147,7 @@ const PRESSING_ES: Partial<Record<AskPressWord, string>> = {
   pause: "Pausando…",
   resume: "Reanudando…",
   delete: "Borrando…",
+  draft: "Redactándolo en Formularios…",
 };
 
 /** An Autonomy row's short name. */

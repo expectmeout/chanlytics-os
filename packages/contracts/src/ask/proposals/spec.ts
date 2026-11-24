@@ -32,6 +32,12 @@ export interface ProposalCall {
   idempotencyKey?: string;
   /** "behind": answered when the server accepts, the surfaces read again behind it (client/api.ts). */
   refresh?: "behind";
+  /**
+   * How long the press waits for its answer, where its door takes longer than a write's usual wait: AI drafting a whole
+   * form has its route's minute (forms/draft-card.ts). Held on both legs a press takes, the act door's call (server
+   * ask/act/run.ts, under ASK_ACT_WAIT_MS) and the tab's own (client/api.ts). Absent: each leg's usual wait.
+   */
+  waitMs?: number;
   /** What the window is told once this call lands. */
   events?: ProposalEvent[];
   /**

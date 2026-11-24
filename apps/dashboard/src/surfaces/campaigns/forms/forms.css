@@ -278,7 +278,8 @@
   flex: none;
 }
 /* Share: each place, the printed code, the numbers, the requests. */
-.fmv-share h4 {
+.fmv-share h4,
+.fmv-nexts > h4 {
   margin: var(--space-2) 0 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -413,4 +414,30 @@
     flex: 1 1 auto;
     justify-content: center;
   }
+}
+
+/* Each kind of form under its own head where the business's own website sends forms too (00709): the forms made here,
+   then each site's, by their real names. */
+.fmv-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fmv-group > h3 {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+/* What Chanlytics receives from a site's form: its fields, one a line, read only. */
+.fmv-receives {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink);
 }

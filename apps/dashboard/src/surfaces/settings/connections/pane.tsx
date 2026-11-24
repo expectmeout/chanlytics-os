@@ -41,7 +41,7 @@ import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
 import type { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
-import { WebsiteForms } from "../website/forms";
+import { WebsiteFormsLine } from "../../campaigns/forms/website/settings-line";
 import { GoogleChoose } from "./google-choose";
 import {
   signInNames,
@@ -584,8 +584,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   return (
     <>
       <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} />
-      {/* A website's forms and their keys (00675), imported with the page: loaded on demand it regrouped the pages' chunks. */}
-      <WebsiteForms flash={flash} />
+      {/* A website's forms and their keys live in Campaigns › Forms now (00709): one line here says so and opens them. */}
+      <WebsiteFormsLine />
       {drive.sheets}
       {toastNode}
     </>

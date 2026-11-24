@@ -49,7 +49,7 @@ export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask/fast-paths";
 export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./ask/freedom";
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./ask/language";
-export { ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, askColumnOf, isVoiceEndReason, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/limits";
+export { ASK_ACT_WAIT_MS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, askColumnOf, isVoiceEndReason, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/limits";
 export { ASK_FINDING_WORDS, ASK_FOUND_VIEW, askFindingsOf, findingCardId, isFindingCard, isRested, kindRestId, repliesFellCard, RESTED_FOR_GOOD, restedOf, restedUntil, restedWith, restedWithout } from "./ask/memory/findings";
 export { ASK_LATELY_DAYS, dayAfterDays, ideasSeenOf, ideasWithResults, latelyRows, latelySaid, settledTitles } from "./ask/memory/lately";
 export { ASK_JOURNAL_LIMITS, ASK_MEMORY_LIMITS, ASK_MEMORY_WORDS, memoryText, memoryTextProblem } from "./ask/memory/memory";
@@ -371,7 +371,8 @@ export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaid
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { FORM_PARTS, formPagePath, FORMS_ROUTE, formsPlaceOf, formsRouteOf, formTestPath, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
 export { emailTypoFix } from "./forms/email-typo";
-export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS } from "./forms/limits";
+export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS, FORM_PRESS_WAIT_MS, FORM_RESULT_DAYS } from "./forms/limits";
+export { FORM_SITE_STANDINGS, formSiteNameOf, outsideFormNameOf, SITE_FORM_FIELDS, SITE_QUIET_DAYS, siteFormOf, siteReachOf, siteStandingOf } from "./forms/outside";
 export { requestLines, throughPlace } from "./forms/request-words";
 export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./forms/times";
 export { FORM_SITES_MAX, formFramePath, frameAncestorsOf, isOnSite, websiteLinesOf } from "./forms/website";
@@ -444,7 +445,7 @@ export { clockIsNear, NEED_YOU_CAPS, NEED_YOU_CLOCK_MS, NEED_YOU_DONE_VERBS, NEE
 export { CALL_SELLING_MAX_TOKENS, CALL_SELLING_RULES, CALL_SELLING_SCHEMA, callSellingOf, DRAFT_USED_WORDS, draftHeadroomSpent, draftUseOf, NO_FOLLOW_UP_TIME, pitchKept, promisesAFollowUpTime, replyDraftOwed, setAsideSentence, setsAside } from "./need-you/reply-draft-owed";
 export { DRAFT_CHANGE_NAMED_MONEY, DRAFT_WRITING_STALE_MS, draftFailedWords, draftHasWords, draftIsCurrent, draftViewOf, KEPT_DRAFT_KINDS, REPLY_DRAFT_KINDS, REPLY_DRAFT_RULES, REPLY_DRAFT_SOURCES, REPLY_DRAFT_STATES, REPLY_DRAFT_WORDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX, STEP_NOTE_RULES } from "./need-you/reply-drafts";
 export { NEED_YOU_WORDS, needYouSay, NOT_A_PERSON_WORDS, notNowChoices, sendCountdown } from "./need-you/words";
-export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
+export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKED_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
 export { approvedWordsFor, NEW_CONVERSATION_WORDS, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/words";
 export { defaultWriteWire, startsOn, wayOff, WRITE_HOLD_WORDS, WRITE_HOLDS, WRITE_WAY_REFUSED, writeWaysOf } from "./new-conversation/write-ways";
 export { checkFactSuggestion, FACT_SUGGEST_LIMITS, FACT_SUGGEST_MODEL, FACT_SUGGEST_SCHEMA, factAlreadyNoted, factSuggestSystemPrompt, factSuggestUserContent, whyNotFactLook } from "./notes/fact-suggest";

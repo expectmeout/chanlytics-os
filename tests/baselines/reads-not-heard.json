@@ -1439,6 +1439,21 @@
     },
     {
       "kind": "unfed",
+      "why": "The website form a site's request came through and its site (outside_forms and form_sites, 00709), read with each request nobody has answered, for its heading (the form's name) and the fields the website door takes. The feed tells neither: a form and its site are made and stamped only in the write of an entry, whose event Today hears, and a form renamed or hidden is said by its new name at the next read. Today reads both only for the requests it lists, with the entries it hears (heardWith).",
+      "reads": {
+        "today": [
+          "form_sites",
+          "outside_forms"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "form_entries"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting over touches and comment_answers, with the posts they are under, 00699): Today's point for a comment AI can't answer safely, or whose answer didn't go. The feed tells none of these: a comment arrives by Meta's delivery and AI drafts it by its job seconds later, so a notice for each would be one for each comment. Today reads them with its other reads each time it hears its own records (heardWith), a press on a comment reads Today again (POST comments), and a comment waits a week, so the row is a read behind at most.",
       "reads": {
         "today": [

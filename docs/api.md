@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-471 handlers in 63 domains.
+472 handlers in 63 domains.
 
 ## activity
 
@@ -1708,7 +1708,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
 
-One of 4 bodies.
+One of 6 bodies.
 
 Body 1:
 
@@ -1739,6 +1739,22 @@ Body 4:
 | --- | --- | --- | --- |
 | `act` | one of `"publish"`, `"turn_on"`, `"turn_off"`, `"delete"`, `"duplicate"` | yes |  |
 | `form_id` | string (uuid) | yes |  |
+
+Body 5:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_rename"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `name` | string | yes | at most 120 characters |
+
+Body 6:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_list"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `listed` | boolean | yes |  |
 
 ### `POST /api/v1/forms/links`
 
@@ -1825,6 +1841,14 @@ Body 3:
 | `entry_id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/forms/sheet`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `form` | string (uuid) | yes |  |
+
+### `GET /api/v1/forms/site-sheet`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
@@ -2738,6 +2762,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `how` | one of `"message"`, `"call"` | yes |  |
 | `wire` | one of `"whatsapp"`, `"sms"`, `"email"` | no |  |
 | `about` | string | yes | at least 1 characters; at most 500 characters |
+| `asked` | string | no | at least 1 characters; at most 2000 characters |
 | `answers` | array of object | no | at most 2 |
 | `previous` | object | no |  |
 | `tone` | one of `"shorter"`, `"warmer"` | no |  |
@@ -4217,6 +4242,7 @@ Body 1:
 | --- | --- | --- | --- |
 | `act` | `"make"` | yes |  |
 | `name` | string | yes | at least 1 characters; at most 60 characters |
+| `site_id` | string (uuid) | no |  |
 
 Body 2:
 

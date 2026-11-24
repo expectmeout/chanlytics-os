@@ -146,15 +146,20 @@ export const AT_NO_STEP: CardStep = {
   fold: null,
   alike: [],
 };
+/** The cards that open their page once pressed: a search on its results, and a form on the draft it made in Forms (B4). */
+const OPENS_ITS_PAGE: ReadonlySet<AskProposal["kind"]> = new Set(["lead_search", "people_search", "form_draft"]);
+
 /**
  * A search approved is opened (spec F4), and a search answered likewise (G4): the receipt's "Leads shows it" is kept true by
- * going where the contract says the card opens.
+ * going where the contract says the card opens. A form drafted is opened in Forms on its draft, as its receipt says.
  */
 const openSearchCard = (
   { ask, proposal, onNav }: { ask: AskApi | undefined; proposal: AskProposal; onNav: (to: string) => void },
   outcome: AskProposalOutcome,
 ): void => {
-  if (proposal.kind !== "lead_search" && proposal.kind !== "people_search") return;
+  if (!OPENS_ITS_PAGE.has(proposal.kind)) return;
+  // A form card whose press made no form (AI asked one question first, or could not draft it) stays on its receipt.
+  if (proposal.kind === "form_draft" && !outcome.made) return;
   const to = ask?.cardOpenRoute?.({ ...proposal, outcome });
   if (to) onNav(to);
 };
@@ -227,7 +232,10 @@ export const useCardPress = (
       setDoneAt(at);
       setPressed({ made: result.made?.id ?? null, at });
       record(atDone(result, at), result.kept === true);
-      openSearchCard({ ask, proposal, onNav }, { state: "done", receipt: result.receipt, atMs: at, undo: result.undo });
+      openSearchCard(
+        { ask, proposal, onNav },
+        { state: "done", receipt: result.receipt, atMs: at, undo: result.undo, made: result.made ?? null },
+      );
     } else {
       setState("failed");
       setErr(result.message);

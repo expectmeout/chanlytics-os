@@ -1641,25 +1641,6 @@
     },
     {
       "table": "form_entries",
-      "name": "form_entries_ref",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "ref"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "ref"
-        }
-      }
-    },
-    {
-      "table": "form_entries",
       "name": "form_entries_code",
       "primary": false,
       "nullsNotDistinct": false,
@@ -1675,6 +1656,65 @@
         "notNull": {
           "column": "code"
         }
+      }
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_ref",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "ref"
+            }
+          },
+          {
+            "isNull": {
+              "column": "outside_form_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_ref_outside",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "outside_form_id"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "ref"
+            }
+          },
+          {
+            "notNull": {
+              "column": "outside_form_id"
+            }
+          }
+        ]
       }
     },
     {
@@ -1805,6 +1845,33 @@
           "column": "first"
         }
       }
+    },
+    {
+      "table": "form_sites",
+      "name": "form_sites_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_sites",
+      "name": "form_sites_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "form_versions",
@@ -3169,6 +3236,54 @@
       "keys": [
         {
           "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "outside_forms",
+      "name": "outside_forms_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "outside_forms",
+      "name": "outside_forms_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "outside_forms",
+      "name": "outside_forms_one",
+      "primary": false,
+      "nullsNotDistinct": true,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "site_id"
+        },
+        {
+          "column": "form"
+        },
+        {
+          "column": "ref"
         }
       ],
       "where": null

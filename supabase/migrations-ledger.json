@@ -92,8 +92,7 @@
     "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
-    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)",
-    "00709": "claimed by Campaigns in three tabs, Lane B (every form in Forms, lane cm-forms-sites, 24 Nov 2026), not on main when the content loop's pass 6 took 00710 above it; its own push fills it and takes this line out"
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -712,6 +711,7 @@
     "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab",
     "00707_a_post_goes_up_on_a_facebook_page.sql": "49ae92879b7a854513f2dd7266e1bdcccae6f2d5298d6d907feaff1429124232",
     "00708_a_made_video_gets_a_second_version.sql": "b6220c545667b443d98ad36ebde3d8ee71487733df327aacd11f1f1febeeda48",
+    "00709_a_website_s_forms_are_forms.sql": "1996cd9646b6fda7196357ea6dd7cccbda4c54abc60e72ea0612893e0b55e3fb",
     "00710_turning_an_ad_on_keeps_its_approval.sql": "4fa8ee2a9fed4441dcd3cbb1593a81b49abfe6e8d90a67747682182a27af463e",
     "00711_a_shape_s_path_is_in_its_own_workspace.sql": "46266c78c45e76cf8d606603e6fc65c21a91cd06559b83df377130675778997b"
   }

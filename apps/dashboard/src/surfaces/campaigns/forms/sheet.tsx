@@ -8,13 +8,7 @@
  * wonder about. AI told what to change writes the draft and says so, with one Undo; it never publishes.
  */
 import { useCallback, useState } from "react";
-import {
-  FORM_PARTS,
-  type FormDescription,
-  type FormPart,
-  type FormSheetDto,
-  type FormStateDto,
-} from "@chanlytics/contracts";
+import type { FormDescription, FormPart, FormSheetDto, FormStateDto } from "@chanlytics/contracts";
 import { AskLooking } from "../../files/looking";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
@@ -33,6 +27,9 @@ import { SayLine } from "./say-line";
 import { SharePart } from "./share-part";
 import { doFormPress, useDraftEditing, useFormSheet, type DraftEditing } from "./use-forms";
 import { FORMS_WORDS as W, formSheetSub } from "./words";
+
+/** A form made here's three parts: a site's form has Site in place of Share (site-sheet.tsx). */
+const HERE_PARTS: readonly FormPart[] = ["form", "next", "share"];
 
 /** What the sheet hands its presses. */
 interface SheetIo {
@@ -315,8 +312,8 @@ function SheetRead({
       <SubTabs
         label={W.partsLabel}
         value={part}
-        tabs={FORM_PARTS.map((id) => ({ id, label: W.parts[id] }))}
-        onSelect={(id) => go({ form: sheet.id, part: FORM_PARTS.find((known) => known === id) ?? "form" })}
+        tabs={HERE_PARTS.map((id) => ({ id, label: W.parts[id] }))}
+        onSelect={(id) => go({ form: sheet.id, part: HERE_PARTS.find((known) => known === id) ?? "form" })}
         className="fmv-parts"
       />
       {part === "form" ? (
