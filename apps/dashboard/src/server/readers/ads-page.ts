@@ -5,6 +5,7 @@ import {
   ROLE_PERMS,
   UUID,
   adCardChecksOf,
+  adPictureFileOf,
   recordOrEmpty,
   adAmountAfter,
   adApprovedMiles,
@@ -42,6 +43,7 @@ import {
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
 import { listAdPeopleWaitingOnYou, type AdPersonWaitingRow } from "@chanlytics/db/people";
+import { listFilesByIds } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import { readAdsPressesOn } from "../connections/ads-ready";
 import { isGoing } from "../people/going";
@@ -178,11 +180,37 @@ function besideOf(adId: string, beside: Beside): Pick<AdLiveDto, "chats" | "back
   };
 }
 
+/** The files the ads made here show, each named, or named null where it is gone from Made; null where they could not be read. */
+type PictureNames = ReadonlyMap<string, string | null> | null;
+
+/**
+ * The piece each ad made here shows, named: one read of the files for them all (Campaigns in three tabs: an ad's Made from).
+ * A read that fails names none, and the page says nothing of where its ads came from rather than call a piece gone.
+ */
+async function namePictures(
+  rows: readonly AdRow[],
+  listFiles: (ids: string[]) => Promise<{ id: string; name: string }[]>,
+): Promise<PictureNames> {
+  const ids = [...new Set(rows.flatMap((row) => adPictureFileOf(row.approved) ?? []))];
+  if (ids.length === 0) return new Map();
+  const files = await listFiles(ids).catch(logAndGoOn("the pieces the ads show", null));
+  if (files === null) return null;
+  const named = new Map<string, string | null>(ids.map((id) => [id, null]));
+  for (const file of files) named.set(file.id, file.name);
+  return named;
+}
+
+/** An ad's Made from: the file it shows and its name, where it shows one and the files were read. */
+function madeFromOf(row: AdRow, pictures: PictureNames): AdLiveDto["made_from"] {
+  const fileId = adPictureFileOf(row.approved);
+  return fileId === null || pictures === null ? null : { file_id: fileId, name: pictures.get(fileId) ?? null };
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
 function adOf(
   row: AdRow,
   counts: AdsPageCounts | null,
-  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]>; beside: Beside },
+  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]>; beside: Beside; pictures: PictureNames },
 ): AdLiveDto {
   const people = counts?.people.get(row.id) ?? { people: 0, booked: 0 };
   const spend = counts?.spend.get(row.id);
@@ -194,6 +222,7 @@ function adOf(
     shown_on: row.shown_on,
     launch: launchOf(row, at.left),
     made_here: madeHereOf(row, at),
+    made_from: madeFromOf(row, at.pictures),
     opens: opensOf(row.door),
     state,
     needs: needsOf(state, row, at.nowMs),
@@ -345,12 +374,16 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
-    // What a launch that stopped part way left at Meta: read only for those, and said in their drawers.
-    const left = await listAdsLeftParts(
-      supabase,
-      rc.tenantId,
-      rows.filter((row) => row.origin === "chanlytics" && row.status === "failed").map((row) => row.id),
-    );
+    // What a launch that stopped part way left at Meta, read only for those and said in their drawers; and beside it the
+    // pieces of Content the ads made here show, named for their Made from.
+    const [left, pictures] = await Promise.all([
+      listAdsLeftParts(
+        supabase,
+        rc.tenantId,
+        rows.filter((row) => row.origin === "chanlytics" && row.status === "failed").map((row) => row.id),
+      ),
+      namePictures(rows, (ids) => listFilesByIds(supabase, rc.tenantId, ids)),
+    ]);
     const timezone = account.timezone ?? "UTC";
     const today = zoneDayKey(nowMs, timezone);
     const data: AdsLiveDto = {
@@ -369,7 +402,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
-      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left, beside })),
+      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left, beside, pictures })),
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
       ...(beside.back ? { back: beside.back.all } : {}),

@@ -23,6 +23,7 @@ import "./content.css";
 import "./sheets/sheets.css";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ADS_ROUTE,
   CONTENT_WORDS as W,
   DAY_MS,
   FILE_WORDS,
@@ -40,7 +41,6 @@ import {
   type ContentMadeDto,
   type ContentPageDto,
   type ContentPlace,
-  type ContentView,
   type WeekRow,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -74,12 +74,16 @@ import {
   ContentViews,
   LibraryKinds,
   useContentLayout,
+  weekCountOf,
+  type AdsChoice,
   type ContentLayout,
+  type MadeView,
 } from "./views";
+import { useAdsShown } from "../ads/shown";
+import { useAdsNeeding } from "../ads/needs-you";
 import { pieceBesideOf } from "./model/piece-open";
 import { libraryNow } from "../parts/library-code";
 import { ContentWeek, WeekPlannedOpen } from "./week/week";
-import { surfaceValue } from "../../surface-values";
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
 const CONTENT_FOLLOW_MS = 5 * SECOND_MS;
@@ -288,6 +292,22 @@ interface BarGlyph {
 const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
   !!tally && tally.made + tally.making + tally.needs + tally.aside === 0;
 
+/** Ads among Made's views where Ads is on: amber where something in it needed the owner as the Ads page last read it. */
+function useAdsChoice(): AdsChoice | null {
+  const shown = useAdsShown();
+  const needing = useAdsNeeding();
+  return shown ? { owed: needing > 0 } : null;
+}
+
+/**
+ * Whether the list is drawn as Squares or rows, the one choice for both lists: the Library once it holds a file (as its
+ * coral Add waits, heads.tsx WhileLibraryHolds); Made's All, Making and Set aside while it holds anything (not its lines).
+ */
+const laidOutOf = (place: ContentPlace, bare: boolean, libraryHolds: boolean): boolean =>
+  place.list === "library"
+    ? libraryHolds
+    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+
 /**
  * The bar over the list: Made or the Library, then the list's own. On a phone, the search's glyph while the find line rests
  * and the views' pill, which holds Squares or List too (Ruben, 12 Nov 2026: one row as People's and the Inbox's, the glyph
@@ -308,15 +328,15 @@ function ContentBar(props: {
   const library = place.list === "library";
   // The Week is a list of its own: no find, no views, no Squares or List (the boards' Week 1-12).
   const week = place.list === "week";
-  const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
+  // Ads, the last of Made's views where it is on, is its own page at its own address (campaigns/ads), drawn in Made's place.
+  const onView = (v: MadeView) =>
+    navigate(v === "ads" ? ADS_ROUTE : contentRouteOf({ list: "made", view: v, open: null }));
+  const ads = useAdsChoice();
   const libraryHolds = useLibraryHolds();
   // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do). The
   // Library's Squares or List waits for its first file, as its coral Add does (heads.tsx WhileLibraryHolds).
   const bare = week || (!library && place.view === "all" && madeHoldsNothing(tally));
-  // Squares or rows, the one choice for both lists, where the list is drawn as either (not Made's lines).
-  const laidOut = library
-    ? libraryHolds
-    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+  const laidOut = laidOutOf(place, bare, libraryHolds);
   const layoutHeld = laidOut ? { value: props.layout, choose: props.choose } : null;
   return (
     <>
@@ -341,6 +361,7 @@ function ContentBar(props: {
                 onView={onView}
                 layout={layoutHeld}
                 planned={props.planned}
+                ads={ads}
               />
             )
           ) : null}
@@ -350,7 +371,7 @@ function ContentBar(props: {
       {phone || bare ? null : library ? (
         <LibraryKinds phone={false} />
       ) : place.view === "aside" ? null : (
-        <ContentViewRow view={place.view} tally={tally} onView={onView} planned={props.planned} />
+        <ContentViewRow view={place.view} tally={tally} onView={onView} planned={props.planned} ads={ads} />
       )}
       {/* Made's Set aside stands apart from its views, as the Library's does: the way back to All, and how many. */}
       {!library && place.view === "aside" ? (
@@ -364,17 +385,6 @@ function ContentBar(props: {
     </>
   );
 }
-
-/** How many creatives the Week holds, as it was last read; null before it was. */
-const weekCountOf = (): number | null => {
-  const week = surfaceValue("content_week")?.dto.week;
-  const count = week
-    ? new Set(week.slots.filter((s) => s.state !== "needs_footage" && s.state !== "removed").map((s) => s.creative))
-        .size
-    : 0;
-  // A week with nothing in it yet says no number, as an empty Made does not.
-  return count > 0 ? count : null;
-};
 
 /** The search's glyph in a phone's bar, where the list has a find line that holds no words; never on the Week. */
 const barGlyphOf = (at: {
@@ -413,7 +423,14 @@ function useMoreContent(flash: (f: FrameFlash) => void): { gettingMore: boolean;
   return { gettingMore, more };
 }
 
-export function ContentPage({ route, view }: { route: string; view?: CmView }) {
+interface ContentPageProps {
+  route: string;
+  view?: CmView;
+  /** The page Made's draw is said for where the address names another: an Ads address where Ads is not drawn. */
+  markedAs?: { page: string; part: string };
+}
+
+export function ContentPage({ route, view, markedAs }: ContentPageProps) {
   const place: ContentPlace = contentPlaceOf(route.split("/")[1]) ?? { list: "made", view: "all", open: null };
   const library = place.list === "library";
   const week = place.list === "week";
@@ -524,6 +541,7 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
                   openId={opened?.file.id ?? null}
                   layout={layout}
                   desk={!phone}
+                  markedAs={markedAs}
                 />
               )}
             </>

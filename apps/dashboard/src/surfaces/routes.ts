@@ -53,7 +53,20 @@ export interface SurfaceViews {
   label: string;
   testid?: string;
   picked: string;
-  tabs: readonly { id: string; label: string; to: string; testid?: string }[];
+  tabs: readonly {
+    id: string;
+    label: string;
+    to: string;
+    testid?: string;
+    /** How many things under the tab need the owner, said on it amber (`tone` "warn"), as the Inbox's tab says its own. */
+    badge?: () => number | null;
+    tone?: "warn";
+  }[];
+  /**
+   * What moves the tabs' counts, heard so the strip draws them again as it changes (Content's on Campaigns' strip: its read,
+   * and what needs the owner in Ads); answers the stop. Kept by the page as one function, so the strip hears it once.
+   */
+  heard?: (redraw: () => void) => () => void;
 }
 
 /** What the frame draws around a route's page. */

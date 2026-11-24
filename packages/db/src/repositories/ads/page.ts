@@ -30,6 +30,27 @@ export async function listAdsOfAccount(db: Db, tenantId: TenantId, accountId: st
   return data;
 }
 
+/**
+ * An account's ads made from one file of the business's, the newest first: those whose approved picture is it (00666
+ * `ads.approved`, its `picture`, the link a removed file's ads are paused by), for a piece's "Used in N ads".
+ */
+export async function listAdsShowingFile(
+  db: Db,
+  tenantId: TenantId,
+  accountId: string,
+  fileId: string,
+): Promise<AdRow[]> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("ads")
+    .select("*")
+    .eq("account_id", accountId)
+    .eq("approved->>picture", fileId)
+    .order("created_at", { ascending: false })
+    .limit(ADS_MAX);
+  if (error) throw new DbFailure(error, "the ads a file is shown in");
+  return data;
+}
+
 /** One ad of the workspace's, by Chanlytics' own id. */
 /**
  * Ads by their own ids, whichever account each is of: the ones a window's counts name that an account's list did not

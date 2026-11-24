@@ -12,6 +12,7 @@
  */
 import {
   AD_DOORS_COUNTED,
+  AD_WARN_STATES,
   adChatsKeptRule,
   adCostRule,
   addressOf,
@@ -20,7 +21,7 @@ import {
   newAdRoute,
   waitedSince,
 } from "@chanlytics/contracts";
-import { AD_WAY_IN_SAID } from "@chanlytics/contracts";
+import { AD_WAY_IN_SAID, contentRouteOf } from "@chanlytics/contracts";
 import type { AdLiveDto, AdsLiveDto, AppointmentWord } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
@@ -32,9 +33,6 @@ import { worthOf, type WorthVM } from "./worth-model";
 
 /** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
 const counted = (ad: Pick<AdLiveDto, "opens">): boolean => AD_DOORS_COUNTED.includes(ad.opens);
-
-/** The standings a row is drawn in amber for: each needs the owner to know it, or to do one thing. */
-const WARN_STATES: readonly AdLiveDto["state"][] = ["needs-you", "couldnt-finish", "unconfirmed"];
 
 /** The standings a drawer says in its row's own line alone: nothing is running yet that money or an end would describe. */
 const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "couldnt-finish", "unconfirmed"];
@@ -184,7 +182,7 @@ function rowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): Li
     open: adRoute(ad.id),
     line: lineOf(ad, dto, said, currency),
     badge: !stopped && ad.pending === null && ad.state === "review" ? LIVE.state.review : null,
-    tone: WARN_STATES.includes(ad.state) && !stopped ? "warn" : ad.state === "on" && !stopped ? "ok" : "plain",
+    tone: AD_WARN_STATES.includes(ad.state) && !stopped ? "warn" : ad.state === "on" && !stopped ? "ok" : "plain",
     endTop: counted(ad)
       ? LIVE.bookedCell(ad.booked)
       : ad.spend_minor > 0
@@ -412,6 +410,11 @@ export interface SheetVM {
   line: string;
   /** That it was made in Meta, where it was. */
   made: string | null;
+  /**
+   * The piece of Content it was made from (Campaigns in three tabs): its name and the address that opens it in Made, or no
+   * name and no address once it is gone from Made; null for an ad that shows no file of the business's.
+   */
+  from: { name: string; route: string } | { name: null; route: null } | null;
   /** Meta's own words for why it will not run, in quotes. */
   reason: { label: string; words: string; note: string | null } | null;
   ours: FigureVM[];
@@ -536,6 +539,14 @@ function chatsLineOf(ad: AdLiveDto): SheetVM["chats"] {
 const backLineOf = (back: { people: number; booked: number } | undefined, from: "this ad" | "an ad"): string | null =>
   back && back.people > 0 ? SHEET.back({ people: peopleWord(back.people), booked: back.booked, from }) : null;
 
+/** The piece an ad was made from, as its sheet says it: opened in Made by its file, or gone from it (none from a server before). */
+const sheetFromOf = ({ made_from: from = null }: AdLiveDto): SheetVM["from"] =>
+  from === null
+    ? null
+    : from.name === null
+      ? { name: null, route: null }
+      : { name: from.name, route: contentRouteOf({ list: "made", view: "all", open: from.file_id }) };
+
 /** An ad's drawer; null where the page holds no ad of that id. */
 export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): SheetVM | null {
   const ad = adId === null ? undefined : dto.ads.find((one) => one.id === adId);
@@ -550,6 +561,7 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
     name: ad.name,
     line: sheetLineOf(ad, dto, said, currency),
     made: ad.made_in_platform ? SHEET.madeInMeta : null,
+    from: sheetFromOf(ad),
     reason:
       launchReasonOf(ad) ??
       (ad.needs === "refused" && ad.issue

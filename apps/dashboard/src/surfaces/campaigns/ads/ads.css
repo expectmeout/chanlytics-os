@@ -11,6 +11,13 @@
   line-height: var(--leading-snug);
   color: var(--ink-dim);
 }
+/* What the view is, over its sentence, now that Ads is a view of Content's Made: paid, from whose account, and its days. */
+.ads-paid {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
 .ads-lead {
   margin: 0;
   font-size: var(--text-xl);
@@ -83,7 +90,7 @@
   gap: var(--space-8);
   align-items: start;
 }
-@container cmh (max-width: 900px) {
+@container cm-list (max-width: 900px) {
   .ads-hero {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-6);

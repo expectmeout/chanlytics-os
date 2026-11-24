@@ -47,6 +47,7 @@ import {
 } from "@chanlytics/contracts";
 import { askJump, askPages, type JumpEntry } from "./jump";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { adsShownIn } from "../surfaces/ads-shown";
 import { askOnScreenOf } from "./on-screen";
 import { pageAsksOn } from "./page-asks";
 import { needsYouParts } from "@/surfaces/needs-you";
@@ -140,12 +141,15 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
 }
 
 /**
- * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline everywhere; the back
- * office for staff, the bit Settings' rail draws by), then the threads, people and calls the browser holds.
+ * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline and Forms everywhere; Ads
+ * where it is drawn; the back office for staff, the bit Settings' rail draws by), then the threads, people and calls the browser holds.
  */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
   const w = win as Window & PaletteGlobals;
-  const out: JumpEntry[] = askPages({ platformAdmin: !!w.__ME?.platform_admin });
+  const out: JumpEntry[] = askPages({
+    platformAdmin: !!w.__ME?.platform_admin,
+    ads: adsShownIn(surfaceValue("settings")),
+  });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({

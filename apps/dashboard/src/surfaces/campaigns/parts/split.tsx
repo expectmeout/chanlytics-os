@@ -19,12 +19,7 @@ import { useRecSheetEscape } from "../../kit/record/focus";
 import { ViewShownAs } from "./view-shown";
 import { cx } from "../../kit/variants";
 import type { ScopeView } from "../../people/scope-view";
-
-/** The kit's one breakpoint: under it the open thing is the screen, over it a pane beside the list. */
-const CM_PHONE_QUERY = "(max-width: 900px)";
-
-const cmPhoneQuery = () =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(CM_PHONE_QUERY) : null;
+import { cmPhoneQuery } from "./phone-query";
 
 /** The split each pane a thumb is carrying was grabbed in (cmGoing). */
 const goingHosts = new WeakMap<Element, Element>();
@@ -46,10 +41,7 @@ export const cmGoing = (el: Element, on: boolean) => {
   showHeld(on);
 };
 
-/** Whether the window is a phone's now, read once: for work done before a page is drawn (content/warm.ts). */
-export const cmPhoneNow = (): boolean => !!cmPhoneQuery()?.matches;
-
-/** Whether the window is a phone's, kept current as it changes size. */
+/** Whether the window is a phone's (parts/phone-query.ts), kept current as it changes size. */
 export function useCmPhone(): boolean {
   const [phone, setPhone] = useState(() => !!cmPhoneQuery()?.matches);
   useEffect(() => {
