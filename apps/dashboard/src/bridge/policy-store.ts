@@ -7,6 +7,7 @@ import {
   type FactSuggestionDto,
   type HeldDraftsByIntent,
   type SequenceEvidenceDto,
+  type WeekApprovedRecord,
   type OwnModesDto,
   type PolicyClass,
   type PolicyLimits,
@@ -120,6 +121,20 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     },
   },
   { id: "money", cls: "money", ...W("money"), locked: true },
+  // Content (00714; canvas v18, board B5): a row per act, drawn in the pane's own Content card (content-rows.tsx).
+  { id: "post", cls: "post", ...W("post") },
+  {
+    id: "plan_approve",
+    cls: "plan_approve",
+    ...W("plan_approve"),
+    hints: {
+      Auto: "approves the week AI plans as soon as it is ready · each post goes up at its time",
+      Veto: "holds the week AI plans and approves it at 8:00 AM, unless you stop it on the Week or Today",
+      Ask: "waits for your Approve the week · nothing goes up until you press it",
+    },
+  },
+  { id: "ad_change", cls: "ad_change", ...W("ad_change") },
+  { id: "comment_reply", cls: "comment_reply", ...W("comment_reply") },
 ];
 
 export interface PolicyRecordLike {
@@ -146,6 +161,8 @@ export interface PoliciesSurface {
   replyTokens?: { replies: number; tokens: number } | null;
   /** What each sequence's batches did (decision 0064): the sequences' rows' line; null where unread or old. */
   evidence?: SequenceEvidenceDto[] | null;
+  /** The weeks approved, newest first (00714): AI's suggested rung for Approve the week; null where unread or old. */
+  weeksApproved?: WeekApprovedRecord[] | null;
 }
 
 export interface UiRow extends UiRowMeta {

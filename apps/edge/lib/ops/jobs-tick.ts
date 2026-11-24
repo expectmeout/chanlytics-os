@@ -38,6 +38,7 @@ import { findPagePosting } from "../facebook/posting.js";
 import { sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
 import { planTheWeek } from "../content/plan.js";
+import { makeTheWeek, putTheWeekUp } from "../content/week-go.js";
 import { takePostDown } from "../content/take-down.js";
 import { readPostResults } from "../content/observe.js";
 import { replyToComment } from "../content/comment-reply.js";
@@ -209,7 +210,11 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
   // A week of posts planned (00706): it reads, scores and writes, and makes nothing.
-  plans: { plan: (job: ClaimedJob) => planTheWeek(db, job) },
+  plans: {
+    plan: (job: ClaimedJob) => planTheWeek(db, job),
+    go: (job: ClaimedJob) => putTheWeekUp(db, job),
+    make: (job: ClaimedJob) => makeTheWeek(db, job),
+  },
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

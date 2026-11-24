@@ -126,7 +126,7 @@ export async function readFrame(
   };
   const kept = await bucket().download(path);
   if (!kept.error) return Buffer.from(await kept.data.arrayBuffer());
-  const cut = await keepVideoFrame({ tenantId, userId: ctx.userId }, { id: file.id, at });
+  const cut = await keepVideoFrame({ tenantId, userId: ctx.userId || null }, { id: file.id, at });
   if ("wont" in cut) return unread(cut.wont);
   const read = await bucket().download(path);
   if (read.error) return unread(read.error.message);

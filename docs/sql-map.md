@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 216 | 216 |
+| door | 217 | 217 |
 | reader | 98 | 0 |
-| the server's | 459 | 389 |
+| the server's | 464 | 394 |
 | computed column | 3 | 0 |
-| trigger | 124 | 91 |
-| all | 900 | 696 |
+| trigger | 125 | 91 |
+| all | 907 | 702 |
 
 ## Called by nothing
 
@@ -137,7 +137,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 36 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 37 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -178,6 +178,10 @@ being read is dropped by a migration.
 | `content_plan_write` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The content_plan job's write (00706): |
 | `content_plans_hand_out` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | The weekly clock (00706; |
 | `content_week_approve` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Approve the week (00706; |
+| `content_week_hold` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A ready week held to its time (00714; |
+| `content_week_made` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A week's pass done (00714): |
+| `content_week_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Stop it (00714; the content loop PRD's 12.4), by a member with the settings permission: |
+| `content_weeks_start` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_made` | The making queue (00714; |
 | `conversation_draft_claim` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft says it is being written, once a message, kind and edition (00538, decision 0093): |
 | `conversation_draft_keep` | door | a signed-in person, the server | nothing at run time | Keep Ask's draft for a thread waiting on a person (decision 0071): |
 | `conversation_draft_write` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft kept (00538, decision 0093), only over a row for the same message: |
@@ -605,7 +609,10 @@ being read is dropped by a migration.
 | `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `post_approve_whole` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
+| `plan_slot_place` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_approve` | A slot of a week AI approved placed (00714), by the service: |
+| `plan_slot_prepared` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A slot of a held week prepared ahead (00714), by the service: |
 | `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00706): |
+| `plan_slots_mark_edited` | trigger | the server | trigger `plan_slots_edited on plan_slots` | After a slot of a week is left out, moved or given other footage (00714): |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |
@@ -627,7 +634,7 @@ being read is dropped by a migration.
 | `playbook_totals` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Each moment playbook's runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history run |
 | `policy_change` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | A member's change to their workspace's own policy row for a class, as one write (00624): |
 | `post_again` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post's first attempt never landed (00611): |
-| `post_approve` | door | a signed-in person, the server | SQL `piece_posts_replace`, `post_approve_whole` | A member's press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; |
+| `post_approve` | door | a signed-in person, the server | SQL `piece_posts_replace`, `plan_slot_place` and 1 more | A member's press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; |
 | `post_approve_whole` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts` | A member's press, with the settings permission (00713; |
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00681; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |

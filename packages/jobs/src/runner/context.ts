@@ -409,6 +409,10 @@ export interface JobContext {
   /** A week of posts planned (00706; the content loop PRD's 10.2), as the edge holds it. INJECTED like the poster. */
   plans?: {
     plan: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    /** A week AI may approve, approved under the rung at its time and made (00714; the PRD's 12.4). */
+    go?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    /** A week AI approved, made in its turn: the dashboard asked to make it as AI (00714). */
+    make?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**
    * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's

@@ -9,7 +9,7 @@
  * last 90 days (decision 0064, contracts classEvidenceLine): the same, for the mode a new one starts with.
  * Money is no row here: a class nothing can change, it is said once, on Limits (the Settings wiring review, 18 Oct).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   classEvidenceLine,
   heldDraftsLine,
@@ -41,6 +41,16 @@ export const polMode = (m: UiMode | null): ModeWords => (m ? UI_MODE_WORDS[m] : 
 
 /** What a press of a mode asks for: the row, and the mode as the database spells it. */
 type PutMode = (r: UiRow, mode: string) => void;
+
+/**
+ * Rows under a name of their own after the matrix's own (00714, canvas v18 board B5: Content), and a line under them (AI's
+ * suggested rung): one matrix, its headings said once.
+ */
+export interface RowGroup {
+  name: string;
+  rows: UiRow[];
+  foot?: ReactNode;
+}
 
 /** The held drafts by the row they belong to (contracts heldDraftsByClass); empty where none were read. */
 type HeldByClass = Partial<Record<HeldDraftsClass, HeldDraftsCount>>;
@@ -161,16 +171,27 @@ export function PolPhoneRows({
   put,
   busy,
   lines = {},
+  groups = [],
 }: {
   rows: UiRow[];
   put: PutMode;
   busy: string | null;
   lines?: RowLines;
+  groups?: readonly RowGroup[];
 }) {
   return (
     <div className="pol-phone" data-testid="pol-phone">
       {rows.map((r) => (
         <PolModeRow key={r.id} r={r} put={put} busy={busy} lines={lines} />
+      ))}
+      {groups.map((g) => (
+        <div key={g.name} data-testid={`pol-group-${g.name.toLowerCase()}`}>
+          <div className="pol-phone-group">{g.name}</div>
+          {g.rows.map((r) => (
+            <PolModeRow key={r.id} r={r} put={put} busy={busy} lines={lines} />
+          ))}
+          {g.foot}
+        </div>
       ))}
     </div>
   );
@@ -204,17 +225,39 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
   );
 }
 
-/** The matrix on a desktop: a column per mode, headed by what the mode does, and a row per class. */
+/** One class as a row of the desktop's matrix: its name and line, and a cell per mode. */
+function PolicyRow({ r, put, busy, lines }: { r: UiRow; put: PutMode; busy: string | null; lines: RowLines }) {
+  return (
+    <tr>
+      <td>
+        <span className="pol-label">
+          {r.label}
+          {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
+        </span>
+        {heldLineOf(r, lines) && (
+          <span className="pol-held" data-testid={`pol-held-${r.cls}`}>
+            {heldLineOf(r, lines)}
+          </span>
+        )}
+      </td>
+      {UI_MODES.map((m) => modeCell(r, m, put, busy))}
+    </tr>
+  );
+}
+
+/** The matrix on a desktop: a column per mode, headed by what the mode does, a row per class, then each group's rows. */
 export function PolicyTable({
   rows,
   put,
   busy,
   lines = {},
+  groups = [],
 }: {
   rows: UiRow[];
   put: PutMode;
   busy: string | null;
   lines?: RowLines;
+  groups?: readonly RowGroup[];
 }) {
   return (
     <table className="pol-table">
@@ -230,22 +273,26 @@ export function PolicyTable({
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.id}>
-            <td>
-              <span className="pol-label">
-                {r.label}
-                {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
-              </span>
-              {heldLineOf(r, lines) && (
-                <span className="pol-held" data-testid={`pol-held-${r.cls}`}>
-                  {heldLineOf(r, lines)}
-                </span>
-              )}
-            </td>
-            {UI_MODES.map((m) => modeCell(r, m, put, busy))}
-          </tr>
+          <PolicyRow key={r.id} r={r} put={put} busy={busy} lines={lines} />
         ))}
       </tbody>
+      {groups.map((g) => (
+        <tbody key={g.name} data-testid={`pol-group-${g.name.toLowerCase()}`}>
+          <tr className="pol-group">
+            <th colSpan={1 + UI_MODES.length} scope="colgroup">
+              {g.name}
+            </th>
+          </tr>
+          {g.rows.map((r) => (
+            <PolicyRow key={r.id} r={r} put={put} busy={busy} lines={lines} />
+          ))}
+          {g.foot ? (
+            <tr className="pol-group-foot">
+              <td colSpan={1 + UI_MODES.length}>{g.foot}</td>
+            </tr>
+          ) : null}
+        </tbody>
+      ))}
     </table>
   );
 }

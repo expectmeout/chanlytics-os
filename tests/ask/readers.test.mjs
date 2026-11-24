@@ -6091,6 +6091,7 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
       "own_modes",
       "reply_tokens",
       "evidence",
+      "weeks_approved",
     ]);
     assert.deepEqual(
       [r.data.policies.map((p) => p.class), r.data.role],
@@ -6100,10 +6101,10 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     assert.deepEqual(r.rows, []);
     // And what the owner's corrections show (decision 0063): the held drafts are a function, the suggestions a table;
     // the people set differently (item 10, 18 Oct 2026): their rows, then the names of the newest; and the week's
-    // replies, which say the day's budget in replies (item 12).
+    // replies, which say the day's budget in replies (item 12); and the weeks approved, AI's suggested rung's record (00714).
     assert.deepEqual(
       asked(ctx),
-      ["policies.select", "fact_suggestions.select", "policies.select", "events.select"].concat(
+      ["policies.select", "fact_suggestions.select", "policies.select", "events.select", "content_plans.select"].concat(
         tenant === A ? ["contacts.select"] : [],
       ),
     );
@@ -6150,6 +6151,8 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
         q.rpc === "held_drafts_by_intent" ||
         q.table === "contacts" ||
         q.table === "events" ||
+        // The weeks approved (00714), the record AI's suggested rung reads.
+        q.table === "content_plans" ||
         (q.table === "policies" && JSON.stringify(q).includes("contact")),
     ),
     "the turn's own reads",

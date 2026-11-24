@@ -27,8 +27,9 @@ export const weekOverride: SurfaceOverride = {
   // (tests/baselines/reads-not-heard.json says why).
   ...declareReads("content_week", {
     // A review and a campaign since pass 6: its proposal to ask for reviews reads the newest review, the review link and
-    // whether an ask runs, and goes once a new review comes or the ask starts.
-    reads: ["file", "review", "campaign", "facts", "channel", "workspace", "brought"],
+    // whether an ask runs, and goes once a new review comes or the ask starts. And the rules since 00714: whether a ready week
+    // is held reads the owner's rung for it (Approve the week), which a teammate may move from Settings › Autonomy.
+    reads: ["file", "review", "campaign", "facts", "channel", "workspace", "brought", "rules"],
     fresh: "its-page",
     omit: [
       {

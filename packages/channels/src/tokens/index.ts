@@ -3,6 +3,8 @@
  */
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./confirm-token";
 export type { ConfirmClaims } from "./confirm-token";
+export { callDashboard } from "./dashboard-call";
+export type { DashboardAnswer } from "./dashboard-call";
 export { EDGE_TOKEN_TTL_MS, edgeBodyMatches, signEdgeToken, verifyEdgeToken } from "./edge-token";
 export type { EdgeClaims, EdgeTokenVerdict } from "./edge-token";
 export { REQUEST_ID_HEADER, requestIdOf, requestIdShaped } from "./request-id";

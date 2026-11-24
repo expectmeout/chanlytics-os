@@ -10,11 +10,13 @@ import {
   type HeldDraftsByIntent,
   type OwnModesDto,
   type SequenceEvidenceDto,
+  type WeekApprovedRecord,
 } from "@chanlytics/contracts";
 import { listFactSuggestionsWaiting, listHeldDraftsByIntent } from "@chanlytics/db/facts";
 import { listNamesOfPeople } from "@chanlytics/db/people";
 import { listPeopleOnTheirOwnMode, replyTokensSince, type PolicyRecord } from "@chanlytics/db/workspace";
 import { listSequenceEvidence } from "@chanlytics/db/campaigns";
+import { listWeeksApproved } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
@@ -40,6 +42,11 @@ interface AutonomyMatrix {
    * sequences' classes say under them, so a new sequence's start is set on what happened. Null where the read failed.
    */
   evidence: SequenceEvidenceDto[] | null;
+  /**
+   * The weeks approved, newest first, by whose press and whether edited (00714): the record AI's suggested rung for
+   * Approve the week reads (contracts rungSuggestionOf). Null where the read failed.
+   */
+  weeks_approved: WeekApprovedRecord[] | null;
 }
 
 /** How far back a reply's size is measured: a week, so a quiet day or a busy one does not move it much. */
@@ -71,7 +78,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
   name: "autonomy",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [p, held, suggestions, own, replyTokens, evidence] = await Promise.all([
+    const [p, held, suggestions, own, replyTokens, evidence, weeksApproved] = await Promise.all([
       load(rc, facts.policies, undefined),
       listHeldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
         log.error("autonomy_held_drafts_failed", { tenant_id: rc.tenantId, error });
@@ -98,6 +105,10 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         log.error("autonomy_evidence_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
+      listWeeksApproved(db, rc.tenantId).catch((error: unknown) => {
+        log.error("autonomy_weeks_approved_failed", { tenant_id: rc.tenantId, error });
+        return null;
+      }),
     ]);
     return {
       data: {
@@ -108,6 +119,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         own_modes: own,
         reply_tokens: replyTokens,
         evidence,
+        weeks_approved: weeksApproved,
       },
       rows: [],
       stamp: readerStamp(),
