@@ -3,12 +3,14 @@ import {
   AD_BEFORE_AFTER,
   adPictureIssue,
   adRightsOf,
+  adStateOfRow,
   fileSoundOf,
   type AdPicture,
   type AdPictureIssue,
   type FileDto,
+  type PieceAdUseDto,
 } from "@chanlytics/contracts";
-import { findLiveAdAccount } from "@chanlytics/db/ads";
+import { findLiveAdAccount, listAdsShowingFile } from "@chanlytics/db/ads";
 import { logAndGoOn } from "@chanlytics/log";
 import {
   listFilesByIds,
@@ -203,3 +205,23 @@ export async function readPieceAdStands(rc: AdReader, file: FileDto): Promise<Pi
  */
 export const readPieceAd = (rc: AdReader, row: FileMemberRow): Promise<PieceAdStands | null> =>
   readPieceAdStands(rc, fileDtoOf(row)).catch(logAndGoOn("a made piece's standing for an ad", null));
+
+/**
+ * The ads a made piece is shown in, for the piece's "Used in N ads" (Campaigns in three tabs): every ad of the account made
+ * from this file, running or not, each with where it stands now, read by the file (listAdsShowingFile). None for anything
+ * AI did not make, where Ads is not shown (the same gate as readPieceAdStands), where no ad account is held, or where the
+ * read fails: the piece's record costs nothing for it.
+ */
+async function listPieceAds(rc: AdReader & { now: Date }, file: FileDto): Promise<PieceAdUseDto[]> {
+  if (file.source !== "made") return [];
+  if (!(await readAdsOffered(rc.tenantId))) return [];
+  const account = await findLiveAdAccount(rc.ctx.supabase, rc.tenantId, "meta");
+  if (!account) return [];
+  const ads = await listAdsShowingFile(rc.ctx.supabase, rc.tenantId, account.id, file.id);
+  const at = { nowMs: rc.now.getTime(), timezone: account.timezone ?? "UTC" };
+  return ads.map((ad) => ({ id: ad.id, name: ad.name, state: adStateOfRow(ad, at) }));
+}
+
+/** A made piece's ads, read as it opens (GET files/[id]): listPieceAds, a read that fails saying none. */
+export const readPieceAds = (rc: AdReader & { now: Date }, row: FileMemberRow): Promise<PieceAdUseDto[]> =>
+  listPieceAds(rc, fileDtoOf(row)).catch(logAndGoOn("the ads a made piece is shown in", []));

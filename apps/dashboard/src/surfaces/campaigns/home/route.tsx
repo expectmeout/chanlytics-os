@@ -7,8 +7,10 @@
  * `campaigns/in:<group>`, `campaigns/moment:<id>[:people]`) land on Sequences, or on the campaign's sequence, by the one
  * table of retired addresses (contracts retiredRouteOf): every edge moves them before the page is asked, and one that
  * reaches it some other way (a history entry from before) is replaced here. `campaigns/ads…` is the Ads view, where it is
- * drawn. The address is read from the path, never from the route params: a move between two of its addresses is
- * a change of the path alone (workspace.ts goToRoute), and the page follows it, one mount across them all.
+ * drawn: kept apart, with its own code and reads, and shown as the last of Content's Made views, so the strip lights Content
+ * and the deck moves nothing between the two (Campaigns in three tabs, 23 Nov 2026); where Ads is not drawn it is Content.
+ * The address is read from the path, never from the route params: a move between two of its addresses is a change of the
+ * path alone (workspace.ts goToRoute), and the page follows it, one mount across them all.
  *
  * Sequences, Content and, where it is drawn, Ads are kept, as People's scopes are (people/people-route.tsx): each drawn from the first time it is
  * shown, or ahead of that, hidden, once the frame is idle on any other (useViewsAhead), and hidden under React's Activity
@@ -45,6 +47,7 @@ import { surfaceValue } from "../../surface-values";
 import { waitForAdsFirstRead } from "../ads/first-read";
 import { useAdsShown } from "../ads/shown";
 import { useWhatsAppListAsked } from "../parts/whatsapp-list";
+import { noteContentLeft } from "./left-at";
 import { openSeeOver } from "../../see/see-over";
 // Each view's code is a chunk of its own (campaigns-code.tsx), fetched where the view is drawn: once the frame is idle on another
 // view, at its press, or beside the frame's own where a load opens on it (opening.ts), its first draw held for it.
@@ -85,12 +88,15 @@ function ViewReading({ view }: { view: CmView }) {
   );
 }
 
-/** An Ads address where Ads is not drawn is Sequences, and its draw is said for the page the address is (contracts PRIMARY_PART). */
-const ADS_SHOWN_AS_SEQUENCES: { page: string; part: string } = { page: "ads", part: "page" };
+/** An Ads address where Ads is not drawn opens Content's Made, and its draw is said for the page the address is (PRIMARY_PART). */
+const ADS_SHOWN_AS_MADE: { page: string; part: string } = { page: "ads", part: "page" };
 
-/** Campaigns' kept views, in the strip's order: Ads only where it is drawn (ads/shown.ts). */
+/**
+ * Campaigns' kept views, each at its place on the strip: Ads, only where it is drawn (ads/shown.ts), at Content's, since it is
+ * the last of Made's views (Campaigns in three tabs), so a move between the two slides nothing.
+ */
 type View = "sequences" | "content" | "ads" | "forms";
-const VIEW_ORDER: readonly View[] = ["sequences", "content", "ads", "forms"];
+const STRIP_PLACE: Readonly<Record<View, number>> = { sequences: 0, content: 1, ads: 1, forms: 2 };
 /** The deck's one seat for Campaigns' views. */
 const VIEW_SEAT = "campaigns-view";
 
@@ -122,7 +128,11 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
     before.current = view;
   });
   const slide: CmView["slide"] =
-    was && was !== view ? (VIEW_ORDER.indexOf(view) > VIEW_ORDER.indexOf(was) ? "next" : "prev") : undefined;
+    was && STRIP_PLACE[was] !== STRIP_PLACE[view]
+      ? STRIP_PLACE[view] > STRIP_PLACE[was]
+        ? "next"
+        : "prev"
+      : undefined;
   const seat = viewDeck.view(VIEW_SEAT);
   const viewOf = (v: View): CmView => ({ ref: seat, slide: v === view ? slide : undefined, shown: v === view });
   return {
@@ -197,10 +207,10 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
 
 /**
  * Which view an address is. `campaigns/content` is the Content view, and `campaigns/ads…` the Ads view where it is drawn
- * (ads/shown.ts): a workspace without it has no ads to read, so its Ads address is Sequences.
+ * (ads/shown.ts): a workspace without it has no ads to read, so its Ads address opens Content's Made, where Ads would be.
  */
 function viewOf(param: string | null, adsShown: boolean): View {
-  if (param && isAdsParam(param) && adsShown) return "ads";
+  if (param && isAdsParam(param)) return adsShown ? "ads" : "content";
   if (isContentParam(param)) return "content";
   if (isFormsParam(param)) return "forms";
   // Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): its addresses are Sequences', a message's opening
@@ -255,6 +265,11 @@ export function CampaignsRoute() {
   useEffect(() => {
     if (landing) replaceRoute(landing);
   }, [landing]);
+  // Content's tab, pressed from another view, reopens where Content or Ads was left (left-at.ts).
+  const shownAt = landing ?? route;
+  useEffect(() => {
+    if (view === "content" || view === "ads") noteContentLeft(shownAt);
+  }, [view, shownAt]);
   return (
     <CampaignsToast value={flash}>
       {kept.drawn.has("sequences") ? (
@@ -262,11 +277,7 @@ export function CampaignsRoute() {
           {/* The message's pane, handed down to the step editor (parts/message-pane.ts). */}
           <Suspense fallback={<ViewReading view={kept.viewOf("sequences")} />}>
             <MessagePaneProvider>
-              <SequencesPage
-                route={kept.sequencesAt}
-                view={kept.viewOf("sequences")}
-                markedAs={param && isAdsParam(param) ? ADS_SHOWN_AS_SEQUENCES : undefined}
-              />
+              <SequencesPage route={kept.sequencesAt} view={kept.viewOf("sequences")} />
             </MessagePaneProvider>
           </Suspense>
         </Activity>
@@ -275,12 +286,17 @@ export function CampaignsRoute() {
       {kept.drawn.has("content") ? (
         <Activity mode={view === "content" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading view={kept.viewOf("content")} />}>
-            <ContentPage route={kept.contentAt} view={kept.viewOf("content")} />
+            <ContentPage
+              route={kept.contentAt}
+              view={kept.viewOf("content")}
+              markedAs={param && isAdsParam(param) && !adsShown ? ADS_SHOWN_AS_MADE : undefined}
+            />
           </Suspense>
         </Activity>
       ) : null}
-      {/* Ads, a view kept beside the other two on the same mount (Ruben, 10 Nov 2026: it was a page of its own, so a press on
-          its tab put Campaigns away, said Reading, and drew its head 7px lower than the other views'). */}
+      {/* Ads, a view kept beside the others on the same mount (Ruben, 10 Nov 2026: it was a page of its own, so a press on
+          its tab put Campaigns away, said Reading, and drew its head 7px lower than the other views'), drawn as the last of
+          Content's Made views, under Content's bar (ads/ads-bar.tsx). */}
       {adsShown && kept.drawn.has("ads") ? (
         <Activity mode={view === "ads" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading view={kept.viewOf("ads")} />}>

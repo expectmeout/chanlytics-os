@@ -343,7 +343,7 @@ const settingsWith = (features, ads = false) =>
   S.setSurfaceValue("settings", { settings: { config: { features }, ads }, messages: [] });
 
 // Messages folded into Campaigns (#2408, 17 Nov 2026): its tab went with it, so Content stands after Campaigns' own.
-test("every workspace's Campaigns has a Content tab, after its campaigns and before Ads where Ads is drawn", () => {
+test("every workspace's Campaigns has three tabs, Content after its campaigns; Ads, where it is drawn, is Content's", () => {
   settingsWith({});
   const plain = S.campaignsChrome({ param: null });
   assert.deepEqual(
@@ -355,9 +355,25 @@ test("every workspace's Campaigns has a Content tab, after its campaigns and bef
   settingsWith({}, true);
   assert.deepEqual(
     S.campaignsChrome({ param: null }).views.tabs.map((t) => t.id),
-    ["sequences", "content", "ads", "forms"],
-    "Ads where it is drawn, and Forms the last",
+    ["sequences", "content", "forms"],
+    "a page holds three tabs at most (Campaigns in three tabs, 23 Nov 2026): Ads is the last of Content's Made views",
   );
+  // Every Ads address lights Content, its crumbs going through Content to Ads.
+  for (const param of ["ads", "ads:new", "ads:ad:ad-1"]) {
+    const at = S.campaignsChrome({ param });
+    assert.equal(at.views.picked, "content", param);
+    assert.deepEqual(
+      at.crumbs.slice(0, 2).map((c) => (typeof c === "string" ? c : c.label)),
+      ["Campaigns", "Content"],
+      param,
+    );
+  }
+  assert.equal(S.campaignsChrome({ param: "ads" }).crumbs.at(-1), "Ads");
+  // Where Ads is not drawn, its address opens Made: Content's crumbs and tab.
+  settingsWith({});
+  const off = S.campaignsChrome({ param: "ads" });
+  assert.equal(off.views.picked, "content");
+  assert.equal(off.crumbs.at(-1), "Content");
 });
 
 test("the Content address wears Campaigns' crumbs and picks its tab in any workspace", () => {

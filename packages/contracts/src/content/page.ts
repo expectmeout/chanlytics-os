@@ -393,6 +393,9 @@ export const CONTENT_WORDS = {
       made: "Made",
       added: "Added",
       sound: "Sound",
+      /** The ads a made piece is shown in (Campaigns in three tabs), every one, running or not. */
+      usedIn: (n: number) => `Used in ${n === 1 ? "1 ad" : `${n} ads`}`,
+      usedNote: "A change here never changes an ad that runs.",
     },
     kinds: { picture: "Post", story: "Story", reel: "Reel" },
     /** "Sat, 9:00 AM", "tomorrow, 9:00 AM": a day near today and its time. */
@@ -440,6 +443,8 @@ export const CONTENT_WORDS = {
       aside: "Set aside",
     },
     label: "Show",
+    /** Made's views end with Ads where Ads is on, set apart under this word: what is shown for money (three tabs, 23 Nov 2026). */
+    paid: "Paid",
     empty: {
       all: "Nothing made yet.",
       needs: "Nothing needs you.",

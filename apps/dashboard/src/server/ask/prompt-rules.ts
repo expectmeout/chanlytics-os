@@ -117,7 +117,7 @@ export const ANSWER_TOOL_RULES = [
  * shows" and warned of examples while none was on screen, the model told an owner their own counts were an example (a real turn, 6 Nov).
  */
 const ADS_LINE =
-  "They are on Campaigns › Ads, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a campaign to the people they have, or a post. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
+  "They are on Ads, in Campaigns › Content, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a campaign to the people they have, or a post. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
 
 /** What the Ads page shows now, by the word it said (ASK_ADS_VIEW). */
 const ADS_ON_SCREEN = {

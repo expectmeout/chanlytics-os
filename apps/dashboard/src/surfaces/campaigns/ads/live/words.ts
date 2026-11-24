@@ -4,7 +4,7 @@
  * its check or its own page is meant; AI is AI; nothing here is a system's word. The model (model.ts) chooses among
  * these and writes none of its own.
  */
-import type { AdOpens, AdPartLeft, AdStopped } from "@chanlytics/contracts";
+import { AD_STATE_WORDS, type AdOpens, type AdPartLeft, type AdStopped } from "@chanlytics/contracts";
 
 const people = (n: number): string => (n === 1 ? "1 person" : `${n} people`);
 
@@ -67,19 +67,8 @@ export const LIVE = {
   } satisfies Record<AdOpens, string>,
   madeInMeta: "made in Meta",
   opensWord: (what: string) => `opens ${what}`,
-  /** A row's first word, by where the ad stands. */
-  state: {
-    on: "On",
-    paused: "Paused",
-    review: "In review",
-    "needs-you": "Needs you",
-    ended: "Ended",
-    finished: "Finished",
-    "setting-up": "Setting up",
-    "couldnt-finish": "Couldn't finish",
-    unconfirmed: "Couldn't confirm it's on",
-    draft: "Draft",
-  },
+  /** A row's first word, by where the ad stands: the one table, which a piece's Used in says too (contracts). */
+  state: AD_STATE_WORDS,
   /** An ad made here, while Turn on's job makes it at Meta: nothing shows until Meta checks it. */
   settingUp: "Setting up · Meta checks it before anyone sees it",
   /** Its launch stopped part way: why, in a few words, and that nothing was spent. */
@@ -197,6 +186,12 @@ export const NEEDS_YOU_LINE = {
 
 /** An ad's drawer (the plan's 4.5). */
 export const SHEET = {
+  /** The handle's names on a phone, where an ad opens on the whole screen as a piece does (Campaigns in three tabs). */
+  whole: "Show all of the ad",
+  less: "Show less of the ad",
+  /** The piece of Content an ad made here shows, one press back to it, or that it has gone from Made (its ads paused). */
+  madeFrom: "Made from",
+  fromGone: "a piece removed from Made",
   /** Where an ad shows, by Meta's own names for its places; "Meta" where that is not known yet. */
   platform: "Meta",
   places: META_PLACE_WORDS,
@@ -281,7 +276,7 @@ export const SHEET = {
     },
     picture: {
       head: "Its picture can't run any more",
-      body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
+      body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from New ad.",
     },
   },
   /** An ad made here, while it is set up: what happens, and that nothing is asked of the owner. */
@@ -299,7 +294,7 @@ export const SHEET = {
   /** Its launch stopped part way: what Meta was left holding, or that nothing was. */
   couldntFinish: (left: readonly AdPartLeft[]) =>
     left.length === 0
-      ? "Nothing of it was left at Meta, and nothing was spent. Make it again from + New."
+      ? "Nothing of it was left at Meta, and nothing was spent. Make it again from New ad."
       : `Its ${partsSaid(left)} ${left.length === 1 ? "is" : "are"} left in Meta, paused, so nothing runs or is spent. Remove ${left.length === 1 ? "it" : "them"} in Meta.`,
   openMeta: "Open Meta",
   /** Its last switch went unanswered: what is known, and the one thing to do. */
@@ -396,7 +391,7 @@ export const ADS_MANAGER = "https://adsmanager.facebook.com/adsmanager/manage/ad
 
 /** Reports › Ads, in its first form: the page's numbers as figures and a table. */
 export const LENS = {
-  window: "Last 30 days · the same days Campaigns › Ads counts",
+  window: "Last 30 days · the same days Ads counts",
   came: "New people from your ads",
   booked: "Booked since",
   each: "For each who booked",

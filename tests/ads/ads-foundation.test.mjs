@@ -81,29 +81,35 @@ test("money is the currency's own minor units, said exact: a hundred to the doll
   assert.equal(plain(aboutMoneyOf(128450 / 3, "KWD")), "KWD 43");
 });
 
-test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequences'", () => {
-  // No window stands here: a real workspace's answer, Sequences with Content beside it (decision 0060; Messages folded in).
+test("Ads is no tab of Campaigns: where it is drawn it is the last of Content's Made views, and where not its address is Content's", () => {
+  // No window stands here: a real workspace's answer, Sequences with Content and Forms beside it (Campaigns in three tabs).
   const home = campaignsChrome({ param: null });
   assert.deepEqual(home.crumbs, ["Campaigns"]);
   assert.deepEqual(
     home.views?.tabs.map((t) => t.id),
     ["sequences", "content", "forms"],
-    "no Ads tab in a real workspace; Content is every workspace's (decision 0125), and so is Forms (00680)",
+    "three tabs: Content is every workspace's (decision 0125), and so is Forms (00680)",
   );
-  assert.deepEqual(campaignsChrome({ param: "ads" }), home);
-  assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), home);
-  // Where the settings read says Ads is here (the server's one answer), the Ads tab and the Ads crumbs.
+  // Ads not drawn: its address opens Content's Made, where Ads would be, under Content's crumbs.
+  const content = campaignsChrome({ param: "content" });
+  assert.deepEqual(campaignsChrome({ param: "ads" }), content);
+  assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), content);
+  // Where the settings read says Ads is here (the server's one answer), still three tabs, and an Ads address lights Content.
   globalThis.window = { location: { pathname: "/w/harbor/campaigns" } };
   setSurfaceValue("settings", { settings: { ads: true } });
   try {
     assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
     assert.deepEqual(
       campaignsChrome({ param: null }).views?.tabs.map((t) => t.id),
-      ["sequences", "content", "ads", "forms"],
+      ["sequences", "content", "forms"],
     );
     const at = campaignsChrome({ param: "ads" });
-    assert.equal(at.views?.picked, "ads");
-    assert.deepEqual(at.crumbs, [{ label: "Campaigns", to: "campaigns/sequences" }, "Ads"]);
+    assert.equal(at.views?.picked, "content");
+    assert.deepEqual(at.crumbs, [
+      { label: "Campaigns", to: "campaigns/sequences" },
+      { label: "Content", to: "campaigns/content" },
+      "Ads",
+    ]);
     assert.deepEqual(campaignsChrome({ param: "ads:new" }).crumbs.at(-1), "New ad");
   } finally {
     setSurfaceValue("settings", undefined);

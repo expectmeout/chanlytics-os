@@ -136,8 +136,8 @@ function MetaAdsData() {
     <>
       <h2>Facebook ads</h2>
       <p>
-        When a workspace owner connects a Meta ad account in Campaigns › Ads, Meta asks them to let Chanlytics read and
-        manage that ad account's ads and the Facebook Page they run as. With that permission we read:
+        When a workspace owner connects a Meta ad account in Campaigns › Content › Ads, Meta asks them to let Chanlytics
+        read and manage that ad account's ads and the Facebook Page they run as. With that permission we read:
       </p>
       <ul>
         <li>
@@ -162,9 +162,9 @@ function MetaAdsData() {
       </p>
       <p>
         We store the access Meta grants in a vault the product's pages cannot read. When the owner disconnects the ad
-        account in Campaigns › Ads, we stop reading it and delete that access. The owner can also remove Chanlytics in
-        Meta's Business settings, under Integrations, which ends our access at Meta, and we stop. What was already read
-        stays in the workspace, like its other records, until the owner deletes it or the workspace.
+        account in Campaigns › Content › Ads, we stop reading it and delete that access. The owner can also remove
+        Chanlytics in Meta's Business settings, under Integrations, which ends our access at Meta, and we stop. What was
+        already read stays in the workspace, like its other records, until the owner deletes it or the workspace.
       </p>
     </>
   );

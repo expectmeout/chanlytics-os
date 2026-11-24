@@ -130,19 +130,10 @@ const RECORD_ARRIVES: Arrival = {
 const CAMPAIGNS_LIST = { page: "campaigns", part: "list" };
 
 /**
- * Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView).
- * `markedAs` is the page its draw is said for where the address names another (an Ads address where Ads is not drawn, whose
- * page Sequences is: contracts vitalsPageOf, PRIMARY_PART); Campaigns' list otherwise.
+ * Sequences as Campaigns draws it, a view kept beside Content and Forms: `view` is the deck's seat and side (parts/split.tsx
+ * CmView). Its draw is said for Campaigns' list (an Ads address where Ads is not drawn opens Content now: content/page.tsx).
  */
-export function SequencesPage({
-  route,
-  view,
-  markedAs = CAMPAIGNS_LIST,
-}: {
-  route: string;
-  view?: CmView;
-  markedAs?: { page: string; part: string };
-}) {
+export function SequencesPage({ route, view }: { route: string; view?: CmView }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
   // On a phone a sequence open, its record or a run of it, is the screen: the list is held where it was under it, and put
   // back there as it goes, by any Back; a record opened from it is pushed in over it. A desk keeps the list beside it.
@@ -190,7 +181,7 @@ export function SequencesPage({
       keepPane
       list={
         <>
-          <PartShown page={markedAs.page} part={markedAs.part} ready={list !== undefined} />
+          <PartShown page={CAMPAIGNS_LIST.page} part={CAMPAIGNS_LIST.part} ready={list !== undefined} />
           <SequencesListPane openId={place.view === "record" ? place.id : null} />
         </>
       }

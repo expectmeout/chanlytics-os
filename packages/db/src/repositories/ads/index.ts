@@ -46,6 +46,7 @@ export {
   listAdPeople,
   listAdsByIds,
   listAdsOfAccount,
+  listAdsShowingFile,
   readAdChatsKept,
   readAdPeopleBack,
   readAdsPageCounts,

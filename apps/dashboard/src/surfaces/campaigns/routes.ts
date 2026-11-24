@@ -1,7 +1,8 @@
 /**
  * What the frame says around Campaigns' pages: the crumbs each address wears and the strip of its views. Campaigns is
- * Sequences (decision 0060; the home that stood here went in S6), with Messages and, where it is drawn, Ads beside it in the
- * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, the one New among them, and
+ * Sequences (decision 0060; the home that stood here went in S6), with Content and Forms beside it in the strip, and Ads, where
+ * it is drawn, the last of Content's Made views (Campaigns in three tabs, 23 Nov 2026). Every Campaigns address but Content's,
+ * Ads' and Forms' is Sequences' mount and crumbs (`campaigns/sequences…`, the one New among them, and
  * Messages, a message open in it at its home, `campaigns/messages/<name>`); the home's and a campaign's addresses land on Sequences, and the
  * composer's (`campaigns/new…`) on New. A run is at its home under its sequence (`campaigns/sequences/<id>/runs/<run>`, the
  * Campaigns wiring review's lane 2), crumbed under its sequence. Sent draws nothing of its own: its list, a run's sheet, To
@@ -29,7 +30,9 @@ import {
   sequenceRoute,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
-import { surfaceValue } from "../surface-values";
+import { adsNeedingNow, hearAdsNeeding } from "./ads/needs-you";
+import { contentTabRoute } from "./home/left-at";
+import { onSurfaceValue, surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
 import { adNameOf } from "./ads/crumb-names";
@@ -45,22 +48,45 @@ const FORMS_TAB = "Forms";
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
 /**
- * Campaigns | Content | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use): what goes
- * out, each message inside the campaign that sends it (Messages folded in, 17 Nov 2026: Campaigns, one tab), what Ask made
- * for the business (decision 0125, every workspace's), and, where it is drawn, what you pay to show people who don't have
- * your number.
+ * What needs the owner anywhere in Content, said amber on its tab (Campaigns in three tabs: one signal at the top, each view
+ * keeping its own meaning under it): Made's pieces that need them, as Content last read them, and what needs them in Ads,
+ * as the Ads page last read it (ads/needs-you.ts). Nothing before either has been read.
  */
-function campaignsViews(picked: "sequences" | "content" | "ads" | "forms"): SurfaceViews {
-  const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
+const contentNeedsNow = (): number | null => {
+  const count = (surfaceValue("content")?.dto?.tally.needs ?? 0) + adsNeedingNow();
+  return count > 0 ? count : null;
+};
+
+/** What moves Content's count: Content's read published, and what needs the owner in Ads noted (the strip hears both). */
+const hearContentNeeds = (redraw: () => void): (() => void) => {
+  const stops = [onSurfaceValue("content", redraw), hearAdsNeeding(redraw)];
+  return () => stops.forEach((stop) => stop());
+};
+
+/**
+ * Campaigns | Content | Forms, Campaigns' three views, as the frame's strip draws them (the one Reports and People use), for
+ * every workspace: what goes out, each message inside the campaign that sends it (Messages folded in, 17 Nov 2026: Campaigns,
+ * one tab), what Ask made for the business (decision 0125) with Ads, what you pay to show people who don't have your number,
+ * as the last of Made's views where it is drawn (Campaigns in three tabs, 23 Nov 2026: a page holds three tabs at most), and
+ * what a business asks people for. Content's tab, pressed from another view, reopens where Content was left (home/left-at.ts).
+ */
+function campaignsViews(picked: "sequences" | "content" | "forms"): SurfaceViews {
   return {
     name: "campaigns",
     label: ADS_WORDS.viewsLabel,
     testid: "campaigns-views",
     picked,
+    heard: hearContentNeeds,
     tabs: [
       { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
-      { id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" },
-      ...ads,
+      {
+        id: "content",
+        label: CONTENT_WORDS.tab,
+        to: picked === "content" ? CONTENT_ROUTE : contentTabRoute(adsShown()),
+        testid: "campaigns-view-content",
+        badge: contentNeedsNow,
+        tone: "warn",
+      },
       // Forms, the last of Campaigns' views (00680): what a business asks people for, with no website.
       { id: "forms", label: FORMS_TAB, to: FORMS_ROUTE, testid: "campaigns-view-forms" },
     ],
@@ -111,10 +137,14 @@ function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: 
   };
 }
 
+/** Content, a crumb back to its own first view, Made: the crumb over Ads, the last of Made's views. */
+const CONTENT: Crumb = { label: CONTENT_WORDS.tab, to: CONTENT_ROUTE };
+
 /**
- * Ads' crumbs: Campaigns, then Ads, and under it the ad open in its drawer or the composer. Campaigns' one mount, as Messages',
- * so a switch to it from Sequences or Messages is no new page: the view kept beside them is shown, under the head where
- * theirs stands (Ruben, 10 Nov 2026: on a mount of its own its head stood 7px lower, and a press on its tab said Reading).
+ * Ads' crumbs: Campaigns, Content, then Ads, and under it the ad open in its drawer or the composer; the strip lights Content,
+ * since Ads is the last of Made's views (Campaigns in three tabs). Campaigns' one mount, as Content's, so a switch to it is no
+ * new page: the view kept beside the others is shown, under the head where theirs stands (Ruben, 10 Nov 2026: on a mount of
+ * its own its head stood 7px lower, and a press on its tab said Reading).
  */
 function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
   const at = parseAds(param);
@@ -123,19 +153,19 @@ function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; 
   const named = at.ad ? adNameOf(at.ad) : null;
   return {
     crumbs: named
-      ? [CAMPAIGNS, ads, named]
+      ? [CAMPAIGNS, CONTENT, ads, named]
       : at.compose
-        ? [CAMPAIGNS, ads, ADS_WORDS.newAd]
-        : [CAMPAIGNS, ADS_WORDS.adsTab],
+        ? [CAMPAIGNS, CONTENT, ads, ADS_WORDS.newAd]
+        : [CAMPAIGNS, CONTENT, ADS_WORDS.adsTab],
     mount: "campaigns",
     act: null,
-    views: campaignsViews("ads"),
+    views: campaignsViews("content"),
     pane: true,
   };
 }
 
 /**
- * Content's crumbs: Campaigns, then Content. Campaigns' one mount, as Messages' and Ads', so a switch to it is no new page:
+ * Content's crumbs: Campaigns, then Content. Campaigns' one mount, as Sequences' and Forms', so a switch to it is no new page:
  * the view kept beside them is shown.
  */
 function contentChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
@@ -149,7 +179,7 @@ function contentChrome(): { crumbs: Crumb[]; mount: string; act: null; views: Su
 }
 
 /**
- * Forms' crumbs: Campaigns, then Forms. Campaigns' one mount, as Content's and Ads', so a switch to it is no new page.
+ * Forms' crumbs: Campaigns, then Forms. Campaigns' one mount, as Content's, so a switch to it is no new page.
  */
 function formsChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
   return {
@@ -162,8 +192,8 @@ function formsChrome(): { crumbs: Crumb[]; mount: string; act: null; views: Surf
 }
 
 /**
- * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), the Content view's for
- * `campaigns/content`, and Sequences' for every other address, the sheets Campaigns opens over it among them, and
+ * Campaigns' crumbs: Ads' for `campaigns/ads…` where it is drawn (ads/shown.ts), Content's for `campaigns/content` and for an
+ * Ads address where Ads is not drawn (it opens Made), and Sequences' for every other address, the sheets Campaigns opens over it among them, and
  * Messages' old addresses, which land on it (contracts retiredRouteOf). Every address is one mount, the page's own.
  */
 export function campaignsChrome({ param }: { param: string | null }): {
@@ -173,7 +203,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
   views?: SurfaceViews;
   pane?: boolean;
 } {
-  if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
+  if (param && isAdsParam(param)) return adsShown() ? adsChrome(param) : contentChrome();
   if (isContentParam(param)) return contentChrome();
   if (isFormsParam(param)) return formsChrome();
   return sequencesChrome();

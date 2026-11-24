@@ -11,6 +11,7 @@ import type {
   FileRecordDto,
   FileSound,
   PiecePlan,
+  PieceAdUseDto,
   PieceTakeDownDto,
   PostDto,
 } from "@chanlytics/contracts";
@@ -36,7 +37,8 @@ export function usePostRecord(file: FileDto, moved = "") {
   const [video, setVideo] = useState<PiecePlan | null>(null);
   // A made piece's standing for an ad, where Ads is on: what Content's Run as an ad says. Kept with the file it was read
   // for, so the piece beside never says this one's word while its own record is on its way.
-  const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
+  // With it, the ads it is already shown in ("Used in N ads", Campaigns in three tabs), running or not.
+  const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null; usedIn: PieceAdUseDto[] } | null>(null);
   // A made piece's newest take-down (00682). Kept with the file it was read for.
   const [standing, setStanding] = useState<{ id: string; takeDown: PieceTakeDownDto | null } | null>(null);
   // Read again when asked: a post on its way to Instagram says where it stands as it moves.
@@ -60,14 +62,14 @@ export function usePostRecord(file: FileDto, moved = "") {
       setPosts(data.posts ?? data.instagram?.posts ?? null);
       setSound(data.sound ?? null);
       setVideo(data.video?.plan ?? null);
-      setAd({ id: file.id, stands: data.ad ?? null });
+      setAd({ id: file.id, stands: data.ad ?? null, usedIn: data.used_in ?? [] });
       setStanding({ id: file.id, takeDown: data.take_down ?? null });
     });
     return () => {
       live = false;
     };
   }, [file.id, isPost, isVideo, heard, asked, moved]);
-  const adHere = ad?.id === file.id ? ad.stands : null;
+  const adHere = ad?.id === file.id ? ad : null;
   const here = standing?.id === file.id ? standing : null;
   return {
     made,
@@ -79,7 +81,9 @@ export function usePostRecord(file: FileDto, moved = "") {
     facebook,
     posts,
     video,
-    ad: adHere,
+    ad: adHere?.stands ?? null,
+    /** The ads it is shown in, once its record is read: none before, and none for a piece in no ad. */
+    usedIn: adHere?.usedIn ?? [],
     /** Whether this file's record has been read: nothing is said of a place before it is. */
     read: here !== null,
     takeDown: here?.takeDown ?? null,

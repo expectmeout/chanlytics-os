@@ -6,7 +6,7 @@
  * each open by the address, so Back closes it. While AI is stopped with ads still on, the page says so at its top, with
  * the owner's press that pauses them all (stop-notice.tsx; the Ads plan's G17).
  */
-import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
+import { ADS_WORDS, AD_PAGE_DAYS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
@@ -16,9 +16,11 @@ import { ActWords } from "../../../kit/head/act-words";
 import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
-import type { CmView } from "../../parts/split";
+import { AdsBar } from "../ads-bar";
+import { CmSplit, type CmView } from "../../parts/split";
 import type { NeedVM } from "../connect/card-model";
 import { rememberAdNames } from "../crumb-names";
+import { adsNeedingOf, noteAdsNeeding } from "../needs-you";
 import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
 import { NewAd } from "../new/sheet";
@@ -67,98 +69,109 @@ export function LiveAds(p: LiveAdsProps) {
   });
   // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
   useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
+  // What needs the owner here, kept for Content's tab on the strip and Made's views to say amber (ads/needs-you.ts).
+  const needing = adsNeedingOf(dto);
+  useEffect(() => noteAdsNeeding(needing), [needing]);
   const sentence = (
     <>
       {vm.head.strong ? <b>{vm.head.strong}</b> : null}
       {vm.head.rest}
     </>
   );
+  // Drawn in Content's own split and list (Campaigns in three tabs: Ads is the last of Made's views), so Made's bar stands
+  // where it stands on Content's other views and a press between them moves nothing.
   return (
-    <div
-      ref={p.view?.ref}
-      className="cmh ads"
-      data-slide={p.view?.slide}
-      data-testid="campaigns-ads"
-      data-phone={phone ? "true" : undefined}
-      data-live={dto.account.status}
-      data-ad={address.ad ?? undefined}
-    >
-      <CmHead
-        title="Campaigns"
-        quiet
-        allowance={false}
-        testid="ads-head"
-        sub={sentence}
-        right={
-          <>
-            {phone ? null : (
-              <Button
-                variant="quiet"
-                size="sm"
-                className="cmh-ask"
-                onClick={() => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } })}
-                data-testid="ads-ask-door"
-              >
-                <Icon name="sparkle" size={13} /> {HEAD.ask}
-              </Button>
-            )}
-            {p.connect.word !== null ? (
-              <Button variant="primary" size="sm" onClick={p.connect.press} data-testid="ads-head-connect">
-                {p.connect.word}
-              </Button>
-            ) : null}
-            {p.connect.word === null && dto.account.status === "connected" ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => p.nav.push(newAdRoute())}
-                data-testid="ads-head-new"
-                {...gate("approve", GATE.turnOn)}
-              >
-                <ActWords icon={<Icon name="plus" size={14} />} words={HEAD.newAd} />
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-      {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
-      {phone && vm.empty === null ? (
-        <p className="ads-lead" data-testid="ads-lead">
-          {sentence}
-        </p>
-      ) : null}
-      <p className="ads-money" data-testid="ads-money">
-        {vm.line}
-      </p>
-      <LiveBody
-        vm={vm}
-        card={p.card}
-        stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
-        onOpen={p.nav.push}
-        onPause={presses.pause}
-      />
-      <AdSheet
-        vm={sheet}
-        timezone={said.timezone}
-        acts={{ ...presses, ...changes }}
-        onClose={p.nav.close}
-        onGo={p.nav.push}
-      />
-      <NewAd
-        open={address.compose !== null}
-        source={LIVE_AD_SOURCE}
-        need={p.need}
-        onClose={p.nav.close}
-        onConnect={p.connect.press}
-        onGo={navigate}
-        onSee={(adId) => {
-          p.again();
-          p.nav.push(adRoute(adId));
-        }}
-        start={address.compose?.from ?? null}
-        onDrafted={() => replaceRoute(newAdRoute())}
-      />
-      {p.toast}
-    </div>
+    <CmSplit
+      className="cnv ads"
+      testid="campaigns-ads"
+      open={null}
+      view={p.view}
+      list={
+        <>
+          <CmHead
+            title="Campaigns"
+            quiet
+            allowance={false}
+            testid="ads-head"
+            right={
+              <>
+                {phone ? null : (
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    className="cmh-ask"
+                    onClick={() => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } })}
+                    data-testid="ads-ask-door"
+                  >
+                    <Icon name="sparkle" size={13} /> {HEAD.ask}
+                  </Button>
+                )}
+                {p.connect.word !== null ? (
+                  <Button variant="primary" size="sm" onClick={p.connect.press} data-testid="ads-head-connect">
+                    {p.connect.word}
+                  </Button>
+                ) : null}
+                {p.connect.word === null && dto.account.status === "connected" ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => p.nav.push(newAdRoute())}
+                    data-testid="ads-head-new"
+                    {...gate("approve", GATE.turnOn)}
+                  >
+                    <ActWords icon={<Icon name="plus" size={14} />} words={HEAD.newAd} />
+                  </Button>
+                ) : null}
+              </>
+            }
+          />
+          {/* Ads is the last of Made's views (Campaigns in three tabs): Content's bar, with Ads lit and amber while an ad or the
+          account needs the owner, then what is paid for and its days, then the page's sentence. */}
+          <AdsBar phone={phone} owed={needing > 0} />
+          <p className="ads-paid" data-testid="ads-paid">
+            {HEAD.paid(AD_PAGE_DAYS)}
+          </p>
+          {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
+          {vm.empty === null ? (
+            <p className="ads-lead" data-testid="ads-lead">
+              {sentence}
+            </p>
+          ) : null}
+          <p className="ads-money" data-testid="ads-money">
+            {vm.line}
+          </p>
+          <LiveBody
+            vm={vm}
+            card={p.card}
+            stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
+            onOpen={p.nav.push}
+            onPause={presses.pause}
+          />
+          <AdSheet
+            vm={sheet}
+            timezone={said.timezone}
+            acts={{ ...presses, ...changes }}
+            onClose={p.nav.close}
+            onGo={p.nav.push}
+            phone={phone}
+          />
+          <NewAd
+            open={address.compose !== null}
+            source={LIVE_AD_SOURCE}
+            need={p.need}
+            onClose={p.nav.close}
+            onConnect={p.connect.press}
+            onGo={navigate}
+            onSee={(adId) => {
+              p.again();
+              p.nav.push(adRoute(adId));
+            }}
+            start={address.compose?.from ?? null}
+            onDrafted={() => replaceRoute(newAdRoute())}
+          />
+          {p.toast}
+        </>
+      }
+    />
   );
 }

@@ -8,11 +8,13 @@
  * sentence is the model's (model.ts, change-model.ts).
  */
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { personTabRoute } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Sheet } from "../../../kit/sheet/sheet";
+import type { SheetRest } from "../../../kit/sheet/rests";
 import { gate, routeDoor } from "../../../frame-verbs";
 import { GATE } from "../model/words";
 import { dayOfIso } from "../model/vm-base";
@@ -219,15 +221,35 @@ function Above({ vm }: { vm: SheetVM }) {
   return foot.line ? <p className="ads-conn-says">{foot.line}</p> : null;
 }
 
+/** The piece of Content the ad was made from (Campaigns in three tabs): one press back to it in Made, or that it is gone. */
+function MadeFrom({ from, onGo }: { from: NonNullable<SheetVM["from"]>; onGo: (route: string) => void }) {
+  const { name, route } = from;
+  return (
+    <p className="ads-conn-says" data-testid="ads-live-from">
+      {SHEET.madeFrom}{" "}
+      {name !== null && route !== null ? (
+        <LinkButton onClick={() => onGo(route)} data-testid="ads-live-from-piece">
+          {name}
+        </LinkButton>
+      ) : (
+        <span>{SHEET.fromGone}</span>
+      )}
+    </p>
+  );
+}
+
 interface AdSheetProps {
   vm: SheetVM | null;
   timezone: string;
   acts: SheetActs;
   onClose: () => void;
   onGo: (route: string) => void;
+  /** On a phone an ad opens on the whole screen, as a piece does in Content (Campaigns in three tabs); a pull lowers it. */
+  phone?: boolean;
 }
 
-export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
+export function AdSheet({ vm, timezone, acts, onClose, onGo, phone = false }: AdSheetProps) {
+  const [rest, setRest] = useState<SheetRest>("full");
   return (
     <Sheet
       open={vm !== null}
@@ -235,6 +257,7 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
       title={vm?.name ?? ""}
       sub={vm?.over}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+      rest={phone ? { at: rest, onRest: setRest, turn: { up: SHEET.whole, down: SHEET.less } } : undefined}
       foot={vm ? footOf(vm, acts, onClose) : null}
       flatFoot
       fit
@@ -246,6 +269,7 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
             {vm.line}
           </p>
           {vm.made ? <p className="ads-conn-says">{vm.made}</p> : null}
+          {vm.from ? <MadeFrom from={vm.from} onGo={onGo} /> : null}
           {vm.change ? (
             <ChangeSentence
               key={`${vm.id}:${vm.version}`}
