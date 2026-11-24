@@ -167,7 +167,7 @@ test("a person who asked to be forgotten: nothing is written at all, and the ans
       p_words: hex("d"),
     }),
   );
-  assert.deepEqual(r, { outcome: "forgotten", entry_id: null, contact_id: null });
+  assert.deepEqual(r, { outcome: "forgotten", entry_id: null, contact_id: null, clash: false });
   assert.equal(ok(await entryRows()).length, entries, "no entry");
   assert.equal(
     ok(await db.from("events").select("id").eq("tenant_id", tenantId)).length,

@@ -11,7 +11,6 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   channelFor,
-  formsRouteOf,
   MAILBOX_LEFT_ROW,
   type ChannelVM,
   type FootageDto,
@@ -33,7 +32,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordRow } from "../../kit/record/row";
-import { navigate, refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
+import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useAdsShown } from "../../campaigns/ads/shown";
 import { useFolderRow } from "../../files/footage/settings-row";
 import { useSurface } from "../../use-surface";
@@ -42,6 +41,7 @@ import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
 import type { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
+import { WebsiteFormsLine } from "../../campaigns/forms/website/settings-line";
 import { GoogleChoose } from "./google-choose";
 import {
   signInNames,
@@ -65,13 +65,6 @@ import type { AdsPlace, AdsRowKit } from "./ad-account-real";
 type WaConfig = SignupDoor | null | undefined;
 
 // The ad account's card is a chunk of its own, fetched only where Ads is drawn here (campaigns/ads/shown.ts).
-/** Website forms' one line (00709): their keys and their forms are in Campaigns › Forms now. */
-const WEBSITE_LINE = {
-  label: "Website forms",
-  value: "In Campaigns › Forms",
-  open: "Open",
-} as const;
-
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
 /**
@@ -592,15 +585,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     <>
       <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} />
       {/* A website's forms and their keys live in Campaigns › Forms now (00709): one line here says so and opens them. */}
-      <section className="rec-card set-card set-conn" data-testid="connections-website" aria-label={WEBSITE_LINE.label}>
-        <RecordRow
-          id="wf-moved"
-          testid="wf-moved"
-          label={WEBSITE_LINE.label}
-          value={WEBSITE_LINE.value}
-          act={{ label: WEBSITE_LINE.open, onClick: () => navigate(formsRouteOf({ website: true })) }}
-        />
-      </section>
+      <WebsiteFormsLine />
       {drive.sheets}
       {toastNode}
     </>

@@ -95,7 +95,7 @@ test("a site's request is in Needs you, named as its form is, its answers its ow
   const row = (id) => rows.find((r) => r.id === id);
   assert.ok(row(unnamed.entry_id) && row(named.entry_id), "both open");
   assert.equal(count, 2);
-  assert.equal(row(unnamed.entry_id).heading, "Your website's form", "a form its site named nothing");
+  assert.equal(row(unnamed.entry_id).heading, "Website form", "a form its site named nothing");
   assert.equal(row(named.entry_id).heading, "Colour consultation", "named as its site sends it");
 
   // The owner's own name wins, and blank goes back to the site's.

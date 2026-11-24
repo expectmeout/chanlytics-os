@@ -9,6 +9,7 @@ import "server-only";
  */
 import {
   AppError,
+  FORM_RESULT_DAYS,
   formSiteNameOf,
   outsideFormNameOf,
   recordOrEmpty,
@@ -35,13 +36,11 @@ import {
 } from "@chanlytics/db/forms";
 import { listFormKeys } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
-import { findEmailReady } from "../connections/email-readiness";
+import { findEmailReady } from "./email-readiness";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
 type Db = ReaderContext["ctx"]["supabase"];
 
-/** How far back a site form's sheet counts what it brought, as a form made here does. */
-const RESULT_DAYS = 30;
 /** The most entries a site form's sheet lists: the newest. */
 const SHEET_ENTRIES = 60;
 
@@ -132,7 +131,7 @@ export const outsideFormSheet: Reader<{ form: string }, OutsideFormSheetDto> = {
     if (!form?.siteId) throw new AppError("not_found", "That form isn't here any more.", 404);
     const [sites, results, entries, open, email] = await Promise.all([
       listFormSites(db, rc.tenantId),
-      readFormResults(db, rc.tenantId, RESULT_DAYS),
+      readFormResults(db, rc.tenantId, FORM_RESULT_DAYS),
       listOutsideFormEntries(db, { tenantId: rc.tenantId, formId: form.id, limit: SHEET_ENTRIES }),
       listOpenFormRequests(db, rc.tenantId),
       emailReadyOf(rc),
@@ -158,7 +157,7 @@ export const outsideFormSheet: Reader<{ form: string }, OutsideFormSheetDto> = {
         last_entry_at: site.lastEntryAt,
       },
       results: {
-        days: RESULT_DAYS,
+        days: FORM_RESULT_DAYS,
         entries: brought?.entries ?? 0,
         people: brought?.people ?? 0,
         new_people: brought?.newPeople ?? 0,

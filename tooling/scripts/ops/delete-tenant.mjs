@@ -186,9 +186,11 @@ const TABLES = [
   "archive_folders",
   "file_archives",
   "file_archive_parts",
-  // A website's form entries and its keys (00675).
+  // A website's form entries and its keys (00675), each site it sends from and each form it sends (00709).
   "form_entries",
   "form_keys",
+  "form_sites",
+  "outside_forms",
   // A business's own forms (00680): each form and its versions, what happened to an entry, and its links with their
   // days of opens; and each form's days of its business's booking page opened from it (00691).
   "form_days",

@@ -279,6 +279,8 @@ const OPERATOR_ACTS = [
   "propose_call",
   "propose_deal",
   "propose_follow_up",
+  // A form the person asked for, handed to Forms to draft (decision 0148): an operator's, as Forms' own make is.
+  "propose_form",
   "propose_leads",
   "propose_list",
   "propose_people",
@@ -337,11 +339,11 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
       `${role}: without examples, the same tools less their examples`,
     );
   }
-  // The gateway passes at most forty tools (apps/edge/lib/ai/ask-gateway.ts GATEWAY_MAX_TOOLS).
-  for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
+  // The gateway passes at most forty-four tools (apps/edge/lib/ai/ask-gateway.ts GATEWAY_MAX_TOOLS, 40 until decision 0148).
+  for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 44, `${role}: at most the gateway's forty-four`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 30, 37, 37],
+    [14, 31, 38, 38],
     "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down, bringing in what a link holds and a week of posts too",
   );
   assert.deepEqual(

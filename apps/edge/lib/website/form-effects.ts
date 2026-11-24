@@ -246,8 +246,8 @@ async function readEntry(db: Db, tenantId: TenantId, row: FormEntryRow): Promise
   const answers = entryAnswersFrom(row.answers);
   const person = answers ? websiteFormPerson(answers) : null;
   if (!answers || !person) return null;
-  const asked = await siteRequestOf(db, tenantId, row);
-  return { tenantId, row, person, arrivedMs, answers, hosted: asked };
+  const siteRequest = await siteRequestOf(db, tenantId, row);
+  return { tenantId, row, person, arrivedMs, answers, hosted: siteRequest };
 }
 
 /**

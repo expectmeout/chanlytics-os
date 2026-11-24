@@ -408,7 +408,7 @@ test("the same form sent twice at once is one entry, one note and one notice; an
   assert.equal(w.resolved[0].p_phone, "+15550100175", "the number as one");
   // A site's request is answered like any other (00709, call 3): its bell is a request's, named as its form is, and opens
   // the request in Inbox.
-  assert.equal(w.notifications[0].title, "Ana Ruiz sent a request: Your website's form");
+  assert.equal(w.notifications[0].title, "Ana Ruiz sent a request: Website form");
   assert.equal(w.notifications[0].kind, "form_request");
   assert.ok(w.notifications[0].route.startsWith("inbox/rq-"), "it opens the request in Inbox");
 });

@@ -1662,6 +1662,24 @@
       "defer_loading": true
     },
     {
+      "name": "propose_form",
+      "description": "Hand a form the person asked for to Campaigns › Forms: its press drafts it there and opens the draft, where they change it and publish it. It takes their sentence alone, in their own words, of what the form should collect. Never write the form's questions yourself.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "description": "What the form should collect, in the person's own words: 'a consultation form for new colour clients'.",
+            "maxLength": 600,
+            "minLength": 2
+          }
+        },
+        "required": ["sentence"],
+        "additionalProperties": false
+      },
+      "defer_loading": true
+    },
+    {
       "name": "propose_leads",
       "description": "Propose work on leads, as a card the person approves, by action: a lead's stage or a call's outcome, keep or set aside a search's leads, Later, many leads at once, the address checked again, who a company's email goes to, leads kept as a list to write to, or what a business wrote back. Action stage moves one lead: to ready, nurture or converted (a customer, which makes a person in People), out as not_a_fit (with why) or said_no, emailed (they wrote by hand), or a call's outcome (move call, with outcome, a note and who it reached). Action later puts one lead under Later, to come back to. Action bulk marks many leads at once: by lead_ids (at most 500), or every lead a view of Leads matches (contacted or not_a_fit), which the door counts itself. Action list keeps chosen leads (at most 500) as a list of their own, a search a cold email writes to; it spends nothing. In a plan, a cold email step names it by its token. Action said records what a business wrote back to an email sent by hand from the business's own inbox: interested makes it Talking (then propose a deal and a time), a no is never written to again, not_now comes back on its day. Read leads first for the ids. Nothing here writes to a lead: a cold email over a search or a list is propose_sequence with action cold_email, and finding leads propose_lead_search.",
       "input_schema": {
@@ -4177,6 +4195,24 @@
           "ids": ["3fa9c2d1"]
         }
       ],
+      "defer_loading": true
+    },
+    {
+      "name": "propose_form",
+      "description": "Hand a form the person asked for to Campaigns › Forms: its press drafts it there and opens the draft, where they change it and publish it. It takes their sentence alone, in their own words, of what the form should collect. Never write the form's questions yourself.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "description": "What the form should collect, in the person's own words: 'a consultation form for new colour clients'.",
+            "maxLength": 600,
+            "minLength": 2
+          }
+        },
+        "required": ["sentence"],
+        "additionalProperties": false
+      },
       "defer_loading": true
     },
     {
@@ -7535,6 +7571,24 @@
           "ids": ["3fa9c2d1"]
         }
       ],
+      "defer_loading": true
+    },
+    {
+      "name": "propose_form",
+      "description": "Hand a form the person asked for to Campaigns › Forms: its press drafts it there and opens the draft, where they change it and publish it. It takes their sentence alone, in their own words, of what the form should collect. Never write the form's questions yourself.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "description": "What the form should collect, in the person's own words: 'a consultation form for new colour clients'.",
+            "maxLength": 600,
+            "minLength": 2
+          }
+        },
+        "required": ["sentence"],
+        "additionalProperties": false
+      },
       "defer_loading": true
     },
     {

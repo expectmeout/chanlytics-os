@@ -365,7 +365,11 @@ export const GATEWAY_FALLBACK_MODEL = MODELS.SONNET_5;
 /** The lead purposes' ceiling. Ask's own is askRoundCap's (contracts), the rule its loop asks by. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
-export const GATEWAY_MAX_TOOLS = 40;
+/**
+ * The most tools a request may carry: an owner's whole set (38 since AI hands a form to Forms, decision 0148) with room for
+ * four more. Raised from 40 before the set reached it, so either app may deploy first.
+ */
+export const GATEWAY_MAX_TOOLS = 44;
 export const GATEWAY_MAX_BODY = 700_000;
 
 /** Whether a purpose's request may name this model: Ask any that reads as one, a small draft the list's. */

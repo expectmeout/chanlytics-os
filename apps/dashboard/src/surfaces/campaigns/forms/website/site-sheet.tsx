@@ -144,28 +144,28 @@ function ReceivesPart() {
 
 /** Next: a request's road, as a form made here's, from what can go; a sign-up's, as before. */
 function SiteNextPart({ sheet }: { sheet: OutsideFormSheetDto }) {
-  const N = W.next;
-  const line = (said: { title: string; body: string; tag: string }) => (
-    <NextLine key={said.title} title={said.title} body={said.body} end={said.tag ? <em>{said.tag}</em> : null} />
+  const steps = W.next;
+  const line = (step: { title: string; body: string; tag: string }) => (
+    <NextLine key={step.title} title={step.title} body={step.body} end={step.tag ? <em>{step.tag}</em> : null} />
   );
   if (sheet.form === "signup")
     return (
       <div className="fmv-nexts" data-testid="forms-site-next">
-        {[N.confirm, N.offers, N.signupTold].map(line)}
+        {[steps.confirm, steps.offers, steps.signupTold].map(line)}
       </div>
     );
   return (
     <div className="fmv-nexts" data-testid="forms-site-next">
-      {[N.told, N.drafts(sheet.email_ready), N.after, N.waits].map(line)}
-      <p className="fmv-note">{N.marks}</p>
-      {sheet.entries.some((entry) => entry.standing === "kept") ? <p className="fmv-note">{N.before}</p> : null}
+      {[steps.told, steps.drafts(sheet.email_ready), steps.after, steps.waits].map(line)}
+      <p className="fmv-note">{steps.marks}</p>
+      {sheet.entries.some((entry) => entry.standing === "kept") ? <p className="fmv-note">{steps.before}</p> : null}
     </div>
   );
 }
 
 /** Site: where it comes from, what it brought, its newest entries, and the way to the website connection. */
 function SitePart({ sheet, now, go }: { sheet: OutsideFormSheetDto; now: number; go: Go }) {
-  const r = sheet.results;
+  const brought = sheet.results;
   return (
     <div className="fmv-share" data-testid="forms-site-site">
       <h4>{sheet.site.name}</h4>
@@ -174,8 +174,8 @@ function SitePart({ sheet, now, go }: { sheet: OutsideFormSheetDto; now: number;
       </p>
       <h4>{W.results.title}</h4>
       <p className="fmv-note" data-testid="forms-site-results">
-        {W.results.line(r, sheet.form)}
-        {r.entries > 0 ? ` ${W.results.who(r)}` : ""}
+        {W.results.line(brought, sheet.form)}
+        {brought.entries > 0 ? ` ${W.results.who(brought)}` : ""}
       </p>
       {sheet.entries.length > 0 ? <h4>{W.entries}</h4> : null}
       {sheet.entries.map((entry) => (

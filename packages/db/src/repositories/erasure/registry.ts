@@ -515,6 +515,11 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "code",
   ),
   form_keys: { name: WITH_WORKSPACE, hash: NOT_PERSONAL },
+  // A website the business sends entries from, and each form it sends (00709): the business's own, as its keys are. A
+  // site's name is the one its first key was given and its host the business's domain; a form's names are the site's and
+  // the owner's for it, and its ref the site's own id for it. No person the workspace serves is on either.
+  form_sites: { name: WITH_WORKSPACE, host: WITH_WORKSPACE },
+  outside_forms: { kind: NOT_PERSONAL, ref: WITH_WORKSPACE, sent_name: WITH_WORKSPACE, name: WITH_WORKSPACE },
   // A form (00680) is the business's own page: the word in its address, its draft and each version published, written
   // by the owner for the public. No person the workspace serves is on a row, and they leave with the workspace. What
   // happened to an entry (form_entry_links) is ids and a closed set alone.

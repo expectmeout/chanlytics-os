@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/db/forms";
 import { findPersonAddress, setPersonEmail } from "@chanlytics/db/people";
 import { beginPorts } from "../new-conversation/ports";
-import { readSiteRequestShapes } from "./outside";
+import { readSiteRequestShapes } from "../connections/outside-forms";
 import { answerRequestTime } from "./request-time";
 import type { Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";

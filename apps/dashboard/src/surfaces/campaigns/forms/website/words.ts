@@ -22,7 +22,9 @@ export interface SaysWhen {
 }
 
 export const WEBSITE_FORM_WORDS = {
-  title: "Your website",
+  title: "Website",
+  /** Its one line in Settings › Connections (00709): its keys and its forms are in Campaigns › Forms now. */
+  settingsLine: { label: "Website forms", value: "In Campaigns › Forms", open: "Open" },
   sites: (n: number) => (n === 1 ? "1 site" : `${n} sites`),
   open: "Website",
   intro: "Your site sends what people fill in on its own forms here, with a key. Your site keeps its own questions.",
@@ -74,7 +76,7 @@ export const WEBSITE_FORM_WORDS = {
     graceUntil: (when: string) => `The old key keeps working until ${when}.`,
     lines: "The lines to paste, with a test",
     linesSays:
-      "Your developer sends each form's entries to the address above with this key. The test line sends one test: it tells nobody, counts nowhere and goes in 7 days.",
+      "Your developer sends each entry to the address above with this key. The test line tells nobody and goes in 7 days.",
     copyLines: "Copy the lines",
     done: "Done",
   },
@@ -146,7 +148,7 @@ export function siteDoorLinesOf(door: { address: string; workspace: string }, ke
   return [
     `# a test: it tells nobody and counts nowhere`,
     post(true),
-    `# each entry, from your site's server`,
+    `# each entry, sent by your site itself, never from a page a visitor loads`,
     post(false),
   ].join("\n");
 }

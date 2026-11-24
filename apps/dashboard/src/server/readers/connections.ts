@@ -7,7 +7,7 @@ import {
   type WebsiteFormsDto,
 } from "@chanlytics/contracts";
 import { findLastFormEntryAt } from "@chanlytics/db/people";
-import { readWebsiteSites } from "../forms/outside";
+import { readWebsiteSites } from "../connections/outside-forms";
 import { getGoogle } from "../connections/google";
 import { edgeUrl } from "../shared/edge";
 import { setupDtoFor } from "../setup/setup";
@@ -60,7 +60,7 @@ export const googleReader: Reader<undefined, GoogleReadDto> = {
 /**
  * The website connection as Campaigns › Forms shows it (GET website-forms; 00675, 00709): each site the business sends
  * entries from, where it stands, its keys that still work on the turn's clock (contracts websiteKeyWorks, the door's own
- * rule), newest first, and the forms found on it (server/forms/outside.ts readWebsiteSites); when an entry last arrived;
+ * rule), newest first, and the forms found on it (server/connections/outside-forms.ts readWebsiteSites); when an entry last arrived;
  * the door a site's server posts to; and whether this member may change a key. Read on the member's own session,
  * under its row security. No row a citation names.
  */

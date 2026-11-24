@@ -518,6 +518,9 @@ function triedRow(previewTried: PreviewTriedDto, todayFacts: TodayFacts): TodayQ
   };
 }
 
+/** The requests past those the list holds (it stops at 200): people waiting too, counted and never drawn (00709). */
+const requestsBeyondOf = (todayFacts: TodayFacts): number => todayFacts.formRequestsBeyond ?? 0;
+
 /** The queue: the rows in order, the rest as a count, what the rows hold in words, and how many people are waiting on you. */
 export function todayQueue(
   todayFacts: TodayFacts,
@@ -569,8 +572,7 @@ export function todayQueue(
   // rest, so a week's old mail never takes the seats of the new asks.
   queueAll.sort(needYouOrder);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
-  // The requests past those the list holds (it stops at 200) are people waiting too: counted, never drawn (00709).
-  const beyond = todayFacts.formRequestsBeyond ?? 0;
+  const beyond = requestsBeyondOf(todayFacts);
   const needN = countOf("handoff", "callback", "form", "comment") + beyond;
   const winN = countOf("window");
   const earN = countOf("call");

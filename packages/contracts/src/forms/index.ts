@@ -30,7 +30,14 @@ export type {
   FormStateDto,
 } from "./dtos";
 export { emailTypoFix } from "./email-typo";
-export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS, FORM_PRESS_WAIT_MS } from "./limits";
+export {
+  CHOICE_KINDS,
+  FORM_FIELD_KINDS,
+  FORM_HELD_SAID_AFTER_DAYS,
+  FORM_LIMITS,
+  FORM_PRESS_WAIT_MS,
+  FORM_RESULT_DAYS,
+} from "./limits";
 export type { FormFieldKind } from "./limits";
 export {
   FORM_SITE_STANDINGS,

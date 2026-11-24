@@ -39,11 +39,11 @@ test("a site waits, then a test is received, then it receives, then nothing late
 test("a site by its host, else its key's name, else the website; a form by the owner's name, the site's, its kind's", () => {
   assert.equal(formSiteNameOf({ host: "luma.example.com", name: "Main site" }), "luma.example.com");
   assert.equal(formSiteNameOf({ host: null, name: " Main site " }), "Main site");
-  assert.equal(formSiteNameOf({ host: null, name: "  " }), "Your website", "a blank name is no name");
-  assert.equal(formSiteNameOf({ host: null, name: null }), "Your website");
+  assert.equal(formSiteNameOf({ host: null, name: "  " }), "Website", "a blank name is no name");
+  assert.equal(formSiteNameOf({ host: null, name: null }), "Website");
   assert.equal(outsideFormNameOf({ name: "Ours", sent_name: "Theirs", form: "request" }), "Ours");
   assert.equal(outsideFormNameOf({ name: " ", sent_name: "Theirs", form: "request" }), "Theirs");
-  assert.equal(outsideFormNameOf({ name: null, sent_name: null, form: "request" }), "Your website's form");
+  assert.equal(outsideFormNameOf({ name: null, sent_name: null, form: "request" }), "Website form");
   assert.equal(outsideFormNameOf({ name: null, sent_name: null, form: "signup" }), "Sign-ups from your website");
 });
 

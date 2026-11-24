@@ -2,13 +2,14 @@ import "server-only";
 
 /**
  * A business's forms as its own screens read them (00680, 00709; the Forms plan, 3.6): the list in Campaigns › Forms,
- * the forms made here and the ones the business's own website owns (server/forms/outside.ts), one form's sheet, and one
+ * the forms made here and the ones the business's own website owns (server/connections/outside-forms.ts), one form's sheet, and one
  * request as Inbox answers it, a site's read as the same request shape. Each is read on the member's own session, under its row rules.
  * Nothing here is kept apart from the record: whether a request was answered is read from its links (the requests
  * nobody has answered are form_requests_open's), and what a place brought is form_results'.
  */
 import {
   AppError,
+  FORM_RESULT_DAYS,
   DAY_MS,
   FORM_HELD_SAID_AFTER_DAYS,
   formRequestNote,
@@ -63,11 +64,9 @@ import { findBookingRequest, listAppointmentsBetween } from "@chanlytics/db/cale
 import { findPersonAddress } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
 import { findEmailReady } from "../connections/email-readiness";
-import { readOutsideRows, readSiteRequestShapes, type SiteRequestShape } from "../forms/outside";
+import { readOutsideRows, readSiteRequestShapes, type SiteRequestShape } from "../connections/outside-forms";
 import { readerStamp, stableJson, type Reader, type ReaderContext } from "../shared/reader";
 
-/** How far back a form's sheet counts what it brought. */
-const RESULT_DAYS = 30;
 /** The most entries a sheet lists: the newest; the rest are in Inbox as they were answered. */
 const SHEET_ENTRIES = 60;
 
@@ -158,7 +157,7 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
     const [live, links, results, entries, open, chat, email] = await Promise.all([
       form.liveVersionId ? findFormVersion(db, rc.tenantId, form.liveVersionId) : null,
       listFormLinks(db, rc.tenantId, form.id),
-      readFormResults(db, rc.tenantId, RESULT_DAYS),
+      readFormResults(db, rc.tenantId, FORM_RESULT_DAYS),
       listFormEntries(db, { tenantId: rc.tenantId, formId: form.id, limit: SHEET_ENTRIES }),
       listOpenFormRequests(db, rc.tenantId),
       findOldestActiveChannel(db, rc.tenantId, "whatsapp"),
@@ -204,7 +203,7 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
       last_entry_at: form.lastEntryAt,
       links: linkRows,
       results: {
-        days: RESULT_DAYS,
+        days: FORM_RESULT_DAYS,
         opens: linkRows.reduce((total, link) => total + link.opens, 0),
         requests: sum((place) => place.requests),
         asked: sum((place) => place.asked),
@@ -236,7 +235,7 @@ export const formsReport: Reader<undefined, FormsReportDto> = {
     const [forms, links, results] = await Promise.all([
       listForms(db, rc.tenantId),
       listWorkspaceFormLinks(db, rc.tenantId),
-      readFormResults(db, rc.tenantId, RESULT_DAYS),
+      readFormResults(db, rc.tenantId, FORM_RESULT_DAYS),
     ]);
     const published = forms.filter((form) => form.liveVersionId !== null);
     const versions = await listFormVersions(
@@ -246,7 +245,7 @@ export const formsReport: Reader<undefined, FormsReportDto> = {
     );
     const headingBy = new Map(versions.map((version) => [version.id, version.description?.heading ?? null]));
     const data: FormsReportDto = {
-      days: RESULT_DAYS,
+      days: FORM_RESULT_DAYS,
       forms: published.map((form) => {
         const mine = results.places.filter((place) => place.formId === form.id);
         const sum = (pick: (place: (typeof mine)[number]) => number) =>
@@ -451,6 +450,31 @@ async function requestTimeOf(
 }
 
 /**
+ * What a request is read against: the version its visitor saw, or a site form's shape (00709), which names who it is about
+ * in its own answers and the site it came from; null where its form can't be read any more.
+ */
+function requestReadAs(
+  entry: { outsideFormId: string | null; answers: unknown; reach: FormRequestDto["reach"] },
+  version: { description: FormDescription | null } | null,
+  shapes: Map<string, SiteRequestShape> | null,
+): {
+  described: Pick<FormDescription, "heading" | "fields">;
+  reach: FormRequestDto["reach"];
+  site: string | null;
+} | null {
+  if (!entry.outsideFormId)
+    return version?.description ? { described: version.description, reach: entry.reach, site: null } : null;
+  const shape = shapes?.get(entry.outsideFormId);
+  return shape
+    ? { described: shape.description, reach: siteReachOf(recordOrEmpty(entry.answers)), site: shape.site }
+    : null;
+}
+
+/** Where a request stands: a test, held for a look, still open, or answered. */
+const requestStandingOf = (entry: { test: boolean; state: string }, open: boolean): FormRequestDto["standing"] =>
+  entry.test ? "test" : entry.state === "held" ? "held" : open ? "open" : "answered";
+
+/**
  * One request as Inbox answers it: what was asked, who, how they came, and where it stands. A site form's (00709) is read
  * against its form's shape, names who it is about in its own answers, and is drafted to (Campaigns in three tabs, call 3).
  */
@@ -468,19 +492,18 @@ export const formRequest: Reader<{ id: string }, FormRequestDto> = {
       listOpenFormRequests(db, rc.tenantId),
       entry.contactId ? findPersonAddress(db, rc.tenantId, entry.contactId) : null,
     ]);
-    const shape = entry.outsideFormId ? (shapes?.get(entry.outsideFormId) ?? null) : null;
-    const described = shape?.description ?? version?.description;
-    if (!described) throw new AppError("not_found", "That request's form can't be read any more.", 404);
+    const readAs = requestReadAs(entry, version, shapes);
+    if (!readAs) throw new AppError("not_found", "That request's form can't be read any more.", 404);
+    const { described, reach } = readAs;
     const answers = recordOrEmpty(entry.answers);
-    const reach = entry.outsideFormId ? siteReachOf(answers) : entry.reach;
     const stillOpen = open.find((request) => request.id === entry.id);
-    const standing = entry.test ? "test" : entry.state === "held" ? "held" : stillOpen ? "open" : "answered";
+    const standing = requestStandingOf(entry, !!stillOpen);
     const source = Source.safeParse(entry.source);
     const typed = reach.email;
     const data: FormRequestDto = {
       id: entry.id,
       form_id: entry.formId,
-      site: shape?.site ?? null,
+      site: readAs.site,
       heading: described.heading,
       created_at: entry.createdAt,
       lines: requestLines(described, answers),

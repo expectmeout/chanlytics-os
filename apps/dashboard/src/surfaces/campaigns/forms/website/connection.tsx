@@ -56,14 +56,14 @@ function SiteBlock(props: {
   open: (o: Partial<Opened>) => void;
 }) {
   const { site, says, canChange, open } = props;
-  const said = siteSays(site, says);
+  const standingLine = siteSays(site, says);
   return (
     <section className="wf-site" data-testid="wf-site" data-standing={site.standing} aria-label={site.name}>
       <div className="wf-site-head">
         <h3>{site.name}</h3>
         <StatePill kind="tone" value={STANDING_TONE[site.standing]} label={W.standing[site.standing]} />
       </div>
-      {said ? <p className="wf-site-says">{said}</p> : null}
+      {standingLine ? <p className="wf-site-says">{standingLine}</p> : null}
       <h4 className="wf-site-sub">{W.keys}</h4>
       {keysShown(site, Date.now()).map((key) => (
         <RecordRow

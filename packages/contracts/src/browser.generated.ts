@@ -368,7 +368,7 @@ export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaid
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { FORM_PARTS, formPagePath, FORMS_ROUTE, formsPlaceOf, formsRouteOf, formTestPath, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
 export { emailTypoFix } from "./forms/email-typo";
-export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS, FORM_PRESS_WAIT_MS } from "./forms/limits";
+export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS, FORM_PRESS_WAIT_MS, FORM_RESULT_DAYS } from "./forms/limits";
 export { FORM_SITE_STANDINGS, formSiteNameOf, outsideFormNameOf, SITE_FORM_FIELDS, SITE_QUIET_DAYS, siteFormOf, siteReachOf, siteStandingOf } from "./forms/outside";
 export { requestLines, throughPlace } from "./forms/request-words";
 export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./forms/times";

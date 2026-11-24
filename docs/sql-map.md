@@ -36,9 +36,6 @@ being read is dropped by a migration.
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
-| `form_requests_open_count` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `outside_form_listed` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `outside_form_rename` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -317,7 +314,7 @@ being read is dropped by a migration.
 | `form_publish` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts`; SQL `form_time_request_take` | The hosted form door's one write (00680; |
 | `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's forms nobody has answered (00680, 00691, 00709; |
-| `form_requests_open_count` | reader | a signed-in person, the server | nothing at run time | How many of a workspace's requests nobody has answered (00709): |
+| `form_requests_open_count` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/outside.ts` | How many of a workspace's requests nobody has answered (00709): |
 | `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's forms brought over the last p_days (30; |
 | `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691, 00704; |
 | `form_turn` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
@@ -523,8 +520,8 @@ being read is dropped by a migration.
 | `outreach_lead_facts` | the server's | the server | SQL `outreach_mailbox_facts`, `reach_out_draft_facts` and 1 more | A cold email's facts about its lead: |
 | `outreach_mailbox_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | What the send door asks of a cold email (00424): |
 | `outreach_wrote_back` | the server's | the server | code `packages/contracts/src/campaigns/reach-out/replies/reading.ts`, `packages/contracts/src/campaigns/reach-out/rules.ts` and 1 more; SQL `outreach_lead_facts`, `reach_out_chain_report` and 2 more |  |
-| `outside_form_listed` | door | a signed-in person, the server | nothing at run time | A member's door (00709; |
-| `outside_form_rename` | door | a signed-in person, the server | nothing at run time | A member's door (00709; |
+| `outside_form_listed` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/outside.ts` | A member's door (00709; |
+| `outside_form_rename` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/outside.ts` | A member's door (00709; |
 | `owner_claim_withdraw` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim withdrawn (00706), by a member with the settings permission. |
 | `owner_claims_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/claims.ts` | A claim kept (00706): |
 | `page_freshness` | the server's | the server | nothing at run time | What tabs could not hear or read over the last p_days (00509; |

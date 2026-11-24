@@ -20,18 +20,18 @@ import { FORMS_ROUTE, formsRouteOf } from "./address";
 import { FORM_LIMITS, FORM_PRESS_WAIT_MS } from "./limits";
 
 /** What the press answered: the form made, or AI's one question back, or that no draft could be made. */
-function draftedOf(data: unknown): { formId: string | null; said: string | null } {
+function draftedOf(data: unknown): { formId: string | null; question: string | null } {
   const answer = recordOrEmpty(data);
   const formId = typeof answer.form_id === "string" && answer.form_id ? answer.form_id : null;
-  const said = answer.asked === true ? textOrEmpty(answer.said) || null : null;
-  return { formId, said };
+  const question = answer.asked === true ? textOrEmpty(answer.said) || null : null;
+  return { formId, question };
 }
 
 /** What the card's receipt says, by what the press answered. */
 const FORM_CARD_WORDS = {
   drafted: "Drafted. Forms is open on it.",
   asked: (question: string) => `AI asks first: ${question}`,
-  failed: "AI couldn't draft this one. Nothing was made. Say it in Forms' own line, or try again.",
+  failed: "AI couldn't draft this one, and nothing was made. Say it in Forms' own line, or try again.",
 } as const;
 
 /** A form card commits Forms' own press: the sentence, drafted into a form, and Forms opened on it. */
@@ -46,7 +46,7 @@ export const formDraftSpec: ProposalSpec = {
   receipt: (_card, data) => {
     const drafted = draftedOf(data);
     if (drafted.formId) return FORM_CARD_WORDS.drafted;
-    return drafted.said ? FORM_CARD_WORDS.asked(drafted.said) : FORM_CARD_WORDS.failed;
+    return drafted.question ? FORM_CARD_WORDS.asked(drafted.question) : FORM_CARD_WORDS.failed;
   },
   made: (_card, data) => draftedOf(data).formId,
   open: (_card, outcome) => (outcome?.made?.id ? formsRouteOf({ form: outcome.made.id }) : FORMS_ROUTE),

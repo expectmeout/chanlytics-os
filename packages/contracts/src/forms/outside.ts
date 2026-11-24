@@ -32,7 +32,7 @@ export const siteFormOf = (heading: string): Pick<FormDescription, "heading" | "
 
 /** The names a site's form goes by where neither its owner nor its site named it. */
 const UNNAMED: Record<OutsideFormKind, string> = {
-  request: "Your website's form",
+  request: "Website form",
   signup: "Sign-ups from your website",
 };
 
@@ -78,7 +78,7 @@ export function siteStandingOf(
 
 /** The name a site is shown by: its host once an entry names it, else the name it was given with its first key. */
 export const formSiteNameOf = (site: { host: string | null; name: string | null }): string =>
-  site.host || site.name?.trim() || "Your website";
+  site.host || site.name?.trim() || "Website";
 
 /** A form owned elsewhere as Forms' list shows it, under its site. */
 export interface OutsideFormRowDto {

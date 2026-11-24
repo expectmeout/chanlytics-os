@@ -48,7 +48,7 @@ function formDraftOutcome(_toolContext: ToolContext, input: { sentence: string }
 export const formDraftAct = defineAct({
   name: "propose_form",
   description:
-    "Hand a form the person asked for to Campaigns › Forms: its press drafts it there from their sentence and opens it, where they change it and publish it. Never write the form's questions yourself.",
+    "Hand a form the person asked for to Campaigns › Forms: its press drafts it there and opens the draft, where they change it and publish it. It takes their sentence alone, in their own words, of what the form should collect. Never write the form's questions yourself.",
   kind: "form_draft",
   input: z.object({
     sentence: z
