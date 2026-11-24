@@ -291,7 +291,7 @@ export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_D
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/placements/take-down-late";
 export { takeDownSpec } from "./content/placements/take-down-spec";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./content/plan/claims";
-export { CALLS_A_WEEK_MADE, MAKING_CALLS_A_SECOND, RUNG_SUGGESTION_USE, rungSuggestionOf, WEEK_MADE_AHEAD_MS, WEEK_MAKING_LEASE_S, WEEK_MAKING_QUEUE, SECONDS_A_WEEK_MADE, weekGoesAtOf, WEEKS_MAKING_AT_ONCE } from "./content/plan/held-week";
+export { CALLS_A_WEEK_MADE, MAKING_CALLS_A_SECOND, RUNG_SUGGESTION_USE, rungSuggestionOf, SECONDS_A_WEEK_MADE, WEEK_MADE_AHEAD_MS, WEEK_MAKING_LEASE_S, WEEK_MAKING_QUEUE, weekGoesAtOf, WEEKS_MAKING_AT_ONCE } from "./content/plan/held-week";
 export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./content/plan/patterns";
 export { REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf, reviewAskWordsOf } from "./content/plan/review-ask";
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";

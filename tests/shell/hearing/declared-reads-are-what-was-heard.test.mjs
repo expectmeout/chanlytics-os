@@ -262,7 +262,8 @@ const HEARD_BEFORE = {
   // The Week (00706), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
   // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page. And the look the
   // website read proposed (pass 4's brand kit), which Settings › Content's "The look" says until the owner words it. And,
-  // since pass 6, its proposal to ask for reviews: the newest review, the review link, and whether an ask runs.
+  // since pass 6, its proposal to ask for reviews: the newest review, the review link, and whether an ask runs. And, since 00712,
+  // the owner's rung for the week (Approve the week), which says whether a ready week is held.
   content_week: [
     "files",
     "google_connections",
@@ -274,6 +275,7 @@ const HEARD_BEFORE = {
     "google_listings",
     "sequences",
     "sequence_steps",
+    "policies",
   ],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: ["conversation_drafts"],
@@ -368,7 +370,8 @@ const ON_ITS_PAGE_BEFORE = {
   // The Week (00706), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
   // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page. And the look the
   // website read proposed (pass 4's brand kit), which Settings › Content's "The look" says until the owner words it. And,
-  // since pass 6, its proposal to ask for reviews: the newest review, the review link, and whether an ask runs.
+  // since pass 6, its proposal to ask for reviews: the newest review, the review link, and whether an ask runs. And, since 00712,
+  // the owner's rung for the week (Approve the week), which says whether a ready week is held.
   content_week: [
     "files",
     "google_connections",
@@ -380,6 +383,7 @@ const ON_ITS_PAGE_BEFORE = {
     "google_listings",
     "sequences",
     "sequence_steps",
+    "policies",
   ],
   // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
