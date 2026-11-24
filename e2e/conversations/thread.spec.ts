@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { activeWorkspace, scoped, apiGet } from "../workspace";
+import { reasonSummaryOf } from "../../packages/contracts/src/index";
 
 /**
  * The conversation thread, in a real browser, in the nightly's own workspace.
@@ -93,9 +94,10 @@ async function freshLoad(page: Page, hash: string): Promise<void> {
  * shows a thread of the selected bucket only, so finding the row there is
  * itself what the page says about the thread. Retried while a load settles.
  * Needs you holds what is yours to do and nothing else, Waiting what is someone
- * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102).
+ * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102). A snoozed thread stands in Waiting,
+ * which comes back by itself (decision 0142: the Inbox's three tabs; Snoozed had one of its own until 19 Nov 2026).
  */
-async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed" | "Waiting"): Promise<Locator> {
+async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Waiting"): Promise<Locator> {
   const list = page.locator(".ix-list");
   const pane = page.locator(".ix-thread-pane");
   await expect(async () => {
@@ -266,7 +268,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
       // The mark's title is the hold's reason as its label says it (contracts escalations.ts, send_failed).
       await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply didn't reach them/);
-      await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
+      // The dock of a thread that is yours says why it was held in the hold's own sentence (contracts ESCALATION_SUMMARIES,
+      // read by the thread's summary): the words pass of 15 Nov 2026 (#2346) said it "didn't reach them".
+      await expect(pane.getByTestId("ix-yours")).toContainText(reasonSummaryOf("send_failed"));
       await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
       await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");
     });
@@ -345,11 +349,15 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // (#852). What Today must never be quiet about is the failure itself: since Today in three zones (2 Nov 2026) a reply
       // of yours that never left is yours to answer (today/facts.ts YOURS_STILL_WAIT), one row of Need you with its words
       // kept and Try again, and nothing under the head. Try again is not pressed here: it sends.
-      const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
-      await expect(row).toHaveCount(1);
-      await expect(row).toContainText("Your reply didn't reach them");
-      // Its verb on the row, or in its work where it is the row opened.
-      await expect(row.getByRole("button", { name: "Try again" }).first()).toBeVisible();
+      // Since Today, calm (19-21 Nov 2026), who waits is a line of Need you, and the first the page's card with its work: the
+      // words kept and Try again. A line that is not the card opens its work where it is pressed.
+      const line = queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name });
+      await expect(line).toHaveCount(1);
+      await expect(line).toContainText("Your reply didn't reach them");
+      const tryAgain = page.getByRole("button", { name: "Try again" });
+      if ((await page.getByTestId("today-card").filter({ hasText: ROBIN.name }).count()) === 0)
+        await line.getByRole("button").first().click();
+      await expect(tryAgain.first()).toBeVisible();
       await expect(page.getByTestId("today-failed-reply")).toHaveCount(0);
     });
 
@@ -361,7 +369,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
       await page.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
-      pane = await openRobin(page, "Snoozed");
+      pane = await openRobin(page, "Waiting");
       await expect(pane.getByText(/still waiting for you/)).toBeVisible();
       await pane.getByRole("button", { name: /Wake now/ }).click();
       await expect(page.getByText(/back in Needs you/)).toBeVisible();

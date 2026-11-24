@@ -122,8 +122,10 @@ test.describe("Google on a real workspace", () => {
     const profileRow = page.getByTestId("connection-google_profile");
     const listingRow = page.getByTestId("connection-google_listing");
     await expect(profileRow).toContainText("Google Business Profile");
-    await expect(profileRow).toContainText(/Connected|Couldn't update/);
-    await expect(listingRow).toContainText(/Watched|Couldn't be read/);
+    // A joined row that works says one word, On, where "Connected" and "Watched" said it two ways on one card (Ruben, 21
+    // Nov 2026: settings/connections/model/row-words.ts); a read that failed keeps its own words.
+    await expect(profileRow.locator(".pill").first()).toHaveText(/^(On|Couldn't update)$/);
+    await expect(listingRow.locator(".pill").first()).toHaveText(/^(On|Couldn't be read)$/);
     await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(
       /refresh_token|access_token|credentials_ref/,
     );

@@ -56,6 +56,20 @@ async function openPlaces(page: Page) {
 
 const toast = (page: Page) => page.locator(".pp-toast .pp-toast-msg");
 
+/**
+ * A placement's line under Where it goes, by its place and kind (viewer/goes.tsx): a post set for its time says when it goes
+ * up and offers its own Change time and Don't post there, and the place's row under the lines keeps its switch alone (the
+ * content loop's pass 1b, #2512, 22 Nov 2026: the row said it, with the presses beside it, until then).
+ */
+const goesLine = (page: Page, at: string) => ({
+  line: page.getByTestId(`cnv-goes-${at}`),
+  said: page.getByTestId(`cnv-goes-said-${at}`),
+  move: page.getByTestId(`cnv-goes-move-${at}`),
+  pull: page.getByTestId(`cnv-goes-pull-${at}`),
+});
+/** What a placement set for its time says (GOES_WORDS.timed). */
+const GOES_UP = /^Goes up /;
+
 /** Where the sheet is one pane's body (a desk) and where it is a sheet over the picture (a phone, where this went wrong). */
 const SCREENS = [
   { on: "a desk", size: null },
@@ -134,11 +148,11 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
   test("Change time moves the post that waits, itself, in one step", async ({ page }) => {
     await openPiece(page, set);
     await openPlaces(page);
-    const row = page.getByTestId("cnv-place-instagram");
-    await expect(row).toHaveAttribute("data-stands", "timed");
-    const before = await page.getByTestId("cnv-place-said-instagram").innerText();
+    const line = goesLine(page, "instagram-story");
+    await expect(line.said).toHaveText(GOES_UP);
+    const before = await line.said.innerText();
 
-    await page.getByTestId("cnv-move-instagram").click();
+    await line.move.click();
     await expect(page.getByTestId("cnv-move")).toBeVisible();
     // Another time that day: the last the list offers, or the first where it is set for the last already.
     const time = page.getByTestId("bc-when-time");
@@ -159,21 +173,22 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
     expect(made.pressed.filter((p) => p.method !== "PATCH")).toEqual([]);
     await expect(toast(page)).toHaveText(/^Now set for .+ on Instagram\.$/);
     expect(CONTENT_SHEET_WORDS.places.moved("instagram", "x")).toBe("Now set for x on Instagram.");
-    await expect(row).toHaveAttribute("data-stands", "timed");
-    await expect(page.getByTestId("cnv-place-said-instagram")).not.toHaveText(before);
+    await expect(line.said).toHaveText(GOES_UP);
+    await expect(line.said).not.toHaveText(before);
   });
 
   test("Don't post stops the post that waits, and Undo sets it again for its time", async ({ page }) => {
     await openPiece(page, set);
     await openPlaces(page);
-    const row = page.getByTestId("cnv-place-instagram");
-    await expect(row).toHaveAttribute("data-stands", "timed");
+    const line = goesLine(page, "instagram-story");
+    await expect(line.said).toHaveText(GOES_UP);
 
-    await page.getByTestId("cnv-pull-instagram").click();
+    await line.pull.click();
     await expect.poll(() => made.at("DELETE", "files/[id]/instagram").length).toBe(1);
     expect(made.at("DELETE", "files/[id]/instagram")[0]?.body).toEqual({ post_id: story });
     await expect(toast(page)).toHaveText(ON_INSTAGRAM.pulledFlash);
-    await expect(row).not.toHaveAttribute("data-stands", "timed");
+    // A post its owner let go says nothing of its placement: the line goes, and the place is offered again.
+    await expect(line.line).toHaveCount(0);
 
     await page.locator(".pp-toast").getByRole("button", { name: "Undo" }).click();
     await expect.poll(() => made.at("POST", "files/[id]/instagram").length).toBe(1);
@@ -182,7 +197,7 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
     // At the time it was set for, to the second: the same post, put back.
     expect(Math.abs(Date.parse(String(back.body.when)) - (Date.now() + 30 * 3_600_000))).toBeLessThan(120_000);
     await expect(toast(page)).toHaveText(FILE_WORDS.restored);
-    await expect(row).toHaveAttribute("data-stands", "timed");
+    await expect(line.said).toHaveText(GOES_UP);
   });
 
   test("a story goes beside a post that waits, and then each has its own line, Change time and Don't post", async ({
@@ -193,8 +208,9 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
     await openPlaces(page);
     // Opening the list arms nothing where a post is on its way: the story is the owner's own switch.
     await expect(page.getByTestId("cnv-switch-instagram")).not.toBeChecked();
-    await expect(page.getByTestId("cnv-place-said-instagram")).toHaveText(/^Post goes up /);
-    await expect(page.getByTestId("cnv-pull-instagram")).toBeVisible();
+    const waits = goesLine(page, "instagram-picture");
+    await expect(waits.said).toHaveText(GOES_UP);
+    await expect(waits.pull).toBeVisible();
 
     await page.getByTestId("cnv-switch-google").click();
     await page.getByTestId("cnv-switch-instagram").click();
@@ -207,14 +223,16 @@ test.describe("Campaigns › Content, a made post's sheet", () => {
     expect(made.at("POST", "files/[id]/instagram")[0]?.body).toEqual({ as: "story" });
     expect(made.at("POST", "files/[id]/google")).toHaveLength(0);
 
-    // The story is on its way, and the post still waits under it: stopped from its own line, the story untouched.
+    // The story is on its way on a line of its own, and the post still waits on its own: stopped from its line, the story
+    // untouched.
     await openPlaces(page);
-    const too = page.getByTestId("cnv-place-too-instagram");
-    await expect(too).toHaveText(/Post goes up /);
-    await expect(page.getByTestId("cnv-move-too-instagram")).toBeVisible();
-    await page.getByTestId("cnv-pull-too-instagram").click();
+    await expect(goesLine(page, "instagram-story").line).toBeVisible();
+    await expect(waits.said).toHaveText(GOES_UP);
+    await expect(waits.move).toBeVisible();
+    await waits.pull.click();
     await expect.poll(() => made.at("DELETE", "files/[id]/instagram").length).toBe(1);
     expect(made.at("DELETE", "files/[id]/instagram")[0]?.body).toEqual({ post_id: post });
-    await expect(too).toHaveCount(0);
+    await expect(waits.line).toHaveCount(0);
+    await expect(goesLine(page, "instagram-story").line).toBeVisible();
   });
 });
