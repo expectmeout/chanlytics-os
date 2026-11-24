@@ -33,7 +33,8 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, querySe
 const out = await build({
   stdin: {
     contents:
-      'export { AutContentRows } from "../../apps/dashboard/src/surfaces/settings/autonomy/content-rows.tsx";\n' +
+      'export { contentGroupOf } from "../../apps/dashboard/src/surfaces/settings/autonomy/content-rows.tsx";\n' +
+      'export { PolicyTable, PolPhoneRows } from "../../apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx";\n' +
       'export { uiRows } from "../../apps/dashboard/src/bridge/policy-store.ts";\n' +
       'export { CONTENT_POLICY_CLASSES } from "@chanlytics/contracts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -71,8 +72,16 @@ const contentRows = (weekMode = "ask") =>
       role: "owner",
     }).filter((r) => r.cls === cls),
   );
-const draw = (props) =>
-  S.renderToStaticMarkup(S.createElement(S.AutContentRows, { put() {}, busy: null, weeks: null, ...props }));
+/** The matrix as the pane draws it, its own rows none here, Content its group: a desk's table, or a phone's lines. */
+const draw = ({ phone, rows, weeks = null }) =>
+  S.renderToStaticMarkup(
+    S.createElement(phone ? S.PolPhoneRows : S.PolicyTable, {
+      rows: [],
+      put() {},
+      busy: null,
+      groups: S.contentGroupOf({ rows, weeks, put() {} }),
+    }),
+  );
 const clean = { by_owner: true, edited: false };
 const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
@@ -89,8 +98,9 @@ test("four rows in the board's words, in its order, each saying what it covers",
     at,
     "in the board's order",
   );
-  assert.match(html, /data-testid="aut-content"/);
+  assert.match(html, /data-testid="pol-group-content"/, "a group of the one matrix, as the board draws it at a desk");
   assert.match(said, /Content/);
+  assert.equal((html.match(/class="pol-mode"/g) ?? []).length, 4, "the matrix's headings said once");
 });
 
 test("only Approve the week offers more than asking: the other rows draw no dot for a mode they cannot honour", () => {

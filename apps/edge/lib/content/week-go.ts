@@ -71,25 +71,29 @@ export async function holdReadyWeek(
 }
 
 /** Asks the dashboard to make a week AI approved; throws where it did not take it, so the ledger asks again. */
-export type WeekMaker = (made: WeekMadeBody) => Promise<void>;
+type WeekMaker = (week: WeekMadeBody) => Promise<void>;
 
 /** The real ask: one call, signed for the dashboard's door, that workspace and that body. */
-export const askDashboardToMake: WeekMaker = async (made) => {
+const askDashboardToMake: WeekMaker = async (week) => {
   const secret = env.EDGE_CALL_SECRET;
   if (!secret) throw new Error("content_week_make: no EDGE_CALL_SECRET to sign the dashboard's call with");
   const answer = await callDashboard(
     { origin: dashboardOrigin(), secret, path: WEEK_MADE_DOOR.path },
-    { workspace: made.tenant_id, body: made, timeoutMs: DASHBOARD_ANSWER_MS },
+    { workspace: week.tenant_id, body: week, timeoutMs: DASHBOARD_ANSWER_MS },
   );
   if (!answer.ok) throw new Error(`content_week_make: the dashboard did not take the week (${answer.status})`);
 };
 
 /** A held week let go: nothing on a screen says it goes up, and it waits for the owner's press. */
-async function letGo(db: Db, at: { tenantId: TenantId; planId: string }, why: string): Promise<{ skipped: string }> {
+async function letTheWeekGo(
+  db: Db,
+  at: { tenantId: TenantId; planId: string },
+  reason: string,
+): Promise<{ skipped: string }> {
   await holdWeek(db, at.tenantId, { planId: at.planId, goesAt: null });
   const log = logger({ tenant_id: at.tenantId });
-  log.info("week_let_go", { plan_id: at.planId, why });
-  return { skipped: why };
+  log.info("week_let_go", { plan_id: at.planId, why: reason });
+  return { skipped: reason };
 }
 
 /** The queue started: the weeks waiting begun in turn, as many as its cap lets. */
@@ -111,11 +115,11 @@ export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { sk
   if (plan.status !== "ready") return { skipped: plan.status };
   if (plan.stopped_at || !plan.goes_at) return { skipped: "stopped" };
   const at = { tenantId, planId: plan.id };
-  if (await isSendingStopped(db, tenantId)) return letGo(db, at, "paused");
+  if (await isSendingStopped(db, tenantId)) return letTheWeekGo(db, at, "paused");
   const zone = (await findWorkspaceZone(db, tenantId)) ?? "UTC";
   const week = await readContentWeek(db, tenantId, plan.week_of);
   const { going, leftOut, snapshot } = weekApprovalOf(week.slots, zone, Date.now());
-  if (going.length === 0) return letGo(db, at, "nothing");
+  if (going.length === 0) return letTheWeekGo(db, at, "nothing");
   const answer = await approveWeek(db, tenantId, { planId: plan.id, snapshot: jsonCopyOf(snapshot) });
   // The door read the rung, the stop and the time again: anything but approved leaves the week to its owner.
   if (answer.fate === "asks") return { skipped: "asks" };

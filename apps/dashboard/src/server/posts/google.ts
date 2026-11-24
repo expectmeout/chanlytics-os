@@ -33,7 +33,7 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
-import { approvePlacements, readyApproval } from "./approve";
+import { approvePlacements, prepareApproval } from "./approve";
 import { getMaterial } from "./material";
 import { getPhoto, googlePicturePathOf, postDrawn } from "./make";
 import { readFileRecord } from "./record";
@@ -208,7 +208,7 @@ export async function postFileToGoogle(
  * A held week's Google placement readied overnight (00712): the picture drawn and kept for Google, every check, nothing
  * approved; the door takes it at 8:00, and the post's job asks Google at its time. Only for a time later than soon.
  */
-export async function readyOnGoogle(
+export async function prepareOnGoogle(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
@@ -218,7 +218,7 @@ export async function readyOnGoogle(
   const { made } = await readFileRecord(ctx, member, row);
   if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
   await pictureForGoogle(ctx, member, row.id, made.plan);
-  return readyApproval(ctx, member, row, {
+  return prepareApproval(ctx, member, row, {
     placements: [{ place: "google", kind: "picture", caption: input.summary, when: input.when }],
     intent: intentOfAbout(input.about),
     facts: [],

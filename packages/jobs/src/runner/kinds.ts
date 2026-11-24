@@ -68,6 +68,18 @@ const SLOW_TWICE = [5 * MIN_MS, 30 * MIN_MS] as const;
 const ONCE = [2 * MIN_MS] as const;
 const NO_FIELDS = [] as const;
 
+/** The two kinds of a week AI may approve (00712): neither speaks, each tried twice more, the owner told of one that fails. */
+const WEEK_ON_ITS_OWN: KindPolicy = {
+  speaks: false,
+  retryWaitsMs: TWICE,
+  told: "owner",
+  settles: "nothing",
+  wires: false,
+  longestCallMs: 20 * SECOND_MS,
+  ids: ["plan_id"],
+  never: [],
+};
+
 export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // A reply, a member's or the receptionist's: the send claims its row before the wire, and a run that died may have sent.
   outbound_send: {
@@ -464,34 +476,12 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["plan_id"],
     never: [],
   },
-  // A week AI may approve goes up (00712; the content loop PRD's 12.4): the approval is the door's, once (a week no longer
-  // ready takes none), and it only queues the week: its making is content_week_make's, in turn. A try again starts the
-  // queue again, which begins only what waits. A week that could not go up for good is the owner's to hear: it still
-  // waits on the Week for their press.
-  content_week_go: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "owner",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 20 * SECOND_MS,
-    ids: ["plan_id"],
-    never: [],
-  },
-  // A week AI approved, made in its turn (00712): the dashboard is asked to make it, and makes only what is not made yet and
-  // keys a reel by its slot, so a try again makes nothing twice. Its place in the queue is held by its lease, not by this
-  // job: a making that never reports back is begun again by the queue. The owner hears one that failed for good: its rows
-  // say what was not made.
-  content_week_make: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "owner",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 20 * SECOND_MS,
-    ids: ["plan_id"],
-    never: [],
-  },
+  // A week AI may approve (00712; the content loop PRD's 12.4): goes up at its time (content_week_go: the approval is the
+  // door's, once, and only queues the rest) and is prepared or made in its turn (content_week_make: the dashboard makes
+  // only what is not made yet and keys a reel by its slot). A try again repeats nothing. The posts it queues speak at their
+  // own times, as their own kinds. The owner hears one that failed for good: the week waits on the Week for their press.
+  content_week_go: WEEK_ON_ITS_OWN,
+  content_week_make: WEEK_ON_ITS_OWN,
   // A post's numbers read back from its place (00699; the content loop PRD's 9.1): a read asked again writes over itself,
   // nothing reaches a person, and a read that fails for good is said where it is read: the piece says the step's
   // numbers could not be read, and the next step reads again (told elsewhere).

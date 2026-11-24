@@ -13,7 +13,7 @@ import { wallClockAt, zoneDayKey } from "../../shared/clock";
 import { POLICY_MODE_WORDS, type PolicyMode } from "../../config/workspace-config/policy-classes";
 
 /** The hour a held week goes up, in the business's own zone: the board's "8:00 AM". */
-export const WEEK_GOES_HOUR = 8;
+const WEEK_GOES_HOUR = 8;
 
 /**
  * When a ready week goes under the rung, as an ISO time: holding it, the next 8:00 AM in the business's zone; sending it,
@@ -30,7 +30,7 @@ export function weekGoesAtOf(mode: string | null | undefined, zone: string, nowM
 }
 
 /** How many weeks in a row the owner approved as AI planned them before AI suggests holding the week. */
-export const RUNG_SUGGESTED_AFTER = 4;
+const RUNG_SUGGESTED_AFTER = 4;
 
 /** A week the owner approved, as AI's suggestion reads it: whether a member's press approved it, and whether it was edited. */
 export interface WeekApprovedRecord {

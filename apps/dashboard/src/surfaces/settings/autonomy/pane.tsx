@@ -33,7 +33,7 @@ import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
-import { AutContentRows } from "./content-rows";
+import { contentGroupOf } from "./content-rows";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { stopLineOf, stopSaid, stoppedAdsLineOf, type StoppedAd } from "./stop-words";
@@ -232,16 +232,23 @@ const AUT_MANY_ROW = {
 };
 
 /** What else it may do without you, as a table at a desk and a list on a phone. */
-const AutMatrix = ({ phone, rows, put, busy, lines }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
+const AutMatrix = ({
+  phone,
+  rows,
+  put,
+  busy,
+  lines,
+  groups,
+}: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
   <section className="rec-card set-card">
     <div className="rec-card-head">
       <h2 className="rec-card-title">What AI does on its own</h2>
       <span className="rec-card-sub">What else it may do without you.</span>
     </div>
     {phone ? (
-      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} />
+      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} groups={groups} />
     ) : (
-      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} />
+      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} groups={groups} />
     )}
   </section>
 );
@@ -446,14 +453,17 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
 
       <AskOnItsOwn alone={ask?.alone === true} stopped={ask?.stopped ?? null} flash={flash} />
 
-      <AutMatrix phone={phone} rows={matrix} put={putMode} busy={busy} lines={lines} />
-
-      <AutContentRows
+      <AutMatrix
         phone={phone}
-        rows={CONTENT_POLICY_CLASSES.flatMap((cls) => rows.filter((r) => r.cls === cls))}
+        rows={matrix}
         put={putMode}
         busy={busy}
-        weeks={policies.weeksApproved ?? null}
+        lines={lines}
+        groups={contentGroupOf({
+          rows: CONTENT_POLICY_CLASSES.flatMap((cls) => rows.filter((r) => r.cls === cls)),
+          weeks: policies.weeksApproved ?? null,
+          put: putMode,
+        })}
       />
 
       <section className="rec-card set-card">

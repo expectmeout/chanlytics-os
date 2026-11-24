@@ -20,7 +20,7 @@ import { readInstagramPostable } from "@/server/connections/meta";
 import { postDtoOf } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { approvePlacements, readyApproval } from "./approve";
+import { approvePlacements, prepareApproval } from "./approve";
 
 /** A file's posts on Instagram, newest first, as the sheet shows them, of the file's posts read under the member's session. */
 export const instagramPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
@@ -68,8 +68,8 @@ async function instagramAsked(member: Member, row: FileMemberRow, input: Instagr
 }
 
 /** A held week's Instagram placement readied overnight (00712): every check, nothing approved; the door takes it at 8:00. */
-export async function readyOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
-  return readyApproval(ctx, member, row, await instagramAsked(member, row, input));
+export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
+  return prepareApproval(ctx, member, row, await instagramAsked(member, row, input));
 }
 
 export async function postFileToInstagram(

@@ -28,7 +28,7 @@ import {
   type RenditionShape,
   type SnapshotRendition,
   type TenantId,
-  type PostVia,
+  type POST_VIAS,
 } from "@chanlytics/contracts";
 import { measureMedia } from "@chanlytics/channels/files";
 import {
@@ -56,7 +56,7 @@ interface ApprovalAsked {
   intent: PieceIntent | null;
   facts: OwnersFact[];
   /** A person's press, their Approve on AI's card, or AI under the owner's rung (00712: the door takes rung from the service alone). */
-  via: PostVia;
+  via: (typeof POST_VIAS)[number];
   /** Whether each place's connection takes a post now (the caller read it). */
   connections: Readonly<Partial<Record<PostPlace, InstagramPostable>>>;
   /**
@@ -124,7 +124,7 @@ const placementWordsOf = (p: PlacementAsked): string | null => (p.kind === "stor
  * (post_approve's p_approval). Throws the owner's words for what stands in the way. A held week readies each of its
  * placements overnight (00712) and the door takes them at 8:00; a press readies and approves at once (approvePlacements).
  */
-export async function readyApproval(
+export async function prepareApproval(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
@@ -199,7 +199,7 @@ export async function readyApproval(
 }
 
 /**
- * The approval: readied (readyApproval), then the one door. Answers what the door wrote, or throws the owner's words for
+ * The approval: prepared (prepareApproval), then the one door. Answers what the door wrote, or throws the owner's words for
  * what stands in the way; nothing is kept or written for a press that is refused.
  */
 export async function approvePlacements(
@@ -208,7 +208,7 @@ export async function approvePlacements(
   row: FileMemberRow,
   approval: ApprovalAsked,
 ): Promise<PostsApproved> {
-  const readied = await readyApproval(ctx, member, row, approval);
+  const readied = await prepareApproval(ctx, member, row, approval);
   const answer = await (approval.replace ? replacePiecePosts : approvePosts)(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,

@@ -120,7 +120,6 @@ export {
 } from "./plans";
 export type {
   MakingQueue,
-  WeekPass,
   PlanAsked,
   PlanWritten,
   SlotChange,
@@ -128,6 +127,7 @@ export type {
   SlotSet,
   WeekApproved,
   WeekHold,
+  WeekPass,
 } from "./plans";
 export {
   closePostAttempt,

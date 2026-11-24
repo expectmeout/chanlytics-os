@@ -40,8 +40,8 @@ import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { makePost } from "../posts/make";
-import { postFileToGoogle, readyOnGoogle } from "../posts/google";
-import { postFileToInstagram, readyOnInstagram } from "../posts/instagram";
+import { postFileToGoogle, prepareOnGoogle } from "../posts/google";
+import { postFileToInstagram, prepareOnInstagram } from "../posts/instagram";
 import { beginPieceFor } from "./piece";
 
 /** What a row says when a creative could not be made, with its one fix (Try again). */
@@ -173,9 +173,9 @@ async function beginReel(
 async function makeCreative(
   ctx: RouteContext,
   member: Member,
-  made: { slots: readonly PlanSlotDto[]; by: WeekMadeBy },
+  creative: { slots: readonly PlanSlotDto[]; by: WeekMadeBy },
 ): Promise<void> {
-  const { slots, by } = made;
+  const { slots, by } = creative;
   const first = slots[0];
   if (!first) return;
   const hold: Hold = async (reason) => {
@@ -223,9 +223,39 @@ export async function makeWeek(
   return creatives.length;
 }
 
+/** One creative of a held week prepared: drawn once, each of its places readied and kept on its slot. How many. */
+async function prepareCreative(ctx: RouteContext, member: Member, slots: readonly PlanSlotDto[]): Promise<number> {
+  const first = slots[0];
+  const file = first?.words && first.file_id ? await findFile(ctx.supabase, first.file_id) : null;
+  if (!first?.words || !file) return 0;
+  const words = first.words;
+  let readied = 0;
+  try {
+    const row = await drawPicture(ctx, member, { file, words });
+    for (const slot of slots) {
+      const about = aboutOf(slot.intent);
+      const approval =
+        slot.place === "google"
+          ? await prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about })
+          : await prepareOnInstagram(ctx, member, row, {
+              as: slot.kind === "story" ? "story" : "picture",
+              caption: words.caption,
+              when: slot.at,
+              about,
+              via: "rung",
+            });
+      const prepared = jsonCopyOf({ file_id: row.id, at: slot.at, approval });
+      if (await markSlotPrepared(ctx.supabase, member.tenantId, { id: slot.id, prepared })) readied += 1;
+    }
+  } catch (e) {
+    log.warn("week_prepare_failed", { tenant_id: member.tenantId, creative: first.creative, error: e });
+  }
+  return readied;
+}
+
 /**
  * A held week prepared ahead (00712; the making queue's overnight pass): each picture or story drawn once into its made
- * file, and each of its places readied for the door (posts/approve.ts readyApproval), kept on its slot. Nothing approved,
+ * file, and each of its places readied for the door (posts/approve.ts prepareApproval), kept on its slot. Nothing approved,
  * nothing placed, no reel begun: a reel costs, and waits for the owner's look whatever the rung. A creative that cannot be
  * readied is left to be made after the approval, where it says its one fix if it cannot be then either. How many slots.
  */
@@ -237,31 +267,7 @@ export async function prepareWeek(ctx: RouteContext, member: Member, weekOf: str
     byCreative.set(slot.creative, [...(byCreative.get(slot.creative) ?? []), slot]);
   }
   let readied = 0;
-  for (const slots of byCreative.values()) {
-    const first = slots[0];
-    const file = first?.words && first.file_id ? await findFile(ctx.supabase, first.file_id) : null;
-    if (!first?.words || !file) continue;
-    try {
-      const row = await drawPicture(ctx, member, { file, words: first.words });
-      for (const slot of slots) {
-        const about = aboutOf(slot.intent);
-        const approval =
-          slot.place === "google"
-            ? await readyOnGoogle(ctx, member, row, { summary: first.words.caption, when: slot.at, about })
-            : await readyOnInstagram(ctx, member, row, {
-                as: slot.kind === "story" ? "story" : "picture",
-                caption: first.words.caption,
-                when: slot.at,
-                about,
-                via: "rung",
-              });
-        const prepared = jsonCopyOf({ file_id: row.id, at: slot.at, approval });
-        if (await markSlotPrepared(ctx.supabase, member.tenantId, { id: slot.id, prepared })) readied += 1;
-      }
-    } catch (e) {
-      log.warn("week_prepare_failed", { tenant_id: member.tenantId, creative: first.creative, error: e });
-    }
-  }
+  for (const slots of byCreative.values()) readied += await prepareCreative(ctx, member, slots);
   return readied;
 }
 

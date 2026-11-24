@@ -29,9 +29,19 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { makeWeek, prepareWeek } from "./make-week";
 
 /** What the door answers: its status and a word for the edge's log, never a reason a stranger could learn from. */
-export interface WeekMadeAnswer {
+interface WeekMadeAnswer {
   status: 202 | 400 | 401 | 409 | 503;
   said: "making" | "malformed" | "unsigned" | "not_the_rung_s" | "unconfigured";
+}
+
+/** Some text as JSON, or nothing where it is none: a body that is no JSON is no week to make. */
+function jsonOf(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Not JSON: the schema refuses the nothing this gives.
+    return undefined;
+  }
 }
 
 /** What runs the making once the answer has gone: next/server's after(); a test hands its own. */
@@ -45,14 +55,7 @@ export async function takeWeekMade(request: Request, later: Later = after): Prom
   const token = request.headers.get("x-edge-token") ?? "";
   const verdict = verifyEdgeToken(secret, token, WEEK_MADE_DOOR.path);
   if (!verdict.ok || !edgeBodyMatches(verdict.claims, text)) return { status: 401, said: "unsigned" };
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // A body that is no JSON is no week to make.
-    return { status: 400, said: "malformed" };
-  }
-  const body = WEEK_MADE_DOOR.body.safeParse(json);
+  const body = WEEK_MADE_DOOR.body.safeParse(jsonOf(text));
   if (!body.success || verdict.claims.ws !== body.data.tenant_id) return { status: 400, said: "malformed" };
   const tenantId = asTenantId(body.data.tenant_id);
   const db = serviceDb();

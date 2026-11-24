@@ -87,7 +87,6 @@ export type PostHeldWhy = (typeof POST_HELD_WHYS)[number];
  * the week (00712: Approve the week held or sent, the content loop PRD's 12.4).
  */
 export const POST_VIAS = ["press", "card", "rung"] as const;
-export type PostVia = (typeof POST_VIAS)[number];
 
 /** Where a post stands, in the order it moves. */
 export const POST_STATUSES = [
