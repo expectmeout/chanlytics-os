@@ -85,7 +85,7 @@ async function lightOf(jpeg, left, top, width, height) {
 
 test("the storyboard is each cut's first frame side by side, and the words' backing sits where the video will draw it", async () => {
   const lines = ["I asked for volume", "Did I get it?"];
-  const box = pieceWordsBoxOf(lines, "low");
+  const box = pieceWordsBoxOf(lines, "low", "sans");
   const frame = await flat();
   const tile = (words, i) => ({
     kind: "picture",
@@ -127,7 +127,7 @@ test("the storyboard is each cut's first frame side by side, and the words' back
     "the second still starts where the first ends",
   );
   // High words on every tile, where they stay for the whole video.
-  const high = pieceWordsBoxOf(lines, "high");
+  const high = pieceWordsBoxOf(lines, "high", "sans");
   const held = await composeBoard({
     tiles: [tile(true, 0), tile(true, 1)],
     words: { lines, top: high.top, size: high.size },
@@ -395,6 +395,7 @@ test("the card is made by the call that carries the look's key: the plan its pre
     end_line: "Same chair. New me.",
     language: "en",
     caption: null,
+    captions: true,
   });
   assert.equal(
     pieceBeginInput.safeParse({ ...out.proposal.payload, key: "p-card-1" }).success,
@@ -511,7 +512,7 @@ test("a video from photos alone makes a card: each photo by the name files says,
   assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from 3 of your photos.");
 });
 
-test("a quote is a client's own words: found in a review of four or five stars, or pasted by the owner as a client's; never Ask's, never the business's own", async () => {
+test("a quote is a client's own words, pasted by the owner as a client's; never a Google review's, never Ask's, never the business's own", async () => {
   const reviews = ["Came in for a silk press. Best blowout in Brooklyn, hands down! Will be back.", "Lovely place."];
   const blocks = [
     { is: "clip", file: "salon-chair-reveal", from: 2.3, to: 4.8 },
@@ -523,27 +524,28 @@ test("a quote is a client's own words: found in a review of four or five stars, 
     },
     { is: "pair", before: "photo-3", after: "salon-chair-reveal", after_at: "0:07.6", seconds: 3 },
   ];
-  const out = await arranged({ blocks }, { more: PHOTOS, reviews });
-  assert.equal(out.proposal?.kind, "piece", out.result);
-  // A client's "best" is theirs to say, where the owner's opening words are held to the owner's own.
-  assert.deepEqual(out.proposal.payload.blocks, [
-    { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: null },
-    {
-      is: "quote",
-      text: "\u201CBest blowout in Brooklyn, hands down!\u201D",
-      // Where it was said, which code reads from where it was found, and never who said it.
-      from: "Google review",
-      over: { file_id: PHOTO, at: null },
-      seconds: 3.5,
-    },
-    { is: "pair", before: { file_id: PHOTO_2, at: null }, after: { file_id: CLIP, at: 7.6 }, seconds: 3 },
-  ]);
-  assert.equal(out.proposal.summary, "11 seconds, vertical. 3 parts from your clips and photos.");
-  // Reworded, it is no one's words: no review says it.
+  // A Google review's words are never a quote, found by Ask or pasted by the owner: Google asks that the review's
+  // writer agree before a business uses it in its marketing (Ruben, 24 Nov 2026).
+  const fromReview = await arranged({ blocks }, { more: PHOTOS, reviews });
+  assert.equal(fromReview.proposal, null);
+  assert.match(
+    fromReview.refusal,
+    /^block 2: the quote is from a Google review\. Google asks that a review's writer agree/,
+  );
+  const pastedReview = await arranged(
+    { blocks, client_said: true },
+    { more: PHOTOS, reviews, question: "Make a video with this: Best blowout in Brooklyn, hands down!" },
+  );
+  assert.match(
+    pastedReview.refusal,
+    /^block 2: the quote is from a Google review/,
+    "pasted or not, it is its writer's",
+  );
+  // Reworded, it is no one's words: nobody typed it.
   const reworded = blocks.map((b) => (b.is === "quote" ? { ...b, text: "The best blowout in all of Brooklyn" } : b));
   const refused = await arranged({ blocks: reworded }, { more: PHOTOS, reviews });
   assert.equal(refused.proposal, null);
-  assert.match(refused.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
+  assert.match(refused.refusal, /^block 2: the quote is not in what the owner typed here/);
   // What the owner typed in this thread is a client's only on the owner's word that a client wrote it: Ask asks first.
   const question = "Make a video with this on it: The best blowout in all of Brooklyn";
   const unasked = await arranged({ blocks: reworded }, { more: PHOTOS, question });
@@ -555,21 +557,29 @@ test("a quote is a client's own words: found in a review of four or five stars, 
   assert.match(unasked.refusal, /client_said true/);
   const pasted = await arranged({ blocks: reworded, client_said: true }, { more: PHOTOS, question });
   assert.equal(pasted.proposal?.kind, "piece", pasted.result);
-  assert.equal(pasted.proposal.payload.blocks[1].from, "A client");
+  // A client's "best" is theirs to say, where the owner's opening words are held to the owner's own.
+  assert.deepEqual(pasted.proposal.payload.blocks, [
+    { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: null },
+    {
+      is: "quote",
+      text: "The best blowout in all of Brooklyn",
+      // Where it was said, which code reads from where it was found, and never who said it.
+      from: "A client",
+      over: { file_id: PHOTO, at: null },
+      seconds: 3.5,
+    },
+    { is: "pair", before: { file_id: PHOTO_2, at: null }, after: { file_id: CLIP, at: 7.6 }, seconds: 3 },
+  ]);
+  assert.equal(pasted.proposal.summary, "11 seconds, vertical. 3 parts from your clips and photos.");
   // The business's own words are no client's: what its Settings hold is never a quote, whoever says a client wrote it.
   const ours = blocks.map((b) => (b.is === "quote" ? { ...b, text: "brief and warm, never a price" } : b));
   const own = await arranged({ blocks: ours, client_said: true }, { more: PHOTOS, reviews });
   assert.equal(own.proposal, null);
-  assert.match(own.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
-  // A review of three stars or fewer is never quoted as one: its kindest sentence would say what its writer did not.
-  const low = [{ body: "Best blowout in Brooklyn, hands down! But they kept me waiting an hour.", rating: 2 }];
-  const faint = await arranged({ blocks }, { more: PHOTOS, reviews: low });
-  assert.equal(faint.proposal, null);
-  assert.match(faint.refusal, /^block 2: the quote is not in a review of four or five stars this workspace holds/);
+  assert.match(own.refusal, /^block 2: the quote is not in what the owner typed here/);
   // A clip held still says which moment.
-  const unsaid = blocks.map(({ after_at: _unsaid, ...b }) => b);
+  const unsaid = reworded.map(({ after_at: _unsaid, ...b }) => b);
   assert.match(
-    (await arranged({ blocks: unsaid }, { more: PHOTOS, reviews })).refusal,
+    (await arranged({ blocks: unsaid, client_said: true }, { more: PHOTOS, question })).refusal,
     /^block 3: salon-chair-reveal is a clip: say after_at/,
   );
 });
@@ -625,7 +635,7 @@ test("Ask is offered blocks, and told where the ways to arrange them are: the cu
   // The ways are the video maker's guide (tests/ask/skills/video-skill.test.mjs), in the turn that asks for a video: the
   // tool says where they are, and carries none of them in every owner's tools block.
   assert.match(pieceAct.description, /guide with skill video/);
-  for (const way of ["Hook first:", "Before and after:", "Steps:", "A review:", "From photos:", "Words only"])
+  for (const way of ["Hook first:", "Before and after:", "Steps:", "A client's words:", "From photos:", "Words only"])
     assert.equal(pieceAct.description.includes(way), false, way);
   // One flat block, each field said once: no union of objects, and no word the tools have not sent the API before.
   const sent = toApiTools("owner", true).find((tool) => tool.name === "propose_piece").input_schema;
@@ -682,8 +692,18 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
     source: f.source,
     media_status: f.media_status,
     seconds: f.seconds,
+    cues: null,
   }));
-  const look = { accent: "#e8b84a", logo: false, name: "Harbor", book: null, address: null };
+  const look = {
+    accent: "#e8b84a",
+    logo: false,
+    name: "Harbor",
+    book: null,
+    address: null,
+    face: "sans",
+    second: null,
+    call: null,
+  };
   const compiled = compilePiece(piecePlanOf(BLOCKS_PLAN), sources, look);
   assert.equal(compiled.ok, true, JSON.stringify(compiled));
   // The folders in Storage: every still asked for is there, and each read is kept by what it was of.
@@ -714,7 +734,7 @@ test("the stills of a plan in blocks are each block's own pictures: a clip's fir
     "3:original.jpg:sized",
   ]);
   // The opening words leave with the first picture: their backing is on the first still and not on the second.
-  const box = pieceWordsBoxOf(BLOCKS_PLAN.lines, "high");
+  const box = pieceWordsBoxOf(BLOCKS_PLAN.lines, "high", "sans");
   const y = Math.round((box.top + box.height / 2) * (360 / PIECE_FRAME.width)) - 6;
   assert.ok((await lightOf(board, 14, y, 20, 12)) < 120, "the words' backing on the first still");
   assert.ok(Math.abs((await lightOf(board, 360 + 14, y, 20, 12)) - 150) < 8, "the second still as it is");
@@ -768,7 +788,17 @@ test("the press writes the video's row: its plan, the business's look as it stan
         p_tenant_id: A,
         p_plan: PLAN,
         // The workspace's blue (#336699), as full as a blue gets: what reads on the card's dark ground.
-        p_look: { accent: "#4080bf", logo_path: null, name: "Harbor", book: "Book · (555) 010-0100", address: null },
+        // No kit said or proposed: the house's face, no second colour, no call of its own.
+        p_look: {
+          accent: "#4080bf",
+          logo_path: null,
+          name: "Harbor",
+          book: "Book · (555) 010-0100",
+          address: null,
+          face: "sans",
+          second: null,
+          call: null,
+        },
         p_key: "p-card-1",
         p_edition: PIECE_TEMPLATE.edition,
       },

@@ -3,15 +3,19 @@
  * form with its workspace and one of that workspace's keys (form-key.ts); a browser never holds a key.
  *
  * The door is api/website-form.ts: `door(receiveWebsiteForm)`. In order (the Forms plan's 3.2): the shape (contracts
- * WebsiteFormBody), the key, a way to reach them, then ONE write (form_entry_take): the person through the one door
- * (resolve_person, source 'website', which fills what is empty and never overwrites), the entry, and its event
- * (form_entry.accepted), together. The site is answered ok only after that write; a database that fails it is a
+ * WebsiteFormBody), the key, a way to reach them, then ONE write (form_entry_take, 00709): the key's site, the form it is
+ * of (by the site's own id for it and its name, where it sends them), the person through the one door (resolve_person,
+ * source 'website', which fills what is empty and never overwrites), the entry with where its visitor came from, and its
+ * event (form_entry.accepted), together. The site is answered ok only after that write; a database that fails it is a
  * refusal (503), so the site sends it again. A person who asked to be forgotten: nothing is written at all, and the
  * site is answered ok all the same.
  *
- * Once: the site's own id for the entry (`entry_id`), where it sends one; with none, the same words within ten minutes
- * are the same entry, and later they are a new one (Ruben's call 19). The same entry again is answered as before and
- * starts nothing.
+ * Once, within its form: the site's own id for the entry (`entry_id`), where it sends one; with none, the same words
+ * within ten minutes are the same entry, and later they are a new one (Ruben's call 19). The same entry again is
+ * answered as before and starts nothing. The same id with other words is kept as a new entry, and said in the log.
+ *
+ * A test (`test`, the lines a developer pastes send one): kept as a test, it tells nobody, keeps no person, counts nowhere
+ * and goes in 7 days; its site stands at "test received" until its first real entry.
  *
  * Everything an entry owes happens after, each by its own step with its own outcome (form-effects.ts, from the event):
  * what they asked as a note on their page waiting for a member's Keep (0007), the owner's notice, and a sign-up's ask to
@@ -20,8 +24,14 @@
  *
  * Cross-workspace: the form names its workspace, and the key proves the site was given it.
  */
-import { heldTenantId, WebsiteFormBody, websiteFormPerson, type WebsiteFormInput } from "@chanlytics/contracts";
-import { keepFormEntrySource, takeFormEntry, type FormEntryTaken } from "@chanlytics/db/people";
+import {
+  heldTenantId,
+  WebsiteFormBody,
+  websiteFormPerson,
+  websiteHostOf,
+  type WebsiteFormInput,
+} from "@chanlytics/contracts";
+import { takeFormEntry, type FormEntryTaken } from "@chanlytics/db/people";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
@@ -99,6 +109,7 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   }
 
   const owed = entryOwes(data, nowMs);
+  const test = data.test === true;
   let taken: FormEntryTaken;
   try {
     taken = await takeFormEntry(db, {
@@ -118,7 +129,13 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
       },
       ref: data.entry_id ?? null,
       words: entryWords(data, person),
-      owed,
+      owed: test ? [] : owed,
+      formRef: data.form_ref ?? null,
+      formName: data.form_name ?? null,
+      host: websiteHostOf(data.page),
+      // Where they came from (T4), kept in the same write as the entry.
+      source: entrySourceOf(data),
+      test,
     });
   } catch (e) {
     // Nothing was kept, so the site is not told it was: it sends the form again.
@@ -132,14 +149,9 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     entry_id: taken.entryId,
     owed: owed.join(","),
   });
+  if (taken.clash) log.warn("form_entry_ref_clashed", { tenant_id: tenantId, entry_id: taken.entryId });
   if (taken.outcome === "forgotten") return json(200, { ok: true, kept: false });
-  // Where they came from, beside the entry (T4): its own small write, never the reason a form is not answered.
-  const source = taken.outcome === "accepted" ? entrySourceOf(data) : null;
-  if (source) {
-    await keepFormEntrySource(db, { tenantId, entryId: taken.entryId, source }).catch((e: unknown) => {
-      log.error("form_entry_source_unkept", { tenant_id: tenantId, entry_id: taken.entryId, error: errField(e) });
-    });
-  }
+  if (taken.outcome === "test") return json(200, { ok: true, kept: true, test: true });
   const owesAsk = owed.includes("confirm");
   const confirm = await confirmWillGo(db, log, { taken, owesAsk, data, email: person.email, nowMs });
   return json(200, { ok: true, kept: true, ...(confirm ? { confirm: "sent" } : {}) });

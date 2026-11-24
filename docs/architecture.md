@@ -527,7 +527,9 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   own (`PREFETCH_BESIDE`: Today and the Inbox) asks for its whole first screen as one streamed read instead
   (`apps/dashboard/app/api/v1/open/route.ts` over `apps/dashboard/src/server/workspace/page-open.ts`): its own reads,
   then the rest, each answered by its own route past one session check, one membership read and one readers' turn, and
-  parked for the page under the URL it reads it by (decision 0053, step 2). A record the address names rides with them:
+  parked for the page under the URL it reads it by (decision 0053, step 2). Within it the database is asked each question
+  once: a read of a table that another of its reads has already made is answered from that answer
+  (`packages/db/src/shared/read-once.ts`, turned on by the opening alone), never a function's call. A record the address names rides with them:
   a person's page reads the person, and the thread an Inbox address names has its person read in the stream's first tier
   (`THREAD_PERSON_READ`).
 - _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
@@ -539,7 +541,10 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
   as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in
   the first tier of its stream (`PREFETCH_READS`), and comes first in `ROUTE_DRAWS`; the second tier (`PREFETCH_BESIDE`)
-  lands after the first draw, so only what stands below the fold reads there. Measured on Today before it held (27 October
+  lands after the first draw, so only what stands below the fold reads there. A view that is a chunk of its own (Campaigns'
+  Content, Library, Ads and Forms, Reports' Campaigns lens) is fetched beside the frame's code where a load opens on it, and
+  its first draw is held for it (`apps/dashboard/src/surfaces/campaigns/home/opening.ts`); a wait said once a page has drawn
+  holds nothing (`shell-hooks.ts` `useRouteGate`), so a drawn page is never taken back for one. Measured on Today before it held (27 October
   2026): the Setup card, Going today, a run's seat, a review's row and the drafts' words each landed after the queue and
   moved it; and on the Inbox (28 October 2026) a template thread's reply box and the head's deal and visit chips each landed
   after the thread, the box pushing the conversation up 145 to 162 px. A page of panes says each pane's (Settings:

@@ -9,6 +9,7 @@ import type { FormAnswer } from "../../forms/answers";
 import type { FormFieldKind } from "../../forms/limits";
 import { requestLines, throughPlace } from "../../forms/request-words";
 import type { FormDescription } from "../../forms/shape";
+import { isFormSlot, formSlotWords } from "../../forms/times";
 import { NOTE_MAX } from "../../notes/person-notes";
 import type { JobNews } from "../../today/notifications/feed-input";
 
@@ -49,9 +50,17 @@ export interface RequestNoticed {
   place: string | null;
 }
 
+/** The time a request asked for from its business's open times (F3), in words; null where it asked for none. */
+function timeAskedOf(form: Pick<FormDescription, "fields">, answers: Record<string, unknown>): string | null {
+  const when = form.fields.find((field) => field.kind === "when");
+  const slot = when ? answers[when.id] : undefined;
+  return isFormSlot(slot) ? formSlotWords(slot) : null;
+}
+
 /**
  * The owner's notice of a request: who sent it, what it says, how to reach them and how they came, opening the request
- * in Inbox where it is answered. A number alone says so: nothing can be texted to them first.
+ * in Inbox where it is answered. A number alone says so: nothing can be texted to them first. A time asked for leads:
+ * the request waits on the owner's Booked it or Can't.
  */
 export function formRequestNotice(
   form: Pick<FormDescription, "heading" | "fields">,
@@ -61,17 +70,23 @@ export function formRequestNotice(
   const { reach } = noticed;
   const named = reach.name || reach.email || reach.phone || "Someone";
   const ways = [reach.email, reach.phone].filter(Boolean).join(" · ");
+  const time = timeAskedOf(form, answers);
   return {
     kind: "form_request",
     route: requestAddress(noticed.entryId),
     about: { type: "contact", id: noticed.contactId },
-    subject: `${named} sent a request: ${form.heading}`.slice(0, 200),
+    subject: (time ? `${named} asked for ${time}: ${form.heading}` : `${named} sent a request: ${form.heading}`).slice(
+      0,
+      200,
+    ),
     body: [
       formRequestNote(form, answers),
       ways ? `To reach them: ${ways}` : null,
       !reach.email && reach.phone ? "A number only: nothing can be texted to them first." : null,
       noticed.place?.trim() ? `${throughPlace(noticed.place)}.` : null,
-      "It waits in Inbox, in Needs you, until it is answered.",
+      time
+        ? "Nothing is booked: it waits in Inbox, in Needs you, for your Booked it or Can't."
+        : "It waits in Inbox, in Needs you, until it is answered.",
     ]
       .filter(Boolean)
       .join("\n"),

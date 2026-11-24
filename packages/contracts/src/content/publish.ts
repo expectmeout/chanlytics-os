@@ -80,8 +80,8 @@ export function postPublishOf(payload: Record<string, unknown>): PostPublish {
 }
 
 const PLACE_WORDS = {
-  en: { instagram: "Instagram", story: "your Instagram story", google: "Google", and: "and" },
-  es: { instagram: "Instagram", story: "tu historia de Instagram", google: "Google", and: "y" },
+  en: { instagram: "Instagram", story: "your Instagram story", google: "Google", facebook: "Facebook", and: "and" },
+  es: { instagram: "Instagram", story: "tu historia de Instagram", google: "Google", facebook: "Facebook", and: "y" },
 } as const;
 
 /** Where it goes, in words: "Instagram and Google", "your Instagram story". */
@@ -131,7 +131,7 @@ export function publishCardWords(p: PostPublish, name: string): { title: string;
 /**
  * The press's calls: each post already set moved to the card's time (the file's one door for it, 00621), then each place's
  * own door, now or at its time. Words that go with a post are kept on the piece by its door, in the same step, as the page's
- * Post keeps them (server posts/caption.ts keepPostWords): the card keeps new words itself, first, only where none goes with
+ * Post keeps them (server posts/caption.ts readWordsToKeep, kept by 00713 post_approve_whole): the card keeps new words itself, first, only where none goes with
  * anything it posts, a story alone or a move alone.
  */
 function publishCallsOf(p: PostPublish): ProposalCall[] {

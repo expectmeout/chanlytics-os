@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { evaluate, verdictWords, wordsNeedAbout } from "@chanlytics/core";
-import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_FACEBOOK, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = Date.parse("2026-11-24T15:00:00Z"); // a Tuesday morning in New York
@@ -29,6 +29,7 @@ const reason = (part) => ({
   says: [],
   services: [],
   facts: [],
+  opportunities: null,
   moment: "before",
   ...part,
 });
@@ -66,10 +67,54 @@ test("content rights read no yes: nothing said of a person, or of a file's yes, 
   assert.equal(refused({ rights: { takenBack: true, gap: { is: "unsure" } } }), null);
 });
 
-test("claims: AI's words are held to the owner's; the owner's own words are theirs", () => {
-  assert.equal(refused({ claims: { aiWrote: true, problem: null } }), null);
-  assert.equal(refused({ claims: { aiWrote: false, problem: "“20% off” isn't one of your offers." } }), null);
-  assert.match(refused({ claims: { aiWrote: true, problem: "“20% off” isn't one of your offers." } }).words, /20% off/);
+const claim = (part) => ({ text: "20% off a first colour", valid_until: "2026-12-31", withdrawn_at: null, ...part });
+const claims = (part) => ({ aiWrote: true, words: "", said: "", claims: [], today: "2026-11-24", ...part });
+
+test("claims: AI's words are held to what the owner said and the claims that stand; the owner's own are theirs", () => {
+  const words = "Book this week: 20% off your first colour.";
+  assert.equal(refused({ claims: claims({ words: "Open late on Fridays." }) }), null, "nothing claimed");
+  assert.equal(refused({ claims: claims({ words, aiWrote: false }) }), null, "the owner's own words");
+  assert.equal(
+    refused({ claims: claims({ words }) }).words,
+    CONTENT_CHECK_WORDS.notAnOffer("20%"),
+    "a share off nobody said is not one of the offers",
+  );
+  assert.equal(refused({ claims: claims({ words, claims: [claim({})] }) }), null, "an offer that stands is said");
+  assert.equal(refused({ claims: claims({ words, said: "Say 20% off a first colour." }) }), null, "said in the chat");
+  assert.equal(
+    refused({ claims: claims({ words, claims: [claim({ valid_until: "2026-11-20" })] }) }).code,
+    "claim",
+    "an offer whose last day passed stands no more",
+  );
+  assert.equal(
+    refused({ claims: claims({ words, claims: [claim({ withdrawn_at: "2026-11-23T10:00:00Z" })] }) }).code,
+    "claim",
+    "a withdrawn offer stands no more",
+  );
+  assert.equal(
+    refused({ claims: claims({ words: "The best colour in town, guaranteed." }) }).words,
+    CONTENT_CHECK_WORDS.notYours("guaranteed"),
+    "a promise the owner never made",
+  );
+});
+
+test("the reason: open time a piece was made for is asked again, and the owner's stated fact covers it", () => {
+  const thursday = intent({ opportunity_id: "open_capacity:2026-11-26", day: "2026-11-26" });
+  const asked = (part) => refused({ reason: reason({ intent: thursday, moment: "send", ...part }) });
+  assert.equal(asked({ opportunities: null }), null, "a caller that read none asks nothing");
+  assert.equal(asked({ opportunities: [{ key: "open_capacity:2026-11-26" }] }), null, "Thursday still has time open");
+  assert.equal(asked({ opportunities: [] }).words, CONTENT_CHECK_WORDS.filledUp("Thursday"), "Thursday filled up");
+  assert.equal(asked({ opportunities: [] }).code, "reason_passed");
+  assert.equal(
+    asked({ opportunities: [], facts: [{ says: "Thursday still has openings", until: "2026-11-26" }] }),
+    null,
+    "the owner said Thursday still has openings",
+  );
+  assert.equal(
+    refused({ reason: reason({ intent: thursday, opportunities: [] }) }).words,
+    CONTENT_CHECK_WORDS.noOpenings("Thursday"),
+    "before it is approved, the words say what to change",
+  );
 });
 
 test("publishing: the place takes the kind, the connection allows it, the words and the video fit", () => {
@@ -88,6 +133,16 @@ test("publishing: the place takes the kind, the connection allows it, the words 
   assert.equal(says({ connection: "line_off" }).words, CONTENT_CHECK_WORDS.lineOff);
   assert.equal(says({ place: "google", caption: "x".repeat(1501) }).words, CONTENT_CHECK_WORDS.tooLong("google", 1500));
   assert.match(says({ caption: "#a ".repeat(31) }).words, /30 hashtags/);
+  // A Page (pass 5) takes what Instagram takes, said in Facebook's words; a 2-minute reel is past a Page's 90 seconds.
+  assert.equal(says({ place: "facebook" }), null);
+  assert.equal(says({ place: "facebook", kind: "reel" }).words, ON_FACEBOOK.wrongKind);
+  const pageReel = says({
+    place: "facebook",
+    kind: "reel",
+    fileKind: "video",
+    video: { mime: "video/mp4", bytes: 1e6, ms: 120_000 },
+  });
+  assert.equal(pageReel.words, CONTENT_CHECK_WORDS.video);
 });
 
 test("money and automation: within the limit; nothing goes while AI is paused, and AI never posts alone", () => {

@@ -177,7 +177,7 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(
     askJump("set", index).map((j) => j.label),
-    ["Settings", "Setting up"],
+    ["Settings", "Setting up", "Content settings"],
   );
   assert.deepEqual(
     askJump("lea", index).map((j) => j.to),
@@ -229,11 +229,14 @@ const REACHED = {
   // Messages (D4: once the Library), Campaigns' other view, found by its old names (ask-palette.test.mjs) and address.
   "campaigns/messages": ["Campaigns", "campaigns/sequences"],
   messages: ["Campaigns", "campaigns/sequences"],
+  // Forms (00680), Campaigns' third view (decision 0147): an address of `campaigns`, listed in SCOPES.
+  "campaigns/forms": ["Forms", "campaigns/forms"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
   "admin/hours": ["Hours & booking", "admin/hours"],
   "admin/files": ["Library", "campaigns/content:library"],
+  "admin/content": ["Content settings", "admin/content"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
   "admin/outreach": ["Cold email", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],
@@ -252,7 +255,8 @@ const REACHED = {
 };
 // People's scopes are listed by hand: a scope is an address of `clients`, which the registry routes as one page, so a
 // new scope's jump is this list's to add (surfaces/people/words.ts plScopes).
-const SCOPES = ["clients/pipeline"];
+// Forms is an address of `campaigns` the same way (decision 0147), and its jump is listed by hand too.
+const SCOPES = ["clients/pipeline", "campaigns/forms"];
 // Reports' lenses are addresses of `reports`, which the registry routes as one page: each lens's jump is derived from the
 // lens registry (contracts REPORT_LENSES), so a lens that joins it is a jump here without a line of this table. The Ads lens is
 // the one the palette does not list: it is shown where the workspace has ads (`ads_on`, a demo session for now), and a real
@@ -325,6 +329,12 @@ test("the Pipeline is every workspace's jump, after Leads; the back office for C
   assert.ok(!none.includes("Back office"));
   const staff = names({ platformAdmin: true });
   assert.equal(staff.at(-1), "Back office");
+  // Ads, where it is drawn (decision 0147: the last of Content's Made views), found by its name and the words for it.
+  assert.ok(!none.includes("Ads"), "no Ads jump where Ads is not drawn");
+  const ads = askPages({ platformAdmin: false, ads: true });
+  assert.equal(ads.find((e) => e.label === "Ads")?.to, "campaigns/ads");
+  assert.ok(ASK_PAGE_ROUTES.includes("campaigns/ads"), "a page an answer may name");
+  assert.equal(askJump("boost", ads)[0]?.label, "Ads", "the word people use for it");
 });
 
 test("the bridge's jump index reads the bit the back office's door is drawn by, and a few words reach each new page", () => {
@@ -1146,7 +1156,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["files", ["list", "get", "view", "compare", "zoom", "listen"]],
+      ["files", ["list", "get", "view", "compare", "zoom", "listen", "week", "reasons"]],
       ["guide", []],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
@@ -1464,6 +1474,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_call", ["whisper", "hand_over"]],
       ["propose_deal", []],
       ["propose_follow_up", ["keep", "clear"]],
+      ["propose_form", []],
       ["propose_lead_search", ["find", "more"]],
       ["propose_leads", ["stage", "mark", "later", "bulk", "check", "addressee", "list", "said"]],
       ["propose_list", ["make", "change", "delete"]],
@@ -1506,6 +1517,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
       ["propose_take_down", []],
       ["propose_thread_verb", []],
+      // A week of posts, and what a post may say (00706).
+      ["propose_week", ["plan", "approve", "slot", "aims", "claim", "withdraw"]],
       // A fact the person tells Ask to keep (decision 0070).
       ["remember", []],
     ],

@@ -40,6 +40,7 @@ import {
   type RealtimeChange,
 } from "./surface-realtime";
 import { bootStarted, getActiveWorkspace, onRouteAsked, routeOnScreen, signInHref } from "./workspace";
+import { pageDrawnIn, pageFirst, pageReadsIn } from "./hearing/page-waits";
 import { watchTheClock } from "./hearing/clock";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
@@ -85,27 +86,9 @@ const RETRY_AFTER_MS = [2_000, 10_000] as const;
  */
 const READ_WHILE_HIDDEN: ReadonlySet<string> = new Set(["workspace", "inbox", "live", "notifications"]);
 
-/**
- * A read the page on screen opens on that is no surface -- a person's page reads its person (people-detail.ts
- * warmPersonOnScreen) -- said to the boot before it starts, so the surfaces nobody is looking at wait for it as they
- * wait for the page's own. Measured on production (25 Sep 2026, a cold person page): the person's read took 3,236 ms
- * beside nine of the boot's, and 773 ms alone. Held for the route's wait at most (ROUTE_WAIT_MS), so a read that never
- * lands never keeps the shell's badge and bell from theirs.
- */
-const pageReads = new Set<Promise<unknown>>();
-export function bootWaitsFor(read: Promise<unknown>): void {
-  pageReads.add(read);
-  const done = () => pageReads.delete(read);
-  read.then(done, done);
-}
-const pageReadsIn = (win: Window): Promise<void> => {
-  // This boot's, then let go of: a read that never lands is this boot's wait at most, never the next one's.
-  const reads = [...pageReads];
-  pageReads.clear();
-  if (reads.length === 0) return Promise.resolve();
-  const cap = (win as Window & { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
-  return Promise.race([Promise.allSettled(reads).then(() => undefined), new Promise<void>((r) => setTimeout(r, cap))]);
-};
+/** How long the page on screen may hold the rest of the boot back (hearing/page-waits.ts): the route's wait. */
+const routeWaitOf = (win: Window): number =>
+  (win as Window & { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
 
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
@@ -581,6 +564,8 @@ function tenantChangedSinceCache(run: SurfaceRun): boolean {
 /** A boot under way: settled once its last surface is in, and the hold on answers it lets go of then. */
 interface SurfaceBoot {
   booted: Promise<void>;
+  /** Settled once the page on screen has its own reads and is drawn: what the rest of the boot waits for. */
+  pageOnScreen: Promise<void>;
   releaseAnswers: () => void;
   /** Settled once the workspace surface's boot has: the workspace on screen is known (joinFeedEarly). */
   whoIsLooking: Promise<void>;
@@ -643,18 +628,22 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     const next = routeRank(route);
     strangers.sort((x, y) => next(x) - next(y));
   });
-  const pageIn = firstPass.then(() => (run.cancelled ? undefined : pageReadsIn(window)));
-  const booted = pageIn.then(() => {
+  const pageIn = firstPass.then(() => (run.cancelled ? undefined : pageReadsIn(routeWaitOf(window))));
+  // The page first (piece 3 of "Pages that open at once"): the rest wait for the page on screen to be drawn too, not only
+  // for its reads, which were in while a first open's code still loaded; for the route's wait at most.
+  const pageOnScreen = pageIn.then(() => {
     // The page's own reads are in: what the document's head started for them and they did not take is nobody's.
     dropPrefetched(window);
-    return run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot);
+    return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
   });
+  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
   void booted.then(stopFollowing, stopFollowing);
-  // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this one.
-  bootStarted(booted, pageIn);
+  // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this
+  // one; what is read ahead for a press (afterBoot("page")) waits for the page on screen, drawn.
+  bootStarted(booted, pageOnScreen);
   // A run with no workspace surface (a test's) knows who is looking when its boot is in, as every run once did.
   if (!overrides.some((o) => o.key === "workspace")) void booted.finally(knowWho);
-  return { booted, releaseAnswers, whoIsLooking };
+  return { booted, pageOnScreen, releaseAnswers, whoIsLooking };
 }
 
 /**
@@ -665,8 +654,10 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
  * answers are let go of.
  */
 function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
-  void boot.booted.then(() => {
-    boot.releaseAnswers();
+  void boot.booted.then(() => boot.releaseAnswers());
+  // What the feed said meanwhile is read once the page on screen is in: once the rest waited for its draw (pageFirst), held
+  // until they were all in it would show later than before. A read it asks for shares nothing the boot holds (forget below).
+  void (pageFirst() ? boot.pageOnScreen : boot.booted).then(() => {
     const due = run.held;
     run.held = null;
     if (run.cancelled || !due) return;

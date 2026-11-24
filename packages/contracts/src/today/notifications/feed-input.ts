@@ -258,6 +258,12 @@ export const SERVER_NOTIFICATION_KINDS = [
   "post_down",
   "post_by_hand",
   /**
+   * A week of posts (00706; the content loop PRD's 12.5): ready for the owner's approval by Monday 8:00, and once a week
+   * at most, what AI asks to be filmed for it. Each row opens the Week.
+   */
+  "plan_ready",
+  "footage_ask",
+  /**
    * A lead texted, or called, the preview they were sent (00632; decision 0079): news the moment it happens, told once for
    * their first message and once for their first call by the database itself (lead_previews_notify). The row names the
    * business, gives its number and opens the lead. A line on the bell: no mail and no phone for now.

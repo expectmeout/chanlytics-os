@@ -242,6 +242,19 @@ const standingOf = (over = {}) => ({
   clock: { day: (at) => at, ahead: (at) => at },
   takeDown: null,
   sheets: null,
+  // What its results are read by (00699, pass 6): nothing up yet, so nothing is read.
+  results: { fileId: "ffffffff-0000-4000-8000-000000000001", upPostId: null, made: false },
+  // One version (00708): nothing being made, no version line, nothing listed.
+  version: {
+    making: null,
+    ver: null,
+    pill: null,
+    under: null,
+    lead: null,
+    lines: new Map(),
+    list: [],
+    instead: noop,
+  },
   ...over,
 });
 /** What piece.tsx hands the desk's pane and the phone's viewer alike. */
@@ -907,7 +920,7 @@ test("Post sends the words on screen, to each place's door, which keeps them on 
 test("a reader's list switches nothing, and the list waits for the record before it opens", () => {
   const reader = S.bothAfter(pieceOf({ may: false }), [opens]);
   assert.equal(reader.open, true, "where it stands is theirs to read");
-  assert.deepEqual(reader.takes, { instagram: false, google: false }, "no place has a switch");
+  assert.deepEqual(reader.takes, { instagram: false, google: false, facebook: false }, "no place has a switch");
   assert.deepEqual([reader.draft.instagram, reader.draft.google, reader.sending], [false, false, false]);
   const unread = S.bothAfter(pieceOf({ known: false, takes: null, wont: null, offers: null }), [opens]);
   assert.deepEqual([unread.ready, unread.open], [false, false]);

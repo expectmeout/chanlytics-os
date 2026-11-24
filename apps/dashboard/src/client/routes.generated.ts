@@ -6,7 +6,9 @@ export const ROUTES = {
   "DELETE ask/threads/[id]": { method: "DELETE", path: "/api/v1/ask/threads/[id]" },
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
+  "DELETE content/claims": { method: "DELETE", path: "/api/v1/content/claims" },
   "DELETE files/[id]": { method: "DELETE", path: "/api/v1/files/[id]" },
+  "DELETE files/[id]/facebook": { method: "DELETE", path: "/api/v1/files/[id]/facebook" },
   "DELETE files/[id]/google": { method: "DELETE", path: "/api/v1/files/[id]/google" },
   "DELETE files/[id]/instagram": { method: "DELETE", path: "/api/v1/files/[id]/instagram" },
   "DELETE files/[id]/posts": { method: "DELETE", path: "/api/v1/files/[id]/posts" },
@@ -64,12 +66,17 @@ export const ROUTES = {
   "GET channels/meta/callback": { method: "GET", path: "/api/v1/channels/meta/callback" },
   "GET channels/meta/connect": { method: "GET", path: "/api/v1/channels/meta/connect" },
   "GET channels/whatsapp/signup": { method: "GET", path: "/api/v1/channels/whatsapp/signup" },
+  "GET comments": { method: "GET", path: "/api/v1/comments" },
+  "GET comments/one": { method: "GET", path: "/api/v1/comments/one" },
   "GET consent/qr": { method: "GET", path: "/api/v1/consent/qr" },
   "GET contacts": { method: "GET", path: "/api/v1/contacts" },
   "GET contacts/[id]": { method: "GET", path: "/api/v1/contacts/[id]" },
   "GET contacts/export": { method: "GET", path: "/api/v1/contacts/export" },
   "GET content": { method: "GET", path: "/api/v1/content" },
   "GET content/note": { method: "GET", path: "/api/v1/content/note" },
+  "GET content/plan": { method: "GET", path: "/api/v1/content/plan" },
+  "GET content/report": { method: "GET", path: "/api/v1/content/report" },
+  "GET content/week": { method: "GET", path: "/api/v1/content/week" },
   "GET conversations": { method: "GET", path: "/api/v1/conversations" },
   "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
@@ -80,11 +87,13 @@ export const ROUTES = {
   "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
   "GET files/[id]/copy": { method: "GET", path: "/api/v1/files/[id]/copy" },
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
+  "GET files/[id]/results": { method: "GET", path: "/api/v1/files/[id]/results" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
   "GET forms": { method: "GET", path: "/api/v1/forms" },
   "GET forms/requests": { method: "GET", path: "/api/v1/forms/requests" },
   "GET forms/sheet": { method: "GET", path: "/api/v1/forms/sheet" },
+  "GET forms/site-sheet": { method: "GET", path: "/api/v1/forms/site-sheet" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -239,6 +248,8 @@ export const ROUTES = {
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
   "POST channels/whatsapp/standing": { method: "POST", path: "/api/v1/channels/whatsapp/standing" },
   "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
+  "POST comments": { method: "POST", path: "/api/v1/comments" },
+  "POST comments/rewrite": { method: "POST", path: "/api/v1/comments/rewrite" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/call": { method: "POST", path: "/api/v1/contacts/[id]/call" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
@@ -254,6 +265,12 @@ export const ROUTES = {
   "POST contacts/erase": { method: "POST", path: "/api/v1/contacts/erase" },
   "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
   "POST content/bring-in": { method: "POST", path: "/api/v1/content/bring-in" },
+  "POST content/claims": { method: "POST", path: "/api/v1/content/claims" },
+  "POST content/line": { method: "POST", path: "/api/v1/content/line" },
+  "POST content/plan": { method: "POST", path: "/api/v1/content/plan" },
+  "POST content/plan/approve": { method: "POST", path: "/api/v1/content/plan/approve" },
+  "POST content/plan/slots": { method: "POST", path: "/api/v1/content/plan/slots" },
+  "POST content/review-ask": { method: "POST", path: "/api/v1/content/review-ask" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
   "POST conversations/[id]/draft": { method: "POST", path: "/api/v1/conversations/[id]/draft" },
@@ -267,9 +284,12 @@ export const ROUTES = {
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
+  "POST files/[id]/facebook": { method: "POST", path: "/api/v1/files/[id]/facebook" },
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
+  "POST files/[id]/link": { method: "POST", path: "/api/v1/files/[id]/link" },
   "POST files/[id]/restore": { method: "POST", path: "/api/v1/files/[id]/restore" },
+  "POST files/[id]/version": { method: "POST", path: "/api/v1/files/[id]/version" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
   "POST files/post": { method: "POST", path: "/api/v1/files/post" },
   "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
@@ -433,6 +453,7 @@ export const ROUTES = {
   "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
   "PUT contacts/notes": { method: "PUT", path: "/api/v1/contacts/notes" },
   "PUT contacts/receptionist": { method: "PUT", path: "/api/v1/contacts/receptionist" },
+  "PUT content/aims": { method: "PUT", path: "/api/v1/content/aims" },
   "PUT files/[id]/posts": { method: "PUT", path: "/api/v1/files/[id]/posts" },
   "PUT lead-suggestions": { method: "PUT", path: "/api/v1/lead-suggestions" },
   "PUT mailboxes/[id]": { method: "PUT", path: "/api/v1/mailboxes/[id]" },
@@ -461,7 +482,9 @@ export type Routes = {
   "DELETE ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").DELETE;
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
+  "DELETE content/claims": typeof import("../../app/api/v1/content/claims/route").DELETE;
   "DELETE files/[id]": typeof import("../../app/api/v1/files/[id]/route").DELETE;
+  "DELETE files/[id]/facebook": typeof import("../../app/api/v1/files/[id]/facebook/route").DELETE;
   "DELETE files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").DELETE;
   "DELETE files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").DELETE;
   "DELETE files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").DELETE;
@@ -519,12 +542,17 @@ export type Routes = {
   "GET channels/meta/callback": typeof import("../../app/api/v1/channels/meta/callback/route").GET;
   "GET channels/meta/connect": typeof import("../../app/api/v1/channels/meta/connect/route").GET;
   "GET channels/whatsapp/signup": typeof import("../../app/api/v1/channels/whatsapp/signup/route").GET;
+  "GET comments": typeof import("../../app/api/v1/comments/route").GET;
+  "GET comments/one": typeof import("../../app/api/v1/comments/one/route").GET;
   "GET consent/qr": typeof import("../../app/api/v1/consent/qr/route").GET;
   "GET contacts": typeof import("../../app/api/v1/contacts/route").GET;
   "GET contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").GET;
   "GET contacts/export": typeof import("../../app/api/v1/contacts/export/route").GET;
   "GET content": typeof import("../../app/api/v1/content/route").GET;
   "GET content/note": typeof import("../../app/api/v1/content/note/route").GET;
+  "GET content/plan": typeof import("../../app/api/v1/content/plan/route").GET;
+  "GET content/report": typeof import("../../app/api/v1/content/report/route").GET;
+  "GET content/week": typeof import("../../app/api/v1/content/week/route").GET;
   "GET conversations": typeof import("../../app/api/v1/conversations/route").GET;
   "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
@@ -535,11 +563,13 @@ export type Routes = {
   "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
   "GET files/[id]/copy": typeof import("../../app/api/v1/files/[id]/copy/route").GET;
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
+  "GET files/[id]/results": typeof import("../../app/api/v1/files/[id]/results/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
   "GET forms": typeof import("../../app/api/v1/forms/route").GET;
   "GET forms/requests": typeof import("../../app/api/v1/forms/requests/route").GET;
   "GET forms/sheet": typeof import("../../app/api/v1/forms/sheet/route").GET;
+  "GET forms/site-sheet": typeof import("../../app/api/v1/forms/site-sheet/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -694,6 +724,8 @@ export type Routes = {
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
   "POST channels/whatsapp/standing": typeof import("../../app/api/v1/channels/whatsapp/standing/route").POST;
   "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
+  "POST comments": typeof import("../../app/api/v1/comments/route").POST;
+  "POST comments/rewrite": typeof import("../../app/api/v1/comments/rewrite/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/call": typeof import("../../app/api/v1/contacts/[id]/call/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
@@ -709,6 +741,12 @@ export type Routes = {
   "POST contacts/erase": typeof import("../../app/api/v1/contacts/erase/route").POST;
   "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
   "POST content/bring-in": typeof import("../../app/api/v1/content/bring-in/route").POST;
+  "POST content/claims": typeof import("../../app/api/v1/content/claims/route").POST;
+  "POST content/line": typeof import("../../app/api/v1/content/line/route").POST;
+  "POST content/plan": typeof import("../../app/api/v1/content/plan/route").POST;
+  "POST content/plan/approve": typeof import("../../app/api/v1/content/plan/approve/route").POST;
+  "POST content/plan/slots": typeof import("../../app/api/v1/content/plan/slots/route").POST;
+  "POST content/review-ask": typeof import("../../app/api/v1/content/review-ask/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
   "POST conversations/[id]/draft": typeof import("../../app/api/v1/conversations/[id]/draft/route").POST;
@@ -722,9 +760,12 @@ export type Routes = {
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
+  "POST files/[id]/facebook": typeof import("../../app/api/v1/files/[id]/facebook/route").POST;
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
+  "POST files/[id]/link": typeof import("../../app/api/v1/files/[id]/link/route").POST;
   "POST files/[id]/restore": typeof import("../../app/api/v1/files/[id]/restore/route").POST;
+  "POST files/[id]/version": typeof import("../../app/api/v1/files/[id]/version/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
   "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
   "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;
@@ -888,6 +929,7 @@ export type Routes = {
   "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
   "PUT contacts/notes": typeof import("../../app/api/v1/contacts/notes/route").PUT;
   "PUT contacts/receptionist": typeof import("../../app/api/v1/contacts/receptionist/route").PUT;
+  "PUT content/aims": typeof import("../../app/api/v1/content/aims/route").PUT;
   "PUT files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").PUT;
   "PUT lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").PUT;
   "PUT mailboxes/[id]": typeof import("../../app/api/v1/mailboxes/[id]/route").PUT;

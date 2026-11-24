@@ -11,7 +11,7 @@
  */
 import "server-only";
 import { busyOfAppointments, offeringHorizon, type BusyBlock } from "@chanlytics/contracts";
-import { listAppointmentsBetween } from "@chanlytics/db/calendar";
+import { listAppointmentsBetween, type AppointmentRow } from "@chanlytics/db/calendar";
 import type { RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
@@ -22,7 +22,20 @@ export async function recordBusy(
   now: Date,
   daysAhead: number,
 ): Promise<BusyBlock[]> {
-  const span = offeringHorizon(now, daysAhead);
+  return recordBusyLeaving(ctx, tenantId, { now, daysAhead }, () => false);
+}
+
+/**
+ * The same taken time with some of the record's rows left out (`leave`): a form's time is checked as it is sent with
+ * other people's requests leaving their times free (the Forms plan, F3: a request holds no time against anyone else).
+ */
+export async function recordBusyLeaving(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  over: { now: Date; daysAhead: number },
+  leave: (row: AppointmentRow) => boolean,
+): Promise<BusyBlock[]> {
+  const span = offeringHorizon(over.now, over.daysAhead);
   try {
     const rows = await listAppointmentsBetween(
       ctx.supabase,
@@ -30,7 +43,7 @@ export async function recordBusy(
       new Date(span.from).toISOString(),
       new Date(span.to).toISOString(),
     );
-    return busyOfAppointments(rows);
+    return busyOfAppointments(rows.filter((row) => !leave(row)));
   } catch (e) {
     log.error("calendar_notices_read_failed", {
       tenant_id: tenantId,

@@ -406,7 +406,11 @@ test("the same form sent twice at once is one entry, one note and one notice; an
   assert.deepEqual([w.suggested.length, w.notifications.length], [2, 2]);
   assert.match(w.suggested[0].p_body, /^A seat in the spring class\. They wrote: "Can I start in March\?"$/);
   assert.equal(w.resolved[0].p_phone, "+15550100175", "the number as one");
-  assert.equal(w.notifications[0].title, "Ana Ruiz sent a request on your website");
+  // A site's request is answered like any other (00709, call 3): its bell is a request's, named as its form is, and opens
+  // the request in Inbox.
+  assert.equal(w.notifications[0].title, "Ana Ruiz sent a request: Website form");
+  assert.equal(w.notifications[0].kind, "form_request");
+  assert.ok(w.notifications[0].route.startsWith("inbox/rq-"), "it opens the request in Inbox");
 });
 
 test("a form that arrives late says the day it was sent, in the workspace's own zone, and is told on the bell alone", async () => {
@@ -705,8 +709,9 @@ test("a form posted with where its visitor came from keeps it in the one shape, 
   assert.equal(w.suggested[1].p_body.includes("From "), false, "a form that said nothing of it is noted as before");
 });
 
-test("where they came from failing to be kept is never the reason a form is not answered", async () => {
+test("where they came from is kept in the entry's own write (00709): no second write, so none can be lost", async () => {
   w.faults["form_entries.update"] = { message: "the table is not answering", code: "57014" };
   assert.deepEqual(await post({ ...REQUEST, source: { utm_source: "google" } }), [200, { ok: true, kept: true }]);
   assert.equal(w.entries.length, 1);
+  assert.deepEqual(w.entries[0].source, { labels: { utm_source: "google" } }, "kept with the entry, never after it");
 });

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-451 handlers in 62 domains.
+472 handlers in 63 domains.
 
 ## activity
 
@@ -779,6 +779,60 @@ Writes; for any signed-in person, for themselves; counts against the `client_err
 | `build` | string or null | no |  |
 | `device` | one of `"desk"`, `"phone"` or null | no |  |
 
+## comments
+
+### `GET /api/v1/comments`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/comments/route.ts`).
+
+### `POST /api/v1/comments`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `reply` rate; spends nothing.
+
+One of 3 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"send"` | yes |  |
+| `touch_id` | string (uuid) | yes |  |
+| `words` | string | yes | at least 1 characters; at most 2200 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"leave"` | yes |  |
+| `touch_id` | string (uuid) | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"back"` | yes |  |
+| `touch_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/comments/one`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
+
+### `POST /api/v1/comments/rewrite`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `touch_id` | string (uuid) | yes |  |
+| `words` | string | yes | at most 2200 characters |
+| `change` | string | yes | at least 1 characters; at most 500 characters |
+
 ## consent
 
 ### `GET /api/v1/consent/qr`
@@ -1070,6 +1124,15 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `limit` | integer | no | ≥ 1; ≤ 96 |
 | `about` | string | no | at most 80 characters |
 
+### `PUT /api/v1/content/aims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `goals` | array of object | no | at most 8 |
+| `content` | object | no |  |
+
 ### `POST /api/v1/content/bring-in`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
@@ -1078,11 +1141,97 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `link` | string | yes | at least 1 characters; at most 500 characters |
 
+### `POST /api/v1/content/claims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"price"`, `"offer"`, `"guarantee"`, `"fact"` | yes |  |
+| `text` | string | yes | at least 1 characters; at most 280 characters |
+| `source` | one of `"said"`, `"settings"` | yes |  |
+| `valid_until` | string or null | no |  |
+
+### `DELETE /api/v1/content/claims`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `claim_id` | string (uuid) | yes |  |
+
+### `POST /api/v1/content/line`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `line` | one of `"goals"`, `"cadence"`, `"quiet_days"`, `"languages"`, `"look"` | yes |  |
+| `words` | string | yes | at least 1 characters; at most 280 characters |
+
 ### `GET /api/v1/content/note`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/content/note/route.ts`).
+
+### `GET /api/v1/content/plan`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `week` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `week_of` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan/approve`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `plan_id` | string (uuid) | yes |  |
+| `week_of` | string | yes | matches `^\d{4}-\d{2}-\d{2}$` |
+
+### `POST /api/v1/content/plan/slots`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `slot_id` | string (uuid) | yes |  |
+| `change` | object or object or object or object or object | yes |  |
+
+### `GET /api/v1/content/report`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
+
+### `POST /api/v1/content/review-ask`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"rest"` | yes |  |
+
+### `GET /api/v1/content/week`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/content/week/route.ts`).
 
 ## conversations
 
@@ -1280,6 +1429,26 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `name` | string | yes | at most 255 characters |
 | `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"`, `"video/mp4"`, `"video/quicktime"`, `"video/webm"` | yes |  |
 
+### `POST /api/v1/files/[id]/facebook`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_facebook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `as` | one of `"picture"`, `"story"`, `"reel"` | yes |  |
+| `caption` | string | no | at most 2200 characters |
+| `when` | string (date-time) | no |  |
+| `about` | object | no |  |
+| `facts` | array of object | no | at most 5 |
+
+### `DELETE /api/v1/files/[id]/facebook`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_facebook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
+
 ### `POST /api/v1/files/[id]/google`
 
 Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
@@ -1329,6 +1498,14 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | --- | --- | --- | --- |
 | `post_id` | string (uuid) | yes |  |
 
+### `POST /api/v1/files/[id]/link`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
+
 ### `GET /api/v1/files/[id]/play`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
@@ -1364,6 +1541,20 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/files/[id]/restore/route.ts`).
+
+### `GET /api/v1/files/[id]/results`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/results/route.ts`).
+
+### `POST /api/v1/files/[id]/version`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_instagram` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `to` | one of `"approve"`, `"again"` | yes |  |
 
 ### `GET /api/v1/files/[id]/view`
 
@@ -1445,7 +1636,9 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 Body 2:
 
@@ -1459,7 +1652,9 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 | `key` | string | yes | at least 1 characters; at most 100 characters |
+| `revises` | string (uuid) | no |  |
 
 ### `GET /api/v1/files/video/[id]`
 
@@ -1485,6 +1680,7 @@ Body 1:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 Body 2:
 
@@ -1498,6 +1694,7 @@ Body 2:
 | `end_line` | string or null | yes |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `caption` | string or null | no |  |
+| `captions` | boolean | no |  |
 
 ## forms
 
@@ -1511,7 +1708,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
 
-One of 4 bodies.
+One of 6 bodies.
 
 Body 1:
 
@@ -1543,11 +1740,27 @@ Body 4:
 | `act` | one of `"publish"`, `"turn_on"`, `"turn_off"`, `"delete"`, `"duplicate"` | yes |  |
 | `form_id` | string (uuid) | yes |  |
 
+Body 5:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_rename"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `name` | string | yes | at most 120 characters |
+
+Body 6:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_list"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `listed` | boolean | yes |  |
+
 ### `POST /api/v1/forms/links`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
 
-One of 3 bodies.
+One of 5 bodies.
 
 Body 1:
 
@@ -1572,6 +1785,22 @@ Body 3:
 | `act` | one of `"stop"`, `"start"` | yes |  |
 | `link_id` | string (uuid) | yes |  |
 
+Body 4:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_add"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `site` | string | yes | at least 1 characters; at most 200 characters |
+
+Body 5:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"site_remove"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `site` | string | yes | at least 1 characters; at most 200 characters |
+
 ### `GET /api/v1/forms/requests`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
@@ -1584,7 +1813,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
 
-One of 2 bodies.
+One of 3 bodies.
 
 Body 1:
 
@@ -1604,7 +1833,22 @@ Body 2:
 | `act` | one of `"mark"`, `"unmark"`, `"hold"`, `"let_through"` | yes |  |
 | `entry_id` | string (uuid) | yes |  |
 
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"book"`, `"cant"` | yes |  |
+| `entry_id` | string (uuid) | yes |  |
+
 ### `GET /api/v1/forms/sheet`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `form` | string (uuid) | yes |  |
+
+### `GET /api/v1/forms/site-sheet`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
@@ -2518,6 +2762,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `how` | one of `"message"`, `"call"` | yes |  |
 | `wire` | one of `"whatsapp"`, `"sms"`, `"email"` | no |  |
 | `about` | string | yes | at least 1 characters; at most 500 characters |
+| `asked` | string | no | at least 1 characters; at most 2000 characters |
 | `answers` | array of object | no | at most 2 |
 | `previous` | object | no |  |
 | `tone` | one of `"shorter"`, `"warmer"` | no |  |
@@ -2643,7 +2888,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2663,7 +2908,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"instagram_read"`, `"file_purge"`, `"video_digest"`, `"source_take"`, `"copy_return"`, `"file_shelve"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"post_google"`, `"post_take_down"`, `"content_plan"`, `"post_observe"`, `"comment_reply"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"source_walk"`, `"source_read"`, `"ad_read"`, `"booking_lapse"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 
@@ -3997,6 +4242,7 @@ Body 1:
 | --- | --- | --- | --- |
 | `act` | `"make"` | yes |  |
 | `name` | string | yes | at least 1 characters; at most 60 characters |
+| `site_id` | string (uuid) | no |  |
 
 Body 2:
 

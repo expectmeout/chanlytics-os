@@ -5,8 +5,11 @@
  * place's own link on the piece; a place that gives no answer is asked again, further apart each time, for a day, and
  * then the job fails to us: the action stays pending, and the piece says Chanlytics is on it.
  *
+ * Its last numbers first (8.3): a post's numbers end with it, so they are read and kept just before the place is asked,
+ * and before a step left to the owner, who deletes it by hand next (observe.ts keepLastNumbers).
+ *
  * After the owner's "I deleted it" (payload `by_hand`), nothing is asked down: the place is only read. Gone settles it;
- * still up hands it back to the owner; a place that cannot be read takes their word.
+ * still up hands it back to the owner; a place that cannot be read takes their word. Its numbers went with it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -17,7 +20,6 @@ import {
   isOneOf,
   POST_PLACES,
   type PlaceAdapter,
-  type SentPlacement,
   type TakeDownSettled,
 } from "@chanlytics/contracts";
 import { findPostForWork, findTakeDownAction, settlePostTakeDown, type PostRow } from "@chanlytics/db/files";
@@ -25,6 +27,8 @@ import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { tellTakeDownMoved } from "../files/post-told.js";
 import { logger } from "../shared/log.js";
+import { keepLastNumbers } from "./observe.js";
+import { sentPlacementOf } from "./placement.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,19 +43,14 @@ const attemptOf = (job: ClaimedJob): number => {
   return Number.isInteger(n) && n >= 1 ? n : 1;
 };
 
-const sentPlacementOf = (post: PostRow): SentPlacement => ({
-  postId: post.id,
-  kind: post.kind === "story" || post.kind === "reel" ? post.kind : "picture",
-  externalId: post.external_id,
-  caption: post.caption,
-  sentAt: post.published_at ?? post.updated_at,
-});
-
 /**
  * The place a post is asked down at: its adapter, or the words for why the place cannot be asked from here (not
  * connected). Handed in by the job runner's wiring (ops/jobs-tick.ts), which knows each place.
  */
 type TakeDownPlaceOf = (post: PostRow) => Promise<PlaceAdapter | { cant: string }>;
+
+/** The place a post's numbers are read at, with its numbers line: its adapter, or why it cannot be asked now. */
+type NumbersPlaceOf = (post: PostRow) => Promise<PlaceAdapter | { cant: string }>;
 
 /** The same action asked again later, or, past the last wait, a failure that is ours: no answer in a day. */
 async function askDownAgain(db: Db, job: ClaimedJob, actionId: string, byHand: boolean): Promise<{ skipped: string }> {
@@ -79,11 +78,12 @@ async function readAfterByHand(place: PlaceAdapter, post: PostRow): Promise<Take
   return state.is === "up" ? "needs_person" : "pending";
 }
 
-/** post_take_down: one action asked of its place, and what the place said kept. */
+/** post_take_down: one action asked of its place, its last numbers read first, and what the place said kept. */
 export async function takePostDown(
   db: Db,
   job: ClaimedJob,
   placeOf: TakeDownPlaceOf,
+  numbersPlaceOf: NumbersPlaceOf,
 ): Promise<void | { skipped: string }> {
   const actionId = typeof job.payload.action_id === "string" ? job.payload.action_id : "";
   const byHand = job.payload.by_hand === "yes";
@@ -109,6 +109,7 @@ export async function takePostDown(
   if (post.status === "publishing" || post.status === "checking") return askDownAgain(db, job, actionId, byHand);
   if (post.status !== "published") return settle("not_possible", null);
   if (!isOneOf(POST_PLACES, post.place)) return settle("not_possible", null);
+  if (!byHand) await keepLastNumbers(db, job.tenant_id, post, numbersPlaceOf);
   const place = await placeOf(post);
   if ("cant" in place) return settle("needs_person", place.cant);
   if (byHand) {

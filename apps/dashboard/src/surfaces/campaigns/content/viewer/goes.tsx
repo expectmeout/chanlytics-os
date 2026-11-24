@@ -5,7 +5,7 @@
  * this draws it, and hands each press to the pane. A place that can still take a post keeps its switch in the list under
  * these (post-both-places.tsx). One thing moves: the ring of a line that mends itself.
  */
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { CONNECTIONS_PAGE, TAKE_DOWN_WORDS, type PostPlace } from "@chanlytics/contracts";
 import { GOES_WORDS, type GoesAct, type GoesLine } from "../model/goes";
 import { askAbout, routeDoor } from "../../../frame-verbs";
@@ -14,7 +14,10 @@ import { Icon } from "../../../kit/icon/icon";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 
 /** Each place's mark, wherever a placement is drawn: the list, its lines and the foot. */
-export const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
+export const PLACE_GLYPH = { instagram: "instagram", google: "place", facebook: "facebook" } as const satisfies Record<
+  PostPlace,
+  string
+>;
 
 /** What a line's presses do, each the pane's own. */
 export interface GoesPresses {
@@ -133,9 +136,18 @@ function GoesRow({ line, on }: { line: GoesLine; on: GoesPresses }) {
 }
 
 /** The piece's placements, each on its line; nothing where it is nowhere yet (the places it can go say so, under). */
-export function WhereItGoes({ lines, on }: { lines: readonly GoesLine[]; on: GoesPresses }) {
+export function WhereItGoes({
+  lines,
+  on,
+  ads = null,
+}: {
+  lines: readonly GoesLine[];
+  on: GoesPresses;
+  /** The ads made from the piece, a line each under its placements (pass 6; ads-on-piece.tsx); null where none. */
+  ads?: ReactNode;
+}) {
   const titleId = useId();
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && ads === null) return null;
   return (
     <section className="cnv-goes-part" aria-labelledby={titleId} data-testid="cnv-goes">
       <h3 className="cnv-sect" id={titleId}>
@@ -145,6 +157,7 @@ export function WhereItGoes({ lines, on }: { lines: readonly GoesLine[]; on: Goe
         {lines.map((line) => (
           <GoesRow key={line.key} line={line} on={on} />
         ))}
+        {ads}
       </div>
     </section>
   );

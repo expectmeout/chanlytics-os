@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
 import { adTapFacts } from "./ad-tap";
+import { postTouchFacts } from "./post-touch";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
 import type { Json } from "../../../types";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
@@ -105,6 +106,8 @@ export function describeLead(
   if (links) bits.push(links);
   // The ad they tapped before they wrote (0049, call 12), last because it ends in a fence: what the ad said, as data.
   bits.push(...adTapFacts(lead.ad, channel));
+  // The post they answered (00699), last too: its words are the business's own as posted, fenced, never a source of price.
+  bits.push(...postTouchFacts(lead.post, channel));
   return bits.join(" ");
 }
 

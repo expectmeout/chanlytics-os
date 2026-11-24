@@ -260,7 +260,7 @@ before(async () => {
     revision: 1,
     shape: "9x16",
     file_id: ctx.file,
-    path: "seeded/video.mp4",
+    path: `${A}/${ctx.file}/video.mp4`,
     checksum: "a".repeat(64),
   });
   await seed("approvals", {
@@ -270,10 +270,60 @@ before(async () => {
     snapshot: {},
     snapshot_hash: "b".repeat(64),
   });
+  // A week planned (00706): what the owner claims and what posts are for, a plan and a slot of it, a clip's moments.
+  // Members read them, only their doors write them.
+  await seed("owner_claims", { tenant_id: A, kind: "offer", text: "Seeded offer", source: "settings" });
+  await seed("content_goals", { tenant_id: A, goal: "awareness" });
+  ctx.plan = await seed("content_plans", { tenant_id: A, week_of: "2026-11-23", asked_by: "owner" });
+  await seed("plan_slots", {
+    tenant_id: A,
+    plan_id: ctx.plan,
+    creative: ctx.piece,
+    place: "instagram",
+    kind: "reel",
+    at: "2026-11-24T23:00:00Z",
+    title: "Seeded slot",
+  });
+  await seed("file_moments", {
+    tenant_id: A,
+    file_id: ctx.file,
+    start_s: 1,
+    end_s: 3,
+    score: 0.9,
+    confidence: 0.6,
+    model_edition: 2,
+  });
+  // What a post said back (00699): its numbers, a person's touch of it, a comment's answer. Members read them, their
+  // doors write them.
+  await seed("post_observations", {
+    tenant_id: A,
+    post_id: ctx.post,
+    place: "instagram",
+    step: "1h",
+    metric: "reach",
+    availability: "available",
+    value: 1,
+    period_start: new Date(0).toISOString(),
+    period_end: new Date().toISOString(),
+  });
+  ctx.touch = await seed("touches", {
+    tenant_id: A,
+    subject_type: "post",
+    subject_id: ctx.post,
+    kind: "comment",
+    contact_id: ctx.contact,
+    place: "instagram",
+    provider_event_id: "seeded-comment",
+    at: new Date().toISOString(),
+  });
+  await seed("comment_answers", { tenant_id: A, touch_id: ctx.touch, state: "drafted", draft: "Seeded." });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // A website's key and an entry it sent (00675): members read them, only their doors write them.
   await seed("form_keys", { tenant_id: A, name: "Seeded site", hash: "a".repeat(64) });
+  // A website and a form it sends (00709): members read them; form_entry_take and a member's doors write them.
+  ctx.formSite = await seed("form_sites", { tenant_id: A, name: "Seeded site" });
+  await seed("outside_forms", { tenant_id: A, site_id: ctx.formSite, form: "request" });
   ctx.formEntry = await seed("form_entries", {
     tenant_id: A,
     contact_id: ctx.contact,
@@ -288,6 +338,8 @@ before(async () => {
   await seed("form_versions", { tenant_id: A, form_id: ctx.form, n: 1, description: {} });
   ctx.link = await seed("links", { tenant_id: A, subject_type: "form", subject_id: ctx.form, place: "Seeded" });
   await seed("link_days", { tenant_id: A, link_id: ctx.link, day: "2026-11-20", opens: 1 }, null);
+  // A day of a form's business's booking page opened from it (00691): members read it, and only its door writes one.
+  await seed("form_days", { tenant_id: A, form_id: ctx.form, day: "2026-11-20", booking_opens: 1 }, null);
   // What happened to an entry (00680): a member's word that it was answered another way.
   await seed("form_entry_links", { tenant_id: A, entry_id: ctx.formEntry, kind: "marked", created_by: ctx.viewerId });
   // Keyed by their workspace and day, so no id to pick.
@@ -883,6 +935,8 @@ const TENANT_TABLES = {
   files: ["member", () => fileRow("a-strangers")],
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
   form_keys: ["member", () => ({ tenant_id: A, name: "A stranger's site", hash: "c".repeat(64) })],
+  form_sites: ["member", () => ({ tenant_id: A, name: "A stranger's site" })],
+  outside_forms: ["member", () => ({ tenant_id: A, site_id: ctx.formSite, form: "signup", ref: "a-strangers" })],
   form_entries: [
     "member",
     () => ({ tenant_id: A, contact_id: ctx.contact, form: "request", answers: {}, words: "d".repeat(64), owed: [] }),
@@ -903,6 +957,7 @@ const TENANT_TABLES = {
     }),
   ],
   link_days: ["member", () => ({ tenant_id: A, link_id: ctx.link, day: "2026-11-21", opens: 1 })],
+  form_days: ["member", () => ({ tenant_id: A, form_id: ctx.form, day: "2026-11-21", booking_opens: 1 })],
   form_entry_links: [
     "member",
     () => ({
@@ -934,7 +989,7 @@ const TENANT_TABLES = {
       revision: 1,
       shape: "1x1",
       file_id: ctx.file,
-      path: "stranger/square.jpg",
+      path: `${A}/${ctx.file}/square.jpg`,
       checksum: "c".repeat(64),
     }),
   ],
@@ -942,6 +997,55 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
   ],
+  // A week planned (00706): a member reads each, only their doors write them.
+  owner_claims: ["member", () => ({ tenant_id: A, kind: "price", text: "Stranger price", source: "said" })],
+  content_goals: ["member", () => ({ tenant_id: A, goal: "reviews" })],
+  content_plans: ["member", () => ({ tenant_id: A, week_of: "2026-11-30", asked_by: "clock" })],
+  plan_slots: [
+    "member",
+    () => ({
+      tenant_id: A,
+      plan_id: ctx.plan,
+      creative: ctx.piece,
+      place: "google",
+      kind: "picture",
+      at: "2026-11-25T15:00:00Z",
+      title: "Stranger slot",
+    }),
+  ],
+  file_moments: [
+    "member",
+    () => ({ tenant_id: A, file_id: ctx.file, start_s: 4, end_s: 6, score: 0.5, confidence: 0.5, model_edition: 2 }),
+  ],
+  // What a post said back (00699): a member reads it, only its doors write it.
+  post_observations: [
+    "member",
+    () => ({
+      tenant_id: A,
+      post_id: ctx.post,
+      place: "instagram",
+      step: "1d",
+      metric: "views",
+      availability: "available",
+      value: 9,
+      period_start: new Date(0).toISOString(),
+      period_end: new Date().toISOString(),
+    }),
+  ],
+  touches: [
+    "member",
+    () => ({
+      tenant_id: A,
+      subject_type: "post",
+      subject_id: ctx.post,
+      kind: "comment",
+      contact_id: ctx.contact,
+      place: "instagram",
+      provider_event_id: "a-strangers-comment",
+      at: new Date().toISOString(),
+    }),
+  ],
+  comment_answers: ["member", () => ({ tenant_id: A, touch_id: ctx.touch, state: "cannot", cannot_why: "Stranger." })],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
   // What Ask did and what it told (00574, 00575): a member reads them, a member who may act writes the record.

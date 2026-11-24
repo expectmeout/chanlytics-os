@@ -34,9 +34,14 @@ import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
 import { takeDownPlaceFor } from "../instagram/post-ready.js";
+import { findPagePosting } from "../facebook/posting.js";
 import { sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
+import { planTheWeek } from "../content/plan.js";
 import { takePostDown } from "../content/take-down.js";
+import { readPostResults } from "../content/observe.js";
+import { replyToComment } from "../content/comment-reply.js";
+import { findResultsPlace } from "../instagram/results-place.js";
 import { previewBuilder } from "../previews/build.js";
 import { getCampaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
@@ -145,6 +150,24 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]):
   return new Set(ours.filter((t): t is TenantId => t !== null));
 }
 
+/** Who posts at each place besides Instagram, for the post jobs and the take-down: a Page through the Meta link. */
+const POSTING_AT = { postingAt: { facebook: findPagePosting } };
+
+/**
+ * The place a post's numbers are read at (00699): Google's adapter gives none yet, so each reads unsupported there;
+ * Instagram's through the Meta link's numbers line. The clock's reads and a take-down's last read ask the same one.
+ */
+const numbersPlaceOf = (
+  db: Parameters<typeof findResultsPlace>[0],
+  post: Parameters<typeof findResultsPlace>[1],
+): ReturnType<typeof findResultsPlace> =>
+  post.place === "google"
+    ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
+    : post.place === "facebook"
+      ? // A Page's adapter (pass 5) gives no numbers yet, so each reads unsupported there, never Instagram's.
+        takeDownPlaceFor(db, post, POSTING_AT)
+      : findResultsPlace(db, post, "insights");
+
 /**
  * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
  * its calendar, WhatsApp's), with the grants that live here, the business's website read for Check (R10), and a lead's
@@ -166,16 +189,27 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.
   posts: {
-    ...postJobs(db),
+    // A Page's posts go through the same jobs, its own poster found by the Meta link's Page (pass 5).
+    ...postJobs(db, POSTING_AT),
     google: (job: ClaimedJob) => sendGooglePost(db, job),
-    // A post asked down where it is up (00682), each place through its own adapter.
+    // A post asked down where it is up (00682), each place through its own adapter, its last numbers read first.
     takeDown: (job: ClaimedJob) =>
-      takePostDown(db, job, (post) =>
-        post.place === "google"
-          ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
-          : takeDownPlaceFor(db, post),
+      takePostDown(
+        db,
+        job,
+        (post) =>
+          post.place === "google"
+            ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
+            : takeDownPlaceFor(db, post, POSTING_AT),
+        (post) => numbersPlaceOf(db, post),
       ),
+    // A post's numbers read at one of the clock's steps (00699).
+    observe: (job: ClaimedJob) => readPostResults(db, job, (post) => numbersPlaceOf(db, post)),
+    // A public answer to a comment (00699): AI's draft, or the owner's words posted under it on Instagram.
+    commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },
+  // A week of posts planned (00706): it reads, scores and writes, and makes nothing.
+  plans: { plan: (job: ClaimedJob) => planTheWeek(db, job) },
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

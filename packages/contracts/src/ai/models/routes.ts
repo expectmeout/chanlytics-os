@@ -35,6 +35,8 @@ export const MODEL_PURPOSES = [
   "preview_starters",
   "ad_draft",
   "form_draft",
+  "post_words",
+  "comment_reply",
 ] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
@@ -42,10 +44,20 @@ export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 /**
  * The calls a person's press makes that ride the small JSON route (`lead_json`: one model, one fallback, one bound), each a
  * line of the ledger of its own (ai_usage.purpose, 00658), so what each costs is read apart and never summed as one (the AI
- * audit, 20 Nov 2026): a lead's email, a list from the owner's words, a message to a person, a campaign's steps, and the
- * check that reads whether a person's words are a yes to a card. The route stays one: these share its model and its bound.
+ * audit, 20 Nov 2026): a lead's email, a list from the owner's words, a message to a person, a campaign's steps, the
+ * check that reads whether a person's words are a yes to a card, and a public answer to a comment written again as its
+ * owner asks (00699). The route stays one: these share its model and its bound.
  */
-export const SMALL_JSON_PURPOSES = ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check"] as const;
+export const SMALL_JSON_PURPOSES = [
+  "lead_draft",
+  "list_draft",
+  "person_draft",
+  "sequence_draft",
+  "yes_check",
+  // A line of Settings › Content in the owner's own words, read into what the week is planned by (00706).
+  "content_line",
+  "comment_rewrite",
+] as const;
 
 export type SmallJsonPurpose = (typeof SMALL_JSON_PURPOSES)[number];
 
@@ -392,6 +404,29 @@ export const MODEL_ROUTES = {
     timeoutMs: DRAFT_TRY_MS,
     retries: 0,
     maxTokens: 8000,
+  },
+  // A week's words (the content loop PRD's 10.2, 13; 00706): every creative's line and caption, in one call as the plan
+  // job drafts the week on Sunday evening, read in code (contracts content/plan slotWordsOf). Nobody waits on it, and a
+  // week whose call fails is drafted without words and says so; a line of the ledger of its own.
+  post_words: {
+    attributed: "workspace",
+    model: SONNET_5_5,
+    fallback: HAIKU_5_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 3000,
+    thinking: "off",
+  },
+  // A public answer to a comment on a post (00699; the content loop PRD's 12.4): a few sentences in the business's name
+  // under its own post, drafted when the comment arrives for the owner to send. A fast model, as a review's reply is.
+  comment_reply: {
+    attributed: "workspace",
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: REVIEW_TRY_MS,
+    retries: 1,
+    maxTokens: 300,
+    thinking: "off",
   },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 

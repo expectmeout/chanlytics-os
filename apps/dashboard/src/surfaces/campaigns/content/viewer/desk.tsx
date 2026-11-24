@@ -18,6 +18,8 @@ import { NameField } from "../../../files/file-fields";
 import { CmPane } from "../../parts/split";
 import { useSave } from "../piece-foot";
 import { draftBody, draftFoot } from "../piece-presses";
+import { PieceAdLines } from "./ads-on-piece";
+import { PieceResults, usePieceResults } from "./results";
 import { pieceNextOf } from "../model/piece-open";
 import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
@@ -30,6 +32,7 @@ import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
 import { WhereItGoes } from "./goes";
+import { PieceVersions } from "./versions";
 import { byHandOffered, footStandingOf, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
@@ -215,7 +218,12 @@ function DeskPicture(props: {
   const { hands, name, sound } = props;
   return (
     <div className="cnv-desk-media" data-theme="dark" data-small={props.small || undefined}>
-      <ViewerPicture file={hands.made.file} name={name} sound={sound?.on ?? false} />
+      <ViewerPicture
+        file={hands.made.file}
+        name={name}
+        sound={sound?.on ?? false}
+        making={hands.standing.version.making}
+      />
       {sound ? (
         <Button
           variant="glass"
@@ -329,6 +337,11 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           <p className="cnv-desk-line" data-testid="cnv-line">
             {says.line}
           </p>
+          {standing.ver ? (
+            <p className="cnv-desk-line" data-testid="cnv-version-line">
+              {standing.ver}
+            </p>
+          ) : null}
         </div>
         {opened ? (
           <>
@@ -340,11 +353,17 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
             {viewerHasStatus(file, next) ? (
               <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} pill={standing.pill} desk />
             ) : null}
+            {standing.under ? (
+              <p className="cnv-desk-line" data-testid="cnv-version-under">
+                {standing.under}
+              </p>
+            ) : null}
             {(presses.problem ?? save.said) ? (
               <p className="cnv-desk-line" role="alert" data-testid="cnv-problem">
                 {presses.problem ?? save.said}
               </p>
             ) : null}
+            {standing.results}
             {removeAsk(hands) ?? (
               <ViewerActs
                 file={file}
@@ -385,6 +404,8 @@ function DeskSheetAtRest(props: {
 }) {
   const { hands } = props;
   const { presses, standing } = hands;
+  // One read of its results, for its ads' lines under Where it goes and its own part below (pass 6).
+  const held = usePieceResults(standing.results.fileId, standing.results.made);
   return (
     <>
       {presses.asking ? null : (
@@ -400,7 +421,18 @@ function DeskSheetAtRest(props: {
           {props.tell}
         </>
       )}
-      <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <WhereItGoes
+        lines={standing.lines}
+        on={standing.goes}
+        ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+      />
+      <PieceVersions
+        list={standing.version.list}
+        instead={standing.version.instead}
+        may={hands.may}
+        busy={standing.goes.busy}
+      />
+      <PieceResults {...standing.results} held={held} />
       <ViewerFacts
         shown={props.details}
         may={hands.may}

@@ -1,0 +1,265 @@
+/* The Week (week.tsx; the approved boards, Week 1-12): its head, its groups of rows, what to film at its foot, and a row
+   not made yet, opened (planned.tsx). Layout here; every value a token (tokens.css). */
+
+.cwk {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1) var(--space-8);
+}
+
+.cwk-head,
+.cwk-first {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-1) var(--space-2);
+}
+.cwk-head small {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.cwk-head h3,
+.cwk-first h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cwk-head p,
+.cwk-first p {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--text-base);
+}
+/* AI's three while it drafts the week (files/looking.tsx): the one moving thing, held beside the week's dates. */
+.cwk-live {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+.cwk-live .files-looking {
+  top: 0;
+  right: 0;
+}
+.cwk-head[data-state="paused"] h3 {
+  color: var(--warn-ink);
+}
+.cwk-first {
+  justify-items: start;
+  padding-top: var(--space-8);
+}
+.cwk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.cwk-group {
+  display: grid;
+  gap: var(--space-1);
+}
+.cwk-group h4,
+.cwk-planned h4 {
+  margin: 0;
+}
+.cwk-group h4 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) var(--space-1) var(--space-1);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.cwk-group[data-tone="you"] h4 {
+  color: var(--warn-ink);
+}
+.cwk-group h4 em {
+  font-style: normal;
+  color: var(--ink-faint);
+}
+
+.cwk-row,
+.cwk-film {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-row);
+}
+.cwk-row[data-open] {
+  background: var(--accent-soft);
+}
+.cwk-row-open {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  justify-content: start;
+  width: 100%;
+  min-width: 0;
+  min-height: 60px;
+  overflow: hidden;
+  text-align: start;
+}
+.cwk-still {
+  display: block;
+  width: 44px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--line);
+}
+.cwk-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cwk-words b {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cwk-words span {
+  overflow: hidden;
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cwk-words span[data-tone="you"] {
+  color: var(--warn-ink);
+}
+.cwk-words span[data-tone="ok"] {
+  color: var(--ok-ink);
+}
+
+.cwk-places {
+  display: flex;
+  gap: var(--space-2);
+  padding-inline-end: var(--space-2);
+  color: var(--ink-muted);
+}
+.cwk-place {
+  position: relative;
+  display: inline-flex;
+}
+.cwk-dot {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-end: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-dot);
+}
+.cwk-dot[data-tone="you"] {
+  background: var(--warn);
+}
+.cwk-dot[data-tone="ok"] {
+  background: var(--ok);
+}
+
+.cwk-film {
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding: var(--space-2) var(--space-1);
+}
+.cwk-film-glyph {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--line);
+  color: var(--ink-muted);
+}
+.cwk-film .cwk-words b,
+.cwk-film .cwk-words span {
+  white-space: normal;
+}
+/* The plan's proposal to ask for reviews (review-ask.tsx; the canvas's Loop4, pass 6): a film row with Open at its end,
+   and the card it opens: AI's line, the message as it is live in a bubble, its facts, and its two presses. */
+.cwk-film.cwk-ask {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+.cwk-ask-body {
+  display: grid;
+  gap: var(--space-3);
+}
+.cwk-ask-says {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+  color: var(--ink-muted);
+}
+.cwk-ask-says > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.cwk-ask-message {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--bubble-us-bg);
+  border: 1px solid var(--bubble-us-line);
+}
+.cwk-ask-facts {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  color: var(--ink-muted);
+}
+.cwk-ask-acts {
+  display: flex;
+  gap: var(--space-2);
+}
+.cwk-ask-said {
+  margin: 0;
+  color: var(--warn-ink);
+}
+
+.cwk-planned-picture {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+.cwk-planned h4 {
+  margin: var(--space-4) 0 var(--space-1);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.cwk-where {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cwk-where li {
+  display: grid;
+  gap: 2px;
+}
+.cwk-where b {
+  font-weight: var(--weight-medium);
+}
+.cwk-where span,
+.cwk-why {
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+}
+.cwk-caption {
+  white-space: pre-line;
+  font-size: var(--text-base);
+}
+.cwk-planned [data-tone="you"] {
+  color: var(--warn-ink);
+}

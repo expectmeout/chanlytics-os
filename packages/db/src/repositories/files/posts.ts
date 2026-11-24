@@ -121,7 +121,7 @@ export async function markPostUnanswered(db: Db, postId: string, attempt: 1 | 2)
 
 /**
  * Google posts a press began and never heard back on (the press's own call died with its function): publishing, and not moved
- * since `before`. For the service role, across workspaces: the files sweep fails each in words, as 00616 post_begin does for
+ * since `before`. For the service role, across workspaces: the files sweep fails each in words, as 00681 post_approve does for
  * the next press of the same file, so it stops saying Posting and waits for the owner. Oldest first, `limit` at most.
  */
 export async function listPostsSilent(db: Db, args: { before: string; limit: number }): Promise<{ id: string }[]> {
@@ -234,7 +234,7 @@ export async function listPostAttempts(db: Db, tenantId: TenantId, postId: strin
 }
 
 /** The columns a member reads of a post (00611's grant): never its container. */
-const MEMBER_POST_COLUMNS =
+export const MEMBER_POST_COLUMNS =
   "id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
 
 export type MemberPostRow = Pick<
@@ -299,6 +299,24 @@ export async function listPostsOfFiles(
   return data;
 }
 
+/** The posts a week's slots were made into, by their ids, under the member's session (the Week, 00706). */
+export async function listPostsByIds(
+  db: Db,
+  tenantId: TenantId,
+  postIds: readonly string[],
+): Promise<MemberFilePostRow[]> {
+  if (postIds.length === 0) return [];
+  const { data, error } = await db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("id", [...postIds])
+    // A plan holds at most forty slots, each at most one post.
+    .limit(40);
+  if (error) throw new DbFailure(error, "posts by ids");
+  return data;
+}
+
 /** How many of the workspace's posts are up, at any place: Content's tally. */
 export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await db
@@ -356,7 +374,7 @@ export async function listPostsInSpan(
 }
 
 /**
- * Where a post that waits for its time stands: queued, and in Instagram's last ten minutes preparing (00611 post_begin's job is
+ * Where a post that waits for its time stands: queued, and in Instagram's last ten minutes preparing (00681 post_approve's job is
  * due then), still waiting for its time as the page says it (contracts postWaitsForItsTime).
  */
 const TIMED_STATUSES = ["queued", "preparing"] as const;

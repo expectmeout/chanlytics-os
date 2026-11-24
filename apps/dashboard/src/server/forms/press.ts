@@ -33,12 +33,15 @@ import {
   makeForm,
   makeFormLink,
   publishForm,
+  renameOutsideForm,
   setFormOn,
+  setOutsideFormListed,
 } from "@chanlytics/db/forms";
 import { writeForm } from "../ask/skills/form/write";
 import { findFormOrRefuse } from "../readers/forms";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
+import { applySitePress } from "./sites";
 import { getStoredConfig } from "../workspace/config-row";
 
 /** How long AI has to draft: inside the minute a route may run, with room to answer. */
@@ -218,6 +221,24 @@ async function changeForm(
   return { ...NOTHING_PRESSED, form_id: form.id };
 }
 
+/**
+ * A press on a form the business's own website owns (00709): its owner's own name for it, or listed or hidden. Hidden only
+ * takes it off the list; its entries still arrive.
+ */
+async function changeSiteForm(
+  ctx: RouteContext,
+  member: Member,
+  press: Extract<FormPress, { act: "site_rename" | "site_list" }>,
+): Promise<FormPressed> {
+  const at = { tenantId: member.tenantId, formId: press.form_id };
+  const done =
+    press.act === "site_rename"
+      ? await renameOutsideForm(ctx.supabase, { ...at, name: press.name })
+      : await setOutsideFormListed(ctx.supabase, { ...at, listed: press.listed });
+  if (!done) throw new AppError("not_found", "That form isn't here any more.", 404);
+  return { ...NOTHING_PRESSED, form_id: press.form_id };
+}
+
 /** `POST forms`: one press on Campaigns › Forms. */
 export function applyFormPress(ctx: RouteContext, member: Member, press: FormPress): Promise<FormPressed> {
   switch (press.act) {
@@ -228,6 +249,9 @@ export function applyFormPress(ctx: RouteContext, member: Member, press: FormPre
       return changeByAi(ctx, member, { act: press.act, form_id: press.form_id, sentence: press.sentence });
     case "save":
       return saveDraft(ctx, member, press.form_id, press.draft);
+    case "site_rename":
+    case "site_list":
+      return changeSiteForm(ctx, member, press);
     default:
       return changeForm(ctx, member, press.act, press.form_id);
   }
@@ -239,6 +263,7 @@ export async function applyFormLinkPress(
   member: Member,
   press: FormLinkPress,
 ): Promise<{ link_id: string }> {
+  if (press.act === "site_add" || press.act === "site_remove") return applySitePress(ctx, member, press);
   if (press.act === "make") {
     await findFormOrRefuse({ ctx, tenantId: member.tenantId }, press.form_id);
     const created = await makeFormLink(ctx.supabase, {

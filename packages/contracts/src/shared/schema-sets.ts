@@ -59,6 +59,15 @@ import type {
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
+import type {
+  CLAIM_KINDS,
+  CLAIM_SOURCES,
+  CONTENT_GOALS,
+  PLAN_ASKED_BY,
+  PLAN_PLACES,
+  PLAN_STATUSES,
+  SLOT_STATES,
+} from "../content/plan/sets";
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
 import type {
@@ -70,6 +79,17 @@ import type {
   RENDITION_SHAPES,
   REVISION_MADE_BY,
 } from "../content/placements/sets";
+import type {
+  COMMENT_ANSWER_STATES,
+  LINK_LANDS,
+  LINK_SUBJECTS,
+  METRIC_AVAILABILITY,
+  OBSERVE_STEPS,
+  POST_METRICS,
+  TOUCH_KEPT_SUBJECTS,
+  TOUCH_KINDS,
+  VISIT_THROUGH_TYPES,
+} from "../content/results/sets";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -223,6 +243,29 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
   Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
   Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,
+  // What a post said back (00699, the content loop's pass 2): its numbers, a person's touches, a public answer, a
+  // post's link, and what a visit answered.
+  Holds<Exactly<Of<typeof POST_METRICS>, SchemaSet<"post_observations.metric">>>,
+  Holds<Exactly<Of<typeof METRIC_AVAILABILITY>, SchemaSet<"post_observations.availability">>>,
+  Holds<Exactly<Of<typeof OBSERVE_STEPS>, SchemaSet<"post_observations.step">>>,
+  Holds<Exactly<Of<typeof TOUCH_KINDS>, SchemaSet<"touches.kind">>>,
+  Holds<Exactly<Of<typeof TOUCH_KEPT_SUBJECTS>, SchemaSet<"touches.subject_type">>>,
+  Holds<Exactly<Of<typeof COMMENT_ANSWER_STATES>, SchemaSet<"comment_answers.state">>>,
+  Holds<Exactly<Of<typeof LINK_LANDS>, SchemaSet<"links.lands">>>,
+  Holds<Exactly<Of<typeof LINK_SUBJECTS>, SchemaSet<"links.subject_type">>>,
+  Holds<Exactly<Of<typeof VISIT_THROUGH_TYPES>, SchemaSet<"appointments.through_type">>>,
+
+  // A week planned (00706, the content loop's pass 3): what posts are for, a plan and its slots, what an owner claims.
+  Holds<Exactly<Of<typeof CONTENT_GOALS>, SchemaSet<"content_goals.goal">>>,
+  Holds<Exactly<Of<typeof PLAN_STATUSES>, SchemaSet<"content_plans.status">>>,
+  Holds<Exactly<Of<typeof PLAN_ASKED_BY>, SchemaSet<"content_plans.asked_by">>>,
+  Holds<Exactly<Of<typeof SLOT_STATES>, SchemaSet<"plan_slots.state">>>,
+  Holds<Exactly<Of<typeof PLAN_PLACES>, SchemaSet<"plan_slots.place">>>,
+  Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"plan_slots.kind">>>,
+  // A slot is held for what holds a post, or because what it was to be made into could not be (contracts SlotHeldWhy).
+  Holds<Exactly<Of<typeof POST_HELD_WHYS> | "unmade", SchemaSet<"plan_slots.blocked_why">>>,
+  Holds<Exactly<Of<typeof CLAIM_KINDS>, SchemaSet<"owner_claims.kind">>>,
+  Holds<Exactly<Of<typeof CLAIM_SOURCES>, SchemaSet<"owner_claims.source">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

@@ -11,6 +11,7 @@
  * stopped, nothing is switched on. A cancel (00676) stops it at its next step, is read fresh before every switch, and
  * leaves nothing running; and a way in that closed since the press (call 11) switches nothing on.
  */
+import { createHash } from "node:crypto";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -745,16 +746,25 @@ test("a way in that closed since the press switches nothing on: Meta stopped the
   }
 });
 
-test("a video, or a picture Files no longer holds, stops it before Meta is sent a picture", async () => {
+test("a video, a picture Files no longer holds, or a photo changed since it was approved, stops it before Meta is sent a picture", async () => {
   for (const [why, over] of [
     ["a video", { approved: { ...APPROVED, picture_kind: "video" } }],
     ["no file", { approved: { ...APPROVED, picture: "f2f2f2f2-8888-4000-8000-000000000009" } }],
+    ["bytes not those approved", { approved: { ...APPROVED, picture_checksum: "0".repeat(64) } }],
   ]) {
     const w = world(over);
     await w.run();
     assert.ok(!names().includes("picture"), why);
     assert.deepEqual([w.ad().launch.stopped, names().at(-1)], ["picture", "remove"], why);
   }
+});
+
+test("a photo whose bytes are the ones approved at Turn on is sent (the content loop PRD's 3.3: checked again right before)", async () => {
+  const checksum = createHash("sha256").update(PICTURE).digest("hex");
+  const w = world({ approved: { ...APPROVED, picture_checksum: checksum } });
+  await w.run();
+  assert.ok(names().includes("picture"), "the photo goes to Meta's library");
+  assert.notEqual(w.ad().launch.stopped, "picture");
 });
 
 test("a row with less than a whole approval is never sent; sandbox does everything but the call; off sends nothing", async () => {

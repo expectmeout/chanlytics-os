@@ -15,13 +15,17 @@ const WORN = {
   fps: PIECE_FRAME.fps,
   frames: 90 + PIECE_FRAME.end - PIECE_FRAME.fade,
   words: { lines: ["Sample"], top: PIECE_FRAME.wordsHighTop, size: PIECE_FRAME.wordsSizeMax, frames: null },
-  end: { line: null, under: null, logo: false, name: "Sample", book: null, address: null },
+  captions: [],
+  end: { line: null, under: null, logo: false, name: "Sample", call: null, book: null, address: null },
   accent: "#ffffff",
+  face: "sans" as const,
+  ground: PIECE_FRAME.ink,
 };
 const SAMPLE: PieceMaterial = {
   timeline: { ...WORN, blocks: [{ is: "clip", source: "sample", trim: 0, frames: 90, label: null }] },
   files: [["sample.mp4"]],
   logo: null,
+  cover: null,
 };
 const SAMPLE_CUTS: HookCutMaterial = {
   timeline: { ...WORN, cuts: [{ source: "sample", trim: 0, frames: 90 }] },

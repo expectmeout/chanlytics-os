@@ -9,17 +9,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ON_INSTAGRAM,
+  dayInZone,
   notesInForce,
+  offersOf,
   parseTenantConfig,
+  statedFactsOf,
   type AsApproved,
+  type OwnerClaim,
+  type PieceIntent,
+  type TenantId,
   type PostHeldWhy,
   type PostStatus,
 } from "@chanlytics/contracts";
-import { evaluate, type PolicyFacts } from "@chanlytics/core";
-import { findFileForWork, mayStillPost, movePost, readPostAsApproved, type PostRow } from "@chanlytics/db/files";
+import { evaluate, opportunitiesFrom, type PolicyFacts } from "@chanlytics/core";
+import {
+  findFileForWork,
+  listClaims,
+  mayStillPost,
+  movePost,
+  readPostAsApproved,
+  type PostRow,
+} from "@chanlytics/db/files";
 import { findWorkspaceZone, getTenantConfig, isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import { logger } from "../shared/log.js";
+import { errField, logger } from "../shared/log.js";
+import { readOpportunityFacts } from "../opportunities/book.js";
 import { tellPostMoved } from "../files/post-told.js";
 
 type Db = SupabaseClient<Database>;
@@ -43,10 +57,17 @@ async function readReasonFacts(db: Db, post: PostRow, approved: AsApproved): Pro
   const intent = approved.is === "stands" ? approved.intent : null;
   if (!post.good_until && !intent) return undefined;
   const zone = (await findWorkspaceZone(db, post.tenant_id)) ?? "UTC";
-  const leans = !!intent?.offer || !!intent?.service;
-  const profile = leans ? parseTenantConfig((await getTenantConfig(db, post.tenant_id))?.config)?.brain?.profile : null;
-  const services = profile?.services ?? [];
   const nowMs = Date.now();
+  const today = dayInZone(zone, nowMs).key;
+  const leans = !!intent?.offer || !!intent?.service || !!intent?.opportunity_id;
+  const [config, claims] = leans
+    ? await Promise.all([
+        getTenantConfig(db, post.tenant_id).then((row) => row?.config ?? null),
+        listClaims(db, post.tenant_id),
+      ])
+    : [null, []];
+  const profile = parseTenantConfig(config)?.brain?.profile;
+  const services = profile?.services ?? [];
   return {
     intent,
     goodUntil: post.good_until,
@@ -56,11 +77,47 @@ async function readReasonFacts(db: Db, post: PostRow, approved: AsApproved): Pro
     says: [
       ...notesInForce(profile?.notes, zone, new Date()).map((note) => `${note.title} ${note.text}`),
       ...services.map((service) => `${service.name} ${service.price_note ?? ""}`),
+      // An offer the owner keeps (owner_claims, 00706) is one the business says.
+      ...offersOf(claims, today).map((offer) => offer.says),
     ],
     services: services.map((service) => service.name),
-    facts: approved.is === "stands" ? approved.facts : [],
+    // A fact the owner stated: kept on an approval before pass 3, kept as their claim since.
+    facts: [...(approved.is === "stands" ? approved.facts : []), ...statedFactsOf(claims, today)],
+    opportunities: intent?.opportunity_id
+      ? await readOpportunitiesNow(db, { tenantId: post.tenant_id, zone, config, claims, intent, nowMs })
+      : null,
     moment: "send",
   };
+}
+
+/**
+ * The reasons to post as they stand this moment, for the day a piece was made for (PRD 6.1: `reasonStands` reads
+ * `opportunitiesOf` again right before the send). Null where they cannot be read: the reason is then not asked, and a
+ * post is never held for a read that failed.
+ */
+async function readOpportunitiesNow(
+  db: Db,
+  at: {
+    tenantId: TenantId;
+    zone: string;
+    config: unknown;
+    claims: readonly OwnerClaim[];
+    intent: PieceIntent;
+    nowMs: number;
+  },
+): Promise<{ key: string }[] | null> {
+  const day = at.intent.day ?? dayInZone(at.zone, at.nowMs).key;
+  try {
+    const facts = await readOpportunityFacts(
+      db,
+      { tenantId: at.tenantId, zone: at.zone, config: at.config, claims: at.claims, newServices: [] },
+      { from: day, to: day, nowMs: at.nowMs },
+    );
+    return opportunitiesFrom(facts).map((o) => ({ key: o.key }));
+  } catch (e) {
+    logger({ tenant_id: at.tenantId }).error("reason_unread", { error: errField(e) });
+    return null;
+  }
 }
 
 /** The recheck: why the post may not go now, or the bytes it sends. `approver` is asked at the send, not at making ready. */

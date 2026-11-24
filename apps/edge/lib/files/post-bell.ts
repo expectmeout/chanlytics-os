@@ -27,6 +27,6 @@ export const postBellRouteOf = (fileId: string, held: boolean): string =>
 /** Longer than this between its press and its time, a post waited for its time, and its going up is news. */
 const WAITED_MS = 2 * 60 * SECOND_MS;
 
-/** Whether a post waited for its time: set at a press for later than two minutes on (00616 post_begin's own line). */
+/** Whether a post waited for its time: set at a press for later than two minutes on (00681 post_approve's own line). */
 export const postWaited = (post: { approved_at: string | null; scheduled_for: string }): boolean =>
   !!post.approved_at && Date.parse(post.scheduled_for) - Date.parse(post.approved_at) > WAITED_MS;

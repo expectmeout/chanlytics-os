@@ -6,7 +6,7 @@
  * a post or a story; one where it is up, going up or set for its time says so, with its door (see it, take it down, Don't
  * post); one that can take none says why. The caption that goes with it is typed under the places, in the same sheet
  * (viewer/details.tsx ViewerFacts), and Post sends the words on screen: each place's door keeps them on the piece in the same
- * step (server posts/caption.ts keepPostWords), so the words that go and the words kept are never two. Post asks first;
+ * step (server posts/caption.ts readWordsToKeep, kept by 00713 post_approve_whole), so the words that go and the words kept are never two. Post asks first;
  * Schedule picks a day and a time; Change time moves a post set for one, itself, in one step (00621). Each press goes through
  * its place's own doors (files/verbs.ts postDoors); what its presses do is post-both-sends.tsx, and a place's row is
  * post-both-places.tsx. A place that went is switched off, so a second press never sends it twice;
@@ -38,6 +38,9 @@ import { PlaceRow } from "./post-both-places";
 import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-both-sends";
 import { viewerClockOf } from "./viewer/clock";
 import { WhereItGoes } from "./viewer/goes";
+import { PieceVersions } from "./viewer/versions";
+import { PieceAdLines } from "./viewer/ads-on-piece";
+import { PieceResults, usePieceResults } from "./viewer/results";
 
 const COMPOSER_SAYS = CONTENT_WORDS.post;
 const SHEET = CONTENT_SHEET_WORDS.post;
@@ -85,7 +88,9 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
   const mover = usePostMove({ id, posts: piece.posts }, { done, flash, refused: setRefused });
   const change = (to: Partial<PostBothDraft>) => setHeld((d) => (d ? { ...d, ...to } : d));
   // What a person who may post can send to now: a reader's list switches nothing.
-  const open: PieceTakes | null = takes ? { instagram: may && takes.instagram, google: may && takes.google } : null;
+  const open: PieceTakes | null = takes
+    ? { instagram: may && takes.instagram, google: may && takes.google, facebook: may && takes.facebook }
+    : null;
   // What Instagram can take now: one of each kind at a time (00620), so a story while a post waits, and the other way round.
   const kinds = instagramKindsFree(piece.posts, fileKind);
   // The list opened over a draft, once the piece's record is read and its places are known: armed, or to be read.
@@ -103,6 +108,7 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
           as: instagramAsOf(kinds, held.as),
           instagram: held.instagram && open.instagram,
           google: held.google && open.google,
+          facebook: held.facebook && open.facebook,
         }
       : held;
   const words = (caption ?? "").trim();
@@ -123,11 +129,11 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
       return;
     }
     // What was sent is off now: a second press sends only what was refused.
-    setHeld((now) => (now ? { ...now, instagram: !!no.instagram, google: !!no.google } : now));
+    setHeld((now) => (now ? { ...now, instagram: !!no.instagram, google: !!no.google, facebook: !!no.facebook } : now));
     if (sent.length > 0) done(sent);
   };
   // Something is switched on to send: only then does the list draw its caption and its send.
-  const sending = !!draft && (draft.instagram || draft.google);
+  const sending = !!draft && (draft.instagram || draft.google || !!draft.facebook);
   const problem = draft && sending ? postBothProblemOf(draft, words) : null;
   return {
     open: draft !== null,
@@ -162,7 +168,8 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
      * Opened to be read, with no place switched on: where the piece waits for something a new post would not mend (a
      * person's yes, its connection, AI paused), so Post is never armed beside the line that says why it cannot go.
      */
-    look: () => openWith(() => ({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false })),
+    look: () =>
+      openWith(() => ({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false, facebook: false })),
     cancel: () => {
       setRefused({});
       mover.stop();
@@ -206,7 +213,7 @@ function readerMisses(
   if (places.some((at) => at.pull || at.letGo || at.waitsToo?.pull)) return true;
   if (!both.could) return false;
   const armed = postBothOpening(both.could, both.posts, Date.now(), both.fileKind);
-  return armed.instagram || armed.google;
+  return armed.instagram || armed.google || !!armed.facebook;
 }
 
 /**
@@ -243,16 +250,33 @@ export function PostBoth({
   both: PostBothState;
   doors?: PlaceDoors;
   /** The piece's placements, a line each (viewer/goes.tsx): said over the places, which then keep only their switch. */
-  standing?: Pick<PieceStanding, "lines" | "goes">;
+  standing?: Pick<PieceStanding, "lines" | "goes" | "results" | "version">;
 }) {
   const { draft, takes, wont, offers } = both;
+  // One read of its results, for its ads' lines under Where it goes and its own part below (pass 6).
+  const held = usePieceResults(standing?.results.fileId ?? "", standing?.results.made ?? false);
   if (!draft || !takes || !wont || !offers) return null;
   const clock = viewerClockOf();
   const lines = standing?.lines ?? [];
   const places = placesOf(both.posts, { takes, wont, offers }, Date.now()).flatMap((at) => rowUnderLines(at, lines));
   return (
     <div className="cnv-compose" data-testid="cnv-compose">
-      {standing ? <WhereItGoes lines={lines} on={standing.goes} /> : null}
+      {standing ? (
+        <WhereItGoes
+          lines={lines}
+          on={standing.goes}
+          ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+        />
+      ) : null}
+      {standing ? (
+        <PieceVersions
+          list={standing.version.list}
+          instead={standing.version.instead}
+          may={both.may}
+          busy={standing.goes.busy}
+        />
+      ) : null}
+      {standing ? <PieceResults {...standing.results} held={held} /> : null}
       {/* Named as its sheet is. */}
       {places.length > 0 ? (
         <div className="cnv-dests" role="group" aria-label={postBothTitleOf(both)}>

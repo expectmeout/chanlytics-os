@@ -2,44 +2,74 @@ import "server-only";
 
 /**
  * A press on one request (00680; the Forms plan, 3.5): its reply sent, a member's word that it was answered another
- * way (and that word taken back), a request that is not a real one held, and a held entry let through.
+ * way (and that word taken back), a request that is not a real one held, a held entry let through, and the time it
+ * asked for answered Booked it or Can't (00691, F3: request-time.ts).
  *
  * The reply leaves by the doors every message leaves by: core's beginConversation opens the person's one thread where
  * they have none and queues the message as a reply is queued, with its seconds to take it back, and what the person
  * writes back is AI's to answer by the workspace's own rules (the canvas's call 13). The send door decides whether it
- * may go at all. The reply is then kept as what answered THIS request (form_entry_links), written by the act itself:
- * a reply never closes another request, and one that fails or is taken back answers nothing.
+ * may go at all. The message says which request it answers, and is kept as what answered THIS request (form_entry_links)
+ * in its own write (00713 messages_answer_a_form_request): a reply never closes another request, one that fails or is taken
+ * back answers nothing, and a link that could not be written is a message that was not, so nothing is sent.
  *
  * A person's page is never overwritten by what was typed into a form. Where the request's address is not the one on
  * their page, the reply waits for the member's pick: the request's own (their page takes it, by the member's word) or
  * the one on their page. An address that bounced may be answered at its likely fix, by the same pick.
  */
-import { AppError, asTenantId, emailTypoFix, heldContactId, type FormRequestPress } from "@chanlytics/contracts";
-import { beginConversation } from "@chanlytics/core";
+import {
+  AppError,
+  asTenantId,
+  emailTypoFix,
+  heldContactId,
+  recordOrEmpty,
+  type FormRequestPress,
+} from "@chanlytics/contracts";
+import { beginConversation, type BeginPorts } from "@chanlytics/core";
 import {
   findFormRequest,
   findFormVersion,
   holdFormEntry,
   letFormEntryThrough,
-  linkFormReply,
   markFormEntryAnswered,
   removeFormEntryMark,
   type FormEntryRead,
 } from "@chanlytics/db/forms";
 import { findPersonAddress, setPersonEmail } from "@chanlytics/db/people";
 import { beginPorts } from "../new-conversation/ports";
+import { readSiteRequestShapes } from "../connections/outside-forms";
+import { answerRequestTime } from "./request-time";
 import type { Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 
-/** What a press on a request answers: the message a reply queued, with how long it can be taken back, or nothing more. */
+/**
+ * What a press on a request answers: the message a reply queued, with how long it can be taken back; for Booked it, the
+ * reply it drafts from the visit's own words (F3); or nothing more.
+ */
 interface FormRequestPressed {
   message_id: string | null;
   cancelable_until: string | null;
   conversation_id: string | null;
+  reply: string | null;
 }
 
-const NOTHING_SENT: FormRequestPressed = { message_id: null, cancelable_until: null, conversation_id: null };
+const NOTHING_SENT: FormRequestPressed = {
+  message_id: null,
+  cancelable_until: null,
+  conversation_id: null,
+  reply: null,
+};
+
+/** A request's heading, as its reply's subject says it: its version's, or its site form's name (00709); null where unread. */
+async function requestHeadingOf(ctx: RouteContext, member: Member, entry: FormEntryRead): Promise<string | null> {
+  if (entry.versionId) {
+    const version = await findFormVersion(ctx.supabase, member.tenantId, entry.versionId);
+    return version?.description?.heading ?? null;
+  }
+  if (!entry.outsideFormId) return null;
+  const shapes = await readSiteRequestShapes(ctx.supabase, member.tenantId);
+  return shapes.get(entry.outsideFormId)?.description.heading ?? null;
+}
 
 /** The request a press names, or a refusal in the house's words. */
 async function requestOrRefuse(ctx: RouteContext, member: Member, entryId: string): Promise<FormEntryRead> {
@@ -79,6 +109,16 @@ async function settleAddress(
   );
 }
 
+/**
+ * The world a reply begins in, with its message saying which request it answers: the database links the two as the message
+ * is written (00713), so a reply queued is a request answered, or neither.
+ */
+function answeringPorts(ports: BeginPorts, entryId: string): BeginPorts {
+  const reply = ports.reply;
+  const meta = (row: { meta?: unknown }) => ({ ...recordOrEmpty(row.meta), form_entry_id: entryId });
+  return { ...ports, reply: { ...reply, queue: (row) => reply.queue({ ...row, meta: meta(row) }) } };
+}
+
 /** The reply sent by the road named, and kept as what answered this request. */
 async function sendReply(
   ctx: RouteContext,
@@ -91,9 +131,8 @@ async function sendReply(
   if (!contactId || entry.state === "held" || entry.test)
     throw new AppError("conflict", "This entry is held for a look. Let it through before answering it.", 409);
   const to = press.wire === "email" ? await settleAddress(ctx, member, { ...entry, contactId }, press.email_to) : null;
-  const version = await findFormVersion(ctx.supabase, member.tenantId, entry.versionId);
-  const subject = press.subject ?? `Re: ${version?.description?.heading ?? "your request"}`;
-  const receipt = await beginConversation(beginPorts(ctx), {
+  const subject = press.subject ?? `Re: ${(await requestHeadingOf(ctx, member, entry)) ?? "your request"}`;
+  const receipt = await beginConversation(answeringPorts(beginPorts(ctx), entry.id), {
     tenantId: asTenantId(member.tenantId),
     personId: contactId,
     userId: ctx.userId,
@@ -104,16 +143,11 @@ async function sendReply(
     then: "receptionist",
     idempotencyKey,
   });
-  await linkFormReply(ctx.supabase, {
-    tenantId: member.tenantId,
-    entryId: entry.id,
-    messageId: receipt.message_id,
-    userId: ctx.userId,
-  });
   return {
     message_id: receipt.message_id,
     cancelable_until: receipt.cancelable_until,
     conversation_id: receipt.conversation_id,
+    reply: null,
   };
 }
 
@@ -127,6 +161,9 @@ export async function applyFormRequestPress(
   if (press.act === "reply") return sendReply(ctx, member, press, idempotencyKey);
   // Read under the member's own row rules first: a request of another workspace is not found, whatever follows.
   const entry = await requestOrRefuse(ctx, member, press.entry_id);
+  // The time it asked for, answered as a chat's is (F3): the door decides, and the decision is the member's.
+  if (press.act === "book" || press.act === "cant")
+    return { ...NOTHING_SENT, ...(await answerRequestTime(ctx, member, entry.id, press.act === "book")) };
   const marked = { tenantId: member.tenantId, entryId: entry.id };
   if (press.act === "mark") await markFormEntryAnswered(ctx.supabase, { ...marked, userId: ctx.userId });
   else if (press.act === "unmark") await removeFormEntryMark(ctx.supabase, marked);

@@ -279,6 +279,8 @@ const OPERATOR_ACTS = [
   "propose_call",
   "propose_deal",
   "propose_follow_up",
+  // A form the person asked for, handed to Forms to draft (decision 0148): an operator's, as Forms' own make is.
+  "propose_form",
   "propose_leads",
   "propose_list",
   "propose_people",
@@ -306,6 +308,8 @@ const PARTNER_ACTS = [
   "propose_publish",
   // A made piece taken down everywhere it is up (00682): a partner's, as putting one up is.
   "propose_take_down",
+  // A week of posts, and what a post may say (00706): a partner's, as approving a post is.
+  "propose_week",
 ].sort();
 /** A role's reads and acts, sorted by name as the registry sorts them, the acts among the reads. */
 const withReads = (acts) => [...READS, ...acts].sort();
@@ -335,12 +339,12 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
       `${role}: without examples, the same tools less their examples`,
     );
   }
-  // The gateway passes at most forty tools (apps/edge/lib/ai/ask-gateway.ts GATEWAY_MAX_TOOLS).
-  for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
+  // The gateway passes at most forty-four tools (apps/edge/lib/ai/ask-gateway.ts GATEWAY_MAX_TOOLS, 40 until decision 0148).
+  for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 44, `${role}: at most the gateway's forty-four`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 30, 36, 36],
-    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down and bringing in what a link holds too",
+    [14, 31, 38, 38],
+    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down, bringing in what a link holds and a week of posts too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

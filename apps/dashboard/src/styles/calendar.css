@@ -433,6 +433,17 @@
   .main-scroll > .calendar {
     --gutter-page: 12px;
   }
+  /* The bar's row under the strip, kept from the first draw, named by the strip the slot holds (shell-chrome.tsx
+     `data-strip`), which stands while the page is read: named by the bar, the row and the 8 under it came with the page,
+     and the page's place dropped 44px as it was drawn (the phone sweep of 22 Nov 2026). The row is the bar's height and
+     the 2 over it (above, `.cal-head`). */
+  .frame-top .pg-slot[data-strip="calendar"] {
+    padding-bottom: 8px;
+  }
+  .frame-top .pg-slot[data-strip="calendar"] > .pg-under-slot:empty {
+    display: block;
+    height: calc(2px + var(--control-h-lg));
+  }
 }
 
 :is(.frame-top .pg-under-slot, .cal-act) .cal-tools {

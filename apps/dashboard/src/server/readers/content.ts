@@ -26,7 +26,6 @@ import {
   CONTENT_TODAY_PIECES,
   contentDownOf,
   contentIdeaFilesOf,
-  reviewIdeaTitleOf,
   contentPieceMarkOf,
   type ContentDownDto,
   type ContentLineDto,
@@ -51,6 +50,8 @@ import {
   listFilesOnShelf,
   listPiecesStanding,
   listPostsOfFiles,
+  readVersionsOfFiles,
+  findPostWaitingOnVersion,
   listPostsStopped,
   listPostsTimed,
   listPostsUp,
@@ -59,9 +60,9 @@ import {
   type MemberPostRow,
   type PieceStandingRow,
 } from "@chanlytics/db/files";
-import { listReviewWords } from "@chanlytics/db/google";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
+import { readWeekToday } from "./week-today";
 import { readContentSources } from "../files/found";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -253,17 +254,8 @@ const IDEAS_FROM = 24;
  * page alone, where the first day and Make show them.
  */
 async function ideaFilesOf(db: Db, tenantId: TenantId) {
-  const [kept, reviews] = await Promise.all([
-    listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM }),
-    // One review of four or five stars that says something is enough to offer its idea (the ones a quote may come
-    // from); a read that failed offers none, and fails no page.
-    listReviewWords(db, tenantId, 1),
-  ]);
-  const newest = reviews.error ? null : (reviews.data[0] ?? null);
-  return contentIdeaFilesOf(kept.map(fileDtoOf), {
-    review: newest !== null,
-    reviewTitle: newest ? reviewIdeaTitleOf(newest) : null,
-  });
+  const kept = await listFilesOnShelf(db, tenantId, { status: "filed", made: false }, { limit: IDEAS_FROM });
+  return contentIdeaFilesOf(kept.map(fileDtoOf));
 }
 
 /**
@@ -296,7 +288,15 @@ async function madePage(
  * Pieces as Made draws them: each file with its posts at every place a press sent it, and apart from them the one its owner
  * said they put up by hand (00620), which is no place of ours.
  */
-async function piecesOf(db: Db, tenantId: TenantId, page: readonly Parameters<typeof fileDtoOf>[0][]) {
+async function piecesOf(db: Db, tenantId: TenantId, all: readonly Parameters<typeof fileDtoOf>[0][]) {
+  // One tile a piece (00708; the version board's cell 6): a version a piece moved past, or one still being drawn, is no
+  // tile of its own, and a piece whose next version is being drawn says so on its own tile.
+  const versions = await readVersionsOfFiles(
+    db,
+    tenantId,
+    all.filter((f) => f.kind === "video").map((f) => f.id),
+  );
+  const page = all.filter((f) => !versions.behind.has(f.id));
   const rowsOf = new Map<string, MemberFilePostRow[]>();
   for (const post of await listPostsOfFiles(
     db,
@@ -309,7 +309,13 @@ async function piecesOf(db: Db, tenantId: TenantId, page: readonly Parameters<ty
   }
   return page.map((f) => {
     const rows = rowsOf.get(f.id) ?? [];
-    return { file: fileDtoOf(f), posts: sentPostsOf(rows), by_hand: handPostOf(rows) };
+    const drawing = versions.drawing.get(f.id);
+    return {
+      file: fileDtoOf(f),
+      posts: sentPostsOf(rows),
+      by_hand: handPostOf(rows),
+      ...(drawing === undefined ? {} : { version_drawing: drawing }),
+    };
   });
 }
 
@@ -360,13 +366,21 @@ async function contentTodayOf(
   return {
     week: week.slice(0, CONTENT_TODAY_PIECES),
     making: held.standing
-      .filter((p) => p.status !== "failed" && !(p.file_id && arrived.has(p.file_id)))
+      .filter((p) => p.status !== "failed" && !p.revises && !(p.file_id && arrived.has(p.file_id)))
       .map(makingDtoOf),
     // Ready to post: a video is to be saved, and is not counted (contracts contentPieceMarkOf).
     ready: whole ? week.filter((m) => contentPieceMarkOf(m, held.now).is === "ready").length : null,
     stopped: stoppedLines[0] ?? null,
     down: held.down,
   };
+}
+
+/** The soonest post set to go that waits for a new version's approval, with its piece's file (the version board, cell 5). */
+async function versionWaitingOf(db: Db, tenantId: TenantId): Promise<ContentTodayDto["version"]> {
+  const waits = await findPostWaitingOnVersion(db, tenantId);
+  if (!waits) return null;
+  const [file] = await listFilesByIds(db, tenantId, [waits.fileId]);
+  return file ? { file: fileDtoOf(file), n: waits.n, at: waits.at } : null;
 }
 
 /**
@@ -379,14 +393,16 @@ export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const now = rc.now.getTime();
-    const [standing, stopped, page, down] = await Promise.all([
+    const [standing, stopped, page, down, plan, version] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString()),
       postsStillStopped(db, rc.tenantId),
       madePage(db, rc.tenantId, { limit: CONTENT_PAGE }),
       takeDownsOpen(db, rc.tenantId, now).catch(logAndGoOn("content note: open take-downs", [])),
+      readWeekToday(rc).catch(logAndGoOn("content note: the week's points", null)),
+      versionWaitingOf(db, rc.tenantId).catch(logAndGoOn("content note: a version that waits", null)),
     ]);
     const today = await contentTodayOf(db, rc.tenantId, { page, standing, stopped, down, now });
-    return { data: { today }, rows: [], stamp: readerStamp() };
+    return { data: { today: { ...today, plan, version } }, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -444,11 +460,14 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
               ]).then(([page, ideas, lines]) => {
                 // A video whose file has arrived is that file's tile: it is drawn once. What is being made heads the first page.
                 const onPage = new Set(page.made.map((m) => m.file.id));
-                const making = request.before ? [] : standing.filter((p) => !p.file_id || !onPage.has(p.file_id));
+                // A new version is drawn on its piece's own tile, never a tile of its own (00708).
+                const making = request.before
+                  ? []
+                  : standing.filter((p) => !p.revises && (!p.file_id || !onPage.has(p.file_id)));
                 return { ...empty, ...page, making: making.map(makingDtoOf), ideas, lines };
               })
             : view === "making"
-              ? Promise.resolve({ ...empty, making: standing.map(makingDtoOf) })
+              ? Promise.resolve({ ...empty, making: standing.filter((p) => !p.revises).map(makingDtoOf) })
               : view === "needs"
                 ? postLinesOf(db, rc.tenantId, stopped).then((lines) => ({
                     ...empty,

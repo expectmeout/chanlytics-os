@@ -31,6 +31,14 @@ export const publicEnv = {
   get NEXT_PUBLIC_LEAD_MAP_BASE(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_LEAD_MAP_BASE);
   },
+  /**
+   * Switch: "off" lets what other pages read go once the page on screen has its own reads, as before 23 Nov 2026; unset or
+   * anything else, it waits for the page to be drawn too (bridge/workspace.ts pageFirst; the plan "Pages that open at
+   * once", piece 3). A variable and a redeploy turn it off, never a code change (apps/edge/lib/shared/ai-flags.ts).
+   */
+  get NEXT_PUBLIC_PAGE_FIRST(): string | undefined {
+    return blankAsUnset(process.env.NEXT_PUBLIC_PAGE_FIRST);
+  },
   /** The build's commit, set by next.config from Vercel's; "dev" off Vercel. Keys the tab's caches to one build. */
   get NEXT_PUBLIC_BUILD_SHA(): string {
     return blankAsUnset(process.env.NEXT_PUBLIC_BUILD_SHA) ?? "dev";

@@ -71,6 +71,7 @@ export function usePiecePosts(
         instagram: record.instagram?.can === "yes",
         google: !video && record.connected,
         onGoogle: !!record.posted,
+        facebook: record.facebook?.can === "yes",
         fileKind: piece.file.kind,
       })
     : null;
@@ -85,11 +86,21 @@ export function usePiecePosts(
               ? PLACES_SAY.lineOff
               : null,
         google: record.connected ? null : PLACES_SAY.notConnected,
+        facebook:
+          record.facebook?.can === "not_connected"
+            ? PLACES_SAY.notConnected
+            : record.facebook?.can === "line_off"
+              ? PLACES_SAY.lineOff
+              : null,
       }
     : null;
   // Instagram is offered only where the Meta link is switched on for the workspace: the record holds none of it otherwise
   // (server posts/record.ts readFileRecord), and the list leaves the place out rather than say "Not yet" of it.
-  const offers: PieceOffers | null = known ? { instagram: record.instagram !== null, google: !video } : null;
+  // Facebook only where the link keeps a Page it may post to (pass 5): a row of a place nobody here can post to is left out,
+  // unless the piece already stands there.
+  const offers: PieceOffers | null = known
+    ? { instagram: record.instagram !== null, google: !video, facebook: record.facebook?.can === "yes" }
+    : null;
   return { posts, takes, wont, offers, known };
 }
 
@@ -98,7 +109,7 @@ type PiecePosts = ReturnType<typeof usePiecePosts>;
 
 /**
  * The caption on screen, as the box under a post's places holds it (viewer/caption.tsx onText): what Post sends, and what each
- * place's door keeps on the piece in the same step (server posts/caption.ts keepPostWords), so words typed just before Post go,
+ * place's door keeps on the piece in the same step (server posts/caption.ts readWordsToKeep, kept by 00713 post_approve_whole), so words typed just before Post go,
  * however the box was left (Ruben, 12 Nov 2026). Null while no box under the places shows it.
  */
 function useCaptionShown(fileId: string) {

@@ -6,16 +6,17 @@
  * snapshot is the build's alone.
  */
 export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
-  alerts: "6ce0dd5829dcd4fe",
+  alerts: "5326e6e0f8580709",
   ask_memory: "ea7be04b7c170a76",
-  ask_morning: "271f9bb75a263ed5",
+  ask_morning: "488bac7d5dad0b3c",
   audiences: "3cf311d9336ac944",
   billing: "9f5a6a4f8592c70a",
   broadcasts: "b6f49d12f80ff357",
-  calendar: "e5f0cb7bbf21255b",
-  calendar_runs: "4859024c5ad61285",
+  calendar: "5e2966040a285d00",
+  calendar_runs: "ba2f1119dab9a394",
   channels: "200700fcf97dd267",
-  content: "20fc3f440553875e",
+  content: "6635af3bcdf42a95",
+  content_week: "9e0dea8368e96749",
   conversations: "94d6c570292078a1",
   files: "732a41f0d258639d",
   google: "9d24a2f4070976f8",
@@ -36,6 +37,6 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   sequences: "096993fcb9b22d25",
   settings: "db78fffd31a17975",
   setup: "fb2470f3609076cc",
-  today: "e65f6ed7187e3c47",
+  today: "2a4052cbb8f3de62",
   today_pins: "d3fd87a670594687",
 };

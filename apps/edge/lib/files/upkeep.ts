@@ -180,7 +180,7 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
   return { asked: waiting.length, digests: stopped.length };
 }
 
-/** A Google post a press began and never heard back on, this long on, is failed in words: 00616 post_begin's own ten minutes. */
+/** A Google post a press began and never heard back on, this long on, is failed in words: 00681 post_approve's own ten minutes. */
 const GOOGLE_SILENT_AFTER_MS = 10 * MIN_MS;
 
 /**

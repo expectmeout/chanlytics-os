@@ -10,6 +10,7 @@ import type { GoogleReviewDto } from "../google/listing";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
 import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
+import type { CommentRowDto } from "../content/results/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import type { VisitWord } from "../shared/enums";
 import type { WaitingRun } from "../waits/waits";
@@ -114,7 +115,10 @@ export interface TodayQueueRowVM {
     | "form"
     // A form's entries held for a look that nobody has looked at in three days (00680): nobody waiting, one door, the
     // form's held pile.
-    | "form_held";
+    | "form_held"
+    // A comment on a post that AI could not answer safely, or whose answer did not go (00699): a person waiting on a
+    // word, opened where it is answered, in the Inbox.
+    | "comment";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -464,8 +468,12 @@ export interface TodayReadDto {
   previews_tried: PreviewTriedDto[] | null;
   /** The requests sent through a form that nobody has answered (readers/forms.ts formRequestsOpen); absent before 00680. */
   form_requests?: FormOpenRequestDto[] | null;
+  /** How many requests nobody has answered, counted whole (form_requests_open_count): the list stops at 200 (00709). */
+  form_requests_count?: number | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same reader); absent before 00680. */
   form_held?: FormHeldDto[] | null;
+  /** The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting); absent before 00699. */
+  comments?: CommentRowDto[] | null;
   /** How many things the members dealt with since the business's midnight, by Need you's door. */
   done_today: number | null;
   /** What the workspace calls an appointment. Absent from a server from before (either deploy order). */

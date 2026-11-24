@@ -515,14 +515,21 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "code",
   ),
   form_keys: { name: WITH_WORKSPACE, hash: NOT_PERSONAL },
+  // A website the business sends entries from, and each form it sends (00709): the business's own, as its keys are. A
+  // site's name is the one its first key was given and its host the business's domain; a form's names are the site's and
+  // the owner's for it, and its ref the site's own id for it. No person the workspace serves is on either.
+  form_sites: { name: WITH_WORKSPACE, host: WITH_WORKSPACE },
+  outside_forms: { kind: NOT_PERSONAL, ref: WITH_WORKSPACE, sent_name: WITH_WORKSPACE, name: WITH_WORKSPACE },
   // A form (00680) is the business's own page: the word in its address, its draft and each version published, written
   // by the owner for the public. No person the workspace serves is on a row, and they leave with the workspace. What
   // happened to an entry (form_entry_links) is ids and a closed set alone.
   form_versions: { description: WITH_WORKSPACE },
   forms: all(WITH_WORKSPACE, "slug", "draft"),
-  // A link (00680): a code made at random, the kind of thing it opens, and where it is shared in the owner's own
-  // words for a place ("Google listing"), which leave with the workspace. A day of a link (link_days) is numbers alone.
-  links: { ...all(NOT_PERSONAL, "code", "subject_type"), place: WITH_WORKSPACE },
+  // A link (00680): a code made at random, and where it is shared in the owner's own words for a place ("Google
+  // listing"), which leave with the workspace. What it opens and where a post's lands are closed sets (00699). A day of a
+  // link (link_days) is numbers alone, and so is a day of a form (form_days, 00691: its business's booking page opened
+  // from it).
+  links: { code: NOT_PERSONAL, place: WITH_WORKSPACE, sites: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),
@@ -594,9 +601,29 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   piece_revisions: { ...all(WITH_WORKSPACE, "plan", "captions"), changed: NOT_PERSONAL },
   // A shape as it is sent (00681): a path in the file's folder and its checksum, nobody's.
   piece_renditions: all(NOT_PERSONAL, "path", "checksum"),
+  // What a post said back (00699). A person's touch of a post keeps that it happened; what they wrote there (a comment's
+  // words, their name on Instagram) goes with them: emptied by their erasure (and by age, past 180 days,
+  // touches_age_out). The place's own id for it (a comment's id) is nobody's words, and keeps it once. A public answer to a comment is the business speaking in public: AI's draft, the owner's
+  // words, Instagram's id for it and the house's words for a refusal, kept with the workspace as a post's caption is. A
+  // post's numbers are numbers alone.
+  touches: { evidence: scrubbedBy("touches_trigger"), provider_event_id: NOT_PERSONAL },
+  comment_answers: {
+    ...all(WITH_WORKSPACE, "draft", "words", "cannot_why", "said"),
+    external_id: NOT_PERSONAL,
+  },
+  post_observations: { raw: NOT_PERSONAL },
   // What an owner approved (00681): the version, each shape by path and checksum, where, when, the business's own words and
   // any fact the owner stated, the business's record; its hash is nobody's.
   approvals: { snapshot: WITH_WORKSPACE, snapshot_hash: NOT_PERSONAL },
+  // A week planned (00706; the content loop PRD's 14.4): what an owner claims and what their posts are for are the
+  // business's own words; a plan's slots say what each post shows and why, from the business's own footage and reasons
+  // (a review's reviewer only as a first name and initial, never a contact Chanlytics holds). A clip's moments carry
+  // what was heard in it, as the file's own heard words do, so they go with the workspace; their closed sets are nobody's.
+  owner_claims: { text: WITH_WORKSPACE },
+  content_goals: { detail: WITH_WORKSPACE },
+  content_plans: { fewer: WITH_WORKSPACE },
+  plan_slots: { ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason"), score: NOT_PERSONAL },
+  file_moments: { ...all(WITH_WORKSPACE, "words", "shows") },
   // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's
   // ids and our sentences.
   posts: {

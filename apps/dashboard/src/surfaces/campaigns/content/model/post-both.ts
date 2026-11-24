@@ -13,6 +13,8 @@ import type { PieceTakes } from "./piece-open";
 export interface PostBothDraft {
   instagram: boolean;
   google: boolean;
+  /** A Page (the content loop PRD's pass 5): it goes as Instagram does, a picture as a post or a story, a video as a reel. */
+  facebook: boolean;
   as: InstagramPostKind;
 }
 
@@ -25,13 +27,14 @@ export interface PostBothDraft {
 export const postBothBegins = (takes: PieceTakes): PostBothDraft => ({
   instagram: takes.instagram,
   google: takes.google,
+  facebook: takes.facebook,
   as: "picture",
 });
 
 /** The one thing that stops a send, or null. `words` is the caption that goes with it. */
 export function postBothProblemOf(draft: PostBothDraft, words: string): string | null {
   const postSays = CONTENT_WORDS.post;
-  if (!draft.instagram && !draft.google) return postSays.nowhere;
+  if (!draft.instagram && !draft.google && !draft.facebook) return postSays.nowhere;
   // A post on Google and a picture post need words; a story shows none, and a reel may go with none.
   const needsWords = draft.google || draft.as === "picture";
   if (needsWords && !words) return postSays.wordsNeeded;

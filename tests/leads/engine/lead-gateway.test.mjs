@@ -49,9 +49,11 @@ test("the purposes, and every one may name an output format: the lead purposes a
       "person_draft",
       "sequence_draft",
       "yes_check",
+      "comment_rewrite",
       "message_draft",
       "ad_draft",
       "form_draft",
+      "content_line",
     ],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
@@ -133,11 +135,11 @@ test("the ad writer's craft call (ad_draft): the same model and ceiling, and a l
   assert.equal(validateGatewayRequest({ ...base, model: "claude-unknown-9" }, "ad_draft").ok, false);
 });
 
-test("each small JSON call rides one route and is a line of the ledger of its own (00658): a lead's email, a list, a message to a person, a campaign's draft and the yes check, so what each costs is read apart", async () => {
+test("each small JSON call rides one route and is a line of the ledger of its own (00658): a lead's email, a list, a message to a person, a campaign's draft, the yes check and a comment's answer written again, so what each costs is read apart", async () => {
   const C = await import("@chanlytics/contracts");
   assert.deepEqual(
     [...C.SMALL_JSON_PURPOSES],
-    ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check"],
+    ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check", "content_line", "comment_rewrite"],
   );
   for (const p of C.SMALL_JSON_PURPOSES) {
     assert.ok(GATEWAY_PURPOSES.includes(p), `the edge lets ${p} through`);

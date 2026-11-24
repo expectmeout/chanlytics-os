@@ -22,6 +22,12 @@
       "import": "./src/email/index.ts",
       "default": "./src/email/index.ts"
     },
+    "./facebook": {
+      "types": "./src/facebook/index.ts",
+      "bundled": "./dist/facebook.js",
+      "import": "./src/facebook/index.ts",
+      "default": "./src/facebook/index.ts"
+    },
     "./files": {
       "types": "./src/files/index.ts",
       "bundled": "./dist/files.js",

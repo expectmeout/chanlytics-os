@@ -20,19 +20,21 @@ test("the video maker is its guide: each way a video has been arranged well, as 
   const block = skillGuide("video");
   assert.equal(block, C.guideBlock(VIDEO_SKILL), "a skill's guide by its id is its own guide block");
   assert.ok(block.startsWith("Skill: Video maker."));
-  for (const way of ["Hook first:", "Before and after:", "Steps:", "A review:", "From photos:", "Words only"])
+  for (const way of ["Hook first:", "Before and after:", "Steps:", "A client's words:", "From photos:", "Words only"])
     assert.ok(block.includes(way), way);
   assert.match(block, /advice, not forms/);
-  // What the judged pieces taught (12 Nov 2026): say what changed, say a review once, in its own words alone.
+  // What the judged pieces taught (12 Nov 2026): say what changed, say a client's words once, in their own words alone.
   assert.match(block, /Open with what changed/);
   assert.match(block, /one quote card/);
-  assert.match(block, /never the review reworded/);
+  assert.match(block, /never reworded/);
+  // Google asks that a review's writer agree first, so no review goes into a post (Ruben, 24 Nov 2026).
+  assert.match(block, /Never a Google review/);
   assert.match(block, /nothing is said that the owner or a client did not say/);
   // With no craft call behind it the guide holds every rule, so it may run longer than a craft skill's short form.
   assert.ok(C.SKILL_GUIDE_MAX < VIDEO_GUIDE_MAX);
   assert.ok(block.length <= VIDEO_GUIDE_MAX, `${block.length} characters`);
   assert.ok(isAskSkillId("video"));
-  assert.deepEqual(ASK_SKILL_IDS, ["customer_message", "video", "ad"]);
+  assert.deepEqual(ASK_SKILL_IDS, ["customer_message", "video", "ad", "form"]);
 });
 
 test("a question's own words ask for it, in English and Spanish, and only then", () => {

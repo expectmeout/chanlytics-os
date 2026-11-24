@@ -193,6 +193,12 @@ export interface FileRecordDto {
    */
   instagram: { can: InstagramPostable; posts: PostDto[] } | null;
   /**
+   * Whether it can go on the business's Facebook Page now (the content loop PRD's pass 5), and its posts there, newest
+   * first. Null or absent where Facebook is not offered to the workspace (the Meta link off, or the place not switched on),
+   * and from a server before it was answered.
+   */
+  facebook?: { can: InstagramPostable; posts: PostDto[] } | null;
+  /**
    * A made post's posts at every place, newest first, whatever the Meta link: where a piece read on its own stands (a link, the
    * bell's row), as the page that lists it says. Absent on anything but a made post, and from a server before it was answered.
    */
@@ -206,6 +212,33 @@ export interface FileRecordDto {
    * anything else, and on one whose plan is gone with the card that asked for it.
    */
   video?: { plan: PiecePlan };
+  /**
+   * A made video's versions (00708; the version board): the version it stands at, a new one being made or one that could
+   * not be, and each version it was drawn as, newest first. Absent on anything else, and from a server before versions.
+   */
+  version?: PieceVersionsDto;
+}
+
+/** One version of a made video as its sheet lists it: its number, what moved, when, and its own file. */
+export interface PieceVersionDto {
+  n: number;
+  changed: string[];
+  at: string;
+  file_id: string;
+}
+
+/** A made video's versions (00708). */
+export interface PieceVersionsDto {
+  /** The version it stands at now. */
+  n: number;
+  /** A new version being made (its stage), or null. */
+  drawing: string | null;
+  /** The newest new version could not be made; the one before still stands as approved. */
+  failed: boolean;
+  /** Each version drawn (its own file), newest first: one is no list. */
+  list: PieceVersionDto[];
+  /** Posts still set to go at an older version: each waits for this version's approval (the version board, cells 2 and 4). */
+  waiting: string[];
 }
 
 /** The most words a post on Google may carry (localPosts.create). */

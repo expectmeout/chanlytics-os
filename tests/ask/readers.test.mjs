@@ -895,7 +895,9 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "going",
     "previewsTried", // not done today or the word: GET today's route reads those beside this reader
     "formRequests", // the requests sent through a form that nobody has answered (00680)
+    "formRequestsCount", // how many in all, past the list's 200 (00709)
     "formHeld", // each form's entries held for a look that nobody has looked at in three days
+    "comments", // the comments on the posts that wait on the owner: AI can't answer, or the answer didn't go (00699)
     "ai",
   ]);
   // What Today says of AI beside the day (Working for you, W1 to W3): each part a read of its own, null where it fails
@@ -5610,7 +5612,7 @@ test("connections, for the page: GET setup answers its reader's payload over set
     "setupDtoFor's own answer for a member, and the role riding along so the page knows who may act",
   );
   assert.deepEqual(askedWith(ctx), askedWith(direct), "setupDtoFor's own reads, in its order, on the member's session");
-  assert.ok(asked(ctx).includes("rpc:team_roster"), "the roster through its door: a member's");
+  assert.ok(asked(ctx).includes("rpc:setup_rows"), "Setup's rows in one call, the roster among them: a member's");
   assert.ok(!asked(ctx).includes("memberships.select"), "never the back office's plain counts");
   assert.deepEqual(asked(routed), ["memberships.select", ...asked(ctx)], "the workspace's door, then the same reads");
   const viewer = await kernel.load(memberIn(worldCtx(w), B, "viewer", NOW), connections, undefined);

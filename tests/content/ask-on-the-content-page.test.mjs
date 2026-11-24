@@ -29,7 +29,7 @@ const facts = {
 };
 
 /** The cards Content's own pages commit, which the guide says on Content, and a yes for one of its files (00665). */
-const CONTENT_VERBS = ["post", "piece", "publish", "take_down", "bring_in"];
+const CONTENT_VERBS = ["post", "piece", "publish", "take_down", "bring_in", "week", "claim"];
 
 test("the view Content says is read by its address's own predicate, whichever of its tabs is shown", () => {
   // The page says its view as its param with its tab (bridge/ask/context.ts contentContext): one predicate reads both.
@@ -94,8 +94,8 @@ test("anywhere else on Campaigns the line is as it was", () => {
     assert.doesNotMatch(words, /Campaigns › Content/, String(pageView));
   }
   const ads = turnWords({ ...facts, pageView: "ads" });
-  assert.match(ads, /They are on Campaigns › Ads/);
-  assert.doesNotMatch(ads, /Campaigns › Content/);
+  assert.match(ads, /They are on Ads, in Campaigns › Content/);
+  assert.doesNotMatch(ads, /They are on Campaigns › Content/, "Ads is said as Ads, not as Content's own line");
 });
 
 test("the guide has a Content page that holds Content's cards, and Settings holds none of them", () => {

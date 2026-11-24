@@ -71,11 +71,15 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // chip, the strip over the box), the draft Ask kept for the box, and the settings read, the one read of the templates
   // (surfaces/offered-templates.ts), which a thread outside WhatsApp's window draws its box from. They were read in the boot's
   // first and second passes, after the threads had drawn: the box came 0.3 to 1.5 s after the thread and pushed the
-  // conversation 145 to 162 px up (the Inbox load review, 28 Oct 2026).
+  // conversation 145 to 162 px up (the Inbox load review, 28 Oct 2026). And the day's read, which Needs you is made of (the
+  // one count's rows: whoever waits, what waits for an OK, whoever has waited past a week): read after the list was drawn,
+  // it folded three conversations away and drew the runs and the fold under them 2.4 s after the list (the phone sweep of
+  // 22 Nov 2026). Asked once a day's read was cheap (piece 2 of "Pages that open at once", #2538).
   inbox: [
     "conversations",
     "escalations?state=open",
     "broadcasts",
+    "today",
     "calls",
     "reach-out-replies",
     "conversations/drafts",
@@ -98,14 +102,22 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // weeks (GET calendar/runs, the board's marks: Show includes campaigns until the member turns them off).
   calendar: ["calendar?around=today", "calendar/runs?around=today"],
   // The report over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head. The Campaigns lens's three reads are its
-  // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
+  // own surface's (reports_campaigns), which the Overview reads once it is drawn, for one fact under its first screen.
   reports: ["reports?period=30d"],
-  // A lens drawn from a read of its own, over the same period (surfaces/reports/people-surface.ts and its two siblings), beside
+  // A lens drawn from a read of its own, over the same period (surfaces/reports/people-surface.ts and its siblings), beside
   // the report: asked only once the page's code had come, People's strip and charts landed 0.3 s after the page and moved it
-  // (the phone review of 15 Nov 2026; Receptionist's charts 0.4 s, the load sweep of 12 Nov 2026).
+  // (the phone review of 15 Nov 2026; Receptionist's charts 0.4 s, the load sweep of 12 Nov 2026). Campaigns' three, in the
+  // order its surface asks them (campaigns-surface.ts): its strip, its chart and the scope beside the lenses landed 0.3 s
+  // after the page, and the scope narrowed the strip of lenses, which slid 14 px (the phone sweep of 22 Nov 2026).
   "reports/people": ["reports?period=30d", "reports/people?period=30d"],
   "reports/receptionist": ["reports?period=30d", "reports/receptionist?period=30d"],
   "reports/reviews": ["reports?period=30d", "reports/reviews?period=30d"],
+  "reports/campaigns": [
+    "reports?period=30d",
+    "reports/campaigns?period=30d",
+    "reports/campaigns/ledger?period=30d",
+    "reports/reach-outs?period=30d",
+  ],
   live: ["calls", "channels"],
   // Sent's sheets: the runs, and the channels read the composers are made of (surfaces/channels/surface.ts), beside Sequences'
   // list (decision 0060, D3), its own read. Who an audience reaches (Send it again's list) is every page of People, read
@@ -173,6 +185,13 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Its Library (`campaigns/content:library`): the settings read, and what the business keeps, the library's own read, never
   // Made's (files/surface.ts).
   "campaigns/content/library": [...SETTINGS_READ, "files"],
+  // The Week (`campaigns/content:week`, where the workspace plans its weeks): the settings read, which says whether it
+  // does, and the week's own read (campaigns/content/week/surface.ts), never Made's.
+  "campaigns/content/week": [...SETTINGS_READ, "content/plan"],
+  // Forms (`campaigns/forms`, a form open in it among its addresses): the settings read, and its list, the view's own read
+  // (campaigns/forms/opening.ts takes it as the load begins). Asked only once the view's code was in, the list said "Reading…"
+  // under the head for 0.5 s after the page, 2.2 s on a slow phone (the phone sweep of 22 Nov 2026).
+  "campaigns/forms": [...SETTINGS_READ, "forms"],
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],
@@ -207,6 +226,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/billing": ["partner", "billing"],
   "admin/memory": ["partner", "ask/memory"],
   "admin/files": ["partner", "files"],
+  "admin/content": [...SETTINGS_READ, "partner", "content/plan"],
   "admin/activity": ["partner", "activity"],
   start: ["setup", "views"],
 };
@@ -327,8 +347,11 @@ export function routePrefetchScript(): string {
     'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
     // Ads is a view of Campaigns too (`campaigns/ads`, `campaigns/ads:new`, `campaigns/ads:ad:<id>`), and opens on its own reads.
     'if(s==="campaigns"&&/^ads(:|$)/.test(l))s="campaigns/ads";',
-    // And Content (`campaigns/content`, its Library `campaigns/content:library`), each on its own reads.
-    'if(s==="campaigns"&&/^content(:|$)/.test(l))s=/^content:library(:|$)/.test(l)?"campaigns/content/library":"campaigns/content";',
+    // And Content (`campaigns/content`, its Library `campaigns/content:library`, its Week `campaigns/content:week`), each on
+    // its own reads.
+    'if(s==="campaigns"&&/^content(:|$)/.test(l))s=/^content:library(:|$)/.test(l)?"campaigns/content/library":/^content:week(:|$)/.test(l)?"campaigns/content/week":"campaigns/content";',
+    // And Forms (`campaigns/forms`, `campaigns/forms:<form>`), on its own.
+    'if(s==="campaigns"&&/^forms(:|$)/.test(l))s="campaigns/forms";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

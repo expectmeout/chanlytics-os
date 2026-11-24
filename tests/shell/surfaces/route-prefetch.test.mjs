@@ -153,10 +153,17 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["reports/people", "reports/people"],
     ["reports/receptionist", "reports/receptionist"],
     ["reports/reviews", "reports/reviews"],
+    // And Campaigns, whose scope beside the lenses narrowed the strip as it landed (the phone sweep of 22 Nov 2026).
+    ["reports/campaigns", "reports/campaigns"],
     // Content, a view of Campaigns, and its Library, each on its own reads: it had no word here and opened on Campaigns' list,
     // which it never draws, its own read asked only once its code had come (the phone review of 15 Nov 2026).
     ["campaigns/content", "campaigns/content"],
     ["campaigns/content:library", "campaigns/content/library"],
+    // Its Week (00706), on the week's own read.
+    ["campaigns/content:week", "campaigns/content/week"],
+    // And Forms, a form open in it among its addresses: its list was asked only once its code had come (22 Nov 2026).
+    ["campaigns/forms", "campaigns/forms"],
+    [`campaigns/forms:${ID}`, "campaigns/forms"],
     // Campaigns lands on Sequences' list, its own address, a group's and a campaign's alike, and opens on what Sequences does.
     ["campaigns", "campaigns"],
     ["campaigns/in:winback", "campaigns"],
@@ -821,10 +828,13 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
       // What Ask made, which Campaigns › Content draws beside the settings read that says whether it is drawn.
       (await importSrc(`${S}/surfaces/campaigns/content/surface.ts`)).contentOverride,
+      // The Week, which Content's Week tab and Settings › Content draw (00706).
+      (await importSrc(`${S}/surfaces/campaigns/content/week/surface.ts`)).weekOverride,
       // Reports' lenses drawn from a read of their own, over the report's period.
       (await importSrc(`${S}/surfaces/reports/people-surface.ts`)).reportsPeopleOverride,
       (await importSrc(`${S}/surfaces/reports/receptionist-surface.ts`)).receptionistOverride,
       (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
+      (await importSrc(`${S}/surfaces/reports/campaigns-surface.ts`)).reportsCampaignsOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
@@ -877,6 +887,9 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     // Content's Library (the content redesign's stage 2), once Settings › Files: the library's read, never Made's.
     "campaigns/content:library": ["files"],
     "campaigns/content/library": ["files"],
+    // Its Week (00706): the week's own read, never Made's.
+    "campaigns/content:week": ["content_week"],
+    "campaigns/content/week": ["content_week"],
     // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
     // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
     // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.
@@ -893,6 +906,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     "admin/billing": ["partner", "billing"],
     "admin/memory": ["partner", "ask_memory"],
     "admin/files": ["partner", "files"],
+    "admin/content": ["partner", "content_week"],
     "admin/activity": ["partner"],
   };
   // What a page reads itself beside its surfaces, started by the head with them: New's searches whose leads are ready, one of
@@ -909,9 +923,12 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const { readAdsOpening } = await importSrc(`${S}/bridge/surfaces/ads-first-reads.ts`);
   const { read: bridgeRead } = await importSrc("apps/dashboard/src/bridge/api.ts");
   const readAdsFirst = () => readAdsOpening({ read: bridgeRead, route: "campaigns/ads", workspace: "harbor" });
+  // And Forms' list, read as a load there begins (campaigns/forms/opening.ts, as campaigns/home/opening.ts asks it).
+  const { readFormsOpening } = await importSrc(`${S}/surfaces/campaigns/forms/opening.ts`);
   const pageReads = {
     "campaigns/sequences/new": [readSources],
     "campaigns/ads": [readAdsFirst],
+    "campaigns/forms": [readFormsOpening],
     today: [readColdEmailNote, readContentToday, readTodayPeople],
   };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
@@ -919,6 +936,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const ADDRESS_OF = {
     "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
     "campaigns/content/library": "campaigns/content:library",
+    "campaigns/content/week": "campaigns/content:week",
   };
   const addressOf = (route) => ADDRESS_OF[route] ?? route;
   const pageAt = (route) => {
@@ -992,10 +1010,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   }
   // Reports over days a member picked, which only its address says: the head reads the address as the page's surface
   // does, so the two spell one read (first day, then last) and the surface's own takes what the head started.
-  for (const [route, lens] of [
-    ["reports/2026-09-01~2026-09-20", null],
-    ["reports/campaigns:2026-09-01~2026-09-20", null],
-    ["reports/people:2026-09-01~2026-09-20", "reports_people"],
+  for (const [route, lens, reads] of [
+    ["reports/2026-09-01~2026-09-20", null, 1],
+    ["reports/campaigns:2026-09-01~2026-09-20", "reports_campaigns", 4],
+    ["reports/people:2026-09-01~2026-09-20", "reports_people", 2],
   ]) {
     win.location.pathname = `/w/harbor/${route}`;
     api().forget();
@@ -1006,11 +1024,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       .slice(1)
       .sort();
     await allAsked(head);
-    assert.equal(
-      head.length,
-      lens ? 2 : 1,
-      `${route}: the report, and a lens's own read beside it (the Campaigns lens's reads are its own surface's)`,
-    );
+    assert.equal(head.length, reads, `${route}: the report, and a lens's own reads beside it`);
     assert.deepEqual(head, theirs(), `${route}: the head starts what Reports asks for over the days`);
   }
   win.location.pathname = "/w/harbor";

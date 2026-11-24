@@ -428,7 +428,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   );
 });
 
-test("a count of who said yes that cannot be read fails Setup's read -- a zero it never counted reads as 'nobody has said yes'", async () => {
+test("who said yes is counted in Setup's rows, and rows that cannot be read fail Setup's read -- a zero it never counted reads as 'nobody has said yes'", async () => {
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const tables = () => ({
     contacts: [
@@ -443,148 +443,61 @@ test("a count of who said yes that cannot be read fails Setup's read -- a zero i
       },
     ],
   });
-  /** The fake's faults, read once per query: the k-th read of contacts fails as PostgREST fails, and the rest answer. */
-  const failing = (k) => {
-    let n = 0;
-    return new Proxy(
-      {},
-      {
-        get: (_, key) =>
-          key === "contacts.select" && ++n === k
-            ? { message: "canceling statement due to statement timeout" }
-            : undefined,
-      },
-    );
+  const setup = await setupDtoFor(fakeDb(tables()), T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual(
+    [setup.consent.yes, setup.consent.offersSaidYes, setup.consent.offers, setup.people],
+    [1, 1, 0, 1],
+    "a yes to messages and to offers, no number to send an offer to, and one person held",
+  );
+  // The counts come with every other row of Setup's (setup_rows, 00700): rows the database could not answer fail the
+  // read, and nothing is said as a zero.
+  const timedOut = () => {
+    throw new Error("canceling statement due to statement timeout");
   };
-  // Setup reads contacts to count the people the workspace holds (decision 0073: quietly, a count it could not take is
-  // none said, never a zero), and then the answers: to messages, to offers, and to offers with a number.
-  const seen = fakeDb(tables());
-  await setupDtoFor(seen, T, { kind: "back_office" }, new Date(NOW));
-  const reads = seen.seen.filter((q) => q.table === "contacts");
-  const counts = reads.length;
-  assert.equal(counts, 4);
-  // Which of the four is the people count, by what it asks (no yes in it): each read goes out as it is asked for, so
-  // the order is the calls', and the answers' counts are asked for first (packages/db's, decision 0111).
-  const quiet = 1 + reads.findIndex((q) => !q.filters.some((f) => /consent/.test(String(f[1]))));
-  assert.ok(quiet > 0, "the people count asks for no yes");
-  const unread = await setupDtoFor(fakeDb(tables(), failing(quiet)), T, { kind: "back_office" }, new Date(NOW));
-  assert.equal(unread.people, undefined, "the people the workspace holds, not counted: none said, not a zero");
-  for (let k = 1; k <= counts; k++) {
-    if (k === quiet) continue;
-    await assert.rejects(
-      setupDtoFor(fakeDb(tables(), failing(k)), T, { kind: "back_office" }, new Date(NOW)),
-      /statement timeout/,
-      `REGRESSION: count ${k} of ${counts} failed, and Setup read it as a zero`,
-    );
-  }
+  await assert.rejects(
+    setupDtoFor(fakeDb(tables(), {}, { setup_rows: timedOut }), T, { kind: "back_office" }, new Date(NOW)),
+    /statement timeout/,
+    "REGRESSION: the counts could not be read, and Setup read them as zeros",
+  );
 });
 
-test("Setup asks for each source once, in one order, whichever viewer reads -- a member's roster through its door, the back office's two counts instead -- and a read that failed fails Setup by the first in that order", async () => {
+test("Setup asks the database for its rows once, whichever viewer reads -- a member's with the roster, the back office's with its members counted and never a door that asks who is signed in -- and rows that failed fail Setup", async () => {
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const asked = (db) => db.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
-  // Email is off here, so no mailbox is read.
   const was = process.env.EMAIL_DOMAIN;
-  delete process.env.EMAIL_DOMAIN;
+  process.env.EMAIL_DOMAIN = "mail.example.com";
   try {
-    // The order the reads reach the database: those that ask at once (the config, the last message and call, the
-    // calendar's zone, the listing and its facts, the Google connection, billing, the team), then the rest as they
-    // are awaited. The calendar's row is read from that config: its own read of the settings came last, a second
-    // time, until 9 Oct 2026 (setup-reads.test.mjs).
-    const READS = [
-      "tenant_config.select",
-      "messages.select",
-      "calls.select",
-      "tenants.select",
-      "google_listings.select",
-      "google_listings.select",
-      "google_connections.select",
-      "billing_accounts.select",
-      // What the first run chose for the workspace (setup_choices, decision 0091): asked at once, read quietly.
-      "setup_choices.select",
-      // What packages/db answers goes out as it is asked for (decision 0111): the channels, the templates' verdicts,
-      // the team's invitations, who said yes, the asks for help and the capabilities, ahead of what is awaited.
-      "tenant_channels.select",
-      "templates.select",
-      "invitations.select",
-      "contacts.select",
-      "contacts.select",
-      "contacts.select",
-      "events.select",
-      "lines.select",
-      "capability_activations.select",
-      // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
-      "mailbox_connections.select",
-      // Whether a day-before reminder runs (listRunningStepsOn): Today's card stops offering one.
-      "sequence_steps.select",
-      // The first run's (decision 0073), each read quietly: the rehearsals reviewed, what was brought in, the people the
-      // workspace holds, and what the profile and the website say.
-      "rehearsals.select",
-      "imports.select",
-      "contacts.select",
-      "business_reads.select",
-    ];
+    // Setup's rows in one call (24 until 23 Nov 2026), and beside them the workspace's zone (the calendar's row) and the
+    // mailboxes a reach-out writes from (decision 0056), which the email line reads with what each has sent today.
+    const READS = ["rpc:setup_rows", "tenants.select", "mailbox_connections.select"];
     const member = fakeDb({}, {}, { team_roster: () => [] });
     await setupDtoFor(member, T, { kind: "member" }, new Date(NOW));
-    // A member's settings as the server reads them for a member (workspace/config-row.ts): this workspace has no row, so
-    // the door is asked once the table has answered nothing, last.
-    assert.deepEqual(
-      asked(member),
-      ["rpc:team_roster", ...READS, "rpc:tenant_config_read"],
-      "a member: the roster through its door",
-    );
+    assert.deepEqual(asked(member), READS, "a member");
+    assert.deepEqual(member.seen[0].args, { p_tenant_id: T, p_roster: true }, "the roster through its door, inside");
+    // The back office has no session: no roster is asked for (team_roster asks who is signed in), so a double that does
+    // not model it answers all the same.
     const office = fakeDb({});
     await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
-    assert.deepEqual(
-      asked(office),
-      [
-        ...READS.slice(0, READS.indexOf("invitations.select")),
-        "memberships.select",
-        ...READS.slice(READS.indexOf("invitations.select")),
-      ],
-      "the back office: the members counted, and no RPC at all",
-    );
+    assert.deepEqual(asked(office), READS, "the back office");
+    assert.deepEqual(office.seen[0].args, { p_tenant_id: T, p_roster: false }, "its members counted instead");
 
-    // The reads whose failure is Setup's, in the order it judges them: of two that failed, the first is the error.
-    const CHECKED = [
-      ["tenant_channels.select", 1],
-      ["messages.select", 1],
-      ["calls.select", 1],
-      ["templates.select", 1],
-      ["contacts.select", 1],
-      ["contacts.select", 2],
-      ["contacts.select", 3],
-      ["events.select", 1],
-      ["capability_activations.select", 1],
-    ];
-    /** The fake's faults, read once per query: the k-th read of a table named here fails as PostgREST fails. */
-    const failing = (...which) => {
-      const n = new Map();
-      return new Proxy(
-        {},
-        {
-          get: (_, key) => {
-            if (typeof key !== "string") return undefined;
-            const k = (n.get(key) ?? 0) + 1;
-            n.set(key, k);
-            return which.some(([t, nth]) => t === key && nth === k) ? { message: `${key} #${k} timed out` } : undefined;
-          },
+    const failing = fakeDb(
+      {},
+      {},
+      {
+        setup_rows: () => {
+          throw new Error("setup_rows timed out");
         },
-      );
-    };
-    for (let i = 0; i < CHECKED.length; i++)
-      for (let j = i + 1; j < CHECKED.length; j++)
-        await assert.rejects(
-          setupDtoFor(fakeDb({}, failing(CHECKED[j], CHECKED[i])), T, { kind: "back_office" }, new Date(NOW)),
-          { message: `${CHECKED[i][0]} #${CHECKED[i][1]} timed out` },
-          `${CHECKED[i].join(" #")} failed before ${CHECKED[j].join(" #")}`,
-        );
+      },
+    );
+    await assert.rejects(setupDtoFor(failing, T, { kind: "back_office" }, new Date(NOW)), /setup_rows timed out/);
   } finally {
     if (was === undefined) delete process.env.EMAIL_DOMAIN;
     else process.env.EMAIL_DOMAIN = was;
   }
 });
 
-test("a running day-before reminder is said on Setup's read, and a read of it that failed says nothing rather than failing Setup", async () => {
+test("a running day-before reminder is said on Setup's read", async () => {
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const step = { id: "s1", tenant_id: T, name: "Day-before reminder", state: "running", trigger: "visit_tomorrow" };
   const on = await setupDtoFor(fakeDb({ sequence_steps: [step] }), T, { kind: "back_office" }, new Date(NOW));
@@ -592,13 +505,6 @@ test("a running day-before reminder is said on Setup's read, and a read of it th
   const paused = { ...step, state: "paused" };
   const off = await setupDtoFor(fakeDb({ sequence_steps: [paused] }), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual(off.reminders, { day_before: false }, "a paused one sends nothing: offered again");
-  const failed = await setupDtoFor(
-    fakeDb({ sequence_steps: [step] }, { "sequence_steps.select": { message: "timed out" } }),
-    T,
-    { kind: "back_office" },
-    new Date(NOW),
-  );
-  assert.equal("reminders" in failed, false, "unread: the card offers, and the route still refuses a second");
 });
 
 test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {
@@ -1205,6 +1111,8 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
     "apps/dashboard/src/server/setup/channel-rows.ts",
     "apps/dashboard/src/server/setup/setup.ts",
     "packages/db/src/repositories/workspace/setup-rows.ts",
+    // The rows those are, in one call (00700).
+    "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
   ]
     .map((p) => readCode(p))
     .join("\n");
@@ -1212,9 +1120,10 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
     "parseTenantConfigResult(cfgRow.config)",
     "starterByName(t.name)",
     "getCalendarWeek({ supabase }, tenantId, { from: null, days: 7 }",
-    'viewer.kind === "member" ? getTeamRoster(supabase, tenantId) : teamCounts(supabase, tenantId)',
-    '.eq("consent", "opted_in")',
-    '.eq("kind", "setup.requested")',
+    "readSetupRows(supabase, tenantId, member)",
+    "? { members: rosterOf(rows.roster ?? []), invites: rows.invitations }",
+    "'said_yes', count(*) filter (where c.consent = 'opted_in')",
+    "where x.tenant_id = p_tenant_id and x.kind = 'setup.requested'",
   ])
     assert.ok(get.includes(pin), pin);
   assert.ok(

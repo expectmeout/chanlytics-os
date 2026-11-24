@@ -213,6 +213,25 @@ export const JOB_KINDS = [
    */
   "post_take_down",
   /**
+   * A week of posts planned (00706; the content loop PRD's 10.2), payload { plan_id }, in the bulk lane: the reasons to
+   * post now read, the candidates scored, the week picked within the cadence, worded by AI in one call (post_words) and
+   * written ready, with nothing made. Begun by the weekly clock on Sunday evening in the business's zone, or by the
+   * owner's ask.
+   */
+  "content_plan",
+  /**
+   * A post's numbers read back from its place (00699; the content loop PRD's 9.1), payload { post_id, step }, in the bulk
+   * lane: one read at an hour, a day, 3, 7 or 28 days after it went up, every number at once, a missing one said and never
+   * a zero. The health sweep asks one for each read that is due and not kept.
+   */
+  "post_observe",
+  /**
+   * A public answer to a comment on a post (00699; the content loop PRD's 12.4), payload { touch_id, step, attempt? }, in
+   * the lane of someone waiting who is not a customer: step draft has AI write it (or say why it cannot, safely), step send
+   * posts the owner's words under the comment as the business.
+   */
+  "comment_reply",
+  /**
    * A video made from a business's clips (00613, decision 0122), payload { piece_id, step, tick }, one step a run, in the
    * lane of someone waiting who is not a customer: start reads the clips and starts the machine that draws it, wait asks
    * after the drawing and sends the video into the video platform. A wait that runs out of its run is the next tick.

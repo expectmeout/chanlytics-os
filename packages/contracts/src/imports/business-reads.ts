@@ -219,13 +219,14 @@ export const WEBSITE_READ_SYSTEM = [
   "answers: questions the pages answer, each the question and its answer in a sentence or two.",
   "description: one short paragraph of what the business says of itself, in its own words, or null.",
   "film: three short clips its owner could film on a phone to show what the pages say the business does, each what (the shot, five words at most), how (where to hold the phone, one sentence of twelve words at most, never how long) and seconds (how long to film it, a whole number). Never a face up close. Empty where the pages say too little.",
+  'look: how the business\'s own short videos should feel, from how its pages speak: words, the feel in a few plain words ("Warm and close", "Clean and confident"), or null; call, the pages\' own way of asking a visitor to book or get in touch, forty characters at most, or null; music, a mood of music that fits the feel, a few words, or null. Nothing the pages do not support.',
 ].join("\n");
 
 /** The JSON schema the reading answers in (Anthropic's structured output), the shape businessReadFactsOf reads. */
 export const WEBSITE_READ_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["services", "closed", "rules", "answers", "description", "film"],
+  required: ["services", "closed", "rules", "answers", "description", "film", "look"],
   properties: {
     services: {
       type: "array",
@@ -267,6 +268,16 @@ export const WEBSITE_READ_SCHEMA = {
         additionalProperties: false,
         required: ["what", "how", "seconds"],
         properties: { what: { type: "string" }, how: { type: "string" }, seconds: { type: ["integer", "null"] } },
+      },
+    },
+    look: {
+      type: "object",
+      additionalProperties: false,
+      required: ["words", "call", "music"],
+      properties: {
+        words: { type: ["string", "null"] },
+        call: { type: ["string", "null"] },
+        music: { type: ["string", "null"] },
       },
     },
   },

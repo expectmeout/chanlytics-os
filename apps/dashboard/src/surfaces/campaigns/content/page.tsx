@@ -21,8 +21,9 @@ import "../../files/files.css";
 import "../../files/post.css";
 import "./content.css";
 import "./sheets/sheets.css";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ADS_ROUTE,
   CONTENT_WORDS as W,
   DAY_MS,
   FILE_WORDS,
@@ -30,6 +31,7 @@ import {
   contentMoving,
   contentWakesAt,
   contentPlaceOf,
+  contentPlanOf,
   contentRouteOf,
   contentViewDrawsLines,
   videoPreviewOf,
@@ -39,7 +41,7 @@ import {
   type ContentMadeDto,
   type ContentPageDto,
   type ContentPlace,
-  type ContentView,
+  type WeekRow,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
@@ -72,12 +74,16 @@ import {
   ContentViews,
   LibraryKinds,
   useContentLayout,
+  weekCountOf,
+  type AdsChoice,
   type ContentLayout,
+  type MadeView,
 } from "./views";
+import { useAdsShown } from "../ads/shown";
+import { useAdsNeeding } from "../ads/needs-you";
 import { pieceBesideOf } from "./model/piece-open";
-
-/** The library, Files' own: a chunk of its own, asked for the first time Library is shown. */
-const ContentLibrary = lazy(() => import("./library"));
+import { libraryNow } from "../parts/library-code";
+import { ContentWeek, WeekPlannedOpen } from "./week/week";
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
 const CONTENT_FOLLOW_MS = 5 * SECOND_MS;
@@ -286,6 +292,22 @@ interface BarGlyph {
 const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
   !!tally && tally.made + tally.making + tally.needs + tally.aside === 0;
 
+/** Ads among Made's views where Ads is on: amber where something in it needed the owner as the Ads page last read it. */
+function useAdsChoice(): AdsChoice | null {
+  const shown = useAdsShown();
+  const needing = useAdsNeeding();
+  return shown ? { owed: needing > 0 } : null;
+}
+
+/**
+ * Whether the list is drawn as Squares or rows, the one choice for both lists: the Library once it holds a file (as its
+ * coral Add waits, heads.tsx WhileLibraryHolds); Made's All, Making and Set aside while it holds anything (not its lines).
+ */
+const laidOutOf = (place: ContentPlace, bare: boolean, libraryHolds: boolean): boolean =>
+  place.list === "library"
+    ? libraryHolds
+    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+
 /**
  * The bar over the list: Made or the Library, then the list's own. On a phone, the search's glyph while the find line rests
  * and the views' pill, which holds Squares or List too (Ruben, 12 Nov 2026: one row as People's and the Inbox's, the glyph
@@ -294,6 +316,8 @@ const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
 function ContentBar(props: {
   place: ContentPlace;
   tally: ContentPageDto["tally"] | null;
+  /** Whether the workspace plans its weeks: the Week is the first tab. */
+  planned: boolean;
   phone: boolean;
   layout: ContentLayout;
   choose: (layout: ContentLayout) => void;
@@ -302,15 +326,17 @@ function ContentBar(props: {
 }) {
   const { place, tally, phone, glyph } = props;
   const library = place.list === "library";
-  const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
+  // The Week is a list of its own: no find, no views, no Squares or List (the boards' Week 1-12).
+  const week = place.list === "week";
+  // Ads, the last of Made's views where it is on, is its own page at its own address (campaigns/ads), drawn in Made's place.
+  const onView = (v: MadeView) =>
+    navigate(v === "ads" ? ADS_ROUTE : contentRouteOf({ list: "made", view: v, open: null }));
+  const ads = useAdsChoice();
   const libraryHolds = useLibraryHolds();
   // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do). The
   // Library's Squares or List waits for its first file, as its coral Add does (heads.tsx WhileLibraryHolds).
-  const bare = !library && place.view === "all" && madeHoldsNothing(tally);
-  // Squares or rows, the one choice for both lists, where the list is drawn as either (not Made's lines).
-  const laidOut = library
-    ? libraryHolds
-    : !bare && (place.view === "all" || place.view === "making" || place.view === "aside");
+  const bare = week || (!library && place.view === "all" && madeHoldsNothing(tally));
+  const laidOut = laidOutOf(place, bare, libraryHolds);
   const layoutHeld = laidOut ? { value: props.layout, choose: props.choose } : null;
   return (
     <>
@@ -319,6 +345,8 @@ function ContentBar(props: {
           list={place.list}
           tally={tally}
           onList={(l) => navigate(contentRouteOf({ list: l, view: "all", open: null }))}
+          // How many the Week holds, as it was last read: the tab reads no week of its own on Made or the Library.
+          week={props.planned ? { count: weekCountOf() } : null}
         />
         <div className="cnv-bar-end">
           {glyph ? <ListFind label={glyph.label} onFind={glyph.onFind} testid="cnv-find-open" /> : null}
@@ -327,7 +355,14 @@ function ContentBar(props: {
             library ? (
               <LibraryKinds phone layout={layoutHeld} />
             ) : (
-              <ContentViews view={place.view} tally={tally} onView={onView} layout={layoutHeld} />
+              <ContentViews
+                view={place.view}
+                tally={tally}
+                onView={onView}
+                layout={layoutHeld}
+                planned={props.planned}
+                ads={ads}
+              />
             )
           ) : null}
         </div>
@@ -336,7 +371,7 @@ function ContentBar(props: {
       {phone || bare ? null : library ? (
         <LibraryKinds phone={false} />
       ) : place.view === "aside" ? null : (
-        <ContentViewRow view={place.view} tally={tally} onView={onView} />
+        <ContentViewRow view={place.view} tally={tally} onView={onView} planned={props.planned} ads={ads} />
       )}
       {/* Made's Set aside stands apart from its views, as the Library's does: the way back to All, and how many. */}
       {!library && place.view === "aside" ? (
@@ -349,6 +384,30 @@ function ContentBar(props: {
       ) : null}
     </>
   );
+}
+
+/** The search's glyph in a phone's bar, where the list has a find line that holds no words; never on the Week. */
+const barGlyphOf = (at: {
+  week: boolean;
+  phone: boolean;
+  find: ReturnType<typeof useContentFind>;
+  onFind: () => void;
+}): BarGlyph | null =>
+  !at.week && at.phone && at.find && !at.find.about ? { label: at.find.label, onFind: at.onFind } : null;
+
+/**
+ * A row of the Week, opened: a made one at its file's address, in Content's own viewer; one not made yet beside the list
+ * by its creative, as no address names a piece that is not a file.
+ */
+function useWeekOpen(show: (open: string) => void) {
+  const [plannedOpen, setPlannedOpen] = useState<string | null>(null);
+  const openWeekRow = (row: WeekRow) => {
+    if (row.opens) {
+      setPlannedOpen(null);
+      show(row.opens);
+    } else setPlannedOpen(row.creative);
+  };
+  return { plannedOpen, closePlanned: () => setPlannedOpen(null), openWeekRow };
 }
 
 /** Show more: the next page of what was made, read once at a time; a read that failed says so. */
@@ -364,11 +423,23 @@ function useMoreContent(flash: (f: FrameFlash) => void): { gettingMore: boolean;
   return { gettingMore, more };
 }
 
-export function ContentPage({ route, view }: { route: string; view?: CmView }) {
+interface ContentPageProps {
+  route: string;
+  view?: CmView;
+  /** The page Made's draw is said for where the address names another: an Ads address where Ads is not drawn. */
+  markedAs?: { page: string; part: string };
+}
+
+export function ContentPage({ route, view, markedAs }: ContentPageProps) {
   const place: ContentPlace = contentPlaceOf(route.split("/")[1]) ?? { list: "made", view: "all", open: null };
   const library = place.list === "library";
+  const week = place.list === "week";
+  // The Library's code, taken once for the mount (library-code.ts): itself where a load opened on it, else the lazy part.
+  const [ContentLibrary] = useState(libraryNow);
   const held = useSurface("content");
-  const videos = videoPreviewOf(useSurface("settings")?.settings?.config);
+  const config = useSurface("settings")?.settings?.config;
+  const videos = videoPreviewOf(config);
+  const planned = contentPlanOf(config);
   const phone = useCmPhone();
   const dto = held && held.dto;
   useAsksWhileMoving(!!dto && contentMoving(dto, Date.now()));
@@ -384,6 +455,8 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
   const toast = useCampaignsToast();
   const flash = (f: FrameFlash) => toast?.(f);
   const { show, walk, close } = usePieceAddress(place);
+  // A row of the Week not made yet, open beside it: by its creative, as no address names a piece that is not a file.
+  const { plannedOpen, closePlanned, openWeekRow } = useWeekOpen(show);
   // The library's files, as it tells them once read: what a piece opened from it walks through.
   const [shelf, setShelf] = useState<ContentMadeDto[] | null>(null);
   const pieces = useMemo(() => (library ? shelf : piecesShownOf(dto)), [library, shelf, dto]);
@@ -438,32 +511,40 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
           <ContentBar
             place={place}
             tally={dto ? dto.tally : null}
+            planned={planned}
             phone={phone}
             layout={layout}
             choose={setLayout}
-            glyph={phone && find && !find.about ? { label: find.label, onFind: () => findRef.current?.focus() } : null}
+            glyph={barGlyphOf({ week, phone, find, onFind: () => findRef.current?.focus() })}
           />
-          {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps). What needs the owner
-              is each list's first group (body.tsx MadeGroups, files/library-groups.tsx). */}
-          <ContentFind
-            key={library ? "library" : "made"}
-            find={find}
-            drawn={phone ? { inputRef: findRef, folds: true } : {}}
-          />
-          {library ? (
-            <Suspense fallback={null}>
-              <ContentLibrary flash={flash} onOpen={show} onPieces={setShelf} onAdder={takeAdder} layout={layout} />
-            </Suspense>
+          {week ? (
+            <ContentWeek openId={plannedOpen ?? opened?.file.id ?? null} onOpen={openWeekRow} flash={flash} />
           ) : (
-            <ContentBody
-              held={dto}
-              acts={acts}
-              gettingMore={gettingMore}
-              videos={videos}
-              openId={opened?.file.id ?? null}
-              layout={layout}
-              desk={!phone}
-            />
+            <>
+              {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps). What needs the
+                  owner is each list's first group (body.tsx MadeGroups, files/library-groups.tsx). */}
+              <ContentFind
+                key={library ? "library" : "made"}
+                find={find}
+                drawn={phone ? { inputRef: findRef, folds: true } : {}}
+              />
+              {library ? (
+                <Suspense fallback={null}>
+                  <ContentLibrary flash={flash} onOpen={show} onPieces={setShelf} onAdder={takeAdder} layout={layout} />
+                </Suspense>
+              ) : (
+                <ContentBody
+                  held={dto}
+                  acts={acts}
+                  gettingMore={gettingMore}
+                  videos={videos}
+                  openId={opened?.file.id ?? null}
+                  layout={layout}
+                  desk={!phone}
+                  markedAs={markedAs}
+                />
+              )}
+            </>
           )}
           <MakeSheet
             open={making}
@@ -475,7 +556,9 @@ export function ContentPage({ route, view }: { route: string; view?: CmView }) {
         </>
       }
       open={
-        opened ? (
+        week && plannedOpen && !opened ? (
+          <WeekPlannedOpen creative={plannedOpen} onClose={closePlanned} flash={flash} />
+        ) : opened ? (
           <ContentPiece
             key={opened.file.id}
             made={opened}

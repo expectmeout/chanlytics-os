@@ -20,6 +20,7 @@ import type { AskMorningSurface } from "./today/ask-morning-surface";
 import type { AskMemorySurface } from "./settings/memory/surface";
 import type { FilesSurface } from "./files/surface";
 import type { ContentSurface } from "./campaigns/content/surface";
+import type { WeekSurface } from "./campaigns/content/week/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { ReceptionistSurface } from "./reports/receptionist-surface";
 import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
@@ -91,6 +92,8 @@ export interface SurfaceValues {
   files: FilesSurface | null;
   /** What Ask made and where each piece stands, read where Campaigns › Content is drawn (campaigns/content/surface.ts); null when the read failed. */
   content: ContentSurface | null;
+  /** The Week, read where it or Settings › Content is drawn (campaigns/content/week/surface.ts); null when the read failed. */
+  content_week: WeekSurface | null;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -266,6 +269,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   ask_memory: true,
   files: true,
   content: true,
+  content_week: true,
   leads: true,
   setup: true,
   billing: true,

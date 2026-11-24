@@ -134,11 +134,13 @@ test("where the site says customers book, read for what it is, and whether that 
 });
 
 test("the website's reading answers in the shape the facts are read in: every field asked for, nothing else", () => {
-  // film: three shots to film for a video, read apart from the facts (filmShotsOf) and kept beside them.
+  // film: three shots to film for a video, read apart from the facts (filmShotsOf) and kept beside them; look: the feel,
+  // the call and the music's mood the brand kit is proposed from on day one (content/making/kit.ts siteKitOf).
   assert.deepEqual(
     [...WEBSITE_READ_SCHEMA.required],
-    ["services", "closed", "rules", "answers", "description", "film"],
+    ["services", "closed", "rules", "answers", "description", "film", "look"],
   );
+  assert.deepEqual([...WEBSITE_READ_SCHEMA.properties.look.required], ["words", "call", "music"]);
   assert.equal(WEBSITE_READ_SCHEMA.additionalProperties, false);
   assert.deepEqual([...WEBSITE_READ_SCHEMA.properties.services.items.required], ["name", "price_note", "duration_min"]);
   // A clip's length is its own number (Content's card says it once, "8s each"), never words inside where to stand.

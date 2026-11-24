@@ -22,7 +22,7 @@ export interface FormReach {
 }
 
 /** Why an entry is held for a look. */
-export type FormHeldWhy = "hidden_field" | "too_fast" | "too_many" | "member";
+export type FormHeldWhy = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
 
 /** What the door hands its one write. */
 export interface FormRequestToTake {
@@ -75,6 +75,11 @@ export async function takeFormRequest(db: Db, entry: FormRequestToTake): Promise
     p_held_why: entry.heldWhy ?? undefined,
   });
   if (error) throw new DbFailure(error, "form_request_take");
+  return takenFrom(data);
+}
+
+/** What form_request_take answered (and form_time_request_take with it), read back. */
+export function takenFrom(data: unknown): FormRequestTaken {
   const row = recordOrEmpty(data);
   const outcome = row.outcome;
   if (outcome === "closed" || outcome === "forgotten") return { outcome, entryId: null, contactId: null };
@@ -111,11 +116,16 @@ export async function holdFormEntry(db: Db, tenantId: TenantId, entryId: string)
   return data === true;
 }
 
-/** A request nobody has answered, as form_requests_open reads it. */
+/**
+ * A request nobody has answered, as form_requests_open reads it: a hosted form's, read against its version, or a website
+ * form's (00709), whose `formId` is its outside form and which has no version.
+ */
 export interface OpenFormRequest {
   id: string;
   formId: string;
-  versionId: string;
+  versionId: string | null;
+  /** The form owned by the business's own website it came through; null for a hosted form's. */
+  outsideFormId: string | null;
   contactId: ContactId | null;
   createdAt: string;
   /** The answers as kept, by field id: read against the request's version (contracts readFormAnswers). */
@@ -126,6 +136,35 @@ export interface OpenFormRequest {
   heading: string | null;
   /** A reply to it failed to reach them. */
   unreached: boolean;
+  /** The time it asked for, as its visit stands now (00691, F3), or null where it asked for none. */
+  time: OpenFormRequestTime | null;
+}
+
+/** A time a request asked for, as its visit stands now. */
+export interface OpenFormRequestTime {
+  appointmentId: string;
+  startsAt: string;
+  endsAt: string;
+  service: string | null;
+  status: string;
+  expiresAt: string | null;
+  timezone: string;
+}
+
+/** The time a request asked for, read back; null where it asked for none. */
+function openTimeKept(kept: unknown): OpenFormRequestTime | null {
+  const row = recordOrEmpty(kept);
+  if (typeof row.appointment_id !== "string" || typeof row.starts_at !== "string" || typeof row.ends_at !== "string")
+    return null;
+  return {
+    appointmentId: row.appointment_id,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    service: keptText(row.service),
+    status: keptText(row.status) ?? "proposed",
+    expiresAt: keptText(row.expires_at),
+    timezone: keptText(row.timezone) ?? "UTC",
+  };
 }
 
 /** The requests of a workspace's forms nobody has answered, newest first (form_requests_open). */
@@ -135,13 +174,16 @@ export async function listOpenFormRequests(db: Db, tenantId: TenantId): Promise<
   const rows: unknown[] = Array.isArray(data) ? data : [];
   return rows.flatMap((line) => {
     const row = recordOrEmpty(line);
-    if (typeof row.id !== "string" || typeof row.form_id !== "string" || typeof row.version_id !== "string") return [];
+    const outside = keptText(row.outside_form_id);
+    const hosted = typeof row.form_id === "string" && typeof row.version_id === "string";
+    if (typeof row.id !== "string" || (!hosted && !outside)) return [];
     const contact = keptText(row.contact_id);
     return [
       {
         id: row.id,
-        formId: row.form_id,
-        versionId: row.version_id,
+        formId: hosted ? String(row.form_id) : (outside ?? ""),
+        versionId: hosted ? String(row.version_id) : null,
+        outsideFormId: hosted ? null : outside,
         contactId: contact ? heldContactId(contact) : null,
         createdAt: typeof row.created_at === "string" ? row.created_at : "",
         answers: recordOrEmpty(row.answers),
@@ -149,16 +191,22 @@ export async function listOpenFormRequests(db: Db, tenantId: TenantId): Promise<
         place: keptText(row.place),
         heading: keptText(row.heading),
         unreached: row.unreached === true,
+        time: openTimeKept(row.time),
       },
     ];
   });
 }
 
-/** One entry of a hosted form as a member's screens read it. */
+/**
+ * One entry of a form as a member's screens read it: a hosted form's, with the version its visitor saw, or a website
+ * form's (00709), whose `formId` is its outside form and which has no version.
+ */
 export interface FormEntryRead {
   id: string;
   formId: string;
-  versionId: string;
+  versionId: string | null;
+  /** The form owned by the business's own website it came through; null for a hosted form's. */
+  outsideFormId: string | null;
   linkId: string | null;
   contactId: ContactId | null;
   createdAt: string;
@@ -173,7 +221,7 @@ export interface FormEntryRead {
 }
 
 const ENTRY_COLUMNS =
-  "id, form_id, version_id, link_id, contact_id, created_at, state, held_why, test, answers, reach, source, code_used_at";
+  "id, form_id, version_id, outside_form_id, link_id, contact_id, created_at, state, held_why, test, answers, reach, source, code_used_at";
 
 /** Why an entry is held, read back from what was kept; null for a word nobody knows. */
 function heldWhyKept(kept: string | null): FormHeldWhy | null {
@@ -185,6 +233,7 @@ function entryReadOf(row: {
   id: string;
   form_id: string | null;
   version_id: string | null;
+  outside_form_id: string | null;
   link_id: string | null;
   contact_id: string | null;
   created_at: string;
@@ -196,12 +245,14 @@ function entryReadOf(row: {
   source: Json | null;
   code_used_at: string | null;
 }): FormEntryRead[] {
-  if (!row.form_id || !row.version_id) return [];
+  const hosted = !!row.form_id && !!row.version_id;
+  if (!hosted && !row.outside_form_id) return [];
   return [
     {
       id: row.id,
-      formId: row.form_id,
-      versionId: row.version_id,
+      formId: (hosted ? row.form_id : row.outside_form_id) ?? "",
+      versionId: hosted ? row.version_id : null,
+      outsideFormId: hosted ? null : row.outside_form_id,
       linkId: row.link_id,
       contactId: row.contact_id ? heldContactId(row.contact_id) : null,
       createdAt: row.created_at,
@@ -231,7 +282,7 @@ export async function listFormEntries(
   return data.flatMap(entryReadOf);
 }
 
-/** One entry of a hosted form, or null where the workspace has none by that id. */
+/** One entry of a form, made here or on the business's own website, or null where the workspace has none by that id. */
 export async function findFormRequest(db: Db, tenantId: TenantId, entryId: string): Promise<FormEntryRead | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("form_entries")
@@ -320,21 +371,6 @@ export async function listFormEntryLinks(
   });
 }
 
-/** The reply a member sent from a request, kept as what answered it. */
-export async function linkFormReply(
-  db: Db,
-  linked: { tenantId: TenantId; entryId: string; messageId: string; userId: string },
-): Promise<void> {
-  const { error } = await db.from("form_entry_links").insert({
-    tenant_id: linked.tenantId,
-    entry_id: linked.entryId,
-    kind: "reply",
-    message_id: linked.messageId,
-    created_by: linked.userId,
-  });
-  if (error) throw new DbFailure(error, "form_entry_links");
-}
-
 /** A member's word that a request was answered another way. Said twice, it is said once. */
 export async function markFormEntryAnswered(
   db: Db,
@@ -372,14 +408,36 @@ export interface FormPlaceResult {
   /** The people who asked: one person with two requests is one. */
   people: number;
   newPeople: number;
+  /** The requests that asked for a time (00691, F3). */
+  asked: number;
 }
 
-/** What a workspace's forms brought over the last `days`, by place, and each link's opens (form_results). */
+/** What one form owned by the business's own website brought over a window (00709): its entries, and what followed. */
+export interface OutsideFormResult {
+  outsideFormId: string;
+  entries: number;
+  people: number;
+  newPeople: number;
+  talked: number;
+  visits: number;
+  /** A sign-up's people who confirmed from the email it sent them (00489): their yes to offers, after it came. */
+  confirmed: number;
+}
+
+/**
+ * What a workspace's forms brought over the last `days`: each hosted form by place, each form its own website owns
+ * (00709), each link's opens, and each form's booking page opened (form_results).
+ */
 export async function readFormResults(
   db: Db,
   tenantId: TenantId,
   days: number,
-): Promise<{ places: FormPlaceResult[]; opens: Map<string, number> }> {
+): Promise<{
+  places: FormPlaceResult[];
+  outside: OutsideFormResult[];
+  opens: Map<string, number>;
+  bookingOpens: Map<string, number>;
+}> {
   const { data, error } = await db.rpc("form_results", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new DbFailure(error, "form_results");
   const row = recordOrEmpty(data);
@@ -396,15 +454,41 @@ export async function readFormResults(
         visits: count(place.visits),
         people: count(place.people),
         newPeople: count(place.new_people),
+        asked: count(place.asked),
       },
     ];
   });
-  const opens = new Map<string, number>();
-  for (const line of Array.isArray(row.opens) ? row.opens : []) {
-    const open = recordOrEmpty(line);
-    if (typeof open.link_id === "string") opens.set(open.link_id, count(open.opens));
-  }
-  return { places, opens };
+  const countsBy = (lines: unknown, key: "link_id" | "form_id") => {
+    const by = new Map<string, number>();
+    for (const line of Array.isArray(lines) ? lines : []) {
+      const open = recordOrEmpty(line);
+      const id = open[key];
+      if (typeof id === "string") by.set(id, count(open.opens));
+    }
+    return by;
+  };
+  const outside = (Array.isArray(row.outside) ? row.outside : []).flatMap((line: unknown) => {
+    const form = recordOrEmpty(line);
+    if (typeof form.outside_form_id !== "string") return [];
+    return [
+      {
+        outsideFormId: form.outside_form_id,
+        entries: count(form.entries),
+        people: count(form.people),
+        newPeople: count(form.new_people),
+        talked: count(form.talked),
+        visits: count(form.visits),
+        confirmed: count(form.confirmed),
+      },
+    ];
+  });
+  // Each link's opens; and each form's business's own booking page, opened from it (00691).
+  return {
+    places,
+    outside,
+    opens: countsBy(row.opens, "link_id"),
+    bookingOpens: countsBy(row.booking_opens, "form_id"),
+  };
 }
 
 /**

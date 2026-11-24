@@ -1,7 +1,9 @@
 /**
- * What a form's entry owes, once it is kept (00675, 00680; the Forms plan's 3.2, steps 7 and 8): a website's own form,
- * and a hosted form's request, which owes the same note and notice and is read against the version its visitor saw
- * (its notice is the bell's `form_request`, and opens the request in Inbox, where it is answered). Each is its own step,
+ * What a form's entry owes, once it is kept (00675, 00680, 00709; the Forms plan's 3.2, steps 7 and 8): a website's own
+ * form, and a request, which owes the same note and notice and is read as a form's request (its notice is the bell's
+ * `form_request`, and opens the request in Inbox, where it is answered): a hosted form's against the version its
+ * visitor saw, and a website form's from its form's requests_from on (Campaigns in three tabs, call 3) against the
+ * fields the website door takes, named as its form is (contracts siteFormOf). Each is its own step,
  * run by its own subscriber from the entry's event (core SUBSCRIBERS form_entry_note, form_entry_notice,
  * form_entry_confirm; packages/jobs hands them here), each with its own outcome kept on the entry
  * (form_entry_settled), each safe to run twice:
@@ -23,9 +25,11 @@ import {
   DEFAULT_TIMEZONE,
   formRequestNote,
   formRequestNotice,
+  outsideFormNameOf,
   recordOrEmpty,
   signupAskLine,
   Source,
+  siteFormOf,
   sourceInWords,
   throughPlace,
   websiteFormLate,
@@ -36,7 +40,7 @@ import {
   type FormEffect,
   type TenantId,
 } from "@chanlytics/contracts";
-import { findFormVersion, findLinkPlace } from "@chanlytics/db/forms";
+import { findFormVersion, findLinkPlace, findOutsideForm } from "@chanlytics/db/forms";
 import { suggestPersonNote } from "@chanlytics/db/facts";
 import { findNotice } from "@chanlytics/db/notices";
 import { findFormEntry, settleFormEffect, type FormEffectOutcome, type FormEntryRow } from "@chanlytics/db/people";
@@ -51,23 +55,31 @@ import { askEntryToConfirm } from "./signup-confirm.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-/** A hosted form's request as a step reads it: the version its visitor saw, their answers, and where it came through. */
+/**
+ * A request as a step reads it: what it is read against (a hosted form's version its visitor saw, or a website form's
+ * fields named as its form is), their answers, and where it came through.
+ */
 interface HostedRequest {
-  description: FormDescription;
+  description: Pick<FormDescription, "heading" | "fields">;
   answers: Record<string, unknown>;
   place: string | null;
 }
 
 /**
  * An entry as a step reads it: its row, who it is about, when it arrived, and what was sent: a website form's own
- * fields (`answers`), or a hosted form's request (`hosted`). One of the two, never both.
+ * fields (`answers`), a request (`hosted`), or both for a website form's request (00709), whose fields still say when
+ * it was sent.
  */
 type EntryRead = {
   tenantId: TenantId;
   row: FormEntryRow;
   person: { name: string | null; email: string | null; phone: string | null };
   arrivedMs: number;
-} & ({ answers: EntryAnswers; hosted: null } | { answers: null; hosted: HostedRequest });
+} & (
+  | { answers: EntryAnswers; hosted: null }
+  | { answers: null; hosted: HostedRequest }
+  | { answers: EntryAnswers; hosted: HostedRequest }
+);
 
 /** What a step came to: settled on the entry, or waiting for another step's outcome (the notice, for its ask). */
 type StepDone = FormEffectOutcome | "waits";
@@ -80,8 +92,8 @@ const entryZone = (db: Db, tenantId: TenantId) =>
 
 /**
  * How an entry's person came, as their note says it: the place a request's link was shared, else who sent them by the
- * labels and the site the form saw (the Ads tracking plan's T4). Null where neither is known. A website's source is
- * kept just after its entry: a note written in that moment says nothing of it, and is right without it.
+ * labels and the site the form saw (the Ads tracking plan's T4), kept in the entry's own write (00709). Null where
+ * neither is known.
  */
 function cameWords(entry: EntryRead): string | null {
   const through = throughPlace(entry.hosted?.place);
@@ -91,12 +103,15 @@ function cameWords(entry: EntryRead): string | null {
   return from ? `From ${from}` : null;
 }
 
-/** What they asked, waiting on their page for a member's Keep, once by the entry. */
+/**
+ * What they asked, waiting on their page for a member's Keep, once by the entry. A website's entry, a request or not,
+ * is noted in its own fields' words, with the day it was sent where it came late; a hosted form's, against its version.
+ */
 async function keepEntryNote(db: Db, entry: EntryRead): Promise<StepDone> {
   const arrived = cameWords(entry);
-  const body = entry.hosted
-    ? formRequestNote(entry.hosted.description, entry.hosted.answers, arrived)
-    : websiteFormNote(entry.answers, { nowMs: entry.arrivedMs, tz: await entryZone(db, entry.tenantId) }, arrived);
+  const body = entry.answers
+    ? websiteFormNote(entry.answers, { nowMs: entry.arrivedMs, tz: await entryZone(db, entry.tenantId) }, arrived)
+    : formRequestNote(entry.hosted.description, entry.hosted.answers, arrived);
   const kept = await suggestPersonNote(db, {
     tenantId: entry.tenantId,
     contactId: entry.row.contact_id,
@@ -142,8 +157,8 @@ async function tellOwner(db: Db, entry: EntryRead): Promise<StepDone> {
       );
   const onceKey = `form_entry:${entry.row.id}`;
   const addressing = await loadTenantNotifications(db, entry.tenantId);
-  // A hosted form's request is never late: it is kept the moment its visitor sends it.
-  const late = entry.hosted ? false : websiteFormLate(entry.answers, entry.arrivedMs);
+  // A hosted form's request is never late: it is kept the moment its visitor sends it. A website's says when it was sent.
+  const late = entry.answers ? websiteFormLate(entry.answers, entry.arrivedMs) : false;
   if (late || addressing.unread) {
     // Old news, or nobody known to mail: the bell alone, as before.
     const kept = await keepOnce(
@@ -230,7 +245,27 @@ async function readEntry(db: Db, tenantId: TenantId, row: FormEntryRow): Promise
   }
   const answers = entryAnswersFrom(row.answers);
   const person = answers ? websiteFormPerson(answers) : null;
-  return answers && person ? { tenantId, row, person, arrivedMs, answers, hosted: null } : null;
+  if (!answers || !person) return null;
+  const siteRequest = await siteRequestOf(db, tenantId, row);
+  return { tenantId, row, person, arrivedMs, answers, hosted: siteRequest };
+}
+
+/**
+ * A website form's entry read as a request (00709): from its form's requests_from on, against the fields the website door
+ * takes, its heading the form's name. Null for a sign-up, an entry of a form from before the switch, or one whose form
+ * cannot be read now, which is said as a website's own entry, as before.
+ */
+async function siteRequestOf(db: Db, tenantId: TenantId, row: FormEntryRow): Promise<HostedRequest | null> {
+  if (row.form !== "request" || !row.outside_form_id) return null;
+  const form = await findOutsideForm(db, tenantId, row.outside_form_id).catch(
+    logAndGoOn("reading the website form a request came through", null),
+  );
+  if (!form || Date.parse(row.created_at) < Date.parse(form.requestsFrom)) return null;
+  return {
+    description: siteFormOf(outsideFormNameOf({ name: form.name, sent_name: form.sentName, form: form.form })),
+    answers: recordOrEmpty(row.answers),
+    place: null,
+  };
 }
 
 /**

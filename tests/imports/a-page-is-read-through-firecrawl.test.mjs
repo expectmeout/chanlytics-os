@@ -139,6 +139,18 @@ test("a read at an owner's press asks for the page as it stands now, and for its
       },
       "bytes are no address",
     );
+    // A second colour and the headings' type, where it read them: what the brand kit is proposed from (pass 4).
+    assert.deepEqual(
+      (
+        await read(
+          branded({
+            colors: { primary: "#2A6F97", secondary: "#F4E9DC", accent: "#000000" },
+            typography: { fontFamilies: { primary: "Inter", heading: "Playfair Display" } },
+          }),
+        )
+      ).page.brand,
+      { logo: null, colour: "#2A6F97", second: "#F4E9DC", font: "Playfair Display" },
+    );
     for (const nothing of [null, "x", {}, { images: null, colors: null }, { logo: 7 }])
       assert.equal((await read(branded(nothing))).page.brand, null, JSON.stringify(nothing));
 

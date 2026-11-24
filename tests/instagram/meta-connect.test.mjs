@@ -66,6 +66,9 @@ globalThis.fetch = async (url, init) => {
   if (u.startsWith("https://graph.facebook.com/v27.0/me?")) return json(...pick("business"));
   if (u.startsWith("https://graph.instagram.com/") && u.includes("/subscribed_apps")) return json(...pick("old"));
   if (u.includes("/subscribed_apps")) return json(...pick(method === "DELETE" ? "unsubscribe" : "subscribe"));
+  // A Page the sign-in shared to post to, read by its id (pass 5), where a test names one.
+  for (const [id, answer] of Object.entries(answers.pages ?? {}))
+    if (u.startsWith(`https://graph.facebook.com/v27.0/${id}?`)) return json(...answer);
   if (u.startsWith("https://graph.facebook.com/v27.0/")) return json(...pick("account"));
   return json(200, {});
 };
@@ -408,4 +411,39 @@ test("a second, different account for a workspace that has one is refused with t
   assert.equal(body.username, "harbor.spa");
   assert.equal(w.tables.tenant_channels.length, 1);
   assert.ok(!asked.slice(w.mark).some((c) => c.url.includes("/subscribed_apps")), "nothing was subscribed");
+});
+
+test("a sign-in that shared a Page to post to keeps it on the row: the one linked to the account, else the only one", async () => {
+  Object.assign(process.env, APP);
+  const PAGE = "100200300400500";
+  const OTHER_PAGE = "100200300400599";
+  const connectWith = async (pages, answersByPage) => {
+    resetBreakers();
+    const w = world({ scopes: [...ALL, "pages_manage_posts", "pages_read_engagement", "pages_show_list"] });
+    answers.debug[1].data.granular_scopes.push({ scope: "pages_manage_posts", target_ids: pages });
+    answers.pages = answersByPage(w.ACCOUNT);
+    const [status] = await heard(await runMetaOp(auth, { op: "connect", tenant_id: T, code: "AQB" }));
+    assert.equal(status, 200, "Instagram connects whatever the Page");
+    return w.tables.tenant_channels.find((r) => r.external_id === w.ACCOUNT).config.page ?? null;
+  };
+  // Two Pages: the one linked to the account is kept.
+  const linked = await connectWith([OTHER_PAGE, PAGE], (account) => ({
+    [OTHER_PAGE]: [200, { id: OTHER_PAGE, name: "Harbor Spa" }],
+    [PAGE]: [200, { id: PAGE, name: "Harbor Nails", instagram_business_account: { id: account } }],
+  }));
+  assert.deepEqual(linked, { id: PAGE, name: "Harbor Nails" });
+  // One Page, linked to nothing: it is the one shared, and kept.
+  assert.deepEqual(await connectWith([PAGE], () => ({ [PAGE]: [200, { id: PAGE, name: "Harbor Nails" }] })), {
+    id: PAGE,
+    name: "Harbor Nails",
+  });
+  // Two, neither linked: none is guessed. A Page that cannot be read: none is kept.
+  assert.equal(
+    await connectWith([PAGE, OTHER_PAGE], () => ({
+      [PAGE]: [200, { id: PAGE, name: "Harbor Nails" }],
+      [OTHER_PAGE]: [200, { id: OTHER_PAGE, name: "Harbor Spa" }],
+    })),
+    null,
+  );
+  assert.equal(await connectWith([PAGE], () => ({ [PAGE]: [403, { error: { message: "(#200)", code: 200 } }] })), null);
 });

@@ -57,4 +57,9 @@ export interface InboundMessage {
   consent: { optOut: boolean; optIn: boolean; optInMarketing: boolean };
   /** The ad, post or link this person came from, when the wire says (K3). */
   referral: NormalizedInbound["referral"];
+  /**
+   * What of the business's own the message answers, where the wire names it: an Instagram DM that replies to a story
+   * carries the story's id (the id posts.external_id keeps). Absent on a wire that never says.
+   */
+  answered?: { story: string } | null;
 }

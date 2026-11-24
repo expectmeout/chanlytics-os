@@ -121,11 +121,15 @@ export const JOB_PAYLOADS = {
   copy_return: carrying({ file_id: z.string() }),
   file_shelve: carrying({ file_id: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
-  post_publish: carrying({ post_id: z.string(), attempt: z.string() }),
+  // `wait`: how many times the send asked again a minute on while a new version of its piece was drawn (00708, call 14).
+  post_publish: carrying({ post_id: z.string(), attempt: z.string(), wait: z.string().optional() }),
   // `seen: "ask"`: a post that went up and could not be read back is asked for again by its own id (00681 verified_at).
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string(), seen: z.string().optional() }),
   post_google: carrying({ post_id: z.string(), attempt: z.string() }),
   post_take_down: carrying({ action_id: z.string(), attempt: z.string(), by_hand: z.string().optional() }),
+  content_plan: carrying({ plan_id: z.string() }),
+  post_observe: carrying({ post_id: z.string(), step: z.string() }),
+  comment_reply: carrying({ touch_id: z.string(), step: z.string(), attempt: z.string().optional() }),
   piece_make: carrying({ piece_id: z.string(), step: z.string(), tick: z.string() }),
   campaign_moments: CARRIES_NOTHING,
   reach_out_steps: CARRIES_NOTHING,

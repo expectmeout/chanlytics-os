@@ -107,6 +107,11 @@ export type PiecePlan = {
    * it; none on a video made before Ask wrote them.
    */
   caption: string | null;
+  /**
+   * Whether what its clips' people say is burned in as words (pass 4): on unless the owner told AI not to; a video kept
+   * before captions reads as on, and is drawn with them only when it is drawn again.
+   */
+  captions: boolean;
 };
 
 type Fields = Record<string, unknown>;
@@ -195,6 +200,7 @@ export function piecePlanOf(payload: Record<string, unknown>): PiecePlan {
     end_line: nonBlankOrNull(payload.end_line),
     language: payload.language === "es" ? "es" : "en",
     caption: nonBlankOrNull(payload.caption),
+    captions: payload.captions !== false,
   };
 }
 

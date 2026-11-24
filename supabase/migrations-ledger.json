@@ -86,12 +86,14 @@
     "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
     "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)",
     "00685": "claimed by the Ads tracking plan's T6 and left empty: the lane renumbered down to 00683 before anything was applied, 22 Nov 2026",
-    "00688": "claimed by the Forms plan's F3 (a time asked for on a form, lane cm-forms-time), a draft not on main when Keep it up took 00689 above it (23 Nov 2026); the record drops this line once its file lands",
+    "00688": "claimed by the Forms plan's F3 (a time asked for on a form, lane cm-forms-time) and left empty: Keep it up went on production as 00689 above it before it was applied, so it was renumbered to 00691 (23 Nov 2026)",
     "00690": "claimed by the shelf (a made video keeps a copy, lane cm-archive-b2) and left empty: its file moved to 00695 when 00691 went on production above it (23 Nov 2026)",
-    "00691": "a time asked for on a form (lane cm-forms-time, #2529): applied on production 23 Nov 2026, its file not on main when the shelf took 00695 above it; the record drops this line once its file lands",
-    "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
-    "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands",
-    "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535), a draft not on main when the shelf took 00695 above it (23 Nov 2026); the record drops this line once its file lands"
+    "00692": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00696 when the shelf's 00695 went on production above it, then to 00699 (23 Nov 2026)",
+    "00693": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
+    "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
+    "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
+    "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)",
+    "00712": "the working number of a held week going up at 8:00 (the content loop's B5, lane cm-held-week, 24 Nov 2026), not on main when the audit's smaller fixes took 00713 above it; its own landing fills it and takes this line out"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -697,6 +699,22 @@
     "00686_a_file_says_where_its_copies_are.sql": "daf097e1a71b1fa3561737bc4738a788d9edab56d5bed6cbd50fe8c5a6aa239d",
     "00687_a_file_s_yes_is_no_longer_kept.sql": "dc28a6df6316e57680e888b9b743f3ff93835ba3644f82ee4ebeef0f3da9a7ff",
     "00689_a_post_stays_up_on_the_owner_s_word.sql": "d6c796ea95d33635ec9d339b9060a3d6851b210d54ee5aa73167cb751d55b307",
-    "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a"
+    "00691_a_time_asked_for_on_a_form.sql": "4e87e1a4fdecec1623d3a3f2d7b64a963c5fe31bf8033a8285e8d830d8539e41",
+    "00695_a_made_video_keeps_a_copy_on_the_shelf.sql": "418dbdd6495c1366b51aa5d9033236cf82f2b9311466754f61cd2db099d3003a",
+    "00697_a_post_is_begun_by_its_approval_alone.sql": "e93917b7c99e47e97235df87cd0a81cd0c80015cb1274bc96c007678943c92c6",
+    "00698_the_bell_s_delete_line_ends_with_the_last_post_left.sql": "e1a6582d48e9c70761470885e7d95492a2f6fb234807cd17b71d29390d9feb1d",
+    "00699_a_post_says_what_it_brought.sql": "fa73f61b3c977d149e8259b88319451553743d25e2029fda0873188df6e01627",
+    "00700_setup_reads_its_rows_at_once.sql": "4787d225f83df3393cbaa61d91871052f686212d3b1c54b952ff0dfde17a4103",
+    "00701_a_take_down_reads_a_post_s_last_numbers.sql": "360139ad33b55db3ca2a75c25fd92f11dc2e976404eb577912097f1140a7a8f5",
+    "00703_a_form_on_their_own_website.sql": "19a9e5e51808179fd4ed273d16ffec2a5e53126a73def76b160c2dab249c482a",
+    "00704_a_visit_a_form_asked_for_says_the_form.sql": "ff3ca5c81af0b3bce8df605264dccc16c2faad07127cba0636455eb6c849dcdd",
+    "00705_a_story_is_read_before_its_day_ends.sql": "5ade35d6a0ce4ad73b8ee5b6c7253f4d38fcd0c3a2dcb3f53b3ebd01041e7904",
+    "00706_a_week_is_planned.sql": "aa2f88a6aba4951bb128e057e2a23cf91f86e9158875ff945fe610378bff19ab",
+    "00707_a_post_goes_up_on_a_facebook_page.sql": "49ae92879b7a854513f2dd7266e1bdcccae6f2d5298d6d907feaff1429124232",
+    "00708_a_made_video_gets_a_second_version.sql": "b6220c545667b443d98ad36ebde3d8ee71487733df327aacd11f1f1febeeda48",
+    "00709_a_website_s_forms_are_forms.sql": "1996cd9646b6fda7196357ea6dd7cccbda4c54abc60e72ea0612893e0b55e3fb",
+    "00710_turning_an_ad_on_keeps_its_approval.sql": "4fa8ee2a9fed4441dcd3cbb1593a81b49abfe6e8d90a67747682182a27af463e",
+    "00711_a_shape_s_path_is_in_its_own_workspace.sql": "46266c78c45e76cf8d606603e6fc65c21a91cd06559b83df377130675778997b",
+    "00713_an_approval_is_kept_whole_and_a_reply_answers_its_request.sql": "2f200183e84144bf2bebab2bc86ddd731ef042765bacfd659a54580e422c6385"
   }
 }

@@ -44,6 +44,12 @@ export const WebsiteFormBody = z.object({
   // the five campaign labels and the address they came from, by name. Read leniently and cleaned by sourceFromSeen, so
   // a label with odd characters is dropped alone and costs the form nothing; anything else it carries is unread.
   source: z.optional(z.record(z.string().max(40), z.unknown())),
+  // Which of the site's forms it is (00709; Ruben's call 5 of 23 Nov 2026): the site's own id for the form, which never
+  // changes ("colour-consultation"), and its name, which may. A site that sends neither has one form of each kind.
+  form_ref: z.optional(z.string().trim().min(1).max(100)),
+  form_name: line(120),
+  // A test from the site's developer: kept as a test, it tells nobody, sends nothing, counts nowhere and goes in 7 days.
+  test: z.optional(z.boolean()),
 });
 export type WebsiteFormInput = z.infer<typeof WebsiteFormBody>;
 

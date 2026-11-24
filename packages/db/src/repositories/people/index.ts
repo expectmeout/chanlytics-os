@@ -95,7 +95,6 @@ export {
   findFormEntry,
   findFormKeyByHash,
   findLastFormEntryAt,
-  keepFormEntrySource,
   listFormKeys,
   listUntoldFormEntries,
   makeFormKey,

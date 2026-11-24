@@ -1,7 +1,7 @@
 /**
  * Made's All under its headings (Ruben, 12 Nov 2026: Content's list stands under headings, as Sequences', Messages' and the
  * Pipeline's do): what needs the owner first, then what is being made, then what was made this week and earlier
- * (files/time-groups.ts). Status is no heading: a piece goes from ready to posting to posted in a minute, and a row that
+ * (files/time-groups.ts; "Made this week", as the Week beside it says this week's posts: the PRD's 21.2). Status is no heading: a piece goes from ready to posting to posted in a minute, and a row that
  * changed groups under a thumb would be a list that moves by itself; where it stands is each row's own line, and the views
  * (Scheduled, Posted) narrow to one.
  *
@@ -77,7 +77,7 @@ export function madeGroupsOf(dto: ContentPageDto, at: { zone: string; nowMs: num
     ...timeGroupsOf(rest, (m) => m.file.created_at, { ...at, more: dto.next !== null }).map((group) => ({
       ...none,
       key: group.key,
-      label: group.label,
+      label: group.key === "week" ? CONTENT_WORDS.views.madeThisWeek : group.label,
       count: group.count,
       made: group.items,
     })),

@@ -152,6 +152,8 @@ function askedOf(known: DraftKnown, input: DraftInput): string {
     businessLines(known.business),
     `Who it is for:\n${personLines(known.who, input.how === "call")}`,
     `What the owner says it is about: ${input.about}`,
+    // What they asked on a form is theirs: fenced, and never among the owner's own words the money check reads.
+    ...(input.asked ? [`What they asked on a form, in their own words:\n${fenced("customer", input.asked)}`] : []),
     ...answered,
     ...again,
   ].join("\n\n");

@@ -19,8 +19,8 @@ const RECIPES = {
     "Before and after: a pair, first as the hook or last as the payoff, never both. Open with what changed, not the words before and after. Its two pictures show the same person from the same side: the before from the earliest footage or an older photo, the after from the finished look. Around it, a moment or two of the work or of the result moving.",
   steps:
     "Steps: one block a step, in the order the work is done, three or four, each with a label of a word or two that names it. No numbers on a label: the order says it. Open or close on the finished result.",
-  review:
-    "A review: one quote card with the client's best sentence, under opening words of the business's own, never the review reworded. Put it over a picture of the same kind of work, or between moments of it, and let it be read: about a second for every thirty characters.",
+  clientWords:
+    "A client's words: one quote card with the best sentence a client wrote the owner, as the owner pasted it, under opening words of the business's own, never reworded. Never a Google review: Google asks that its writer agree first, so none goes into a post. Put it over a picture of the same kind of work, or between moments of it, and let it be read: about a second for every thirty characters.",
   fromPhotos:
     "From photos: each photo once, the strongest first under the opening words, two to three seconds each; a pair or a words card between them where photos alone would run flat.",
   wordsOnly:

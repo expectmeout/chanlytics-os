@@ -722,6 +722,8 @@ export type Database = {
           starts_at: string
           status: string
           tenant_id: string
+          through_id: string | null
+          through_type: string | null
           timezone: string
           title: string | null
           tool: string | null
@@ -757,6 +759,8 @@ export type Database = {
           starts_at: string
           status?: string
           tenant_id: string
+          through_id?: string | null
+          through_type?: string | null
           timezone: string
           title?: string | null
           tool?: string | null
@@ -792,6 +796,8 @@ export type Database = {
           starts_at?: string
           status?: string
           tenant_id?: string
+          through_id?: string | null
+          through_type?: string | null
           timezone?: string
           title?: string | null
           tool?: string | null
@@ -1828,6 +1834,72 @@ export type Database = {
         }
         Relationships: []
       }
+      comment_answers: {
+        Row: {
+          by_hand: boolean
+          cannot_why: string | null
+          created_at: string
+          draft: string | null
+          external_id: string | null
+          id: string
+          said: string | null
+          sent_at: string | null
+          sent_by: string | null
+          state: string
+          tenant_id: string
+          touch_id: string
+          updated_at: string
+          words: string | null
+        }
+        Insert: {
+          by_hand?: boolean
+          cannot_why?: string | null
+          created_at?: string
+          draft?: string | null
+          external_id?: string | null
+          id?: string
+          said?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          state: string
+          tenant_id: string
+          touch_id: string
+          updated_at?: string
+          words?: string | null
+        }
+        Update: {
+          by_hand?: boolean
+          cannot_why?: string | null
+          created_at?: string
+          draft?: string | null
+          external_id?: string | null
+          id?: string
+          said?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          state?: string
+          tenant_id?: string
+          touch_id?: string
+          updated_at?: string
+          words?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_answers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comment_answers_touch_same_workspace"
+            columns: ["tenant_id", "touch_id"]
+            isOneToOne: true
+            referencedRelation: "touches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       contact_identities: {
         Row: {
           assurance: string
@@ -2099,6 +2171,107 @@ export type Database = {
           },
           {
             foreignKeyName: "contacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_goals: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          detail: Json
+          goal: string
+          id: string
+          tenant_id: string
+          weight: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          goal: string
+          id?: string
+          tenant_id: string
+          weight?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          goal?: string
+          id?: string
+          tenant_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_goals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_plans: {
+        Row: {
+          approval_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          asked_at: string
+          asked_by: string
+          done_at: string | null
+          fewer: string | null
+          id: string
+          ready_at: string | null
+          status: string
+          tenant_id: string
+          week_of: string
+        }
+        Insert: {
+          approval_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          asked_at?: string
+          asked_by: string
+          done_at?: string | null
+          fewer?: string | null
+          id?: string
+          ready_at?: string | null
+          status?: string
+          tenant_id: string
+          week_of: string
+        }
+        Update: {
+          approval_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          asked_at?: string
+          asked_by?: string
+          done_at?: string | null
+          fewer?: string | null
+          id?: string
+          ready_at?: string | null
+          status?: string
+          tenant_id?: string
+          week_of?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_plans_approval_id_same_workspace"
+            columns: ["tenant_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "approvals"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "content_plans_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3450,6 +3623,75 @@ export type Database = {
           },
         ]
       }
+      file_moments: {
+        Row: {
+          confidence: number
+          corrected_at: string | null
+          corrected_by: string | null
+          created_at: string
+          end_s: number
+          faces: number | null
+          file_id: string
+          id: string
+          model_edition: number
+          score: number
+          sharp: number | null
+          shows: string[]
+          start_s: number
+          tenant_id: string
+          words: string | null
+        }
+        Insert: {
+          confidence: number
+          corrected_at?: string | null
+          corrected_by?: string | null
+          created_at?: string
+          end_s: number
+          faces?: number | null
+          file_id: string
+          id?: string
+          model_edition: number
+          score: number
+          sharp?: number | null
+          shows?: string[]
+          start_s: number
+          tenant_id: string
+          words?: string | null
+        }
+        Update: {
+          confidence?: number
+          corrected_at?: string | null
+          corrected_by?: string | null
+          created_at?: string
+          end_s?: number
+          faces?: number | null
+          file_id?: string
+          id?: string
+          model_edition?: number
+          score?: number
+          sharp?: number | null
+          shows?: string[]
+          start_s?: number
+          tenant_id?: string
+          words?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_moments_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_moments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       files: {
         Row: {
           bytes: number
@@ -3619,6 +3861,42 @@ export type Database = {
           },
         ]
       }
+      form_days: {
+        Row: {
+          booking_opens: number
+          day: string
+          form_id: string
+          tenant_id: string
+        }
+        Insert: {
+          booking_opens?: number
+          day: string
+          form_id: string
+          tenant_id: string
+        }
+        Update: {
+          booking_opens?: number
+          day?: string
+          form_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_days_form_id_same_workspace"
+            columns: ["tenant_id", "form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_entries: {
         Row: {
           answers: Json
@@ -3633,6 +3911,7 @@ export type Database = {
           id: string
           key_id: string | null
           link_id: string | null
+          outside_form_id: string | null
           owed: string[]
           reach: Json | null
           ref: string | null
@@ -3657,6 +3936,7 @@ export type Database = {
           id?: string
           key_id?: string | null
           link_id?: string | null
+          outside_form_id?: string | null
           owed: string[]
           reach?: Json | null
           ref?: string | null
@@ -3681,6 +3961,7 @@ export type Database = {
           id?: string
           key_id?: string | null
           link_id?: string | null
+          outside_form_id?: string | null
           owed?: string[]
           reach?: Json | null
           ref?: string | null
@@ -3719,6 +4000,13 @@ export type Database = {
             columns: ["tenant_id", "link_id"]
             isOneToOne: false
             referencedRelation: "links"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entries_outside_form_id_same_workspace"
+            columns: ["tenant_id", "outside_form_id"]
+            isOneToOne: false
+            referencedRelation: "outside_forms"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -3819,6 +4107,7 @@ export type Database = {
           last_used_at: string | null
           made_by: string | null
           name: string | null
+          site_id: string | null
           tenant_id: string
         }
         Insert: {
@@ -3830,6 +4119,7 @@ export type Database = {
           last_used_at?: string | null
           made_by?: string | null
           name?: string | null
+          site_id?: string | null
           tenant_id: string
         }
         Update: {
@@ -3841,11 +4131,60 @@ export type Database = {
           last_used_at?: string | null
           made_by?: string | null
           name?: string | null
+          site_id?: string | null
           tenant_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "form_keys_site_id_same_workspace"
+            columns: ["tenant_id", "site_id"]
+            isOneToOne: false
+            referencedRelation: "form_sites"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "form_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_sites: {
+        Row: {
+          created_at: string
+          first_entry_at: string | null
+          host: string | null
+          id: string
+          last_entry_at: string | null
+          name: string | null
+          tenant_id: string
+          test_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_entry_at?: string | null
+          host?: string | null
+          id?: string
+          last_entry_at?: string | null
+          name?: string | null
+          tenant_id: string
+          test_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_entry_at?: string | null
+          host?: string | null
+          id?: string
+          last_entry_at?: string | null
+          name?: string | null
+          tenant_id?: string
+          test_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_sites_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5698,8 +6037,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          lands: string | null
           place: string
           printed: boolean
+          sites: string[] | null
           stopped_at: string | null
           subject_id: string
           subject_type: string
@@ -5710,8 +6051,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          lands?: string | null
           place: string
           printed?: boolean
+          sites?: string[] | null
           stopped_at?: string | null
           subject_id: string
           subject_type: string
@@ -5722,8 +6065,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          lands?: string | null
           place?: string
           printed?: boolean
+          sites?: string[] | null
           stopped_at?: string | null
           subject_id?: string
           subject_type?: string
@@ -6531,6 +6876,113 @@ export type Database = {
         }
         Relationships: []
       }
+      outside_forms: {
+        Row: {
+          created_at: string
+          first_entry_at: string | null
+          form: string
+          id: string
+          kind: string
+          last_entry_at: string | null
+          listed: boolean
+          name: string | null
+          ref: string | null
+          requests_from: string
+          sent_name: string | null
+          site_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_entry_at?: string | null
+          form: string
+          id?: string
+          kind?: string
+          last_entry_at?: string | null
+          listed?: boolean
+          name?: string | null
+          ref?: string | null
+          requests_from?: string
+          sent_name?: string | null
+          site_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          first_entry_at?: string | null
+          form?: string
+          id?: string
+          kind?: string
+          last_entry_at?: string | null
+          listed?: boolean
+          name?: string | null
+          ref?: string | null
+          requests_from?: string
+          sent_name?: string | null
+          site_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outside_forms_site_id_same_workspace"
+            columns: ["tenant_id", "site_id"]
+            isOneToOne: false
+            referencedRelation: "form_sites"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "outside_forms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_claims: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          source: string
+          tenant_id: string
+          text: string
+          valid_until: string | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          source: string
+          tenant_id: string
+          text: string
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          source?: string
+          tenant_id?: string
+          text?: string
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       page_vitals: {
         Row: {
           at: string
@@ -7268,6 +7720,7 @@ export type Database = {
           machine: Json | null
           made_at: string | null
           plan: Json
+          revises: string | null
           revision: number
           shape: string
           stage: string
@@ -7288,6 +7741,7 @@ export type Database = {
           machine?: Json | null
           made_at?: string | null
           plan: Json
+          revises?: string | null
           revision?: number
           shape: string
           stage?: string
@@ -7308,6 +7762,7 @@ export type Database = {
           machine?: Json | null
           made_at?: string | null
           plan?: Json
+          revises?: string | null
           revision?: number
           shape?: string
           stage?: string
@@ -7324,7 +7779,132 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
+            foreignKeyName: "pieces_revises_same_workspace"
+            columns: ["tenant_id", "revises"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "pieces_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_slots: {
+        Row: {
+          approval_id: string | null
+          ask: Json | null
+          at: string
+          blocked_reason: string | null
+          blocked_why: string | null
+          created_at: string
+          creative: string
+          file_id: string | null
+          id: string
+          intent: Json | null
+          kind: string
+          piece_id: string | null
+          place: string
+          plan_id: string
+          post_id: string | null
+          reason: string | null
+          score: Json | null
+          state: string
+          tenant_id: string
+          title: string
+          updated_at: string
+          words: Json | null
+        }
+        Insert: {
+          approval_id?: string | null
+          ask?: Json | null
+          at: string
+          blocked_reason?: string | null
+          blocked_why?: string | null
+          created_at?: string
+          creative: string
+          file_id?: string | null
+          id?: string
+          intent?: Json | null
+          kind: string
+          piece_id?: string | null
+          place: string
+          plan_id: string
+          post_id?: string | null
+          reason?: string | null
+          score?: Json | null
+          state?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+          words?: Json | null
+        }
+        Update: {
+          approval_id?: string | null
+          ask?: Json | null
+          at?: string
+          blocked_reason?: string | null
+          blocked_why?: string | null
+          created_at?: string
+          creative?: string
+          file_id?: string | null
+          id?: string
+          intent?: Json | null
+          kind?: string
+          piece_id?: string | null
+          place?: string
+          plan_id?: string
+          post_id?: string | null
+          reason?: string | null
+          score?: Json | null
+          state?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          words?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_slots_approval_id_same_workspace"
+            columns: ["tenant_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "approvals"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_piece_id_same_workspace"
+            columns: ["tenant_id", "piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_plan_id_same_workspace"
+            columns: ["tenant_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "content_plans"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_post_id_same_workspace"
+            columns: ["tenant_id", "post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "plan_slots_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -7567,6 +8147,72 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_observations: {
+        Row: {
+          availability: string
+          definition_edition: number
+          id: string
+          metric: string
+          observed_at: string
+          paid_mixed: boolean
+          period_end: string
+          period_start: string
+          place: string
+          post_id: string
+          raw: Json
+          step: string
+          tenant_id: string
+          value: number | null
+        }
+        Insert: {
+          availability: string
+          definition_edition?: number
+          id?: string
+          metric: string
+          observed_at?: string
+          paid_mixed?: boolean
+          period_end: string
+          period_start: string
+          place: string
+          post_id: string
+          raw?: Json
+          step: string
+          tenant_id: string
+          value?: number | null
+        }
+        Update: {
+          availability?: string
+          definition_edition?: number
+          id?: string
+          metric?: string
+          observed_at?: string
+          paid_mixed?: boolean
+          period_end?: string
+          period_start?: string
+          place?: string
+          post_id?: string
+          raw?: Json
+          step?: string
+          tenant_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_observations_post_same_workspace"
+            columns: ["tenant_id", "post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "post_observations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -9786,6 +10432,89 @@ export type Database = {
         }
         Relationships: []
       }
+      touches: {
+        Row: {
+          at: string
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          emptied_at: string | null
+          evidence: Json
+          id: string
+          kind: string
+          message_id: string | null
+          new_person: boolean
+          place: string
+          provider_event_id: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Insert: {
+          at: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emptied_at?: string | null
+          evidence?: Json
+          id?: string
+          kind: string
+          message_id?: string | null
+          new_person?: boolean
+          place: string
+          provider_event_id: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Update: {
+          at?: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emptied_at?: string | null
+          evidence?: Json
+          id?: string
+          kind?: string
+          message_id?: string | null
+          new_person?: boolean
+          place?: string
+          provider_event_id?: string
+          subject_id?: string
+          subject_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "touches_contact_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_conversation_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_message_same_workspace"
+            columns: ["tenant_id", "message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "touches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_agents: {
         Row: {
           agent_id: string
@@ -10615,6 +11344,33 @@ export type Database = {
         Args: { p_conversation: string; p_message: string; p_tenant: string }
         Returns: boolean
       }
+      comment_answer_draft_keep: {
+        Args: {
+          p_cannot_why: string
+          p_draft: string
+          p_tenant_id: string
+          p_touch_id: string
+        }
+        Returns: boolean
+      }
+      comment_answer_leave: {
+        Args: { p_left: boolean; p_tenant_id: string; p_touch_id: string }
+        Returns: Json
+      }
+      comment_answer_send: {
+        Args: { p_tenant_id: string; p_touch_id: string; p_words: string }
+        Returns: Json
+      }
+      comment_answer_settle: {
+        Args: {
+          p_external_id: string
+          p_said: string
+          p_sent: boolean
+          p_tenant_id: string
+          p_touch_id: string
+        }
+        Returns: boolean
+      }
       consent_channels_of: {
         Args: { p_channel: string; p_purpose: string; p_source: string }
         Returns: string[]
@@ -10636,6 +11392,35 @@ export type Database = {
       }
       contact_seen: {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
+        Returns: Json
+      }
+      content_goals_keep: {
+        Args: { p_goals: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      content_plan_ask: {
+        Args: { p_tenant_id: string; p_week_of: string }
+        Returns: Json
+      }
+      content_plan_begin: {
+        Args: { p_asked_by: string; p_tenant_id: string; p_week_of: string }
+        Returns: Json
+      }
+      content_plan_write: {
+        Args: {
+          p_fewer: string
+          p_plan_id: string
+          p_slots: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      content_plans_hand_out: {
+        Args: { p_spread_seconds: number }
+        Returns: number
+      }
+      content_week_approve: {
+        Args: { p_plan_id: string; p_snapshot: Json; p_tenant_id: string }
         Returns: Json
       }
       conversation_draft_claim: {
@@ -11096,6 +11881,10 @@ export type Database = {
         }
         Returns: Json
       }
+      file_moments_keep: {
+        Args: { p_file_id: string; p_moments: Json; p_tenant_id: string }
+        Returns: number
+      }
       file_printed: {
         Args: { p_id: string; p_print: string; p_tenant_id: string }
         Returns: Json
@@ -11309,6 +12098,10 @@ export type Database = {
         }
         Returns: number
       }
+      form_booking_open: {
+        Args: { p_form_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       form_code_link: {
         Args: {
           p_code: string
@@ -11345,11 +12138,16 @@ export type Database = {
         Args: {
           p_answers: Json
           p_form: string
+          p_form_name?: string
+          p_form_ref?: string
+          p_host?: string
           p_key_id?: string
           p_owed: string[]
           p_person: Json
           p_ref?: string
+          p_source?: Json
           p_tenant_id: string
+          p_test?: boolean
           p_words: string
         }
         Returns: Json
@@ -11363,7 +12161,12 @@ export type Database = {
         Returns: boolean
       }
       form_key_make: {
-        Args: { p_hash: string; p_name: string; p_tenant_id: string }
+        Args: {
+          p_hash: string
+          p_name: string
+          p_site_id?: string
+          p_tenant_id: string
+        }
         Returns: string
       }
       form_publish: {
@@ -11387,8 +12190,32 @@ export type Database = {
         Returns: Json
       }
       form_requests_open: { Args: { p_tenant_id: string }; Returns: Json }
+      form_requests_open_count: {
+        Args: { p_tenant_id: string }
+        Returns: number
+      }
       form_results: {
         Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
+      form_time_request_take: {
+        Args: {
+          p_answers: Json
+          p_ends_at: string
+          p_form_id: string
+          p_held_why?: string
+          p_link_code?: string
+          p_reach: Json
+          p_ref: string
+          p_service: string
+          p_source?: Json
+          p_starts_at: string
+          p_tenant_id: string
+          p_test?: boolean
+          p_timezone: string
+          p_version_id: string
+          p_words: string
+        }
         Returns: Json
       }
       form_turn: {
@@ -12433,6 +13260,22 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      outside_form_listed: {
+        Args: { p_form_id: string; p_listed: boolean; p_tenant_id: string }
+        Returns: boolean
+      }
+      outside_form_rename: {
+        Args: { p_form_id: string; p_name: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      owner_claim_withdraw: {
+        Args: { p_claim_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      owner_claims_keep: {
+        Args: { p_claim: Json; p_tenant_id: string }
+        Returns: Json
+      }
       page_freshness: {
         Args: { p_days?: number }
         Returns: {
@@ -12973,6 +13816,10 @@ export type Database = {
         Args: { p_actor: string; p_file_id: string; p_tenant_id: string }
         Returns: string
       }
+      piece_posts_replace: {
+        Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       piece_sent: { Args: { p_piece_id: string }; Returns: boolean }
       piece_stage: {
         Args: { p_piece_id: string; p_stage: string }
@@ -12982,8 +13829,37 @@ export type Database = {
         Args: { p_machine: Json; p_piece_id: string }
         Returns: boolean
       }
+      piece_version_begin: {
+        Args: {
+          p_edition: number
+          p_key: string
+          p_look: Json
+          p_piece_id: string
+          p_plan: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      piece_version_kept: {
+        Args: {
+          p_bytes: number
+          p_changed: string[]
+          p_checksum: string
+          p_piece_id: string
+        }
+        Returns: number
+      }
+      piece_version_ready: { Args: { p_file_id: string }; Returns: Json }
       piece_words_keep: {
         Args: { p_caption: string; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      plan_slot_made: {
+        Args: { p_made: Json; p_slot_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      plan_slot_set: {
+        Args: { p_change: Json; p_slot_id: string; p_tenant_id: string }
         Returns: Json
       }
       platform_admin_add: {
@@ -13217,6 +14093,10 @@ export type Database = {
         Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
         Returns: Json
       }
+      post_approve_whole: {
+        Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       post_as_approved: { Args: { p_post_id: string }; Returns: Json }
       post_attempt_close: {
         Args: {
@@ -13239,16 +14119,26 @@ export type Database = {
         }
         Returns: Json
       }
-      post_begin: {
+      post_by_hand_bell_settle: {
+        Args: { p_file_id: string; p_place: string; p_tenant_id: string }
+        Returns: number
+      }
+      post_comment_keep: {
         Args: {
-          p_caption: string
-          p_file_id: string
-          p_kind: string
-          p_place: string
+          p_account: string
+          p_at: string
+          p_comment_id: string
+          p_from: string
+          p_media_id: string
+          p_parent_id: string
           p_tenant_id: string
-          p_via?: string
-          p_when?: string
+          p_username: string
+          p_words: string
         }
+        Returns: Json
+      }
+      post_link_make: {
+        Args: { p_post_id: string; p_tenant_id: string }
         Returns: Json
       }
       post_move: { Args: { p_post_id: string; p_when: string }; Returns: Json }
@@ -13259,6 +14149,28 @@ export type Database = {
           p_post_id: string
           p_to: string
         }
+        Returns: boolean
+      }
+      post_observations_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          post_id: string
+          step: string
+          tenant_id: string
+        }[]
+      }
+      post_observations_keep: {
+        Args: {
+          p_definition_edition?: number
+          p_post_id: string
+          p_rows: Json
+          p_step: string
+          p_tenant_id: string
+        }
+        Returns: number
+      }
+      post_own_comment_keep: {
+        Args: { p_comment_id: string; p_parent_id: string; p_tenant_id: string }
         Returns: boolean
       }
       post_pull: { Args: { p_post_id: string }; Returns: Json }
@@ -14618,6 +15530,10 @@ export type Database = {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
       }
+      setup_rows: {
+        Args: { p_roster: boolean; p_tenant_id: string }
+        Returns: Json
+      }
       slug_for_workspace: { Args: { p_name: string }; Returns: string }
       sms_sweep_text_canary: { Args: never; Returns: number }
       sms_sweep_texts: { Args: never; Returns: number }
@@ -14891,6 +15807,24 @@ export type Database = {
           updated_by: string
           version: number
         }[]
+      }
+      touches_age_out: { Args: { p_before?: string }; Returns: number }
+      touches_keep: {
+        Args: {
+          p_at: string
+          p_contact_id: string
+          p_conversation_id?: string
+          p_event_id: string
+          p_evidence?: Json
+          p_kind: string
+          p_message_id?: string
+          p_new_person?: boolean
+          p_place: string
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       trigger_calendar_sweep: { Args: never; Returns: number }

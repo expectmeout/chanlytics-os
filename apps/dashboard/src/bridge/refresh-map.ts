@@ -41,6 +41,7 @@ import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { filesOverride } from "@/surfaces/files/surface";
 import { contentOverride } from "@/surfaces/campaigns/content/surface";
+import { weekOverride } from "@/surfaces/campaigns/content/week/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -98,6 +99,10 @@ const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? d
 // What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a made file's change, a post sent or stopped.
 const contentIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([contentOverride]) : []);
 const filesAndContentIfDrawn = (): SurfaceOverride[] => [...filesIfDrawn(), ...contentIfDrawn()];
+// The Week (campaigns/content/week/surface.ts), where it or Settings › Content is drawn: a week asked for, approved, a slot
+// set, a claim or what posts are for kept; and Made beside it, which a week's making fills.
+const weekIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([weekOverride]) : []);
+const weekAndContentIfDrawn = (): SurfaceOverride[] => [...weekIfDrawn(), ...contentIfDrawn()];
 const postMoved = (): SurfaceOverride[] => [...contentIfDrawn(), ...calendarRunsIfDrawn()];
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
@@ -347,9 +352,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
-  // A request answered from the Inbox (00680): its reply is a member's first message, read as one; marked answered, held
-  // or let through, it leaves or joins Needs you, which Today's read holds.
-  "POST forms/requests": personAndThreads,
+  // A request answered from the Inbox (00680): its reply is a member's first message; marked, held or let through, it
+  // leaves or joins Needs you (Today's read); its time's Booked it or Can't (00691) moves its visit, as a chat's does.
+  "POST forms/requests": () => [...personAndThreads(), ...visits()],
   // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
   // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
   "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
@@ -405,7 +410,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
   // A playbook named by a starter files its message too (A0): the Library, and every picker that is made of it, move with it.
-  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates()],
+  // A campaign started from the Week's review-ask card (pass 6) ends its proposal there: the Week reads again where drawn.
+  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates(), ...weekIfDrawn()],
   "PUT playbooks/[id]": () => [...savedAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
@@ -517,7 +523,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT settings": () => [...settingsWrite(), workspaceOverride],
   // Ask's own section of the configuration, which Autonomy draws; a stop pauses what Campaigns draws too.
   "POST ask/alone": () => settingsWrite(),
-  "POST ask/stop": () => settingsWrite(),
+  "POST ask/stop": () => [...settingsWrite(), ...weekIfDrawn()],
   // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read
   // again. It takes the workspace's name and renames nothing, so the workspace is not read again.
   "POST settings/receptionist": settingsWrite,
@@ -556,11 +562,27 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // What a watched folder brought, removed with Stop watching or Disconnect (00657): the Library and Content read again.
   "POST sources/remove": filesAndContentIfDrawn,
   // A post put on a place, moved to another time (00621) or taken off it is told to no page (00611): Content reads, and the
-  // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
+  // Calendar's posts at their times. One sent keeps its words on its file in the same step (00713 post_approve_whole): Files reads too.
   "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/google": postMoved,
+  // The Week and Settings › Content (00706): what a press there changes is the week's, and Made's once it is made.
+  "POST content/plan": weekIfDrawn,
+  "POST content/plan/approve": weekAndContentIfDrawn,
+  "POST content/plan/slots": weekAndContentIfDrawn,
+  "POST content/claims": weekIfDrawn,
+  "DELETE content/claims": weekIfDrawn,
+  // The plan's proposal to ask for reviews rested (pass 6): the Week reads again; Today's note reads itself as the day moves.
+  "POST content/review-ask": weekIfDrawn,
+  // The config's content section is the settings read's too; nothing else drawn reads it.
+  "PUT content/aims": () => [settingsOverride, ...weekIfDrawn()],
+  "POST content/line": () => [settingsOverride, ...weekIfDrawn()],
   "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
+  // A Page's post (pass 5), as Instagram's.
+  "POST files/[id]/facebook": () => [...filesIfDrawn(), ...postMoved()],
+  "DELETE files/[id]/facebook": postMoved,
+  // A version approved in place of what waited, or drawn again (00708): its posts move, and Made's tile with them.
+  "POST files/[id]/version": () => [...filesAndContentIfDrawn(), ...postMoved()],
   "PATCH files/[id]/posts": postMoved,
   // A piece asked down (00682): what waited is let go at once, and its posts move as each place answers.
   "DELETE files/[id]/posts": postMoved,
@@ -690,6 +712,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // second read of the listing. The bell's notices of the review are read by the verb (google.ts replyToReview), through the
   // notifications door. And Today is read again: "N done today" counts the answer (reply_review), which the feed cannot tell it.
   "POST google/reviews/[id]/reply": () => [reviewsOverride, todayOverride],
+  // A comment answered or left (00699): its point on Today goes, or comes back. The answer itself moves by its job,
+  // seconds later, and the comment reads itself again until Instagram has answered.
+  "POST comments": () => [todayOverride],
   // A held reply stopped (decision 0064, step 6): the review still waits, now with its words held for an OK, on the lens
   // that drew the Stop. The live feed tells the change to every tab (00462), and this tab reads the lens once, at once.
   "POST google/reviews/[id]/stop": () => [reviewsOverride],
@@ -703,6 +728,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // A post's link (00699) is drawn on the piece from the press's own answer: nothing else on screen holds it.
+  "POST files/[id]/link": "a post's link, made on first ask: the piece draws the answer, and no surface holds links",
+  // A comment's answer written again (00699) is handed back to the comment's box; nothing is kept until its Send.
+  "POST comments/rewrite": "a comment's answer written again, handed back to its box; its Send posts it",
   // A piece's own record (GET files/[id]) holds its take-down, and the piece reads it again after its press.
   "PUT files/[id]/posts":
     "the owner's word that a post was deleted there: its place is asked, and the post moves only once it answers",

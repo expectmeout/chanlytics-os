@@ -14,6 +14,9 @@
         "content": [
           "memberships"
         ],
+        "content_week": [
+          "memberships"
+        ],
         "conversations": [
           "memberships"
         ],
@@ -129,10 +132,10 @@
       "kind": "account",
       "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, mayWorkspaceSpend, metrics_summary), its zone (a day is counted in it: the series functions) and its word for a booking (getAppointmentWord). The feed tells its status, name, zone, word and logo (00431, 00458), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
       "reads": {
-        "broadcasts": [
+        "audiences": [
           "tenants"
         ],
-        "audiences": [
+        "broadcasts": [
           "tenants"
         ],
         "people": [
@@ -1165,6 +1168,26 @@
     },
     {
       "kind": "over-read",
+      "why": "The form request a time asked on a form was asked from (00691, the Forms plan's F3), named on its Calendar visit (calendar/week/items.ts withFormRequests over form_entry_links kind visit) so the visit's sheet answers it on the request. The link is written in the same statement as the visit (form_time_request_take) and never moves after, so the appointment these pages hear carries the read.",
+      "reads": {
+        "calendar": [
+          "form_entry_links"
+        ],
+        "setup": [
+          "form_entry_links"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
+        "setup": [
+          "appointments"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
       "why": "The threads set aside as not a customer's (00539), for Today's one line. A thread is set aside only with its draft row written, which the feed tells of, so a message on a thread need not read the drafts again.",
       "reads": {
         "reply_drafts": [
@@ -1213,23 +1236,36 @@
       "kind": "unfed",
       "why": "A video asked for and where it stands (00613 pieces), and each place a made post goes (00611 posts): Campaigns › Content's read (GET content, decision 0125), and the Calendar's posts at their times (GET calendar/runs, the content redesign's stage 3), neither of which the feed tells a workspace of. A video ends as its file, made or not, which the page hears and reads again with. A post is sent, stopped or taken down by a press that reads Content and the Calendar again where each is drawn, and a post's name is its file's, which both hear. And while a video is being made or a post is on its way the page asks again itself, every five seconds, until nothing moves (campaigns/content/page.tsx).",
       "reads": {
+        "calendar_runs": [
+          "posts"
+        ],
         "content": [
           "pieces",
           "posts"
         ],
-        "calendar_runs": [
+        "content_week": [
+          "pieces",
           "posts"
         ]
       },
       "heardWith": {
+        "calendar_runs": [
+          "files"
+        ],
         "content": [
           "files"
         ],
-        "calendar_runs": [
+        "content_week": [
           "files"
         ]
       },
       "rereadAfter": {
+        "calendar_runs": [
+          "POST files/[id]/instagram",
+          "DELETE files/[id]/instagram",
+          "POST files/[id]/google",
+          "DELETE files/[id]/google"
+        ],
         "content": [
           "POST files/video",
           "POST files/[id]/instagram",
@@ -1237,11 +1273,38 @@
           "POST files/[id]/google",
           "DELETE files/[id]/google"
         ],
-        "calendar_runs": [
-          "POST files/[id]/instagram",
-          "DELETE files/[id]/instagram",
-          "POST files/[id]/google",
-          "DELETE files/[id]/google"
+        "content_week": [
+          "POST content/plan/approve",
+          "POST content/plan/slots"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The Week's own records (00706: content_plans, plan_slots, owner_claims, content_goals) and what its read stands on beside them (the workspace's config with its content lines, its row's pause), none of which the feed tells a workspace of. The plan job's draft and the approval's making are told to no page: the Week asks again itself every five seconds while either moves (campaigns/content/week/week.tsx), and every press of the Week and of Settings › Content reads it again (bridge/refresh-map.ts weekIfDrawn).",
+      "reads": {
+        "content_week": [
+          "content_goals",
+          "content_plans",
+          "owner_claims",
+          "plan_slots"
+        ]
+      },
+      "rereadAfter": {
+        "content_week": [
+          "POST content/plan",
+          "POST content/plan/approve",
+          "POST content/plan/slots",
+          "POST content/claims",
+          "DELETE content/claims",
+          "PUT content/aims",
+          "POST content/line",
+          "POST ask/stop"
+        ]
+      },
+      "heardWith": {
+        "content_week": [
+          "files"
         ]
       }
     },
@@ -1371,6 +1434,73 @@
       "heardWith": {
         "today": [
           "form_entries"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The website form a site's request came through and its site (outside_forms and form_sites, 00709), read with each request nobody has answered, for its heading (the form's name) and the fields the website door takes. The feed tells neither: a form and its site are made and stamped only in the write of an entry, whose event Today hears, and a form renamed or hidden is said by its new name at the next read. Today reads both only for the requests it lists, with the entries it hears (heardWith).",
+      "reads": {
+        "today": [
+          "form_sites",
+          "outside_forms"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "form_entries"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The comments on the business's posts that wait on the owner (readers/results.ts commentsWaiting over touches and comment_answers, with the posts they are under, 00699): Today's point for a comment AI can't answer safely, or whose answer didn't go. The feed tells none of these: a comment arrives by Meta's delivery and AI drafts it by its job seconds later, so a notice for each would be one for each comment. Today reads them with its other reads each time it hears its own records (heardWith), a press on a comment reads Today again (POST comments), and a comment waits a week, so the row is a read behind at most.",
+      "reads": {
+        "today": [
+          "comment_answers",
+          "posts",
+          "touches"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "conversations",
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "field": null,
+      "why": "The pieces' files of the posts that waiting comments are under (readers/results.ts commentsWaiting, readCommentPosts, 00699): only each file's name, said as the post's title beside the comment on Today's row. It rides with the comments it names, which Today reads with its other reads (heardWith); a renamed piece is said by its new name at the next read.",
+      "reads": {
+        "today": [
+          "files"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "conversations"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "A made video's versions (00708): each version's shape is written by the job that keeps its bytes and by an approval, and the feed does not tell of piece_renditions. Made reads them for one tile a piece; the video's own file is told when it is made and when it plays (the bell's video_ready), which reads Content again, so a version moved past leaves Made with it.",
+      "reads": {
+        "content": [
+          "piece_renditions"
+        ]
+      },
+      "heardWith": {
+        "content": [
+          "files"
+        ]
+      },
+      "rereadAfter": {
+        "content": [
+          "POST files/video",
+          "POST files/[id]/version"
         ]
       }
     }

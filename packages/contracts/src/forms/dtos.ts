@@ -5,8 +5,11 @@
  * what each screen says of them is the screen's own.
  */
 import { z } from "zod";
+import { FORM_LIMITS } from "./limits";
 import { FormDescription } from "./shape";
+import type { OutsideFormRowDto } from "./outside";
 import type { RequestLine } from "./request-words";
+import type { FormTimeStatus } from "./times";
 
 export type FormStateDto = "draft" | "live" | "off";
 
@@ -14,7 +17,7 @@ export type FormStateDto = "draft" | "live" | "off";
 export type EntryStandingDto = "open" | "answered" | "held" | "test";
 
 /** Why an entry is held, as the database keeps it. */
-export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member";
+export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
 
 /** A form as Campaigns › Forms lists it. */
 export interface FormListRowDto {
@@ -31,6 +34,12 @@ export interface FormListRowDto {
 
 export interface FormsDto {
   forms: FormListRowDto[];
+  /**
+   * The forms the business's own website sends (00709), each once its first entry arrived, listed or hidden; and how
+   * many sites it has keys for, so an empty page offers the website connection, and a page with sites opens it.
+   */
+  outside: OutsideFormRowDto[];
+  sites: number;
   /** Whether this member may make and change forms. */
   can_change: boolean;
 }
@@ -45,6 +54,11 @@ export interface FormLinkDto {
   opens: number;
   requests: number;
   visits: number;
+  /**
+   * The sites the form may show on, framed in their own page (F4), each with when a request last came from it: null for
+   * every place that is not the website.
+   */
+  sites: Array<{ host: string; last_entry_at: string | null }> | null;
 }
 
 /** One entry as the sheet lists it. */
@@ -77,6 +91,10 @@ export interface FormSheetDto {
     days: number;
     opens: number;
     requests: number;
+    /** The requests that asked for a time (F3). */
+    asked?: number;
+    /** How often the business's own booking page was opened from the form (F3): a count, never a visitor. */
+    booking_opens?: number;
     talked: number;
     visits: number;
     new_people: number;
@@ -97,10 +115,32 @@ export interface FormSheetDto {
   can_change: boolean;
 }
 
+/**
+ * The time a request asked for (00691; the Forms plan, F3), as its visit stands now: the same request a chat opens,
+ * held for its owner a day at most and answered Booked it or Can't. `holds`: it still takes its time (proposed, and not
+ * past `expires_at`); past it, Booked it is refused and the time may have gone to someone else. `taken_by`: who another
+ * visit at that time is booked for since, where one is (empty where it names nobody): then Can't leads. Null: nothing
+ * is in its way.
+ */
+export interface FormRequestTimeDto {
+  appointment_id: string;
+  starts_at: string;
+  ends_at: string;
+  service: string | null;
+  status: FormTimeStatus;
+  expires_at: string | null;
+  holds: boolean;
+  timezone: string;
+  taken_by: string | null;
+}
+
 /** One request as Inbox answers it. */
 export interface FormRequestDto {
   id: string;
+  /** The form it came through: one made here, or one the business's own website owns (`site`). */
   form_id: string;
+  /** The site its form is on, as Forms names it (contracts formSiteNameOf); null for a form made here. */
+  site: string | null;
   heading: string;
   created_at: string;
   lines: RequestLine[];
@@ -124,6 +164,8 @@ export interface FormRequestDto {
   note: string;
   /** Whether the form asks AI to draft the reply. */
   drafts: boolean;
+  /** The time it asked for, where it asked for one (F3); null where it asked for none. */
+  time: FormRequestTimeDto | null;
 }
 
 /**
@@ -132,7 +174,10 @@ export interface FormRequestDto {
  */
 export interface FormOpenRequestDto {
   id: string;
+  /** The form it came through: one made here, or one the business's own website owns (`site`). */
   form_id: string;
+  /** The site its form is on; null for a form made here. */
+  site: string | null;
   /** The form's heading, as the visitor saw it. */
   heading: string;
   created_at: string;
@@ -147,6 +192,8 @@ export interface FormOpenRequestDto {
   phone_only: boolean;
   /** A reply to it left and never reached them. */
   unreached: boolean;
+  /** The time it asked for, as its visit stands now (F3): what Needs you says first. Absent or null: none asked. */
+  time?: Omit<FormRequestTimeDto, "taken_by"> | null;
 }
 
 /**
@@ -182,16 +229,20 @@ export interface FormsReportDto {
 /** What a member's press on Campaigns › Forms asks. */
 export const FormPress = z.discriminatedUnion("act", [
   // A form made by saying what to collect: AI drafts it.
-  z.strictObject({ act: z.literal("make"), sentence: z.string().trim().min(2).max(600) }),
+  z.strictObject({ act: z.literal("make"), sentence: z.string().trim().min(2).max(FORM_LIMITS.sentence) }),
   // The draft kept as its owner changed it, in place.
   z.strictObject({ act: z.literal("save"), form_id: z.uuid(), draft: FormDescription }),
   // AI told what to change, or asked for one question to add.
   z.strictObject({
     act: z.enum(["tell", "question"]),
     form_id: z.uuid(),
-    sentence: z.string().trim().min(2).max(600),
+    sentence: z.string().trim().min(2).max(FORM_LIMITS.sentence),
   }),
   z.strictObject({ act: z.enum(["publish", "turn_on", "turn_off", "delete", "duplicate"]), form_id: z.uuid() }),
+  // A form the business's own website owns (00709): its owner's own name for it (blank: the name the site sends), and
+  // whether it is on the list (hidden never stops its entries).
+  z.strictObject({ act: z.literal("site_rename"), form_id: z.uuid(), name: z.string().trim().max(120) }),
+  z.strictObject({ act: z.literal("site_list"), form_id: z.uuid(), listed: z.boolean() }),
 ]);
 export type FormPress = z.infer<typeof FormPress>;
 
@@ -213,6 +264,9 @@ export const FormLinkPress = z.discriminatedUnion("act", [
   z.strictObject({ act: z.literal("make"), form_id: z.uuid(), place: z.string().trim().min(1).max(60) }),
   z.strictObject({ act: z.literal("rename"), link_id: z.uuid(), place: z.string().trim().min(1).max(60) }),
   z.strictObject({ act: z.enum(["stop", "start"]), link_id: z.uuid() }),
+  // A site the form may show on, framed in their own page (F4): the first makes the form's website link.
+  z.strictObject({ act: z.literal("site_add"), form_id: z.uuid(), site: z.string().trim().min(1).max(200) }),
+  z.strictObject({ act: z.literal("site_remove"), form_id: z.uuid(), site: z.string().trim().min(1).max(200) }),
 ]);
 export type FormLinkPress = z.infer<typeof FormLinkPress>;
 
@@ -229,5 +283,7 @@ export const FormRequestPress = z.discriminatedUnion("act", [
     email_to: z.optional(z.email().max(254)),
   }),
   z.strictObject({ act: z.enum(["mark", "unmark", "hold", "let_through"]), entry_id: z.uuid() }),
+  // The time it asked for, answered as a chat's is (F3): Booked it, or Can't.
+  z.strictObject({ act: z.enum(["book", "cant"]), entry_id: z.uuid() }),
 ]);
 export type FormRequestPress = z.infer<typeof FormRequestPress>;

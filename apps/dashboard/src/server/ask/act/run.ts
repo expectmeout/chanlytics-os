@@ -49,7 +49,11 @@ import { cardMoved, UNCHECKED } from "./recheck";
 export const ACT_BY = ["press", "yes", "row", "lock_screen", "mail"] as const;
 export type ActBy = (typeof ACT_BY)[number];
 
-/** How long a verb's own route may take, inside this route's own limit: an act is not started with less time than this left. */
+/**
+ * How long a verb's own route may take, inside this route's own limit: an act is not started with less time than this
+ * left. A call that says its own wait (ProposalCall.waitMs: AI drafting a form) is given that, which the act door's limit
+ * holds (app/api/v1/ask/act, maxDuration).
+ */
 export const CALL_TIMEOUT_MS = 50_000;
 
 interface Answered {
@@ -92,7 +96,7 @@ async function callRoute(
     method,
     headers,
     ...(hasBody ? { body: JSON.stringify(call.body) } : {}),
-    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+    signal: AbortSignal.timeout(call.waitMs ?? CALL_TIMEOUT_MS),
   }).catch((e: unknown) => {
     // Said in the log, and answered as no answer: the press is handed back to the browser (`UNREACHED`).
     log.error("ask_act_unreached", { route: call.route, error: e });

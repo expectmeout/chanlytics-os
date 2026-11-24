@@ -13,13 +13,13 @@
  * themselves (`pushesFor`, push.ts). A topic whose kinds and channels disagree does not compile, so the page cannot offer
  * a tick no code reads.
  */
-import { ALERT_ADDRESSES_MAX } from "../config/workspace-config/alerts";
 import { LEAD_QUESTION_WAIT_LINE } from "../leads/plan";
 import { agoShort } from "../shared/time";
 // The kinds as a type alone: the list is NOTIFICATION_DELIVERY's own keys, so the page's entry (alert-pane.ts) loads
 // nothing of the bell's feed.
 import type { ServerNotificationKind } from "./notifications/feed-input";
-import { BELL_LIST_ROWS, BELL_WINDOW_DAYS, type PushKind } from "./push";
+import type { PushKind } from "./push";
+import { ALERT_PANE_WORDS } from "./alert-pane-words";
 import { isOneOf, keysOf } from "../shared/unknown";
 
 /**
@@ -80,6 +80,11 @@ const NOTIFICATION_DELIVERY = {
   // A piece taken down everywhere it was up, or one a place leaves to its owner to delete (00682): lines on the bell.
   post_down: "bell",
   post_by_hand: "bell",
+  // A week of posts ready (00706; the content loop PRD's 12.5, call 24): with every rung at "AI asks first" a week nobody
+  // opens never posts, so it is mailed once, as the business chooses, and the phone told. What to film is the bell and
+  // the phone, once a week at most, never a mail.
+  plan_ready: "email",
+  footage_ask: "bell",
   // A lead tried the preview they were sent (00632): a line on the bell as it happens, written by the database.
   preview_tried: "bell",
   // An ad account that needs its owner (00653): the platform signed Chanlytics out, or cannot charge for it. A line on
@@ -224,6 +229,15 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     email: "choice",
     phone: true,
     kinds: ["playbook"],
+  },
+  {
+    key: "plan_ready",
+    group: "needs_you",
+    title: "This week's posts are ready",
+    what: "AI planned the week's posts. Nothing goes up until you approve them.",
+    email: "choice",
+    phone: true,
+    kinds: ["plan_ready"],
   },
   {
     key: "leads_question",
@@ -377,6 +391,16 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     phone: true,
     kinds: ["note_for_you"],
   },
+  {
+    key: "footage_ask",
+    group: "for_you",
+    title: "Clips to film",
+    what: "What AI asks you to film for the week's posts, once a week at most.",
+    onBell: "clips to film",
+    email: null,
+    phone: true,
+    kinds: ["footage_ask"],
+  },
 ];
 
 /**
@@ -487,89 +511,6 @@ export function withTopicPush(pushOff: readonly string[], topic: AlertTopic, on:
   if (topic.phone) switchKinds(off, topic.kinds, on);
   return ALERT_TOPICS.flatMap((t) => (t.phone ? t.kinds : [])).filter((k) => off.has(k));
 }
-
-/**
- * The sentences the page says around its rows. Every one is here, so a test reads the page's words where they are
- * decided.
- */
-export const ALERT_PANE_WORDS = {
-  where: "Where alerts reach you",
-  whereSub: "The bell keeps everything. Choose what else reaches you below.",
-  bell: "Bell",
-  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days · the newest ${BELL_LIST_ROWS} listed`,
-  bellOn: "Always on",
-  email: "Email",
-  emailNobody: "Nobody yet",
-  emailNobodyHint: "Until one is added, nobody is emailed when a customer needs a person.",
-  emailMore: (n: number) => (n === 1 ? "and 1 more" : `and ${n} more`),
-  change: "Change",
-  done: "Done",
-  you: "you",
-  notOnTeam: "Not on the team",
-  onTeam: "On the team",
-  addPlaceholder: "name@yourbusiness.com",
-  addLabel: "Add an address to email",
-  teammates: "Teammates not emailed:",
-  emailFoot: `Each address gets what is ticked under Email. Up to ${ALERT_ADDRESSES_MAX}.`,
-  test: "Send a test",
-  testing: "Sending…",
-  testSent: (n: number) => (n === 1 ? "A test was sent to 1 address." : `A test was sent to ${n} addresses.`),
-  testNot: (reason: "no_address" | "not_live" | "not_sent" | null) =>
-    reason === "no_address"
-      ? "There is no address to send a test to."
-      : reason === "not_live"
-        ? "Tests are sent from the live app only, not from a preview."
-        : "Couldn't send the test. Try again in a minute.",
-  phone: (n: number) => (n > 1 ? "Phones" : "Phone"),
-  phoneHint: "Signing out on a phone stops its alerts.",
-  browser: "This browser",
-  /**
-   * What reaches this browser and when, by how it gets there (decision 0137, the one switch): the server tells the
-   * browser itself, Chanlytics open or closed (`push`), or this page alerts while it is open in a tab (`tab`), where the
-   * browser or the deployment has no push.
-   */
-  browserValue: (by: "push" | "tab"): string =>
-    by === "push" ? "Alerts as they happen" : "When someone needs you right now",
-  browserHint: (by: "push" | "tab"): string =>
-    by === "push" ? "Even when Chanlytics is closed." : "While Chanlytics is open in a tab.",
-  browserBlocked:
-    "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
-  /** An iPhone tells a site nothing until the site is on its Home Screen: said in the switch's place. */
-  browserHomeScreen: "To be told on this iPhone, add Chanlytics to your Home Screen first.",
-  what: "What you're told about",
-  whatSub: "Tick where else each one reaches you. Email is the business's, and your phone is yours.",
-  emailHead: "Email",
-  emailHeadSub: "for the business",
-  phoneHead: "Phone",
-  phoneHeadSub: "yours",
-  always: "Always emailed: AI must always reach someone.",
-  ownerChooses: "The owner chooses what the business is emailed.",
-  addFirst: "Add an address to email first.",
-  /** A tick held while the last change saves. */
-  saving: "Still saving the last change.",
-  /** The workspace's settings could not be read: nothing on the pane can change until they are mended. */
-  broken: "Couldn't load this workspace's settings. Chanlytics has to fix them before anything here can change.",
-  phoneTold: "Your phone is told this.",
-  notEmailed: "Not sent by email.",
-  notPushed: "Not sent to phones.",
-  /** The bell's own line: what it holds that nothing else carries, and the topics that have nothing to choose here. */
-  bellLine: (also: readonly string[]) => {
-    const all = [
-      ...also,
-      "people added from your calendar",
-      "a booking that arrives",
-      "a booking email that needs a look",
-      "the day's numbers for leads at 6 PM",
-      "a problem with a line",
-      "a teammate who joins or leaves",
-      "invitations not yet accepted",
-    ];
-    return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;
-  },
-  never: "Never sent: text messages, or a daily or weekly email. Today is your brief.",
-  /** The address the alerts come from, said only where an operator set one (nothing in the app writes it). */
-  sentFrom: (from: string) => `Sent from ${from}.`,
-} as const;
 
 /**
  * The test Settings › Notifications sends (decision 0040): to every address the business's alerts go to, once, so an

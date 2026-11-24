@@ -39,6 +39,7 @@ const clip = (over = {}) => ({
   source: "upload",
   media_status: "ready",
   seconds: 11.69,
+  cues: null,
   ...over,
 });
 const plan = (over = {}) => ({
@@ -62,6 +63,9 @@ const look = (over = {}) => ({
   name: "Harbor Studio",
   book: "Book · (646) 555-0175",
   address: "12 Example St, Springfield",
+  face: "sans",
+  second: null,
+  call: null,
   ...over,
 });
 const PHOTO = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -94,19 +98,19 @@ test("a good plan becomes a timeline: each cut's place in its clip and its frame
 
 test("the words never wrap: a line is as large as it can be and still fit, measured in the template's own face", () => {
   // Eighteen characters as a person writes them fit at the largest size.
-  assert.equal(pieceWordsBoxOf(["I asked for volume", "Did I get it?"], "low").size, PIECE_FRAME.wordsSizeMax);
-  assert.equal(pieceWordsBoxOf(["Short"], "high").size, PIECE_FRAME.wordsSizeMax);
+  assert.equal(pieceWordsBoxOf(["I asked for volume", "Did I get it?"], "low", "sans").size, PIECE_FRAME.wordsSizeMax);
+  assert.equal(pieceWordsBoxOf(["Short"], "high", "sans").size, PIECE_FRAME.wordsSizeMax);
   // Wide capitals come down until the line fits, and no further.
   const wide = "W".repeat(PIECE_LIMITS.line);
-  const { size } = pieceWordsBoxOf([wide, "x"], "high");
+  const { size } = pieceWordsBoxOf([wide, "x"], "high", "sans");
   assert.ok(size < PIECE_FRAME.wordsSizeMax / 2, `${size}`);
-  assert.ok(pieceLineWidthOf(wide, size) <= PIECE_FRAME.wordsWidth);
-  assert.ok(pieceLineWidthOf(wide, size + 1) > PIECE_FRAME.wordsWidth);
+  assert.ok(pieceLineWidthOf(wide, size, "sans") <= PIECE_FRAME.wordsWidth);
+  assert.ok(pieceLineWidthOf(wide, size + 1, "sans") > PIECE_FRAME.wordsWidth);
 });
 
 test("a character the face's table does not hold is taken at its widest, so a line can only come out smaller", () => {
-  assert.equal(pieceLineWidthOf("中", 100), PIECE_FACE_WIDEST / 10);
-  assert.equal(pieceLineWidthOf("ab", 100), (PIECE_FACE_ADVANCES.a + PIECE_FACE_ADVANCES.b) / 10);
+  assert.equal(pieceLineWidthOf("中", 100, "sans"), PIECE_FACE_WIDEST / 10);
+  assert.equal(pieceLineWidthOf("ab", 100, "sans"), (PIECE_FACE_ADVANCES.a + PIECE_FACE_ADVANCES.b) / 10);
 });
 
 test("the face's table is the font file's own, as its generator writes it", () => {
@@ -120,22 +124,26 @@ test("the face's table is the font file's own, as its generator writes it", () =
 });
 
 test("the words sit high or low, where the plan put them, and inside what a phone's own buttons leave clear", () => {
-  const high = pieceWordsBoxOf(["Asked for layers.", "Left with these."], "high");
-  const low = pieceWordsBoxOf(["Asked for layers.", "Left with these."], "low");
+  const high = pieceWordsBoxOf(["Asked for layers.", "Left with these."], "high", "sans");
+  const low = pieceWordsBoxOf(["Asked for layers.", "Left with these."], "low", "sans");
   assert.ok(high.top >= PIECE_FRAME.clearTop, "under the phone app's top bar");
   assert.ok(low.top > high.top + high.height, "low is under high");
   assert.ok(low.top + low.height <= PIECE_FRAME.height - PIECE_FRAME.clearBottom, "over the caption and the buttons");
-  assert.ok(high.height > pieceWordsBoxOf(["Asked for layers."], "high").height, "a second line takes its room");
+  assert.ok(
+    high.height > pieceWordsBoxOf(["Asked for layers."], "high", "sans").height,
+    "a second line takes its room",
+  );
   // Low words end where high words would never reach: one line or two, they sit on the same floor.
   assert.equal(
     low.top + low.height,
-    pieceWordsBoxOf(["Asked for layers."], "low").top + pieceWordsBoxOf(["Asked for layers."], "low").height,
+    pieceWordsBoxOf(["Asked for layers."], "low", "sans").top +
+      pieceWordsBoxOf(["Asked for layers."], "low", "sans").height,
   );
 });
 
 test("the timeline carries the words' box, so the template and the storyboard draw them in one place", () => {
   const t = timelineOf();
-  const box = pieceWordsBoxOf(plan().lines, "low");
+  const box = pieceWordsBoxOf(plan().lines, "low", "sans");
   assert.deepEqual([t.words.top, t.words.size], [box.top, box.size]);
   assert.deepEqual(t.words.lines, ["I asked for volume", "Did I get it?"]);
 });
@@ -226,6 +234,7 @@ test("the end card says the business's own: its last line split at the first mid
     under: "Hablamos español",
     logo: true,
     name: "Harbor Studio",
+    call: null,
     book: "Book · (646) 555-0175",
     address: "12 Example St, Springfield",
   });
@@ -247,10 +256,12 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     shape: "blocks",
     blocks: cuts.map((cut) => ({ is: "clip", ...cut, label: null })),
     caption: null,
+    captions: true,
   });
   assert.deepEqual(Object.keys(read).sort(), [
     "blocks",
     "caption",
+    "captions",
     "end_line",
     "language",
     "lines",
@@ -267,7 +278,10 @@ test("a card's payload reads back as the plan, and nothing else rides along", ()
     end_line: null,
     language: "en",
     caption: null,
+    captions: true,
   });
+  // Spoken words are burned in unless the owner said no (pass 4).
+  assert.equal(piecePlanOf({ ...plan(), captions: false }).captions, false);
   // The words Ask wrote to paste under it (C3) ride with it; a video made before Ask wrote them has none, never made up.
   assert.equal(piecePlanOf({ ...plan(), caption: "I asked for volume." }).caption, "I asked for volume.");
   assert.equal(piecePlanOf({ ...plan(), caption: "   " }).caption, null);
@@ -441,8 +455,12 @@ test("a hook-first plan compiles to the same seconds, words and end card it alwa
     now.timeline.blocks,
     HOOK_FIRST_BEFORE.cuts.map((c) => ({ is: "clip", ...c, label: null })),
   );
-  for (const key of ["width", "height", "fps", "frames", "words", "end", "accent"])
+  for (const key of ["width", "height", "fps", "frames", "words", "accent"])
     assert.deepEqual(now.timeline[key], HOOK_FIRST_BEFORE[key], key);
+  // The end card as it always was, with the kit's call, which a look kept before the kit has none of.
+  const { call, ...end } = now.timeline.end;
+  assert.deepEqual(end, HOOK_FIRST_BEFORE.end);
+  assert.equal(call, null);
 });
 
 test("each kind of block is held to its own limits, and a refusal names its block", () => {
@@ -529,7 +547,7 @@ test("a video of photos, cards and a pair compiles to what the template draws: f
   assert.deepEqual(card, {
     is: "words",
     lines: ["Three steps", "to bounce"],
-    size: pieceCardSizeOf(["Three steps", "to bounce"]),
+    size: pieceCardSizeOf(["Three steps", "to bounce"], "sans"),
     frames: 60,
   });
   assert.equal(quote.is, "quote");
@@ -543,29 +561,34 @@ test("a video of photos, cards and a pair compiles to what the template draws: f
 });
 
 test("a words card is as large as its widest line allows, and a quote wraps by its words to seven lines at most", () => {
-  assert.equal(pieceCardSizeOf(["Go"]), PIECE_CARD.sizeMax);
-  const wide = pieceCardSizeOf(["x".repeat(PIECE_LIMITS.cardLine)]);
+  assert.equal(pieceCardSizeOf(["Go"], "sans"), PIECE_CARD.sizeMax);
+  const wide = pieceCardSizeOf(["x".repeat(PIECE_LIMITS.cardLine)], "sans");
   assert.ok(
-    wide < PIECE_CARD.sizeMax && pieceLineWidthOf("x".repeat(PIECE_LIMITS.cardLine), wide) <= PIECE_FRAME.wordsWidth,
+    wide < PIECE_CARD.sizeMax &&
+      pieceLineWidthOf("x".repeat(PIECE_LIMITS.cardLine), wide, "sans") <= PIECE_FRAME.wordsWidth,
   );
-  const short = pieceQuoteLinesOf("Best blowout in Brooklyn");
+  const short = pieceQuoteLinesOf("Best blowout in Brooklyn", "sans");
   assert.equal(short.size, PIECE_CARD.quoteSizes[0]);
   assert.equal(short.lines.join(" "), "Best blowout in Brooklyn");
-  assert.ok(short.lines.every((l) => pieceLineWidthOf(l, short.size) <= PIECE_FRAME.wordsWidth));
+  assert.ok(short.lines.every((l) => pieceLineWidthOf(l, short.size, "sans") <= PIECE_FRAME.wordsWidth));
   const long = pieceQuoteLinesOf(
     "I drove three hours for this cut and I would do it again tomorrow, she listened to every word I said to her",
+    "sans",
   );
   assert.ok(long && long.lines.length <= PIECE_CARD.quoteLinesMax, "it fits at some size");
-  assert.ok(long.lines.every((l) => pieceLineWidthOf(l, long.size) <= PIECE_FRAME.wordsWidth));
+  assert.ok(long.lines.every((l) => pieceLineWidthOf(l, long.size, "sans") <= PIECE_FRAME.wordsWidth));
   // Its lines come out near one length: wrapped to the frame alone this one ended on "had." by itself.
-  const evened = pieceQuoteLinesOf("I walked out feeling like a whole new person. Best blowout I have ever had.");
+  const evened = pieceQuoteLinesOf(
+    "I walked out feeling like a whole new person. Best blowout I have ever had.",
+    "sans",
+  );
   assert.deepEqual(
     [evened.size, evened.lines],
     [72, ["I walked out feeling", "like a whole new", "person. Best blowout", "I have ever had."]],
   );
-  assert.ok(evened.lines.every((l) => pieceLineWidthOf(l, evened.size) <= PIECE_FRAME.wordsWidth));
-  assert.equal(pieceQuoteLinesOf("x".repeat(400)), null, "one word wider than the frame fits at no size");
-  assert.equal(pieceQuoteLinesOf("   "), null);
+  assert.ok(evened.lines.every((l) => pieceLineWidthOf(l, evened.size, "sans") <= PIECE_FRAME.wordsWidth));
+  assert.equal(pieceQuoteLinesOf("x".repeat(400), "sans"), null, "one word wider than the frame fits at no size");
+  assert.equal(pieceQuoteLinesOf("   ", "sans"), null);
 });
 
 test("the opening words are drawn on a picture, never on a card: a card between two pictures is skipped", () => {

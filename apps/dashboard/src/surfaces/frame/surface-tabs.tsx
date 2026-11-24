@@ -98,6 +98,16 @@ const stTabsOf = (page: string, own: SurfaceViews | null): [string | null, reado
   return found ? [found[0], found[1].tabs] : [null, []];
 };
 
+/**
+ * Whose strip of views a page stands under, as the frame's head slot says it (shell-chrome.tsx `data-strip`): the page's own
+ * views, or its group's (the Inbox's Needs you, Conversations and Live); null where it draws one view or none. Said from the
+ * first draw, so the room under the strip is the page's while the page is still read.
+ */
+export function stripNameOf(page: string, views: SurfaceViews | null | undefined): string | null {
+  const [name, tabs] = stTabsOf(page, views && views.tabs.length > 1 ? views : null);
+  return tabs.length > 1 ? name : null;
+}
+
 // surface:live moves the Live tab's pulse. A call's ending is a row on the live feed, and the verdict thread's news is the
 // bell's: neither has an event of its own. The Needs-you badge is the count's hook, which no event feeds.
 function useLiveRedraws() {
@@ -107,6 +117,13 @@ function useLiveRedraws() {
     evs.forEach((e) => window.addEventListener(e, stBump));
     return () => evs.forEach((e) => window.removeEventListener(e, stBump));
   }, []);
+}
+
+/** A page's own counts on its tabs (SurfaceViews heard): the strip drawn again as what they count moves. */
+function useViewsHeard(views: SurfaceViews | null) {
+  const heard = views?.heard;
+  const [, stBump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => (heard ? heard(stBump) : undefined), [heard]);
 }
 
 interface SurfaceTabsProps {
@@ -131,6 +148,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   const under = useHeadUnder();
   const at: StripAt | null = under ? under.strip : { page, param, views };
   const own = at && at.views && at.views.tabs.length > 1 ? at.views : null;
+  useViewsHeard(own);
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
   // Inbox has been.
   const needs = window.useNeedsYou ? window.useNeedsYou() : 0;

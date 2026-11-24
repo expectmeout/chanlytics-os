@@ -31,7 +31,7 @@ const facts = {
 
 test("on the Ads page the model is told it is a preview and what it may offer, and not to propose sequences for every offer", () => {
   const words = turnWords({ ...facts, pageView: "ads" });
-  assert.match(words, /They are on Campaigns › Ads/);
+  assert.match(words, /They are on Ads, in Campaigns › Content/);
   assert.match(words, /no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent/);
   assert.match(words, /no tool makes or changes an ad/);
   assert.match(words, /a campaign to the people they have, or a post/);

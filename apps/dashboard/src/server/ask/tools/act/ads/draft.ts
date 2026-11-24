@@ -1,10 +1,11 @@
 import "server-only";
 import { z } from "zod";
-import { ROLE_PERMS, fileSaidOf, parseTenantConfigResult } from "@chanlytics/contracts";
+import { ROLE_PERMS, fileSaidOf, parseTenantConfigResult, pieceResultsSaid } from "@chanlytics/contracts";
 import { findLiveAdAccount } from "@chanlytics/db/ads";
 import { readAdsOffered } from "../../../../connections/ads-ready";
 import { readPieceAdStands, type PieceAdStands } from "../../../../content/ad-pictures";
 import { filesNamedForAsk } from "../../../../readers/files";
+import { pieceResults } from "../../../../readers/results";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
@@ -25,9 +26,11 @@ import { filesNamed } from "../../read/files";
  * The card shows the piece AI made that the question is about (the piece open in Content, or one named in the turn),
  * where Content's one rule lets it run (server content/ad-pictures.ts readPieceAdStands), and its press drafts around
  * it as Run as an ad does (the plan's 6.8, join 3). Where the rule says no, the model is told why and no card is made.
+ * Where the piece already went up, the model is told what its posts did, in the piece's own sentences (readers/results.ts
+ * pieceResults), so the owner weighs paying to show it with its results beside the press (the content loop PRD's pass 6).
  */
 
-/** What the model is told where no card is made, or where the card leaves something out. Said to the model only. */
+/** What the model alone is told: why no card is made, what the card leaves out, and what to say beside it. */
 const AD_REFUSED = {
   notHere: "Ads are not switched on in this workspace yet, so no ad can be drafted here. Say so.",
   noAccount:
@@ -47,6 +50,8 @@ const AD_REFUSED = {
   notFiled: (pieceName: string) => `${pieceName} isn't filed yet, so it can't run as an ad. Say so.`,
   notPlayable: (pieceName: string) =>
     `${pieceName} can't be played yet, so it can't run as an ad until it is ready. Say so.`,
+  results: (pieceName: string, lines: readonly string[]) =>
+    `What ${pieceName}'s posts did so far: ${lines.join("; ")}. Tell the owner this beside the card, as it is: add nothing to it.`,
   wont: (pieceName: string, issue: AdPieceWhy, video: boolean) =>
     `${pieceName} can't run as an ad: ${AD_PIECE_WHY[issue]}.${video && VIDEO_POST_MENDS.includes(issue) ? " A picture post made from it can." : ""} Say so, and propose no ad.`,
 } as const;
@@ -126,6 +131,21 @@ async function adPieceOf(
   return { id: file.id, name: pieceName };
 }
 
+/**
+ * What a piece's posts did, said to the model beside its card: How it did and What it brought as the piece's sheet says
+ * them, null before any post of it went up. The sentences name no time of day, so no zone is asked for.
+ */
+async function piecePostsSaid(toolContext: ToolContext, piece: AdPiece): Promise<string | null> {
+  const { data } = await load(toolContext.rc, pieceResults, { file: piece.id });
+  if (data.posts.length === 0) return null;
+  const sentences = pieceResultsSaid(data, "UTC");
+  return AD_REFUSED.results(piece.name, [
+    ...sentences.howItDid.lines,
+    ...sentences.howItDid.missing,
+    sentences.whatItBrought.head,
+  ]);
+}
+
 /** The card's title and summary: the service, else the piece, in the title, and the other said once below it. */
 function adCardWordsOf(card: {
   service: string | null;
@@ -164,7 +184,9 @@ async function adDraftOutcome(
   const mostAsked = input.most;
   const mostLeft = mostAsked === undefined ? null : !owner ? AD_REFUSED.mostNotOwner : null;
   const mostSaid = mostAsked !== undefined && owner && saidInQuestion(mostAsked, toolContext.question);
-  const noted = mostLeft ?? (mostAsked !== undefined && !mostSaid ? AD_REFUSED.mostNotSaid : undefined);
+  const mostNoted = mostLeft ?? (mostAsked !== undefined && !mostSaid ? AD_REFUSED.mostNotSaid : null);
+  const resultsNoted = piece ? await piecePostsSaid(toolContext, piece) : null;
+  const noted = [mostNoted, resultsNoted].filter((line) => line !== null).join(" ") || undefined;
   const most = mostSaid ? mostAsked : null;
   return propose(
     {

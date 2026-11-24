@@ -6,14 +6,8 @@
  * from it is on every page. Only the Notifications pane draws these, so they load with that pane, as Reports' date
  * control's words do (reports/window.ts). The server, the edge and the tests read the same values from the index.
  */
-export {
-  ALERT_PANE_WORDS,
-  alertGrid,
-  bellLineFor,
-  phoneLine,
-  withTopicEmail,
-  withTopicPush,
-} from "./today/notification-kinds";
+export { ALERT_PANE_WORDS } from "./today/alert-pane-words";
+export { alertGrid, bellLineFor, phoneLine, withTopicEmail, withTopicPush } from "./today/notification-kinds";
 export type { AlertTopic, AlertCell, AlertGridGroup, EmailHeld } from "./today/notification-kinds";
 export {
   ALERT_ADDRESSES_MIN,

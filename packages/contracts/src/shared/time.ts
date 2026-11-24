@@ -58,6 +58,12 @@ export function formatterOnUse(
   return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
 }
 
+/**
+ * A time on a business's clock as the receptionist writes it (booking_slot), and as a form keeps one asked for:
+ * "2026-11-28 11:00", its parts in order.
+ */
+export const CLOCK_SLOT = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/;
+
 /** How many formatters each cache keeps before it starts again: zones times shapes, which a page uses a handful of. */
 const FORMATS_KEPT = 256;
 const DATE_FORMATS = new Map<string, Intl.DateTimeFormat>();

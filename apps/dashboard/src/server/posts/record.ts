@@ -12,22 +12,30 @@ import {
   type FilePosted,
   type FileRecordDto,
   type PieceTakeDownDto,
+  type PieceVersionsDto,
   type PostDto,
   type PostPlan,
 } from "@chanlytics/contracts";
 import {
   getFileMade,
   findFile,
+  findPieceOfVideo,
   findPiecePlanOfFile,
+  findVersionDrawing,
   getNewestMade,
   listFilePosts,
+  listPiecePosts,
+  listPieceVersions,
   readFileSound,
+  type VideoPieceRow,
   type FileMemberRow,
   type MemberPostRow,
 } from "@chanlytics/db/files";
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
-import { readInstagramPostable, instagramPostsOf } from "./instagram";
+import { instagramPostsOf } from "./instagram";
+import { readInstagramPostable } from "@/server/connections/meta";
+import { facebookPostsOf, readFacebookPostable } from "./facebook";
 import { fileMadeOf } from "./made-as";
 import { readPieceTakeDown } from "./take-down";
 import { log } from "@/server/shared/log";
@@ -47,12 +55,20 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   const file = fileDtoOf(row);
   if (row.kind === "video") {
     const ours = row.source === "made";
-    const [sound, plan, posts, can] = await Promise.all([
+    const piece = ours ? await findPieceOfVideo(ctx.supabase, member.tenantId, row.id) : null;
+    const [sound, plan, posts, can, page, version] = await Promise.all([
       readFileSound(ctx.supabase, row.id),
       ours ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
-      // A made video's posts: its reel on Instagram (00681), and the one its owner put up by hand.
-      ours ? listFilePosts(ctx.supabase, member.tenantId, row.id) : [],
+      // A made video's posts: its reel on Instagram (00681) and on a Page (pass 5), and the one its owner put up by hand;
+      // at every one of its versions (00708), so version 1's posts that wait are said under version 2.
+      ours
+        ? piece
+          ? listPiecePosts(ctx.supabase, member.tenantId, { id: piece.id, fileId: row.id })
+          : listFilePosts(ctx.supabase, member.tenantId, row.id)
+        : [],
       ours ? readInstagramPostable(member.tenantId) : null,
+      ours ? readFacebookPostable(member.tenantId) : null,
+      piece ? readVersions(ctx, member, piece) : null,
     ]);
     const drawnBy = recordOrNull(plan);
     return {
@@ -61,30 +77,60 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
       // Google takes no video from here (contracts PLACE_CAPABILITIES).
       google: null,
       instagram: can === null ? null : { can, posts: instagramPostsOf(posts) },
+      facebook: page === null ? null : { can: page, posts: facebookPostsOf(posts) },
       ...(ours ? { posts: sentPostsOf(posts) } : {}),
       by_hand: handPostOf(posts),
       sound: fileSoundOf(sound),
       ...(drawnBy ? { video: { plan: piecePlanOf(drawnBy) } } : {}),
+      ...(version ? { version: { ...version, waiting: waitingAt(posts, version.n) } } : {}),
     };
   }
   if (row.source !== "made") return { file, made: null, google: null, instagram: null };
-  const [kept, connection, posts, can] = await Promise.all([
+  const [kept, connection, posts, can, page] = await Promise.all([
     getFileMade(serviceDb(), member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
     listFilePosts(ctx.supabase, member.tenantId, row.id),
     readInstagramPostable(member.tenantId),
+    readFacebookPostable(member.tenantId),
   ]);
   const google = { connected: !!connection?.location_name, posted: await onGoogle(member, row.id, posts) };
   const instagram = can === null ? null : { can, posts: instagramPostsOf(posts) };
+  const facebook = page === null ? null : { can: page, posts: facebookPostsOf(posts) };
   // Every place's, whatever the Meta link, so a piece read on its own stands where the page that lists it says; and apart
   // from them the one its owner put up by hand.
-  const placed = { google, instagram, posts: sentPostsOf(posts), by_hand: handPostOf(posts) };
+  const placed = { google, instagram, facebook, posts: sentPostsOf(posts), by_hand: handPostOf(posts) };
   const created = recordOrNull(kept);
   if (!created) return { file, made: null, ...placed };
   // Read under the caller's RLS: a photo removed since, or one they can't see, is no photo to name.
   const from = typeof created.from === "string" ? await findFile(ctx.supabase, created.from) : null;
   return { file, made: fileMadeOf(created, from ? { id: from.id, name: from.name } : null), ...placed };
 }
+
+/** A made video's versions (00708): the one it stands at, one being made or that could not be, and each drawn. */
+async function readVersions(
+  ctx: RouteContext,
+  member: Member,
+  piece: VideoPieceRow,
+): Promise<Omit<PieceVersionsDto, "waiting">> {
+  const [rows, drawing] = await Promise.all([
+    listPieceVersions(ctx.supabase, member.tenantId, piece.id),
+    findVersionDrawing(ctx.supabase, member.tenantId, piece.id),
+  ]);
+  // A version is listed where it was drawn: one that moved only its words shows the bytes before it.
+  const drawn = rows.filter((v, i) => v.file_id !== null && v.file_id !== rows[i + 1]?.file_id);
+  return {
+    n: piece.revision,
+    drawing: drawing && !drawing.failed ? drawing.stage : null,
+    failed: drawing?.failed ?? false,
+    list: drawn.map((v) => ({ n: v.n, changed: v.changed, at: v.created_at, file_id: v.file_id ?? "" })),
+  };
+}
+
+/** Posts still set to go at a version before this one: each waits for this one's approval. */
+const waitingAt = (posts: readonly { id: string; status: string; revision?: number | null }[], n: number): string[] =>
+  posts
+    .filter((p) => (p.status === "queued" || p.status === "preparing" || p.status === "held") && (p.revision ?? n) < n)
+    .map((p) => p.id);
 
 /** A file's posts at every place, newest first, under the caller's RLS: what Ask's card to put a post up checks first. */
 export async function readFilePosts(ctx: RouteContext, tenantId: TenantId, fileId: string): Promise<PostDto[]> {

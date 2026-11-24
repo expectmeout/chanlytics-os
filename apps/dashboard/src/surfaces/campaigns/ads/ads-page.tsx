@@ -28,7 +28,9 @@ import {
   useFrameToast,
 } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
-import { type CmView, useCmPhone } from "../parts/split";
+import { AdsBar } from "./content-bar";
+import { CmSplit, type CmView, useCmPhone } from "../parts/split";
+import { PartShown } from "../parts/view-shown";
 import { useAdsConnection } from "./connect/use-card";
 import { CARD } from "./connect/words";
 import { useFirstTouch } from "./first-touch";
@@ -198,26 +200,33 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const touch = useFirstTouch(known && !held);
   useAskKnowsThePage();
   const connectWord = connect.vm?.button ?? null;
+  // Its first part (client/page-speed.ts, contracts PRIMARY_PART), said while it is the view shown: the page drawn as the one
+  // it is (nothing connected, or its ads), or with what could not be read.
+  const drawn = account.failed || (known && (!held || !!live.dto || live.failed));
+  const mark = view?.shown !== false ? <PartShown page="ads" part="page" ready={drawn} /> : null;
   if (held && live.dto)
     return (
-      <LiveAds
-        dto={live.dto}
-        address={address}
-        view={view}
-        phone={phone}
-        timezone={timezone}
-        card={connect.card}
-        connect={{ word: connectWord, press: account.connect }}
-        need={connect.vm?.need ?? null}
-        stop={connect.stop}
-        nav={{ push: nav.push, close: nav.close }}
-        again={() => {
-          live.again();
-          account.again();
-        }}
-        flash={flash}
-        toast={toastNode}
-      />
+      <>
+        {mark}
+        <LiveAds
+          dto={live.dto}
+          address={address}
+          view={view}
+          phone={phone}
+          timezone={timezone}
+          card={connect.card}
+          connect={{ word: connectWord, press: account.connect }}
+          need={connect.vm?.need ?? null}
+          stop={connect.stop}
+          nav={{ push: nav.push, close: nav.close }}
+          again={() => {
+            live.again();
+            account.again();
+          }}
+          flash={flash}
+          toast={toastNode}
+        />
+      </>
     );
   const vm = nothingConnectedOf(touch.firstTouch);
   const sentence = (
@@ -226,57 +235,60 @@ export function AdsPage({ param, view }: AdsPageProps) {
       {vm.head.rest}
     </>
   );
+  // Drawn in Content's own split and list (Campaigns in three tabs: Ads is the last of Made's views), so Made's bar stands
+  // where it stands on Content's other views and a press between them moves nothing.
   return (
-    <div
-      ref={view?.ref}
-      className="cmh ads"
-      data-slide={view?.slide}
-      data-testid="campaigns-ads"
-      data-phone={phone ? "true" : undefined}
-      data-ad={address.ad ?? undefined}
-    >
-      <CmHead
-        title="Campaigns"
-        quiet
-        allowance={false}
-        testid="ads-head"
-        sub={known && !held ? sentence : null}
-        right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
-      />
-      {!known ? (
-        <AccountUnread failed={account.failed} again={account.again} />
-      ) : held ? (
-        <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
-      ) : (
+    <CmSplit
+      className="cnv ads"
+      testid="campaigns-ads"
+      open={null}
+      view={view}
+      list={
         <>
-          {phone ? (
-            <p className="ads-lead" data-testid="ads-lead">
-              {sentence}
-            </p>
-          ) : null}
-          <div className="ads-window" data-testid="ads-window">
-            <p className="ads-window-said">
-              <span data-testid="ads-window-said">{vm.pane}</span>
-            </p>
-          </div>
-          <V0Page v0={vm.v0} touch={touch} card={connect.card} />
-        </>
-      )}
-      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. With one
+          {mark}
+          <CmHead
+            title="Campaigns"
+            quiet
+            allowance={false}
+            testid="ads-head"
+            right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
+          />
+          {/* Ads is the last of Made's views (Campaigns in three tabs): Content's bar, with Ads lit, over what it holds. */}
+          <AdsBar phone={phone} owed={false} />
+          {!known ? (
+            <AccountUnread failed={account.failed} again={account.again} />
+          ) : held ? (
+            <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
+          ) : (
+            <>
+              <p className="ads-lead" data-testid="ads-lead">
+                {sentence}
+              </p>
+              <div className="ads-window" data-testid="ads-window">
+                <p className="ads-window-said">
+                  <span data-testid="ads-window-said">{vm.pane}</span>
+                </p>
+              </div>
+              <V0Page v0={vm.v0} touch={touch} card={connect.card} />
+            </>
+          )}
+          {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. With one
           held, New ad is the live page's (live/live-ads.tsx), drawn once its ads are read: one sheet, so a cold open
           asks for the draft, and AI for its words, once (21 Nov 2026: two sheets one after the other asked twice). */}
-      <NewAd
-        open={address.compose !== null && account.dto !== null && !held}
-        source={LIVE_AD_SOURCE}
-        need={connect.vm?.need ?? null}
-        onClose={nav.close}
-        onConnect={account.connect}
-        onGo={navigate}
-        onSee={(adId) => navigate(adRoute(adId))}
-        start={address.compose?.from ?? null}
-        onDrafted={() => replaceRoute(newAdRoute())}
-      />
-      {toastNode}
-    </div>
+          <NewAd
+            open={address.compose !== null && account.dto !== null && !held}
+            source={LIVE_AD_SOURCE}
+            need={connect.vm?.need ?? null}
+            onClose={nav.close}
+            onConnect={account.connect}
+            onGo={navigate}
+            onSee={(adId) => navigate(adRoute(adId))}
+            start={address.compose?.from ?? null}
+            onDrafted={() => replaceRoute(newAdRoute())}
+          />
+          {toastNode}
+        </>
+      }
+    />
   );
 }

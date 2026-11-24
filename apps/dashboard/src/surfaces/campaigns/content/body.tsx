@@ -51,9 +51,11 @@ import { GroupHead } from "../../kit/head/group-head";
 import { ContentLines, NeedsRows, PieceLines } from "./lines";
 import { QuietMore } from "./heads";
 import { ContentList } from "./list";
+import { PartShown } from "../parts/view-shown";
 import { madeFlatOf, madeGroupsOf, piecesUnder, type MadeGroup } from "./model/groups";
 import type { ContentLayout } from "./views";
 import { tileDayOf } from "./model/tile-day";
+import { VERSION_WORDS } from "./model/version";
 
 /** The day a piece went up, by the business's clock. */
 const dayOfTile = (at: string) => tileDayOf(at, pageClock().zone(), Date.now());
@@ -141,10 +143,29 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
 /** A made piece: Files' own tile, square as the Library's are, and where it stands as one mark on it. The open one is outlined. */
 function MadeTile({ made, open, onOpen }: { made: ContentMadeDto; open: boolean; onOpen: (fileId: string) => void }) {
   const mark = contentPieceMarkOf(made, Date.now());
+  // Its next version being made (the version board, cell 6): the same tile, dim under AI's three, never a second one.
+  const making = made.version_drawing ? VERSION_WORDS.making(made.version_drawing) : null;
   return (
-    <div className="cnv-piece" data-open={open || undefined} data-tile={made.file.id} data-testid="cnv-tile">
-      <Photo file={made.file} onOpen={() => onOpen(made.file.id)} />
-      <TileStands tone={contentMarkToneOf(mark)} words={contentMarkSaid(mark, dayOfTile)} />
+    <div
+      className="cnv-piece"
+      data-open={open || undefined}
+      data-tile={made.file.id}
+      data-version-making={making ? true : undefined}
+      data-testid="cnv-tile"
+    >
+      <Photo
+        file={made.file}
+        onOpen={() => onOpen(made.file.id)}
+        over={
+          making ? (
+            <span className="cnv-making-work" data-testid="cnv-tile-version-making">
+              <AskLooking looking />
+              <span className="cnv-making-says">{making}</span>
+            </span>
+          ) : null
+        }
+      />
+      {making ? null : <TileStands tone={contentMarkToneOf(mark)} words={contentMarkSaid(mark, dayOfTile)} />}
     </div>
   );
 }
@@ -414,6 +435,9 @@ function ContentRead(props: ContentReadProps) {
   );
 }
 
+/** Content's first part (contracts PRIMARY_PART): Made's body. */
+const MADE_BODY = { page: "content", part: "body" };
+
 /** `held` is the surface's value: undefined until read, null where the read failed. */
 export function ContentBody({
   held,
@@ -423,6 +447,7 @@ export function ContentBody({
   openId = null,
   layout = "grid",
   desk = false,
+  markedAs = MADE_BODY,
 }: {
   held: ContentPageDto | null | undefined;
   acts: ContentActs;
@@ -431,13 +456,29 @@ export function ContentBody({
   openId?: string | null;
   layout?: ContentLayout;
   desk?: boolean;
+  /** The page its draw is said for where the address names another: an Ads address where Ads is not drawn opens Made. */
+  markedAs?: { page: string; part: string };
 }) {
+  // Made's draw, said while its view is shown (use-surface.ts PartShown; client/page-speed.ts, contracts PRIMARY_PART).
+  const mark = <PartShown page={markedAs.page} part={markedAs.part} ready={held !== undefined} />;
   if (held === undefined)
     return (
       <div className="route-reading" role="status" aria-busy="true">
+        {mark}
         {LIFECYCLE_WORDS.reading}
       </div>
     );
-  if (held === null) return <FailedRead kind="page" what={W.failedWhat} surface="content" testid="cnv-failed" />;
-  return <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos, openId, layout, desk }} />;
+  if (held === null)
+    return (
+      <>
+        {mark}
+        <FailedRead kind="page" what={W.failedWhat} surface="content" testid="cnv-failed" />
+      </>
+    );
+  return (
+    <>
+      {mark}
+      <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos, openId, layout, desk }} />
+    </>
+  );
 }

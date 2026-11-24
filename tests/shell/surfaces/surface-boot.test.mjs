@@ -38,15 +38,9 @@ const win = {
 };
 globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-const {
-  startSurfaces,
-  bootWaitsFor,
-  getConnection,
-  getSurfaceStatuses,
-  markHydrated,
-  onSurfaceStatusChange,
-  refreshSurfaces,
-} = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { bootWaitsFor, drawComing, pageDrawn } = await importSrc("apps/dashboard/src/bridge/hearing/page-waits.ts");
+const { startSurfaces, getConnection, getSurfaceStatuses, markHydrated, onSurfaceStatusChange, refreshSurfaces } =
+  await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 const { read } = await importSrc("apps/dashboard/src/bridge/api.ts");
 
@@ -1102,8 +1096,7 @@ test("the runner hears the tab and the network in order, and its stop undoes it 
       "window +offline",
       "window +online",
     ]);
-    await settle(10);
-    assert.equal(joins.length, 1, "the feed is joined once the boot is in");
+    await until(() => joins.length === 1, "the feed is joined once the boot is in");
     joins[0]({ id: "m1" }, "messages", "INSERT");
     said.length = 0;
     globalThis.clearTimeout = (t) => {
@@ -1186,5 +1179,107 @@ test("a boot that ends after its runner stopped never reloads for another worksp
     assert.equal(win.reloads, reloads + 1, "running: another workspace's rows are dropped and the tab reloads");
   } finally {
     globalThis.localStorage = keptLocal;
+  }
+});
+
+/*
+ * The page first (the plan "Pages that open at once", piece 3). The rest of the boot waited for the page on screen's own
+ * reads, not for the page itself: on a first open its code was still loading, and People and Campaigns began about twenty
+ * reads for other pages before they drew (the phone sweep of 22 Nov 2026; the field data from 23 Nov: Campaigns 13 a load,
+ * up to 24, and 5.3 s). Now the rest also wait for the frame to say the page is drawn (hearing/page-waits.ts drawComing, pageDrawn).
+ */
+test("the rest of the boot waits for the page on screen to be drawn, not only for its reads: the frame's word lets them go", async () => {
+  const { bootComing, afterBoot } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
+  const keys = ["settings", "inbox", "people", "reports", "workspace", "calendar"];
+  const { order, overrides } = crowd(keys, { hash: "#/calendar" });
+  // As the frame says both at its module scope (FrameApp.tsx), before anything reads ahead.
+  bootComing();
+  drawComing();
+  let read = false;
+  void afterBoot("page").then(() => (read = true));
+  const stop = startSurfaces(overrides);
+  try {
+    await until(() => order.includes("calendar"), "the Calendar's own asked");
+    await settle(20);
+    assert.deepEqual(
+      order,
+      ["workspace", "calendar"],
+      "its reads are in, and nobody else's is asked: it has not drawn",
+    );
+    assert.equal(read, false, "and nothing read ahead for a press (afterBoot('page')) goes before the draw either");
+    pageDrawn();
+    await until(() => new Set(order).size === keys.length, "the rest asked once it drew");
+    assert.equal(read, true);
+  } finally {
+    pageDrawn();
+    stop();
+  }
+});
+
+test("a page that never says it drew holds the rest for the route's wait at most", async () => {
+  const keys = ["settings", "people", "workspace", "calendar"];
+  win.__routeWaitMs = 120;
+  const { order, overrides } = crowd(keys, { hash: "#/calendar" });
+  drawComing();
+  const stop = startSurfaces(overrides);
+  try {
+    // Nothing says the page drew: only the route's wait lets the rest go (the test above holds them before it).
+    await until(() => new Set(order).size === keys.length, "the wait ran out; the shell has its rest");
+  } finally {
+    delete win.__routeWaitMs;
+    pageDrawn();
+    stop();
+  }
+});
+
+test("with the switch off (NEXT_PUBLIC_PAGE_FIRST=off) the rest go once the page's reads are in, as before", async () => {
+  const keys = ["settings", "people", "workspace", "calendar"];
+  process.env.NEXT_PUBLIC_PAGE_FIRST = "off";
+  const { order, overrides } = crowd(keys, { hash: "#/calendar" });
+  drawComing();
+  const stop = startSurfaces(overrides);
+  try {
+    await until(() => new Set(order).size === keys.length, "every surface asked with no word of a draw");
+  } finally {
+    delete process.env.NEXT_PUBLIC_PAGE_FIRST;
+    pageDrawn();
+    stop();
+  }
+});
+
+test("what the live feed says while the rest of the boot is out is read once the page on screen is in, not once the rest are", async () => {
+  // The rest now go later (after the draw): held until they were all in, a message would show later than it did.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "#/inbox";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const asked = [];
+  let finishStranger = () => {};
+  const surfaces = [
+    { key: "workspace", apply: async () => void asked.push("workspace") },
+    { key: "inbox", refreshOnMessageInserts: true, debounceMs: 1, apply: async () => void asked.push("inbox") },
+    {
+      key: "reports",
+      apply: () => {
+        asked.push("reports");
+        return new Promise((r) => (finishStranger = r));
+      },
+    },
+  ];
+  drawComing();
+  const feed = liveFeed();
+  const stop = startSurfaces(surfaces, feed.join);
+  try {
+    await until(() => asked.includes("inbox") && feed.joins.length === 1, "the Inbox's own read, and the feed joined");
+    pageDrawn();
+    await until(() => asked.includes("reports"), "a stranger's read is out");
+    feed.joins[0].onChange({ tenant_id: "id-a" }, "messages", "INSERT");
+    await until(
+      () => asked.filter((k) => k === "inbox").length === 2,
+      "the Inbox read again while the stranger's read is still out",
+    );
+  } finally {
+    finishStranger();
+    pageDrawn();
+    stop();
   }
 });

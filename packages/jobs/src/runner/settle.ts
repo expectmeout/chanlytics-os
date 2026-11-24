@@ -53,6 +53,7 @@ import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob, scheduleJobOnce } from "./schedule";
 import { settlePostJob } from "./settle-post";
+import { settleCommentReplyJob } from "./settle-comment";
 import { closeForAPerson } from "./settle-request";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -77,6 +78,7 @@ export interface Settled {
     | "file"
     | "draft"
     | "post"
+    | "comment_answer"
     | "request";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
@@ -560,6 +562,10 @@ const settlePost: Settler = async (db, job, certain, reason) => [
   { what: "post", changed: await settlePostJob(db, job, certain, reason) },
 ];
 
+const settleCommentReply: Settler = async (db, job, certain, reason) => [
+  { what: "comment_answer", changed: await settleCommentReplyJob(db, job, certain, reason) },
+];
+
 /**
  * Who makes each kind's leavings final, whichever way its job ended: its last try threw, a run died and the ledger gave
  * up, or nothing knew the kind (tick.ts conclude reaches this for all three). Null for a kind that leaves nothing saying
@@ -585,6 +591,9 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   post_reconcile: settlePost,
   post_google: settlePost,
   post_take_down: null,
+  content_plan: null,
+  post_observe: null,
+  comment_reply: settleCommentReply,
   file_fetch: null,
   instagram_read: null,
   file_purge: null,

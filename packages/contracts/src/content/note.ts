@@ -4,6 +4,7 @@
  */
 import type { FileDto } from "../files/views";
 import type { ContentLineDto, ContentMadeDto, ContentMakingDto } from "./page";
+import type { ReviewAskDto } from "./plan/review-ask";
 import { POST_PLACE_SAID, type PostPlace } from "./posts";
 import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 
@@ -55,6 +56,22 @@ export interface ContentTodayDto {
    * an answer a build before pass 1b gave, which names none: the two apps deploy in either order.
    */
   down?: ContentDownDto[];
+  /**
+   * The week's points (00706; the PRD's 12.5), where the workspace plans its weeks: the week ready to approve, with its
+   * size and days, and what AI asks to be filmed. Each opens the Week. Absent from an older build's answer, and null
+   * where nothing of the week waits on the owner.
+   */
+  plan?: {
+    ready: { size: string; days: string } | null;
+    film: string[];
+    /** The plan's proposal to ask every client for a review (pass 6; the canvas's Loop4); absent from an older build's. */
+    review_ask?: ReviewAskDto | null;
+  } | null;
+  /**
+   * A post set to go that waits for a new version's approval (00708; the version board, cell 5): the soonest, with its
+   * piece's file (the version that asks) and that version's number. Absent from an older build's answer; null where none.
+   */
+  version?: { file: FileDto; n: number; at: string } | null;
 }
 
 /** How many of the week's pieces Today's card shows. */
@@ -76,4 +93,6 @@ export const CONTENT_TODAY_WORDS = {
     down.is === "by_hand"
       ? `Delete it in ${POST_PLACE_SAID[down.place]} · Chanlytics couldn't`
       : takeDownUnconfirmedSaid(down.place),
+  /** "Approve version 2 · goes up Tue, 6:00 PM": a post set to go waits for a new version's approval. */
+  versionWaits: (n: number, at: string) => `Approve version ${n} · goes up ${at}`,
 } as const;

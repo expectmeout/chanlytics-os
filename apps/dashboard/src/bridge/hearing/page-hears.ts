@@ -85,6 +85,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Its Library: the settings read, and the library's, which a file's change moves (a photo looked at, one brought in), as
   // Settings › Files heard it.
   "campaigns/content/library": { settings: true, files: true },
+  // Its Week (00706): the settings read (the switch that plans its weeks), and the week's own read, which a footage file's
+  // change moves, and a connection, the config's lines or the pause move (Settings' presses read it again too).
+  "campaigns/content/week": { settings: true, content_week: true },
   // Sent's sheets, beside Sequences' list (decision 0060, D3), whole, and who each audience reaches with them (Send it again
   // offers a run's list while it can still be sent to), as Sent's surface heard it when the audiences were part of it. Read
   // beside the sheet, never waited for: the sheet is drawn from Sent's runs.
@@ -139,6 +142,8 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "admin/billing": { settings: true, workspace: true },
   "admin/memory": { settings: true, workspace: true },
   "admin/files": { settings: true, workspace: true, files: true },
+  // Settings › Content (00706): what is set for the posts, the week's read.
+  "admin/content": { settings: true, workspace: true, content_week: true },
   "admin/activity": { settings: true, workspace: true },
   "admin/platform": { settings: true, workspace: true },
   "admin/partner": { settings: true, workspace: true },

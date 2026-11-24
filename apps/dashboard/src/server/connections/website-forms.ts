@@ -12,8 +12,11 @@ import { changeFormKey, endFormKey, makeFormKey } from "@chanlytics/db/people";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 
-/** What a press on a key asks: a key made for a site, or one of the workspace's keys changed or ended. */
-type WebsiteKeyPress = { act: "make"; name: string } | { act: "change" | "end"; key_id: string };
+/**
+ * What a press on a key asks: a key made for a site the workspace has (`site_id`) or for a new one named as the key is,
+ * or one of the workspace's keys changed or ended.
+ */
+type WebsiteKeyPress = { act: "make"; name: string; site_id?: string } | { act: "change" | "end"; key_id: string };
 
 /**
  * `POST website-forms`: a key made (the key itself answered this once, `made`), a key changed for a new one (its new key
@@ -32,7 +35,12 @@ export async function changeWebsiteKey(
   const hash = websiteFormKeyHash(key);
   if (press.act === "make") {
     // The name as the route read it (trimmed, one to sixty characters), which the door keeps.
-    const id = await makeFormKey(ctx.supabase, { tenantId: member.tenantId, name: press.name, hash });
+    const id = await makeFormKey(ctx.supabase, {
+      tenantId: member.tenantId,
+      name: press.name,
+      hash,
+      siteId: press.site_id ?? null,
+    });
     return { made: { id, name: press.name, key }, ended: false };
   }
   // The door names the new key: the site's name, kept from the one it replaces.

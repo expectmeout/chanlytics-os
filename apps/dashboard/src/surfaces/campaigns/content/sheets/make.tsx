@@ -21,7 +21,7 @@ import { Sheet } from "../../../kit/sheet/sheet";
 import { AskLine } from "./ask-change";
 
 /** Each idea's glyph, where it has no picture: a picture for a photo's, a star for a review's, a video for a video's. */
-const IDEA_GLYPH = { before_after: "image", review: "star", video: "video", photo_post: "image" } as const;
+const IDEA_GLYPH = { before_after: "image", video: "video", photo_post: "image" } as const;
 
 /** What an idea is asked as: its words, and the files its row shows. */
 export type OnIdea = (idea: ContentIdea, files: readonly { name: string }[]) => void;

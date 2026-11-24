@@ -7,11 +7,13 @@ import {
   PIECE_LIMITS,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
+  neverSaidIn,
   pieceCountOf,
   pieceOpeningOf,
   pieceWordsIn,
   secondsOf,
   videoPreviewOf,
+  type BrandKit,
   type PiecePlan,
   type PieceWont,
 } from "@chanlytics/contracts";
@@ -20,6 +22,8 @@ import { checkPieceClips, pieceSecondsOf } from "@/server/content/piece";
 import { drawPieceBoard } from "@/server/content/storyboard";
 import type { FileForAsk } from "@/server/files/line";
 import { postDrawProblem, postWordsProblem } from "@/server/files/post-check";
+import { readBrandKit } from "@/server/workspace/brand-kit";
+import { findPieceOfVideo } from "@chanlytics/db/files";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
@@ -50,9 +54,9 @@ import { ownersTyped, ownersWords } from "./post";
  * How to arrange the blocks is advice, the video maker's guide (ask/skills/video/skill.ts): in the turn whose question asks
  * for a video, and read with the guide tool where it is not; this tool's own words say where, and carry none of it. Code
  * holds what code can: every file is the business's own and kept, each stretch is inside its clip, the words can be
- * drawn and promise nothing the owner has not, and a quote is a client's own words, found in a review of four or five
- * stars the workspace holds, or typed here by the owner, who said a client wrote them (contracts compilePiece,
- * post-check). Who is in a clip or a photo is never asked: footage a business provides is taken as cleared.
+ * drawn and promise nothing the owner has not, and a quote is a client's own words, typed here by the owner, who said a
+ * client wrote them, and never a Google review's: Google asks that a review's writer agree before a business uses it in
+ * its marketing, so no review goes into a post or an ad (Ruben, 24 Nov 2026; contracts compilePiece, post-check). Who is in a clip or a photo is never asked: footage a business provides is taken as cleared.
  */
 
 type Block = PiecePlan["blocks"][number];
@@ -82,7 +86,7 @@ function lookNoteOf(plan: PiecePlan): string {
   return count.clips + count.photos === 0 ? `${LOOK_NOTE} ${NOTHING_FILMED_NOTE}` : LOOK_NOTE;
 }
 
-/** How many reviews a quote is looked for in: the newest, which are the ones Ask can have read. */
+/** How many reviews a quote is held apart from: the newest, which are the ones Ask can have read. */
 const REVIEWS_READ = 300;
 
 const time = z.union([z.number(), z.string()]);
@@ -133,7 +137,7 @@ const blockInput = z.object({
     .string()
     .optional()
     .describe(
-      `quote: a client's words exactly as written, at most ${PIECE_LIMITS.quote} characters, from a four or five star review this workspace holds (report, lens reviews), or pasted here by the owner as a client's (client_said). Never reworded, never yours or the business's, never their name: code says where it was said.`,
+      `quote: a client's words exactly as written, at most ${PIECE_LIMITS.quote} characters, pasted here by the owner as a client's (client_said). Never a Google review, never reworded, never yours or the business's, never their name: code says where it was said.`,
     ),
   over: z.string().optional().describe("quote: the picture it stands over, dimmed. Left out, the dark ground."),
   over_at: time.optional().describe("As before_at."),
@@ -183,6 +187,11 @@ const pieceInput = z.object({
     .enum(["en", "es"])
     .optional()
     .describe("Only when asked for another language than the question's: its own words (Before, After) follow it."),
+  captions: z.boolean().optional().describe("false only when the owner asked for no spoken words on the video."),
+  revises: z
+    .string()
+    .optional()
+    .describe("The made video's name when the owner asked to change it: its next version, not a new video."),
   looked: z.string().optional().describe("The storyboard's look_key, once you have looked at it and it is right."),
 });
 
@@ -348,6 +357,26 @@ function wordsProblem(plan: PiecePlan, owner: string): string | null {
 }
 
 /**
+ * The first word the business's brand kit says AI never writes, in the words AI wrote for this video (its opening words,
+ * a block's own, the end card's, the caption), naming where; null for none. A quote is a client's own and is not held.
+ */
+function neverWordOf(plan: PiecePlan, kit: Pick<BrandKit, "never">): string | null {
+  const written = [
+    ...plan.lines,
+    ...plan.blocks.flatMap((b) =>
+      b.is === "words" ? b.lines : (b.is === "clip" || b.is === "photo") && b.label ? [b.label] : [],
+    ),
+    plan.end_line ?? "",
+    plan.caption ?? "",
+  ];
+  for (const text of written) {
+    const word = neverSaidIn(text, kit);
+    if (word) return `"${word}" is a word this business asked never to use: say it another way`;
+  }
+  return null;
+}
+
+/**
  * Words as two tellings of them are compared: in lower case, typographic marks as their plain ones, one space between words,
  * and no quote marks or trailing dots around them.
  */
@@ -362,10 +391,15 @@ const quotePlain = (words: string): string =>
     .replace(/\s+/g, " ")
     .replace(/^[\s"'.]+|[\s"'.]+$/g, "");
 
-/** Why a quote is not shown, said to the model: it is no one's words, or the owner's typing with no word that a client wrote it. */
+/**
+ * Why a quote is not shown, said to the model: it is a Google review's, no one's words, or the owner's typing with no word
+ * that a client wrote it.
+ */
 const QUOTE_WONT = {
+  review:
+    "the quote is from a Google review. Google asks that a review's writer agree before a business uses it in its marketing, so no review goes into a post or an ad. Say so, and offer a quote a client wrote the owner, pasted by the owner, or the owner's own words on a words card",
   no_one:
-    "the quote is not in a review of four or five stars this workspace holds, nor in what the owner typed here. A quote is a client's own words, exactly as written: read them with report (lens reviews) and copy the sentence, or ask the owner to paste the review",
+    "the quote is not in what the owner typed here. A quote is a client's own words, exactly as written: ask the owner to paste what a client wrote them",
   unsaid:
     "the quote is in what the owner typed, and no one has said a client wrote it. Ask the owner in a sentence; if they say a client did, call again with client_said true",
 } as const;
@@ -377,11 +411,11 @@ interface QuoteRefused {
 }
 
 /**
- * A plan with each of its quotes saying where it was said, or the first quote that is no client's own words and why. A quote
- * is a client's: found, as it was written, in a review of four or five stars the workspace holds ("Google review"), or else
- * in what the owner typed in this thread, on their word that a client wrote it ("A client"). One Ask composed, or reworded,
- * is neither; nor is a sentence of the business's own, from its Settings or typed by its owner with no such word. Where it
- * was said is read here and never taken from the model, and nobody is named.
+ * A plan with each of its quotes saying where it was said, or the first quote that may not be shown and why. A quote is a
+ * client's: in what the owner typed in this thread, on their word that a client wrote it ("A client"). One found in a
+ * Google review of four or five stars the workspace holds is never shown: Google asks for its writer's agreement first
+ * (Ruben, 24 Nov 2026). One Ask composed, or reworded, is no one's; nor is a sentence of the business's own, from its Settings or
+ * typed by its owner with no such word. Where it was said is read here and never taken from the model, and nobody is named.
  */
 async function quotesSourced(
   toolContext: ToolContext,
@@ -401,11 +435,11 @@ async function quotesSourced(
       continue;
     }
     const text = quotePlain(block.text);
-    // Marks alone are no one's words.
-    const reviewed = text !== "" && reviews.some((review) => review.includes(text));
-    if (!reviewed && (text === "" || !typed.includes(text))) return { block: i + 1, wont: "no_one" };
-    if (!reviewed && !owner.vouched) return { block: i + 1, wont: "unsaid" };
-    blocks.push({ ...block, from: reviewed ? says.google_review : says.client });
+    // Marks alone are no one's words. A Google review's words are its writer's, pasted or not.
+    if (text !== "" && reviews.some((review) => review.includes(text))) return { block: i + 1, wont: "review" };
+    if (text === "" || !typed.includes(text)) return { block: i + 1, wont: "no_one" };
+    if (!owner.vouched) return { block: i + 1, wont: "unsaid" };
+    blocks.push({ ...block, from: says.client });
   }
   return { ...plan, blocks };
 }
@@ -476,6 +510,7 @@ async function planAsked(
     end_line: input.end_line?.trim() || null,
     language,
     caption: input.caption?.trim() || null,
+    captions: input.captions !== false,
   };
 }
 
@@ -487,6 +522,8 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   const owner = await ownersWords(toolContext, config);
   const wordsWrong = wordsProblem(given, owner);
   if (wordsWrong) return refuse(wordsWrong);
+  const never = neverWordOf(given, (await readBrandKit(toolContext.ctx, toolContext.tenantId, config)).kit);
+  if (never) return refuse(never);
   const plan = await quotesSourced(toolContext, given, {
     typed: ownersTyped(toolContext),
     vouched: input.client_said === true,
@@ -510,14 +547,31 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
       );
     return boardShownFirst(toolContext, checked, { key, note: lookNoteOf(plan) });
   }
+  const revises = input.revises ? await revisedPieceOf(toolContext, input.revises) : null;
+  if (revises && "refusal" in revises) return refuse(revises.refusal);
   const says = pieceWordsIn(plan.language);
   return propose({
     kind: "piece",
     // Both opening lines: a phrase a line could not hold is broken across two, and its row on Content joins them too.
     title: says.cardTitle(pieceOpeningOf(plan).join(" ")),
     summary: says.summary(pieceCountOf(plan), pieceSecondsOf(checked.timeline)),
-    payload: plan,
+    // A change to a made video is its next version (00708): the press draws it on the same piece.
+    payload: revises ? { ...plan, revises: revises.pieceId } : plan,
   });
+}
+
+/** The piece a made video the owner asked to change is, by its name; or why it is no video to make a version of. */
+async function revisedPieceOf(
+  toolContext: ToolContext,
+  name: string,
+): Promise<{ pieceId: string } | { refusal: string }> {
+  const { files } = await load(toolContext.rc, filesNamedForAsk, { names: [name] }).then((r) => r.data);
+  const file = filesNamed(files, [name]).found.at(0);
+  if (!file || file.kind !== "video") return { refusal: `revises: no made video is named ${name}` };
+  const piece = await findPieceOfVideo(toolContext.ctx.supabase, toolContext.tenantId, file.id);
+  return piece
+    ? { pieceId: piece.id }
+    : { refusal: `revises: ${name} is not a video AI made, so it has no next version` };
 }
 
 export const pieceAct = defineAct({

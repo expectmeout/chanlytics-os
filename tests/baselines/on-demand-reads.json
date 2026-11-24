@@ -515,9 +515,9 @@
     "fresh": "Read once as Today draws its lines, and again on the next visit.",
     "why": "Let AI do more offers one Autonomy row a step on from 30 days of its drafts, which move over days; the change it offers is the policies route's own write, which refuses a mode the row cannot take and says so."
   },
-  "apps/dashboard/src/surfaces/settings/website/use-website-forms.ts GET website-forms": {
+  "apps/dashboard/src/surfaces/campaigns/forms/website/use-website-forms.ts GET website-forms": {
     "kind": "on-open",
-    "fresh": "Read as Connections draws its Website forms card, after each press on a key, and when the owner comes back to the tab.",
+    "fresh": "Read as Forms opens its website connection, after each press on a key, and when the owner comes back to the tab.",
     "why": "A key's last use moves when the site sends a form, not when anyone here acts, so the card reads it again when the owner looks. The feed does not tell of form_keys or form_entries: no surface holds them yet (00675)."
   },
   "apps/dashboard/src/surfaces/today/calm/days.ts GET reports/headline": {
@@ -535,6 +535,11 @@
     "fresh": "Read as a form's sheet opens, after each press on the form, its links or one of its entries, and when the owner comes back to the tab.",
     "why": "The sheet is one form's own page: its draft is the owner's to change, kept as it is typed and read back after. Its counts move once a request arrives, and are read again when the owner looks."
   },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/site-sheet": {
+    "kind": "on-open",
+    "fresh": "Read as a form the business's own website owns is opened in Forms, after each press on it, and when the owner comes back to the tab.",
+    "why": "A site's form moves when its site sends an entry, not when anyone here acts, so its sheet reads it again when the owner looks (00709)."
+  },
   "apps/dashboard/src/bridge/verbs/forms.ts GET forms/requests": {
     "kind": "on-open",
     "fresh": "Read as a request opens in the Inbox, after each press on it, and again whenever Needs you moves (a teammate's answer, a reply that bounced, the person's own message with its code).",
@@ -544,5 +549,35 @@
     "kind": "on-open",
     "fresh": "Read as Reports' Campaigns lens is drawn, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
     "why": "It says what the forms brought over thirty days, which moves by a request or a visit, never by the second. It is not Reports' surface, which follows the period Reports shows."
+  },
+  "apps/dashboard/src/bridge/verbs/comments.ts GET comments": {
+    "kind": "on-open",
+    "fresh": "Read as the Inbox opens (Needs you's line that opens the comments, and the comments' own list), again after any press on a comment's page, and again whenever Needs you moves.",
+    "why": "A month of comments on the business's posts, each its own row: a new one is AI's to draft first, seconds later, and the one that waits on the owner is Today's point, which Today's read holds and the feed moves. The list is a door to each comment, which reads itself again as it opens."
+  },
+  "apps/dashboard/src/bridge/verbs/comments.ts GET comments/one": {
+    "kind": "on-open",
+    "fresh": "Read as a comment opens in the Inbox, after each press on it, and every three seconds while its answer is on its way, for as long as its job can take to settle it.",
+    "why": "A comment is answered where it is open; its answer moves only by the owner's press and the one job that posts it, which the page follows while it is on its way and reads again after."
+  },
+  "apps/dashboard/src/surfaces/campaigns/content/viewer/results.tsx GET files/[id]/results": {
+    "kind": "on-open",
+    "fresh": "Read as a piece with a post up is opened (on a phone and at a desk), and again after its link is made.",
+    "why": "A post's numbers are read from its place an hour, a day, 3, 7 and 28 days after it went up, and the people it brought arrive by the conversation: none moves by the second, and the piece is opened again to see the next read."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/from-post.tsx GET files/[id]/results": {
+    "kind": "on-open",
+    "fresh": "Read once as New ad opens from a piece (pass 6), for the line under the post it came from; nothing of it is kept once the sheet closes.",
+    "why": "The line says what the post did so far, the same read the piece's own line makes when it is opened; a number read an hour apart changes nothing the owner chooses here, and the ad's own preview is read apart."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/content/lens.tsx GET content/report": {
+    "kind": "on-open",
+    "fresh": "Read as Reports' Content lens is drawn, and again whenever the window Reports shows moves (a period, or days picked).",
+    "why": "A report of days: a post's numbers and the bookings it brought are counted at the next read, as Reports' other lenses are read for the window picked."
+  },
+  "apps/dashboard/src/surfaces/today/calm/content-week.ts GET content/week": {
+    "kind": "on-open",
+    "fresh": "Read once Today has drawn, as its weekly card is asked for; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
+    "why": "The weekly card says what the last seven days' posts brought once a week, until Got it: a number a minute old is the week's all the same, and a read that fails says AI's week instead of guessing."
   }
 }

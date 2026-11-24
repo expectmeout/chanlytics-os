@@ -186,11 +186,14 @@ const TABLES = [
   "archive_folders",
   "file_archives",
   "file_archive_parts",
-  // A website's form entries and its keys (00675).
+  // A website's form entries and its keys (00675), each site it sends from and each form it sends (00709).
   "form_entries",
   "form_keys",
+  "form_sites",
+  "outside_forms",
   // A business's own forms (00680): each form and its versions, what happened to an entry, and its links with their
-  // days of opens.
+  // days of opens; and each form's days of its business's booking page opened from it (00691).
+  "form_days",
   "form_entry_links",
   "form_versions",
   "forms",
@@ -205,6 +208,17 @@ const TABLES = [
   "piece_revisions",
   "piece_renditions",
   "approvals",
+  // A week planned (00706): what the owner claims and what posts are for, the plans and their slots, a clip's moments.
+  "owner_claims",
+  "content_goals",
+  "content_plans",
+  "plan_slots",
+  "file_moments",
+  // What a post said back (00699): its numbers by read, people's touches of a post or a link, and the public answers to
+  // comments.
+  "post_observations",
+  "touches",
+  "comment_answers",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",

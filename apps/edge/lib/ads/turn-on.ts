@@ -7,9 +7,10 @@
  *   2. The owner alone: `has_permission(…, 'ads')`, asked here before anything is kept.
  *   3. A connected account with its Page, and AI not stopped (Stop everything): no ad is turned on while nobody would
  *      answer the people it brings.
- *   4. The press kept by its one door (ad_turn_on), with the decision, the event and the account's job asked for at
- *      once: the same press twice answers with the one ad; a draft changed since the press judged it is refused; one
- *      ad of an account is set up at a time.
+ *   4. The press kept by its one door (ad_turn_on), with the decision, the event, its approval and the account's job
+ *      asked for at once: the same press twice answers with the one ad; a draft changed since the press judged it is
+ *      refused; one ad of an account is set up at a time. The approval names the photo by the SHA-256 of its bytes,
+ *      read here (approval.ts), and the launch sends no photo whose bytes are not those.
  *
  * Nothing here calls Meta: the account's job does (launch.ts), as its first work. The answer is the ad's id, setting up.
  */
@@ -22,6 +23,7 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { NO_ADS_DOORS, adsOfferedIn } from "./account-ops.js";
+import { adApprovalSnapshotOf, checksumOf, readAdPhoto } from "./approval.js";
 import { endFixedAd } from "./change.js";
 import { endOfDayIn } from "./launch-parts.js";
 import { adsWrites } from "./tell.js";
@@ -59,8 +61,15 @@ interface AdsTurnOnBody {
 /** Where an ad made here shows: Facebook alone, since no Instagram account of the Page's is named (meta-make.ts). */
 const SHOWN_ON = ["facebook"];
 
-/** What the press approved, kept on the ad: what the launch sends and compares Meta's read back with. */
-function approvedOf(ad: TurnOnAd, account: { currency: string; timezone: string; pageId: string }): Json {
+/**
+ * What the press approved, kept on the ad: what the launch sends and compares Meta's read back with, and the SHA-256 of
+ * the photo's bytes it holds the photo it sends to.
+ */
+function approvedOf(
+  ad: TurnOnAd,
+  account: { currency: string; timezone: string; pageId: string },
+  checksum: string | null,
+): Json {
   return {
     ...ad,
     versions: ad.versions.map((version) => ({ text: version.text, headline: version.headline })),
@@ -68,6 +77,7 @@ function approvedOf(ad: TurnOnAd, account: { currency: string; timezone: string;
     currency: account.currency,
     page_id: account.pageId,
     instagram: false,
+    picture_checksum: checksum,
   };
 }
 
@@ -120,6 +130,10 @@ export async function runAdTurnOn(auth: Admitted, body: Partial<AdsTurnOnBody>):
   if (!account) return refuse(409, "nothing_to_do", "No connected ad account with a Page.");
   if (await isSendingStopped(db, tenantId)) return refuse(409, "ai_stopped", AI_STOPPED);
   const [first] = ad.versions;
+  // The photo as approved, by its bytes: read once here, and again by the launch right before it is sent.
+  const photo = ad.picture_kind === "photo" ? await readAdPhoto(db, tenantId, ad.picture) : null;
+  const checksum = photo ? checksumOf(photo) : null;
+  const endsAt = endOfDayIn(account.timezone, ad.end_day);
   const kept = await keepTurnOn(
     db,
     { tenantId, userId },
@@ -129,8 +143,9 @@ export async function runAdTurnOn(auth: Admitted, body: Partial<AdsTurnOnBody>):
       ad: {
         name: ad.name,
         total_minor: ad.most_minor,
-        ends_at: endOfDayIn(account.timezone, ad.end_day),
-        approved: approvedOf(ad, account),
+        ends_at: endsAt,
+        approved: approvedOf(ad, account, checksum),
+        approval: adApprovalSnapshotOf(ad, { ...account, endsAt, shownOn: SHOWN_ON, checksum }),
         shown_on: SHOWN_ON,
         said: { headline: first?.headline ?? "", body: first?.text ?? "" },
       },
@@ -139,6 +154,12 @@ export async function runAdTurnOn(auth: Admitted, body: Partial<AdsTurnOnBody>):
   // Fix it's draft takes the place of the ad Meta turned down: that one ends, its campaign archived by the account's job.
   const fixes = kept.outcome === "kept" && body.fixes && UUID.test(body.fixes) ? body.fixes : null;
   const fixed = fixes === null ? null : await endFixedAd(db, { tenantId, userId }, fixes);
-  logger({ tenant_id: tenantId }).info("ads_turned_on", { outcome: kept.outcome, ad_id: kept.adId, writes, fixed });
+  logger({ tenant_id: tenantId }).info("ads_turned_on", {
+    outcome: kept.outcome,
+    ad_id: kept.adId,
+    approval_id: kept.approvalId,
+    writes,
+    fixed,
+  });
   return turnOnAnswerOf(kept);
 }

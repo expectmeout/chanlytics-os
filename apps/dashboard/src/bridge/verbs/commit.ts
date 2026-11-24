@@ -123,6 +123,8 @@ export function sendCall(client: Api, c: ProposalCall, use: VerbUse = {}): Promi
     body: c.body,
     ...(idempotencyKey ? { idempotencyKey } : { once: true }),
     ...(c.refresh !== undefined ? { refresh: c.refresh } : use.refresh !== undefined ? { refresh: use.refresh } : {}),
+    // A door that takes longer than a write's usual wait (AI drafting a form) says how long its press waits.
+    ...(c.waitMs !== undefined ? { timeoutMs: c.waitMs } : {}),
     ...(accepted ? { onAccepted: accepted } : {}),
     ...(use.via ? { via: use.via } : {}),
     ...(use.undoOf ? { undoOf: use.undoOf } : {}),

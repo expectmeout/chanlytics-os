@@ -66,8 +66,9 @@ const useSurfaceStill = (): number => 0;
  * Campaigns' views (Sequences, a sequence, a run of it, New, Messages) are one page whose strip says the view, and every one
  * says Campaigns alone with no way back above it (sequences-page.tsx, parts/head.tsx), so its head is Campaigns' crumb
  * alone: while the page was read the head said "Messages" or "New" under ‹ Campaigns, and the strip moved 25 px up (13 on a
- * phone) as the page said its own (the Campaigns load review, 28 Oct 2026). The tab's title keeps every crumb. Ads draws its
- * own.
+ * phone) as the page said its own (the Campaigns load review, 28 Oct 2026). So do Reports' lenses, each picked in its strip
+ * (reports/head.ts): while the page was read the head said "Campaigns" under ‹ Reports, and the strip of lenses moved 40 px up
+ * on a phone as the page said its own (the phone sweep of 22 Nov 2026). The tab's title keeps every crumb. Ads draws its own.
  */
 function useCrumbsShown(
   { crumbs, ownHead, head }: { crumbs: readonly unknown[]; ownHead: boolean; head: HeadFirst | null },
@@ -77,6 +78,7 @@ function useCrumbsShown(
   const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
   const familyTab = page === "conversations" || page === "live";
   const campaignsView = (page === "campaigns" && !(param && isAdsParam(param))) || page === "messages";
+  const firstAlone = campaignsView || page === "reports";
   useLayoutEffect(() => {
     const chrome = frameChrome();
     if (look === "glass" && chrome && chrome.crumbsShown)
@@ -85,13 +87,13 @@ function useCrumbsShown(
           ? crumbs.slice(0, -1)
           : familyTab
             ? crumbs.slice(-1)
-            : campaignsView
+            : firstAlone
               ? crumbs.slice(0, 1)
               : crumbs) as Parameters<typeof chrome.crumbsShown>[0],
         ownHead,
         head,
       );
-  }, [crumbs, ownHead, head, look, leadsScope, familyTab, campaignsView]);
+  }, [crumbs, ownHead, head, look, leadsScope, familyTab, firstAlone]);
 }
 
 export function ChanlyticsApp({

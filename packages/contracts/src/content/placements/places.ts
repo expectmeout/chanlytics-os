@@ -14,6 +14,7 @@
  */
 import { MIN_MS } from "../../shared/time";
 import type { PostKind, PostPlace } from "../posts";
+import type { Observation } from "../results/observe";
 
 /** How a capability stands at a place, and how that is known. */
 export type CapabilityStanding = "proved" | "by_hand" | "built" | "not_so" | "to_prove";
@@ -72,6 +73,20 @@ const INSTAGRAM_VIDEO: PlaceVideoLimits = {
   maxBytes: 300 * 1024 * 1024,
   mimes: ["video/mp4", "video/quicktime"],
 };
+
+/**
+ * Meta's reel rules for a Page (its Reels publishing guide, read 23 Nov 2026): 3 to 90 seconds, MP4 advised. Meta names no
+ * size; Instagram's 300 MB is kept, since one made video goes to both.
+ */
+const FACEBOOK_VIDEO: PlaceVideoLimits = {
+  minMs: 3_000,
+  maxMs: 90_000,
+  maxBytes: 300 * 1024 * 1024,
+  mimes: ["video/mp4", "video/quicktime"],
+};
+
+/** Built from Meta's Pages guide (23 Nov 2026) and sent by code; no real Page has shown it yet. */
+const FACEBOOK_BUILT = "Sent by code from Meta's Pages guide; no real Page has shown it yet.";
 
 // screen-word: each `how` is the evidence a capability stands on, read by whoever builds a place, never shown on a page
 export const PLACE_CAPABILITIES: Readonly<Record<PostPlace, PlaceCapabilities>> = {
@@ -140,6 +155,51 @@ export const PLACE_CAPABILITIES: Readonly<Record<PostPlace, PlaceCapabilities>> 
     remoteStatusCheck: { is: "to_prove", on: null, how: "Google's page lists a post's state; nothing reads it yet." },
     linkInCaption: { is: "to_prove", on: null, how: "Only a Call button is built." },
     limits: { captionMax: 1500, perDay: null, video: null },
+  },
+  // The content loop PRD's pass 5: a Page the Meta link reaches, through the Page's own token. Nothing here has been seen
+  // on a real Page; the sitting (docs 2026-11-23-facebook-sitting) proves each line and moves the edition.
+  facebook: {
+    edition: 1,
+    formats: {
+      picture: {
+        is: "built",
+        on: null,
+        how: `${FACEBOOK_BUILT} A photo kept unpublished, then posted with its words.`,
+      },
+      story: {
+        is: "built",
+        on: null,
+        how: `${FACEBOOK_BUILT} A photo kept unpublished, then put up as the Page's story.`,
+      },
+      reel: {
+        is: "built",
+        on: null,
+        how: `${FACEBOOK_BUILT} Meta fetches the video, then it is published. Meta asks for a sound track; ours has none.`,
+      },
+    },
+    directPublish: { is: "built", on: null, how: FACEBOOK_BUILT },
+    scheduling: { is: "not_so", on: null, how: "Chanlytics holds the time and sends at it." },
+    remoteDelete: { is: "built", on: null, how: `${FACEBOOK_BUILT} A story's delete is not on Meta's page.` },
+    editAfterPublish: {
+      is: "to_prove",
+      on: null,
+      how: "Meta's guide lets a post this app made take new words; not built.",
+    },
+    perPostMetrics: {
+      is: "to_prove",
+      on: null,
+      how: "Meta's insights need read_insights and a Page with 100 likes or more; not built.",
+    },
+    commentRead: { is: "to_prove", on: null, how: "Not built: no Page webhook is subscribed." },
+    commentReply: { is: "to_prove", on: null, how: "Not built." },
+    remoteStatusCheck: {
+      is: "built",
+      on: null,
+      how: `${FACEBOOK_BUILT} A post by its id, a story among the Page's stories, a reel by its status.`,
+    },
+    linkInCaption: { is: "to_prove", on: null, how: "Not tried." },
+    // Meta names no caption length for a Page; one caption box serves every place, and it stops at Instagram's 2,200.
+    limits: { captionMax: 2200, perDay: null, video: FACEBOOK_VIDEO },
   },
 };
 
@@ -239,12 +299,25 @@ export interface TakeDownAnswer {
   kept: PlaceAnswerKept;
 }
 
+/** A read of a post's numbers: one row for every number Chanlytics names, and the place's answer as it came. */
+export interface ObservedPost {
+  observations: Observation[];
+  kept: PlaceAnswerKept;
+}
+
+/** What posting a public answer under a comment came to: up with its id, refused in words, or no answer. */
+export type CommentAnswerSent =
+  | { is: "sent"; externalId: string; kept: PlaceAnswerKept }
+  | { is: "refused"; refusal: PlaceRefusal; kept: PlaceAnswerKept }
+  | { is: "unknown"; kept: PlaceAnswerKept };
+
 /**
  * One place's sender, assembled at the edge over its wire (apps/edge/lib/<place>/place.ts), each method one ask of
  * the place, read into these outcomes; what is kept of each send, and when to ask again, stays the post jobs'. A place
  * with no draft of its own (Google) has no `prepare` or `preparedState`; a place that cannot be asked what it holds has
  * no `status`; one with no delete of its own has no `takeDown`, and a take-down there is a step by hand shown before the
- * press. Numbers and comments (`observe`, `readTouches` in the PRD's sketch) join with pass 2, which reads them.
+ * press. A place that gives a post's numbers has `observe` (pass 2); one whose comments may be answered from here has
+ * `answerComment`. Comments themselves are delivered (Meta's webhook), never read by the adapter.
  */
 export interface PlaceAdapter {
   readonly place: PostPlace;
@@ -255,4 +328,8 @@ export interface PlaceAdapter {
   /** Whether the account holds this post (a send with no answer asks it before anything is sent again). */
   status?(post: SentPlacement): Promise<RemoteState>;
   takeDown?(post: SentPlacement): Promise<TakeDownAnswer>;
+  /** The post's numbers now, each a running total since it went up, a missing one said (perPostMetrics). */
+  observe?(post: SentPlacement): Promise<ObservedPost>;
+  /** A public answer posted under a comment, as the business (commentReply). */
+  answerComment?(commentId: string, words: string): Promise<CommentAnswerSent>;
 }

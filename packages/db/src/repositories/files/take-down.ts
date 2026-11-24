@@ -98,6 +98,24 @@ export async function findTakeDownAction(
   return data;
 }
 
+/**
+ * Whether a take-down of this post is still asking its place (an action pending), under the service role: a post found
+ * gone meanwhile is that take-down's to settle, and its bell's to tell.
+ */
+export async function isPostTakeDownAsking(db: Db, tenantId: TenantId, postId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("remediation_actions")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("target_type", "post")
+    .eq("target_id", postId)
+    .eq("act", "take_down")
+    .eq("outcome", "pending")
+    .limit(1);
+  if (error) throw new DbFailure(error, "take-down asking");
+  return data.length > 0;
+}
+
 /** What keeping a place's answer came to: whether this call kept it, the piece and place it was about, and the news. */
 export interface TakeDownKept {
   kept: boolean;

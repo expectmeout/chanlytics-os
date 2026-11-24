@@ -2419,6 +2419,7 @@ declare
   v_ends    timestamptz;
   v_due     timestamptz;
   v_asked   integer;
+  v_approval uuid;
 begin
   if p_key is null or p_ad is null or jsonb_typeof(p_ad) <> 'object' or jsonb_typeof(p_ad -> 'approved') <> 'object' then
     raise exception 'ad_turn_on: a key, and the ad with what was approved' using errcode = '22023';
@@ -2480,11 +2481,20 @@ begin
      set closed_at = now()
    where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
 
+  -- What the owner approved, kept as an approval (the content loop PRD's 3.3 and 5.3; the Ads PRD's join 6): the same
+  -- record a post's approval is, its hash taken here. A press from a build that sends none keeps none.
+  if jsonb_typeof(p_ad -> 'approval') = 'object' then
+    insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+    values (p_tenant_id, 'ad', v_ad, p_ad -> 'approval', public.approval_hash(p_ad -> 'approval'), p_actor)
+    returning id into v_approval;
+  end if;
+
   insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
   values (p_tenant_id, 'ad', v_ad, 'turn_on_ad', 'user', p_actor,
           jsonb_build_object('platform', 'meta', 'name', v_name, 'total_minor', v_total,
                              'currency', v_account.currency, 'ends_at', v_ends,
-                             'declared', coalesce(p_ad -> 'approved' -> 'declared', '"none"'::jsonb)));
+                             'declared', coalesce(p_ad -> 'approved' -> 'declared', '"none"'::jsonb),
+                             'approval_id', v_approval));
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad.turned_on', 'ads', 'ad', v_ad,
           jsonb_build_object('platform', 'meta', 'name', v_name, 'by', p_actor, 'total_minor', v_total,
@@ -2504,7 +2514,7 @@ begin
          and j.payload ->> 'account_id' = v_account.id::text and j.due_at > v_due;
     end if;
   end if;
-  return jsonb_build_object('outcome', 'kept', 'ad_id', v_ad, 'status', 'sending');
+  return jsonb_build_object('outcome', 'kept', 'ad_id', v_ad, 'status', 'sending', 'approval_id', v_approval);
 end $$;
 
 
@@ -2512,7 +2522,7 @@ end $$;
 -- Name: FUNCTION ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00666; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
+COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00666, 00710; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, the approval (00710: p_ad.approval, where the press sends one, kept in approvals with subject ad and its hash taken by approval_hash, its id on the decision) and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id and its approval''s; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
 
 
 --
@@ -3736,6 +3746,62 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in the appointments (decision 0036): the person''s visits keep their time and service and lose the client''s name, number, address and note; the notices that made them, and any whose subject names them, lose the name. Answers how many visits changed. Service role only.';
+
+
+--
+-- Name: appointments_through_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_through_stamp() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_type text;
+  v_id   uuid;
+  v_at   timestamptz;
+  v_made timestamptz := coalesce(NEW.created_at, now());
+begin
+  if NEW.conversation_id is null or NEW.source not in ('receptionist', 'person') or NEW.through_type is not null then
+    return NEW;
+  end if;
+  -- The latest touch of this conversation in the 72 hours before: a post's (touches), or an ad's (a message that came
+  -- from an ad, in Ads' own home).
+  select x.subject_type, x.subject_id, x.at into v_type, v_id, v_at
+    from (
+      select t.subject_type, t.subject_id, t.at
+        from public.touches t
+       where t.tenant_id = NEW.tenant_id and t.conversation_id = NEW.conversation_id and t.contact_id is not null
+         and t.at <= v_made and t.at > v_made - interval '72 hours'
+      union all
+      select 'ad', e.ad_id, m.created_at
+        from public.ad_entries e
+        join public.messages m on m.tenant_id = e.tenant_id and m.id = e.message_id
+       where e.tenant_id = NEW.tenant_id and m.conversation_id = NEW.conversation_id and e.ad_id is not null
+         and m.created_at <= v_made and m.created_at > v_made - interval '72 hours'
+    ) x
+   order by x.at desc
+   limit 1;
+  if v_id is null then
+    return NEW;
+  end if;
+  -- Another visit asked for or added in this conversation since that touch: the touch led to that one, not this.
+  if exists (select 1 from public.appointments a
+              where a.tenant_id = NEW.tenant_id and a.conversation_id = NEW.conversation_id
+                and a.created_at > v_at and a.created_at <= v_made) then
+    return NEW;
+  end if;
+  NEW.through_type := v_type;
+  NEW.through_id := v_id;
+  return NEW;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_through_stamp(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_through_stamp() IS 'What a visit answered, stamped before it is written (00699; Appendix A.7, call 39): for a visit asked for (receptionist) or added by a member (person) in a conversation, the subject of the latest touch of that conversation in the 72 hours before (a post''s touch, or a message that came from an ad), provided no other visit was asked for or added there since that touch. One rule, the same whoever books; AI does not choose it. At the insert only.';
 
 
 --
@@ -6454,6 +6520,157 @@ COMMENT ON FUNCTION public.clear_control_of_departed_member() IS 'A member remov
 
 
 --
+-- Name: comment_answer_draft_keep(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if (nullif(btrim(coalesce(p_draft, '')), '') is null) = (nullif(btrim(coalesce(p_cannot_why, '')), '') is null) then
+    raise exception 'comment_answer_draft_keep: a draft, or why there is none' using errcode = '22023';
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, draft, cannot_why)
+  values (p_tenant_id, p_touch_id,
+          case when nullif(btrim(coalesce(p_draft, '')), '') is null then 'cannot' else 'drafted' end,
+          nullif(btrim(coalesce(p_draft, '')), ''), nullif(btrim(coalesce(p_cannot_why, '')), ''))
+  on conflict (tenant_id, touch_id) do update
+    set state = excluded.state, draft = excluded.draft, cannot_why = excluded.cannot_why, updated_at = now()
+    where comment_answers.state in ('drafted', 'cannot');
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) IS 'AI''s draft of a public answer to a comment, or why it could not answer it safely (00699). Never over an answer that was sent or is on its way. True when it wrote. The service role''s: comment_reply''s.';
+
+
+--
+-- Name: comment_answer_leave(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_leave: not a member who may act here' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment') then
+    raise exception 'comment_answer_leave: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  if p_left then
+    -- Left as it stands: AI's draft and its reason are kept, for an answer after all.
+    insert into public.comment_answers (tenant_id, touch_id, state)
+    values (p_tenant_id, p_touch_id, 'left')
+    on conflict (tenant_id, touch_id) do update
+      set state = 'left', updated_at = now()
+      where comment_answers.state in ('drafted', 'cannot', 'failed');
+  else
+    update public.comment_answers a
+       set state = case when a.draft is not null then 'drafted' when a.cannot_why is not null then 'cannot' end,
+           updated_at = now()
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left'
+       and (a.draft is not null or a.cannot_why is not null);
+    -- Left before AI wrote anything: back to no answer at all.
+    delete from public.comment_answers a
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  return jsonb_build_object('state', v_state);
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) IS 'A comment left unanswered by the owner, or answered after all (00699; the content loop PRD''s 12.4): left, it is no point on Today and nothing is posted under it; AI''s draft and its reason are kept, and come back. An answer on its way or up is not left. {state}: where it stands now, null for none. A member who may act (is_acting_member).';
+
+
+--
+-- Name: comment_answer_send(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_words text := nullif(btrim(coalesce(p_words, '')), '');
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_send: not a member who may act here' using errcode = '42501';
+  end if;
+  if v_words is null or char_length(v_words) > 2200 then
+    raise exception 'comment_answer_send: an answer of 1 to 2,200 characters' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment'
+                    and t.contact_id is not null) then
+    raise exception 'comment_answer_send: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  if v_state in ('sending', 'sent') then
+    return jsonb_build_object('sent', false, 'state', v_state);
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, words, sent_by)
+  values (p_tenant_id, p_touch_id, 'sending', v_words, auth.uid())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sending', words = excluded.words, sent_by = excluded.sent_by, said = null, updated_at = now();
+  insert into public.jobs (tenant_id, kind, payload, due_at)
+  values (p_tenant_id, 'comment_reply',
+          jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
+                             'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
+          now());
+  return jsonb_build_object('sent', true, 'state', 'sending');
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) IS 'The owner''s words sent as the business''s public answer to a comment (00699; the content loop PRD''s 12.4, call 27): kept as on its way and its job written (comment_reply, step send), in one transaction. An answer on its way or sent is not sent twice. {sent, state}. A member who may act (is_acting_member).';
+
+
+--
+-- Name: comment_answer_settle(uuid, uuid, boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.comment_answers a
+     set state = case when p_sent then 'sent' else 'failed' end,
+         external_id = case when p_sent then nullif(btrim(coalesce(p_external_id, '')), '') else a.external_id end,
+         said = case when p_sent then null else left(nullif(btrim(coalesce(p_said, '')), ''), 300) end,
+         sent_at = case when p_sent then now() else a.sent_at end,
+         updated_at = now()
+   where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) IS 'What Instagram said of a public answer on its way (00699): sent with its id, or failed with the house''s words for why. Only an answer on its way is settled. True when it wrote. The service role''s: comment_reply''s.';
+
+
+--
 -- Name: consent_channels_of(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6794,6 +7011,268 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: content_goals_keep(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_goal  jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_goals) <> 'array' or jsonb_array_length(p_goals) > 8 then
+    raise exception 'Goals are a list of at most eight.' using errcode = '22023';
+  end if;
+  -- The whole set at once: what the owner said now stands, what they said before stops standing.
+  update public.content_goals set active = false where tenant_id = p_tenant_id and active;
+  for v_goal in select e from jsonb_array_elements(p_goals) e loop
+    insert into public.content_goals (tenant_id, goal, detail, weight, created_by)
+    values (p_tenant_id, v_goal ->> 'goal', coalesce(v_goal -> 'detail', '{}'::jsonb),
+            coalesce((v_goal ->> 'weight')::real, 1), v_actor);
+  end loop;
+  return coalesce((select jsonb_agg(to_jsonb(g) order by g.created_at) from public.content_goals g
+                    where g.tenant_id = p_tenant_id and g.active), '[]'::jsonb);
+end $$;
+
+
+--
+-- Name: FUNCTION content_goals_keep(p_tenant_id uuid, p_goals jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) IS 'What the posts are for, the whole set at once (00706): [{goal, detail, weight}], by a member with the settings permission; the set before stops standing. Answers the goals that stand.';
+
+
+--
+-- Name: content_plan_ask(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_week_of is null or extract(isodow from p_week_of) <> 1 then
+    raise exception 'A week starts on a Monday.' using errcode = '22023';
+  end if;
+  return public.content_plan_begin(p_tenant_id, p_week_of, 'owner');
+end $$;
+
+
+--
+-- Name: FUNCTION content_plan_ask(p_tenant_id uuid, p_week_of date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) IS 'The owner''s "plan the week" (00706; the content loop PRD''s 10.2: on the owner''s ask), by a member with the settings permission. Answers {fate: drafting | approved, plan_id}.';
+
+
+--
+-- Name: content_plan_begin(uuid, date, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_plan public.content_plans;
+begin
+  select * into v_plan from public.content_plans p
+   where p.tenant_id = p_tenant_id and p.week_of = p_week_of for update;
+  if found and v_plan.status in ('approved', 'done') then
+    return jsonb_build_object('fate', 'approved', 'plan_id', v_plan.id);
+  end if;
+  if found then
+    delete from public.plan_slots s where s.tenant_id = p_tenant_id and s.plan_id = v_plan.id;
+    update public.content_plans set status = 'drafting', fewer = null, ready_at = null, asked_by = p_asked_by,
+                                    asked_at = now()
+     where id = v_plan.id returning * into v_plan;
+  else
+    insert into public.content_plans (tenant_id, week_of, asked_by) values (p_tenant_id, p_week_of, p_asked_by)
+    returning * into v_plan;
+  end if;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'content_plan', now(), jsonb_build_object('plan_id', v_plan.id))
+  on conflict do nothing;
+  return jsonb_build_object('fate', 'drafting', 'plan_id', v_plan.id);
+end $$;
+
+
+--
+-- Name: FUNCTION content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) IS 'A week''s plan begun (00706), and its content_plan job: a new plan drafting, or one not yet approved drafted again with its slots let go. Answers {fate: drafting | approved, plan_id}. Called by content_plan_ask and content_plans_hand_out, never directly.';
+
+
+--
+-- Name: content_plan_write(uuid, uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_plan  public.content_plans;
+  v_slot  jsonb;
+begin
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_plan.status <> 'drafting' then
+    return jsonb_build_object('fate', v_plan.status);
+  end if;
+  if jsonb_typeof(p_slots) <> 'array' or jsonb_array_length(p_slots) > 40 then
+    raise exception 'A plan''s slots are a list of at most forty.' using errcode = '22023';
+  end if;
+  delete from public.plan_slots s where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id;
+  for v_slot in select e from jsonb_array_elements(p_slots) e loop
+    insert into public.plan_slots (tenant_id, plan_id, creative, place, kind, at, title, reason, file_id, intent, words,
+                                   state, blocked_why, blocked_reason, ask, score)
+    values (p_tenant_id, p_plan_id, (v_slot ->> 'creative')::uuid, v_slot ->> 'place', v_slot ->> 'kind',
+            (v_slot ->> 'at')::timestamptz, v_slot ->> 'title', nullif(v_slot ->> 'reason', ''),
+            nullif(v_slot ->> 'file_id', '')::uuid, nullif(v_slot -> 'intent', 'null'::jsonb),
+            nullif(v_slot -> 'words', 'null'::jsonb), coalesce(v_slot ->> 'state', 'proposed'), nullif(v_slot ->> 'blocked_why', ''),
+            nullif(v_slot ->> 'blocked_reason', ''), nullif(v_slot -> 'ask', 'null'::jsonb),
+            nullif(v_slot -> 'score', 'null'::jsonb));
+  end loop;
+  update public.content_plans set status = 'ready', fewer = nullif(btrim(coalesce(p_fewer, '')), ''), ready_at = now()
+   where id = p_plan_id;
+  return jsonb_build_object('fate', 'ready', 'slots', jsonb_array_length(p_slots));
+end $$;
+
+
+--
+-- Name: FUNCTION content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) IS 'The content_plan job''s write (00706): the slots it drafted ([{creative, place, kind, at, title, reason, file_id, intent, words, state, blocked_why, blocked_reason, ask, score}]), why the week is smaller than the cadence asks, and the plan ready. Only a plan still drafting takes it. Answers {fate: ready | gone | <status>, slots}. The service role''s.';
+
+
+--
+-- Name: content_plans_hand_out(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_plans_hand_out(p_spread_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant  record;
+  v_handed  integer := 0;
+  v_answer  jsonb;
+begin
+  for v_tenant in
+    select t.id, (((now() at time zone t.timezone)::date) + 1) as week_of
+      from public.tenants t
+      join public.tenant_config c on c.tenant_id = t.id
+     where coalesce((c.config -> 'features' ->> 'content_plan')::boolean, false)
+       and extract(isodow from (now() at time zone t.timezone)) = 7
+       and extract(hour from (now() at time zone t.timezone)) >= 18
+       and not exists (select 1 from public.content_plans p
+                        where p.tenant_id = t.id and p.week_of = ((now() at time zone t.timezone)::date) + 1)
+  loop
+    v_answer := public.content_plan_begin(v_tenant.id, v_tenant.week_of, 'clock');
+    if v_answer ->> 'fate' = 'drafting' then
+      update public.jobs set due_at = now() + make_interval(secs => abs(hashtext(v_tenant.id::text)::bigint)
+                                                             % greatest(p_spread_seconds, 1))
+       where tenant_id = v_tenant.id and kind = 'content_plan' and payload ->> 'plan_id' = v_answer ->> 'plan_id'
+         and state = 'scheduled';
+      v_handed := v_handed + 1;
+    end if;
+  end loop;
+  -- A week that has passed is done.
+  update public.content_plans p set status = 'done', done_at = now()
+    from public.tenants t
+   where t.id = p.tenant_id and p.status in ('ready', 'approved')
+     and p.week_of + 7 <= (now() at time zone t.timezone)::date;
+  return v_handed;
+end $$;
+
+
+--
+-- Name: FUNCTION content_plans_hand_out(p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_plans_hand_out(p_spread_seconds integer) IS 'The weekly clock (00706; the content loop PRD''s 10.2, call 18): next week''s plan begun for each workspace whose features.content_plan is on, from Sunday 18:00 in its own zone, once; and each week that has passed marked done. Answers how many it began. The service role''s.';
+
+
+--
+-- Name: content_week_approve(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  v_plan      public.content_plans;
+  v_wanted    jsonb := coalesce(p_snapshot -> 'slots', '[]'::jsonb);
+  v_matching  integer;
+  v_approval  uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_plan.status <> 'ready' then
+    return jsonb_build_object('fate', v_plan.status);
+  end if;
+  if jsonb_typeof(v_wanted) <> 'array' or jsonb_array_length(v_wanted) = 0 then
+    return jsonb_build_object('fate', 'nothing');
+  end if;
+  -- Every slot the snapshot names is this plan's, still proposed, and as the snapshot says it.
+  select count(*) into v_matching
+    from jsonb_array_elements(v_wanted) w
+    join public.plan_slots s on s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (w ->> 'id')::uuid
+   where s.state = 'proposed' and s.place = w ->> 'place' and s.kind = w ->> 'kind'
+     and s.at = (w ->> 'at')::timestamptz and s.file_id is not distinct from nullif(w ->> 'file_id', '')::uuid;
+  if v_matching <> jsonb_array_length(v_wanted) then
+    return jsonb_build_object('fate', 'changed');
+  end if;
+  insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+  values (p_tenant_id, 'plan', p_plan_id, p_snapshot, public.approval_hash(p_snapshot), v_actor)
+  returning id into v_approval;
+  update public.plan_slots s set state = 'approved', approval_id = v_approval, updated_at = now()
+    from jsonb_array_elements(v_wanted) w
+   where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (w ->> 'id')::uuid;
+  update public.content_plans set status = 'approved', approval_id = v_approval, approved_at = now(),
+                                  approved_by = v_actor
+   where id = p_plan_id;
+  return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'slots', v_matching);
+end $$;
+
+
+--
+-- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. Answers {fate: approved, approval_id, slots} or {fate: gone | changed | nothing | <status>}.';
 
 
 --
@@ -10726,6 +11205,41 @@ COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric,
 
 
 --
+-- Name: file_moments_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_kept integer;
+begin
+  if jsonb_typeof(p_moments) <> 'array' or jsonb_array_length(p_moments) > 12 then
+    raise exception 'A clip''s moments are a list of at most twelve.' using errcode = '22023';
+  end if;
+  -- What was read before goes; a member's correction stays and is preferred.
+  delete from public.file_moments m where m.tenant_id = p_tenant_id and m.file_id = p_file_id and m.corrected_by is null;
+  insert into public.file_moments (tenant_id, file_id, start_s, end_s, shows, faces, sharp, words, score, confidence,
+                                   model_edition)
+  select p_tenant_id, p_file_id, (e ->> 'start_s')::real, (e ->> 'end_s')::real,
+         coalesce(array(select jsonb_array_elements_text(e -> 'shows')), '{}'::text[]),
+         nullif(e ->> 'faces', '')::integer, nullif(e ->> 'sharp', '')::real, nullif(e ->> 'words', ''),
+         (e ->> 'score')::real, (e ->> 'confidence')::real, (e ->> 'model_edition')::integer
+    from jsonb_array_elements(p_moments) e;
+  get diagnostics v_kept = row_count;
+  return v_kept;
+end $$;
+
+
+--
+-- Name: FUNCTION file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) IS 'A clip''s moments as read (00706; the content loop PRD''s 10.3): [{start_s, end_s, shows, faces, sharp, words, score, confidence, model_edition}] in place of those read before; a member''s correction stays. Answers how many it kept. The service role''s.';
+
+
+--
 -- Name: file_printed(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11993,6 +12507,33 @@ COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p
 
 
 --
+-- Name: form_booking_open(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if not exists (select 1 from public.forms f
+                  where f.tenant_id = p_tenant_id and f.id = p_form_id and f.state = 'live') then
+    return false;
+  end if;
+  insert into public.form_days as d (form_id, tenant_id, day, booking_opens)
+  values (p_form_id, p_tenant_id, (now() at time zone 'utc')::date, 1)
+  on conflict (form_id, day) do update set booking_opens = d.booking_opens + 1;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION form_booking_open(p_tenant_id uuid, p_form_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) IS 'One more open of the business''s own booking page from a live form, on its day (00691; the Forms plan, F3): true when counted, false for a form that is not live. The service role''s alone; the page never counts a preview.';
+
+
+--
 -- Name: form_code_link(uuid, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12364,17 +12905,28 @@ COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid,
 
 
 --
--- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text, p_form_ref text DEFAULT NULL::text, p_form_name text DEFAULT NULL::text, p_host text DEFAULT NULL::text, p_source jsonb DEFAULT NULL::jsonb, p_test boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 declare
-  v_entry   uuid;
-  v_contact uuid;
-  v_person  jsonb;
+  v_site      uuid;
+  v_outside   uuid;
+  v_entry     uuid;
+  v_contact   uuid;
+  v_person    jsonb;
+  v_same      boolean;
+  v_clash     boolean := false;
+  v_test      boolean := coalesce(p_test, false);
+  v_ref       text := nullif(btrim(coalesce(p_ref, '')), '');
+  v_form_ref  text := left(nullif(btrim(coalesce(p_form_ref, '')), ''), 100);
+  v_form_name text := left(nullif(btrim(coalesce(p_form_name, '')), ''), 120);
+  v_host      text := lower(nullif(btrim(coalesce(p_host, '')), ''));
+  v_source    jsonb := case when jsonb_typeof(p_source) = 'object' and octet_length(p_source::text) <= 4000
+                            then p_source end;
 begin
   if p_tenant_id is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -12388,33 +12940,74 @@ begin
   if p_words is null or p_words !~ '^[0-9a-f]{64}$' then
     raise exception 'The words are a digest.' using errcode = '22023';
   end if;
+  if v_host is not null and (char_length(v_host) > 253 or v_host !~ '^[a-z0-9][a-z0-9.-]*$') then
+    v_host := null;
+  end if;
 
-  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on.
+  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on. Its row is held
+  -- until this write ends, so two first entries at once make one site.
   if p_key_id is null then
     insert into public.form_keys as k (tenant_id, first, last_used_at)
     values (p_tenant_id, true, now())
     on conflict (tenant_id) where first do update set last_used_at = now()
-    returning k.id into p_key_id;
+    returning k.id, k.site_id into p_key_id, v_site;
   else
-    update public.form_keys set last_used_at = now() where tenant_id = p_tenant_id and id = p_key_id;
+    update public.form_keys k set last_used_at = now()
+     where k.tenant_id = p_tenant_id and k.id = p_key_id
+    returning k.site_id into v_site;
+  end if;
+  if v_site is null then
+    insert into public.form_sites (tenant_id, name)
+    values (p_tenant_id, (select k.name from public.form_keys k where k.tenant_id = p_tenant_id and k.id = p_key_id))
+    returning id into v_site;
+    update public.form_keys k set site_id = v_site where k.tenant_id = p_tenant_id and k.id = p_key_id;
+  end if;
+  update public.form_sites s set host = v_host
+   where s.tenant_id = p_tenant_id and s.id = v_site and s.host is null and v_host is not null;
+
+  -- A test tells nobody, keeps nobody and names no form: the site stands at "test received" from now.
+  if v_test then
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, words, owed, source, test)
+    values (p_tenant_id, null, p_key_id, p_form, p_answers, p_words, '{}', v_source, true)
+    returning id into v_entry;
+    update public.form_sites s set test_at = now() where s.tenant_id = p_tenant_id and s.id = v_site;
+    return jsonb_build_object('outcome', 'test', 'entry_id', v_entry, 'contact_id', null, 'clash', false);
   end if;
 
-  -- Once. The site's own id is the entry's; with none, the same words within ten minutes are a retry (call 19), and
-  -- later they are a new entry. Two posts of the same words at once wait for each other here.
-  if nullif(btrim(coalesce(p_ref, '')), '') is not null then
-    select e.id, e.contact_id into v_entry, v_contact
-      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
-  else
-    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || p_words, 0));
+  -- Its form: found by its site, kind and id, or made, its requests from now. The name the site sends is kept as sent.
+  insert into public.outside_forms as o (tenant_id, kind, site_id, form, ref, sent_name)
+  values (p_tenant_id, 'website', v_site, p_form, v_form_ref, v_form_name)
+  on conflict (tenant_id, site_id, form, ref) do update set sent_name = coalesce(excluded.sent_name, o.sent_name)
+  returning o.id into v_outside;
+
+  -- Once, within its form. The site's own id is the entry's: the same id with the same words is the same entry, and
+  -- with other words a new one, its id left with the first and said (`clash`), never merged. With no id, the same
+  -- words within ten minutes are a retry (call 19), and later they are a new entry. Two at once wait for each other.
+  if v_ref is not null then
+    select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
+    if v_entry is not null and v_same then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
+    if v_entry is not null then
+      v_clash := true;
+      v_ref := null;
+      v_entry := null;
+      v_contact := null;
+    end if;
+  end if;
+  if v_ref is null then
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || v_outside::text || '|' || p_words, 0));
     select e.id, e.contact_id into v_entry, v_contact
       from public.form_entries e
-     where e.tenant_id = p_tenant_id and e.words = p_words and e.ref is null
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.words = p_words and e.ref is null
        and e.created_at > now() - interval '10 minutes'
      order by e.created_at desc
      limit 1;
-  end if;
-  if v_entry is not null then
-    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+    if v_entry is not null then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
   end if;
 
   -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
@@ -12424,36 +13017,56 @@ begin
       p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
       coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
   exception when sqlstate 'PE001' then
-    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null, 'clash', false);
   end;
   v_contact := (v_person ->> 'contact_id')::uuid;
 
+  -- The entry, where its visitor came from, its form: one write.
   begin
-    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed)
-    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, nullif(btrim(coalesce(p_ref, '')), ''), p_words,
-            coalesce(p_owed, '{}'))
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
+                                     source)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, v_ref, p_words, coalesce(p_owed, '{}'), v_outside,
+            v_source)
     returning id into v_entry;
   exception when unique_violation then
-    -- The same site id at the same moment: the other post kept it.
-    select e.id, e.contact_id into v_entry, v_contact
-      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
-    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+    -- The same site id at the same moment, kept by the other post: the same entry where its words are these, and
+    -- where they are not, a new one, its id left with the first and said, as above.
+    select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
+    if v_same then
+      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
+    v_clash := true;
+    v_contact := (v_person ->> 'contact_id')::uuid;
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
+                                     source)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, null, p_words, coalesce(p_owed, '{}'), v_outside,
+            v_source)
+    returning id into v_entry;
   end;
+
+  update public.outside_forms o
+     set first_entry_at = coalesce(o.first_entry_at, now()), last_entry_at = now()
+   where o.tenant_id = p_tenant_id and o.id = v_outside;
+  update public.form_sites s
+     set first_entry_at = coalesce(s.first_entry_at, now()), last_entry_at = now()
+   where s.tenant_id = p_tenant_id and s.id = v_site;
 
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry,
           jsonb_build_object('form', p_form, 'owed', to_jsonb(coalesce(p_owed, '{}'))));
 
   return jsonb_build_object('outcome', 'accepted', 'entry_id', v_entry, 'contact_id', v_contact,
-                            'person', v_person ->> 'outcome');
+                            'person', v_person ->> 'outcome', 'clash', v_clash);
 end $_$;
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) IS 'The website form door''s one write (00675, 00709): the key''s last use and its site (the first key''s row and site made at their first use), the form the entry is of (found by its site, kind and the site''s id for it, or made), the once rule within that form (the site''s own id, the same words with it; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry with where its visitor came from, and its form_entry.accepted event, together. A test keeps no person, owes nothing, names no form, writes no event and stamps its site''s test_at. Answers {outcome: accepted|again|forgotten|test, entry_id, contact_id, person, clash}: clash is an id the form had with other words, kept as a new entry. The service role''s alone.';
 
 
 --
@@ -12468,6 +13081,7 @@ declare
   v_old  public.form_keys%rowtype;
   v_id   uuid;
   v_name text;
+  v_site uuid;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -12485,10 +13099,15 @@ begin
   if not found then
     raise exception 'That key is ending or has ended already.' using errcode = 'P0002';
   end if;
-  -- The new key keeps the site's name; the first key had none, and its new one is the website's.
+  -- The new key keeps the site and its name; the first key had none, and its new one is the website's.
   v_name := coalesce(v_old.name, 'Website');
-  insert into public.form_keys (tenant_id, name, hash, made_by)
-  values (p_tenant_id, v_name, p_hash, auth.uid())
+  v_site := v_old.site_id;
+  if v_site is null then
+    insert into public.form_sites (tenant_id, name) values (p_tenant_id, v_old.name) returning id into v_site;
+    update public.form_keys k set site_id = v_site where k.tenant_id = p_tenant_id and k.id = p_key_id;
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by, site_id)
+  values (p_tenant_id, v_name, p_hash, auth.uid(), v_site)
   returning id into v_id;
   -- The old one keeps working for a day, so the site can be given the new one without a form refused.
   update public.form_keys set ends_at = now() + interval '1 day' where tenant_id = p_tenant_id and id = p_key_id;
@@ -12503,7 +13122,7 @@ end $_$;
 -- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675, 00709): a key that works and is not already ending changed for a new one by the same name and for the same site (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
 
 
 --
@@ -12544,15 +13163,16 @@ COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An 
 
 
 --
--- Name: form_key_make(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_key_make(uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) RETURNS uuid
+CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid DEFAULT NULL::uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 declare
-  v_id uuid;
+  v_id   uuid;
+  v_site uuid;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -12566,14 +13186,23 @@ begin
   if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'A key is kept as its digest.' using errcode = '22023';
   end if;
-  -- One key a site: a workspace has at most ten that still work.
+  -- At most ten keys that still work a workspace.
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_keys', 0));
   if (select count(*) from public.form_keys k
        where k.tenant_id = p_tenant_id and (k.ends_at is null or k.ends_at > now())) >= 10 then
     raise exception 'A workspace has at most ten keys that work. End one first.' using errcode = '22023';
   end if;
-  insert into public.form_keys (tenant_id, name, hash, made_by)
-  values (p_tenant_id, btrim(p_name), p_hash, auth.uid())
+  -- Its site: the one named, or a new one, named as the key is.
+  if p_site_id is null then
+    insert into public.form_sites (tenant_id, name) values (p_tenant_id, btrim(p_name)) returning id into v_site;
+  else
+    select s.id into v_site from public.form_sites s where s.tenant_id = p_tenant_id and s.id = p_site_id;
+    if v_site is null then
+      raise exception 'That site isn''t here any more.' using errcode = 'P0002';
+    end if;
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by, site_id)
+  values (p_tenant_id, btrim(p_name), p_hash, auth.uid(), v_site)
   returning id into v_id;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
@@ -12583,10 +13212,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) IS 'An owner''s or a partner''s door (00675, 00709; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard, for the site named (p_site_id) or a new site named as the key is. At most ten keys that still work a workspace (22023); a site that is not the workspace''s, P0002. Answers the key''s id.';
 
 
 --
@@ -12776,24 +13405,39 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
     SET search_path TO 'public'
     AS $$
   -- A request is open until a link answers it: a member's word, a conversation that took it over, or a reply whose
-  -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list.
+  -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list. A hosted
+  -- form's request says the time it asked for as its visit stands now (00691); a website's is a request from its form's
+  -- requests_from on (00709), its heading the form's name, its answers the site's own fields.
   select coalesce(jsonb_agg(r.line order by r.created_at desc), '[]'::jsonb)
     from (
       select e.created_at,
              jsonb_build_object(
-               'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'contact_id', e.contact_id,
-               'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach, 'place', l.place,
-               'heading', v.description ->> 'heading',
+               'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'outside_form_id', e.outside_form_id,
+               'contact_id', e.contact_id, 'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach,
+               'place', l.place,
+               'heading', coalesce(v.description ->> 'heading', o.name, o.sent_name),
                'unreached', exists (
                  select 1 from form_entry_links k
                    join messages m on m.tenant_id = k.tenant_id and m.id = k.message_id
                   where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'reply'
-                    and m.status = 'failed')) as line
+                    and m.status = 'failed'),
+               'time', (
+                 select jsonb_build_object('appointment_id', a.id, 'starts_at', a.starts_at, 'ends_at', a.ends_at,
+                                           'service', a.service, 'status', a.status, 'expires_at', a.expires_at,
+                                           'timezone', a.timezone)
+                   from form_entry_links k
+                   join appointments a on a.tenant_id = k.tenant_id and a.id = k.appointment_id
+                  where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'visit'
+                  order by k.created_at desc
+                  limit 1)) as line
         from form_entries e
-        join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+        left join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+        left join outside_forms o on o.tenant_id = e.tenant_id and o.id = e.outside_form_id
         left join links l on l.tenant_id = e.tenant_id and l.id = e.link_id
        where e.tenant_id = p_tenant_id
-         and e.form_id is not null and e.state <> 'held' and not e.test
+         and e.state <> 'held' and not e.test
+         and ((e.form_id is not null and v.id is not null)
+              or (o.id is not null and e.form = 'request' and e.created_at >= o.requests_from))
          and e.created_at > now() - interval '60 days'
          and not exists (
                select 1 from form_entry_links k
@@ -12812,7 +13456,43 @@ $$;
 -- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s hosted forms nobody has answered (00680; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: each with its answers, who it is about as typed, its form''s heading, the place it came through, and whether a reply to it failed to reach them (unreached). Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back.';
+COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s forms nobody has answered (00680, 00691, 00709; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: a hosted form''s, and a website form''s from its requests_from on. Each with its answers, who it is about as typed (reach: a hosted form''s), its form''s heading (a website form''s name, null where it has none yet), the outside form it is of, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now. Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back. Counted whole by form_requests_open_count.';
+
+
+--
+-- Name: form_requests_open_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_requests_open_count(p_tenant_id uuid) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- form_requests_open's rule, counted with no cap: what Needs you and Today say.
+  select count(*)::integer
+    from form_entries e
+    left join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+    left join outside_forms o on o.tenant_id = e.tenant_id and o.id = e.outside_form_id
+   where e.tenant_id = p_tenant_id
+     and e.state <> 'held' and not e.test
+     and ((e.form_id is not null and v.id is not null)
+          or (o.id is not null and e.form = 'request' and e.created_at >= o.requests_from))
+     and e.created_at > now() - interval '60 days'
+     and not exists (
+           select 1 from form_entry_links k
+            where k.tenant_id = e.tenant_id and k.entry_id = e.id
+              and (k.kind in ('marked', 'conversation')
+                   or (k.kind = 'reply' and exists (
+                         select 1 from messages m
+                          where m.tenant_id = k.tenant_id and m.id = k.message_id
+                            and m.status not in ('failed', 'canceled')))));
+$$;
+
+
+--
+-- Name: FUNCTION form_requests_open_count(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) IS 'How many of a workspace''s requests nobody has answered (00709): form_requests_open''s rule over its sixty days, with no cap, read under the member''s own row rules. What Needs you and Today count, never the list that stops at 200.';
 
 
 --
@@ -12826,11 +13506,15 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
   with win as (
     select now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 366))) as since
   ), asked as (
-    -- Each request in the window: whether its person was new with it, whether it became a conversation (a reply that
-    -- left, or their own message with its code), and whether a visit followed by the rule an ad's is read by (00678):
-    -- a visit asked for in a chat and confirmed there, or one a member added, made after the request and starting after.
-    select e.form_id, e.link_id, e.contact_id,
+    -- Each entry of a form in the window, made here or owned elsewhere: whether its person was new with it, whether it
+    -- became a conversation (a reply that left, or their own message with its code), whether it asked for a time
+    -- (00691), and whether a visit followed: the time it asked for, confirmed (00691), or by the rule an ad's is read by
+    -- (00678), a visit asked for in a chat and confirmed there, or one a member added, made after it and starting after.
+    select e.form_id, e.outside_form_id, e.link_id, e.contact_id,
            c.created_at > e.created_at - interval '1 minute' as new_person,
+           -- A sign-up confirmed: its person said yes to offers from the email it sent them, after it came (00489).
+           (e.form = 'signup' and c.email_marketing = 'opted_in' and c.email_marketing_source = 'confirmed_signup'
+            and c.email_marketing_updated_at >= e.created_at) as confirmed,
            exists (select 1 from form_entry_links k
                     where k.tenant_id = e.tenant_id and k.entry_id = e.id
                       and (k.kind = 'conversation'
@@ -12838,7 +13522,14 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
                                  select 1 from messages m
                                   where m.tenant_id = k.tenant_id and m.id = k.message_id
                                     and m.status not in ('failed', 'canceled'))))) as talked,
-           exists (select 1 from appointments a
+           exists (select 1 from form_entry_links k
+                    where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'visit') as timed,
+           -- The time it asked for, confirmed: made in the entry's own statement, so the rule below cannot see it.
+           exists (select 1 from form_entry_links k
+                     join appointments a on a.tenant_id = k.tenant_id and a.id = k.appointment_id
+                    where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'visit'
+                      and a.status not in ('cancelled', 'proposed'))
+           or exists (select 1 from appointments a
                     where a.tenant_id = e.tenant_id
                       and a.source in ('receptionist', 'person')
                       and a.status not in ('cancelled', 'proposed')
@@ -12853,26 +13544,44 @@ CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30)
       join contacts c on c.tenant_id = e.tenant_id and c.id = e.contact_id
       cross join win
      where e.tenant_id = p_tenant_id
-       and e.form_id is not null and e.state <> 'held' and not e.test
+       and (e.form_id is not null or e.outside_form_id is not null) and e.state <> 'held' and not e.test
        and e.created_at > win.since
   )
   select jsonb_build_object(
     'places', coalesce((
       select jsonb_agg(jsonb_build_object(
                'form_id', x.form_id, 'link_id', x.link_id, 'requests', x.requests, 'talked', x.talked,
-               'visits', x.visits, 'people', x.people, 'new_people', x.new_people))
+               'visits', x.visits, 'people', x.people, 'new_people', x.new_people, 'asked', x.asked))
         from (select a.form_id, a.link_id, count(*) as requests,
                      count(distinct a.contact_id) as people,
                      count(*) filter (where a.talked) as talked,
+                     count(*) filter (where a.timed) as asked,
                      count(distinct a.contact_id) filter (where a.booked) as visits,
                      count(distinct a.contact_id) filter (where a.new_person) as new_people
-                from asked a group by a.form_id, a.link_id) x), '[]'::jsonb),
+                from asked a where a.form_id is not null group by a.form_id, a.link_id) x), '[]'::jsonb),
+    'outside', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'outside_form_id', y.outside_form_id, 'entries', y.entries, 'talked', y.talked, 'visits', y.visits,
+               'people', y.people, 'new_people', y.new_people, 'confirmed', y.confirmed))
+        from (select a.outside_form_id, count(*) as entries,
+                     count(distinct a.contact_id) as people,
+                     count(*) filter (where a.talked) as talked,
+                     count(distinct a.contact_id) filter (where a.booked) as visits,
+                     count(distinct a.contact_id) filter (where a.new_person) as new_people,
+                     count(distinct a.contact_id) filter (where a.confirmed) as confirmed
+                from asked a where a.outside_form_id is not null group by a.outside_form_id) y), '[]'::jsonb),
     'opens', coalesce((
       select jsonb_agg(jsonb_build_object('link_id', o.link_id, 'opens', o.opens))
         from (select d.link_id, sum(d.opens) as opens
                 from link_days d cross join win
                where d.tenant_id = p_tenant_id and d.day >= (win.since at time zone 'utc')::date
-               group by d.link_id) o), '[]'::jsonb));
+               group by d.link_id) o), '[]'::jsonb),
+    'booking_opens', coalesce((
+      select jsonb_agg(jsonb_build_object('form_id', b.form_id, 'opens', b.opens))
+        from (select d.form_id, sum(d.booking_opens) as opens
+                from form_days d cross join win
+               where d.tenant_id = p_tenant_id and d.day >= (win.since at time zone 'utc')::date
+               group by d.form_id) b), '[]'::jsonb));
 $$;
 
 
@@ -12880,7 +13589,106 @@ $$;
 -- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s hosted forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680): by form and by the link each request came through (link_id null: none), the requests, how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; and each link''s opens. Held entries and tests are in no count.';
+COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680, 00691, 00709): each hosted form by the link each request came through (places; link_id null: none), with the requests, how many asked for a time (asked), how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; each form owned elsewhere (outside) with its entries and the same counts, and for a sign-up how many of its people confirmed from its email (confirmed); each link''s opens; and how often each form''s business''s own booking page was opened from it (booking_opens). Held entries and tests are in no count.';
+
+
+--
+-- Name: form_time_request_take(uuid, uuid, uuid, text, jsonb, jsonb, text, timestamp with time zone, timestamp with time zone, text, text, jsonb, text, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb DEFAULT NULL::jsonb, p_link_code text DEFAULT NULL::text, p_test boolean DEFAULT false, p_held_why text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_taken    jsonb;
+  v_entry    uuid;
+  v_contact  public.contacts%rowtype;
+  v_expires  timestamptz;
+  v_id       uuid;
+  v_held     record;
+  v_gone     record;
+  v_service  text := nullif(btrim(coalesce(p_service, '')), '');
+begin
+  if p_starts_at is null or p_ends_at is null or nullif(btrim(coalesce(p_timezone, '')), '') is null then
+    raise exception 'form_time_request_take: a time asked for has a start, an end and a clock' using errcode = '22004';
+  end if;
+  if p_ends_at <= p_starts_at then
+    raise exception 'form_time_request_take: a time ends after it starts' using errcode = '22023';
+  end if;
+  v_taken := public.form_request_take(p_tenant_id, p_form_id, p_version_id, p_ref, p_answers, p_reach, p_words,
+                                      p_source, p_link_code, p_test, p_held_why);
+  v_entry := (v_taken ->> 'entry_id')::uuid;
+  -- The same press sent twice: the time it held the first time, as it stands.
+  if v_taken ->> 'outcome' = 'again' then
+    select a.id, a.expires_at into v_held
+      from public.form_entry_links k
+      join public.appointments a on a.tenant_id = k.tenant_id and a.id = k.appointment_id
+     where k.tenant_id = p_tenant_id and k.entry_id = v_entry and k.kind = 'visit'
+     order by k.created_at desc limit 1;
+    if found then
+      return v_taken || jsonb_build_object('time', jsonb_build_object('appointment_id', v_held.id,
+                                                                      'expires_at', v_held.expires_at));
+    end if;
+    return v_taken;
+  end if;
+  -- Held, a test, closed, stale or forgotten: no person to hold a time for, or nothing kept at all.
+  if v_taken ->> 'outcome' <> 'accepted' then
+    return v_taken;
+  end if;
+  -- 23 hours, and never past an hour before the time (00443, as 00679 left it): the same clock as a chat's request.
+  v_expires := least(now() + interval '23 hours', p_starts_at - interval '1 hour');
+  if v_expires <= now() then
+    return v_taken || jsonb_build_object('time', jsonb_build_object('error', 'too_soon'));
+  end if;
+  select * into v_contact from public.contacts c
+   where c.tenant_id = p_tenant_id and c.id = (v_taken ->> 'contact_id')::uuid;
+  if not found then
+    raise exception 'form_time_request_take: the entry''s person is not there' using errcode = 'P0002';
+  end if;
+  -- One open request per person (decision 0061): the one they asked for before is cancelled, its time free again.
+  -- Where a chat held that one for a person, the hold becomes a reply owed, as Can't leaves it: they asked again here.
+  for v_gone in
+    update public.appointments a set status = 'cancelled'
+     where a.tenant_id = p_tenant_id and a.contact_id = v_contact.id
+       and a.source = 'receptionist' and a.status = 'proposed'
+    returning a.conversation_id, a.starts_at, a.timezone, a.service
+  loop
+    if v_gone.conversation_id is not null and exists (
+         select 1 from public.escalations e
+          where e.tenant_id = p_tenant_id and e.conversation_id = v_gone.conversation_id
+            and e.state = 'open' and e.reason = 'booking_request') then
+      perform public.escalation_open(
+        p_tenant_id, v_gone.conversation_id, 'booking_reply',
+        'Asked for '
+        || to_char(p_starts_at at time zone p_timezone, 'Dy FMDD Mon, FMHH12:MI AM')
+        || ' on a form instead of '
+        || to_char(v_gone.starts_at at time zone v_gone.timezone, 'Dy FMDD Mon, FMHH12:MI AM')
+        || ': reply to them');
+    end if;
+  end loop;
+  -- What the visit answered is the form (00699's through_type): stamped here, since a form's request has no
+  -- conversation for appointments_through_stamp to read, and a visit is stamped at its insert alone.
+  insert into public.appointments (tenant_id, contact_id, conversation_id, source, status, starts_at, ends_at,
+                                   title, service, client_name, client_phone, client_email, timezone, expires_at,
+                                   through_type, through_id)
+  values (p_tenant_id, v_contact.id, null, 'receptionist', 'proposed', p_starts_at, p_ends_at, v_service, v_service,
+          coalesce(nullif(btrim(coalesce(v_contact.display_name, '')), ''),
+                   nullif(btrim(coalesce(v_contact.wa_profile_name, '')), '')),
+          v_contact.phone_e164, v_contact.email, p_timezone, v_expires, 'form', p_form_id)
+  returning id into v_id;
+  -- The visit asked for is the entry's: what it answered, and where it came from, are read through it.
+  insert into public.form_entry_links (tenant_id, entry_id, kind, appointment_id)
+  values (p_tenant_id, v_entry, 'visit', v_id);
+  return v_taken || jsonb_build_object('time', jsonb_build_object('appointment_id', v_id, 'expires_at', v_expires));
+end $$;
+
+
+--
+-- Name: FUNCTION form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691, 00704; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit) and saying it answered the form (through_type form, through_id the form, 00699''s columns). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
 
 
 --
@@ -20967,6 +21775,24 @@ begin
     v_out := v_out || coalesce(
       (select jsonb_build_object('slug', f.slug, 'state', f.state) from public.forms f
         where f.tenant_id = v_link.tenant_id and f.id = v_link.subject_id), '{}'::jsonb);
+  elsif v_link.subject_type = 'post' then
+    -- Where a post's link may land, all the workspace's own: the Instagram account the post went to (by its username),
+    -- its oldest WhatsApp number, its booking page.
+    v_out := v_out || jsonb_build_object('lands', v_link.lands) || coalesce(
+      (select jsonb_build_object(
+                'place', p.place,
+                'instagram', (select c.config->>'username' from public.tenant_channels c
+                               where c.tenant_id = p.tenant_id and c.kind = 'instagram' and c.status = 'active'
+                                 and (p.account_id is null or c.external_id = p.account_id)
+                               order by c.created_at limit 1),
+                'whatsapp', (select c.number_e164 from public.tenant_channels c
+                              where c.tenant_id = p.tenant_id and c.kind = 'whatsapp' and c.status = 'active'
+                                and c.number_e164 is not null
+                              order by c.created_at limit 1),
+                'booking', (select nullif(btrim(tc.config->'brain'->>'booking_link'), '') from public.tenant_config tc
+                             where tc.tenant_id = p.tenant_id))
+         from public.posts p
+        where p.tenant_id = v_link.tenant_id and p.id = v_link.subject_id), '{}'::jsonb);
   end if;
   return v_out;
 end $$;
@@ -20976,7 +21802,7 @@ end $$;
 -- Name: FUNCTION link_open(p_code text, p_count boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.link_open(p_code text, p_count boolean) IS 'A link opened by its code (00680): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace, and for a form its slug and state}), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
+COMMENT ON FUNCTION public.link_open(p_code text, p_count boolean) IS 'A link opened by its code (00680, 00699): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace}; for a form its slug and state; for a post where it lands, its place, and the workspace''s own places it may land on: the Instagram account the post went to by username, the oldest WhatsApp number, the booking page), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
 
 
 --
@@ -22614,6 +23440,28 @@ COMMENT ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) 
 
 
 --
+-- Name: messages_answer_a_form_request(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_answer_a_form_request() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.form_entry_links (tenant_id, entry_id, kind, message_id, created_by)
+  values (new.tenant_id, (new.meta ->> 'form_entry_id')::uuid, 'reply', new.id, new.sent_by);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION messages_answer_a_form_request(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.messages_answer_a_form_request() IS 'A form''s reply linked to the request it answers as it is written (00713; the outside audit''s 4.5): an outbound message whose meta names form_entry_id, linked as the one who wrote it, under form_entry_links'' own policy. The link''s key to form_entries is the row''s own workspace, so a request of another workspace is no link and no message.';
+
+
+--
 -- Name: messages_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -23781,6 +24629,140 @@ CREATE FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'owner' and rr.undone_at is null
 $$;
+
+
+--
+-- Name: outside_form_listed(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_set integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.outside_forms o set listed = coalesce(p_listed, true)
+   where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_set = row_count;
+  return v_set > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) IS 'A member''s door (00709; is_acting_member): a form owned elsewhere listed or hidden. Hidden only takes it off the list: its entries still arrive, reach the Inbox and count. Answers whether the form was the workspace''s.';
+
+
+--
+-- Name: outside_form_rename(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name    text := nullif(btrim(coalesce(p_name, '')), '');
+  v_renamed integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_name is not null and char_length(v_name) > 120 then
+    raise exception 'A form''s name is at most 120 characters.' using errcode = '22023';
+  end if;
+  -- Blank goes back to the name the site sends.
+  update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_renamed = row_count;
+  return v_renamed > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) IS 'A member''s door (00709; is_acting_member, as form_turn): the owner''s own name for a form owned elsewhere, which wins over the name the site sends; blank goes back to it. Answers whether the form was the workspace''s.';
+
+
+--
+-- Name: owner_claim_withdraw(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_done integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.owner_claims set withdrawn_at = now()
+   where tenant_id = p_tenant_id and id = p_claim_id and withdrawn_at is null;
+  get diagnostics v_done = row_count;
+  return v_done > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) IS 'A claim withdrawn (00706), by a member with the settings permission. True where one standing was withdrawn. What carries it is held at its send by the claims rule, never taken down by itself (PRD 5.3, claim_withdrawn).';
+
+
+--
+-- Name: owner_claims_keep(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_row    public.owner_claims;
+  v_until  date;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_claim) <> 'object' then
+    raise exception 'A claim is an object.' using errcode = '22023';
+  end if;
+  v_until := nullif(p_claim ->> 'valid_until', '')::date;
+  insert into public.owner_claims (tenant_id, kind, text, source, valid_until, created_by)
+  values (p_tenant_id, p_claim ->> 'kind', btrim(p_claim ->> 'text'), p_claim ->> 'source', v_until, v_actor)
+  returning * into v_row;
+  return to_jsonb(v_row);
+end $$;
+
+
+--
+-- Name: FUNCTION owner_claims_keep(p_tenant_id uuid, p_claim jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) IS 'A claim kept (00706): {kind, text, source, valid_until}, by a member with the settings permission (the business''s own words, as Settings › Business is). Answers the row. The table''s checks refuse a kind, a source or words out of shape, and a fact with no last day.';
 
 
 --
@@ -27819,9 +28801,14 @@ begin
     return null;
   end if;
   if v_file.kind = 'video' then
-    select p.id into v_id from public.pieces p
+    -- A version's file is its root's (00708), the root itself first; an older version's, by the shape it was sent as.
+    select coalesce(p.revises, p.id) into v_id from public.pieces p
      where p.tenant_id = p_tenant_id and p.file_id = v_file.id and p.shape <> 'picture'
-     order by p.created_at desc limit 1;
+     order by (p.revises is null) desc, p.created_at desc limit 1;
+    if v_id is null then
+      select r.piece_id into v_id from public.piece_renditions r
+       where r.tenant_id = p_tenant_id and r.file_id = v_file.id order by r.revision desc limit 1;
+    end if;
     return v_id;
   end if;
   insert into public.pieces (tenant_id, shape, plan, look, status, edition, file_id, card_key, created_by, made_at)
@@ -27837,7 +28824,56 @@ end $$;
 -- Name: FUNCTION piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00681): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00681, 00708): a video''s own, the newest that became it (a version''s file its root''s; an older version''s by its shape), or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+
+
+--
+-- Name: piece_posts_replace(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_piece  uuid;
+  v_answer jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select coalesce(p.revises, p.id) into v_piece from public.pieces p
+   where p.tenant_id = p_tenant_id and p.file_id = p_file_id order by (p.revises is null) desc limit 1;
+  if v_piece is null then
+    select r.piece_id into v_piece from public.piece_renditions r
+     where r.tenant_id = p_tenant_id and r.file_id = p_file_id limit 1;
+  end if;
+  begin
+    -- Its posts still waiting, at any of its versions, are let go as "Don't post" lets one go: the approval below sets
+    -- what goes up in their place. Where it is refused, nothing was let go.
+    if v_piece is not null then
+      update public.posts p set status = 'pulled', updated_at = now()
+       where p.tenant_id = p_tenant_id and p.piece_id = v_piece and p.status = any (array['queued', 'preparing', 'held']);
+    end if;
+    v_answer := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    if v_answer ->> 'fate' <> 'approved' then
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
+  exception when raise_exception then
+    return v_answer;
+  end;
+  return v_answer;
+end $$;
+
+
+--
+-- Name: FUNCTION piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00708; the version board: "Approve version 2", "Post this one instead"): the piece''s posts still waiting, at any of its versions, let go, then post_approve of this file, in one transaction; where the approval is refused nothing was let go. Answers post_approve''s answer.';
 
 
 --
@@ -27924,6 +28960,166 @@ COMMENT ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) IS 'The 
 
 
 --
+-- Name: piece_version_begin(uuid, uuid, jsonb, jsonb, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_root   public.pieces;
+  v_making uuid;
+  v_begun  jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_root from public.pieces p where p.tenant_id = p_tenant_id and p.id = p_piece_id;
+  if not found then
+    return jsonb_build_object('fate', 'gone', 'piece_id', null);
+  end if;
+  -- A version of a version is its root's.
+  if v_root.revises is not null then
+    select * into v_root from public.pieces p where p.tenant_id = p_tenant_id and p.id = v_root.revises;
+  end if;
+  if v_root.status <> 'made' or v_root.shape = 'picture' or v_root.file_id is null then
+    return jsonb_build_object('fate', 'not_made', 'piece_id', null);
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|pieces', 42));
+  -- One version drawn at a time: another card's version still drawing is the one there is.
+  select p.id into v_making from public.pieces p
+   where p.tenant_id = p_tenant_id and p.revises = v_root.id and p.status = 'making' and p.card_key <> p_key
+   limit 1;
+  if found then
+    return jsonb_build_object('fate', 'drawing', 'piece_id', v_making, 'revises', v_root.id);
+  end if;
+  v_begun := public.piece_begin(p_tenant_id, p_plan, p_look, p_key, p_edition);
+  if (v_begun ->> 'piece_id') is not null then
+    update public.pieces p set revises = v_root.id
+     where p.id = (v_begun ->> 'piece_id')::uuid and p.revises is distinct from v_root.id;
+  end if;
+  return v_begun || jsonb_build_object('revises', v_root.id);
+end $$;
+
+
+--
+-- Name: FUNCTION piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) IS 'A member''s press, with the settings permission (00708): a new version of a made video asked for, by its plan and the look as it stands; drawn as piece_begin draws a video, on a row that names its root (`revises`). One version drawn at a time a piece. Answers piece_begin''s {fate: begun, here, busy; piece_id} with `revises`, or {fate: gone, not_made, drawing (another version is drawn now; piece_id: that one)}.';
+
+
+--
+-- Name: piece_version_kept(uuid, text, bigint, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_new  public.pieces;
+  v_root public.pieces;
+  v_rev  public.piece_revisions;
+  v_n    integer;
+begin
+  if p_checksum is null or p_checksum !~ '^[0-9a-f]{64}$' or p_bytes is null or p_bytes < 1 then
+    raise exception 'A version is kept by its bytes and their SHA-256.' using errcode = '22023';
+  end if;
+  select * into v_new from public.pieces p where p.id = p_piece_id;
+  if not found or v_new.revises is null or v_new.file_id is null then
+    return null;
+  end if;
+  select * into v_root from public.pieces p where p.id = v_new.revises for update;
+  if not found then
+    return null;
+  end if;
+  -- Kept once: a second keep of the same file answers the version it is.
+  select r.revision into v_n from public.piece_renditions r where r.piece_id = v_root.id and r.file_id = v_new.file_id limit 1;
+  if found then
+    return v_n;
+  end if;
+  -- The version it stood at, written where nothing approved it yet, so the next has one before it.
+  select * into v_rev from public.piece_revisions r where r.piece_id = v_root.id and r.n = v_root.revision;
+  if not found then
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (v_root.tenant_id, v_root.id, v_root.revision, v_root.plan, '{}'::jsonb, array['first'], 'ai', v_root.created_by)
+    returning * into v_rev;
+  end if;
+  select max(r.n) + 1 into v_n from public.piece_revisions r where r.piece_id = v_root.id;
+  insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+  values (v_root.tenant_id, v_root.id, v_n, v_new.plan, v_rev.captions,
+          array(select c from unnest(coalesce(p_changed, '{}'::text[])) c
+                 where c = any (array['caption', 'trim', 'order', 'sound', 'layout'])),
+          'owner', v_new.created_by);
+  insert into public.piece_renditions (tenant_id, piece_id, revision, shape, file_id, path, checksum, bytes)
+  values (v_root.tenant_id, v_root.id, v_n, '9x16', v_new.file_id,
+          v_root.tenant_id::text || '/' || v_new.file_id::text || '/video.mp4', p_checksum, p_bytes);
+  return v_n;
+end $_$;
+
+
+--
+-- Name: FUNCTION piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) IS 'When a new version''s drawn bytes are kept (00708; the edge''s piece_make): its root gains version n+1, its plan and what moved (p_changed, the record''s own set), and its standing shape, the new file by path and full SHA-256. The root still stands at n until the file plays (piece_version_ready). Once a file. Answers n+1, or null for a drawing that is no version. The service role''s.';
+
+
+--
+-- Name: piece_version_ready(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_version_ready(p_file_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_new    public.pieces;
+  v_root   public.pieces;
+  v_n      integer;
+  v_voided integer;
+begin
+  select * into v_new from public.pieces p
+   where p.file_id = p_file_id and p.revises is not null order by p.created_at desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select r.revision into v_n from public.piece_renditions r
+   where r.piece_id = v_new.revises and r.file_id = p_file_id order by r.revision desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select * into v_root from public.pieces p where p.id = v_new.revises for update;
+  if v_root.revision >= v_n then
+    return jsonb_build_object('piece_id', v_root.id, 'revision', v_root.revision, 'voided', 0, 'again', true);
+  end if;
+  update public.pieces p
+     set revision = v_n, file_id = p_file_id, plan = v_new.plan, look = v_new.look, made_at = now(), updated_at = now()
+   where p.id = v_root.id;
+  -- What was approved of the version before and still waits stops standing: it asks again (call 14).
+  update public.approvals a set voided_at = now(), voided_why = 'changed'
+   where a.voided_at is null
+     and a.id in (select p.approval_id from public.posts p
+                   where p.tenant_id = v_root.tenant_id and p.piece_id = v_root.id and p.approval_id is not null
+                     and p.status = any (array['queued', 'preparing']));
+  get diagnostics v_voided = row_count;
+  return jsonb_build_object('piece_id', v_root.id, 'revision', v_n, 'voided', v_voided, 'again', false);
+end $$;
+
+
+--
+-- Name: FUNCTION piece_version_ready(p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_version_ready(p_file_id uuid) IS 'When a new version''s file plays (00708; the edge, where the video platform''s word is heard): its root stands at that version (revision, file, plan, look), and the approvals of its posts still waiting are voided as changed, so each asks again. Once. Answers {piece_id, revision, voided, again}, or null for a file that is no version. The service role''s.';
+
+
+--
 -- Name: piece_words_keep(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28005,6 +29201,138 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00681; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';
+
+
+--
+-- Name: plan_slot_made(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_slot   public.plan_slots;
+  v_post   uuid := nullif(p_made ->> 'post_id', '')::uuid;
+  v_piece  uuid := nullif(p_made ->> 'piece_id', '')::uuid;
+  v_held   jsonb := p_made -> 'held';
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_slot from public.plan_slots s where s.tenant_id = p_tenant_id and s.id = p_slot_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_slot.state <> 'approved' or v_slot.post_id is not null then
+    return jsonb_build_object('fate', v_slot.state);
+  end if;
+  if v_post is not null then
+    if not exists (select 1 from public.posts p where p.tenant_id = p_tenant_id and p.id = v_post) then
+      return jsonb_build_object('fate', 'gone');
+    end if;
+    update public.plan_slots set post_id = v_post, updated_at = now() where id = v_slot.id;
+  elsif v_piece is not null then
+    if not exists (select 1 from public.pieces p where p.tenant_id = p_tenant_id and p.id = v_piece) then
+      return jsonb_build_object('fate', 'gone');
+    end if;
+    update public.plan_slots set piece_id = v_piece, updated_at = now() where id = v_slot.id;
+  elsif jsonb_typeof(v_held) = 'object' then
+    update public.plan_slots set state = 'blocked', blocked_why = v_held ->> 'why',
+                                 blocked_reason = left(btrim(v_held ->> 'reason'), 400), updated_at = now()
+     where id = v_slot.id;
+  else
+    raise exception 'A slot is made into a post or a video, or held with why.' using errcode = '22023';
+  end if;
+  return jsonb_build_object('fate', 'made', 'slot_id', v_slot.id);
+end $$;
+
+
+--
+-- Name: FUNCTION plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) IS 'What an approved slot was made into (00706; the content loop PRD''s 8.4; made after the week''s approval), by a member with the settings permission: {post_id} its post at its place, {piece_id} its video begun, or {held: {why, reason}} why it could not be made, with its one fix. Only a slot approved and not yet posted takes it. Answers {fate: made, slot_id} or {fate: gone | <state>}.';
+
+
+--
+-- Name: plan_slot_set(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  v_slot      public.plan_slots;
+  v_to        text := p_change ->> 'to';
+  v_approval  uuid;
+  v_snapshot  jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_slot from public.plan_slots s where s.tenant_id = p_tenant_id and s.id = p_slot_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_slot.state = 'posted' or v_slot.post_id is not null then
+    return jsonb_build_object('fate', 'posted');
+  end if;
+  if v_to = 'removed' then
+    update public.plan_slots set state = 'removed', blocked_why = null, blocked_reason = null, updated_at = now()
+     where id = v_slot.id;
+  elsif v_to = 'proposed' then
+    if v_slot.state not in ('removed', 'blocked', 'needs_footage') then
+      return jsonb_build_object('fate', v_slot.state);
+    end if;
+    update public.plan_slots set state = 'proposed', blocked_why = null, blocked_reason = null,
+                                 file_id = coalesce(nullif(p_change ->> 'file_id', '')::uuid, file_id),
+                                 updated_at = now()
+     where id = v_slot.id;
+  elsif v_to = 'at' then
+    if (p_change ->> 'at')::timestamptz <= now() then
+      return jsonb_build_object('fate', 'past');
+    end if;
+    update public.plan_slots set at = (p_change ->> 'at')::timestamptz, updated_at = now() where id = v_slot.id;
+  elsif v_to = 'approved' then
+    -- A proposed slot, or an approved one that could not be made, or whose video was not (Try again): its own approval,
+    -- and it is made anew.
+    if not (v_slot.state = 'proposed' or (v_slot.state = 'blocked' and v_slot.blocked_why = 'unmade')
+            or (v_slot.state = 'approved' and exists (select 1 from public.pieces p
+                                                     where p.tenant_id = p_tenant_id and p.id = v_slot.piece_id
+                                                       and p.status = 'failed'))) then
+      return jsonb_build_object('fate', v_slot.state);
+    end if;
+    v_snapshot := jsonb_build_object('slots', jsonb_build_array(jsonb_build_object(
+      'id', v_slot.id, 'place', v_slot.place, 'kind', v_slot.kind, 'at', v_slot.at, 'file_id', v_slot.file_id,
+      'title', v_slot.title, 'intent', v_slot.intent)));
+    insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+    values (p_tenant_id, 'plan', v_slot.plan_id, v_snapshot, public.approval_hash(v_snapshot), v_actor)
+    returning id into v_approval;
+    update public.plan_slots set state = 'approved', approval_id = v_approval, blocked_why = null, blocked_reason = null,
+                                 piece_id = null, updated_at = now()
+     where id = v_slot.id;
+  else
+    raise exception 'A slot is left out, put back, moved or approved.' using errcode = '22023';
+  end if;
+  return jsonb_build_object('fate', 'done', 'slot_id', v_slot.id, 'approval_id', v_approval);
+end $$;
+
+
+--
+-- Name: FUNCTION plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) IS 'One slot of a week, by a member with the settings permission (00706): {to: removed} leaves it out, {to: proposed, file_id?} puts it back or returns a slot that asked for footage with the clip added, {to: at, at} moves it to a later time, {to: approved} approves one mended after the week was, or one that could not be made (its own approval of subject plan; it is made anew). A slot made into a post is the post''s. Answers {fate: done, slot_id, approval_id} or {fate: gone | posted | past | <state>}.';
 
 
 --
@@ -29377,6 +30705,8 @@ declare
   v_posts      jsonb := '[]'::jsonb;
   v_snapshot   jsonb;
   v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
+  -- An older version's own file approved again (00708: "Post this one instead"): the version its shape was kept at.
+  v_older      integer;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -29400,11 +30730,11 @@ begin
   end if;
   -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
   for v_place in select * from jsonb_array_elements(v_places) loop
-    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google']) then
+    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google', 'facebook']) then
       raise exception 'No such place: %.', v_place ->> 'place' using errcode = '22023';
     end if;
     if (case when v_file.kind = 'video'
-             then not (v_place ->> 'place' = 'instagram' and v_place ->> 'kind' = 'reel')
+             then not (v_place ->> 'place' in ('instagram', 'facebook') and v_place ->> 'kind' = 'reel')
              else (v_place ->> 'kind') is null or (v_place ->> 'kind') <> all (array['picture', 'story'])
                   or (v_place ->> 'place' = 'google' and v_place ->> 'kind' <> 'picture') end) then
       return jsonb_build_object('fate', 'wrong_kind', 'posts', '[]'::jsonb);
@@ -29443,10 +30773,15 @@ begin
   if not found then
     return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
   end if;
+  -- A video's file that is no longer its piece's own is an older version's (00708): it is approved at that version.
+  if v_file.kind = 'video' and v_piece.file_id is distinct from p_file_id then
+    select r.revision into v_older from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.file_id = p_file_id order by r.revision desc limit 1;
+  end if;
   -- A shape already kept with other bytes is not what the owner saw: nothing is written past here.
   for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
     select * into v_kept from public.piece_renditions r
-     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_piece.revision
+     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= coalesce(v_older, v_piece.revision)
      order by r.revision desc limit 1;
     if found and (v_kept.checksum <> v_rendition ->> 'checksum' or v_kept.path <> v_rendition ->> 'path') then
       return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
@@ -29463,13 +30798,14 @@ begin
       v_captions := v_captions || jsonb_build_object(v_place ->> 'place', coalesce(v_place ->> 'caption', ''));
     end if;
   end loop;
-  v_n := v_piece.revision;
+  v_n := coalesce(v_older, v_piece.revision);
   select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_n;
   if not found then
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
     values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], 'owner', v_actor)
     returning * into v_rev;
-  elsif exists (select 1 from jsonb_each_text(v_captions) c
+  -- An older version keeps its own words: the placements carry what goes, and a later version is never written over.
+  elsif v_older is null and exists (select 1 from jsonb_each_text(v_captions) c
                  where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
     v_n := v_n + 1;
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
@@ -29507,8 +30843,8 @@ begin
             v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
             nullif(v_place ->> 'good_until', '')::timestamptz)
     returning id into v_id;
-    if v_place ->> 'place' = 'instagram' then
-      -- Ten minutes ahead of its time, so Instagram has made it ready by then; as text, as a job's key is made of strings.
+    if v_place ->> 'place' in ('instagram', 'facebook') then
+      -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
       insert into public.jobs (tenant_id, kind, due_at, payload)
       values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
               jsonb_build_object('post_id', v_id, 'attempt', '1'));
@@ -29527,7 +30863,82 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681, 00707 for a Facebook Page, 00708 for an older version; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed; an older version''s own file is approved at its own version, with its own words kept), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+
+
+--
+-- Name: post_approve_whole(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_replace  boolean := coalesce((p_approval ->> 'replace')::boolean, false);
+  v_expected uuid[];
+  v_waiting  uuid[];
+  v_claim    jsonb;
+  v_answer   jsonb;
+  v_refused  boolean := false;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- A version set in place of the posts still waiting: those the owner saw, held still until the swap is made. Where
+  -- one has begun to send, or another is waiting now, it is not what they approved.
+  if v_replace then
+    v_expected := array(select e::uuid from jsonb_array_elements_text(coalesce(p_approval -> 'expected', '[]'::jsonb)) e
+                         order by 1);
+    select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_waiting
+      from (select p.id from public.posts p
+             where p.tenant_id = p_tenant_id and p.place <> 'hand'
+               and p.status = any (array['queued', 'preparing', 'held'])
+               and (p.id = any (v_expected)
+                    or p.piece_id in (select q.piece_id from public.posts q
+                                       where q.tenant_id = p_tenant_id and q.id = any (v_expected)))
+             for update) w;
+    if cardinality(v_expected) = 0 or v_waiting is distinct from v_expected then
+      return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+    end if;
+  end if;
+  begin
+    -- A fact the owner stated, kept as their own claim until its day ends (00706).
+    for v_claim in select * from jsonb_array_elements(coalesce(p_approval -> 'claims', '[]'::jsonb)) loop
+      perform public.owner_claims_keep(p_tenant_id, v_claim);
+    end loop;
+    -- The words that go, the piece's own from now on, and its other posts still waiting with them (00681).
+    if nullif(btrim(p_approval ->> 'words'), '') is not null then
+      perform public.piece_words_keep(p_tenant_id, p_file_id, p_approval ->> 'words');
+    end if;
+    if v_replace then
+      v_answer := public.piece_posts_replace(p_tenant_id, p_file_id, p_approval);
+    else
+      v_answer := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    end if;
+    if v_answer ->> 'fate' is distinct from 'approved' then
+      v_refused := true;
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
+  exception when raise_exception then
+    -- Only this door's own refusal is an answer: the facts and the words go with it. Any other is raised as it came.
+    if not v_refused then
+      raise;
+    end if;
+    return v_answer;
+  end;
+  return v_answer;
+end $$;
+
+
+--
+-- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
 
 
 --
@@ -29664,93 +31075,160 @@ COMMENT ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no intege
 
 
 --
--- Name: post_begin(uuid, uuid, text, text, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: post_by_hand_bell_settle(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT 'press'::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) RETURNS integer
+    LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
 declare
-  v_actor uuid := auth.uid();
-  v_file  public.files;
-  v_busy  uuid;
-  v_id    uuid;
-  v_when  timestamptz := greatest(coalesce(p_when, now()), now());
-  -- A Google post for later than two minutes on waits for its job; one for now is the press's own call (contracts POST_SOON).
-  v_later boolean := p_place = 'google' and v_when > now() + interval '2 minutes';
+  v_closed integer := 0;
 begin
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
+  -- Still the owner's to delete at this place: a post of the piece that is up there, whose newest take-down a place
+  -- left to them.
+  if exists (
+    select 1 from public.posts q
+     where q.tenant_id = p_tenant_id and q.file_id = p_file_id and q.place = p_place and q.status = 'published'
+       and (select r.outcome from public.remediation_actions r
+             where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = q.id and r.act = 'take_down'
+             order by r.started_at desc, r.id desc
+             limit 1) = any (array['blocked', 'not_possible', 'needs_person'])
+  ) then
+    return 0;
   end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
-    raise exception 'Not yours to change.' using errcode = '42501';
-  end if;
-  if p_place is null or p_place <> all (array['instagram', 'google']) then
-    raise exception 'No such place: %.', p_place using errcode = '22023';
-  end if;
-  -- A reel waits for a video's road to Instagram (decision 0121); Google takes a picture alone.
-  if p_kind is null or p_kind <> all (array['picture', 'story']) or (p_place = 'google' and p_kind <> 'picture') then
-    return jsonb_build_object('fate', 'not_yet', 'post_id', null);
-  end if;
-  if p_caption is not null and char_length(p_caption) > 2200 then
-    raise exception 'A caption is at most 2,200 characters.' using errcode = '22023';
-  end if;
-  -- contracts POST_AHEAD_DAYS_MAX.
-  if v_when > now() + interval '30 days' then
-    raise exception 'A post goes within thirty days.' using errcode = '22023';
-  end if;
-  -- One at a time per file, place and kind, as every door that names or files takes it (00551).
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
-  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
-  if not found or v_file.removed_at is not null then
-    return jsonb_build_object('fate', 'gone', 'post_id', null);
-  end if;
-  if v_file.source <> 'made' then
-    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
-  end if;
-  -- A Google press is one call: one that died between its placement and its answer stops holding the next press after ten
-  -- minutes, in the words the files sweep says it with (contracts FILE_WORDS.google.unknown). Whether it went up is still
-  -- the edge's events' to say.
-  update public.posts p
-     set status = 'failed', updated_at = now(),
-         error = jsonb_build_object('code', null, 'subcode', null, 'words',
-                                    'Google did not say whether this went up. Look on your profile before posting it again.')
-   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
-     and p.updated_at < now() - interval '10 minutes';
-  -- A post and a story wait apart (00620): busy is one of the same kind on its way at that place.
-  select p.id into v_busy from public.posts p
-   where p.file_id = p_file_id and p.place = p_place and p.kind = p_kind
-     and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
-  if found then
-    return jsonb_build_object('fate', 'busy', 'post_id', v_busy);
-  end if;
-  insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status)
-  values (p_tenant_id, p_file_id, p_place, p_kind,
-          case when p_kind = 'story' then null else nullif(btrim(p_caption), '') end,
-          v_when, v_actor, now(), coalesce(p_via, 'press'),
-          -- Google for now is asked by the press itself, in the same moment; for later, and Instagram's send, is a job.
-          case when p_place = 'google' and not v_later then 'publishing' else 'queued' end)
-  returning id into v_id;
-  if p_place = 'instagram' then
-    -- Ten minutes ahead of its time, so Instagram has made it ready by then. As text: a job's once-only key is made of strings.
-    insert into public.jobs (tenant_id, kind, due_at, payload)
-    values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
-            jsonb_build_object('post_id', v_id, 'attempt', '1'));
-  elsif v_later then
-    -- Google fetches the picture as it is asked, so the job is due at the post's own time.
-    insert into public.jobs (tenant_id, kind, due_at, payload)
-    values (p_tenant_id, 'post_google', v_when, jsonb_build_object('post_id', v_id, 'attempt', '1'));
-  end if;
-  return jsonb_build_object('fate', 'begun', 'post_id', v_id);
+  -- The line as apps/edge post-told.ts writes it, about the file: its words are contracts TAKE_DOWN_BELL.byHand, which
+  -- a test holds to this literal; a place the bell has no name for closes nothing.
+  update public.notifications n set closed_at = now()
+   where n.tenant_id = p_tenant_id and n.kind = 'post_by_hand'
+     and n.subject_type = 'file' and n.subject_id = p_file_id::text
+     and n.closed_at is null
+     and n.title like 'Delete it in '
+                      || case p_place when 'instagram' then 'Instagram' when 'google' then 'Google' when 'facebook' then 'Facebook' end
+                      || ' · %';
+  get diagnostics v_closed = row_count;
+  return v_closed;
 end $$;
 
 
 --
--- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620, 00687): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, post_id}.';
+COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) IS 'The bell''s "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00707; the content loop PRD''s 8.3): no post of it up there has a newest take-down a place left to them. Asked by post_take_down_keep and by a done of post_take_down_settle; nobody''s to call from outside. Answers how many lines it closed.';
+
+
+--
+-- Name: post_comment_keep(uuid, text, text, text, text, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post    public.posts%rowtype;
+  v_person  jsonb;
+  v_contact uuid;
+  v_new     boolean;
+  v_kept    jsonb;
+begin
+  if nullif(btrim(coalesce(p_from, '')), '') is null or nullif(btrim(coalesce(p_comment_id, '')), '') is null then
+    raise exception 'post_comment_keep: a comment has an author and an id' using errcode = '22004';
+  end if;
+  -- A comment on a post Chanlytics sent, to the account it went to. One on a post made by hand is not kept here.
+  select * into v_post from public.posts p
+   where p.tenant_id = p_tenant_id and p.place = 'instagram' and p.external_id = p_media_id
+     and (p.account_id is null or p.account_id = p_account)
+   order by p.published_at desc nulls last
+   limit 1;
+  if not found then
+    return jsonb_build_object('kept', false, 'why', 'not_ours');
+  end if;
+  if exists (select 1 from public.touches t
+              where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = p_comment_id) then
+    return jsonb_build_object('kept', false, 'why', 'again', 'post_id', v_post.id);
+  end if;
+  -- The person by their Instagram-scoped id, the one a DM's sender carries: found, or made by this comment.
+  v_person := public.resolve_person(p_tenant_id, 'instagram', btrim(p_from), null, null,
+                                    nullif(btrim(coalesce(p_username, '')), ''), 'observed', 'inbound',
+                                    '{}'::jsonb, now());
+  v_contact := (v_person->>'contact_id')::uuid;
+  v_new := not coalesce((v_person->>'existed')::boolean, true);
+  if v_new then
+    perform public.person_set_first_touch(p_tenant_id, v_contact, 'instagram', null, null);
+  end if;
+  v_kept := public.touches_keep(p_tenant_id, 'comment', 'post', v_post.id, v_contact, 'instagram', btrim(p_comment_id),
+                              coalesce(p_at, now()), null, null, v_new,
+                              jsonb_strip_nulls(jsonb_build_object(
+                                'words', left(nullif(btrim(coalesce(p_words, '')), ''), 2200),
+                                'username', nullif(btrim(coalesce(p_username, '')), ''),
+                                'thread', nullif(btrim(coalesce(p_parent_id, '')), ''))));
+  -- AI's draft of a public answer, in this transaction: a delivery Meta sends again finds the comment kept, and its job.
+  if (v_kept->>'kept')::boolean then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'comment_reply', now(),
+            jsonb_build_object('touch_id', v_kept->>'touch_id', 'step', 'draft'));
+  end if;
+  return v_kept || jsonb_build_object('post_id', v_post.id, 'contact_id', v_contact, 'new_person', v_new);
+end $$;
+
+
+--
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) IS 'A person''s comment on a post Chanlytics sent (00699; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to, the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram), the comment kept once as a touch with its words and thread, and AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
+
+
+--
+-- Name: post_link_make(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_lands text;
+  v_link  public.links%rowtype;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'post_link_make: not a member who may act here' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    raise exception 'post_link_make: no such post in this workspace' using errcode = 'P0002';
+  end if;
+  select * into v_link from public.links l
+   where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+  if not found then
+    -- Its call to action decides where it lands: the booking page where the piece was made to send people there, a
+    -- chat with the business everywhere else ("Message us", call 23).
+    select case when pc.intent->>'call_to_action' = 'book' then 'booking' else 'chat' end into v_lands
+      from public.pieces pc where pc.tenant_id = p_tenant_id and pc.id = v_post.piece_id;
+    insert into public.links (tenant_id, subject_type, subject_id, place, lands, created_by)
+    values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
+    on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
+    returning * into v_link;
+    if v_link.id is null then
+      select * into v_link from public.links l
+       where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+    end if;
+  end if;
+  return jsonb_build_object('link_id', v_link.id, 'code', v_link.code, 'lands', v_link.lands,
+                            'stopped', v_link.stopped_at is not null,
+                            'opens', coalesce((select sum(d.opens) from public.link_days d
+                                                where d.tenant_id = p_tenant_id and d.link_id = v_link.id), 0));
+end $$;
+
+
+--
+-- Name: FUNCTION post_link_make(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) IS 'A post''s one link, made on first ask (00699; the content loop PRD''s 9.2, call 23): landing on a chat with the business carrying the post''s code, or on the booking page where the piece was made to send people there. Answers {link_id, code, lands, stopped, opens}. A member who may act (is_acting_member).';
 
 
 --
@@ -29845,7 +31323,8 @@ begin
     select p.tenant_id, 'post_reconcile', now() + interval '2 minutes',
            jsonb_build_object('post_id', p.id, 'attempt', 'seen', 'seen', 'ask')
       from public.posts p
-     where p.id = p_post_id and p.place = 'instagram' and p.verified_at is null and p.external_id is not null
+     where p.id = p_post_id and p.place in ('instagram', 'facebook') and p.verified_at is null
+       and p.external_id is not null
     on conflict do nothing;
   end if;
   return v_moved;
@@ -29856,7 +31335,120 @@ end $$;
 -- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram or a Facebook Page (00707) unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+
+
+--
+-- Name: post_observations_due(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_observations_due(p_limit integer DEFAULT 200) RETURNS TABLE(tenant_id uuid, post_id uuid, step text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select p.tenant_id, p.id, s.step
+    from public.posts p
+    cross join (values ('1h', interval '1 hour', interval '1 hour'),
+                       ('1d', interval '1 day', interval '22 hours'),
+                       ('3d', interval '3 days', null),
+                       ('7d', interval '7 days', null),
+                       ('28d', interval '28 days', null)) as s(step, after, story_after)
+   where p.status = 'published' and p.place in ('instagram', 'google') and p.published_at is not null
+     and p.published_at > now() - interval '29 days'
+     and (p.kind <> 'story' or (s.story_after is not null and p.published_at + interval '1 day' > now()))
+     and p.published_at + case when p.kind = 'story' then s.story_after else s.after end <= now()
+     and not exists (select 1 from public.post_observations o
+                      where o.tenant_id = p.tenant_id and o.post_id = p.id and o.step = s.step)
+   order by p.published_at + case when p.kind = 'story' then s.story_after else s.after end
+   limit greatest(1, least(coalesce(p_limit, 200), 1000));
+$$;
+
+
+--
+-- Name: FUNCTION post_observations_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699, 00705; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. A story is read at its hour and at 22 hours, and asked nothing once its day is over, since Instagram has no numbers for an ended story. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
+
+
+--
+-- Name: post_observations_keep(uuid, uuid, text, jsonb, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer DEFAULT 1) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_count integer;
+begin
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    return 0;
+  end if;
+  insert into public.post_observations as o (tenant_id, post_id, place, step, metric, availability, value,
+                                             period_start, period_end, observed_at, definition_edition, raw)
+  select p_tenant_id, p_post_id, v_post.place, p_step, r.metric, r.availability,
+         case when r.availability = 'available' then r.value end,
+         coalesce(v_post.published_at, v_post.created_at), now(), now(), coalesce(p_definition_edition, 1),
+         jsonb_strip_nulls(jsonb_build_object('value', r.value))
+    from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) as r(metric text, availability text, value numeric)
+  on conflict (tenant_id, post_id, step, metric) do update
+    set availability = excluded.availability, value = excluded.value, period_end = excluded.period_end,
+        observed_at = excluded.observed_at, definition_edition = excluded.definition_edition, raw = excluded.raw;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) IS 'One read of a post''s numbers, every number at once (00699): [{metric, availability, value}], a value kept only where it was there. A read asked again at its step writes over itself. Answers the rows written; 0 for a post that is gone. The service role''s: post_observe''s.';
+
+
+--
+-- Name: post_own_comment_keep(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_touch uuid;
+begin
+  if nullif(btrim(coalesce(p_parent_id, '')), '') is null then
+    return false;
+  end if;
+  -- Our own answer, delivered back by Meta, is ours already.
+  if exists (select 1 from public.comment_answers a
+              where a.tenant_id = p_tenant_id and a.external_id = btrim(p_comment_id)) then
+    return false;
+  end if;
+  select t.id into v_touch from public.touches t
+   where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = btrim(p_parent_id)
+     and t.kind = 'comment';
+  if v_touch is null then
+    return false;
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, by_hand, external_id, sent_at)
+  values (p_tenant_id, v_touch, 'sent', true, btrim(p_comment_id), now())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
+        updated_at = now()
+    where comment_answers.state <> 'sent';
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) IS 'The business''s own comment, under a person''s comment kept here (00699): that comment is answered, by hand in the Instagram app. Our own answer delivered back changes nothing. True when it marked one. The service role''s.';
 
 
 --
@@ -30118,16 +31710,9 @@ begin
      set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
    where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
      and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
-  -- The bell's line for this piece at this place (apps/edge post-told.ts: "Delete it in Instagram · <the piece>",
-  -- about the file) is closed here, for every device. Its words are contracts TAKE_DOWN_BELL.byHand, which a test
-  -- holds to this literal; a place the bell has no name for closes nothing.
-  update public.notifications n set closed_at = now()
-   where n.tenant_id = p_tenant_id and n.kind = 'post_by_hand'
-     and n.subject_type = 'file' and n.subject_id = v_post.file_id::text
-     and n.closed_at is null
-     and n.title like 'Delete it in '
-                      || case v_post.place when 'instagram' then 'Instagram' when 'google' then 'Google' end
-                      || ' · %';
+  -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
+  -- its owner (00698): a story of it still to delete keeps the line.
+  perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
   return v_answer;
 end $$;
 
@@ -30136,7 +31721,7 @@ end $$;
 -- Name: FUNCTION post_take_down_keep(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes, and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00689; the content loop PRD''s 8.3): "Keep it up", of a post still up whose newest take-down a place left to the owner. The action says left_up, with who and when, as does any older take-down of that post a place left to the owner; the bell''s line for that piece at that place closes once nothing of the piece there is left to its owner (00698), and nothing is asked of the place: the post stays up until Take down is pressed again. Answers {fate: left_up (with post_id, file_id, place; also where it was said already), asking (the place has not answered), done (it came down), not_up (the post is no longer up), unknown}.';
 
 
 --
@@ -30180,6 +31765,11 @@ begin
                       where x.remediation_id = m.id and x.outcome = 'pending');
   select p.file_id, p.place into v_file, v_place from public.posts p
    where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- Gone from its place: where nothing else of the piece there is left to its owner, the bell's line for it ends
+  -- (00698). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
+  if p_outcome = 'done' then
+    perform public.post_by_hand_bell_settle(v_action.tenant_id, v_file, v_place);
+  end if;
   -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
   select jsonb_agg(distinct q.place) into v_places
     from public.remediation_actions x
@@ -30196,7 +31786,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}. Since 00698 a done also ends the bell''s line for the piece at that place, where nothing else of it there is left to its owner.';
 
 
 --
@@ -42074,6 +43664,166 @@ COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setu
 
 
 --
+-- Name: setup_rows(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.setup_rows(p_tenant_id uuid, p_roster boolean) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select jsonb_build_object(
+    'config', coalesce(
+      (select jsonb_build_object(
+                'tenant_id', c.tenant_id, 'config', c.config, 'version', c.version, 'updated_at', c.updated_at,
+                'updated_by', c.updated_by, 'feed_hidden', false)
+         from public.tenant_config c
+        where c.tenant_id = p_tenant_id),
+      (select to_jsonb(r) from public.tenant_config_read(p_tenant_id) r)),
+    'mailbox', (select to_jsonb(m) from public.mailboxes m where m.tenant_id = p_tenant_id),
+    'channels',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'kind', c.kind, 'status', c.status, 'number_e164', c.number_e164, 'config', c.config,
+                'created_at', c.created_at)), '[]'::jsonb)
+         from public.tenant_channels c
+        where c.tenant_id = p_tenant_id),
+    'last_whatsapp',
+      (select jsonb_build_object('channel_ts', m.channel_ts, 'created_at', m.created_at)
+         from public.messages m
+        where m.tenant_id = p_tenant_id and m.direction = 'inbound' and m.channel = 'whatsapp'
+        order by m.channel_ts desc nulls last
+        limit 1),
+    'last_call',
+      (select jsonb_build_object('started_at', k.started_at)
+         from public.calls k
+        where k.tenant_id = p_tenant_id and k.direction = 'inbound' and k.status <> 'not_connected'
+        order by k.started_at desc nulls last
+        limit 1),
+    'templates',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'name', p.name, 'meta_status', p.meta_status, 'hidden_at', p.hidden_at)), '[]'::jsonb)
+         from public.templates p
+        where p.tenant_id = p_tenant_id and p.channel = 'whatsapp'),
+    -- The roster in the order team_roster answers it (by when each joined); asked only where p_roster says so, since
+    -- it refuses anyone who is not a member, and the service role is not one.
+    'roster', case when p_roster then
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'membership_id', r.membership_id, 'member_user_id', r.member_user_id, 'email', r.email,
+                'role', r.role, 'joined_at', r.joined_at, 'display_name', r.display_name) order by r.n), '[]'::jsonb)
+         from public.team_roster(p_tenant_id)
+              with ordinality as r(membership_id, member_user_id, email, role, joined_at, display_name, n))
+    end,
+    'members', case when not p_roster then
+      (select count(*) from public.memberships m where m.tenant_id = p_tenant_id and m.role <> 'partner')
+    end,
+    'invitations',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'id', i.id, 'email', i.email, 'role', i.role, 'created_at', i.created_at,
+                'expires_at', i.expires_at) order by i.created_at), '[]'::jsonb)
+         from public.invitations i
+        where i.tenant_id = p_tenant_id and i.accepted_at is null and i.revoked_at is null),
+    'people',
+      (select jsonb_build_object(
+                'said_yes', count(*) filter (where c.consent = 'opted_in'),
+                'offers_yes', count(*) filter (where c.marketing_consent = 'opted_in' and c.dnc = false),
+                'offers_reach', count(*) filter (
+                  where c.marketing_consent = 'opted_in' and c.dnc = false and c.phone_e164 is not null),
+                'all', count(*) filter (where c.merged_into_contact_id is null))
+         from public.contacts c
+        where c.tenant_id = p_tenant_id and c.erased_at is null),
+    'asks',
+      (select coalesce(jsonb_agg(jsonb_build_object('created_at', e.created_at, 'data', e.data)
+                                 order by e.created_at desc), '[]'::jsonb)
+         from (select x.created_at, x.data
+                 from public.events x
+                where x.tenant_id = p_tenant_id and x.kind = 'setup.requested'
+                order by x.created_at desc
+                limit 30) e),
+    'lines',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'id', l.id, 'e164', l.e164, 'kind', l.kind, 'provider', l.provider, 'area_code', l.area_code,
+                'voice_state', l.voice_state, 'sms_state', l.sms_state, 'reg_step', l.reg_step,
+                'reg_mock', l.reg_mock, 'reg_sole_prop', l.reg_sole_prop, 'whatsapp_state', l.whatsapp_state,
+                'port_state', l.port_state, 'forwarding_state', l.forwarding_state, 'step', l.step,
+                'last_error', l.last_error, 'state_since', l.state_since, 'created_at', l.created_at,
+                'facts', l.facts) order by l.created_at), '[]'::jsonb)
+         from public.lines l
+        where l.tenant_id = p_tenant_id),
+    'listing',
+      (select jsonb_build_object(
+                'place_id', g.place_id, 'name', g.name, 'address', g.address, 'maps_uri', g.maps_uri,
+                'business_status', g.business_status, 'rating', g.rating, 'review_count', g.review_count,
+                'linked_at', g.linked_at, 'checked_at', g.checked_at, 'check_error', g.check_error)
+         from public.google_listings g
+        where g.tenant_id = p_tenant_id),
+    'listing_facts',
+      (select jsonb_build_object('name', g.name, 'address', g.address, 'facts', g.facts)
+         from public.google_listings g
+        where g.tenant_id = p_tenant_id),
+    'google',
+      (select jsonb_build_object(
+                'google_email', g.google_email, 'account_title', g.account_title, 'location_name', g.location_name,
+                'location_title', g.location_title, 'connected_at', g.connected_at,
+                'last_synced_at', g.last_synced_at, 'sync_error', g.sync_error)
+         from public.google_connections g
+        where g.tenant_id = p_tenant_id),
+    'billing',
+      (select jsonb_build_object(
+                'mode', b.mode, 'status', b.status, 'price_id', b.price_id,
+                'current_period_end', b.current_period_end, 'trial_end', b.trial_end, 'cancel_at', b.cancel_at,
+                'cancel_at_period_end', b.cancel_at_period_end, 'card_brand', b.card_brand,
+                'card_last4', b.card_last4, 'last_payment_failed_at', b.last_payment_failed_at,
+                'last_paid_at', b.last_paid_at, 'updated_at', b.updated_at)
+         from public.billing_accounts b
+        where b.tenant_id = p_tenant_id),
+    'activations',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'capability', a.capability, 'activated_at', a.activated_at, 'activated_by', a.activated_by,
+                'deactivated_at', a.deactivated_at)), '[]'::jsonb)
+         from public.capability_activations a
+        where a.tenant_id = p_tenant_id),
+    'day_before', exists (
+      select 1 from public.sequence_steps s
+       where s.tenant_id = p_tenant_id and s.state = 'running' and s.trigger = 'visit_tomorrow'),
+    'rehearsals',
+      (select jsonb_build_object(
+                'reviewed', count(*) filter (where h.reviewed_at is not null),
+                'kept', coalesce(sum(jsonb_array_length(h.fixes)) filter (where jsonb_typeof(h.fixes) = 'array'), 0),
+                'last_at', max(h.created_at))
+         from (select x.created_at, x.reviewed_at, x.fixes
+                 from public.rehearsals x
+                where x.tenant_id = p_tenant_id
+                order by x.created_at desc
+                limit 500) h),
+    'imports',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'source', m.source, 'connection_id', m.connection_id, 'state', m.state, 'counts', m.counts,
+                'parts_done', m.parts_done, 'parts_total', m.parts_total, 'oldest', m.oldest,
+                'started_at', m.started_at, 'finished_at', m.finished_at, 'last_error', m.last_error,
+                'via', m.via)), '[]'::jsonb)
+         from public.imports m
+        where m.tenant_id = p_tenant_id),
+    'business_reads',
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'source', r.source, 'facts', r.facts, 'read_from', r.read_from, 'read_at', r.read_at,
+                'error', r.error)), '[]'::jsonb)
+         from public.business_reads r
+        where r.tenant_id = p_tenant_id),
+    'choices',
+      (select jsonb_build_object('phone', s.phone, 'whatsapp', s.whatsapp, 'marks', s.marks, 'version', s.version)
+         from public.setup_choices s
+        where s.tenant_id = p_tenant_id)
+  )
+$$;
+
+
+--
+-- Name: FUNCTION setup_rows(p_tenant_id uuid, p_roster boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.setup_rows(p_tenant_id uuid, p_roster boolean) IS 'Every row Setup reads of a workspace, in one call (00700): read as the caller, under the same policies as each read it stands for. p_roster reads the team as its roster (a member''s view), else counts its members (the back office).';
+
+
+--
 -- Name: slug_for_workspace(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -44189,6 +45939,130 @@ COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written
 
 
 --
+-- Name: touches_age_out(timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_age_out(p_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_before timestamptz := coalesce(p_before, now() - interval '180 days');
+  v_count integer;
+begin
+  update public.touches t
+     set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb, emptied_at = now()
+   where t.emptied_at is null and t.at < v_before and not t.new_person;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_age_out(p_before timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_age_out(p_before timestamp with time zone) IS 'Touches older than 180 days (or p_before) keep their counts only: who, where and what was said are emptied (00699; Appendix A.9, call 35). The touch that made a person stays while the person does. Answers how many it emptied. The service role''s, run by the health sweep.';
+
+
+--
+-- Name: touches_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    update public.touches t
+       set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb,
+           emptied_at = coalesce(t.emptied_at, now())
+     where t.tenant_id = new.tenant_id and t.contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_erase_on_contact() IS 'A person erased (decision 0036; erase_contact keeps the person''s row as a tombstone, so no foreign key reaches this): their touches keep only that they happened, of what and when; who, where and what was said are emptied (00699).';
+
+
+--
+-- Name: touches_follow_merge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_follow_merge() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.merged_into_contact_id is not null and old.merged_into_contact_id is null then
+    update public.touches t
+       set contact_id = new.merged_into_contact_id
+     where t.tenant_id = new.tenant_id and t.contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION touches_follow_merge(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_follow_merge() IS 'When two records of one person are combined, the touches of the one merged away go to the one kept (00699; Appendix A.3): what a person answered is theirs, in the merge itself.';
+
+
+--
+-- Name: touches_keep(uuid, text, text, uuid, uuid, text, text, timestamp with time zone, uuid, uuid, boolean, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid DEFAULT NULL::uuid, p_message_id uuid DEFAULT NULL::uuid, p_new_person boolean DEFAULT NULL::boolean, p_evidence jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id  uuid;
+  v_new boolean := p_new_person;
+begin
+  if p_contact_id is null then
+    raise exception 'touches_keep: a touch is a known person''s' using errcode = '22004';
+  end if;
+  -- Unsaid, a touch on a message made the person when they had written nothing before it.
+  if v_new is null and p_message_id is not null then
+    v_new := not exists (
+      select 1 from public.messages m
+       where m.tenant_id = p_tenant_id and m.contact_id = p_contact_id and m.id <> p_message_id
+         and m.direction = 'inbound'
+         and m.created_at < (select x.created_at from public.messages x
+                              where x.tenant_id = p_tenant_id and x.id = p_message_id));
+  end if;
+  insert into public.touches (tenant_id, subject_type, subject_id, kind, contact_id, conversation_id, message_id,
+                              new_person, place, provider_event_id, at, evidence)
+  values (p_tenant_id, p_subject_type, p_subject_id, p_kind, p_contact_id, p_conversation_id, p_message_id,
+          coalesce(v_new, false), p_place, p_event_id, coalesce(p_at, now()), coalesce(p_evidence, '{}'::jsonb))
+  on conflict (tenant_id, place, provider_event_id) do nothing
+  returning id into v_id;
+  if v_id is null then
+    select t.id into v_id from public.touches t
+     where t.tenant_id = p_tenant_id and t.place = p_place and t.provider_event_id = p_event_id;
+    return jsonb_build_object('kept', false, 'touch_id', v_id);
+  end if;
+  return jsonb_build_object('kept', true, 'touch_id', v_id);
+end $$;
+
+
+--
+-- Name: FUNCTION touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) IS 'A known person''s touch, kept once by the place''s own id (00699; Appendix A.5): {kept, touch_id}; kept false for one already there. Whether it made the person is said by the caller, or, for a touch on a message, read: they had written nothing before it. The service role''s: the edge''s inbound steps call it for a reply to a story and a coded first message.';
+
+
+--
 -- Name: trial_use(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -46008,7 +47882,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text, 'form_draft'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text, 'form_draft'::text, 'comment_reply'::text, 'comment_rewrite'::text, 'post_words'::text, 'content_line'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -46210,10 +48084,14 @@ CREATE TABLE public.appointments (
     lapse_told boolean,
     worth_minor bigint,
     worth_currency text,
+    through_type text,
+    through_id uuid,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
     CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
     CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text]))),
+    CONSTRAINT appointments_through_type_check CHECK ((through_type = ANY (ARRAY['post'::text, 'ad'::text, 'link'::text, 'form'::text]))),
+    CONSTRAINT appointments_through_whole CHECK (((through_type IS NULL) = (through_id IS NULL))),
     CONSTRAINT appointments_worth_check CHECK ((((worth_minor IS NULL) = (worth_currency IS NULL)) AND ((worth_minor IS NULL) OR ((worth_minor >= 0) AND (worth_currency ~ '^[A-Z]{3}$'::text)))))
 );
 
@@ -46279,6 +48157,20 @@ COMMENT ON COLUMN public.appointments.worth_minor IS 'What the visit is worth (0
 --
 
 COMMENT ON COLUMN public.appointments.worth_currency IS 'The currency worth_minor is in, ISO 4217 (00683). Null exactly where worth_minor is.';
+
+
+--
+-- Name: COLUMN appointments.through_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.through_type IS 'What the visit answered (00699; the content loop PRD''s 9.3, Appendix A.7, call 39): post, ad, link or form, stamped when it was asked for or added in a conversation (appointments_through_stamp). Null for a visit that came any other way. "From this post" reads this.';
+
+
+--
+-- Name: COLUMN appointments.through_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.through_id IS 'The id of what the visit answered (through_type''s record), stamped with it.';
 
 
 --
@@ -46930,6 +48822,42 @@ COMMENT ON COLUMN public.client_errors.member_key IS 'The first 16 hex of sha256
 
 
 --
+-- Name: comment_answers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.comment_answers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    touch_id uuid NOT NULL,
+    state text NOT NULL,
+    draft text,
+    cannot_why text,
+    words text,
+    sent_by uuid,
+    by_hand boolean DEFAULT false NOT NULL,
+    external_id text,
+    said text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT comment_answers_cannot_why_check CHECK (((cannot_why IS NULL) OR ((char_length(cannot_why) >= 1) AND (char_length(cannot_why) <= 300)))),
+    CONSTRAINT comment_answers_draft_check CHECK (((draft IS NULL) OR ((char_length(draft) >= 1) AND (char_length(draft) <= 2200)))),
+    CONSTRAINT comment_answers_external_id_check CHECK (((external_id IS NULL) OR ((char_length(external_id) >= 1) AND (char_length(external_id) <= 200)))),
+    CONSTRAINT comment_answers_said_check CHECK (((said IS NULL) OR ((char_length(said) >= 1) AND (char_length(said) <= 300)))),
+    CONSTRAINT comment_answers_shape CHECK ((((state <> 'sending'::text) OR (words IS NOT NULL)) AND ((state <> 'sent'::text) OR (external_id IS NOT NULL)) AND ((state <> 'cannot'::text) OR (cannot_why IS NOT NULL)))),
+    CONSTRAINT comment_answers_state_check CHECK ((state = ANY (ARRAY['drafted'::text, 'cannot'::text, 'sending'::text, 'sent'::text, 'failed'::text, 'left'::text]))),
+    CONSTRAINT comment_answers_words_check CHECK (((words IS NULL) OR ((char_length(words) >= 1) AND (char_length(words) <= 2200))))
+);
+
+
+--
+-- Name: TABLE comment_answers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.comment_answers IS 'A public answer to a comment on a post, one per comment (00699; the content loop PRD''s 12.4): AI''s draft or why it could not answer safely, then the owner''s words and what Instagram said. The business speaking in public: AI drafts, the owner sends, until that rung is moved. Written by comment_answer_draft_keep, comment_answer_send, comment_answer_settle, comment_answer_leave and post_own_comment_keep; members read.';
+
+
+--
 -- Name: contact_identities; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -46991,6 +48919,64 @@ CREATE TABLE public.contact_reads (
 --
 
 COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00349). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
+
+
+--
+-- Name: content_goals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.content_goals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    goal text NOT NULL,
+    detail jsonb DEFAULT '{}'::jsonb NOT NULL,
+    weight real DEFAULT 1 NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT content_goals_detail_check CHECK ((jsonb_typeof(detail) = 'object'::text)),
+    CONSTRAINT content_goals_goal_check CHECK ((goal = ANY (ARRAY['fill_slow_days'::text, 'introduce_service'::text, 'repeat_visits'::text, 'awareness'::text, 'reviews'::text]))),
+    CONSTRAINT content_goals_weight_check CHECK (((weight > (0)::double precision) AND (weight <= (1)::double precision)))
+);
+
+
+--
+-- Name: TABLE content_goals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.content_goals IS 'What a business''s posts are for (00706; the content loop PRD''s 5.3): a goal from a closed set, what it is about, how much it weighs, whether it stands. What the database holds, never rows a screen offers. Members read; content_goals_keep writes the whole set at once.';
+
+
+--
+-- Name: content_plans; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.content_plans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    week_of date NOT NULL,
+    status text DEFAULT 'drafting'::text NOT NULL,
+    asked_by text NOT NULL,
+    fewer text,
+    approval_id uuid,
+    asked_at timestamp with time zone DEFAULT now() NOT NULL,
+    ready_at timestamp with time zone,
+    approved_at timestamp with time zone,
+    approved_by uuid,
+    done_at timestamp with time zone,
+    CONSTRAINT content_plans_approved_shape CHECK (((status = 'approved'::text) <= (approved_at IS NOT NULL))),
+    CONSTRAINT content_plans_asked_by_check CHECK ((asked_by = ANY (ARRAY['clock'::text, 'owner'::text]))),
+    CONSTRAINT content_plans_fewer_check CHECK (((fewer IS NULL) OR ((char_length(fewer) >= 1) AND (char_length(fewer) <= 280)))),
+    CONSTRAINT content_plans_status_check CHECK ((status = ANY (ARRAY['drafting'::text, 'ready'::text, 'approved'::text, 'done'::text]))),
+    CONSTRAINT content_plans_week_of_check CHECK ((EXTRACT(isodow FROM week_of) = (1)::numeric))
+);
+
+
+--
+-- Name: TABLE content_plans; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.content_plans IS 'A week of posts (00706; the content loop PRD''s 5.3 and 8.4): one a workspace a week, drafted Sunday evening in its zone or when the owner asks, ready by Monday 8:00, approved in one press, done once the week has passed. Why it is smaller than the cadence asks, where it is. Members read; content_plan_ask, content_plan_write and content_week_approve write.';
 
 
 --
@@ -47487,6 +49473,46 @@ COMMENT ON COLUMN public.file_archives.why IS 'Why a copy failed or is gone, and
 
 
 --
+-- Name: file_moments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.file_moments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    file_id uuid NOT NULL,
+    start_s real NOT NULL,
+    end_s real NOT NULL,
+    shows text[] DEFAULT '{}'::text[] NOT NULL,
+    faces integer,
+    sharp real,
+    words text,
+    score real NOT NULL,
+    confidence real NOT NULL,
+    model_edition integer NOT NULL,
+    corrected_by uuid,
+    corrected_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT file_moments_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision))),
+    CONSTRAINT file_moments_corrected_shape CHECK (((corrected_by IS NULL) OR (corrected_at IS NOT NULL))),
+    CONSTRAINT file_moments_faces_check CHECK (((faces IS NULL) OR (faces >= 0))),
+    CONSTRAINT file_moments_model_edition_check CHECK ((model_edition >= 1)),
+    CONSTRAINT file_moments_score_check CHECK (((score >= (0)::double precision) AND (score <= (1)::double precision))),
+    CONSTRAINT file_moments_sharp_check CHECK (((sharp IS NULL) OR ((sharp >= (0)::double precision) AND (sharp <= (1)::double precision)))),
+    CONSTRAINT file_moments_shows_check CHECK ((cardinality(shows) <= 8)),
+    CONSTRAINT file_moments_span CHECK ((end_s > start_s)),
+    CONSTRAINT file_moments_start_s_check CHECK ((start_s >= (0)::double precision)),
+    CONSTRAINT file_moments_words_check CHECK (((words IS NULL) OR (char_length(words) <= 2000)))
+);
+
+
+--
+-- Name: TABLE file_moments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.file_moments IS 'A clip''s best moments (00706; the content loop PRD''s 5.3 and 10.3), written when a plan wants them: from the look''s own moments and the hearing''s words, with their score, confidence and the look''s edition; a member''s correction (a new start and end) kept and preferred. Members read; file_moments_keep writes.';
+
+
+--
 -- Name: files; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -47803,6 +49829,26 @@ COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''
 
 
 --
+-- Name: form_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_days (
+    form_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    booking_opens integer DEFAULT 0 NOT NULL,
+    CONSTRAINT form_days_booking_opens_check CHECK ((booking_opens >= 0))
+);
+
+
+--
+-- Name: TABLE form_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_days IS 'What a form brought by day (UTC) that is no entry (00691): how often the business''s own booking page was opened from it, written by form_booking_open alone. A count, never a visitor: no cookie, no address, and nothing booked there is claimed.';
+
+
+--
 -- Name: form_entries; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -47829,13 +49875,15 @@ CREATE TABLE public.form_entries (
     held_why text,
     code text,
     code_used_at timestamp with time zone,
+    outside_form_id uuid,
     CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
     CONSTRAINT form_entries_code_check CHECK (((code IS NULL) OR (code ~ '^[A-HJ-NP-Z2-9]{6}$'::text))),
     CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
     CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
     CONSTRAINT form_entries_form_names_version CHECK (((form_id IS NULL) = (version_id IS NULL))),
     CONSTRAINT form_entries_held_says_why CHECK (((state = 'held'::text) = (held_why IS NOT NULL))),
-    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text])))),
+    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text, 'elsewhere'::text])))),
+    CONSTRAINT form_entries_one_form CHECK (((form_id IS NULL) OR (outside_form_id IS NULL))),
     CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
     CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
     CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
@@ -47920,7 +49968,7 @@ COMMENT ON COLUMN public.form_entries.test IS 'A test its owner sent: it tells n
 -- Name: COLUMN form_entries.held_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member).';
+COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), a member said it is not a real request (member), or it was sent straight to the form''s address and not from its own page (elsewhere, 00703).';
 
 
 --
@@ -47928,6 +49976,13 @@ COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a l
 --
 
 COMMENT ON COLUMN public.form_entries.code IS 'The short code the thank-you carries into a chat: six characters, the workspace''s own, good once (code_used_at) and for 30 days.';
+
+
+--
+-- Name: COLUMN form_entries.outside_form_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.outside_form_id IS 'The form owned elsewhere this entry is of (00709): a website''s. An entry names a form made here (form_id) or one of these, never both; a test names neither.';
 
 
 --
@@ -47970,6 +50025,7 @@ CREATE TABLE public.form_keys (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_used_at timestamp with time zone,
     ends_at timestamp with time zone,
+    site_id uuid,
     CONSTRAINT form_keys_hash_check CHECK (((hash IS NULL) OR (hash ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT form_keys_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60)))),
     CONSTRAINT form_keys_one_way CHECK (((first = (hash IS NULL)) AND (first = (name IS NULL))))
@@ -47988,6 +50044,38 @@ COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675;
 --
 
 COMMENT ON COLUMN public.form_keys.ends_at IS 'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
+
+
+--
+-- Name: COLUMN form_keys.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_keys.site_id IS 'The site the key proves (00709): set as the key is made, carried to the key it is changed for, and made at the first key''s first use.';
+
+
+--
+-- Name: form_sites; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_sites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text,
+    host text,
+    first_entry_at timestamp with time zone,
+    last_entry_at timestamp with time zone,
+    test_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT form_sites_host_check CHECK (((host IS NULL) OR (((char_length(host) >= 1) AND (char_length(host) <= 253)) AND (host ~ '^[a-z0-9][a-z0-9.-]*$'::text)))),
+    CONSTRAINT form_sites_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60))))
+);
+
+
+--
+-- Name: TABLE form_sites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_sites IS 'A website a business sends form entries from (00709; Campaigns in three tabs, Lane B): the name the owner gave it with its first key, its host as its entries'' pages name it, when its first and last real entry came, and when a test last came. Its keys name it (form_keys.site_id), so a key changed keeps the site. Members read them; form_key_make makes one, and form_entry_take stamps it.';
 
 
 --
@@ -49527,9 +51615,14 @@ CREATE TABLE public.links (
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     stopped_at timestamp with time zone,
+    lands text,
+    sites text[],
     CONSTRAINT links_code_check CHECK ((code ~ '^[a-hjkmnp-z2-9]{6}$'::text)),
+    CONSTRAINT links_lands_a_post CHECK (((subject_type = 'post'::text) = (lands IS NOT NULL))),
+    CONSTRAINT links_lands_check CHECK ((lands = ANY (ARRAY['chat'::text, 'booking'::text]))),
     CONSTRAINT links_place_check CHECK (((char_length(btrim(place)) >= 1) AND (char_length(btrim(place)) <= 60))),
-    CONSTRAINT links_subject_type_check CHECK ((subject_type = 'form'::text))
+    CONSTRAINT links_sites_check CHECK (((sites IS NULL) OR ((cardinality(sites) <= 10) AND (array_position(sites, NULL::text) IS NULL) AND ((cardinality(sites) = 0) OR (array_to_string(sites, ' '::text) ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+( [a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+)*$'::text))))),
+    CONSTRAINT links_subject_type_check CHECK ((subject_type = ANY (ARRAY['form'::text, 'post'::text])))
 );
 
 
@@ -49538,6 +51631,20 @@ CREATE TABLE public.links (
 --
 
 COMMENT ON TABLE public.links IS 'A short link for one place a thing of the business''s is shared (00680; the content loop PRD''s Appendix A): its code, what it opens (a form, so far), where it is shared in the owner''s words, whether it is the one printed as a code, and when it was stopped. A code says nothing by itself. Members read; a member who may act makes one, renames it and stops it; link_open reads it for a visitor.';
+
+
+--
+-- Name: COLUMN links.lands; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.links.lands IS 'Where a post''s link lands (00699): chat (a chat with the business carrying the post''s code, the default call to action) or booking (its booking page, whose opens are counted and never credited). Null for a form''s.';
+
+
+--
+-- Name: COLUMN links.sites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.links.sites IS 'The sites a form may show on, framed in their own page (00703; the Forms plan, F4): each a host without its www. ("luma-salon.com"), ten at most. Null for every place that is not the website; one website link a form. The framed address (/f/<code>) names these, and only these, as its frame-ancestors, so a browser shows the form on no other site. A member who may act adds and removes them.';
 
 
 --
@@ -50105,7 +52212,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'form_request'::text, 'post_down'::text, 'post_by_hand'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'form_request'::text, 'post_down'::text, 'post_by_hand'::text, 'plan_ready'::text, 'footage_ask'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -50163,6 +52270,68 @@ CREATE TABLE public.operator_pages (
 --
 
 COMMENT ON TABLE public.operator_pages IS 'Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backlog) keyed by condition. alerted_at is the suppression stamp: one page per key per window, stamped only after delivery.';
+
+
+--
+-- Name: outside_forms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.outside_forms (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text DEFAULT 'website'::text NOT NULL,
+    site_id uuid,
+    form text NOT NULL,
+    ref text,
+    sent_name text,
+    name text,
+    listed boolean DEFAULT true NOT NULL,
+    requests_from timestamp with time zone DEFAULT now() NOT NULL,
+    first_entry_at timestamp with time zone,
+    last_entry_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT outside_forms_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
+    CONSTRAINT outside_forms_kind_check CHECK ((kind = 'website'::text)),
+    CONSTRAINT outside_forms_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 120)))),
+    CONSTRAINT outside_forms_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
+    CONSTRAINT outside_forms_sent_name_check CHECK (((sent_name IS NULL) OR ((char_length(sent_name) >= 1) AND (char_length(sent_name) <= 120)))),
+    CONSTRAINT outside_forms_website_has_site CHECK (((kind <> 'website'::text) OR (site_id IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE outside_forms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.outside_forms IS 'A form owned elsewhere (00709; Campaigns in three tabs, Lane B): a website''s own form now, Meta''s lead forms later. Its site, a request or a sign-up, the site''s own stable id for it, the name the site last sent and the owner''s own, listed or hidden (hidden never stops its entries), from when its entries are requests (requests_from), and its first and last entry. One per workspace, site, kind of form and id, so a form renamed on the site keeps its history. Members read them; form_entry_take makes them, and outside_form_rename and outside_form_listed are a member''s.';
+
+
+--
+-- Name: owner_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.owner_claims (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text NOT NULL,
+    text text NOT NULL,
+    source text NOT NULL,
+    valid_until date,
+    withdrawn_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT owner_claims_fact_ends CHECK (((kind <> 'fact'::text) OR (valid_until IS NOT NULL))),
+    CONSTRAINT owner_claims_kind_check CHECK ((kind = ANY (ARRAY['price'::text, 'offer'::text, 'guarantee'::text, 'fact'::text]))),
+    CONSTRAINT owner_claims_source_check CHECK ((source = ANY (ARRAY['said'::text, 'settings'::text, 'website'::text]))),
+    CONSTRAINT owner_claims_text_check CHECK (((char_length(btrim(text)) >= 1) AND (char_length(btrim(text)) <= 280)))
+);
+
+
+--
+-- Name: TABLE owner_claims; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.owner_claims IS 'What an owner claims (00706; the content loop PRD''s 5.3 and 6.1): a price, an offer, a guarantee, or a fact they state, where it was said, until when it stands, and when it was withdrawn. Read by the one claims rule (core evaluateClaimPolicy) as what the owner said, and by the plan as the offers that run. Members read; owner_claims_keep and owner_claim_withdraw write.';
 
 
 --
@@ -50653,6 +52822,7 @@ CREATE TABLE public.piece_renditions (
     CONSTRAINT piece_renditions_bytes_check CHECK (((bytes IS NULL) OR (bytes > 0))),
     CONSTRAINT piece_renditions_checksum_check CHECK ((checksum ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT piece_renditions_path_check CHECK (((char_length(path) >= 1) AND (char_length(path) <= 400))),
+    CONSTRAINT piece_renditions_path_in_its_folder CHECK ((path ~ (((('^'::text || (tenant_id)::text) || '/'::text) || (file_id)::text) || '/[^/]+$'::text))),
     CONSTRAINT piece_renditions_revision_check CHECK ((revision >= 1)),
     CONSTRAINT piece_renditions_shape_check CHECK ((shape = ANY (ARRAY['9x16'::text, '4x5'::text, '1x1'::text, '16x9'::text, 'google'::text])))
 );
@@ -50662,7 +52832,7 @@ CREATE TABLE public.piece_renditions (
 -- Name: TABLE piece_renditions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00681; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
+COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00681; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. The path is `<tenant_id>/<file_id>/<name>`, its own workspace and file (00711, piece_renditions_path_in_its_folder): the edge signs it with the service role, so a path a member''s call names never reaches another workspace''s bytes. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
 
 
 --
@@ -50720,6 +52890,7 @@ CREATE TABLE public.pieces (
     made_at timestamp with time zone,
     revision integer DEFAULT 1 NOT NULL,
     intent jsonb,
+    revises uuid,
     CONSTRAINT pieces_card_key_shape CHECK (((char_length(card_key) >= 1) AND (char_length(card_key) <= 120))),
     CONSTRAINT pieces_failed_shape CHECK (((status = 'failed'::text) = (failed_why IS NOT NULL))),
     CONSTRAINT pieces_failed_why_check CHECK ((failed_why = ANY (ARRAY['clips'::text, 'draw'::text, 'store'::text, 'unknown'::text]))),
@@ -50786,6 +52957,63 @@ COMMENT ON COLUMN public.pieces.revision IS 'The version the piece stands at (00
 --
 
 COMMENT ON COLUMN public.pieces.intent IS 'Why it exists (00681; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
+
+
+--
+-- Name: COLUMN pieces.revises; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pieces.revises IS 'The piece this one is drawn as a new version of (00708): its root, never a version. Null for a piece of its own. Written by piece_version_begin; the drawn file becomes the root''s next version (piece_version_kept, piece_version_ready).';
+
+
+--
+-- Name: plan_slots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.plan_slots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    plan_id uuid NOT NULL,
+    creative uuid NOT NULL,
+    place text NOT NULL,
+    kind text NOT NULL,
+    at timestamp with time zone NOT NULL,
+    title text NOT NULL,
+    reason text,
+    file_id uuid,
+    piece_id uuid,
+    post_id uuid,
+    intent jsonb,
+    words jsonb,
+    state text DEFAULT 'proposed'::text NOT NULL,
+    blocked_why text,
+    blocked_reason text,
+    ask jsonb,
+    score jsonb,
+    approval_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT plan_slots_ask_check CHECK (((ask IS NULL) OR (jsonb_typeof(ask) = 'object'::text))),
+    CONSTRAINT plan_slots_ask_shape CHECK (((state <> 'needs_footage'::text) OR (ask IS NOT NULL))),
+    CONSTRAINT plan_slots_blocked_reason_check CHECK (((blocked_reason IS NULL) OR ((char_length(blocked_reason) >= 1) AND (char_length(blocked_reason) <= 400)))),
+    CONSTRAINT plan_slots_blocked_shape CHECK (((state = 'blocked'::text) = ((blocked_why IS NOT NULL) AND (blocked_reason IS NOT NULL)))),
+    CONSTRAINT plan_slots_blocked_why_check CHECK (((blocked_why IS NULL) OR (blocked_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text, 'unmade'::text])))),
+    CONSTRAINT plan_slots_intent_check CHECK (((intent IS NULL) OR (jsonb_typeof(intent) = 'object'::text))),
+    CONSTRAINT plan_slots_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
+    CONSTRAINT plan_slots_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT plan_slots_reason_check CHECK (((reason IS NULL) OR ((char_length(reason) >= 1) AND (char_length(reason) <= 280)))),
+    CONSTRAINT plan_slots_score_check CHECK (((score IS NULL) OR (jsonb_typeof(score) = 'object'::text))),
+    CONSTRAINT plan_slots_state_check CHECK ((state = ANY (ARRAY['proposed'::text, 'blocked'::text, 'needs_footage'::text, 'approved'::text, 'removed'::text, 'posted'::text]))),
+    CONSTRAINT plan_slots_title_check CHECK (((char_length(btrim(title)) >= 1) AND (char_length(btrim(title)) <= 120))),
+    CONSTRAINT plan_slots_words_check CHECK (((words IS NULL) OR (jsonb_typeof(words) = 'object'::text)))
+);
+
+
+--
+-- Name: TABLE plan_slots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.plan_slots IS 'One creative at one place in a week''s plan (00706; the content loop PRD''s 5.3 and 10.2): when, what it shows, the reason it serves, the footage it is made from, why it exists, how it was scored and why; blocked with its check and its one fix, or asking for footage. Members read; content_plan_write, content_week_approve and plan_slot_set write.';
 
 
 --
@@ -51005,6 +53233,43 @@ COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the p
 
 
 --
+-- Name: post_observations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.post_observations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    post_id uuid NOT NULL,
+    place text NOT NULL,
+    step text NOT NULL,
+    metric text NOT NULL,
+    availability text NOT NULL,
+    value numeric,
+    period_start timestamp with time zone NOT NULL,
+    period_end timestamp with time zone NOT NULL,
+    observed_at timestamp with time zone DEFAULT now() NOT NULL,
+    definition_edition integer DEFAULT 1 NOT NULL,
+    paid_mixed boolean DEFAULT false NOT NULL,
+    raw jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT post_observations_availability_check CHECK ((availability = ANY (ARRAY['available'::text, 'unsupported'::text, 'delayed'::text, 'failed'::text, 'withheld'::text]))),
+    CONSTRAINT post_observations_definition_edition_check CHECK ((definition_edition >= 1)),
+    CONSTRAINT post_observations_metric_check CHECK ((metric = ANY (ARRAY['reach'::text, 'views'::text, 'likes'::text, 'comments'::text, 'saves'::text, 'shares'::text, 'link_opens'::text, 'profile_visits'::text, 'follows'::text]))),
+    CONSTRAINT post_observations_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT post_observations_raw_check CHECK ((jsonb_typeof(raw) = 'object'::text)),
+    CONSTRAINT post_observations_step_check CHECK ((step = ANY (ARRAY['1h'::text, '1d'::text, '3d'::text, '7d'::text, '28d'::text, 'last'::text]))),
+    CONSTRAINT post_observations_value_check CHECK (((value IS NULL) OR (value >= (0)::numeric))),
+    CONSTRAINT post_observations_value_only_when_there CHECK (((availability = 'available'::text) = (value IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE post_observations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.post_observations IS 'A post''s numbers as its place gave them (00699; the content loop PRD''s 5.3 and 9.1): one row per number per read, at an hour, a day, 3, 7 and 28 days after it went up, and at `last`, read by a take-down just before it asks the place (00701; 8.3), since a post''s numbers end with it. Each is a running total since it went up; a day''s change is two reads apart. availability says why a number is missing (unsupported, delayed, failed, or withheld: a story too few saw), and a missing number is never zero. Written by post_observations_keep alone; members read.';
+
+
+--
 -- Name: posts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -51043,7 +53308,7 @@ CREATE TABLE public.posts (
     CONSTRAINT posts_held_shape CHECK (((((status = 'held'::text) OR ((status = 'pulled'::text) AND (held_why = 'late'::text))) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)) AND ((held_why IS NULL) OR (status = ANY (ARRAY['held'::text, 'pulled'::text]))))),
     CONSTRAINT posts_held_why_check CHECK ((held_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text]))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
-    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'hand'::text]))),
+    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'facebook'::text, 'hand'::text]))),
     CONSTRAINT posts_revision_shape CHECK ((((revision IS NULL) OR (revision >= 1)) AND ((capability_edition IS NULL) OR (capability_edition >= 1)))),
     CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
     CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))
@@ -52433,6 +54698,42 @@ COMMENT ON COLUMN public.tenants.sending_stopped_at IS 'When the workspace''s ow
 
 
 --
+-- Name: touches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.touches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    subject_type text NOT NULL,
+    subject_id uuid NOT NULL,
+    kind text NOT NULL,
+    contact_id uuid,
+    conversation_id uuid,
+    message_id uuid,
+    new_person boolean DEFAULT false NOT NULL,
+    place text NOT NULL,
+    provider_event_id text NOT NULL,
+    at timestamp with time zone NOT NULL,
+    evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
+    emptied_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT touches_evidence_check CHECK ((jsonb_typeof(evidence) = 'object'::text)),
+    CONSTRAINT touches_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'comment'::text, 'dm'::text, 'story_reply'::text, 'mention'::text, 'coded_message'::text]))),
+    CONSTRAINT touches_person_until_emptied CHECK (((contact_id IS NOT NULL) OR (emptied_at IS NOT NULL))),
+    CONSTRAINT touches_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'whatsapp'::text, 'google'::text]))),
+    CONSTRAINT touches_provider_event_id_check CHECK (((char_length(provider_event_id) >= 1) AND (char_length(provider_event_id) <= 200))),
+    CONSTRAINT touches_subject_type_check CHECK ((subject_type = ANY (ARRAY['post'::text, 'link'::text])))
+);
+
+
+--
+-- Name: TABLE touches; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.touches IS 'A known person''s reply, comment, reply to a story or coded first message, about a post or through a link (00699; the content loop PRD''s Appendix A.1, A.3, A.5): one row per event, once per place by the place''s own id. Events, never edited, written by post_comment_keep and touches_keep. The business''s own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.';
+
+
+--
 -- Name: usage_ledger; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -52938,6 +55239,30 @@ ALTER TABLE ONLY public.client_errors
 
 
 --
+-- Name: comment_answers comment_answers_one_a_comment; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_one_a_comment UNIQUE (tenant_id, touch_id);
+
+
+--
+-- Name: comment_answers comment_answers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: comment_answers comment_answers_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: contact_identities contact_identities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52983,6 +55308,46 @@ ALTER TABLE ONLY public.contacts
 
 ALTER TABLE ONLY public.contacts
     ADD CONSTRAINT contacts_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: content_goals content_goals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_goals
+    ADD CONSTRAINT content_goals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: content_goals content_goals_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_goals
+    ADD CONSTRAINT content_goals_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: content_plans content_plans_one_a_week; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_one_a_week UNIQUE (tenant_id, week_of);
+
+
+--
+-- Name: content_plans content_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: content_plans content_plans_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -53178,6 +55543,22 @@ ALTER TABLE ONLY public.file_archives
 
 
 --
+-- Name: file_moments file_moments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_moments
+    ADD CONSTRAINT file_moments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: file_moments file_moments_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_moments
+    ADD CONSTRAINT file_moments_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: files_let_go files_let_go_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -53199,6 +55580,14 @@ ALTER TABLE ONLY public.files
 
 ALTER TABLE ONLY public.files
     ADD CONSTRAINT files_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: form_days form_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_days
+    ADD CONSTRAINT form_days_pkey PRIMARY KEY (form_id, day);
 
 
 --
@@ -53247,6 +55636,22 @@ ALTER TABLE ONLY public.form_keys
 
 ALTER TABLE ONLY public.form_keys
     ADD CONSTRAINT form_keys_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: form_sites form_sites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_sites form_sites_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -53770,6 +56175,38 @@ ALTER TABLE ONLY public.operator_pages
 
 
 --
+-- Name: outside_forms outside_forms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: outside_forms outside_forms_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: owner_claims owner_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.owner_claims
+    ADD CONSTRAINT owner_claims_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: owner_claims owner_claims_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.owner_claims
+    ADD CONSTRAINT owner_claims_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: page_vitals page_vitals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -53962,6 +56399,22 @@ ALTER TABLE ONLY public.pieces
 
 
 --
+-- Name: plan_slots plan_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plan_slots plan_slots_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: platform_acts platform_acts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -54007,6 +56460,30 @@ ALTER TABLE ONLY public.policies
 
 ALTER TABLE ONLY public.policies
     ADD CONSTRAINT policies_tenant_id_class_subject_type_subject_id_key UNIQUE NULLS NOT DISTINCT (tenant_id, class, subject_type, subject_id);
+
+
+--
+-- Name: post_observations post_observations_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_once UNIQUE (tenant_id, post_id, step, metric);
+
+
+--
+-- Name: post_observations post_observations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: post_observations post_observations_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -54450,6 +56927,30 @@ ALTER TABLE ONLY public.tenants
 
 
 --
+-- Name: touches touches_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_once UNIQUE (tenant_id, place, provider_event_id);
+
+
+--
+-- Name: touches touches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: touches touches_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: voice_agents voice_agents_agent_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -54743,6 +57244,13 @@ CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenan
 
 
 --
+-- Name: appointments_through; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_through ON public.appointments USING btree (tenant_id, through_type, through_id) WHERE (through_type IS NOT NULL);
+
+
+--
 -- Name: approvals_approved_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55009,6 +57517,13 @@ CREATE INDEX client_errors_fingerprint_at ON public.client_errors USING btree (f
 
 
 --
+-- Name: comment_answers_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX comment_answers_newest ON public.comment_answers USING btree (tenant_id, updated_at DESC);
+
+
+--
 -- Name: contact_identities_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55097,6 +57612,34 @@ CREATE INDEX contacts_tenant_name_lower_idx ON public.contacts USING btree (tena
 --
 
 CREATE UNIQUE INDEX contacts_tenant_phone_uq ON public.contacts USING btree (tenant_id, phone_e164) WHERE (phone_e164 IS NOT NULL);
+
+
+--
+-- Name: content_goals_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_goals_active ON public.content_goals USING btree (tenant_id) WHERE active;
+
+
+--
+-- Name: content_goals_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_goals_created_by ON public.content_goals USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: content_plans_approval; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_plans_approval ON public.content_plans USING btree (tenant_id, approval_id) WHERE (approval_id IS NOT NULL);
+
+
+--
+-- Name: content_plans_approved_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_plans_approved_by ON public.content_plans USING btree (approved_by) WHERE (approved_by IS NOT NULL);
 
 
 --
@@ -55408,6 +57951,20 @@ CREATE INDEX file_archives_shelf_saving ON public.file_archives USING btree (upd
 
 
 --
+-- Name: file_moments_corrected_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_moments_corrected_by ON public.file_moments USING btree (corrected_by) WHERE (corrected_by IS NOT NULL);
+
+
+--
+-- Name: file_moments_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_moments_file ON public.file_moments USING btree (tenant_id, file_id, score DESC);
+
+
+--
 -- Name: files_copies_awaiting_room; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55506,6 +58063,13 @@ CREATE INDEX files_superseded ON public.files USING btree (superseded_at) WHERE 
 
 
 --
+-- Name: form_days_workspace; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_days_workspace ON public.form_days USING btree (tenant_id, form_id, day);
+
+
+--
 -- Name: form_entries_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55555,10 +58119,24 @@ CREATE INDEX form_entries_made ON public.form_entries USING btree (tenant_id, cr
 
 
 --
+-- Name: form_entries_outside; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_outside ON public.form_entries USING btree (tenant_id, outside_form_id, created_at);
+
+
+--
 -- Name: form_entries_ref; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE (ref IS NOT NULL);
+CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE ((ref IS NOT NULL) AND (outside_form_id IS NULL));
+
+
+--
+-- Name: form_entries_ref_outside; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entries_ref_outside ON public.form_entries USING btree (tenant_id, outside_form_id, ref) WHERE ((ref IS NOT NULL) AND (outside_form_id IS NOT NULL));
 
 
 --
@@ -55650,6 +58228,13 @@ CREATE UNIQUE INDEX form_keys_first ON public.form_keys USING btree (tenant_id) 
 --
 
 CREATE UNIQUE INDEX form_keys_hash ON public.form_keys USING btree (hash) WHERE (hash IS NOT NULL);
+
+
+--
+-- Name: form_keys_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_keys_site ON public.form_keys USING btree (tenant_id, site_id);
 
 
 --
@@ -56087,6 +58672,20 @@ CREATE INDEX link_days_workspace ON public.link_days USING btree (tenant_id, day
 
 
 --
+-- Name: links_one_a_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX links_one_a_post ON public.links USING btree (tenant_id, subject_id) WHERE (subject_type = 'post'::text);
+
+
+--
+-- Name: links_one_website_a_form; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX links_one_website_a_form ON public.links USING btree (tenant_id, subject_type, subject_id) WHERE (sites IS NOT NULL);
+
+
+--
 -- Name: links_subject; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56367,6 +58966,27 @@ CREATE INDEX notifications_tenant_created ON public.notifications USING btree (t
 
 
 --
+-- Name: outside_forms_one; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX outside_forms_one ON public.outside_forms USING btree (tenant_id, site_id, form, ref) NULLS NOT DISTINCT;
+
+
+--
+-- Name: owner_claims_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX owner_claims_created_by ON public.owner_claims USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: owner_claims_standing; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX owner_claims_standing ON public.owner_claims USING btree (tenant_id, kind) WHERE (withdrawn_at IS NULL);
+
+
+--
 -- Name: page_vitals_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56626,6 +59246,13 @@ CREATE UNIQUE INDEX pieces_one_picture ON public.pieces USING btree (tenant_id, 
 
 
 --
+-- Name: pieces_revises; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX pieces_revises ON public.pieces USING btree (tenant_id, revises) WHERE (revises IS NOT NULL);
+
+
+--
 -- Name: pieces_tenant_making; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56637,6 +59264,41 @@ CREATE INDEX pieces_tenant_making ON public.pieces USING btree (tenant_id) WHERE
 --
 
 CREATE INDEX pieces_tenant_newest ON public.pieces USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: plan_slots_approval; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX plan_slots_approval ON public.plan_slots USING btree (tenant_id, approval_id) WHERE (approval_id IS NOT NULL);
+
+
+--
+-- Name: plan_slots_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX plan_slots_file ON public.plan_slots USING btree (tenant_id, file_id) WHERE (file_id IS NOT NULL);
+
+
+--
+-- Name: plan_slots_piece; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX plan_slots_piece ON public.plan_slots USING btree (tenant_id, piece_id) WHERE (piece_id IS NOT NULL);
+
+
+--
+-- Name: plan_slots_plan; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX plan_slots_plan ON public.plan_slots USING btree (tenant_id, plan_id, at);
+
+
+--
+-- Name: plan_slots_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX plan_slots_post ON public.plan_slots USING btree (tenant_id, post_id) WHERE (post_id IS NOT NULL);
 
 
 --
@@ -56682,6 +59344,13 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: post_observations_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX post_observations_newest ON public.post_observations USING btree (tenant_id, post_id, observed_at DESC);
+
+
+--
 -- Name: posts_approval; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -56721,6 +59390,13 @@ CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, p
 --
 
 CREATE INDEX posts_piece ON public.posts USING btree (tenant_id, piece_id) WHERE (piece_id IS NOT NULL);
+
+
+--
+-- Name: posts_published_lately; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_published_lately ON public.posts USING btree (published_at) WHERE (status = 'published'::text);
 
 
 --
@@ -57515,6 +60191,48 @@ CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions US
 
 
 --
+-- Name: touches_by_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_conversation ON public.touches USING btree (tenant_id, conversation_id, at DESC);
+
+
+--
+-- Name: touches_by_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_message ON public.touches USING btree (tenant_id, message_id);
+
+
+--
+-- Name: touches_by_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_person ON public.touches USING btree (tenant_id, contact_id, at DESC);
+
+
+--
+-- Name: touches_by_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_subject ON public.touches USING btree (tenant_id, subject_type, subject_id, at DESC);
+
+
+--
+-- Name: touches_by_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_by_time ON public.touches USING btree (tenant_id, at DESC);
+
+
+--
+-- Name: touches_to_age; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX touches_to_age ON public.touches USING btree (at) WHERE ((emptied_at IS NULL) AND (NOT new_person));
+
+
+--
 -- Name: waitlist_email_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -57659,6 +60377,13 @@ CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appoint
 --
 
 CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW WHEN (((NOT (new.arrived_at IS DISTINCT FROM old.arrived_at)) AND (NOT (((new.worth_minor IS DISTINCT FROM old.worth_minor) OR (new.worth_currency IS DISTINCT FROM old.worth_currency)) AND (NOT (new.service IS DISTINCT FROM old.service)))))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: appointments appointments_through_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_through_stamp BEFORE INSERT ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_through_stamp();
 
 
 --
@@ -57886,6 +60611,13 @@ CREATE TRIGGER contacts_erase_takes_signers AFTER UPDATE OF erased_at ON public.
 
 
 --
+-- Name: contacts contacts_erase_takes_touches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_touches AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.touches_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erasure_digest_keyed; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -57897,6 +60629,13 @@ CREATE TRIGGER contacts_erasure_digest_keyed BEFORE INSERT OR UPDATE OF erased_p
 --
 
 CREATE TRIGGER contacts_merge_moves_form_entries AFTER UPDATE OF merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_follow_merge();
+
+
+--
+-- Name: contacts contacts_merge_moves_touches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_merge_moves_touches AFTER UPDATE OF merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.touches_follow_merge();
 
 
 --
@@ -58289,6 +61028,13 @@ CREATE TRIGGER memberships_start_the_bell AFTER INSERT ON public.memberships FOR
 --
 
 CREATE TRIGGER memberships_wake_their_folders AFTER DELETE ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_wake_their_folders();
+
+
+--
+-- Name: messages messages_answer_a_form_request; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_answer_a_form_request AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.meta ? 'form_entry_id'::text))) EXECUTE FUNCTION public.messages_answer_a_form_request();
 
 
 --
@@ -60084,6 +62830,22 @@ ALTER TABLE ONLY public.capability_activations
 
 
 --
+-- Name: comment_answers comment_answers_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: comment_answers comment_answers_touch_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comment_answers
+    ADD CONSTRAINT comment_answers_touch_same_workspace FOREIGN KEY (tenant_id, touch_id) REFERENCES public.touches(tenant_id, id) ON DELETE CASCADE;
+
+
+--
 -- Name: contact_identities contact_identities_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -60161,6 +62923,46 @@ ALTER TABLE ONLY public.contacts
 
 ALTER TABLE ONLY public.contacts
     ADD CONSTRAINT contacts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: content_goals content_goals_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_goals
+    ADD CONSTRAINT content_goals_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: content_goals content_goals_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_goals
+    ADD CONSTRAINT content_goals_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: content_plans content_plans_approval_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_approval_id_same_workspace FOREIGN KEY (tenant_id, approval_id) REFERENCES public.approvals(tenant_id, id) ON DELETE SET NULL (approval_id);
+
+
+--
+-- Name: content_plans content_plans_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: content_plans content_plans_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_plans
+    ADD CONSTRAINT content_plans_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -60404,6 +63206,30 @@ ALTER TABLE ONLY public.file_archives
 
 
 --
+-- Name: file_moments file_moments_corrected_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_moments
+    ADD CONSTRAINT file_moments_corrected_by_fkey FOREIGN KEY (corrected_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: file_moments file_moments_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_moments
+    ADD CONSTRAINT file_moments_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_moments file_moments_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_moments
+    ADD CONSTRAINT file_moments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: files files_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -60425,6 +63251,22 @@ ALTER TABLE ONLY public.files_let_go
 
 ALTER TABLE ONLY public.files
     ADD CONSTRAINT files_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_days form_days_form_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_days
+    ADD CONSTRAINT form_days_form_id_same_workspace FOREIGN KEY (tenant_id, form_id) REFERENCES public.forms(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_days form_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_days
+    ADD CONSTRAINT form_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -60457,6 +63299,14 @@ ALTER TABLE ONLY public.form_entries
 
 ALTER TABLE ONLY public.form_entries
     ADD CONSTRAINT form_entries_link_id_same_workspace FOREIGN KEY (tenant_id, link_id) REFERENCES public.links(tenant_id, id) ON DELETE SET NULL (link_id);
+
+
+--
+-- Name: form_entries form_entries_outside_form_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_outside_form_id_same_workspace FOREIGN KEY (tenant_id, outside_form_id) REFERENCES public.outside_forms(tenant_id, id);
 
 
 --
@@ -60516,11 +63366,27 @@ ALTER TABLE ONLY public.form_entry_links
 
 
 --
+-- Name: form_keys form_keys_site_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_site_id_same_workspace FOREIGN KEY (tenant_id, site_id) REFERENCES public.form_sites(tenant_id, id);
+
+
+--
 -- Name: form_keys form_keys_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.form_keys
     ADD CONSTRAINT form_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_sites form_sites_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_sites
+    ADD CONSTRAINT form_sites_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -61068,6 +63934,38 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: outside_forms outside_forms_site_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_site_id_same_workspace FOREIGN KEY (tenant_id, site_id) REFERENCES public.form_sites(tenant_id, id);
+
+
+--
+-- Name: outside_forms outside_forms_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.outside_forms
+    ADD CONSTRAINT outside_forms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: owner_claims owner_claims_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.owner_claims
+    ADD CONSTRAINT owner_claims_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: owner_claims owner_claims_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.owner_claims
+    ADD CONSTRAINT owner_claims_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: partner_earnings partner_earnings_partner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -61356,11 +64254,67 @@ ALTER TABLE ONLY public.pieces
 
 
 --
+-- Name: pieces pieces_revises_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pieces
+    ADD CONSTRAINT pieces_revises_same_workspace FOREIGN KEY (tenant_id, revises) REFERENCES public.pieces(tenant_id, id) ON DELETE CASCADE;
+
+
+--
 -- Name: pieces pieces_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.pieces
     ADD CONSTRAINT pieces_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: plan_slots plan_slots_approval_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_approval_id_same_workspace FOREIGN KEY (tenant_id, approval_id) REFERENCES public.approvals(tenant_id, id) ON DELETE SET NULL (approval_id);
+
+
+--
+-- Name: plan_slots plan_slots_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE SET NULL (file_id);
+
+
+--
+-- Name: plan_slots plan_slots_piece_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_piece_id_same_workspace FOREIGN KEY (tenant_id, piece_id) REFERENCES public.pieces(tenant_id, id) ON DELETE SET NULL (piece_id);
+
+
+--
+-- Name: plan_slots plan_slots_plan_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_plan_id_same_workspace FOREIGN KEY (tenant_id, plan_id) REFERENCES public.content_plans(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: plan_slots plan_slots_post_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_post_id_same_workspace FOREIGN KEY (tenant_id, post_id) REFERENCES public.posts(tenant_id, id) ON DELETE SET NULL (post_id);
+
+
+--
+-- Name: plan_slots plan_slots_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plan_slots
+    ADD CONSTRAINT plan_slots_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -61417,6 +64371,22 @@ ALTER TABLE ONLY public.platform_metrics
 
 ALTER TABLE ONLY public.policies
     ADD CONSTRAINT policies_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_observations post_observations_post_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_post_same_workspace FOREIGN KEY (tenant_id, post_id) REFERENCES public.posts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_observations post_observations_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_observations
+    ADD CONSTRAINT post_observations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -62148,6 +65118,38 @@ ALTER TABLE ONLY public.tenant_config_versions
 
 
 --
+-- Name: touches touches_contact_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_contact_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: touches touches_conversation_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_conversation_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
+
+
+--
+-- Name: touches touches_message_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_message_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
+
+
+--
+-- Name: touches touches_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.touches
+    ADD CONSTRAINT touches_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: voice_agents voice_agents_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -62658,6 +65660,21 @@ CREATE POLICY capability_activations_owner_update ON public.capability_activatio
 ALTER TABLE public.client_errors ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: comment_answers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.comment_answers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: comment_answers comment_answers_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comment_answers_member_select ON public.comment_answers FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: contact_identities; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -62709,6 +65726,36 @@ ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY contacts_member_select ON public.contacts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: content_goals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.content_goals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: content_goals content_goals_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY content_goals_member_select ON public.content_goals FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: content_plans; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.content_plans ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: content_plans content_plans_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY content_plans_member_select ON public.content_plans FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -62924,6 +65971,21 @@ CREATE POLICY file_archives_member_select ON public.file_archives FOR SELECT TO 
 
 
 --
+-- Name: file_moments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.file_moments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: file_moments file_moments_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY file_moments_member_select ON public.file_moments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: files; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -62940,6 +66002,21 @@ ALTER TABLE public.files_let_go ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY files_member_select ON public.files FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_days form_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_days_member_select ON public.form_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -62999,6 +66076,21 @@ ALTER TABLE public.form_keys ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY form_keys_member_select ON public.form_keys FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_sites; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_sites ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_sites form_sites_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_sites_member_select ON public.form_sites FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -63622,6 +66714,36 @@ CREATE POLICY notifications_member_select ON public.notifications FOR SELECT TO 
 ALTER TABLE public.operator_pages ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: outside_forms; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.outside_forms ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: outside_forms outside_forms_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY outside_forms_member_select ON public.outside_forms FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: owner_claims; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.owner_claims ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: owner_claims owner_claims_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY owner_claims_member_select ON public.owner_claims FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: page_vitals; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -63803,6 +66925,21 @@ CREATE POLICY pieces_member_select ON public.pieces FOR SELECT TO authenticated 
 
 
 --
+-- Name: plan_slots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.plan_slots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: plan_slots plan_slots_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY plan_slots_member_select ON public.plan_slots FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: platform_acts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -63870,6 +67007,21 @@ CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO auth
   WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))) AND (EXISTS ( SELECT 1
    FROM public.contacts p
   WHERE ((p.id = policies.subject_id) AND (p.tenant_id = policies.tenant_id))))));
+
+
+--
+-- Name: post_observations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.post_observations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: post_observations post_observations_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY post_observations_member_select ON public.post_observations FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -64385,6 +67537,21 @@ CREATE POLICY tenants_member_select ON public.tenants FOR SELECT TO authenticate
 --
 
 CREATE POLICY tenants_owner_update ON public.tenants FOR UPDATE TO authenticated USING (public.caller_has_permission(id, 'settings'::text)) WITH CHECK (public.caller_has_permission(id, 'settings'::text));
+
+
+--
+-- Name: touches; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.touches ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: touches touches_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY touches_member_select ON public.touches FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -64924,6 +68091,14 @@ GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id u
 
 
 --
+-- Name: FUNCTION appointments_through_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_through_stamp() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_through_stamp() TO service_role;
+
+
+--
 -- Name: FUNCTION appointments_worth_stamp(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -65343,6 +68518,40 @@ GRANT ALL ON FUNCTION public.clear_control_of_departed_member() TO service_role;
 
 
 --
+-- Name: FUNCTION comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_draft_keep(p_tenant_id uuid, p_touch_id uuid, p_draft text, p_cannot_why text) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) TO authenticated;
+GRANT ALL ON FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) TO service_role;
+
+
+--
 -- Name: FUNCTION consent_channels_of(p_purpose text, p_source text, p_channel text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -65445,6 +68654,57 @@ GRANT ALL ON FUNCTION public.contact_stop_ends_offers_yes() TO service_role;
 REVOKE ALL ON FUNCTION public.contacts_before_erased() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contacts_before_erased() TO authenticated;
 GRANT ALL ON FUNCTION public.contacts_before_erased() TO service_role;
+
+
+--
+-- Name: FUNCTION content_goals_keep(p_tenant_id uuid, p_goals jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION content_plan_ask(p_tenant_id uuid, p_week_of date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) TO authenticated;
+GRANT ALL ON FUNCTION public.content_plan_ask(p_tenant_id uuid, p_week_of date) TO service_role;
+
+
+--
+-- Name: FUNCTION content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) TO service_role;
+
+
+--
+-- Name: FUNCTION content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) TO service_role;
+
+
+--
+-- Name: FUNCTION content_plans_hand_out(p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_plans_hand_out(p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_plans_hand_out(p_spread_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) TO service_role;
 
 
 --
@@ -66152,6 +69412,14 @@ GRANT ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeri
 
 
 --
+-- Name: FUNCTION file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_moments_keep(p_tenant_id uuid, p_file_id uuid, p_moments jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION file_printed(p_tenant_id uuid, p_id uuid, p_print text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -66424,6 +69692,14 @@ GRANT ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text,
 
 
 --
+-- Name: FUNCTION form_booking_open(p_tenant_id uuid, p_form_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_booking_open(p_tenant_id uuid, p_form_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -66504,11 +69780,11 @@ GRANT ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uui
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) TO service_role;
+REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) TO service_role;
 
 
 --
@@ -66530,12 +69806,12 @@ GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO se
 
 
 --
--- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO authenticated;
-GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO service_role;
+REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text, p_site_id uuid) TO service_role;
 
 
 --
@@ -66565,12 +69841,29 @@ GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION form_requests_open_count(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_requests_open_count(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) TO service_role;
 
 
 --
@@ -68131,6 +71424,14 @@ GRANT ALL ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text
 
 
 --
+-- Name: FUNCTION messages_answer_a_form_request(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_answer_a_form_request() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_answer_a_form_request() TO service_role;
+
+
+--
 -- Name: FUNCTION messages_guard(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -68343,6 +71644,42 @@ GRANT ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_
 
 REVOKE ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) TO authenticated;
+GRANT ALL ON FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) TO service_role;
+
+
+--
+-- Name: FUNCTION owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION owner_claims_keep(p_tenant_id uuid, p_claim jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) TO service_role;
 
 
 --
@@ -68949,6 +72286,15 @@ GRANT ALL ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid
 
 
 --
+-- Name: FUNCTION piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.piece_posts_replace(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION piece_sent(p_piece_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -68973,12 +72319,55 @@ GRANT ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) TO ser
 
 
 --
+-- Name: FUNCTION piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) TO authenticated;
+GRANT ALL ON FUNCTION public.piece_version_begin(p_tenant_id uuid, p_piece_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_kept(p_piece_id uuid, p_checksum text, p_bytes bigint, p_changed text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_version_ready(p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_version_ready(p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_version_ready(p_file_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) TO authenticated;
 GRANT ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) TO service_role;
+
+
+--
+-- Name: FUNCTION plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) TO service_role;
 
 
 --
@@ -69215,6 +72604,15 @@ GRANT ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_ap
 
 
 --
+-- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION post_as_approved(p_post_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -69239,12 +72637,28 @@ GRANT ALL ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no inte
 
 
 --
--- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO authenticated;
-GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO service_role;
+REVOKE ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id uuid, p_place text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION post_link_make(p_tenant_id uuid, p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) TO service_role;
 
 
 --
@@ -69262,6 +72676,30 @@ GRANT ALL ON FUNCTION public.post_move(p_post_id uuid, p_when timestamp with tim
 
 REVOKE ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_observations_due(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_observations_due(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_observations_due(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_observations_keep(p_tenant_id uuid, p_post_id uuid, p_step text, p_rows jsonb, p_definition_edition integer) TO service_role;
+
+
+--
+-- Name: FUNCTION post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) TO service_role;
 
 
 --
@@ -71100,6 +74538,15 @@ GRANT ALL ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) TO ser
 
 
 --
+-- Name: FUNCTION setup_rows(p_tenant_id uuid, p_roster boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.setup_rows(p_tenant_id uuid, p_roster boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.setup_rows(p_tenant_id uuid, p_roster boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.setup_rows(p_tenant_id uuid, p_roster boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION slug_for_workspace(p_name text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -71531,6 +74978,38 @@ GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config json
 
 REVOKE ALL ON FUNCTION public.tenants_zone_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.tenants_zone_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION touches_age_out(p_before timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_age_out(p_before timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_age_out(p_before timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION touches_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION touches_follow_merge(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_follow_merge() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_follow_merge() TO service_role;
+
+
+--
+-- Name: FUNCTION touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.touches_keep(p_tenant_id uuid, p_kind text, p_subject_type text, p_subject_id uuid, p_contact_id uuid, p_place text, p_event_id text, p_at timestamp with time zone, p_conversation_id uuid, p_message_id uuid, p_new_person boolean, p_evidence jsonb) TO service_role;
 
 
 --
@@ -72378,6 +75857,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.client_errors TO service_role;
 
 
 --
+-- Name: TABLE comment_answers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.comment_answers TO authenticated;
+GRANT ALL ON TABLE public.comment_answers TO service_role;
+
+
+--
 -- Name: TABLE contact_identities; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72399,6 +75886,22 @@ GRANT ALL ON TABLE public.contact_marks TO service_role;
 
 GRANT SELECT ON TABLE public.contact_reads TO authenticated;
 GRANT ALL ON TABLE public.contact_reads TO service_role;
+
+
+--
+-- Name: TABLE content_goals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.content_goals TO authenticated;
+GRANT ALL ON TABLE public.content_goals TO service_role;
+
+
+--
+-- Name: TABLE content_plans; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.content_plans TO authenticated;
+GRANT ALL ON TABLE public.content_plans TO service_role;
 
 
 --
@@ -72655,6 +76158,14 @@ GRANT ALL ON TABLE public.file_archives TO service_role;
 
 
 --
+-- Name: TABLE file_moments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.file_moments TO authenticated;
+GRANT ALL ON TABLE public.file_moments TO service_role;
+
+
+--
 -- Name: TABLE files; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72865,6 +76376,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files_let_go TO service_role;
 
 
 --
+-- Name: TABLE form_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_days TO authenticated;
+GRANT ALL ON TABLE public.form_days TO service_role;
+
+
+--
 -- Name: TABLE form_entries; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72921,6 +76440,14 @@ GRANT INSERT(created_by) ON TABLE public.form_entry_links TO authenticated;
 
 GRANT SELECT ON TABLE public.form_keys TO authenticated;
 GRANT ALL ON TABLE public.form_keys TO service_role;
+
+
+--
+-- Name: TABLE form_sites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_sites TO authenticated;
+GRANT ALL ON TABLE public.form_sites TO service_role;
 
 
 --
@@ -73467,6 +76994,13 @@ GRANT UPDATE(stopped_at) ON TABLE public.links TO authenticated;
 
 
 --
+-- Name: COLUMN links.sites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(sites),UPDATE(sites) ON TABLE public.links TO authenticated;
+
+
+--
 -- Name: TABLE mailbox_connections; Type: ACL; Schema: public; Owner: -
 --
 
@@ -73685,6 +77219,22 @@ GRANT ALL ON TABLE public.notifications TO service_role;
 --
 
 GRANT ALL ON TABLE public.operator_pages TO service_role;
+
+
+--
+-- Name: TABLE outside_forms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.outside_forms TO authenticated;
+GRANT ALL ON TABLE public.outside_forms TO service_role;
+
+
+--
+-- Name: TABLE owner_claims; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.owner_claims TO authenticated;
+GRANT ALL ON TABLE public.owner_claims TO service_role;
 
 
 --
@@ -73908,6 +77458,21 @@ GRANT SELECT(intent) ON TABLE public.pieces TO authenticated;
 
 
 --
+-- Name: COLUMN pieces.revises; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(revises) ON TABLE public.pieces TO authenticated;
+
+
+--
+-- Name: TABLE plan_slots; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.plan_slots TO authenticated;
+GRANT ALL ON TABLE public.plan_slots TO service_role;
+
+
+--
 -- Name: TABLE platform_acts; Type: ACL; Schema: public; Owner: -
 --
 
@@ -73933,6 +77498,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.platform_claims TO service_rol
 --
 
 GRANT ALL ON TABLE public.platform_metrics TO service_role;
+
+
+--
+-- Name: TABLE post_observations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.post_observations TO authenticated;
+GRANT ALL ON TABLE public.post_observations TO service_role;
 
 
 --
@@ -74555,6 +78128,14 @@ GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(appointment_word) ON TABLE public.tenants TO authenticated;
+
+
+--
+-- Name: TABLE touches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.touches TO authenticated;
+GRANT ALL ON TABLE public.touches TO service_role;
 
 
 --

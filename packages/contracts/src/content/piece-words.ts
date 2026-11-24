@@ -56,6 +56,8 @@ export interface PieceWords {
   bell: {
     ready: string;
     readyBody: (name: string) => string;
+    /** A new version made (00708), with what was set to go of the one before asking again. */
+    versionWaits: (n: number) => string;
     failed: string;
     failedBody: (reason: PieceFail) => string;
   };
@@ -167,6 +169,7 @@ export const PIECE_WORDS: PieceWords = {
   bell: {
     ready: "Your video is ready",
     readyBody: (name) => (name ? `${fileSaidOf(name)} · Watch it` : "Watch it"),
+    versionWaits: (n) => `Version ${n} waits for your approval`,
     failed: "Couldn't make your video",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
@@ -243,6 +246,7 @@ const PIECE_WORDS_ES: PieceWords = {
   bell: {
     ready: "Tu video está listo",
     readyBody: (name) => (name ? `${fileSaidOf(name)} · Míralo` : "Míralo"),
+    versionWaits: (n) => `La versión ${n} espera tu aprobación`,
     failed: "No se pudo hacer tu video",
     failedBody: (reason) => `${FAILED_ES[reason]} ${FAILED_NEXT_ES[reason]}`,
   },

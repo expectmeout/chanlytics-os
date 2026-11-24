@@ -6,6 +6,7 @@ import {
   type EscalationDto,
   type LeadSearchDto,
   type MetricsSummaryDto,
+  type CommentRowDto,
   type FormHeldDto,
   type FormOpenRequestDto,
   type PreviewTriedDto,
@@ -30,6 +31,7 @@ import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
 import { formRequestsOpen } from "./forms";
+import { commentsWaiting } from "./results";
 import { previewsTried } from "./leads";
 import * as facts from "./facts";
 import { people, peopleCount } from "./people";
@@ -56,8 +58,12 @@ interface TodayRead {
   previewsTried: PreviewTriedDto[] | null;
   /** The requests sent through a form that nobody has answered (00680); null where the read failed. */
   formRequests: FormOpenRequestDto[] | null;
+  /** How many requests nobody has answered, counted whole: the list stops at 200 (00709). Null: not read. */
+  formRequestsCount: number | null;
   /** Each form's entries held for a look that nobody has looked at in three days (the same read); null: not read. */
   formHeld: FormHeldDto[] | null;
+  /** The comments on the business's posts that wait on the owner (00699); null where the read failed. */
+  comments: CommentRowDto[] | null;
   /** What Today says of AI beside the day (Working for you, W1 to W3): each part null where its read failed. */
   ai: TodayAiReadDto;
 }
@@ -123,7 +129,7 @@ export async function findDoneToday(rc: ReaderContext): Promise<number | null> {
 export const today: Reader<undefined, TodayRead> = {
   name: "today",
   async read(rc) {
-    const [m, c, e, k, s, r, g, t, f] = await Promise.all([
+    const [m, c, e, k, s, r, g, t, f, w] = await Promise.all([
       load(rc, metrics, { days: 1 }),
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
@@ -151,6 +157,10 @@ export const today: Reader<undefined, TodayRead> = {
         log.error("today_form_requests_fetch_failed", { error: err });
         return null;
       }),
+      load(rc, commentsWaiting, undefined).catch((err: unknown) => {
+        log.error("today_comments_fetch_failed", { error: err });
+        return null;
+      }),
     ]);
     const [held, ai] = await Promise.all([
       findHeldThreadsBeyond(rc, c.data.conversations, e.data.escalations),
@@ -169,7 +179,10 @@ export const today: Reader<undefined, TodayRead> = {
         going: g ? g.data.runs : null,
         previewsTried: t ? t.data.previews : null,
         formRequests: f ? f.data.requests : null,
+        // All of them, counted whole: the list stops at 200 (00709).
+        formRequestsCount: f ? f.data.count : null,
         formHeld: f ? f.data.held : null,
+        comments: w ? w.data.comments : null,
         ai,
       },
       rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],

@@ -4,6 +4,7 @@
  * which nobody waits on. Apart from the queue (queue.ts) so each holds one thing: the queue orders and counts, and
  * these say what a form's row is. Pure.
  */
+import { BOOKING_REQUEST_WORDS, slotShort } from "../calendar/visit/booking-request";
 import { formatWaited } from "../conversations/thread-clock";
 import { initialsOf } from "../conversations/thread-contact";
 import { formsRouteOf, requestAddress } from "../forms/address";
@@ -19,10 +20,27 @@ import type { TodayQueueRowVM } from "./vm";
  * them by Need you's order and in its one count. A reply that left and never reached them says so, as a failed reply
  * to anyone does.
  */
+/** Where a request's time stands, as its row says it (F3): held for the owner's answer, past its day, or answered. */
+function timeStatusOf(time: NonNullable<FormOpenRequestDto["time"]>): string {
+  const { form } = NEED_YOU_WORDS;
+  if (time.holds) return form.timeHeld;
+  if (time.status === "proposed") return form.timeLapsed;
+  return time.status === "cancelled" ? form.timeCant : form.timeBooked;
+}
+
 function requestRow(request: FormOpenRequestDto, todayFacts: TodayFacts): TodayQueueRowVM {
   const asker = request.name?.trim() || NEED_YOU_WORDS.form.someone;
   const waitedMs = Math.max(0, todayFacts.now.getTime() - Date.parse(request.created_at));
-  const status = request.phone_only ? NEED_YOU_WORDS.form.phoneOnly : NEED_YOU_WORDS.form.status;
+  const time = request.time ?? null;
+  const status = time
+    ? timeStatusOf(time)
+    : request.phone_only
+      ? NEED_YOU_WORDS.form.phoneOnly
+      : NEED_YOU_WORDS.form.status;
+  // A time asked for is said first, as a time asked in a chat is: "Asked for Sat, Nov 28, 11:00 AM · Balayage".
+  const timeLine = time
+    ? BOOKING_REQUEST_WORDS.hold(slotShort(Date.parse(time.starts_at), time.timezone), time.service)
+    : null;
   return {
     id: `q-f-${request.id}`,
     kind: "form",
@@ -32,11 +50,12 @@ function requestRow(request: FormOpenRequestDto, todayFacts: TodayFacts): TodayQ
     who: asker,
     initials: initialsOf(asker),
     channel: "Form",
-    via: request.heading,
+    // A site's form says the site it is on (00709): "Consultation · lumasalon.com".
+    via: request.site ? `${request.heading} · ${request.site}` : request.heading,
     when: `waited ${formatWaited(waitedMs)}`,
     // A reply that left and never reached them is said as a failed reply to anyone is, in the house's one sentence.
-    sentence: request.unreached ? NEED_YOU_WORDS.failed.sentence : request.words || request.heading,
-    quoted: !request.unreached && !!request.words,
+    sentence: request.unreached ? NEED_YOU_WORDS.failed.sentence : (timeLine ?? (request.words || request.heading)),
+    quoted: !request.unreached && !timeLine && !!request.words,
     status: [status],
     tone: "escalated",
     warn: request.unreached,

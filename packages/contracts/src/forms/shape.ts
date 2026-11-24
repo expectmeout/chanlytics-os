@@ -84,6 +84,20 @@ export const FORM_PAGE_WORD_KEYS = [
   "problem_not_a_choice",
   "problem_no_way_to_answer",
   "scan",
+  "ask_time",
+  "none_of_these",
+  "time_confirm",
+  "asked_for",
+  "confirm_by_email",
+  "time_sub",
+  "time_taken",
+  "time_taken_lead",
+  "time_short",
+  "time_short_lead",
+  "book_page",
+  "book_page_lead",
+  "sent_time",
+  "day_at_time",
 ] as const;
 export type FormPageWordKey = (typeof FORM_PAGE_WORD_KEYS)[number];
 

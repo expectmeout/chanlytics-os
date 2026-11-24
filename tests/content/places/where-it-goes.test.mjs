@@ -6,11 +6,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
+import { ON_FACEBOOK, ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
   goesPillOf,
+  takeDownOffered,
   takeDownStandsOf,
 } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/goes.ts";
 
@@ -188,6 +189,14 @@ test("a take-down says what the place said: asked, by hand with the place's link
   const gone = one({ ...up, status: "taken_down" }, down({ outcome: "done", finished_at: ago(0) }));
   assert.equal(gone.said, "Taken down · @18:00");
   assert.equal(gone.tone, "gone");
+  // Found gone at its place while the take-down still waited on its owner (deleted there, no "I deleted it" pressed):
+  // down is down, and nothing is left to press.
+  for (const outcome of ["needs_person", "pending"]) {
+    const foundGone = one({ ...up, status: "taken_down" }, down({ outcome, finished_at: ago(0) }));
+    assert.equal(foundGone.said, "Taken down");
+    assert.equal(foundGone.tone, "gone");
+    assert.deepEqual(foundGone.acts, []);
+  }
 });
 
 test("a post its owner chose to leave up says who kept it and when, in green, and nothing is to press for it", () => {
@@ -276,4 +285,31 @@ test("what the confirm says the press will do, a line a placement", () => {
       ["Google", "Chanlytics takes it down"],
     ],
   );
+});
+
+test("Take down is offered only where something of the piece is up: never for a story that has run its day", () => {
+  const ended = post({ kind: "story", published_at: ago(25 * HOUR), verified_at: ago(25 * HOUR) });
+  const live = post({ kind: "story", published_at: ago(2 * HOUR), verified_at: ago(2 * HOUR) });
+  // The story's line already says it ended by itself, and a take-down asks nothing of it (00682): nothing to press.
+  assert.equal(one(ended).said, "Was on Instagram for a day · @17:00");
+  assert.equal(takeDownOffered([ended], NOW), false, "a story past its day is gone already");
+  assert.equal(takeDownOffered([live], NOW), true, "a story still in its day is up");
+  assert.equal(takeDownOffered([ended, post({ kind: "picture" })], NOW), true, "the post beside it is up");
+  assert.equal(takeDownOffered([post({ status: "publishing", published_at: null })], NOW), true, "on its way up");
+  assert.equal(takeDownOffered([post({ status: "taken_down" })], NOW), false);
+});
+
+test("a Page's post is said as Instagram's is: named with its kind, up only once seen, else said plainly", () => {
+  const page = (over = {}) =>
+    post({ place: "facebook", kind: "reel", permalink: "https://www.facebook.com/reel/1", ...over });
+  const seen = one(page());
+  assert.equal(seen.name, "Facebook reel");
+  assert.equal(seen.said, "On Facebook · @17:00");
+  assert.equal(one(page({ kind: "story" })).name, "Facebook story");
+  assert.equal(one(page({ kind: "picture" })).name, "Facebook post");
+  // A reel Meta has not said is published: still posting, then said plainly in Facebook's words.
+  const unseen = one(page({ verified_at: null, published_at: ago(MIN) }));
+  assert.deepEqual([unseen.said, unseen.tone, unseen.moving], ["Posting to Facebook", "live", true]);
+  const never = one(page({ verified_at: null, published_at: ago(HOUR) }));
+  assert.equal(never.said, ON_FACEBOOK.refused.unknown);
 });

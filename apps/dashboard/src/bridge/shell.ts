@@ -219,6 +219,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   ask_memory: "What AI remembers",
   files: "Files",
   content: "Content",
+  content_week: "The week",
   notifications: "Notifications",
   setup: "Setup",
   google: "Google",

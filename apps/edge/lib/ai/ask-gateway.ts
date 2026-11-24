@@ -275,12 +275,17 @@ export const GATEWAY_PURPOSES = [
   // Whether a person's words are a yes to a card waiting on their thread (the dashboard's ask/tools/act/press.ts): the small
   // JSON route, counted apart from the drafts (00660).
   "yes_check",
+  // A public answer to a comment written again as its owner asks (dashboard server/content/comment-rewrite.ts): the
+  // small JSON route, counted apart (00699).
+  "comment_rewrite",
   // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
   "message_draft",
   // An ad's words, by the ad writer skill (the Ads plan's 6.7): a craft call at the skill's effort, counted apart (G19).
   "ad_draft",
   // A form drafted from its owner's sentence, by the form drafter skill (the Forms plan, 3.7): a craft call, counted apart.
   "form_draft",
+  // A line of Settings › Content in the owner's words, read into the week's plan (00706): the small JSON route.
+  "content_line",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */
@@ -360,7 +365,11 @@ export const GATEWAY_FALLBACK_MODEL = MODELS.SONNET_5;
 /** The lead purposes' ceiling. Ask's own is askRoundCap's (contracts), the rule its loop asks by. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
-export const GATEWAY_MAX_TOOLS = 40;
+/**
+ * The most tools a request may carry: an owner's whole set (38 since AI hands a form to Forms, decision 0148) with room for
+ * four more. Raised from 40 before the set reached it, so either app may deploy first.
+ */
+export const GATEWAY_MAX_TOOLS = 44;
 export const GATEWAY_MAX_BODY = 700_000;
 
 /** Whether a purpose's request may name this model: Ask any that reads as one, a small draft the list's. */

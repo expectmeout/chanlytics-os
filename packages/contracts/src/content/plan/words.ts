@@ -1,0 +1,89 @@
+/**
+ * What a week of posts says (the content loop PRD's 12.5 and 21.2, through docs/words.md): the notices that leave the app
+ * when a week is ready and when it asks for clips, Today's point, and the Week's head. A week is said as what it is ("A
+ * reel and 2 posts"), never "4 pieces, 6 places"; a place is Instagram or Google.
+ */
+import { POST_PLACE_SAID, type PostPlace } from "../posts";
+import { weekdayShortOf } from "./week";
+
+/** The days a week's posts go up on, first to last: "Tue to Fri", or one day alone. */
+export function weekDaysSaid(days: readonly string[]): string {
+  const sorted = [...new Set(days)].sort();
+  const first = sorted[0];
+  const last = sorted.at(-1);
+  if (!first || !last) return "";
+  return first === last ? weekdayShortOf(first) : `${weekdayShortOf(first)} to ${weekdayShortOf(last)}`;
+}
+
+export const WEEK_WORDS = {
+  /** The notice of a week ready (plan_ready): its subject, and its body. */
+  readySubject: "This week's posts are ready",
+  readyBody: (size: string, days: string) => `${size}, ${days}. Nothing goes up until you approve them.`,
+  /** The notice of what to film (footage_ask). */
+  askSubject: (count: number) => (count === 1 ? "A clip to film for the week" : `${count} clips to film for the week`),
+  /** A week with nothing to post: its head. */
+  nothing: "Nothing to post this week",
+  /** Today's point for a week ready, with its size and days after the dot. */
+  todayReady: "This week's posts are ready",
+  /** Today's point for what to film. */
+  todayFilm: (count: number) =>
+    count === 1 ? "Film a short clip for the week" : `Film ${count} short clips for the week`,
+  /** The head's line under a ready week's size: how often it goes up, and where. */
+  goingUp: (count: number, places: string) => `Going up ${count === 1 ? "once" : `${count} times`} on ${places}`,
+  approve: "Approve the week",
+  approved: (at: string) => `Approved ${at}. Each goes up at its time.`,
+  approvedTitle: (size: string) => `Approved · ${size}`,
+  /** The head while the week is drafted: AI plans it and words it; nothing is made until it is approved. */
+  drafting: "AI is planning this week",
+  draftingBy: "Ready by Monday 8:00 AM. Nothing is made until you approve it.",
+  needsYou: "Needs you",
+  ready: "Ready",
+  inOrder: "In time order",
+  soFar: "So far",
+  goingUpGroup: "Going up",
+  upAndGoing: "Up, and going up",
+  waiting: "Waiting",
+  film: "Film these",
+  filmNext: "For next week, film these",
+  filmWhy: "No clip fits what this week needs. Film these, and AI makes the week from them.",
+  /** "This week · Dec 1 to 7". */
+  kicker: (span: string) => `This week · ${span}`,
+  place: { instagram: "Instagram", google: "Google" },
+  paused: "AI is paused. Nothing will post.",
+  pausedSince: (at: string) =>
+    at ? `Paused ${at}. What's set waits until you resume.` : "What's set waits until you resume.",
+  resume: "Resume",
+  /** The Week before it has a week: nothing connected, or a week not planned yet. */
+  empty: {
+    unconnected: {
+      title: "A week of posts, made from your photos and clips",
+      line: "AI plans each week from what you film and what the business needs, and posts each one where you approve it.",
+    },
+    unplanned: {
+      title: "Your first week",
+      line: "AI plans each week on Sunday evening, ready by Monday 8:00 AM. Or plan this one now.",
+    },
+  },
+  connect: "Connect Instagram",
+  connectGoogle: "Connect Google",
+  plan: "Plan this week",
+  add: "Add",
+  /** A row's line, as its creative stands. */
+  goesUp: (when: string) => `Goes up ${when}`,
+  waits: (when: string) => `Waits for you · was ${when}`,
+  upOn: (places: readonly PostPlace[], day: string) =>
+    `On ${[...new Set(places)].map((p) => POST_PLACE_SAID[p]).join(" and ")} · ${day}`,
+  didNotPost: (place: PostPlace, why: string) => `Didn't post on ${POST_PLACE_SAID[place]}${why ? ` · ${why}` : ""}`,
+  making: "Being made",
+  videoMaking: "Its video is being made",
+  videoMade: (when: string) => `Made · approve it to go up ${when}`,
+  videoFailed: "Its video couldn't be made",
+  /** A row's one fix. */
+  fix: { offer: "Add it", connect: "Connect", again: "Try again", open: "Open", post: "Approve" },
+  /** The piece of a row not made yet: where each place takes it, and its words. */
+  whereItGoes: "Where it goes",
+  caption: "Caption",
+  plannedFrom: (name: string) => `Planned from ${name}`,
+  approvedToast: "Approved. Each goes up at its time.",
+  leftOut: (count: number) => (count === 1 ? "1 was left out: it says why." : `${count} were left out: each says why.`),
+} as const;

@@ -898,6 +898,69 @@
       "rate": "settings",
       "spend": false
     },
+    "PUT content/aims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/line": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "ask",
+      "spend": false
+    },
+    "POST content/claims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE content/claims": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/review-ask": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET content/plan": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST content/plan": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/plan/approve": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST content/plan/slots": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET content/note": {
       "kind": "read",
       "scope": "workspace",
@@ -1054,6 +1117,20 @@
       "rate": "file_upload",
       "spend": false
     },
+    "POST files/[id]/facebook": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_facebook",
+      "spend": false
+    },
+    "DELETE files/[id]/facebook": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_facebook",
+      "spend": false
+    },
     "POST files/[id]/google": {
       "kind": "write",
       "scope": "row",
@@ -1136,6 +1213,13 @@
       "scope": "row",
       "role": "partner",
       "rate": "settings",
+      "spend": false
+    },
+    "POST files/[id]/version": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_instagram",
       "spend": false
     },
     "GET files/[id]/view": {
@@ -3155,6 +3239,13 @@
       "rate": null,
       "spend": false
     },
+    "GET forms/site-sheet": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET website-forms": {
       "kind": "read",
       "scope": "workspace",
@@ -3222,6 +3313,62 @@
       "kind": "write",
       "scope": "workspace",
       "role": "partner",
+      "rate": null,
+      "spend": false
+    },
+    "GET comments/one": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET comments": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST comments": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "reply",
+      "spend": false
+    },
+    "POST comments/rewrite": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
+    "GET content/report": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET content/week": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST files/[id]/link": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET files/[id]/results": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
       "rate": null,
       "spend": false
     }

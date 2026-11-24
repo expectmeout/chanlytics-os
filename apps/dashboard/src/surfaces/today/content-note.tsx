@@ -20,7 +20,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   CONTENT_ROUTE,
   CONTENT_TODAY_WORDS as W,
+  CONTENT_WEEK_ROUTE,
+  WEEK_WORDS,
+  CONTENT_WORDS,
+  REVIEW_ASK_WORDS,
+  reviewAskLineOf,
   MIN_MS,
+  clockNear,
+  clockTime,
   contentRouteOf,
   fileSaidOf,
   fileViewOf,
@@ -29,6 +36,7 @@ import {
   type ContentLineDto,
   type ContentTodayDto,
 } from "@chanlytics/contracts";
+import { pageClock } from "@/bridge/zone";
 import { routeDoor } from "../frame-verbs";
 import { TODAY_LINE_WORDS, contentWords } from "./model/lines";
 import { Icon } from "../kit/icon/icon";
@@ -66,6 +74,66 @@ function DownLine({ down }: { down: ContentDownDto }) {
       door={routeDoor(contentRouteOf({ list: "made", view: "all", open: down.file.id, post: true }))}
       testid={`today-content-down-${down.is}`}
     />
+  );
+}
+
+/**
+ * A post set to go that waits for a new version's approval (the version board, cell 5): the piece by its name and its new
+ * version's picture, "Approve version 2 · goes up Tue, 6:00 PM" in amber; it opens the piece, where that press leads.
+ */
+function VersionLine({ version }: { version: NonNullable<ContentTodayDto["version"]> }) {
+  const zone = pageClock().zone();
+  const atMs = Date.parse(version.at);
+  const at = CONTENT_WORDS.viewer.at(clockNear(atMs, zone, Date.now()), clockTime(atMs, zone));
+  return (
+    <CalmRow
+      first={{
+        face: { glyph: <Icon name="video" size={14} />, photo: `${fileViewOf(version.file.id)}?w=320`, tile: true },
+      }}
+      name={fileSaidOf(version.file.name)}
+      said={<span data-tone="warn">{W.versionWaits(version.n, at)}</span>}
+      door={routeDoor(contentRouteOf({ list: "made", view: "all", open: version.file.id }))}
+      testid="today-content-version"
+    />
+  );
+}
+
+/**
+ * The week's points (00706; the approved boards, Today 1 and the pass 3 rows): the week ready to approve, its size and
+ * days under it, what AI asks to be filmed, and the plan's proposal to ask every client for a review (pass 6; the canvas's
+ * Loop4). Each opens the Week, where it is approved, added or opened; Today approves nothing.
+ */
+function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
+  return (
+    <>
+      {plan.ready ? (
+        <CalmRow
+          first={{ mark: <Icon name="video" size={14} /> }}
+          name={WEEK_WORDS.todayReady}
+          said={`${plan.ready.size} · ${plan.ready.days}`}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-ready"
+        />
+      ) : null}
+      {plan.film.length ? (
+        <CalmRow
+          first={{ mark: <Icon name="video" size={14} /> }}
+          name={WEEK_WORDS.todayFilm(plan.film.length)}
+          said={plan.film.join(" · ")}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-film"
+        />
+      ) : null}
+      {plan.review_ask ? (
+        <CalmRow
+          first={{ mark: <Icon name="star" size={14} /> }}
+          name={REVIEW_ASK_WORDS.title}
+          said={reviewAskLineOf(plan.review_ask)}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-review-ask"
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -131,10 +199,17 @@ export function TodayContentLine() {
   ]);
   if (!today) return null;
   const downs = today.down ?? [];
-  if (today.week.length === 0 && today.making.length === 0 && !today.stopped && downs.length === 0) return null;
+  const plan = today.plan ?? null;
+  const version = today.version ?? null;
+  // A post held as changed while a new version waits is said once, as that version (its file is the older version's).
+  const stopped = version && today.stopped?.post.held_why === "changed" ? null : today.stopped;
+  if (today.week.length === 0 && today.making.length === 0 && !stopped && downs.length === 0 && !plan && !version)
+    return null;
   return (
     <CalmList label={W.title} testid="today-content">
-      {today.stopped ? <StoppedLine line={today.stopped} /> : null}
+      {plan ? <PlanLines plan={plan} /> : null}
+      {version ? <VersionLine version={version} /> : null}
+      {stopped ? <StoppedLine line={stopped} /> : null}
       {downs.map((down) => (
         <DownLine key={`${down.file.id}:${down.is}`} down={down} />
       ))}

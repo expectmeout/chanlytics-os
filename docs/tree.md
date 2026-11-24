@@ -22,6 +22,7 @@ apps/edge/lib/
   content/
   drafts/
   email/
+  facebook/
   files/
   google/
   imports/
@@ -31,6 +32,7 @@ apps/edge/lib/
   leads/
   lines/
   notes/
+  opportunities/
   ops/
   partners/
   previews/
@@ -48,6 +50,7 @@ apps/dashboard/app/
   b/
   c/
   data-deletion/
+  f/
   l/
   login/
   p/
@@ -114,6 +117,7 @@ packages/channels/src/
   ads/
   ai/
   email/
+  facebook/
   files/
   google/
   inbound/
@@ -178,6 +182,7 @@ packages/core/src/
   leads/
   look/
   messages/
+  opportunities/
   shared/
   website/
 packages/db/src/

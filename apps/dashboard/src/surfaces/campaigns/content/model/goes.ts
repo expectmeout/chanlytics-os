@@ -8,6 +8,7 @@
 import {
   DAY_MS,
   MIN_MS,
+  ON_FACEBOOK,
   ON_INSTAGRAM,
   POST_PLACE_SAID,
   POST_PULLABLE,
@@ -122,6 +123,10 @@ const GOES_ORDER: readonly (readonly [PostPlace, PostKind])[] = [
   ["instagram", "picture"],
   ["instagram", "story"],
   ["google", "picture"],
+  // A Page (pass 5), after the places a piece already went to, in Instagram's order.
+  ["facebook", "reel"],
+  ["facebook", "picture"],
+  ["facebook", "story"],
 ];
 
 type Said = Pick<GoesLine, "said" | "tone" | "note" | "moving" | "acts" | "status">;
@@ -180,11 +185,14 @@ const leftUpOf = (post: PostDto, takeDown: PieceTakeDownDto | null) =>
     (a) => a.target === "post" && a.target_id === post.id && a.act === "take_down" && a.outcome === "left_up",
   );
 
+/** A story that has run its day: gone from the place by itself, though its row still says it went up (Meta says nothing). */
+const storyRanItsDay = (post: Pick<PostDto, "kind" | "published_at">, nowMs: number): boolean =>
+  post.kind === "story" && !!post.published_at && nowMs - Date.parse(post.published_at) > DAY_MS;
+
 /** A post that is up: seen there, sent and not yet seen, a story that ended by itself, or one kept up by choice. */
 function upSaid(post: PostDto, known: GoesKnown): Said {
   const at = post.published_at ? known.when(post.published_at) : null;
-  const ended = post.kind === "story" && !!post.published_at && known.nowMs - Date.parse(post.published_at) > DAY_MS;
-  if (ended) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
+  if (storyRanItsDay(post, known.nowMs)) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
   const see: GoesAct[] = post.permalink ? [{ is: "see", href: post.permalink }] : [];
   // Left up by its owner's own word, where a place would not take it down (the canvas's Piece 35): who kept it and
   // when, in green, so a teammate reads a choice. The piece's one status says where it is: on the place.
@@ -197,11 +205,13 @@ function upSaid(post: PostDto, known: GoesKnown): Said {
   // Instagram's is said to be on the account only once the account was read holding it, and until then it is still
   // posting: no word between the two (PRD 8.2 as the canvas's call 7 took it). Past the time that read takes, nobody
   // can say it went up, and the line says so in the words a send with no answer always had.
-  if (post.place === "instagram" && !post.verified_at) {
+  // A Page's the same (pass 5): a reel is up only once Meta says it is published.
+  if (post.place !== "google" && !post.verified_at) {
     const sentMs = post.published_at ? Date.parse(post.published_at) : known.nowMs;
+    const unknown = post.place === "facebook" ? ON_FACEBOOK.refused.unknown : ON_INSTAGRAM.refused.unknown;
     return known.nowMs - sentMs < POST_SEEN_WAIT_MS
       ? lineSaysOf(GOES_WORDS.posting(post.place), "live", { moving: true })
-      : lineSaysOf(ON_INSTAGRAM.refused.unknown, "you", { acts: see });
+      : lineSaysOf(unknown, "you", { acts: see });
   }
   return lineSaysOf(GOES_WORDS.up(post.place, at), "ok", { acts: see });
 }
@@ -263,12 +273,14 @@ function failedSaid(post: PostDto, known: GoesKnown): Said {
 
 /** Where one post stands, or null where it says nothing of its placement any more (let go by the owner). */
 function postSaid(post: PostDto, known: GoesKnown): Said | null {
-  const down = comingDownSaid(post, known);
-  if (down) return down;
+  // Down is down, whatever a take-down still says: a post found gone at its place (removed there, or off Google from
+  // its sheet) while a take-down waited on its owner or the place.
   if (post.status === "taken_down") {
     const at = postCameDownAt(post, known.takeDown);
     return lineSaysOf(TAKE_DOWN_WORDS.cameDown(at ? known.when(at) : null), "gone");
   }
+  const down = comingDownSaid(post, known);
+  if (down) return down;
   if (post.status === "published") return upSaid(post, known);
   if (post.status === "held") return heldSaid(post, known);
   if (post.status === "failed") return failedSaid(post, known);
@@ -335,6 +347,17 @@ export function takeDownStandsOf(takeDown: PieceTakeDownDto | null): { open: boo
   };
 }
 
-/** Whether a piece has anything a take-down would reach: a post up, or on its way up. */
-export const takeDownOffered = (posts: readonly Pick<PostDto, "status">[]): boolean =>
-  posts.some((post) => ["published", "publishing", "checking"].includes(post.status));
+/**
+ * Whether a piece has anything a take-down would reach: a post up, or on its way up. A story that has run its day is
+ * gone already, and a take-down asks nothing of it (00682), so it alone offers nothing to press.
+ */
+export const takeDownOffered = (
+  posts: readonly Pick<PostDto, "status" | "kind" | "published_at">[],
+  nowMs: number,
+): boolean =>
+  posts.some(
+    (post) =>
+      post.status === "publishing" ||
+      post.status === "checking" ||
+      (post.status === "published" && !storyRanItsDay(post, nowMs)),
+  );

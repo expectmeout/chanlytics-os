@@ -7,7 +7,9 @@ export {
   CONTENT_LIBRARY_ROUTE,
   CONTENT_ROUTE,
   CONTENT_VIEWS,
+  CONTENT_WEEK_ROUTE,
   contentPlaceOf,
+  contentPlanOf,
   contentPreviewOf,
   contentRouteOf,
   isContentParam,
@@ -15,17 +17,19 @@ export {
 export type { ContentList, ContentPlace, ContentView } from "./address";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
 export type { BringIn, BringInRefusal } from "./bring-in";
-export {
-  CONTENT_IDEAS,
-  contentIdeaAsk,
-  contentIdeaFilesOf,
-  contentIdeasFor,
-  contentIdeasReady,
-  reviewIdeaTitleOf,
-} from "./ideas";
+export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./ideas";
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
+export type { PieceCaption, PieceCue } from "./making/captions";
+export { pieceCuesOf } from "./making/cues";
+export { brandKitOf, lookSaidOf, neverSaidIn, siteKitOf } from "./making/kit";
+export type { BrandKit } from "./making/kit";
+export { HOUSE_LOUDNESS, RENDITION_RULES, renditionRefusalOf } from "./making/renditions";
+export type { MediaMeasured, RenditionRefusal, RenditionRule, RenditionWhy } from "./making/renditions";
+export { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } from "./making/safe-areas";
+export type { SafeArea, WordBox } from "./making/safe-areas";
+export { revisionChangesOf, shapesReachedOf } from "./making/versions";
 export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./note";
 export type { ContentDownDto, ContentTodayDto } from "./note";
 export {
@@ -61,7 +65,7 @@ export type {
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
-export type { PieceWordsBox } from "./piece-frame";
+export type { PieceFace, PieceWordsBox } from "./piece-frame";
 export {
   isPieceStep,
   PIECE_FAILS,
@@ -122,9 +126,19 @@ export type {
 } from "./placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
 export type { ContentCheck } from "./placements/check-words";
+export {
+  metaPageOf,
+  ON_FACEBOOK,
+  PAGE_POSTING_PERMISSIONS,
+  pagePostableOf,
+  placeSwitchedOn,
+} from "./placements/facebook";
+export type { FacebookRefusal, MetaPage } from "./placements/facebook";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
+  CommentAnswerSent,
+  ObservedPost,
   PlaceAdapter,
   PlaceAnswerKept,
   PlaceCapabilities,
@@ -172,6 +186,64 @@ export type {
 } from "./placements/take-down";
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 export { takeDownSpec } from "./placements/take-down-spec";
+export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
+export type { OwnerClaim } from "./plan/claims";
+export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./plan/patterns";
+export type { ContentPattern, PatternDimension, PatternLevel, PostOutcome } from "./plan/patterns";
+export {
+  REVIEW_ASK_REST_DAYS,
+  REVIEW_ASK_START,
+  REVIEW_ASK_WORDS,
+  reviewAskLineOf,
+  reviewAskOf,
+  reviewAskWordsOf,
+} from "./plan/review-ask";
+export type { ReviewAskDto, ReviewAskFacts, ReviewAskWhy } from "./plan/review-ask";
+export {
+  CLAIM_KINDS,
+  CLAIM_SOURCES,
+  CONTENT_GOALS,
+  PLAN_ASKED_BY,
+  PLAN_PLACES,
+  PLAN_STATUSES,
+  SLOT_STATES,
+} from "./plan/sets";
+export type {
+  ClaimKind,
+  ClaimSource,
+  ContentGoal,
+  OpportunityKind,
+  PlanAskedBy,
+  PlanPlace,
+  PlanStatus,
+  SlotState,
+} from "./plan/sets";
+export { cadenceSaid, contentLinesOf } from "./plan/settings-lines";
+export type { ContentLineEdit, ContentLineView } from "./plan/settings-lines";
+export {
+  cadenceOf,
+  creativesOf,
+  FOOTAGE_ASKS_MOST,
+  planWeekOf,
+  SLOT_CAPTION_MAX,
+  slotWordsOf,
+  weekdayShortOf,
+  weekSizeSaid,
+} from "./plan/week";
+export type {
+  FootageAsk,
+  Opportunity,
+  PlanSlotDto,
+  ScorePart,
+  SlotHeldWhy,
+  SlotScore,
+  SlotWords,
+  WeekPlanDto,
+} from "./plan/week";
+export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";
+export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./plan/week-view";
+export type { WeekFix, WeekGroup, WeekMark, WeekRow, WeekState, WeekView } from "./plan/week-view";
+export { WEEK_WORDS, weekDaysSaid } from "./plan/words";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,
@@ -206,6 +278,57 @@ export type {
 } from "./posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
 export type { PostPublish } from "./publish";
+export { COMMENT_ANSWER_WORDS } from "./results/answer-words";
+export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./results/comment-address";
+export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./results/comment-answer";
+export type { CommentAnswerFacts, CommentToAnswer } from "./results/comment-answer";
+export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./results/comment-stage";
+export type { CommentStage } from "./results/comment-stage";
+export { CREDIT_WINDOW_DAYS, creditFor, creditOf, madeAtOf } from "./results/credit";
+export type { Credit, CreditSubject, CreditTouch, CreditVisit } from "./results/credit";
+export type { CommentAnswerDto, CommentRowDto, CommentsDto, ContentReportDto, ContentWeekDto } from "./results/dtos";
+export { nextObserveStep, observeDueAt } from "./results/observe";
+export type { Observation } from "./results/observe";
+export { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "./results/piece-results";
+export type {
+  BroughtPersonDto,
+  BroughtSaid,
+  ChainOpens,
+  ChainStep,
+  PieceResultsDto,
+  PieceResultsSaid,
+  PostNumbersDto,
+  ResultLinePart,
+} from "./results/piece-results";
+export { postChatLinkOf, postCodeIn } from "./results/post-code";
+export type { PostChatPlaces } from "./results/post-code";
+export {
+  COMMENT_ANSWER_STATES,
+  LINK_LANDS,
+  LINK_SUBJECTS,
+  METRIC_AVAILABILITY,
+  OBSERVE_STEPS,
+  POST_METRICS,
+  TOUCH_KEPT_SUBJECTS,
+  TOUCH_KINDS,
+  TOUCH_SUBJECTS,
+  VISIT_THROUGH_TYPES,
+} from "./results/sets";
+export type {
+  CommentAnswerState,
+  CreditClass,
+  LinkLands,
+  LinkSubject,
+  MetricAvailability,
+  ObserveStep,
+  PostMetric,
+  TouchKind,
+  TouchSubjectType,
+  VisitThroughType,
+} from "./results/sets";
+export { contentTotalsOf, contentWeekOf, contentWeekSaid } from "./results/totals";
+export type { ContentTotals, CountedBooking, PostReach, VisitCounted } from "./results/totals";
+export type { RecordedTouch, TouchHome } from "./results/touch";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./sources";
 export type {

@@ -13,7 +13,7 @@ import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
 import { ADS_ROUTE, newAdRoute } from "../../ads/address";
-import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, CONTENT_WEEK_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
 const CONTENT_NEEDS_ROUTE = contentRouteOf({ list: "made", view: "needs", open: null });
@@ -185,6 +185,13 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A post asked down at its place (00682). Not sent (kinds.ts: the platform's to chase): its piece says the place has
   // not confirmed it, and that Chanlytics is on it.
   post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
+  // A week of posts planned (00706). Not sent (kinds.ts: the platform's to mend); the owner can ask AI for the week.
+  content_plan: { stopped: "Couldn't plan this week's posts", to: CONTENT_ROUTE },
+  // A post's numbers (00699). Not sent (packages/jobs TOLD_ELSEWHERE): the piece says a read failed, and the next step
+  // reads it again.
+  post_observe: { stopped: "Couldn't read a post's numbers", to: CONTENT_ROUTE },
+  // A public answer to a comment (00699): its row in Inbox says it did not go, and Send is there again.
+  comment_reply: { stopped: "Couldn't answer a comment", to: "inbox" },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "Couldn't run a campaign this hour", to: "today" },
   reach_out_steps: { stopped: "Couldn't run cold email this hour", to: "today" },
@@ -362,6 +369,9 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   // a warning until it is gone. Each row opens the piece, where its lines say what each place answered.
   post_down: { icon: "check", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
   post_by_hand: { icon: "alert", tone: "warn", action: "Open the post", to: CONTENT_ROUTE, own: true },
+  // A week of posts (00706): ready for the owner's one press, and what to film for it. Each row opens the Week.
+  plan_ready: { icon: "calendar", tone: "", action: "Open the week", to: CONTENT_WEEK_ROUTE, own: true },
+  footage_ask: { icon: "video", tone: "", action: "See what to film", to: CONTENT_WEEK_ROUTE, own: true },
   // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
   ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
   // An owner's ads (00658): each row names one ad and opens its drawer, so its door says so. Meta not running one until

@@ -819,6 +819,48 @@
       "where": null
     },
     {
+      "table": "comment_answers",
+      "name": "comment_answers_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "comment_answers",
+      "name": "comment_answers_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "comment_answers",
+      "name": "comment_answers_one_a_comment",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "touch_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "contact_identities",
       "name": "contact_identities_pkey",
       "primary": true,
@@ -931,6 +973,75 @@
     {
       "table": "contacts",
       "name": "contacts_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_goals",
+      "name": "content_goals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_goals",
+      "name": "content_goals_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_one_a_week",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "week_of"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "content_plans",
+      "name": "content_plans_tenant_id_id_key",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -1364,6 +1475,33 @@
       }
     },
     {
+      "table": "file_moments",
+      "name": "file_moments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "file_moments",
+      "name": "file_moments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "files",
       "name": "files_pkey",
       "primary": true,
@@ -1460,6 +1598,21 @@
       "where": null
     },
     {
+      "table": "form_days",
+      "name": "form_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "form_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "form_entries",
       "name": "form_entries_pkey",
       "primary": true,
@@ -1488,25 +1641,6 @@
     },
     {
       "table": "form_entries",
-      "name": "form_entries_ref",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "ref"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "ref"
-        }
-      }
-    },
-    {
-      "table": "form_entries",
       "name": "form_entries_code",
       "primary": false,
       "nullsNotDistinct": false,
@@ -1522,6 +1656,65 @@
         "notNull": {
           "column": "code"
         }
+      }
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_ref",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "ref"
+            }
+          },
+          {
+            "isNull": {
+              "column": "outside_form_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_ref_outside",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "outside_form_id"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "ref"
+            }
+          },
+          {
+            "notNull": {
+              "column": "outside_form_id"
+            }
+          }
+        ]
       }
     },
     {
@@ -1652,6 +1845,33 @@
           "column": "first"
         }
       }
+    },
+    {
+      "table": "form_sites",
+      "name": "form_sites_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_sites",
+      "name": "form_sites_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "form_versions",
@@ -2566,6 +2786,51 @@
       "where": null
     },
     {
+      "table": "links",
+      "name": "links_one_a_post",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "subject_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "subject_type"
+        },
+        "right": {
+          "value": "post"
+        }
+      }
+    },
+    {
+      "table": "links",
+      "name": "links_one_website_a_form",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "subject_type"
+        },
+        {
+          "column": "subject_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "sites"
+        }
+      }
+    },
+    {
       "table": "mailbox_connections",
       "name": "mailbox_connections_pkey",
       "primary": true,
@@ -2976,6 +3241,81 @@
       "where": null
     },
     {
+      "table": "outside_forms",
+      "name": "outside_forms_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "outside_forms",
+      "name": "outside_forms_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "outside_forms",
+      "name": "outside_forms_one",
+      "primary": false,
+      "nullsNotDistinct": true,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "site_id"
+        },
+        {
+          "column": "form"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "owner_claims",
+      "name": "owner_claims_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "owner_claims",
+      "name": "owner_claims_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "page_vitals",
       "name": "page_vitals_pkey",
       "primary": true,
@@ -3360,6 +3700,33 @@
       }
     },
     {
+      "table": "plan_slots",
+      "name": "plan_slots_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "plan_slots",
+      "name": "plan_slots_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "platform_acts",
       "name": "platform_acts_pkey",
       "primary": true,
@@ -3439,6 +3806,54 @@
         },
         {
           "column": "subject_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "post_observations",
+      "name": "post_observations_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "post_id"
+        },
+        {
+          "column": "step"
+        },
+        {
+          "column": "metric"
         }
       ],
       "where": null
@@ -4653,6 +5068,51 @@
       "keys": [
         {
           "column": "slug"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "touches",
+      "name": "touches_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "place"
+        },
+        {
+          "column": "provider_event_id"
         }
       ],
       "where": null

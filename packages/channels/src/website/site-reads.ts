@@ -95,6 +95,9 @@ export interface SiteBrand {
   logo: string | null;
   /** The colour it takes for the brand's, as the page writes it; null for none. */
   colour: string | null;
+  /** A second colour beside it, and the type family its headings are set in, as the provider read them (pass 4's kit). */
+  second?: string | null;
+  font?: string | null;
 }
 
 /** A business's page as the reader was given it. */
@@ -134,13 +137,22 @@ function wordsSaid(v: unknown): string | null {
   return typeof one === "string" && one.trim() ? one.trim() : null;
 }
 
-/** A provider's branding as the look it says: its logo where that is an address on the web, its primary colour. */
-function brandOf(v: unknown): SiteBrand | null {
-  if (!v || typeof v !== "object") return null;
-  const sentence = wordsSaid(valueAt(v, "images", "logo")) ?? wordsSaid(valueAt(v, "logo"));
+/**
+ * A provider's branding as the look it says: its logo where that is an address on the web, its primary colour, and a
+ * second colour and its headings' type family where it read them (what the brand kit is proposed from on day one).
+ */
+function brandOf(branding: unknown): SiteBrand | null {
+  if (!branding || typeof branding !== "object") return null;
+  const sentence = wordsSaid(valueAt(branding, "images", "logo")) ?? wordsSaid(valueAt(branding, "logo"));
   const logo = sentence && /^https?:\/\//i.test(sentence) ? sentence : null;
-  const colour = wordsSaid(valueAt(v, "colors", "primary"));
-  return logo || colour ? { logo, colour } : null;
+  const colour = wordsSaid(valueAt(branding, "colors", "primary"));
+  // Its `accent` is often the page's text colour (black), never a brand's second: only `secondary` is taken.
+  const second = wordsSaid(valueAt(branding, "colors", "secondary"));
+  const font =
+    wordsSaid(valueAt(branding, "typography", "fontFamilies", "heading")) ??
+    wordsSaid(valueAt(branding, "typography", "fontFamilies", "primary"));
+  if (!logo && !colour && !second && !font) return null;
+  return { logo, colour, ...(second ? { second } : {}), ...(font ? { font } : {}) };
 }
 
 /** A scrape's answer as a page, or null: no success, a page that answered an error, or nothing drawn. */

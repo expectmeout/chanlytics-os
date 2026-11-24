@@ -67,6 +67,8 @@ export interface ContentMadeDto {
   posts: PostDto[];
   /** Where its owner said they posted it themselves (00620), or none: read apart from its posts, which a press sends. */
   by_hand?: HandPostDto | null;
+  /** A new version of this video being made now (00708), by its number: its tile shows it dimmed under the three. Absent otherwise. */
+  version_drawing?: number;
 }
 
 /** One post at one place, with the piece it is of: a line of Needs you, Scheduled or Posted. */
@@ -238,7 +240,7 @@ export const CONTENT_WORDS = {
   /** Make's sheet over the page (sheets/make.tsx): what Ask can make now, and its line for anything else. */
   makeSheet: {
     title: "Make something",
-    sub: "From your photos, clips and reviews",
+    sub: "From your photos and clips",
     say: "Or say what you want",
   },
   makingTitle: "Being made",
@@ -421,6 +423,7 @@ export const CONTENT_WORDS = {
   },
   /** Content's two lists, as the control at the list's top says them. */
   lists: {
+    week: "Week",
     made: "Made",
     library: "Library",
     label: "Show what",
@@ -439,6 +442,8 @@ export const CONTENT_WORDS = {
       aside: "Set aside",
     },
     label: "Show",
+    /** Made's views end with Ads where Ads is on, set apart under this word: what is shown for money (three tabs, 23 Nov 2026). */
+    paid: "Paid",
     empty: {
       all: "Nothing made yet.",
       needs: "Nothing needs you.",
@@ -448,6 +453,8 @@ export const CONTENT_WORDS = {
       aside: "Nothing is set aside.",
     },
     thisWeek: "This week",
+    /** Made's own heading for its week once the Week stands beside it (the PRD's 21.2), so "this week" is said once. */
+    madeThisWeek: "Made this week",
     earlier: "Earlier",
     open: "Open",
     /** The lines' own words (the content canvas, PhList). */

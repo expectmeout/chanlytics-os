@@ -102,7 +102,7 @@ function PlaceEnd({ at, draft, both }: { at: PlaceStanding; draft: PostBothDraft
   if (at.takes)
     return (
       <span className="cnv-dest-end">
-        {place === "instagram" && draft.instagram ? (
+        {(place === "instagram" && draft.instagram) || (place === "facebook" && draft.facebook && !draft.instagram) ? (
           <InstagramAs as={draft.as} kinds={both.kinds} all={instagramKindsFor(both.fileKind)} choose={both.choose} />
         ) : null}
         <Switch

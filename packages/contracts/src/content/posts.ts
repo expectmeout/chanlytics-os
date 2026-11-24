@@ -4,8 +4,8 @@
  */
 import { MIN_MS } from "../shared/time";
 
-/** Where a post can go. TikTok joins when its door exists. */
-export const POST_PLACES = ["instagram", "google"] as const;
+/** Where a post can go: Facebook is a Page the Meta link reaches (the content loop PRD's pass 5). TikTok joins when its door exists. */
+export const POST_PLACES = ["instagram", "google", "facebook"] as const;
 export type PostPlace = (typeof POST_PLACES)[number];
 
 /**
@@ -43,10 +43,11 @@ export function linkPlaceSaid(link: string | null | undefined): string | null {
 }
 
 /** A place as a sentence says it. */
-export const POST_PLACE_SAID = { instagram: "Instagram", google: "Google" } as const satisfies Record<
-  PostPlace,
-  string
->;
+export const POST_PLACE_SAID = {
+  instagram: "Instagram",
+  google: "Google",
+  facebook: "Facebook",
+} as const satisfies Record<PostPlace, string>;
 
 /** What it is there: a picture in the feed, a story, or a reel (a video made here, since pass 1b of the content loop). */
 export const POST_KINDS = ["picture", "story", "reel"] as const;
@@ -109,11 +110,11 @@ export const POST_CAPTION_MAX = 2200;
 const HASHTAGS_MAX = 30;
 const MENTIONS_MAX = 20;
 
-/** How far ahead a post may be set to go (00611 post_begin). */
+/** How far ahead a post may be set to go (00681 post_approve). */
 export const POST_AHEAD_DAYS_MAX = 30;
 
 /**
- * A post set for no later than this from now goes as it is pressed; later, it waits for its time (00616 post_begin's own two
+ * A post set for no later than this from now goes as it is pressed; later, it waits for its time (00681 post_approve's own two
  * minutes). The one line every reader draws: the page, Today, Ask's card and the doors.
  */
 export const POST_SOON_MS = 2 * MIN_MS;
