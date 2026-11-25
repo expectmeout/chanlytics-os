@@ -61,7 +61,6 @@
 }
 .fr-step { display: grid; gap: 20px; min-width: 0; }
 .fr-step-head { display: grid; gap: 8px; }
-.fr-part { display: grid; gap: 10px; }
 .fr-heading { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.01em; text-wrap: balance; }
 .fr-heading:focus-visible { outline: none; }
 .fr-lead { margin: 0; max-width: 60ch; font-size: var(--text-md); color: var(--ink-dim); line-height: var(--leading-relaxed); }
@@ -86,7 +85,7 @@
 .fr-steady > [aria-hidden="true"] { opacity: 0; }
 /* What the press starts charging, said in the foot on a phone, and the press that dials: a desk has the plan's pane
    over its foot, and nothing to dial with. */
-.fr-price, .fr-call { display: none; }
+.fr-call { display: none; }
 
 /* What the steps share: a pane's own column, a choice's options one above the other, the small words. */
 .fr-line-step, .fr-find, .fr-check { display: grid; gap: 16px; }
@@ -246,7 +245,6 @@
 .fr-import-door { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--radius-md); }
 .fr-import-glyph { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); color: var(--ink-dim); }
 .fr-import-title { display: inline-flex; align-items: center; gap: 4px; }
-.fr-import-chevron { color: var(--ink-faint); }
 .fr-source .fr-import-stand { justify-self: end; display: inline-flex; align-items: center; }
 .fr-source[data-state="done"] .fr-import-stand { color: var(--ok-ink); }
 .fr-import-bar { width: min(240px, 100%); margin-top: 6px; }
@@ -254,7 +252,7 @@
 .fr-import-aside { grid-column: 1; justify-self: start; margin-left: 44px; display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-xs); color: var(--ink-faint); text-decoration: none; border-radius: var(--radius-sm); }
 a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (hover: hover) {
-  a.fr-import-door:hover .fr-import-chevron, a.fr-import-aside:hover { color: var(--ink); }
+  a.fr-import-aside:hover { color: var(--ink); }
 }
 .fr-clients { display: grid; gap: 14px; }
 .fr-clients-foot { display: flex; justify-content: flex-end; gap: 8px; }
@@ -327,8 +325,7 @@ a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px s
   .fr-foot > span:empty { display: none; }
   .fr-go { flex: 1 1 auto; justify-content: center; }
   /* Why the way on is held, what it starts charging, and Live's note: over the button, never squeezed beside it. */
-  .fr-held, .fr-foot-note, .fr-price { flex: 1 1 100%; order: -1; padding: 8px 10px 2px; text-align: left; }
-  .fr-price { display: block; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
+  .fr-held, .fr-foot-note { flex: 1 1 100%; order: -1; padding: 8px 10px 2px; text-align: left; }
   .fr-call { display: inline-flex; }
   .fr-summary-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   /* The five steps on a phone: one column, what stands beside the step under it (how it sounds is the strip's sheet). */
