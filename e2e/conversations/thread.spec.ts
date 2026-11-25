@@ -267,7 +267,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       // Where it was held, a quiet mark with its reason as a clause; the cause a press away under the dock's Why? (the
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
       // The mark's title is the hold's reason as its label says it (contracts escalations.ts, send_failed).
-      await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply didn't reach them/);
+      await expect(pane.getByTestId("tl-held")).toHaveAttribute("data-tip", /reply didn't reach them/);
       // The dock of a thread that is yours says why it was held in the hold's own sentence (contracts ESCALATION_SUMMARIES,
       // read by the thread's summary): the words pass of 15 Nov 2026 (#2346) said it "didn't reach them".
       await expect(pane.getByTestId("ix-yours")).toContainText(reasonSummaryOf("send_failed"));

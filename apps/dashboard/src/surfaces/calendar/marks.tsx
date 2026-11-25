@@ -35,7 +35,7 @@ export function RunMark({ m, onOpen, short = false }: { m: CalendarRunMark; onOp
       data-look={markLook(m)}
       data-cold={m.cold || undefined}
       onClick={onOpen}
-      title={[m.time, m.name, m.words].filter(Boolean).join(" · ")}
+      data-tip={[m.time, m.name, m.words].filter(Boolean).join(" · ")}
       data-testid="cal-run"
     >
       <span className="cal-run-dot" aria-hidden="true" />

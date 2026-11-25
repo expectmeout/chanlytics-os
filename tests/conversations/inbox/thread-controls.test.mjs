@@ -478,7 +478,7 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   // round (inbox.css .ix-th-more), 44px under a thumb.
   const trigger = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === Menu).props.trigger;
   assert.ok(trigger.props.iconOnly && trigger.props.className === "ix-th-more", "a glyph alone, on its round");
-  assert.equal(trigger.props.title, "More");
+  assert.equal(trigger.props["data-tip"], "More");
   assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
   // Three dots, never a caret: beside a reply box that folds, a caret read as its fold (2 Nov 2026).
   assert.ok(
@@ -803,7 +803,7 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
     assert.equal(textOf(door(tree)).trim(), "Tue, Sep 8 · 2:00 PM", "the visit's own words");
     assert.ok(hasClass("ahead")(door(tree)));
     // Its tip says the workspace's word for one (visitWordHere), never "visit" written in.
-    assert.equal(door(tree).props.title, "Open their appointment");
+    assert.equal(door(tree).props["data-tip"], "Open their appointment");
     // The fact under the name says it for a phone, whose head has no room beside it; a desk hides it, so it is said once.
     assert.equal(textOf(said(tree)), "Next appointment Tue, Sep 8 2:00 PM", "the words under the name are the phone's");
     // A visit with no page of its own (a line People could not tie to a visit) is words alone, wherever it is drawn.
@@ -1301,9 +1301,9 @@ test("where a thread was held for a person is a quiet mark between the words, it
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const mark = find(tree, byTestId("tl-held"));
   assert.ok(mark, "the mark");
-  // "Waits for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it waits is the dock's line, and the mark's title.
+  // "Waits for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it waits is the dock's line, and the mark's tip.
   assert.match(textOf(mark), /^Waits for you· \d{1,2}:\d{2} [AP]M$/);
-  assert.match(mark.props.title, /asked for a person/);
+  assert.match(mark.props["data-tip"], /asked for a person/);
   assert.ok(!textOf(tree).includes("Flagged for a human"), "REGRESSION: the flag's label, said over the dock's");
 });
 
