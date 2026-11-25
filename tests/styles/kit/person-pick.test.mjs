@@ -5,7 +5,7 @@
  * is shown answers what was typed, and the words for nobody are a status while it is still being read.
  *
  * New proposal on the Pipeline and New conversation on the Inbox draw it, so each page's own test proves its words and
- * who it finds (tests/deals/pipeline.test.mjs, tests/new-conversation/new-conversation-sheet.test.mjs).
+ * who it finds (tests/deals/pipeline/, tests/new-conversation/new-conversation-sheet.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

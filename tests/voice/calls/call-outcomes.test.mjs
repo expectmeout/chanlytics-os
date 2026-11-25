@@ -380,25 +380,10 @@ test("a call's topic and language ride the normalised call into the door as the 
 });
 
 test("the wiring: the door files the four columns and keeps them across retries, the people door prefers the request, the ingest passes the analysis, the dashboard selects the columns", () => {
-  const mig = readRaw("supabase/migrations/00061_call_outcomes.sql");
-  for (const s of [
-    "add column if not exists wanted      text,",
-    "add column if not exists analysis    jsonb;",
-    "check (outcome is null or outcome in ('answered','booking_link_sent','callback_needed','voicemail','no_request','other'));",
-    "  p_analysis       jsonb default null\n) returns jsonb",
-    "v_wanted          text := nullif(btrim(p_analysis->>'caller_wanted'), '');",
-    "    wanted, outcome, follow_up, caller_name, analysis\n  ) values (",
-    "    wanted               = coalesce(excluded.wanted, calls.wanted),",
-    "    analysis             = coalesce(excluded.analysis, calls.analysis),",
-    "select coalesce(k.wanted, k.summary) as summary",
-    "and coalesce(k.wanted, k.summary) is not null",
-    "grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;",
-  ])
-    assert.ok(mig.includes(s), s);
-  assert.ok(
-    mig.includes("drop function if exists public.ingest_call(") && mig.includes("from public, anon, authenticated;"),
-    "a new parameter is a drop and a create, and the door stays the edge's alone",
-  );
+  // The door files the four columns and keeps them across retries, the edge's alone, and people_list prefers the request:
+  // ingest_call (redefined since 00061 through 00530) and people_list (through 00680) are run on the stack
+  // (voice/calls/a-call-keeps-its-topic-and-language.db.test.mjs, messages/a-person-keeps-how-they-first-reached-us.db,
+  // consent/consent-channels.db). Pinned as 00061's text until 25 Nov 2026, which no longer said what the database does.
   assert.match(
     readCode("packages/db/src/repositories/voice/calls.ts"),
     /p_analysis: asJson\(callInput\.analysis \?\? null\),/,

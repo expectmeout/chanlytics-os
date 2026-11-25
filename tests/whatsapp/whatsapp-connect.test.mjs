@@ -372,7 +372,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   for (const decision of ["PENDING", "DEFERRED", "SOMETHING_ELSE", undefined])
     assert.equal(named({ decision, requested_verified_name: "Harbor Moving" }), null, String(decision));
   // The webhook handling the account's fields by entry.id, before and instead
-  // of routing by number, is run in whatsapp-door.test.mjs.
+  // of routing by number, is run in whatsapp/door/.
 });
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {

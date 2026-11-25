@@ -566,15 +566,15 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
 
 // REGRESSION (S2): the slot length can be set from the Business editor -- a save kept it, and no field could
 // change it. It is a box of the Business page's *Booking rules* fold now, which patches only the rules it renders
-// and keeps the rest of what is stored: business-tab-offer.test.mjs types it, and business-tab-folds.test.mjs
+// and keeps the rest of what is stored: receptionist/business-tab/offer/ types it, and receptionist/business-tab/folds/
 // saves the fold over a record carrying a rule no fold draws.
 
 // REGRESSION (C3): the Business card says the hours in the Calendar's clock -- it said 'Mon–Fri 09:00–18:00'
 // beside a Calendar in 9 AM. The card is the Business page's *When you're open*, whose summary is the composer's
-// own run-collapsing through the bridge (business-tab-open.test.mjs, "the summary sentence is the one the composer
+// own run-collapsing through the bridge (receptionist/business-tab/open/, "the summary sentence is the one the composer
 // wrote"); one-hours-algorithm.test.mjs holds it to the one implementation. The editor's "Check the address"
 // button went with the form: the calendar row states its last read instead, and says a read that failed with its
-// Retry (the spec's When you're open; business-tab-open.test.mjs draws both).
+// Retry (the spec's When you're open; receptionist/business-tab/open/ draws both).
 
 test("a settings control is named by the row it sits in: what the row hands it lands on its element, and what the control takes for itself does not", () => {
   // SetRow mints an id for its label and hands it to its control as aria-labelledby. The dials each

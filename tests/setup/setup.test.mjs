@@ -823,22 +823,11 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
   assert.equal(verbForRoute("somewhere/new"), null);
 });
 
-test("a first ask reaches the platform mailbox through the edge; a repeat does not; a failure is never the owner's problem", () => {
-  const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
-  assert.ok(route.includes("const wasTold = already"));
-  assert.ok(
-    route.includes("await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId)"),
-    "the mail names the workspace, who asked and the person who pressed",
-  );
-  assert.ok(route.includes("return { request: data, told: wasTold };"));
-  const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
-  assert.ok(service.includes("if (!deployment.providersLive || !edgeConfigured()) return false;"), "production only");
-  assert.ok(service.includes('"/api/admin/setup-request"'));
-  assert.ok(service.includes('"setup_request_tell_failed"'), "logged, not thrown");
-  // The edge door -- the knock, the mail to the platform's own mailbox with
-  // how to set the line up, the workspace's row the only thing read -- runs
-  // in mail-doors.test.mjs.
-});
+// A first ask reaches the platform's mailbox through the edge, a repeat does not, and a failure is never the owner's
+// problem: run through the route in workspace/settings-routes.test.mjs ("a setup request: an operator's, ... the platform
+// told only on this machine's terms") and edge/dashboard-names-its-callers.test.mjs ("the platform's notices name the
+// person who set them off: a setup request"); the edge door, with how to set the line up, in mail-doors.test.mjs. Pinned
+// as the route's and tell.ts's text until 25 Nov 2026.
 
 // Which row's verb is the one coral button is the caller's to name, and setup-page-activate.test.mjs presses it.
 // The sections on a phone keep their words: they are every page's strip since 25 Sep, drawn and read in
@@ -969,23 +958,10 @@ test("Setup says what texting actually is, and names a mock filing as a mock fil
 });
 
 test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", async () => {
-  for (const [file, bucket] of [
-    ["search", "lines_search"],
-    ["buy", "lines_buy"],
-    ["retry", "lines_retry"],
-  ]) {
-    const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
-    // buy declares its policy on the export (route()); search and retry still perform it by hand.
-    assert.ok(
-      src.includes('requireRole(member, "partner")') || src.includes('role: "partner",'),
-      `${file}: owners and the partner only`,
-    );
-    assert.ok(
-      src.includes(`takeRate(ctx.userId, "${bucket}")`) || src.includes(`rate: "${bucket}",`),
-      `${file}: ${bucket}`,
-    );
-    assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
-  }
+  // The lines' routes are owner-only (and the partner's) and rate-limited, each calling its edge op: their policies
+  // are route-policy.json's (routes/route-policy.test.mjs), and searching, buying and retrying run through the routes in
+  // workspace/settings-routes.test.mjs ("lines: searching, retrying and forwarding are the owner's") and
+  // billing/billing-routes.test.mjs. Pinned as the three routes' text until 25 Nov 2026.
   const server = readCode("apps/dashboard/src/server/connections/lines.ts");
   assert.ok(server.includes('callEdge("/api/admin/lines"'));
   assert.ok(
@@ -994,14 +970,8 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   // The edge's verb answers and this read build a line with one builder (contracts lineDtoOf), run on both sides in
   // lines/forwarding.test.mjs: a field the read did not select arrived undefined, which is how Setup would have called
-  // a mock filing "approved".
-  assert.ok(
-    /lines: \{\s*rows: lineRows,\s*ready: lineStatus\.ready,\s*provider: lineStatus\.provider,\s*costs: \{ local_number_month_usd: lineStatus\.costs\.local_number_month_usd \},?\s*\},/.test(
-      ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
-        .map((p) => readCode(p))
-        .join("\n"),
-    ),
-  );
+  // a mock filing "approved". The setup read carries the lines, their readiness, provider and cost: GET setup answers
+  // its reader's payload in ask/readers/ ("connections, for the page").
   // What Setup reads and hears is its override's, the light module the frame registers (override.ts), run here; its read
   // and verbs are surface.ts, fetched as the surface is first read (the loadability review, 19 Oct 2026). Which of the
   // tables those kinds derive it hears on every page (`always`) is each page's golden (page-hears.test.mjs).
@@ -1041,10 +1011,8 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     assert.ok(acts.includes(pin), pin);
   for (const pin of ['data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'canDo("team")'])
     assert.ok(chooser.includes(pin), pin);
-  assert.ok(
-    readCode("apps/edge/lib/lines/lines.ts").includes('export { LINE_STEP_WORDS } from "@chanlytics/contracts";'),
-    "one list of step words",
-  );
+  const edgeLines = await importSrc("apps/edge/lib/lines/lines.ts");
+  assert.equal(edgeLines.LINE_STEP_WORDS, LINE_STEP_WORDS, "one list of step words: the edge's is contracts' own");
 });
 
 // The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun. The route it
@@ -1080,95 +1048,27 @@ test("the words: four states, no jargon, no trade", () => {
 
 // Setup left Settings for the first run (`start`): surface-registry.test.mjs holds its route and the old address's
 // move, and first-run-page.test.mjs draws it. Both are TSX on an App Router page since decision 0015's step 10.
-test("wiring: the page, the surface, routes, rate bucket, event kind, migration", () => {
-  // The page is an App Router page (start/[[...param]]): surface-registry.test.mjs holds the route to it.
-  assert.ok(!readCode("apps/dashboard/src/bridge/manifest.ts").includes("setup.jsx"), "no longer the shell's");
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(
-    app.includes("installSetup();") &&
-      /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app),
-    "the surface boots with the rest",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },',
-    ),
-  );
+test("wiring: the page, the surface, routes, rate bucket, event kind, migration", async () => {
+  // Run, not read (25 Nov 2026). The page is an App Router page (start/[[...param]]): surface-registry.test.mjs holds
+  // the route to it, and the frame boots its surface with the rest (each page's golden, page-hears.test.mjs).
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.deepEqual(RATE.setup_request, { limit: 5, windowMs: 3_600_000, noun: "setup requests" });
   assert.ok(EVENT_KINDS.includes("setup.requested"));
-  const bridge = readCode("apps/dashboard/src/surfaces/setup/override.ts");
-  assert.ok(
-    bridge.includes('key: "setup"') &&
-      bridge.includes('value: "setup"') &&
-      bridge.includes('events: ["surface:setup"]'),
+  const { setupOverride } = await importSrc("apps/dashboard/src/surfaces/setup/override.ts");
+  assert.deepEqual(
+    [setupOverride.key, setupOverride.value, setupOverride.events],
+    ["setup", "setup", ["surface:setup"]],
     "the seam's value, which the Settings panes read too (a window mirror, __SETUP, until 12 Nov 2026)",
   );
   // A row put off is the member's, and the landing is once a session: setup-later.test.mjs runs both.
-  // One assembly, two callers: the workspace reads its own on the session
-  // client, the back office reads another's on the service client. The route
-  // is now four lines and the pins live where the work does.
-  // With the reads they name, which are packages/db's (decision 0111).
-  const get = [
-    "apps/dashboard/src/server/setup/channel-rows.ts",
-    "apps/dashboard/src/server/setup/setup.ts",
-    "packages/db/src/repositories/workspace/setup-rows.ts",
-    // The rows those are, in one call (00700).
-    "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  for (const pin of [
-    "parseTenantConfigResult(cfgRow.config)",
-    "starterByName(t.name)",
-    "getCalendarWeek({ supabase }, tenantId, { from: null, days: 7 }",
-    "readSetupRows(supabase, tenantId, member)",
-    "? { members: rosterOf(rows.roster ?? []), invites: rows.invitations }",
-    "'said_yes', count(*) filter (where c.consent = 'opted_in')",
-    "where x.tenant_id = p_tenant_id and x.kind = 'setup.requested'",
-  ])
-    assert.ok(get.includes(pin), pin);
-  assert.ok(
-    readCode("apps/dashboard/src/server/readers/connections.ts").includes(
-      'setupDtoFor(rc.ctx.supabase, rc.tenantId, { kind: "member" }, rc.now)',
-    ),
-    "and the route is its first caller, through its reader",
-  );
-  const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
-  for (const pin of [
-    'role: "operator",',
-    'rate: "setup_request",',
-    // The door is packages/db's (decision 0111): the route asks it through its server module.
-    "requestWorkspaceSetup(ctx, { p_tenant_id: member.tenantId, p_what: subject })",
-  ])
-    assert.ok(post.includes(pin), pin);
-  assert.ok(
-    readCode("packages/db/src/repositories/workspace/setup.ts").includes('db.rpc("setup_request", args)'),
-    "the door, named once",
-  );
-  const mig = readRaw("supabase/migrations/00065_setup_request.sql");
-  for (const pin of [
-    "create or replace function public.setup_request(p_tenant_id uuid, p_what text)",
-    "security definer",
-    "public.is_acting_member(p_tenant_id)",
-    "kind = 'setup.requested'",
-    "interval '1 day'",
-    "'admin/setup', 'setup'",
-    "grant execute on function public.setup_request(uuid, text) to authenticated",
-  ])
-    assert.ok(mig.includes(pin), pin);
-  const page = readCode("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
-  for (const pin of [
-    "<AttnRow",
-    "status={[r.stateWords]}",
-    'note={r.details.join(" · ")}',
-    "testid={`setup-row-${r.id}`}",
-    'ctaTestid="setup-verb"',
-    "testid: `setup-later-${r.id}`",
-    "export const SetupRows",
-  ])
-    assert.ok(page.includes(pin), pin);
+  // One assembly, two callers: the workspace reads its own on the session client, the back office reads another's on
+  // the service client. What GET setup answers is its reader's payload, key for key (ask/readers/, "connections, for
+  // the page"); the request is an operator's, counted, through packages/db's door (workspace/settings-routes.test.mjs,
+  // "a setup request"), and the door itself is proved on the stack (console/console.db.test.mjs). The rows are drawn,
+  // each with its verb and its Later, in setup-page-activate.test.mjs. Pinned as the modules', the route's, 00065's and
+  // rows.tsx's text until 25 Nov 2026.
   // Each verb's own role, asked again at the press: setup-page-activate.test.mjs presses them as an operator.
   // Today's card of what is left to set up is drawn and pressed in today-doors.test.mjs.
-  assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
 });
 
 test("a workspace that cannot spend AND has no card door is offered the thing that is true", () => {

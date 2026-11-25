@@ -6,7 +6,7 @@
  * notice from the review it told of, and no address could open it. The edge now looks the row up as it keeps the notice, and the
  * notice carries the review's address (contracts reviewRoute). Where the row cannot be found, or the lookup fails, the notice is
  * kept as it was, about Google's id and opening the lens: the bell is best effort, and a sync that has written its reviews does
- * not fail for it. The sync's own notices, over a database in memory, are run in google-door.test.mjs and cron/cron-doors-b.test.mjs.
+ * not fail for it. The sync's own notices, over a database in memory, are run in google/door/ and cron/doors-b/.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

@@ -95,16 +95,10 @@ test("the wiring: one profile row per account, written by its owner only, read b
     "no direct writes: profile_set is the door",
   );
 
-  const route = readCode("apps/dashboard/app/api/v1/me/route.ts");
-  assert.ok(
-    // The door is packages/db's (decision 0111): the route names the name through its server module.
-    route.includes('rate: "profile_set",') &&
-      route.includes("setOwnName(ctx, { p_display_name: cleaned.name })") &&
-      readCode("packages/db/src/repositories/auth/account.ts").includes('db.rpc("profile_set", args)'),
-  );
-  assert.ok(route.includes("cleanDisplayName(input.display_name"), "the contracts' rule, before the database's");
-  assert.ok(!route.includes("getMemberContext("), "your name needs no workspace");
-  assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("profile_set: {"));
+  // Your name is yours alone to set, needs no workspace, is counted in its own bucket, judged by the contracts' rule
+  // before the database's and saved through the one door (profile_set): run through the route in
+  // workspace/account-routes.test.mjs ("the three declare their policy", "your name"). Pinned as the route's, the door's
+  // and the limiter's text until 25 Nov 2026.
 
   // With the read it names, packages/db's (decision 0111).
   const ws = readCode(

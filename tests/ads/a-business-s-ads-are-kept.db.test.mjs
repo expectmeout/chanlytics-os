@@ -7,7 +7,7 @@
  * account still to be chosen names no account; an ad names its account with its workspace and its platform, so it can
  * be neither another workspace's nor another platform's; a read written twice is one ad and one day; and an account
  * removed takes its ads and their days. That members read their workspace's rows and write none is the tenancy
- * suite's (database/tenancy.db.test.mjs). Runs against the database `supabase start` builds on this machine, never
+ * suite's (database/tenancy/). Runs against the database `supabase start` builds on this machine, never
  * production.
  */
 import { test, before, after } from "node:test";

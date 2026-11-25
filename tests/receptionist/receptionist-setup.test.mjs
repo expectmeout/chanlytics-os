@@ -122,5 +122,5 @@ test("a fresh workspace answers from its fields as soon as it has any", () => {
 //   choosing the line it answers on storing NO number, which is what makes the published number follow the line;
 //   one request carrying the three facts with the product's own prompt and messages, and nothing else;
 //   and a role that may not change the business told why, with nothing opening for it.
-// business-tab-folds.test.mjs saves the same fold onto a brain that already has a prompt and messages, and holds that
+// receptionist/business-tab/folds/ saves the same fold onto a brain that already has a prompt and messages, and holds that
 // it keeps them. Which workspace reaches the card is surface-registry.test.mjs's.

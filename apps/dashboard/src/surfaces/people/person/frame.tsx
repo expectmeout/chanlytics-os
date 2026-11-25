@@ -7,9 +7,12 @@ import type { ReactNode } from "react";
 import { PERSON_WALK_WORDS } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import type { PersonWalk } from "../walk";
 
 export function PersonProfileFrame({ onBack, children }: { onBack: () => void; children?: ReactNode }) {
+  // It takes the screen over, as the person's page does, and says so on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("takenOver", true);
   return (
     <div className="cl-profile cl-profile--solo" data-takeover>
       <div className="cl-prof-page">

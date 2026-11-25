@@ -4,7 +4,7 @@
  * owner, and the ledger keeps Google's name for it, which is how it comes down; it never goes by itself, and a name that isn't this
  * connection's takes nothing down.
  *
- * ORDER OF SETUP MATTERS, as in google-door.test.mjs: lib/shared/google/places.ts binds fetch at module scope, so the wire goes in first.
+ * ORDER OF SETUP MATTERS, as in google/door/: lib/shared/google/places.ts binds fetch at module scope, so the wire goes in first.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";

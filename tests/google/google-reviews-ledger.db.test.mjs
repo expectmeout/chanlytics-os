@@ -7,7 +7,7 @@
  * was held, the counts are the workspace's alone, the answer is the DTO the fold reads and no more, and a member reads what the service role reads for their
  * own workspace and nothing of another's.
  *
- * Runs the way tenancy.db.test.mjs does: its own workspaces, users and rows, made with the service key and removed after,
+ * Runs the way database/tenancy/ does: its own workspaces, users and rows, made with the service key and removed after,
  * against the database `supabase start` builds on this machine, never production. The sessions are real.
  */
 import { test, before, after } from "node:test";

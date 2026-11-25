@@ -7,7 +7,7 @@
  * the values and the title that version says. The first two are a member's own, called on their session; the third is the
  * service role's alone, as the dashboard calls it after its role check, naming the member it acts for (00282's way). What
  * reading the SQL cannot prove is who may call them, what they refuse and what they leave alone, so these sign real people
- * in and call them. Runs the way tenancy.db.test.mjs does, against the local stack only; skipped without one.
+ * in and call them. Runs the way database/tenancy/ does, against the local stack only; skipped without one.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";

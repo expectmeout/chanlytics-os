@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REPORT_MIN_N, isThinShare, shareSaid, toCampaignReportVM } from "@chanlytics/contracts";
-import { importSrc, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The route runs below over a database in memory; a module that ever builds a service client reads these, and nothing
@@ -152,26 +152,10 @@ test("the honest empty, and the table twin", () => {
 });
 
 test("the door: two periods by the business's clock, replied by the Broadcasts rule, yeses and stops from the consent ledger, the invoker's RLS", async () => {
-  const m = readRaw("supabase/migrations/00051_campaign_series.sql");
-  assert.ok(
-    m.includes("create or replace function public.campaign_series(p_tenant_id uuid, p_days integer default 30)"),
-  );
-  assert.ok(m.includes("v_span  := v_days * 2;") && m.includes("v_today := (now() at time zone v_tz)::date;"));
-  assert.ok(
-    m.includes("and i.direction = 'inbound'") && m.includes("and i.created_at > s.sent_at)  as replied"),
-    "replied means the customer wrote after the message went out",
-  );
-  assert.ok(
-    m.includes("and e.kind = 'contact.consent_changed'") &&
-      m.includes("c.consent = 'opted_in'") &&
-      m.includes("c.consent = 'opted_out'"),
-  );
-  assert.ok(
-    m.includes("group by coalesce(s.playbook_id, s.broadcast_id), (s.playbook_id is not null)"),
-    "a playbook's runs roll up together",
-  );
-  assert.ok(!/security definer/i.test(m), "the caller's RLS applies");
-  assert.ok(m.includes("grant execute on function public.campaign_series(uuid, integer) to authenticated;"));
+  // Two periods by the business's clock, replied by the Broadcasts rule, yeses and stops from the consent ledger, a
+  // playbook's runs rolled up, on the caller's RLS: campaign_series, redefined since 00051 through 00451, is run on the
+  // stack (reports/campaigns/campaign-answers.db.test.mjs, playbooks/totals/playbook-totals.db.test.mjs,
+  // reach-out/email-marketing.db.test.mjs). Pinned as 00051's text until 25 Nov 2026.
   // The route, run: counted with the aggregate reads, the function asked for the workspace and the period, and any
   // other period refused in the receptionist's report's own words.
   const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");

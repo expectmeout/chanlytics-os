@@ -13,6 +13,8 @@
  * the box's own words it stands. And an element is named, too, by a `:where()` or an `:is()` whose every alternative
  * names it (`:where(div, p, span)`): the browser narrows by those (seen in its own trace that day), and a `:where()`
  * adds nothing to what the rule weighs, so a rule can name its element and outrank nothing it did not before.
+ *
+ * And none stands on the document's root at all (25 November 2026, below): every change anywhere has it looked at again.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -132,6 +134,76 @@ test("no stylesheet puts a :has() above an element it names only by its place", 
     wideHas(fs.readFileSync(path.join(ROOT, f), "utf8"), f).map((s) => `${f.replace(/\\/g, "/")}: ${s}`),
   );
   assert.deepEqual(offenders, [], "name the element by a class, a tag or an attribute");
+});
+
+/* ---- no :has() on the document's root ---- */
+
+/**
+ * A `:has()` on the document's root, or on a box every element of the page stands in (`html`, `:root`, `body`, the app's
+ * root `.app-root`), is looked at again on every change anywhere in the page, and what its rule styles is styled again
+ * each time, however well the rule names it: 45 such selectors had 135 to 260 elements styled several times a press on a
+ * slow phone (25 Nov 2026). What the whole page holds is a flag on the root instead, stamped where it is set
+ * (apps/dashboard/src/surfaces/kit/motion/root-flags.ts), and a rule asks the flag.
+ */
+const isRootBox = (compound) =>
+  compound.some(
+    (c) =>
+      (c.type === "type" && (c.name === "html" || c.name === "body")) ||
+      (c.type === "pseudo-class" && c.kind === "root") ||
+      (c.type === "class" && c.name === "app-root"),
+  );
+
+/** The selectors with a `:has()` on the document's root, wherever in the root's own words it stands. */
+const rootHas = (text, filename) => {
+  const found = [];
+  transform({
+    filename,
+    code: Buffer.from(text),
+    errorRecovery: true,
+    visitor: {
+      Selector(selector) {
+        if (compounds(selector).some((part) => hasHas(part) && isRootBox(part)))
+          found.push(JSON.stringify(selector).slice(0, 160));
+      },
+    },
+  });
+  return found;
+};
+
+test("the reader finds a :has() on the document's root, and passes a flag on it or a :has() on a box inside", () => {
+  for (const css of [
+    ":root:has(.sheet:not([data-leaving])) .pp-toast-stack { color: red }",
+    "html:has(.app-root) body { color: red }",
+    "html.frame-on:has(.settings) { color: red }",
+    "body:has([data-dock]) .phone-ask { color: red }",
+    ":root:not([data-carrying]) .app-root:has([data-takeover]) .phone-places { color: red }",
+    // On the root's :not(), as the frame's bar was asked (components.css), and beside a flag it already asks.
+    ".app-root:not(:has(.inbox[data-takeover])) .frame-top { color: red }",
+    "html.frame-on:is([data-thumb-down], [data-page-top]):not(:has(.settings)) { color: red }",
+  ])
+    assert.equal(rootHas(css, "t.css").length, 1, css);
+  for (const css of [
+    ":root[data-sheet-open][data-sheet-open] .pp-toast-stack { color: red }",
+    ":where(:root)[data-dock-up] body .phone-ask { color: red }",
+    ":root:not([data-carrying])[data-taken-over] .app-root .phone-places { color: red }",
+    // A :has() on a box inside the root is a :has() on that box, held by the rules above, not this one.
+    ":root:not([data-carrying]) .main:has(> .main-scroll > [data-takeover]) .pg-slot { color: red }",
+    ".frame-top:has(> .pg-slot) > .pg-slot { color: red }",
+  ])
+    assert.equal(rootHas(css, "t.css").length, 0, css);
+});
+
+test("no stylesheet puts a :has() on the document's root: the page says it with a flag there", () => {
+  const files = [...sheets("apps/dashboard/src"), ...sheets("apps/dashboard/app")];
+  assert.ok(files.length > 20, "the stylesheets were found");
+  const offenders = files.flatMap((f) =>
+    rootHas(fs.readFileSync(path.join(ROOT, f), "utf8"), f).map((s) => `${f.replace(/\\/g, "/")}: ${s}`),
+  );
+  assert.deepEqual(
+    offenders,
+    [],
+    "stamp the state on the root where it is set (kit/motion/root-flags.ts) and ask the flag",
+  );
 });
 
 /* ---- the foot's lines: named by every tag the app draws ---- */

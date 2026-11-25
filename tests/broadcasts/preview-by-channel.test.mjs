@@ -14,7 +14,7 @@
  * - The split is a bar: each part's share of the people reached, in the channel's own chart colour, its words in the kit's
  *   tooltip and its meaning to a screen reader; none where the campaign goes by WhatsApp alone.
  * Run on the stub React over the parts the composers draw (the composers' own wiring is held in
- * broadcasts-honest.test.mjs and playbook-composer.test.mjs).
+ * broadcasts/page/ and playbook-composer.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

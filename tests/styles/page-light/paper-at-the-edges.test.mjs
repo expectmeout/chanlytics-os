@@ -77,7 +77,7 @@ const subjectIsClass = (selector, name) => {
   );
 };
 
-/** Whether a selector's subject is the document itself (`html`, `html:has(...)`). */
+/** Whether a selector's subject is the document itself (`html`, `html[data-frame]`). */
 const subjectIsHtml = (selector) => {
   const parts = compounds(selector);
   return parts.length === 1 && parts[0][0]?.type === "type" && parts[0][0].name === "html";
@@ -286,7 +286,7 @@ test("the light gives way at one line on the screen, whatever page stands on it"
   }
 });
 
-/** A selector written as its parts read: `html:has(.app-root)`, `.frame-top::before`, `.carry-ground`. */
+/** A selector written as its parts read: `html[data-frame]`, `.frame-top::before`, `.carry-ground`. */
 function selectorText(selector) {
   return selector
     .map((c) => {
@@ -337,7 +337,7 @@ test("the picture is painted by one rule, whose subjects are every painter, a sc
   assert.equal(file, MOBILE, "in the phone's sheet");
   assert.deepEqual(
     rule.selectors.map(selectorText),
-    ["html:has(…)", ".pg-light", ".frame-top::before", ".frame-top::after", ".carry-ground", ".first-rows"],
+    ["html[attribute]", ".pg-light", ".frame-top::before", ".frame-top::after", ".carry-ground", ".first-rows"],
     // The Calendar's bar laid its own copy while it stuck in the page; it is the frame's top's now (kit/head/standing.ts
     // `under`), and stands on the top's (Ruben's recording, 3 Nov 2026: stuck, it stepped under the thumb).
     "its subjects: the document, the window's layer, the frame's top, the carry sheet, the copy a phone's first paint draws",

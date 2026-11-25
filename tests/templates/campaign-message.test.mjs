@@ -451,7 +451,7 @@ test("a channel the message does not hold has one sentence, and the words an ema
     messageWhyNot(m(W({ blocked: "a button that takes a value" })), "whatsapp"),
     "This message's WhatsApp version has a button that takes a value, so it cannot be sent from here.",
   );
-  // Pinned by core-campaigns.test.mjs, outbound-routes.test.mjs and the composers' tests: the words are the same.
+  // Pinned by broadcasts/core-campaigns/, playbooks/routes/ and the composers' tests: the words are the same.
   assert.equal(messageWhyNot(m(W()), "email"), "This message has no email version yet.");
   assert.equal(messageWhyNot(m(W()), "sms"), "This message has no text version yet.");
   // A channel the message holds says nothing.

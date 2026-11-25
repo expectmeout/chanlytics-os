@@ -2,7 +2,7 @@
  * The settings read lands the workspace's facts once, on the seam, and nowhere else.
  *
  * The server resolves each fact from what the owner typed and what the platform knows, and says where two sources disagree
- * (settings-routes.test.mjs "F1", and its reader in readers.test.mjs). The browser's settings read hands both to the pages
+ * (settings-routes.test.mjs "F1", and its reader in ask/readers/). The browser's settings read hands both to the pages
  * as the settings surface's `facts` (bridge/surfaces/settings.ts), where Settings › Business reads them
  * (settings/business/shell.ts factsNow), the Inbox's template box and Live's controls too. Null on a config that would not
  * parse: there is nothing trustworthy to resolve against, and the forms close on it.

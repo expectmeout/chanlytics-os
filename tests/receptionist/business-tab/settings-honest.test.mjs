@@ -344,7 +344,7 @@ const workspace = ({
 
 // REGRESSION (D7, S18): the Business card draws again when the settings surface is re-read -- after a save it
 // kept the values from before. The card is the Business page since Task 3.7, and it hears the read itself:
-// business-tab-open.test.mjs, "the page draws itself again when the settings surface is read again".
+// receptionist/business-tab/open/, "the page draws itself again when the settings surface is read again".
 
 test("REGRESSION (D7, S11): the Team card draws again when the settings surface is re-read -- an invitation just sent was not on it", () => {
   workspace();
@@ -370,7 +370,7 @@ test("REGRESSION (D7, S11): the Team card draws again when the settings surface 
 
 // REGRESSION (L7): Business writes numbers the way Setup does -- it showed +13055550100 and +17865550182. The
 // three numbers are three rows of the Business page, each stating a number the way people write it and opening
-// its editor on the same: business-tab-page.test.mjs presses every one of them.
+// its editor on the same: receptionist/business-tab/page/ presses every one of them.
 
 // REGRESSION (L7): setting up the receptionist names the line the same way -- the create form showed
 // +13055550100. business-tab-create.test.mjs, "the line it answers on is named the way people write it".
@@ -396,7 +396,7 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   workspace();
   // The transfer number, the number it gives out and the business's own fields are rows and folds of the
   // Business page since Task 3.7: each check is said under the box it belongs to, and the toast only counts
-  // them (business-tab-page.test.mjs, business-tab-open/-offer/-answers.test.mjs). What is still this pane's:
+  // them (receptionist/business-tab/page/, business-tab-open/-offer/-answers.test.mjs). What is still this pane's:
   // Who is alerted.
   // The addresses open under the email row (decision 0040).
   let tree = settings("notifications");
@@ -426,7 +426,7 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
 
 // REGRESSION (S18): removing a service or a note can be undone, as a shift and a closure can -- it could not.
 // The services are a sheet and the notes a fold of the Business page now, and every list in one has the same
-// Undo, at its own index and only once: business-tab-offer.test.mjs and business-tab-answers.test.mjs.
+// Undo, at its own index and only once: receptionist/business-tab/offer/ and receptionist/business-tab/answers/.
 
 /* ------------------------------ words, and seats ------------------------------ */
 

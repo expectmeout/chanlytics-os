@@ -21,8 +21,8 @@ html.frame-on .rec-inline-act { min-height: 0; }
 /* The house's toasts while a record sheet is open (kit.css says why), where the page beside the sheet has room for
    them: centred on what the sheet leaves of the window, and kept to it. */
 @media (min-width: 1140px) {
-  :root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
-  :root:has(.rec-sheet:not([data-leaving])) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
+  :root[data-record-open][data-record-open] .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
+  :root[data-record-open][data-record-open] .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
 }
 
 /* ---------- The deal sheet (components/deal-sheet.jsx, 0008): the kit's fields, in one column ---------- */

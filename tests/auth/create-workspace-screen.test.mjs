@@ -7,7 +7,7 @@
  * - The screen had no sign-out, no way back and no Terms or Privacy (N2): somebody signed in with the wrong account
  *   could only close the tab.
  * The joining is run through its bridge helper over a stand-in window, the way apiFor is run in
- * shell-status.test.mjs, and through the real screen on a stub React, the way the shell's pages are rendered.
+ * shell/surfaces/status/, and through the real screen on a stub React, the way the shell's pages are rendered.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

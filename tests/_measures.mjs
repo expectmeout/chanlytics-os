@@ -761,17 +761,23 @@ const SOURCE_SCAN_SELF = "repo/source-scan-ratchet.test.mjs";
  * cannot run at all is worse than one measuring a slightly wider set.
  */
 function repoTestFiles() {
+  // A test file, or the world a folder of them shares (`<folder>/_<name>.mjs`): since 25 Nov 2026, when the long files
+  // were split by behaviour (layer 14), a helper that reads source may live in its folder's world, and a read moved
+  // there is the same read. The suite's root helpers (tests/_source.mjs, _measures.mjs, _ast.mjs and the rest) are the
+  // reading's own machinery, not a test's reads, and are left out.
+  const counted = (l) => l.endsWith(".test.mjs") || /^[^/]+\/(.+\/)?_[^/]+\.mjs$/.test(l);
   try {
     return execFileSync("git", ["ls-files", TESTS_DIR], { cwd: ROOT, encoding: "utf8" })
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.endsWith(".test.mjs"))
-      .map((l) => l.slice(TESTS_DIR.length + 1));
+      .filter((l) => l.startsWith(`${TESTS_DIR}/`))
+      .map((l) => l.slice(TESTS_DIR.length + 1))
+      .filter(counted);
   } catch {
     return fs
       .readdirSync(path.join(ROOT, TESTS_DIR), { recursive: true })
       .map((f) => String(f).split(path.sep).join("/"))
-      .filter((f) => f.endsWith(".test.mjs"));
+      .filter(counted);
   }
 }
 
@@ -795,30 +801,45 @@ export function sourceScan() {
 }
 
 /**
- * The test files whose whole purpose is a repo-wide lint (every write names a workspace, every variable is declared
- * where it is read): their reads of source are the lint, so the ratchet does not hold them. The escape hatch is the part
- * that rots, so the list is a handful (repo/source-scan-ratchet.test.mjs holds it to nine), each named here with the
- * change that argued it, and a file added to it is a line of this module in review.
+ * Where a rule test lives: a test whose whole purpose is a rule of the repository (every write names a workspace, every
+ * variable is declared where it is read, the words a screen may say, no trade's words before another's customers). Its
+ * reads of source are the rule, so they are counted apart from the behaviour tests' (RULE_SCAN), and held there too.
+ * Since 25 Nov 2026 (layer 14) the home of the repository's rules, `tests/repo/`, is where one is; before, eight files
+ * were named in a list, and the rest of `tests/repo/` was counted as if it pinned one module's behaviour.
  */
-export const SOURCE_SCAN_EXEMPT = [
+export const RULE_TESTS_DIR = "repo/";
+
+/**
+ * The rule tests that live beside the domain they hold, not under `tests/repo/`: each a repo-wide lint of its kind,
+ * named here with the change that argued it. The list is the part that rots, so it stays a handful
+ * (repo/source-scan-ratchet.test.mjs holds it to four), and a file added to it is a line of this module in review.
+ */
+export const RULE_TESTS_ELSEWHERE = [
   "ai/flag-registry.test.mjs",
   "e2e/e2e-shape.test.mjs",
   "edge/runtime-freshness.test.mjs",
-  "repo/env-manifest.test.mjs",
-  "repo/event-kinds.test.mjs",
-  "repo/hygiene.test.mjs",
-  "repo/ops-hygiene.test.mjs",
   "routes/workspace-scoping.test.mjs",
 ];
 
-/** Source-text reads in tests, by file, the exempt lints left out. */
+/** Whether a test file (relative to `tests/`) is a rule test, whose reads of source are its rule. */
+export const isRuleTest = (f) => f.startsWith(RULE_TESTS_DIR) || RULE_TESTS_ELSEWHERE.includes(f);
+
+/** Source-text reads in the behaviour tests, by file: every test that reads source, the rule tests left out. */
 export const SOURCE_SCAN = {
   name: "source-text reads in tests",
   key: "source-scan",
-  measure: () =>
-    Object.fromEntries(Object.entries(sourceScan().counts).filter(([f]) => !SOURCE_SCAN_EXEMPT.includes(f))),
+  measure: () => Object.fromEntries(Object.entries(sourceScan().counts).filter(([f]) => !isRuleTest(f))),
   advice:
-    "Write a behaviour test instead: run the code and assert what it does. A file whose purpose is a repo-wide lint is listed in SOURCE_SCAN_EXEMPT (_measures.mjs), argued in its pull request.",
+    "Write a behaviour test instead: run the code and assert what it does. A test whose whole purpose is a rule of the repository lives in tests/repo/ (RULE_TESTS_DIR, _measures.mjs), where its reads are counted apart.",
+};
+
+/** Source-text reads in the rule tests, by file: held apart, since reading the source is what such a test is for. */
+export const RULE_SCAN = {
+  name: "source-text reads in rule tests",
+  key: "rule-scan",
+  measure: () => Object.fromEntries(Object.entries(sourceScan().counts).filter(([f]) => isRuleTest(f))),
+  advice:
+    "A rule test reads what its rule is about and no more. Where the rule can be asked of the code (a type, a parsed config, a list the code exports), ask it there and drop the read.",
 };
 
 /* ---- The wire's names (routes/wire-casing.test.mjs) ---- */
@@ -1056,13 +1077,18 @@ export const TEST_LENGTH = {
  * loader off the main thread. A wait for what the next lines read (`until`, tests/shared/_until.mjs) holds on any
  * machine. Seeded on 30 Oct 2026; a wait before asserting that nothing more happened stays one, since there is nothing
  * to wait for, so the measure falls as waits are moved to conditions and never reaches nothing.
+ *
+ * The worlds the tests share are read too (TEST_WORLDS, every `_<name>.mjs` under tests/): since 25 Nov 2026, when the
+ * suite's long files were split by behaviour (layer 14), a helper that waits lives in its folder's world as often as in
+ * a test file, and a wait moved there is the same wait.
  */
+export const TEST_WORLDS = /^tests\/(.+\/)?_[^/]+\.mjs$/;
 export const COUNTED_WAITS = {
   name: "waits that count turns or time in tests",
   key: "counted-waits",
   measure: () =>
     Object.fromEntries(
-      suiteFiles()
+      [...suiteFiles(), ...repoFiles(["tests"]).filter((f) => TEST_WORLDS.test(f))]
         .map((f) => [f, fixedWaitsIn(parse(f)).length])
         .filter(([, n]) => n > 0),
     ),
@@ -1223,6 +1249,7 @@ export const RATCHETS = [
   TS_ONLY_EVENTS,
   APPOINTMENT_WORDS,
   SOURCE_SCAN,
+  RULE_SCAN,
   ...NAME_RATCHETS,
   ...BOUNDARY_RATCHETS,
   ...SIZE_RATCHETS,

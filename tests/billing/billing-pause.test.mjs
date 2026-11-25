@@ -101,7 +101,7 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   assert.ok(pb.includes('if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };'));
   // The batch's head, and the door's `paused` for a pause that lands mid-batch, stop the run in one place
   // (broadcast-stops.ts stopForTheWorkspace): the run fails with its reason and the owner is told, in the words said once
-  // in broadcast-words.ts and contracts stoppedRunFix. core-broadcast.test.mjs runs both and asserts the words.
+  // in broadcast-words.ts and contracts stoppedRunFix. broadcasts/core-broadcast/ runs both and asserts the words.
   const jobs = ["packages/core/src/messages/broadcast/stops.ts", "packages/core/src/messages/broadcast/batch.ts"]
     .map((p) => readCode(p))
     .join("\n");
@@ -111,5 +111,5 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   // The phone's pause script replaces the prompt, never adds to it, and the
   // calendar is not read for it: run in call-start.test.mjs.
   // The line under the top bar reads the pause from the billing surface and
-  // opens Billing: mounted in shell-status.test.mjs.
+  // opens Billing: mounted in shell/surfaces/status/.
 });

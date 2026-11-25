@@ -52,6 +52,10 @@ export const DB_PATHS = [
   // and the story-day rule's cases, which the database's rule is held to, case for case, beside the code's
   // (content/places/a-story-s-day-is-one-rule.db.test.mjs, 00716)
   "tests/content/places/_story-day-cases.mjs",
+  // and the worlds two stack suites share now they are folders of files (25 Nov 2026): a workspace, its members and
+  // their rows (database/tenancy/), and the lead engine's workspaces, members and listings (leads/engine/engine/)
+  "tests/database/tenancy/_*.mjs",
+  "tests/leads/engine/engine/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",

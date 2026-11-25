@@ -1,7 +1,7 @@
 /**
  * An export of any size (decision 0103): the route answers a chunk and where the next begins (server/leads/export.ts
  * exportChunk), and the page asks until none is left and joins them (surfaces/leads/export-walk.ts). Over a fake read and a
- * fake wire: the route's own answer is lead-routes.test.mjs's. Every name here is made up.
+ * fake wire: the route's own answer is leads/routes/'s. Every name here is made up.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

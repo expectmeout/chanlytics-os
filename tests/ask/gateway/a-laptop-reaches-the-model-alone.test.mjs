@@ -23,7 +23,7 @@ process.env.EDGE_PROVIDERS = "model";
 process.env.EDGE_URL = EDGE;
 process.env.EDGE_CALL_SECRET = SECRET;
 for (const k of ["DIAG_KEY", "VERCEL_ENV", "ASK_MODEL", "ASK_MORNINGS"]) delete process.env[k];
-// The answer comes as its format, a text block of JSON (ASK_ANSWER_TOOL off), as ask-turn.test.mjs's turns do.
+// The answer comes as its format, a text block of JSON (ASK_ANSWER_TOOL off), as ask/turn/'s turns do.
 process.env.ASK_ANSWER_TOOL = "off";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

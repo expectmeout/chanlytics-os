@@ -4,7 +4,7 @@
  * a mode where it does not, in the words policyModeRefusal says. Both run here, for every class and every mode.
  *
  * Veto is where they disagreed. A playbook run under veto is real: planRun schedules it thirty minutes ahead, Today
- * draws it with a Stop, and the Stop withdraws the send (core-run-playbook.test.mjs, playbooks.test.mjs). The pane
+ * draws it with a Stop, and the Stop withdraws the send (playbooks/run/, playbooks.test.mjs). The pane
  * drew the Re-engage and Standing offers veto dots and said what they do, while the route refused veto for every row
  * but Replies (and, since Reach out Part 3, a reach-out's) -- a rule written before playbooks existed. A tap on those
  * dots was refused.

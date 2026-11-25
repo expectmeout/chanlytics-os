@@ -263,14 +263,14 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // are; the browser only ever had a listing DTO with no address on it. That the
   // settings read carries both -- each fact from the typed brain and what the
   // platform knows, and their conflicts -- is RUN: through the route in
-  // settings-routes.test.mjs ("F1") and through its reader in readers.test.mjs.
+  // settings-routes.test.mjs ("F1") and through its reader in ask/readers/.
   // And that the browser's read lands them once, on the settings surface, is run too
   // (the-settings-read-lands-the-facts.test.mjs): a line of the bridge's source was read for it here.
 });
 
 test("the field that caused this says what it is", () => {
   // Task 3.7 deleted the form. The three numbers are three rows of the Business page, each edited where it is stated
-  // (surfaces/settings/business/who.tsx); business-tab-page.test.mjs draws and presses every one of them.
+  // (surfaces/settings/business/who.tsx); receptionist/business-tab/page/ draws and presses every one of them.
   const pane = readRaw("apps/dashboard/src/surfaces/settings/business/who.tsx");
   assert.ok(!/label="Phone line"/.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
   assert.ok(pane.includes('label="Tells customers to call"'), "it is what goes in the words");
@@ -297,8 +297,8 @@ test("the field that caused this says what it is", () => {
   // and a fragment would delete the rest. The save itself moved to
   // surfaces/settings/business/save.tsx with the Business tab (Task 3.2); these rows
   // take it from window, settings-honest.test.mjs presses them, and
-  // business-tab-page.test.mjs runs the save when it fails.
-  // Absent means the line, so clearing the box removes the key: the row's patch, run in business-tab-page.test.mjs.
+  // receptionist/business-tab/page/ runs the save when it fails.
+  // Absent means the line, so clearing the box removes the key: the row's patch, run in receptionist/business-tab/page/.
   assert.ok(
     pane.includes('btDispute(pub, btConflictOn("phone_display")'),
     "and a serious disagreement is said out loud, on the row it is about",
@@ -444,7 +444,7 @@ test("the editor is four steps, and the days sit beside the hours they qualify",
   // Fourteen headings in a row, in an order nobody chose: the weekly grid was four sections above the days it does
   // not apply to, with the services and the calendar feed in between. Task 3.7 deleted that form; the four steps are
   // the four cards of the Business page, in this order, and what each one draws is EXECUTED in its own test file
-  // (business-tab-open.test.mjs asserts the cards in order, and the four rows of When you are open in theirs).
+  // (receptionist/business-tab/open/ asserts the cards in order, and the four rows of When you are open in theirs).
   const page = readRaw("apps/dashboard/src/surfaces/settings/business/tab.tsx");
   // Since 17 Oct 2026 the record is three pages: Details (Who you are, What you offer), Hours & booking (When you're
   // open, Booking) and How it answers (How it talks, What it knows), each drawn in that order by tab.tsx.
@@ -455,7 +455,7 @@ test("the editor is four steps, and the days sit beside the hours they qualify",
 test("languages is one control, not a grid plus a second control", () => {
   // The fourteen languages shouting, two of them chosen, went with the form (Task 3.7). The languages are one fold of
   // the Business page: the chosen ones as tokens, each with its remove, and ONE box to add another, over the common
-  // ones as an offer rather than a wall. business-tab-answers.test.mjs draws it and adds, removes and caps it.
+  // ones as an offer rather than a wall. receptionist/business-tab/answers/ draws it and adds, removes and caps it.
   const pane = readRaw("apps/dashboard/src/surfaces/settings/business/answers-fields.tsx");
   assert.ok(pane.includes('data-testid="rec-languages"') && pane.includes("<RecordCombobox"), "a token field");
   assert.ok(!/set-chip/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");

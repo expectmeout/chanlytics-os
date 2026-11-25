@@ -64,6 +64,14 @@ const OUTLINE_LIT_ATTR = "data-outline-lit";
 const OUTLINE_SEARCH_ATTR = "data-outline-search";
 
 /**
+ * The `<html>` attribute that says the app's frame is drawn, or its outline (the dashboard's kit/motion/root-flags.ts
+ * `frame`, which spells it again; theme-boot.test.mjs holds the two to one word): the page's ground is then the document's. Stamped here on every address the frame draws its outline at, a
+ * workspace's and the home, before first paint; the frame holds it from there, and lets it go where it draws a page full
+ * screen (the first run, a shared page).
+ */
+const FRAME_DRAWN_ATTR = "data-frame";
+
+/**
  * What the outline knows of an address's route, from the frame's own places (surfaces/frame/places.ts OUTLINE_ROUTES):
  * the sidebar's place each first word of a route lights, and the routes whose page says its search in Ask's line
  * (kit/head/page-search.ts), as a pattern over the route as the path writes it. A lit row is drawn heavier and a search's
@@ -84,7 +92,8 @@ const NO_OUTLINE_ROUTES: OutlineRoutes = { lit: {}, search: "(?!)" };
  * the default); the outline's stylesheet stands it as a rail on a small desk whatever it says, as the frame does. And
  * the first run, whose address (`/w/<slug>/start`, or the old `#/start`) the app draws full screen with none of the
  * frame: there the outline draws the page's ground alone. And from `routes` (OutlineRoutes): the place the route lights,
- * and whether its page searches in Ask's line. theme-boot.test.mjs runs it against the app's own readings.
+ * and whether its page searches in Ask's line. And that the frame's outline is drawn at all (FRAME_DRAWN_ATTR): a
+ * workspace's address, or the home's. theme-boot.test.mjs runs it against the app's own readings.
  */
 export function outlineBootScript(routes: OutlineRoutes = NO_OUTLINE_ROUTES): string {
   const start = JSON.stringify(FIRST_RUN_ROUTE);
@@ -95,6 +104,7 @@ export function outlineBootScript(routes: OutlineRoutes = NO_OUTLINE_ROUTES): st
     'if(s&&(s.sidebar==="open"||s.sidebar==="rail"))v=s.sidebar}catch(e){}',
     `var d=document.documentElement;d.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
     'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^?#]*))?/.exec(location.pathname||"");',
+    `if(m||location.pathname==="/")d.setAttribute(${JSON.stringify(FRAME_DRAWN_ATTR)},"");`,
     'var w=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split("?")[0]:"")):null;',
     'var r=w===null?"":w.replace(/\\/+$/,"").split("/")[0];',
     `if(r===${start})d.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
