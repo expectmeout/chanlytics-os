@@ -70,7 +70,7 @@ import {
   readMetaAccount,
   readMetaPage,
   readsInstagram,
-  accountStandingOf,
+  standingOf,
   type Asked,
   type MetaSignIn,
 } from "./meta-facts.js";
@@ -326,7 +326,7 @@ async function learn(
     account: {
       name: described.name,
       timezone: described.timezone,
-      standing: { ...accountStandingOf(described) },
+      standing: { ...standingOf(described) },
       // A Page Meta would not describe this time keeps what was last known of it.
       config: { ...accountConfigOf(described), ...(page !== null && !stopped(page) ? pageConfigOf(page) : {}) },
       ...(reading.usage ? { usage_pct: reading.usage.pct } : {}),

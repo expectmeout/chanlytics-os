@@ -132,7 +132,7 @@ export async function runsPage(log: Log, signIn: MetaSignIn, accountId: string, 
 }
 
 /** `ad_accounts.standing` from what Meta said of the account. A standing Chanlytics does not know is left unsaid. */
-export const accountStandingOf = (account: MetaAdAccount): AdStanding => ({
+export const standingOf = (account: MetaAdAccount): AdStanding => ({
   ...(account.standing ? { account: account.standing } : {}),
   funding: account.funded ? "ok" : "none",
 });

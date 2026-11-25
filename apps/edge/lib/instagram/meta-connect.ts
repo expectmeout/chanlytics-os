@@ -63,7 +63,7 @@ type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
 
 /** What the door reads of its body. */
-interface MetaBody {
+export interface MetaBody {
   op?: string;
   tenant_id?: string;
   user_id?: string;
@@ -75,7 +75,7 @@ interface MetaBody {
 const NEEDED = ["instagram_basic", "instagram_manage_messages"] as const;
 
 /** The Meta app's login as this deployment holds it, or null when any part is not set (Connect Meta says so). */
-function metaLoginApp(): MetaApp | null {
+export function metaLoginApp(): MetaApp | null {
   const clientSecret = env.META_APP_SECRET;
   const configId = env.META_LOGIN_CONFIG_ID;
   const redirectUri = env.META_REDIRECT_URI;

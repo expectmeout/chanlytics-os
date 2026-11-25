@@ -139,7 +139,7 @@ async function gateOf(db: Db, tenantId: TenantId, rt: TenantRuntime, source: Rep
 }
 
 /** Who they are, as the receptionist reads them, and why it waits on the owner. Nothing when they cannot be read. */
-async function noteOf(
+async function readPersonNote(
   db: Db,
   tenantId: TenantId,
   rt: TenantRuntime,
@@ -291,7 +291,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const lastUser = [...thread.history].reverse().find((t) => t.role === "user");
   const theirs = ask.theirWords ? replyTextOf(ask.theirWords) : (lastUser?.content ?? "");
   if (!theirs.trim()) return said("not_drafted");
-  const { note, notes } = ask.note ? { note: ask.note, notes: false } : await noteOf(db, tenantId, rt, ask);
+  const { note, notes } = ask.note ? { note: ask.note, notes: false } : await readPersonNote(db, tenantId, rt, ask);
   const at = new Date(now());
   const wire: PromptWire = ask.wire;
   const system = resolveSystemPrompt(brainConfig, wire, rt.timezone, at, rt.policy, rt.known, "draft");

@@ -116,7 +116,7 @@ function askedBreath(breathe: unknown): boolean {
 }
 
 /** The body, judged in the order a person fills it in: the template, who it goes to, the list, the channels. */
-function broadcastAskedOf(raw: unknown): Asked {
+function asked(raw: unknown): Asked {
   const body = raw as {
     template_id?: unknown;
     params?: unknown;
@@ -302,7 +302,7 @@ export async function createBroadcast(
   cmd: CreateBroadcastCommand,
 ): Promise<BroadcastReceipt> {
   const { now } = cmd;
-  const want = broadcastAskedOf(cmd.body);
+  const want = asked(cmd.body);
 
   // 1–2. The message, as the workspace holds it; the values, as its slots take them.
   const { message, specs } = await getTemplateValues(ports, {

@@ -154,7 +154,7 @@ const KEPT_AT_ONCE = 5;
  * for the first that moved: every one of them is a visit of the same day, so the same sequence answers each at the same
  * time.
  */
-interface VisitsKept {
+export interface VisitsKept {
   marked: number;
   already_kept: number;
   refused: number;

@@ -6,7 +6,8 @@ import { contextAsked, SCOPE_KINDS, SURFACES } from "./turn-request";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
- * POST /api/v1/ask/voice — a voice conversation with Ask begins, as the signed-in member.
+ * POST /api/v1/ask/voice — a voice conversation with Ask begins, as the signed-in member
+ * (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1).
  *
  * Body: { thread_id?, scope?, surface?, context?, language? }, in the shapes the palette already sends. In order: the
  * thread named is read (one that is not this workspace's is a 404, as a typed question's); the page's context, when
