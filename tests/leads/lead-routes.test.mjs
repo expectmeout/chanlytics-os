@@ -741,6 +741,8 @@ function doors(over = {}) {
       "lead_search_undo",
       over.lead_search_undo ?? (() => ({ removed: 3, credited: 2, op_id: OP, version: 1 })),
     ),
+    // The never-again list, asked on the member's own session (00717): nobody on it unless a test says so.
+    lead_addresses_suppressed: over.lead_addresses_suppressed ?? (() => []),
   };
 }
 
@@ -1001,9 +1003,7 @@ test("a viewer is refused every write; an operator may work leads but not erase,
   assert.deepEqual(calls, [], "not one door was reached");
 });
 
-test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async (t) => {
-  setServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
-  t.after(() => setServiceClient(null));
+test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async () => {
   await assert.rejects(
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", address: null }), { id: LEAD }, doors())),
     (e) => e.message === LEAD_NO_ADDRESS,
@@ -1039,29 +1039,30 @@ test("a draft needs the business's address, its foot is code's, and the model is
   );
 });
 
-test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async (t) => {
-  t.after(() => setServiceClient(null));
+test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async () => {
   const before = modelCalls.length;
   const asked = [];
-  setServiceClient(
-    fakeDb(
-      {},
-      {},
-      {
-        lead_addresses_suppressed: (a) => {
-          asked.push(a);
-          return ["hello@travisheightscoaching.example"];
-        },
-      },
-    ),
-  );
+  const held = (a) => {
+    asked.push(a);
+    return ["hello@travisheightscoaching.example"];
+  };
   await assert.rejects(
-    draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())),
+    draft.POST.run(
+      req("POST", {}),
+      ctxOf(world({ role: "operator" }), { id: LEAD }, doors({ lead_addresses_suppressed: held })),
+    ),
     (e) => e.message === LEAD_ASKED_NOT_WRITTEN && e.status === 409,
   );
   assert.deepEqual(asked, [{ p_tenant_id: A, p_addresses: ["hello@travisheightscoaching.example"] }]);
-  setServiceClient({ rpc: async () => ({ data: null, error: { code: "XX000", message: "no answer" } }) });
-  await assert.rejects(draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())));
+  const unread = () => {
+    throw Object.assign(new Error("no answer"), { code: "XX000" });
+  };
+  await assert.rejects(
+    draft.POST.run(
+      req("POST", {}),
+      ctxOf(world({ role: "operator" }), { id: LEAD }, doors({ lead_addresses_suppressed: unread })),
+    ),
+  );
   assert.equal(modelCalls.length, before, "not one model call, either way");
 });
 

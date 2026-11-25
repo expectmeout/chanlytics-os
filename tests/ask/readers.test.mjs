@@ -73,7 +73,6 @@ const {
   peopleReport,
 } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { campaignReport, campaignLedgerReport } = await import(
   at("apps/dashboard/src/server/readers/campaign-report.ts")
 );
@@ -107,11 +106,11 @@ const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/ro
 const touchesRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/touches/route.ts"));
 /**
  * 3 Oct 2026: what a workspace's campaigns have sent by email and by text this calendar month, which the Campaigns head
- * and the composers say (`month_sent`, server/campaigns/month-sent.ts): a function only the service role may call, so the
- * readers reach it through the service client, here a double that counts 1,240 emails and 12 texts.
+ * and the composers say (`month_sent`, server/campaigns/month-sent.ts): counted on the member's own session, whose door
+ * asks that they belong (00717); every world here counts 1,240 emails and 12 texts unless it says otherwise.
  */
 const MONTH_SENT = { email: 1240, sms: 12 };
-setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+const MONTH_DOORS = { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] };
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
 const { listEveryone } = await import(at("apps/dashboard/src/server/people/people.ts"));
 const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
@@ -1751,7 +1750,7 @@ const dealsWorld = () => ({
 });
 /** A request's database over a world, `faults` failing a read the way PostgREST fails. */
 const worldCtx = (w, faults = {}) => ({
-  supabase: fakeDb(w.tables, faults, w.rpcs),
+  supabase: fakeDb(w.tables, faults, { ...MONTH_DOORS, ...w.rpcs }),
   userId: USER,
   email: "ada@example.com",
   params: {},
@@ -4649,30 +4648,20 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {
-  setServiceClient(
-    fakeDb(
-      {},
-      {},
-      {
-        campaign_month_sent: () => {
-          throw new Error("the database is down");
-        },
-      },
-    ),
+  const down = {
+    campaign_month_sent: () => {
+      throw new Error("the database is down");
+    },
+  };
+  const { result, lines } = await logged("campaign_month_failed", () =>
+    broadcastsRoute.GET.run(req(`?workspace=${A}`), worldCtx({ ...bcWorld(), rpcs: { ...bcWorld().rpcs, ...down } })),
   );
-  try {
-    const { result, lines } = await logged("campaign_month_failed", () =>
-      broadcastsRoute.GET.run(req(`?workspace=${A}`), worldCtx(bcWorld())),
-    );
-    assert.equal(result.month_sent, null);
-    assert.equal(result.month_sent_next.sent, null, "nor is the month after a month of nothing");
-    assert.equal(typeof result.month_sent_next.from, "number", "where it begins is the clock's, counted or not");
-    assert.equal(result.broadcasts.length > 0, true, "the page is read all the same");
-    assert.equal(lines.length, 2, "one line for each of the two months' reads");
-    assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
-  } finally {
-    setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
-  }
+  assert.equal(result.month_sent, null);
+  assert.equal(result.month_sent_next.sent, null, "nor is the month after a month of nothing");
+  assert.equal(typeof result.month_sent_next.from, "number", "where it begins is the clock's, counted or not");
+  assert.equal(result.broadcasts.length > 0, true, "the page is read all the same");
+  assert.equal(lines.length, 2, "one line for each of the two months' reads");
+  assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
 });
 
 test("a paused workspace is said by the readiness the composers and the Campaigns home read -- the broadcasts' and the playbooks' -- and by People's reads never: it changes what is sent, not who can hear the business", async () => {
@@ -5234,6 +5223,9 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows were read here so the page knew a class
     // under `auto`; since 19 Oct 2026 (decision 0064) each playbook's mode is its sequence's, read after the rows.
     want.splice(want.findIndex(([k]) => k === "sequence_steps.select") + 1, 0, ["sequences.select", "id, mode"]);
+    // 25 Nov 2026 (00717): the month's two counts, emails and texts, are made on the member's own session, whose door asks
+    // that they belong, where they were the service role's and left no read here.
+    want.push(["rpc:campaign_month_sent", null], ["rpc:campaign_month_sent", null]);
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();

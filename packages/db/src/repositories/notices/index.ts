@@ -10,11 +10,11 @@ export {
   registerPushDevice,
 } from "./devices";
 export {
+  findNotificationToPush,
   findOwnAddressIn,
   forgetActivityTokens,
   forgetEveryPhone,
   forgetGonePhones,
-  findNotificationToPush,
   getMemberAlerts,
   getMemberViews,
   keepMemberView,

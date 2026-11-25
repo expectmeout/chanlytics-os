@@ -161,5 +161,5 @@ export async function listPersonDeals(db: Db, tenantId: TenantId, contactId: Con
     .eq("tenant_id", tenantId)
     .eq("contact_id", contactId)
     .order("created_at", { ascending: false });
-  return error ? null : (data ?? []);
+  return error ? null : data;
 }

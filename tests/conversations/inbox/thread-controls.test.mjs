@@ -1410,7 +1410,7 @@ test("an automatic email from their address does not move the reply to email: th
 
 test("the conversations read carries the stop into the thread, and one predicate says it for the reply route, the send door and the box", async () => {
   const { toConversationDto } = await import("../../../apps/dashboard/src/server/conversations/dto.ts");
-  const { CONVERSATION_COLUMNS } = await import("../../../apps/dashboard/src/server/conversations/dto.ts");
+  const { CONVERSATION_COLUMNS } = await import("../../../packages/db/src/repositories/conversations/threads.ts");
   const { isEmailStopped } = await import("@chanlytics/contracts");
   assert.match(
     CONVERSATION_COLUMNS,

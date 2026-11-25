@@ -300,7 +300,7 @@ test("the index matches how the reader actually filters", () => {
   // Emails are lowercased by the invite route before they are stored, so the
   // plain column is correct — and that invariant is what makes it correct.
   // The read is packages/db's (decision 0111): the address is lowercased where it is asked for.
-  assert.ok(service.includes("listInvitesForAddress(serviceDb(), email.toLowerCase(),"));
+  assert.ok(service.includes("listInvitesForAddress(teamDb(), email.toLowerCase(),"));
   assert.ok(readCode("packages/db/src/repositories/workspace/team.ts").includes('.eq("email", email)'));
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
   assert.ok(/\.trim\(\)\s*\.toLowerCase\(\)/.test(invite), "stored lowercased at the door");

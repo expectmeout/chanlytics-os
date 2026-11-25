@@ -50,8 +50,7 @@ async function instagramAsked<Via extends "press" | "rung">(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  input: InstagramPress,
-  via: Via,
+  { input, via }: { input: InstagramPress; via: Via },
 ) {
   const refused = await refusalBefore(ctx, member, row);
   if (refused) throw refused;
@@ -72,7 +71,7 @@ async function instagramAsked<Via extends "press" | "rung">(
  * places it takes what this answers: the 8:00 approval's for a slot readied overnight, plan_slot_place's after.
  */
 export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
-  return prepareApproval(ctx, member, row, await instagramAsked(ctx, member, row, input, "rung"));
+  return prepareApproval(ctx, member, row, await instagramAsked(ctx, member, row, { input, via: "rung" }));
 }
 
 /**
@@ -85,7 +84,12 @@ export async function postFileToInstagram(
   row: FileMemberRow,
   input: InstagramPress,
 ): Promise<{ post_id: string; status: "queued" }> {
-  const approved = await approvePlacements(ctx, member, row, await instagramAsked(ctx, member, row, input, "press"));
+  const approved = await approvePlacements(
+    ctx,
+    member,
+    row,
+    await instagramAsked(ctx, member, row, { input, via: "press" }),
+  );
   const postId = approved.posts[0]?.post_id;
   if (!postId) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   return { post_id: postId, status: "queued" };

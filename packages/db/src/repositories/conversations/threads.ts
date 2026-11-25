@@ -22,7 +22,7 @@ const THREAD_PERSON_COLUMNS =
 /** A thread as the pages read it, with its person. */
 export const CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts (${THREAD_PERSON_COLUMNS})` as const;
 /** The same, for a list: only the threads whose person passes what the read asks of `contacts` (PostgREST's inner embed). */
-export const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
+const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
 
 /**
  * The Inbox's threads: those `ids` names (a search's, kept to the listed; or one named by its id, which reads whatever
@@ -106,5 +106,5 @@ export async function findThreadPhone(db: Db, tenantId: TenantId, conversationId
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "the steered draft's thread");
-  return data?.contacts?.phone_e164 ?? null;
+  return data?.contacts.phone_e164 ?? null;
 }

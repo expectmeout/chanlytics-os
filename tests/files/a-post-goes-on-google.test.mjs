@@ -147,7 +147,9 @@ function world({
         memberships: [
           { user_id: USER, tenant_id: A, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
         ],
-        files: rows,
+        // How a piece was made, and the edge's events of where it went, are read on the member's own session (00717).
+        files: rows.map((r) => (r.id === POST_ID && !("made" in r) ? { ...r, made } : r)),
+        events,
         tenants: [
           {
             id: A,
