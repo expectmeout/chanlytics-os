@@ -19,6 +19,7 @@ import {
   PREFETCH_READS,
   PREFETCH_BESIDE,
   OPENING_MARK,
+  FAILED_WHOLE,
   openReads,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
@@ -490,27 +491,42 @@ test("a refusal of the whole, or a stream that cannot be read, hands every read 
   }
 });
 
-test("an opening the server could not answer answers every read it parked with that: none is asked again alone", async () => {
-  // Handed back to the page, each of Today's twenty reads was a request of its own in the same instant, of a server that
-  // had just said it could not answer (24 Nov 2026; the dashboard's client/trouble.ts).
-  for (const status of [500, 503, 504]) {
-    const { calls, slot } = openedToday({
-      answer: () => new Response(JSON.stringify({ ok: false, error: { code: "unavailable" } }), { status }),
-    });
+test("an opening the server could not answer, or that never arrived, refuses every read it parked as failed whole", async () => {
+  // Handed back as the page's own to ask, each of Today's twenty reads was a request of its own in the same instant, of
+  // a server that had just said it could not answer (24 Nov 2026). Said as failed whole, the client sends one of them to
+  // look before any other leaves (the dashboard's client/trouble.ts failedWhole).
+  for (const answer of [
+    () => new Response(JSON.stringify({ ok: false, error: { code: "unavailable" } }), { status: 500 }),
+    () => new Response(JSON.stringify({ ok: false, error: { code: "unavailable" } }), { status: 503 }),
+    // A gateway's own page, which is no envelope.
+    () => new Response("<html>Bad gateway</html>", { status: 502 }),
+    () => Promise.reject(new TypeError("fetch failed")),
+  ]) {
+    const { calls, slot } = openedToday({ answer });
     const urls = Object.keys(slot);
     assert.ok(urls.length > 10, "every read of the opening is parked");
-    for (const url of urls)
-      assert.deepEqual(
-        await settled(slot[url]),
-        { status, body: { ok: false, error: { code: "unavailable" } }, retry: null },
-        `${status} ${url}`,
-      );
+    for (const url of urls) assert.deepEqual(await settled(slot[url]), { rejected: FAILED_WHOLE }, url);
     assert.equal(calls.length, 1, "the one request");
   }
-  // A gateway's own page, which is no envelope: each read still hears the status, and reads it as a failure.
-  const { slot } = openedToday({ answer: () => new Response("<html>Bad gateway</html>", { status: 502 }) });
-  const first = await slot[Object.keys(slot)[0]];
-  assert.equal(first.status, 502);
+});
+
+test("an opening that answered some of its lines and then broke off failed no whole: what is left is the page's to ask", async () => {
+  let pulls = 0;
+  const cutShort = () =>
+    new Response(
+      new ReadableStream({
+        // One line, then the connection is gone: an error where the next chunk would have been.
+        pull(controller) {
+          pulls += 1;
+          if (pulls > 1) return controller.error(new TypeError("terminated"));
+          return controller.enqueue(new TextEncoder().encode(`${line("setup", { ok: true, data: { setup: {} } })}\n`));
+        },
+      }),
+      { status: 200 },
+    );
+  const { slot } = openedToday({ answer: cutShort });
+  assert.equal((await settled(slot[urlOf("setup")])).status, 200);
+  assert.deepEqual(await settled(slot[urlOf("views")]), { rejected: "open" }, "the server was answering");
 });
 
 /** The line GET open ends on: what the opening came to (server/workspace/page-open.ts). It names no read. */

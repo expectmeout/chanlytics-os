@@ -94,25 +94,50 @@ test("during the wait, a read of an address that has not failed leaves as a witn
   assert.ok(leaves(await s.read("GET today")));
 });
 
-test("a witness that fails too is one a wait, looks alone, and leaves the wait as it stands", async () => {
+test("a witness that fails leaves the wait as it stands, and the read that waited on it is the next witness", async () => {
+  // Three reads broken by a fault of their own and a healthy one beside them: the healthy one is held for no longer
+  // than the broken ones take to say so.
   const s = standing();
   await s.trip();
-  const witness = await s.read("GET contacts");
+  const witness = await s.read("GET templates");
   assert.ok(leaves(witness));
   let beside = "waiting";
-  const other = s.read("GET settings").then((answer) => (beside = answer));
+  const healthy = s.read("GET settings").then((answer) => (beside = answer));
   await Promise.resolve();
   assert.equal(beside, "waiting", "a second address does not leave beside it: it waits on what the witness says");
   witness("fault");
-  assert.deepEqual(await other, { held: 5 });
+  const next = await healthy;
+  assert.ok(leaves(next), "the witness failed: the read that waited is judged again, and looks itself");
+  next("fault");
   assert.deepEqual(
-    await s.read("GET views"),
+    await s.read("GET templates"),
     { held: 5 },
-    "another address in the same wait is held: one looked already",
+    "the one that failed as a witness is held with the rest",
   );
-  assert.deepEqual(await s.read("GET contacts"), { held: 5 }, "and the one that failed as the witness, with the rest");
   s.pass(5_000);
-  assert.ok(leaves(await s.read("GET today")), "the wait ended when it was set to: the witness did not move it");
+  assert.ok(leaves(await s.read("GET today")), "the wait ended when it was set to: the witnesses did not move it");
+});
+
+test("once eight addresses have failed with none answered, the outage is plain: no witness leaves during a wait", async () => {
+  const s = standing();
+  await s.trip();
+  // Two failed at the trip; six more look, one after another, and fail.
+  for (const name of ["a", "b", "c", "d", "e", "f"]) {
+    const witness = await s.read(`GET ${name}`);
+    assert.ok(leaves(witness), name);
+    witness("fault");
+  }
+  assert.deepEqual(await s.read("GET g"), { held: 5 }, "the ninth address is answered here");
+  s.pass(5_000);
+  const first = await s.read("GET today");
+  const second = await s.read("GET h");
+  assert.ok(
+    leaves(first) && leaves(second),
+    "the looks at a wait's end are as they were: the first asked, and one more",
+  );
+  first("fault");
+  second("fault");
+  assert.deepEqual(await s.read("GET i"), { held: 10 });
 });
 
 test("once the wait is over two reads look, an address that has not failed beside the first, and the rest wait on what they say", async () => {
@@ -182,7 +207,7 @@ test("an outage costs a tab a handful of requests: twenty-five addresses asked a
     }
   };
   await askAll();
-  assert.equal(sent, 4, "three failed and the tab stopped asking, but for one witness: twenty-one reads never left");
+  assert.equal(sent, 8, "three failed, five more looked one by one, and the outage was plain: seventeen never left");
   let inAMinute = 0;
   for (let elapsed = 0; elapsed < 300_000; elapsed += 1_000) {
     s.pass(1_000);
@@ -294,6 +319,49 @@ test("a page's boot begins standing: what an earlier page left held, and reads w
   assert.equal(waited !== "waiting", true);
 });
 
+test("a request that carried a page's reads failed whole: the tab holds at once, and one of its reads looks alone", async () => {
+  const s = standing();
+  s.trouble.failedWhole();
+  assert.equal(s.trouble.waiting(), true, "one such request is every read of a page: no three faults are waited for");
+  const look = await s.read("GET today");
+  assert.ok(leaves(look), "the first read asked looks, though the tab holds");
+  let second = "waiting";
+  const other = s.read("GET calendar").then((answer) => (second = answer));
+  // Every other read it carried says so too, as each hears of it: nothing more is owed.
+  s.trouble.failedWhole();
+  await Promise.resolve();
+  assert.equal(second, "waiting", "the others wait on what it says");
+  look("answered");
+  assert.equal(s.trouble.waiting(), false, "the server answers: the failure was that request's own");
+  assert.ok(leaves(await other), "and the rest follow");
+});
+
+test("the look after a request failed whole fails too: the outage is plain, and no other read leaves as a witness", async () => {
+  const s = standing();
+  s.trouble.failedWhole();
+  const look = await s.read("GET today");
+  const waiting = [s.read("GET calendar"), s.read("GET contacts"), s.read("GET settings")];
+  look("fault");
+  assert.deepEqual(await Promise.all(waiting), [{ held: 5 }, { held: 5 }, { held: 5 }]);
+  assert.deepEqual(
+    await s.read("GET views"),
+    { held: 5 },
+    "an address never asked is held too: nothing looks but the looks",
+  );
+  s.pass(5_000);
+  assert.ok(leaves(await s.read("GET today")), "until the wait is over");
+});
+
+test("a look called off after a request failed whole says nothing: the next read looks in its place", async () => {
+  const s = standing();
+  s.trouble.failedWhole();
+  (await s.read("GET today"))("called_off");
+  const next = await s.read("GET calendar");
+  assert.ok(leaves(next));
+  next("answered");
+  assert.equal(s.trouble.waiting(), false);
+});
+
 test("the wait coming due is said, so the runner's own reads look; a wait ended early says nothing", async () => {
   const s = standing();
   let due = 0;
@@ -361,12 +429,16 @@ test("a read leaves in the turn it is asked in while the tab stands", () => {
   assert.deepEqual(c.sent, ["GET /api/v1/views"], "sent before the caller's next line, as it always was");
 });
 
-test("with every read failing, a pass of twenty-five reads and its retries reach the server six times", async () => {
+test("with every read failing, a pass of twenty-five reads and its retries reach the server nine times", async () => {
   const c = client(() => failed());
   const READS = ["GET views", "GET calls", "GET channels", "GET segments", "GET team"];
   // A pass: twenty-five reads of five addresses, one after another.
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 4, "three failed and the tab stopped asking, but for one witness: twenty-one never left");
+  assert.equal(
+    c.sent.length,
+    8,
+    "three failed, five more looked one by one, the outage was plain: seventeen never left",
+  );
   const held = await c.api("GET views");
   assert.equal(held.ok, false);
   assert.equal(held.code, "unavailable");
@@ -376,10 +448,10 @@ test("with every read failing, a pass of twenty-five reads and its retries reach
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
   c.pass(2_000);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 4);
+  assert.equal(c.sent.length, 8);
   c.pass(10_000);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 6, "one look once the wait is over and the next wait's witness, where seventy-five left");
+  assert.equal(c.sent.length, 9, "one look once the wait is over, where seventy-five more requests left");
 });
 
 test("two reads broken by a fault of their own hold nothing healthy back: a read of another address ends the hold", async () => {
@@ -451,7 +523,7 @@ const ndjson = (lines) =>
   new Response(`${lines.join("\n")}\n`, { status: 200, headers: { "content-type": "application/x-ndjson" } });
 const lineOf = (k) => JSON.stringify({ k, s: 200, b: { ok: true, data: { k } } });
 
-test("a rest of a load the server could not answer answers every read it carried: none is asked again alone", async () => {
+test("a rest of a load the server could not answer refuses every read it carried as failed whole, never as one to ask alone", async () => {
   for (const whole of [() => failed(503), () => failed(500), () => Promise.reject(new TypeError("fetch failed"))]) {
     const asked = [];
     const rest = restReads(async (url) => {
@@ -459,19 +531,8 @@ test("a rest of a load the server could not answer answers every read it carried
       return whole();
     });
     const answers = rest.ask(KEYS.map(restUrl));
-    const settled = await Promise.all(
-      KEYS.map((key) =>
-        answers.get(restUrl(key)).then(
-          (res) => res.status,
-          (e) => `rejected: ${e.message}`,
-        ),
-      ),
-    );
+    for (const key of KEYS) await assert.rejects(answers.get(restUrl(key)), /^Error: failed whole$/, key);
     assert.equal(asked.length, 1);
-    assert.ok(
-      settled.every((status) => typeof status === "number" && status >= 500),
-      `each read hears the failure: ${settled.join(" ")}`,
-    );
   }
 });
 
@@ -490,7 +551,8 @@ test("a rest refused for any other reason, or cut short, still hands its reads b
   for (const key of KEYS.slice(2)) await assert.rejects(answers.get(restUrl(key)), /not carried/, key);
 });
 
-test("through the client: a failed rest of a load is one request and no more, and the tab holds its reads after it", async () => {
+/** The client over a rest of a load that fails whole, and reads asked alone that `alone` answers. */
+function clientOverFailedRest(alone) {
   const sent = [];
   const rest = restReads(async (url) => {
     sent.push(`GET ${url.replace(/\?.*$/, "")}`);
@@ -499,18 +561,41 @@ test("through the client: a failed rest of a load is one request and no more, an
   const api = createApi({
     fetch: async (url, init) => {
       sent.push(`${init.method} ${url.replace(/\?.*$/, "")}`);
-      return failed(503);
+      return alone(url);
     },
     workspace: () => A,
     onSignedOut: () => {},
     refresh: async () => {},
     together: rest,
   });
-  const READS = ["GET calls", "GET channels", "GET segments", "GET team", "GET policies", "GET billing"];
+  return { api, sent };
+}
+const READS = ["GET calls", "GET channels", "GET segments", "GET team", "GET policies", "GET billing"];
+
+test("through the client: a failed rest of a load in an outage is that request and one look, and the tab holds its reads", async () => {
+  const { api, sent } = clientOverFailedRest(() => failed(503));
   const answers = await Promise.all(api.gather(() => READS.map((key) => api(key))));
   assert.ok(answers.every((r) => !r.ok));
-  assert.deepEqual(sent, ["GET /api/v1/open/rest"], "the one request: its six reads were each asked alone before");
-  assert.equal(api.readsHeld(), true, "six reads failed on six addresses: the tab holds its reads");
-  await api("GET calls");
-  assert.equal(sent.length, 1, "and a surface's retry is answered here");
+  assert.deepEqual(
+    sent,
+    ["GET /api/v1/open/rest", "GET /api/v1/calls"],
+    "the one request, and one of its reads to look: its six reads were each asked alone before",
+  );
+  assert.equal(api.readsHeld(), true);
+  await api("GET channels");
+  assert.equal(sent.length, 2, "and a surface's retry is answered here");
+});
+
+test("through the client: a rest of a load that failed by itself costs its reads nothing: one looks, the others follow", async () => {
+  // The one request fell over (a function that timed out, a gateway's own 502) and the server answers every read.
+  const { api, sent } = clientOverFailedRest(() => envelope({}));
+  const answers = await Promise.all(api.gather(() => READS.map((key) => api(key))));
+  assert.ok(
+    answers.every((r) => r.ok),
+    "every read is answered, each by its own request",
+  );
+  assert.equal(sent[0], "GET /api/v1/open/rest");
+  assert.equal(sent[1], "GET /api/v1/calls", "the first of them looked, alone");
+  assert.deepEqual([...sent.slice(1)].sort(), READS.map((key) => `GET /api/v1/${key.slice(4)}`).sort());
+  assert.equal(api.readsHeld(), false);
 });
