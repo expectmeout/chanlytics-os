@@ -19,13 +19,13 @@ const dtoOf = (over = {}) => ({
     receptionist: "set",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: true, active: true, number: "+13055550142", lastInboundAt: "2026-09-24T14:20:00Z" },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: true, active: true, number: "+13055550142", last_inbound_at: "2026-09-24T14:20:00Z" },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   lines: {
     rows: [

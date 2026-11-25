@@ -180,7 +180,7 @@ export async function resubmitRejectedCampaign(
     return {
       ok: false,
       error: "provider_refused",
-      detail: `the campaign could not be resubmitted (HTTP ${result?.status ?? 0}) ${detail}`,
+      detail: `texting approval couldn't be filed again (HTTP ${result?.status ?? 0}) ${detail}`,
     };
   }
   log.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });

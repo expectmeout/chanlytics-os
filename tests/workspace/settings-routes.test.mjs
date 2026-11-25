@@ -128,9 +128,9 @@ test("the settings read: the workspace the tab named, with its version and the r
     google_listings: [],
   };
   const harbor = await settings.GET.run(get(inA), ctxFor(tables));
-  assert.deepEqual([harbor.version, harbor.role, harbor.configBroken], [3, "viewer", false]);
+  assert.deepEqual([harbor.version, harbor.role, harbor.config_broken], [3, "viewer", false]);
   assert.deepEqual(
-    [harbor.updatedBy, harbor.updatedAt],
+    [harbor.updated_by, harbor.updated_at],
     [null, "2026-09-01T00:00:00Z"],
     "a row written before the author was kept says so with null",
   );
@@ -142,7 +142,7 @@ test("the settings read: the workspace the tab named, with its version and the r
     }),
   );
   assert.deepEqual(
-    [authored.updatedBy, authored.updatedAt],
+    [authored.updated_by, authored.updated_at],
     ["u7", "2026-09-02T00:00:00Z"],
     "who last changed it rides with the config",
   );
@@ -158,7 +158,7 @@ test("the settings read: the workspace the tab named, with its version and the r
     tenant_config: [{ tenant_id: A, config: "nonsense", version: 7, updated_at: "2026-09-01T00:00:00Z" }],
   };
   const out = await settings.GET.run(get(inA), ctxFor(broken));
-  assert.deepEqual([out.config, out.version, out.configBroken], [null, 7, true]);
+  assert.deepEqual([out.config, out.version, out.config_broken], [null, 7, true]);
   assert.ok(Array.isArray(out.issues) && out.issues.length > 0);
   await refused(settings.GET.run(get(inA), ctxFor({ ...tables, tenant_config: [] })), "not_found", 404);
 });
@@ -372,7 +372,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
     settings.PUT.run(send("PUT", {}, inB), ctxFor(tables)),
     "validation",
     400,
-    "Body must be { config, version }.",
+    "Send the settings with their version.",
   );
   await refused(
     settings.PUT.run(send("PUT", { config: [], version: 1 }, inB), ctxFor(tables)),
@@ -560,7 +560,12 @@ test("a receptionist with no booking link (one that quotes each job) is read as 
   };
   const read = await settings.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(
-    [read.configBroken, read.config.brain.business_name, read.config.brain.booking_link, read.facts.booking_link.value],
+    [
+      read.config_broken,
+      read.config.brain.business_name,
+      read.config.brain.booking_link,
+      read.facts.booking_link.value,
+    ],
     [false, "Harbor Moving", undefined, null],
     "it was a config the parser refused: the tab showed a broken workspace",
   );
@@ -679,7 +684,7 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
     policies.PUT.run(send("PUT", { class: "booking", max_llm_tokens_day: 1000 }, inB), ctxFor(tables)),
     "validation",
     400,
-    "The token budget only applies to the reply policy.",
+    "The daily AI limit applies only to replies.",
   );
   const off = await policies.PUT.run(send("PUT", { class: "reply", max_llm_tokens_day: 0 }, inB), ctxFor(tables));
   assert.equal(off.policy.limits.max_llm_tokens_day, 0, "0 is off, and is written as such rather than dropped");

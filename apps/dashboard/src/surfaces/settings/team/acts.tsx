@@ -102,7 +102,7 @@ export function teamActs(o: {
     const r = await teamVerbs.remove(p.id);
     setBusy(false);
     setAsk(null);
-    const revoked = r.ok && !!(r.data as { revokedInvite?: boolean } | null)?.revokedInvite;
+    const revoked = r.ok && "revoked_invite" in r.data;
     flash(
       flashOf(
         r,

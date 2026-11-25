@@ -15,8 +15,10 @@ import { MAILBOXES_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody(raw, MAILBOXES_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/mailboxes", { body: raw });
   if (!auth.ok) return auth.response;
+  const read = await readBody(raw, MAILBOXES_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   return runMailboxesOp(auth, body);
 });

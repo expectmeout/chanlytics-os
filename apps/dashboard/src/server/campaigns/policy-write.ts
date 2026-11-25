@@ -193,7 +193,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (!Number.isFinite(t) || t < 0 || t > 5_000_000 || (t > 0 && t < 1000)) {
       throw new AppError("validation", DIAL_WORDS.max_llm_tokens_day);
     }
-    if (cls !== "reply") throw new AppError("validation", "The token budget only applies to the reply policy.");
+    if (cls !== "reply") throw new AppError("validation", "The daily AI limit applies only to replies.");
     limits.max_llm_tokens_day = Math.round(t);
   }
   // The two hard limits Chanlytics used to set for a workspace, now the owner's (S6): automatic replies to one person in

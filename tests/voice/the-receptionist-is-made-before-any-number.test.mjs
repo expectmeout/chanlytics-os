@@ -175,7 +175,7 @@ test("refused in the door's words: the provider saying no, a workspace with no p
   try {
     assert.deepEqual(await ask(), [
       502,
-      { ok: false, error: "provider_refused", detail: "the receptionist could not be made at the provider" },
+      { ok: false, error: "provider_refused", detail: "couldn't set up AI at the voice provider" },
     ]);
   } finally {
     no.restore();

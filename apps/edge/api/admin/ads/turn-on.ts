@@ -14,8 +14,10 @@ import { ADS_TURN_ON_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody(raw, ADS_TURN_ON_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/ads/turn-on", { body: raw });
   if (!auth.ok) return auth.response;
+  const read = await readBody(raw, ADS_TURN_ON_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   return runAdTurnOn(auth, body);
 });

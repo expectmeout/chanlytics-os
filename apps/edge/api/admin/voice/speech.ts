@@ -39,7 +39,9 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askSpeechConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody(request, VOICE_SPEECH_DOOR);
+  const read = await readBody(request, VOICE_SPEECH_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";

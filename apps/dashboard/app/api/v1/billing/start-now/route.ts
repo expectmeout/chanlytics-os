@@ -20,7 +20,7 @@ export const POST = write({
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
         answer.status === 409 ? "conflict" : answer.status === 503 ? "upstream_auth" : "upstream_provider",
-        BILLING_SAID[reason] ?? `The plan could not be started (${reason}).`,
+        BILLING_SAID[reason] ?? `Couldn't start the plan (${reason}).`,
         answer.status === 409 ? 409 : answer.status === 503 ? 503 : 502,
       );
     }

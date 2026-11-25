@@ -164,12 +164,12 @@ const SETUP_FIXTURE = {
   },
   conflicts: [],
   channels: {
-    whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", lastInboundAt: ago(1) },
-    voice: { present: true, active: true, number: "+19296566623", lastInboundAt: ago(2) },
+    whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", last_inbound_at: ago(1) },
+    voice: { present: true, active: true, number: "+19296566623", last_inbound_at: ago(2) },
   },
-  templates: { approved: 5, pending: 0, startersApproved: 5 },
+  templates: { approved: 5, pending: 0, starters_approved: 5 },
   calendar: { state: "ok" },
-  team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+  team: { members: 2, invites_open: 0, alert_emails: 1 },
   consent: { yes: 12 },
   requests: { line: null },
   lines: {
@@ -696,7 +696,7 @@ test("the back office's Setup read touches no function that asks who is signed i
   // assembly ran and reported it, which is what the DTO says it does.
   assert.equal(setup.business.broken, true, "it read and judged the config row");
   assert.equal(setup.team.members, 2, "counted the members without asking for the roster");
-  assert.equal(setup.team.invitesOpen, 1, "and the open invitations");
+  assert.equal(setup.team.invites_open, 1, "and the open invitations");
   assert.equal(setup.consent.yes, 1);
   assert.equal(setup.lines.rows.length, 1);
   assert.equal(setup.channels.voice.number, "+19296566623");
@@ -709,7 +709,7 @@ test("no member's email crosses the tenant boundary, because the roster is never
   const db = fakeDb(workspaceTables());
   const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
   assert.ok(!JSON.stringify(setup).includes("new@example.com"), "the invited address stays in the workspace");
-  assert.deepEqual(Object.keys(setup.team).sort(), ["alertEmails", "invitesOpen", "members"]);
+  assert.deepEqual(Object.keys(setup.team).sort(), ["alert_emails", "invites_open", "members"]);
 });
 
 test("a workspace reading its own Setup still gets the roster, on its own client", async () => {
@@ -738,7 +738,7 @@ test("a workspace reading its own Setup still gets the roster, on its own client
   const setup = await setupDtoFor(db, TENANT, { kind: "member" });
   assert.deepEqual(asked, { p_tenant_id: TENANT }, "the member path calls the roster RPC");
   assert.equal(setup.team.members, 1);
-  assert.equal(setup.team.invitesOpen, 1);
+  assert.equal(setup.team.invites_open, 1);
 });
 
 test("a workspace a partner brought names them on its own Setup, and nobody else's read carries the name", async () => {

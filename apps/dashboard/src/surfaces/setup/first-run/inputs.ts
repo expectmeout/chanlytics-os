@@ -18,7 +18,7 @@ export const brainOf = (config: WorkspaceSettings | null | undefined): CardBrain
   config && config.brain ? config.brain : null;
 
 /** The workspace's alert addresses (the config's notifications.escalation_emails); none where the read has none. */
-export function alertEmails(config: WorkspaceSettings | null | undefined): string[] {
+export function alert_emails(config: WorkspaceSettings | null | undefined): string[] {
   const n: unknown = config ? Reflect.get(config, "notifications") : null;
   const e: unknown = n && typeof n === "object" ? Reflect.get(n, "escalation_emails") : null;
   return Array.isArray(e) ? e.filter((x): x is string => typeof x === "string") : [];

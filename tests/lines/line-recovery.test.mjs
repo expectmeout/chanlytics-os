@@ -102,12 +102,12 @@ test("the deadline is one number, and it does not fire on a saga that is still r
 const setupDto = (lines) => ({
   business: { name: "Northside Movers", hours: true, services: 2, address: "1 Main St", handoff: null, broken: false },
   channels: {
-    voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+    voice: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
   },
   templates: { approved: 0, pending: 0 },
   calendar: { state: "none", events: 0 },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
   consent: { yes: 0, offers: 0 },
   requests: { line: null },
   lines: { rows: lines, ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },

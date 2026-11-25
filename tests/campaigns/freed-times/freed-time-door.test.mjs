@@ -146,8 +146,10 @@ test("the knock: a token for another door, a body naming another workspace, and 
     { ok: false, error: "workspace_mismatch" },
   ]);
   // The token's person is who pressed: a body's own `user_id` is not read, so only the visit's id can be wrong.
-  for (const bad of [{}, { appointment_id: "rosa" }, { user_id: U }, "not json"])
-    assert.deepEqual(await answer(await knock(bad)), [400, { ok: false, error: "bad_request" }], JSON.stringify(bad));
+  for (const bad of [{}, { appointment_id: "rosa" }, { user_id: U }, "not json"]) {
+    const [status, body] = await answer(await knock(bad));
+    assert.deepEqual([status, body.ok, body.error], [400, false, "bad_request"], JSON.stringify(bad));
+  }
   assert.equal(w.db.seen.length, 0, "nothing was read for any of it");
   setPg(null);
   assert.deepEqual(await answer(await knock(press)), [503, { ok: false, error: "no_database" }]);

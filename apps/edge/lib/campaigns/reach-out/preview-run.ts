@@ -127,7 +127,7 @@ export async function previewReachOut(auth: Admitted, body: Partial<Body>): Prom
   if (!db) return json(503, { ok: false, error: "no_database" });
   const used = await askTokensLast24h(db, tenantId);
   // A day that could not be counted holds the preview: a failed count is not a day with nothing spent.
-  if (used === null) return json(503, { ok: false, error: "read_failed", detail: "AI's day could not be counted." });
+  if (used === null) return json(503, { ok: false, error: "read_failed", detail: "Couldn't count AI's day." });
   if (used >= ASK_TOKENS_DAY) {
     logger({ tenant_id: tenantId }).warn("ask_budget_spent", { used, cap: ASK_TOKENS_DAY });
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });

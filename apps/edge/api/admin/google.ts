@@ -14,5 +14,7 @@ import { GOOGLE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
-  return runGoogleOp(auth, await readBody(request, GOOGLE_DOOR));
+  const read = await readBody(request, GOOGLE_DOOR);
+  if (!read.ok) return read.response;
+  return runGoogleOp(auth, read.body);
 });

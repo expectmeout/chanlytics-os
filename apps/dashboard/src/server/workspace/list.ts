@@ -50,7 +50,7 @@ import type { Member } from "@/server/shared/route";
 import { saysMissing } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
 import { hasOpenInvites } from "./team";
-import type { TenantId } from "@chanlytics/contracts";
+import type { OpenHandoverDto, TenantId } from "@chanlytics/contracts";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -185,7 +185,12 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // on their own (getMemberContext) and hidden by the database (00218); this is the one place that says so at boot.
   if (partner) requireSecondFactor(ctx);
   if (open.error) log.error("handovers_unread", { error: open.error.slice(0, 200) });
-  const handovers = open.handovers;
+  const handovers: OpenHandoverDto[] = open.handovers.map((h) => ({
+    workspace_id: h.tenantId,
+    workspace: h.workspace,
+    partner_code: h.partnerCode,
+    expires_at: h.expiresAt,
+  }));
 
   // The caller's role rides along so the mockup gate() chips tell the truth —
   // but the role must describe the workspace actually being VIEWED. This used

@@ -23,7 +23,7 @@ export const GET = read({
   handle: async ({ ctx }) => {
     const id = requireUuid(ctx.params.id, "thread");
     const found = await readThread(ctx, id);
-    if (!found) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
+    if (!found) throw new AppError("not_found", "That conversation is not yours, or is already gone.", 404);
     return { thread: found.thread, messages: found.messages };
   },
 });

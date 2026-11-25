@@ -14,5 +14,7 @@ import { ERASE_CALLS_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice/erase-calls");
   if (!auth.ok) return auth.response;
-  return eraseCallsDoor(auth, await readBody(request, ERASE_CALLS_DOOR));
+  const read = await readBody(request, ERASE_CALLS_DOOR);
+  if (!read.ok) return read.response;
+  return eraseCallsDoor(auth, read.body);
 });

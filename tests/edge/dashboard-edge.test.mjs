@@ -76,7 +76,7 @@ test("where the edge is: the address the dashboard has always called unless EDGE
   );
 });
 
-test("an answer its door's schema does not hold is said by door and field, never by value, and still read as it came", async () => {
+test("a field its door's schema does not hold is not read: left out, the status kept, said by door and field, never by value", async () => {
   const said = [];
   const warn = console.warn;
   console.warn = (line) => said.push(JSON.parse(line));
@@ -91,8 +91,8 @@ test("an answer its door's schema does not hold is said by door and field, never
     await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
       const held = await callEdge(DOOR, null, answering({ ok: true, codes: [], what_it_adds: 1 }));
       assert.deepEqual(
-        held.body,
-        { ok: true, codes: [], what_it_adds: 1 },
+        held,
+        { status: 200, body: { ok: true, codes: [], what_it_adds: 1 } },
         "read as it came, a field nobody reads included",
       );
       const refused = await callEdge(
@@ -100,11 +100,15 @@ test("an answer its door's schema does not hold is said by door and field, never
         null,
         answering({ ok: false, error: "no_database", detail: "Not now." }, 503),
       );
-      assert.equal(refused.body.detail, "Not now.");
+      assert.deepEqual(refused, { status: 503, body: { ok: false, error: "no_database", detail: "Not now." } });
       assert.deepEqual(said, [], "a refusal says none of the answer's fields, and that is no mismatch");
 
-      const odd = await callEdge(DOOR, null, answering({ ok: true, codes: "a person's words" }));
-      assert.equal(odd.body.codes, "a person's words", "report-only: what the door sent is what is read");
+      const odd = await callEdge(DOOR, null, answering({ ok: true, codes: "a person's words", what_it_adds: 1 }));
+      assert.deepEqual(
+        odd,
+        { status: 200, body: { ok: true, what_it_adds: 1 } },
+        "the field its schema does not hold is left out; the rest, and the status, stand",
+      );
       assert.deepEqual(
         said.map(({ event, door, status, fields }) => ({ event, door, status, fields })),
         [{ event: "edge_answer_unexpected", door: DOOR, status: 200, fields: ["codes"] }],
@@ -112,8 +116,9 @@ test("an answer its door's schema does not hold is said by door and field, never
       assert.ok(!JSON.stringify(said).includes("a person's words"), "the field's name, never its value");
 
       said.length = 0;
-      await callEdge("/api/admin/no-such-door", null, answering({ ok: true, codes: "anything" }));
-      assert.deepEqual(said, [], "a path no door declares has no schema to hold it to");
+      const none = await callEdge("/api/admin/no-such-door", null, answering({ ok: true, codes: "anything" }));
+      assert.equal(none.status, 200, "a path no door declares has no schema to hold it to");
+      assert.deepEqual(said, []);
     });
   } finally {
     console.warn = warn;

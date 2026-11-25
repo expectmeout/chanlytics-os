@@ -32,6 +32,7 @@ export const UNKNOWN_BILLING_OP: DoorAnswer = {
   body: {
     ok: false,
     error: "unknown_op",
+    // screen-word: the op names a caller sends, listed back to the caller
     detail: "op must be status, checkout, portal, invoices, sync, resume, start_now or end",
   },
 };

@@ -100,14 +100,14 @@ export async function makeRehearsalAgent(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const rt = await loadTenantRuntime(db, rehearsalRouting(tenantId));
-  if (rt.loadFailed) return refuse(503, "read_failed", "the workspace could not be read");
+  if (rt.loadFailed) return refuse(503, "read_failed", "couldn't load the workspace");
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   try {
     await ensureVoiceAgent(db, { apiKey }, { fnSecret }, { id: tenantId, name: rt.brain.business_name || "" });
     return json(200, { ok: true });
   } catch (e) {
     log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
-    return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
+    return refuse(502, "provider_refused", "couldn't set up AI at the voice provider");
   }
 }
 
@@ -197,7 +197,7 @@ export async function startRehearsalCall(
   const now = new Date();
 
   const rt = await loadTenantRuntime(db, rehearsalRouting(tenantId));
-  if (rt.loadFailed) return refuse(503, "read_failed", "the workspace could not be read");
+  if (rt.loadFailed) return refuse(503, "read_failed", "couldn't load the workspace");
   if (rt.paused) return refuse(402, "payment_required", "the workspace is paused");
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   // A lead's own receptionist nobody has made theirs calls only while previews are switched on (decision 0079): the
@@ -225,7 +225,7 @@ export async function startRehearsalCall(
   } catch (e) {
     log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
     await giveBack();
-    return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
+    return refuse(502, "provider_refused", "couldn't set up AI at the voice provider");
   }
 
   const listen = body.listen === true;

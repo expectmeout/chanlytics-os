@@ -37,7 +37,7 @@ test("a device is a token and a platform; the version is kept short; anything el
     "the Live Activity's push-to-start token rides along",
   );
   assert.equal(parseDevice({ token: T, platform: "ios", activity_token: "x".repeat(201) }).ok, false);
-  assert.equal(parseDevice({ platform: "ios" }).reason, "A device needs its push token.");
+  assert.equal(parseDevice({ platform: "ios" }).reason, "A phone needs its notification address.");
   assert.equal(parseDevice({ token: T, platform: "windows" }).reason, "A device is an iPhone or an Android phone.");
   assert.equal(parseDevice({ token: "x".repeat(201), platform: "ios" }).ok, false);
   // Only a token the service hands out: one of any other shape breaks the send for every phone in its batch.

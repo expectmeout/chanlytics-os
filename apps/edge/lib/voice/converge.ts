@@ -274,6 +274,7 @@ async function applyOne(
 
 export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): Promise<Response> {
   if (auth.workspace)
+    // screen-word: an operator's door (voice-converge); the provider's own terms say what it does
     return refuse(403, "platform_only", "this door converges every workspace's agent: the platform's alone");
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return refuse(503, "no_provider_key");
@@ -281,6 +282,7 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
   const publish = body.publish === true;
   const pinNumber = typeof body.pin_number === "string" ? body.pin_number : null;
   if (pinNumber !== null && (!E164.test(pinNumber) || typeof body.agent_id !== "string"))
+    // screen-word: an operator's door (voice-converge); the provider's own terms say what to send
     return refuse(400, "bad_request", "pin_number is the named agent's number, in E.164");
 
   const agentIds = await agentsNamed(body);

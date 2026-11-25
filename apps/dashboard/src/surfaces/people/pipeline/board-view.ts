@@ -178,9 +178,9 @@ export interface PipelinePassManyVM {
  */
 export function pipelinePassMany(rows: readonly (PipelineSource & { rowId?: string })[]): PipelinePassManyVM {
   // Each picked row with its own deal (0029): `deal` is the row's, `rowId` the row it was picked as.
-  const out = rows
-    .filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id)
-    .map((r) => ({ personId: r.id, dealId: r.deal!.id as string, rowId: r.rowId ?? r.id }));
+  const out = rows.flatMap((r) =>
+    r.deal?.stage === "proposed" && r.deal.id ? [{ personId: r.id, dealId: r.deal.id, rowId: r.rowId ?? r.id }] : [],
+  );
   const deals = out.slice(0, PIPELINE_PASS_MAX);
   const later = out.length - deals.length;
   const key = rows.length - out.length;

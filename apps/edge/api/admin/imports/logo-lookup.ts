@@ -14,5 +14,7 @@ import { LOGO_LOOKUP_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/imports/logo-lookup");
   if (!auth.ok) return auth.response;
-  return lookupLogoFor(auth, await readBody(request, LOGO_LOOKUP_DOOR));
+  const read = await readBody(request, LOGO_LOOKUP_DOOR);
+  if (!read.ok) return read.response;
+  return lookupLogoFor(auth, read.body);
 });

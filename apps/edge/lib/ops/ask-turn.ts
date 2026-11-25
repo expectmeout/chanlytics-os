@@ -78,7 +78,9 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
 
   const raw = await request.text();
   if (raw.length > GATEWAY_MAX_BODY) return refuse(413, "too_large");
-  const body = await readBody(raw, LLM_DOOR);
+  const read = await readBody(raw, LLM_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -133,7 +135,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   if (up.outcome === "held")
     return up.why === "paused"
       ? refuse(403, "model_paused", MODEL_PAUSED_WORDS.edge)
-      : refuse(503, "read_failed", "Whom this call is for could not be read just now.");
+      : refuse(503, "read_failed", "Couldn't tell whom this call is for just now.");
   if (up.outcome !== "ok") {
     const forWhom = { tenantId, userId };
     await recordCall(

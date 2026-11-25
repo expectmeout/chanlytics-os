@@ -29,7 +29,7 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
     if (busy) return;
     setBusy("accept");
     setError(null);
-    const r = await api()("POST handovers/[id]/accept", { params: { id: handover.tenantId } });
+    const r = await api()("POST handovers/[id]/accept", { params: { id: handover.workspace_id } });
     if (!r.ok) {
       setBusy(null);
       setError(r.message);
@@ -43,7 +43,7 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
     if (busy) return;
     setBusy("decline");
     setError(null);
-    const r = await api()("POST handovers/[id]/decline", { params: { id: handover.tenantId } });
+    const r = await api()("POST handovers/[id]/decline", { params: { id: handover.workspace_id } });
     setBusy(null);
     if (!r.ok) {
       setError(r.message);
@@ -57,10 +57,10 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
       <div className="cw-card">
         <h1 className="cw-title">{H.title(handover.workspace)}</h1>
         <p className="cw-lede" data-testid="handover-body">
-          {H.body(handover.partnerCode, handover.workspace)}
+          {H.body(handover.partner_code, handover.workspace)}
         </p>
         <p className="cw-hint" data-testid="handover-until">
-          {handoverUntilWords(handover.expiresAt)}
+          {handoverUntilWords(handover.expires_at)}
         </p>
         {error ? (
           <p className="cw-error" role="alert" data-testid="handover-error">
@@ -111,7 +111,7 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
 export function useHandoverAsk(ready: boolean, handovers: OpenHandoverDto[] | undefined): React.ReactElement | null {
   const [passed, setPassed] = useState<string[]>([]);
   if (!ready) return null;
-  const next = (handovers ?? []).find((h) => !passed.includes(h.tenantId));
+  const next = (handovers ?? []).find((h) => !passed.includes(h.workspace_id));
   if (!next) return null;
-  return <Handover handover={next} onDone={() => setPassed((p) => [...p, next.tenantId])} />;
+  return <Handover handover={next} onDone={() => setPassed((p) => [...p, next.workspace_id])} />;
 }

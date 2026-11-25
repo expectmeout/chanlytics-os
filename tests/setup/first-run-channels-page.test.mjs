@@ -50,7 +50,7 @@ const metaDoor = (t, keepApp) => {
   t.after(() => {
     waConnect.config = was;
   });
-  waConnect.config = async () => ({ ready: true, keep_app: keepApp, canConnect: true });
+  waConnect.config = async () => ({ ready: true, keep_app: keepApp, can_connect: true });
 };
 /** A kit sheet by the test id it is given. */
 const sheetOf = (tree, id) => {
@@ -284,7 +284,7 @@ test("Where it answers: WhatsApp where this deployment cannot keep the app says 
       ...phoneReady(),
       channels: {
         ...phoneReady().channels,
-        whatsapp: { present: true, active: true, number: "+13055550100", quality: null, lastInboundAt: null },
+        whatsapp: { present: true, active: true, number: "+13055550100", quality: null, last_inbound_at: null },
       },
     }),
   );

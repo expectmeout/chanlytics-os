@@ -182,7 +182,7 @@ test("the way there is the owner's and, with no edge here, not available; discon
     link.POST.run(send("POST", { place_id: "ChIJN1t_tDeuEmsRUsoyG83frY4" }, inB), ctxFor(tables)),
     "upstream_provider",
     502,
-    "The listing could not be linked (no_edge_credential).",
+    "Couldn't link the listing (no_edge_credential).",
   );
   await refused(link.DELETE.run(send("DELETE", undefined, inA), ctxFor(tables)), "forbidden", 403);
   await refused(
@@ -196,7 +196,7 @@ test("the way there is the owner's and, with no edge here, not available; discon
     locations.GET.run(get(inB), ctxFor(tables)),
     "upstream_provider",
     502,
-    "Google could not be read: no_edge_credential",
+    "Couldn't load from Google: no_edge_credential",
   );
   await refused(
     locations.POST.run(send("POST", {}, inB), ctxFor(tables)),
@@ -211,7 +211,7 @@ test("the way there is the owner's and, with no edge here, not available; discon
     ),
     "upstream_provider",
     502,
-    "The location could not be chosen (no_edge_credential).",
+    "Couldn't choose the location (no_edge_credential).",
   );
 });
 

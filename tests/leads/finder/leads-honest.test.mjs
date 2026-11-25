@@ -3331,7 +3331,7 @@ test("a refused Keep is the route's sentence, and nothing says it was kept", asy
     refuse: {
       status: 409,
       code: "conflict",
-      message: "This place is hidden: it is already a customer, or was erased.",
+      message: "This place is hidden: it is already a customer, or was deleted.",
     },
   });
   click(byTestId(rowOf(draw(), "l3"), "lead-keep"));

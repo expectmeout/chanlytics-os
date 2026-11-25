@@ -253,12 +253,12 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
       broken: false,
     },
     channels: {
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: false, active: false, number: null, lastInboundAt: null },
+      whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+      voice: { present: false, active: false, number: null, last_inbound_at: null },
     },
-    templates: { approved: 0, pending: 0, startersApproved: 0 },
+    templates: { approved: 0, pending: 0, starters_approved: 0 },
     calendar: { state: "none" },
-    team: { members: 1, invitesOpen: 0, alertEmails: 0 },
+    team: { members: 1, invites_open: 0, alert_emails: 0 },
     consent: { yes: 0 },
     requests: { line: null },
   };

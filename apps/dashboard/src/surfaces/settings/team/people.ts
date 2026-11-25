@@ -47,16 +47,16 @@ const sameAddress = (a: string | null | undefined, b: string | null | undefined)
 /** The card's two lists: the members, you first, and the invitations waiting. */
 export function teamPeopleOf(r: TeamRead): { members: TeamPerson[]; waiting: TeamPerson[] } {
   const members = r.team.map((m): TeamPerson => {
-    const w = memberWords({ email: m.email, display_name: m.displayName });
+    const w = memberWords({ email: m.email, display_name: m.display_name });
     const email = m.email ?? "";
     return {
-      id: m.membershipId,
+      id: m.membership_id,
       kind: "member",
       name: w.name,
       sub: w.sub,
       // An address the roster lacks draws as one that is empty: the face, the duplicate check and "You" read it alike.
       email,
-      initials: personInitials(m.displayName, m.email),
+      initials: personInitials(m.display_name, m.email),
       role: m.role,
       isMe: sameAddress(m.email, r.me),
       when: joinedWords(m.joined_at, r.tz, r.now),

@@ -133,7 +133,7 @@ test("F1: a transfer number that forwards back to AI is a loop, said on the tran
   assert.equal(f.phone_display.disputed, undefined, "publishing the kept number is still right");
   const conflicts = factConflicts(f);
   assert.deepEqual(
-    conflicts.map((c) => [c.fact, c.severity, c.known, c.knownSource, c.to]),
+    conflicts.map((c) => [c.fact, c.severity, c.known, c.known_source, c.to]),
     [["handoff_number", "serious", "+1 (212) 555-0142", "provisioned", "admin/workspace/handoff_number"]],
   );
   assert.match(conflicts[0].sentence, /through to \+1 \(212\) 555-0142, which forwards the calls nobody picks up back/);
@@ -318,12 +318,12 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
       broken: false,
     },
     channels: {
-      whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null },
+      whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", last_inbound_at: null },
+      voice: { present: true, active: true, number: "+13055550123", last_inbound_at: null },
     },
-    templates: { approved: 6, pending: 0, startersApproved: 5 },
+    templates: { approved: 6, pending: 0, starters_approved: 5 },
     calendar: { state: "ok" },
-    team: { members: 3, invitesOpen: 0, alertEmails: 1 },
+    team: { members: 3, invites_open: 0, alert_emails: 1 },
     consent: { yes: 0 },
     requests: { line: null },
     lines: { rows: [], costs: { local_number_month_usd: 1.15 }, ready: true },

@@ -28,7 +28,9 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askVoiceConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody(request, VOICE_SESSION_DOOR);
+  const read = await readBody(request, VOICE_SESSION_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -50,8 +52,8 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
       error: minted.error.slice(0, 200),
     });
     return minted.outcome === "unreachable"
-      ? refuse(503, "provider_unreachable", `voice agent ${minted.status || "timeout"}`)
-      : refuse(502, "provider_refused", `voice agent ${minted.status}`);
+      ? refuse(503, "provider_unreachable", `Voice didn't answer (${minted.status || "timeout"})`)
+      : refuse(502, "provider_refused", `Voice said no (${minted.status})`);
   }
   // The token travels to the browser through the dashboard and is never logged: the conversation's id is what a
   // search needs, and it is what the webhook names.

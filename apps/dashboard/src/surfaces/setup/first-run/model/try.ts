@@ -207,7 +207,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   const kept = fw ? normalizePhone(fw.e164) : null;
   const forwarded = !!kept;
   // Forwarding is said to work only once a call proved it (the webhook marks it inside the test window).
-  const proven = forwarded && fw!.forwarding_state === "verified";
+  const proven = forwarded && fw?.forwarding_state === "verified";
   const shown = formatPhoneDisplay(kept ?? own);
   const f0 = fw?.forwarding ?? null;
   const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
@@ -225,7 +225,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   };
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
 
-  const tested = !!voice.lastInboundAt;
+  const tested = !!voice.last_inbound_at;
   const inbound = calls
     .filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null)
     .sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
@@ -277,9 +277,8 @@ type TryBase = Pick<
 
 /** The forwarding test's window, while one is open on a kept number not yet proven: when it closes. */
 function openWindowUntil(fw: ReturnType<typeof forwardedLineOf>, nowMs: number): string | null {
-  const f0 = fw?.forwarding ?? null;
-  const open = !!f0 && fw!.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
-  return open ? (f0.test_until ?? null) : null;
+  if (!fw?.forwarding || fw.forwarding_state === "verified") return null;
+  return forwardingTestOpen(fw.forwarding, nowMs) ? (fw.forwarding.test_until ?? null) : null;
 }
 
 /** No call yet: listening, the minutes the test window has left, and after three quiet minutes why it may be. */

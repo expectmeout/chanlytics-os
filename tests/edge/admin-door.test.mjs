@@ -37,34 +37,29 @@ for (const k of [
 
 const { readBody } = await importSrc("apps/edge/lib/shared/admin-door.ts");
 const { LINES_DOOR } = await importSrc("packages/contracts/src/lines/edge-doors.ts");
+const { INTAKE_REPLAY_DOOR } = await importSrc("packages/contracts/src/console/edge-doors.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
-const { UNKNOWN_LINE_OP } = await importSrc("apps/edge/lib/lines/ops/search-buy.ts");
-const { UNKNOWN_GOOGLE_OP } = await importSrc("apps/edge/lib/google/ops.ts");
-const { UNKNOWN_BILLING_OP } = await importSrc("apps/edge/lib/billing/ops.ts");
 after(() => setPg(null));
 
 /** Harbor Moving: the workspace every token below is about. */
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-/** The three doors that read their body through readBody, each with the answer its validation gives a bad body. */
+/** Three doors that read their body through readBody. */
 const DOORS = [
   {
     name: "lines",
     aud: "/api/admin/lines",
     door: await importSrc("apps/edge/api/admin/lines.ts"),
-    bad: UNKNOWN_LINE_OP,
   },
   {
     name: "google",
     aud: "/api/admin/google",
     door: await importSrc("apps/edge/api/admin/google.ts"),
-    bad: UNKNOWN_GOOGLE_OP,
   },
   {
     name: "billing",
     aud: "/api/admin/billing",
     door: await importSrc("apps/edge/api/admin/billing.ts"),
-    bad: UNKNOWN_BILLING_OP,
   },
 ];
 
@@ -98,32 +93,32 @@ const world = () => ({
 /* --------------------------------------------------------------- the reader */
 
 test("readBody keeps a JSON object as sent, and reads anything else -- not JSON, or JSON that is not an object -- as an empty body", async () => {
-  assert.deepEqual(await readBody(request('{"op":"buy","tenant_id":"t1","n":{"deep":[1,2]}}'), LINES_DOOR), {
-    op: "buy",
-    tenant_id: "t1",
-    n: { deep: [1, 2] },
+  assert.deepEqual(await readBody(request('{"op":"buy","tenant_id":"' + A + '","n":{"deep":[1,2]}}'), LINES_DOOR), {
+    ok: true,
+    body: { op: "buy", tenant_id: A, n: { deep: [1, 2] } },
   });
-  assert.deepEqual(await readBody(request("{}"), LINES_DOOR), {});
+  assert.deepEqual(await readBody(request("{}"), INTAKE_REPLAY_DOOR), { ok: true, body: {} });
   for (const raw of [...NOT_OBJECTS, "[1,2]", '[{"op":"status"}]', "false", "0", '""', "not json", ""]) {
-    const body = await readBody(request(raw), LINES_DOOR);
-    assert.deepEqual(body, {}, `${JSON.stringify(raw)} is an empty body`);
-    assert.equal(Array.isArray(body), false, `${JSON.stringify(raw)} is not kept as an array`);
+    const read = await readBody(request(raw), INTAKE_REPLAY_DOOR);
+    assert.deepEqual(read, { ok: true, body: {} }, `${JSON.stringify(raw)} is an empty body`);
+    assert.equal(Array.isArray(read.body), false, `${JSON.stringify(raw)} is not kept as an array`);
   }
   // A door writes the workspace back onto the body it read, so each empty body is its own.
-  const one = await readBody(request("null"), LINES_DOOR);
-  const two = await readBody(request("null"), LINES_DOOR);
-  one.tenant_id = A;
-  assert.deepEqual(two, {}, "one knock's body is never another's");
+  const one = await readBody(request("null"), INTAKE_REPLAY_DOOR);
+  const two = await readBody(request("null"), INTAKE_REPLAY_DOOR);
+  one.body.tenant_id = A;
+  assert.deepEqual(two.body, {}, "one knock's body is never another's");
 });
 
 /* ---------------------------------------------------------------- the doors */
 
 for (const d of DOORS) {
-  test(`REGRESSION: the ${d.name} door answers a body that is JSON but not an object (null, [], 5, "x", true) with the 400 its validation gives any other bad body, never a 500`, async () => {
+  test(`REGRESSION: the ${d.name} door answers a body that is JSON but not an object (null, [], 5, "x", true) with the 400 it gives any other bad body, never a 500`, async () => {
     setPg(fakeDb(world()));
     const notJson = await knock(d, "not json");
-    assert.deepEqual(notJson, [d.bad.status, d.bad.body], "a body that is not JSON: the door's own refusal");
-    assert.equal(d.bad.status, 400);
+    assert.equal(notJson[0], 400, "a body that is not JSON: refused at the door's schema, before any op");
+    assert.equal(notJson[1].error, "bad_request");
+    assert.match(notJson[1].detail, /: op$/, "the field it lacks, named");
     for (const raw of NOT_OBJECTS) {
       assert.deepEqual(await knock(d, raw), notJson, `${raw}: the same 400 as a body that is not JSON`);
     }

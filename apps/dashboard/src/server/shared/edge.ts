@@ -252,16 +252,21 @@ export function edgeReasonOf(edgeAnswer: EdgeAnswer): EdgeReason {
 export const edgeAnswered = (edgeAnswer: EdgeAnswer): boolean => edgeAnswer.status >= 200 && edgeAnswer.status < 300;
 
 /**
- * What a door sent, read as its declaration says. Report-only, as a door's body began (decision 0109): an answer its
- * schema does not hold is said, by door and field and never by value, and is read as it came, so the trust each caller
- * once wrote at its read is written here once, under the line that checks it. A body that is no object is no body.
+ * What a door answered, read as its declaration says (decision 0109). An answer its schema holds is read as it came, a
+ * field nobody reads included. A field the schema does not hold is not read: it is left out of what the caller gets,
+ * as a field the door did not send (every declared field may be absent), and said in the log by door and field, never
+ * by value. The status stands, since the door may have done its work: a write that went through is never said as one
+ * that failed for a field the page reads. A body that is no object is no body, and its status says the rest. The
+ * answers were read whole until 25 Nov 2026, the mismatch only logged.
  */
-export function answerAsItCame<A extends EdgeDoorPath>(aud: A, status: number, came: unknown): EdgeRead<A> | null {
-  if (came === null || typeof came !== "object" || Array.isArray(came)) return null;
+export function readEdgeAnswer<A extends EdgeDoorPath>(aud: A, status: number, came: unknown): EdgeAnswer<EdgeRead<A>> {
+  if (came === null || typeof came !== "object" || Array.isArray(came)) return { status, body: null };
   const held = ANSWER_OF.get(aud)?.safeParse(came);
-  if (held && !held.success)
-    log.warn("edge_answer_unexpected", { door: aud, status, fields: unheldByDoor(held.error) });
-  return came;
+  if (!held || held.success) return { status, body: came };
+  log.warn("edge_answer_unexpected", { door: aud, status, fields: unheldByDoor(held.error) });
+  const unheld = new Set(held.error.issues.map((issue) => String(issue.path[0])));
+  const kept: object = Object.fromEntries(Object.entries(came).filter(([field]) => !unheld.has(field)));
+  return { status, body: kept };
 }
 
 /**
@@ -296,7 +301,7 @@ export async function callEdge<A extends EdgeDoorPath>(
     });
     // An answer that is not JSON is none: its status says the rest.
     const parsed: unknown = await result.json().catch(() => null);
-    return { status: result.status, body: answerAsItCame(aud, result.status, parsed) };
+    return readEdgeAnswer(aud, result.status, parsed);
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const refused: EdgeAnswerBody = {
@@ -304,6 +309,6 @@ export async function callEdge<A extends EdgeDoorPath>(
       error: timedOut ? "edge_timeout" : "edge_unreachable",
       detail: error instanceof Error ? error.message : String(error),
     };
-    return { status: 503, body: answerAsItCame(aud, 503, refused) };
+    return readEdgeAnswer(aud, 503, refused);
   }
 }

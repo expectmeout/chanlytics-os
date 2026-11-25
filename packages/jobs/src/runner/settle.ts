@@ -436,7 +436,7 @@ async function settleDraft(db: Db, job: TerminalJob): Promise<Settled[]> {
   const conversationId = idFrom(job.payload, "conversation_id");
   const kind = idFrom(job.payload, "draft_kind");
   if (!conversationId || !isOneOf(REPLY_DRAFT_KINDS, kind))
-    return [{ what: "draft", changed: false, error: "no thread or kind on the job" }];
+    return [{ what: "draft", changed: false, error: "no conversation or kind on the job" }];
   const moved = await recordConversationDraftFailed(db, {
     tenantId: job.tenant_id,
     conversationId,

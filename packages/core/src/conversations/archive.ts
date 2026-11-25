@@ -13,7 +13,7 @@ export async function archive(
   // pause. The second store this used to release first, and put back when the
   // row did not change, is gone (take-over.ts says why).
   if (!(await ports.archive(conv.id))) {
-    throw new AppError("conflict", "Could not archive this thread — reload and try again.", 409);
+    throw new AppError("conflict", "Couldn't archive this conversation. Reload and try again.", 409);
   }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
   await ports.resolveEscalation(conv.id, decision_id);

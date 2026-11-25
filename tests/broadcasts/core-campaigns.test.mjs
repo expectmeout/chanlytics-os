@@ -252,7 +252,7 @@ const make = (f, body) => createBroadcast(f.ports, { userId: "u1", body, now: NO
 
 test("a broadcast is refused in the person's words, in order, before anything is written: the template, who, the list, the template as Meta holds it, the values, the link", async () => {
   const f = fakes();
-  await refused(make(f, { template_id: "nope", audience: everyone }), "validation", 400, "Pick a template.");
+  await refused(make(f, { template_id: "nope", audience: everyone }), "validation", 400, "Pick a saved message.");
   await refused(
     make(f, { template_id: T1, audience: { kind: "carrier pigeons" } }),
     "validation",
@@ -270,7 +270,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     make(fakes({ message: messageOf({ whatsapp: null }) }), { template_id: T1, audience: everyone }),
     "not_found",
     404,
-    "Template not found.",
+    "Saved message not found.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ meta_status: "rejected" }) }) }), {
@@ -289,13 +289,13 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "This template takes 1 value.",
+    "This saved message takes 1 value.",
   );
   await refused(
     make(f, { template_id: T1, params: ["extra"], audience: everyone }),
     "validation",
     400,
-    "This template takes no values.",
+    "This saved message takes no values.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -1061,7 +1061,7 @@ test("what could not be written says so: the run, its people and its job are one
     const { e, wire, said } = await refusedLoudly(make(f, { template_id: T1, audience: everyone }));
     assert.equal(e.code, "internal");
     assert.equal(e.status, 500);
-    assert.equal(e.message, "The send could not be created. Nothing was sent; try again.");
+    assert.equal(e.message, "Couldn't create the send. Nothing was sent. Try again.");
     assert.deepEqual(f.ops(), ["assemble"], "nothing to fail, nothing recorded");
     // The database's words are the log's: the answer the route sends carries none of them.
     assert.equal(e.details, undefined, "no details to send");
@@ -1413,7 +1413,7 @@ test("the playbook's check: the trigger first, then the template through the one
     checkPlaybook(fakes().ports, { trigger: "quiet_30", template_id: "nope" }),
     "validation",
     400,
-    "Pick a template.",
+    "Pick a saved message.",
   );
   await refused(
     checkPlaybook(fakes({ message: messageOf({ whatsapp: template({ meta_status: "rejected" }) }) }).ports, {
@@ -2042,7 +2042,7 @@ test("any version's id names the message: WhatsApp's, an email's and a text's ma
     make(fakes({ message: all }), { template_id: "77777777-7777-4777-8777-777777777799", audience: everyone }),
     "not_found",
     404,
-    "Template not found.",
+    "Saved message not found.",
   );
   // With no WhatsApp row the anchor is the email, and a text's id lands on it.
   const own = messageOf({ whatsapp: null, own: ["email", "sms"], ownCategory: "utility" });
@@ -2068,7 +2068,7 @@ test("a message takes as many values as it has slots, by contracts' one count: p
     make(fakes({ message: gapped }), { template_id: T1, params: two, audience: everyone }),
     "validation",
     400,
-    "This template takes 3 values.",
+    "This saved message takes 3 values.",
   );
   const f = fakes({ message: gapped });
   await make(f, { template_id: T1, params: three, audience: everyone });
@@ -2077,7 +2077,7 @@ test("a message takes as many values as it has slots, by contracts' one count: p
     checkPlaybook(fakes({ message: gapped }).ports, { trigger: "quiet_30", template_id: T1, params: two }),
     "validation",
     400,
-    "This template takes 3 values.",
+    "This saved message takes 3 values.",
   );
   // A message with no WhatsApp row counts its anchor's: the email's two slots.
   const emailSlots = messageOf({
@@ -2095,7 +2095,7 @@ test("a message takes as many values as it has slots, by contracts' one count: p
     }),
     "validation",
     400,
-    "This template takes 2 values.",
+    "This saved message takes 2 values.",
   );
 });
 

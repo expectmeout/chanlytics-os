@@ -117,22 +117,22 @@ function calendarRow(setupInputs: SetupInputs): SetupRowDraft {
  */
 function teamRow(setupInputs: SetupInputs): SetupRowDraft {
   const team = setupInputs.team;
-  const people = team.members > 1 || team.invitesOpen > 0;
-  const person = `${plural(team.members, "person", "people")}${team.invitesOpen ? ` · ${plural(team.invitesOpen, "invite")} open` : ""}`;
-  const alerts = team.alertEmails
-    ? `alerts go to ${plural(team.alertEmails, "address", "addresses")}`
+  const people = team.members > 1 || team.invites_open > 0;
+  const person = `${plural(team.members, "person", "people")}${team.invites_open ? ` · ${plural(team.invites_open, "invite")} open` : ""}`;
+  const alerts = team.alert_emails
+    ? `alerts go to ${plural(team.alert_emails, "address", "addresses")}`
     : "no alert address yet";
   return {
     id: "team",
     icon: "users",
     title: "Team and alerts",
-    state: people && team.alertEmails ? "ready" : !people && !team.alertEmails ? "not_started" : "waiting_you",
+    state: people && team.alert_emails ? "ready" : !people && !team.alert_emails ? "not_started" : "waiting_you",
     required: false,
     sentence: people
       ? `${person}${team.partner ? ` · ${team.partner} is your partner` : ""} · ${alerts}.`
       : `Only you so far · ${alerts}.`,
     details: people ? [] : ["Invite someone who answers when you can't"],
-    verb: !team.alertEmails
+    verb: !team.alert_emails
       ? { label: "Set alerts", to: "admin/notifications" }
       : !people
         ? { label: "Invite", to: "admin/team" }
@@ -160,7 +160,7 @@ function teamRow(setupInputs: SetupInputs): SetupRowDraft {
  */
 function yesRow(setupInputs: SetupInputs): SetupRowDraft {
   const offers = setupInputs.consent.offers;
-  const sentence = setupInputs.consent.offersSaidYes;
+  const sentence = setupInputs.consent.offers_said_yes;
   const talk = setupInputs.consent.yes;
   // Offers by email, where this workspace can send them: the people the rule lets one reach, which is not a yes they gave.
   const byEmail = setupInputs.consent.offers_by_email ?? 0;

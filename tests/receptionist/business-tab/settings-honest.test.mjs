@@ -301,8 +301,8 @@ const settle = (tab) => (dirty ? draw(tab) : lastTree);
 
 /** The roster the team read answers with, where a test says no other: an owner and an operator. */
 const ROSTER = [
-  { membershipId: "m-dana", email: "owner@northside.example", displayName: "Dana", role: "owner" },
-  { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
+  { membership_id: "m-dana", email: "owner@northside.example", display_name: "Dana", role: "owner" },
+  { membership_id: "m-lee", email: "lee@northside.example", display_name: "Lee", role: "operator" },
 ];
 
 /**
@@ -446,9 +446,9 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
   workspace({
     team: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
-      membershipId: `m-${n}`,
+      membership_id: `m-${n}`,
       email: `${n}@northside.example`,
-      displayName: "",
+      display_name: "",
       role: i ? "viewer" : "owner",
     })),
     __ME: { email: "ana@northside.example", role: "owner", display_name: "" },

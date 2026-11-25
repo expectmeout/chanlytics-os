@@ -116,7 +116,10 @@ export async function authorizeAdmin(
       const body = opts.body ?? (await request.clone().text());
       if (!edgeBodyMatches(result.claims, body)) return { ok: false, response: refuse(403, "token_body") };
     } else if (hasBody) {
-      return { ok: false, response: refuse(403, "token_body", "the token names no body, and this door takes one") };
+      return {
+        ok: false,
+        response: refuse(403, "token_body", "the call's signature names no body, and this door takes one"),
+      };
     }
     if (!firstUse(result.claims.nonce, result.claims.exp, now))
       return { ok: false, response: refuse(403, "token_replayed") };

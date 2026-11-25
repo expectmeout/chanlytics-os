@@ -170,7 +170,7 @@ test("a question: the workspace must be named, something must be asked and not t
     ask.POST.run(send("POST", { text: "And then?", thread_id: "nope" }, inB), ctxFor(tables)),
     "not_found",
     404,
-    "That thread does not exist.",
+    "That conversation does not exist.",
   );
   const elsewhere = ctxFor(tables, {});
   await refused(
@@ -356,7 +356,7 @@ test("a quick answer kept (POST ask/quick): every member's and counted as a ques
     keep({ text: "who needs me?", answer, thread_id: "nope" }),
     "not_found",
     404,
-    "That thread does not exist.",
+    "That conversation does not exist.",
   );
   await refused(
     keep({ text: "who needs me?", answer, thread_id: T1 }),
@@ -1164,7 +1164,7 @@ test("the metrics behind Today: the workspace the tab named, the days clamped to
   };
   const tables = { memberships: both("viewer", "viewer") };
   const out = await metrics.GET.run(get(inA), ctxFor(tables, {}, rpcs));
-  assert.deepEqual(out, { metrics: { conversations: 3 }, workspaceId: A });
+  assert.deepEqual(out, { metrics: { conversations: 3 }, workspace_id: A });
   await metrics.GET.run(get(`?days=400&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   await metrics.GET.run(get(`?days=0&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(

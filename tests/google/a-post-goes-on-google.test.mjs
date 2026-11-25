@@ -172,7 +172,7 @@ test("what is wrong with the asking is said, and nothing reaches Google", async 
     throw new Error("nothing may reach Google");
   });
   const cases = [
-    [{ ...asked, file_id: "nope" }, "file_id is required"],
+    [{ ...asked, file_id: "nope" }, "Couldn't read what was sent: file_id"],
     [{ ...asked, summary: "   " }, "summary is required, within Google's limit"],
     [{ ...asked, summary: "x".repeat(1501) }, "summary is required, within Google's limit"],
     [{ ...asked, photo_url: "http://storage.example/x.jpg" }, "photo_url must be an https address"],

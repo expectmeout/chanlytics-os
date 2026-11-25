@@ -32,18 +32,21 @@ export const stop = (response: Response): Refused => ({ ok: false, response });
 /** An error's words: an Error's message, anything else that was thrown as a string. */
 export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
+/** A body its door took, or the refusal the door answers instead. */
+export type BodyRead<D extends EdgeDoor> = { ok: true; body: DoorRead<D> } | Refused;
+
 /**
  * The body as sent when it is a JSON object; anything else -- not JSON, or JSON that is not an object (null, an array,
- * a number, a string, a boolean) -- is an empty body, validated by the door like any other. A door reads `body.op` and
- * writes the workspace back onto the body, and both threw on null or a primitive: a 500 where its validation answers
- * 400. `source` is the request, or its body when a door has already read it as text (the model gateway measures it
- * first).
+ * a number, a string, a boolean) -- is an empty body, held to the door's schema like any other. A door reads `body.op`
+ * and writes the workspace back onto the body, and both threw on null or a primitive. `source` is the request, or its
+ * body when a door has already read it as text (the model gateway measures it first).
  *
  * `door` is the door as contracts declares it, the dashboard's side of the same shape (decision 0109). A body its schema
- * does not hold is said, by field and never by value, and read as it always was: the op still refuses what it refuses, in
- * its own words, until production has sent nothing the schema refuses and the door refuses at the schema.
+ * does not hold is refused here, 400 `bad_request`, naming the fields and never their values, and said in the log the
+ * same way: the op never runs on it. The doors logged such a body and let it through until production had sent none
+ * (25 Nov 2026: no `door_body_unexpected` in the day the logs keep, and every sender typed by the schema).
  */
-export async function readBody<D extends EdgeDoor>(source: Request | string, door: D): Promise<DoorRead<D>> {
+export async function readBody<D extends EdgeDoor>(source: Request | string, door: D): Promise<BodyRead<D>> {
   let body: object = {};
   try {
     const sent: unknown = JSON.parse(typeof source === "string" ? source : await source.text());
@@ -52,8 +55,10 @@ export async function readBody<D extends EdgeDoor>(source: Request | string, doo
     // Not JSON: an empty body, as above.
   }
   const held = door.body.safeParse(body);
-  if (!held.success) logger().warn("door_body_unexpected", { door: door.aud, fields: unheldByDoor(held.error) });
-  return body;
+  if (held.success) return { ok: true, body };
+  const fields = unheldByDoor(held.error);
+  logger().warn("door_body_unexpected", { door: door.aud, fields });
+  return stop(refuse(400, "bad_request", `Couldn't read what was sent: ${fields.join(", ")}`));
 }
 
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */

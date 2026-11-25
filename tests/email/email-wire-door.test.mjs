@@ -90,9 +90,12 @@ test("the door answers with its request's name, and never cached: a key set a mi
   assert.equal((await (await knock({ op: "status" })).json()).ready, false, "unset again: not ready again");
 });
 
-test("an op nobody knows is refused by its code; so is a body that is not an object or not JSON, as an empty body", async () => {
+test("an op nobody knows is refused by its code; a body with no op, not an object or not JSON, at the door's schema", async () => {
   assert.deepEqual(await answer(await knock({ op: "teleport" })), [400, { ok: false, error: "unknown_op" }]);
-  assert.deepEqual(await answer(await knock({})), [400, { ok: false, error: "unknown_op" }]);
+  assert.deepEqual(await answer(await knock({})), [
+    400,
+    { ok: false, error: "bad_request", detail: "Couldn't read what was sent: op" },
+  ]);
   const first = await answer(await knock("not json"));
   assert.equal(first[0], 400);
   for (const raw of ["null", "[]", "5", '"x"', "true"])

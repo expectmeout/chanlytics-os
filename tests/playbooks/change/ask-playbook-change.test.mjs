@@ -384,7 +384,7 @@ test("its words (00416 params): the model's slot text becomes the specs the rout
   // A typed value is plain text, as a new campaign's is: refused in the playbook action's own words.
   assert.equal(said(await change({ params: ["@first_name", "two\nlines"] }, rows)), PLAYBOOK_CARD_REFUSALS.plainText);
   // Its message takes two values: one is refused in the PUT's own words (core checkPlaybookPatch).
-  assert.equal(said(await change({ params: ["@first_name"] }, rows)), "This template takes 2 values.");
+  assert.equal(said(await change({ params: ["@first_name"] }, rows)), "This saved message takes 2 values.");
   // The words it already says are no change.
   assert.equal(said(await change({ params: ["@first_name", "10% off"] }, rows)), PLAYBOOK_PATCH_WORDS.same("Win-back"));
 });

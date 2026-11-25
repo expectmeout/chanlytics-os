@@ -50,7 +50,7 @@ export const POST = write({
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
         edgeAnswer.status === 409 ? "conflict" : edgeAnswer.status === 503 ? "upstream_auth" : "upstream_provider",
-        BILLING_SAID[reason] ?? `Checkout could not be opened (${reason}).`,
+        BILLING_SAID[reason] ?? `Couldn't open checkout (${reason}).`,
         edgeAnswer.status === 409 ? 409 : edgeAnswer.status === 503 ? 503 : 502,
       );
     }

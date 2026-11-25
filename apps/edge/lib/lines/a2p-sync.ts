@@ -190,7 +190,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
       ok: false,
       smsState: line.sms_state,
       error: "write_failed",
-      detail: "the owner's notice of the carriers' answer could not be kept; asked again next hour",
+      detail: "the owner's notice of texting approval's answer couldn't be kept; asked again next hour",
     };
   return {
     ok: true,

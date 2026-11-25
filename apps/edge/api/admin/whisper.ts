@@ -17,5 +17,7 @@ const AUD = "/api/admin/whisper";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
-  return whisperToCall(auth, AUD, await readBody(request, WHISPER_DOOR));
+  const read = await readBody(request, WHISPER_DOOR);
+  if (!read.ok) return read.response;
+  return whisperToCall(auth, AUD, read.body);
 });

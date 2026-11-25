@@ -1,4 +1,4 @@
-import { AppError, ASK_MAX_CHARS, askColumnOf, HOUR_MS } from "@chanlytics/contracts";
+import { AppError, ASK_MAX_CHARS, askColumnOf, HOUR_MS, recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { attachedIdsOf } from "@/server/files/attached";
@@ -76,19 +76,7 @@ export const POST = write({
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
     // A body that is not JSON is none: what reads it next refuses.
-    const body = (await req.json().catch(() => null)) as {
-      text?: unknown;
-      thread_id?: unknown;
-      scope?: unknown;
-      surface?: unknown;
-      answering?: unknown;
-      following?: unknown;
-      column?: unknown;
-      opened_ms?: unknown;
-      context?: unknown;
-      files?: unknown;
-      language?: unknown;
-    } | null;
+    const body = recordOrNull(await req.json().catch(() => null));
     const text = questionOf(body?.text);
     const files = attachedIdsOf(body?.files);
     if (!text && files.length === 0) throw new AppError("validation", "Ask something.");

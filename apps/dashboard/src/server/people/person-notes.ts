@@ -178,7 +178,7 @@ export function noteAnswer(
     item.error === "not_found" ? 404 : item.error === "not_yours" ? 403 : item.error === "moved" ? 409 : 400;
   throw new AppError(
     status === 404 ? "not_found" : status === 403 ? "forbidden" : status === 409 ? "conflict" : "validation",
-    NOTE_REFUSALS[item.error ?? ""] ?? "Could not save this note.",
+    NOTE_REFUSALS[item.error ?? ""] ?? "Couldn't save this note.",
     status,
   );
 }

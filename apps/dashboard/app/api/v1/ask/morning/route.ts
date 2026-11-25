@@ -1,3 +1,4 @@
+import { recordOrNull } from "@chanlytics/contracts";
 import { after } from "next/server";
 import { read, write, workspace } from "@/server/shared/route";
 import { morningLanguage, getMorning, startMorning } from "@/server/ask/companion/morning";
@@ -39,7 +40,7 @@ export const POST = write({
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
     // A body that is not JSON is none: what reads it next refuses.
-    const body = (await req.json().catch(() => null)) as { language?: unknown; locale?: unknown } | null;
+    const body = recordOrNull(await req.json().catch(() => null));
     const { morning, run } = await startMorning(
       ctx,
       member,

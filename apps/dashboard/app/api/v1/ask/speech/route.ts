@@ -3,7 +3,7 @@ import { AppError, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, causedBy } from "@chan
 import { write, workspace } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
 import {
-  answerAsItCame,
+  readEdgeAnswer,
   edgeHeaders,
   edgeUrl,
   edgeConfigured,
@@ -73,10 +73,7 @@ export const POST = write({
     if (!response.ok || !response.body) {
       // An answer that is not JSON is none: its status says the rest.
       const parsed: unknown = await response.json().catch(() => null);
-      const edgeAnswer: EdgeAnswer = {
-        status: response.status,
-        body: answerAsItCame(DOOR, response.status, parsed),
-      };
+      const edgeAnswer: EdgeAnswer = readEdgeAnswer(DOOR, response.status, parsed);
       log.warn("ask_speech_refused", {
         tenant_id: tenantId,
         reason: edgeReasonOf(edgeAnswer),

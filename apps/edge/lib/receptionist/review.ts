@@ -215,7 +215,7 @@ export async function reviewConversation(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const rt = await loadTenantRuntime(db, rehearsalRouting(tenantId));
-  if (rt.loadFailed) return refuse(503, "read_failed", "the workspace could not be read");
+  if (rt.loadFailed) return refuse(503, "read_failed", "couldn't load the workspace");
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 
   try {
@@ -230,7 +230,7 @@ export async function reviewConversation(
     const { id, review } = judged;
     if (review === "empty")
       return refuse(422, "rehearsal_empty", "nothing to judge: a question and an answer are needed");
-    if (!review) return refuse(402, "payment_required", "the workspace may not use the model now");
+    if (!review) return refuse(402, "payment_required", "the workspace may not use AI now");
     await keepRehearsalReview(db, tenantId, id, review);
     log.info("rehearsal_reviewed", {
       tenant_id: tenantId,
@@ -380,7 +380,7 @@ export async function routeCorrection(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const rt = await loadTenantRuntime(db, rehearsalRouting(tenantId));
-  if (rt.loadFailed) return refuse(503, "read_failed", "the workspace could not be read");
+  if (rt.loadFailed) return refuse(503, "read_failed", "couldn't load the workspace");
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   const ask = fixAskOf(rt, body.kind, words, typeof body.rule === "string" ? body.rule : null);
 
@@ -404,7 +404,7 @@ export async function routeCorrection(
         plainJsonHint: ANSWER_JSON_ONLY,
         for: { tenantId, userId: personFor(auth, body.user_id), promptHash: promptHashOf(system) },
       });
-      if (!answered) return refuse(402, "payment_required", "the workspace may not use the model now");
+      if (!answered) return refuse(402, "payment_required", "the workspace may not use AI now");
       routed = checkFixRoute(answered.answer, ask);
     } catch (e) {
       log.error("rehearsal_fix_failed", { tenant_id: tenantId, error: errField(e) });
