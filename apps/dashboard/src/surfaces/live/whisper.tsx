@@ -32,7 +32,7 @@ function talkButton({ listening, busy, startTalking, stopTalking }: TalkProps) {
       data-own-drag
       aria-pressed={listening}
       aria-label={listening ? "Listening… let go to send" : "Hold to talk"}
-      title="Hold and say the whisper · it is sent when you let go"
+      data-tip="Hold and say the whisper · it is sent when you let go"
       onPointerDown={startTalking}
       onPointerUp={stopTalking}
       onPointerLeave={stopTalking}
@@ -192,7 +192,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
             className="ask-send"
             data-testid="live-whisper-send"
             aria-label="Send whisper"
-            title="Send whisper"
+            data-tip="Send whisper"
             onClick={() => send()}
             disabled={busy || !hasWords}
             {...gate("approve")}

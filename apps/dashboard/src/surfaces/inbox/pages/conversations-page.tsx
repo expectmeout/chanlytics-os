@@ -224,7 +224,7 @@ function callHead(c: ConversationLine, onBack: (() => void) | null) {
                 size="sm"
                 iconOnly
                 className="ix-th-more"
-                title={THREAD_PANE_WORDS.more}
+                data-tip={THREAD_PANE_WORDS.more}
                 aria-label={THREAD_PANE_WORDS.moreFor(c.who)}
               >
                 <Icon name="chevron-down" size={16} />
