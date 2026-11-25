@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_FACEBOOK, ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
@@ -64,8 +64,12 @@ test("up is said only once the account was seen holding it, and a story says whe
   );
   // Past the time that read takes, nobody can say it went up: said so, and the owner looks before posting it again.
   const never = one(post({ verified_at: null, published_at: ago(HOUR) }));
-  assert.equal(never.said, ON_INSTAGRAM.refused.unknown);
+  assert.equal(never.said, "Couldn't confirm it's on Instagram");
+  assert.equal(never.note, "Instagram never said it has this post. Look at the account, then say which.");
   assert.deepEqual([never.tone, never.moving], ["you", false]);
+  // Its owner can look, so its owner is asked (the review of 24 Nov 2026, D5); a reader is offered its door alone.
+  assert.deepEqual(acts(never), ["there", "not_there", "see"]);
+  assert.deepEqual(acts(one(post({ verified_at: null, published_at: ago(HOUR) }), { may: false })), ["see"]);
   const google = one(post({ place: "google", kind: "picture", verified_at: null }));
   assert.equal(google.said, "On Google · @17:00");
   const story = one(post({ kind: "story", published_at: ago(26 * HOUR) }));
@@ -311,5 +315,6 @@ test("a Page's post is said as Instagram's is: named with its kind, up only once
   const unseen = one(page({ verified_at: null, published_at: ago(MIN) }));
   assert.deepEqual([unseen.said, unseen.tone, unseen.moving], ["Posting to Facebook", "live", true]);
   const never = one(page({ verified_at: null, published_at: ago(HOUR) }));
-  assert.equal(never.said, ON_FACEBOOK.refused.unknown);
+  assert.equal(never.said, "Couldn't confirm it's on Facebook");
+  assert.equal(never.note, "Facebook never said it has this post. Look at the Page, then say which.");
 });

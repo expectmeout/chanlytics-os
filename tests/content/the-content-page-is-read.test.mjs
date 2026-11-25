@@ -675,6 +675,39 @@ test("Needs you counts by placement: a story that went up after a post was refus
   assert.equal(body.tally.needs, 1);
 });
 
+test("Needs you lists a post its place never confirmed, once the read that looks for it has had its time", async () => {
+  // The review of 24 Nov 2026, A6 and D5: its tile was amber and nothing listed it, so its owner was asked nowhere.
+  const unseen = { verified_at: null };
+  const { body } = await read(
+    {
+      files: [made(1), made(2), made(3), made(4), made(5)],
+      posts: [
+        // Instagram took it twenty minutes ago and was never read holding it: its owner is asked whether it is there.
+        posted(20, 1, "instagram", "published", unseen),
+        // Three minutes ago: still going up, and nobody is asked yet.
+        posted(3, 2, "instagram", "published", unseen),
+        // Seen on the account: up.
+        posted(21, 3, "instagram", "published", { verified_at: minutesAgo(20) }),
+        // Google says a post is up as it takes it.
+        posted(22, 4, "google", "published", unseen),
+        // Refused: it needs its owner as it always did.
+        posted(23, 5, "instagram", "failed"),
+      ],
+    },
+    "view=needs",
+  );
+  assert.deepEqual(
+    body.lines.map((l) => [l.file.name, l.post.status]),
+    [
+      ["post-1", "published"],
+      ["post-5", "failed"],
+    ],
+    "newest first, each once",
+  );
+  assert.equal(body.tally.needs, 2, "the count counts the rows the list draws");
+  assert.equal(body.tally.posted, 4, "what is said to be posted is still counted as posted until its owner says");
+});
+
 test("whether Instagram takes a reel is said only where a made video never went out, and no where it could not be read", async () => {
   const pictures = await read({ files: [made(1)] });
   assert.equal("reels" in pictures.body, false, "a page of pictures asks nothing");

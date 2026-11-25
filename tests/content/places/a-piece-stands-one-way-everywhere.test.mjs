@@ -188,7 +188,7 @@ const CASES = [
     went: true,
     says: {
       tile: "Couldn't confirm it's on Instagram",
-      status: "Instagram did not say whether this went up. Look at the account before posting it again.",
+      status: "Couldn't confirm it's on Instagram",
       button: "post_to google",
       instagram: "Couldn't confirm",
     },

@@ -68,13 +68,20 @@ export type StandingPost = Pick<
   | "removed_there"
 >;
 
+/**
+ * Whether a post its place took was never seen there. Google says a post is up as it takes it; Instagram's, and a
+ * Page's, is up only once the account was read holding it (`verified_at`), or its owner said it is there.
+ */
+export const postNeverSeen = (post: { place: string; verified_at: string | null }): boolean =>
+  post.place !== "google" && !post.verified_at;
+
 /** A post its place holds, or took: up, or sent and not yet seen there. */
 function upStandingOf(post: StandingPost, nowMs: number): PlacementStanding {
   const ends = storyEndsAt(post);
   if (ends !== null && storyRanItsDay(post, nowMs)) return { is: "ended", at: new Date(ends).toISOString() };
-  // Google says a post is up as it takes it. Instagram's, and a Page's, is up only once the account was read holding
-  // it, and until then it is still going up: no word between the two (the content loop PRD's 8.2).
-  if (post.place === "google" || post.verified_at) return { is: "up", at: post.published_at };
+  // Seen at its place, it is up. Until then it is still going up: no word between the two (the content loop PRD's
+  // 8.2); and past the time that read takes, nobody here can say, and its owner is asked.
+  if (!postNeverSeen(post)) return { is: "up", at: post.published_at };
   const sentMs = Date.parse(post.published_at ?? post.scheduled_for);
   return nowMs - sentMs < POST_SEEN_WAIT_MS
     ? { is: "going_up", sent: true }

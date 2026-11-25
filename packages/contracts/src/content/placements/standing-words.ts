@@ -14,8 +14,7 @@
  * place is said by its name (POST_PLACE_SAID); a day and an hour are handed in, by the business's own clock.
  * `docs/words.md`, "Where a post stands", shows the same table to a person.
  */
-import { ON_FACEBOOK } from "./facebook";
-import { ON_INSTAGRAM, POST_PLACE_SAID, type PostKind, type PostPlace } from "../posts";
+import { POST_PLACE_SAID, type PostKind, type PostPlace } from "../posts";
 
 const at = (place: PostPlace): string => POST_PLACE_SAID[place];
 const listed = (places: readonly PostPlace[]): string => [...new Set(places)].map(at).join(" and ");
@@ -27,6 +26,16 @@ const spaced = (words: string, when: string | null): string => (when ? `${words}
 /** Of a post removed at its place: who did not do it, and where it was done. Its line's second sentence, and its bell's. */
 const notFromHere = (place: PostPlace): string =>
   `Chanlytics didn't take it down. It was deleted on ${at(place)} itself.`;
+
+/** That nobody here can say a post is at its place: its tile's words, its line's and the Week's. */
+const unsure = (place: PostPlace): string => `Couldn't confirm it's on ${at(place)}`;
+
+/** Where its owner looks for a post at its place. */
+const LOOK_AT = {
+  instagram: "the account",
+  facebook: "the Page",
+  google: "the profile",
+} as const satisfies Record<PostPlace, string>;
 
 /** What goes up, as a sentence starts on it: "Story goes up Sat, 9:00 AM". */
 const KIND_SAID = { picture: "Post", story: "Story", reel: "Reel" } as const satisfies Record<PostKind, string>;
@@ -71,13 +80,20 @@ export const STANDING_WORDS = {
       `No answer came back, so Chanlytics is asking ${at(place)} what it has. It won't post twice.`,
     ai: (place: PostPlace) => `sent to ${at(place)} with no answer yet: being checked`,
   },
-  /** Its place took it and was never seen holding it: nobody can say it is up (docs/words.md, a write with no answer). */
+  /**
+   * Its place took it and was never seen holding it: nobody here can say it is up, so its owner is asked, with two
+   * presses (the content status review of 24 Nov 2026, D5). The tile and the open piece say the same words; the note
+   * says what to do, and the presses are the two answers.
+   */
   unconfirmed: {
-    tile: (place: PostPlace) => `Couldn't confirm it's on ${at(place)}`,
-    line: (place: PostPlace) => (place === "facebook" ? ON_FACEBOOK.refused.unknown : ON_INSTAGRAM.refused.unknown),
+    tile: unsure,
+    line: unsure,
+    note: (place: PostPlace) => `${at(place)} never said it has this post. Look at ${LOOK_AT[place]}, then say which.`,
+    there: "It's there",
+    notThere: "It's not there",
     row: "Couldn't confirm",
-    week: (place: PostPlace) => `Couldn't confirm it's on ${at(place)}`,
-    ai: (place: PostPlace) => `sent to ${at(place)}, which never confirmed it went up`,
+    week: unsure,
+    ai: (place: PostPlace) => `sent to ${at(place)}, which never confirmed it went up: its owner is asked to look`,
   },
   /** Up. */
   up: {
@@ -140,6 +156,11 @@ export const STANDING_WORDS = {
     row: "Didn't post",
     week: (place: PostPlace, reason: string) => dotted(`Didn't post on ${at(place)}`, reason || null),
     bell: { body: (reason: string) => dotted("Didn't post", reason || null) },
+    /**
+     * The reason kept on a post its place took and does not hold, by the place's own word or its owner's: it never
+     * went up, so it is a post that did not go, and never one that was taken down.
+     */
+    notThere: (place: PostPlace) => `${at(place)} doesn't have it.`,
     ai: (place: PostPlace, reason: string | null) =>
       spaced(`not posted on ${at(place)}: it waits for its owner`, reason ? `(${reason})` : null),
   },

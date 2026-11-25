@@ -143,7 +143,6 @@ export {
   listPostsInSpan,
   listPostsOfFiles,
   listPostsSilent,
-  listPostsStopped,
   listPostsTimed,
   listPostsUp,
   markPostUnanswered,
@@ -271,6 +270,6 @@ export {
   readyPieceVersion,
 } from "./versions";
 export type { PieceVersionBegun, PieceVersionReady, PieceVersionRow, VideoPieceRow } from "./versions";
-export { movePostTime } from "./waiting-posts";
+export { listPostsStopped, listPostsUnseen, movePostTime } from "./waiting-posts";
 export { listNewReviews, listPostOutcomes, listWeekFootage, readRecentlyPosted } from "./week-facts";
 export type { FootageRow, RecentlyPosted, ReviewRow } from "./week-facts";
