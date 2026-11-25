@@ -133,9 +133,26 @@ function readsToCarry(urls: readonly string[]) {
   return { byKey, answers, workspace: workspace ?? null };
 }
 
+/**
+ * What every read still waiting is answered with where the request that carried them failed (the server could not answer
+ * it, or it never arrived): the request's own answer, as each read's own would have been. Never asked again alone: one
+ * request that failed became every read it carried, each a request of its own in the same instant, thirty-seven of them
+ * on a load, of a server that had just said it could not answer (24 Nov 2026; client/trouble.ts). A refusal that is no
+ * fault (a server from before this route, a session ended) still sends each read to be asked alone, as its own request
+ * would have been refused: either deploy order works.
+ */
+function failedAnswer(status: number, body: string): Response {
+  const envelope = body.trim().startsWith("{") ? body : JSON.stringify({ ok: false, error: { code: "unavailable" } });
+  return new Response(envelope, { status, headers: { "content-type": "application/json" } });
+}
+
+/** The status a request that never arrived is answered as, for the reads it carried: the server could not be reached. */
+const NEVER_ARRIVED = 503;
+/** From this status an answer is the server failing, not a refusal of the request. */
+const FAULT_FROM = 500;
+
 /** Each line of the answer handed to the read it answers, a task at a time; a line no read waits for is let go of. */
 async function handLines(res: Response, byKey: Map<string, Waiting>, handOver: (give: () => void) => void) {
-  if (!res.ok) throw notCarried();
   await eachLine(res, (raw) => {
     const line = readOfLine(raw);
     const read = line && byKey.get(line.key);
@@ -158,9 +175,10 @@ function hurryIn(out: ReadonlySet<Map<string, Waiting>>, keys: readonly string[]
 
 /**
  * What the client asks the rest of a load with (client/api.ts `together`), over the tab's own fetch: `ask` sends the URLs
- * as one GET open/rest and answers each as its line comes, a task at a time; a URL whose line never came (a read no route
- * answers, an answer cut short, a request refused whole) is refused, and the client asks for it alone (readsToCarry says
- * which never go). `hurry` sends the reads a page opens on to be asked alone, where they still wait on their line: a move
+ * as one GET open/rest and answers each as its line comes, a task at a time; a URL whose line never came from an answer
+ * that did (a read no route answers, an answer cut short) is refused, and the client asks for it alone (readsToCarry says
+ * which never go). A request the server could not answer (a 5xx), or one that never arrived, answers every read it carried
+ * as failed (failedAnswer). `hurry` sends the reads a page opens on to be asked alone, where they still wait on their line: a move
  * made while the rest is out (bridge/api.ts), whose page would otherwise wait its turn among the reads of every other.
  */
 export function restReads(fetchFor: (url: string, init: RequestInit) => Promise<Response>) {
@@ -172,10 +190,22 @@ export function restReads(fetchFor: (url: string, init: RequestInit) => Promise<
     const query = new URLSearchParams({ reads: [...byKey.keys()].map(encodeURIComponent).join(",") });
     if (workspace) query.set("workspace", workspace);
     out.add(byKey);
+    const carried = byKey.size;
+    /** Every read still waiting, answered as the request itself was. */
+    const failAll = (status: number, body: string) => {
+      for (const read of byKey.values()) handOver(() => read.give(failedAnswer(status, body)));
+      byKey.clear();
+    };
     void fetchFor(`${READS_AT}open/rest?${query.toString()}`, { signal: AbortSignal.timeout(REST_WAIT_MS) })
-      .then((res) => handLines(res, byKey, handOver))
+      .then(async (res) => {
+        if (res.ok) return handLines(res, byKey, handOver);
+        // The server could not answer: each read hears that. Any other refusal: each is asked alone, below.
+        if (res.status >= FAULT_FROM) failAll(res.status, await res.text().catch(() => ""));
+        return undefined;
+      })
       .catch(() => {
-        // Cut short or refused whole: what had no line is asked alone, below.
+        // Never arrived, with no line of its own handed over: failed whole. Cut short after some: the rest alone, below.
+        if (byKey.size === carried) failAll(NEVER_ARRIVED, "");
       })
       .finally(() => {
         out.delete(byKey);

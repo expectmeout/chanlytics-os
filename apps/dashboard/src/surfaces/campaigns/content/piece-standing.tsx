@@ -5,7 +5,7 @@
  * model's and contracts' (model/goes.ts, contracts take-down.ts); the presses are Files' own verbs, and each one that
  * changes something reads the piece and the page again.
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SECOND_MS, TAKE_DOWN_WORDS, fileSaidOf, type PostDto } from "@chanlytics/contracts";
 import {
   goesLeadOf,
@@ -29,6 +29,8 @@ type PieceDrafts = ReturnType<typeof usePieceDrafts>;
 
 /** How often a piece is read again while one of its lines is moving (a send, a take-down the place has not answered). */
 const MOVING_READ_MS = 5 * SECOND_MS;
+/** How many times before it rests: ten minutes of asking, as the page's own follow rests (page.tsx). */
+const MOVING_READS_AT_MOST = 120;
 
 /** The coral act a line that needs the owner leads with, in place of the piece's usual next step. */
 interface StandingLead {
@@ -57,11 +59,26 @@ function standingLeadOf(lines: readonly GoesLine[], on: GoesPresses): StandingLe
   return first ? leadPressOf(first, on) : null;
 }
 
-/** While a line moves by itself, the piece is read again every few seconds: its line says each step as it is reached. */
+/**
+ * While a line moves by itself, the piece is read again every few seconds: its line says each step as it is reached. Not
+ * while the tab is behind another, where nobody reads it, and not for ever: it rests after ten minutes, and the bell says
+ * what lands. It asked every five seconds for as long as a line was moving, hidden or not, and a post a place never
+ * answered kept a tab left on it reading the piece and the page twelve times a minute (24 Nov 2026).
+ */
 function useRereadWhileMoving(moving: boolean, rereadRecord: () => void, rereadPage: () => void): void {
+  const reads = useRef(0);
   useEffect(() => {
-    if (!moving) return undefined;
+    if (!moving) {
+      reads.current = 0;
+      return undefined;
+    }
     const timer = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      reads.current += 1;
+      if (reads.current > MOVING_READS_AT_MOST) {
+        clearInterval(timer);
+        return;
+      }
       rereadRecord();
       rereadPage();
     }, MOVING_READ_MS);

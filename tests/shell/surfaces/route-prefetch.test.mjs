@@ -490,6 +490,29 @@ test("a refusal of the whole, or a stream that cannot be read, hands every read 
   }
 });
 
+test("an opening the server could not answer answers every read it parked with that: none is asked again alone", async () => {
+  // Handed back to the page, each of Today's twenty reads was a request of its own in the same instant, of a server that
+  // had just said it could not answer (24 Nov 2026; the dashboard's client/trouble.ts).
+  for (const status of [500, 503, 504]) {
+    const { calls, slot } = openedToday({
+      answer: () => new Response(JSON.stringify({ ok: false, error: { code: "unavailable" } }), { status }),
+    });
+    const urls = Object.keys(slot);
+    assert.ok(urls.length > 10, "every read of the opening is parked");
+    for (const url of urls)
+      assert.deepEqual(
+        await settled(slot[url]),
+        { status, body: { ok: false, error: { code: "unavailable" } }, retry: null },
+        `${status} ${url}`,
+      );
+    assert.equal(calls.length, 1, "the one request");
+  }
+  // A gateway's own page, which is no envelope: each read still hears the status, and reads it as a failure.
+  const { slot } = openedToday({ answer: () => new Response("<html>Bad gateway</html>", { status: 502 }) });
+  const first = await slot[Object.keys(slot)[0]];
+  assert.equal(first.status, 502);
+});
+
 /** The line GET open ends on: what the opening came to (server/workspace/page-open.ts). It names no read. */
 const cameTo = (o) => JSON.stringify({ o });
 

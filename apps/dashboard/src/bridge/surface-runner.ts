@@ -46,6 +46,8 @@ import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
 import { passesOf, type Passes } from "./hearing/passes";
 import { catchUpOn, QUIET_LOOKBACK_MS, type CatchUp } from "./hearing/catch-up";
+import { BOOT_LANES, inLanes } from "./hearing/lanes";
+import { watchTheMend } from "./hearing/mend";
 
 export type { CatchUp, CaughtUpNotice } from "./hearing/catch-up";
 
@@ -101,35 +103,9 @@ export async function refreshAllSurfaces(): Promise<void> {
   // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
   // And every one the status line names as stopped refreshing, wherever it is drawn: Retry reads what the line says failed.
   const statuses = getSurfaceStatuses();
+  // A person asked: a tab holding its reads back while the server did not answer looks now (client/trouble.ts).
+  api().lookNow();
   await refreshSurfaces(readHere(activeOverrides, (o) => statuses.get(o.key) === "degraded"));
-}
-
-/**
- * How many surfaces boot at once.
- *
- * Every surface used to boot in one Promise.all. On the salon's workspace that
- * is 23 requests fired in the same millisecond, and the last of them answered
- * 7.8 SECONDS after the page loaded -- `settings` alone took 7,450ms. The
- * endpoints are not slow: measured one at a time on the same tab the same
- * minute, `settings` answers in 488ms and five together finish in 568ms. The
- * whole of that 7.8s was twenty-three cold functions competing.
- *
- * Four lanes is enough to keep the connection busy and few enough that nothing
- * starves. Everything still boots, and no surface is dropped or deferred to a
- * later trip -- they queue instead of stampeding.
- */
-const BOOT_LANES = 4;
-
-/** Run `work` over `queue`, at most `lanes` at a time, in its order as it stands when each lane comes free. */
-async function inLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
-  const lane = async (): Promise<void> => {
-    for (;;) {
-      const next = queue.shift();
-      if (next === undefined) return;
-      await work(next);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(lanes, queue.length) }, lane));
 }
 
 /**
@@ -766,8 +742,11 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     drawn: (o) => screenOwn(window)(o),
     order: () => routeRank(routeOnScreen(window)),
     stopped: () => run.cancelled,
+    look: () => api().lookNow(),
   });
   run.passes = passes;
+  // While the server does not answer this tab, its reads are held and it looks once in a while (client/trouble.ts).
+  const stopMend = watchTheMend({ overrides, passes, onDue: api().onReadsDue, stopped: () => run.cancelled });
   const boot = bootInPasses(run);
   const feed = watchLiveFeed(run, boot.booted, catchUp);
   joinFeedEarly(run, boot, joinFeed, feed);
@@ -788,6 +767,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     activeRefresh = null;
     activeOverrides = [];
     passes.stop();
+    stopMend();
     stopDay();
     stopClock();
     run.leaveWorkspaceWait?.();

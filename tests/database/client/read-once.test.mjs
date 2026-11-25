@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { namedFetch, observeDb } from "@chanlytics/db/shared";
+import { forgetDatabaseFailures } from "../../../packages/db/src/shared/read-again.ts";
 
 const BASE = "https://db.example.com/rest/v1";
 
@@ -31,13 +32,19 @@ function observing(shared) {
   return { timed, touched };
 }
 
-/** A transport that counts what it is sent and answers each call with `answer(n, url, init)`. */
+/**
+ * A transport that counts what it is sent and answers each call with `answer(n, url, init)`. A read that fails is asked
+ * once more by the transport (read-again.ts), with no pause here.
+ */
 function counting(answer = () => new Response('[{"id":1}]', { status: 200, headers: { "content-range": "0-0/*" } })) {
   const sent = [];
-  const fetch = namedFetch(async (url, init) => {
-    sent.push(`${init?.method ?? "GET"} ${String(url).replace(BASE, "")}`);
-    return answer(sent.length, url, init);
-  });
+  const fetch = namedFetch(
+    async (url, init) => {
+      sent.push(`${init?.method ?? "GET"} ${String(url).replace(BASE, "")}`);
+      return answer(sent.length, url, init);
+    },
+    { pause: async () => {} },
+  );
   return { sent, fetch };
 }
 
@@ -117,15 +124,17 @@ test("a read sent while a write is out is not kept past the write", async () => 
 
 test("a read that failed is not kept, and neither is an answer the server could not make", async () => {
   observing(new Map());
+  forgetDatabaseFailures();
   const { sent, fetch } = counting((n) => {
-    if (n === 1) throw new TypeError("fetch failed");
-    if (n === 2) return new Response("upstream", { status: 503 });
+    // The read and the once it is asked again (read-again.ts) both fail to arrive.
+    if (n <= 2) throw new TypeError("fetch failed");
+    if (n === 3) return new Response("upstream", { status: 500 });
     return new Response("[]", { status: 200 });
   });
   await assert.rejects(fetch(`${BASE}/lines?select=id`), /fetch failed/);
-  assert.equal((await fetch(`${BASE}/lines?select=id`)).status, 503);
+  assert.equal((await fetch(`${BASE}/lines?select=id`)).status, 500);
   assert.equal((await fetch(`${BASE}/lines?select=id`)).status, 200);
-  assert.equal(sent.length, 3);
+  assert.equal(sent.length, 4);
 });
 
 test("an answer that says to ask again later is not kept: too many at once, or too long, is asked again", async () => {

@@ -13,6 +13,7 @@
 import { refusalOf, SERVED_AT_HEADER, sessionEnded, textOrEmpty, type Refusal } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/shared/route";
 import { ROUTES, type Routes } from "./routes.generated";
+import { troubleOf, type ReadVerdict, type Trouble } from "./trouble";
 
 /** A query value as the address carries it: a list as its items joined by commas, anything else as its text. */
 const queryText = (v: unknown): string => (Array.isArray(v) ? v.join(",") : textOrEmpty(v));
@@ -167,7 +168,59 @@ interface ApiDeps {
     carries: (url: string) => boolean;
     ask: (urls: readonly string[]) => ReadonlyMap<string, Promise<Response>>;
   };
+  /** The tab's standing while its reads fail (trouble.ts): a test's own; one made for the client otherwise. */
+  trouble?: Trouble;
 }
+
+/**
+ * A read asked of a server that is not answering this tab, answered here and never sent (trouble.ts): as a read the
+ * server could not answer, with how long is left before the tab looks again, which each surface's own retry waits out.
+ */
+const heldHere = (leftS: number, nowMs: number): ApiRefusal => ({
+  ok: false,
+  ...refusalOf({ code: "unavailable", status: 503, retryAfter: String(leftS), write: false, nowMs }),
+});
+
+/** The wait an answer names in whole seconds (`Retry-After`), or null where it names none. */
+function waitNamed(res: Response): number | null {
+  const headers = (res as { headers?: Headers | undefined }).headers;
+  const seconds = Number.parseInt(headers?.get("retry-after") ?? "", 10);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+/** What an answer says of the server, for the tab's standing: it could not answer (a 5xx), or it answered. */
+const verdictOf = (res: Response): ReadVerdict => (res.status >= 500 ? "fault" : "answered");
+
+/**
+ * What a rejection of an answer sent ahead says of the server: nothing where the read was only not carried (the gathered
+ * reads refuse one they cannot name, client/rest-reads.ts, and the read is asked alone as it always was); a fault otherwise
+ * (the head's one read never arrived, or ended before this read's line).
+ */
+const aheadVerdictOf = (e: unknown): ReadVerdict =>
+  e instanceof Error && e.message === "not carried" ? "called_off" : "fault";
+
+/** A request that was rejected, as a page reads it: it never arrived, or was given up on. */
+function unanswered(e: unknown, write: boolean): ApiRefusal {
+  const name = (e as { name?: unknown } | null)?.name;
+  const timedOut = name === "TimeoutError" || name === "AbortError";
+  return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write }) };
+}
+
+/** One request as the client is about to send it. */
+interface Leaving {
+  /** Its route's key: the address a failing read is counted under. */
+  key: string;
+  isRead: boolean;
+  /** The caller's own signal, where it gave one: a read it called off says nothing of the server. */
+  signal: AbortSignal | undefined;
+  /** What the head or the gathered reads sent for it, where they did. */
+  ahead: Promise<Response> | null;
+  /** Its own fetch. */
+  own: () => Promise<Response>;
+}
+
+/** A gate's word for one read, in the turn it is asked where the tab stands (trouble.ts `before`). */
+type Standing = Awaited<ReturnType<Trouble["before"]>>;
 
 /** Identical reads inside this window share one request: three overrides asking for the same list at boot. */
 const INFLIGHT_MS = 2_000;
@@ -376,12 +429,58 @@ function answeredAhead(
   return { early, before: early ?? gathered(url) };
 }
 
+/**
+ * One request's answer, or the refusal it is answered with here. A read asks the tab's standing before it leaves
+ * (trouble.ts), in this turn where the tab stands, so it is sent in the turn it was asked in, and says what it came to
+ * as it settles. What was sent ahead for it has left already and is heard whatever the standing; where that failed, the
+ * read is asked as its own, unless the tab now holds its reads. A write is never held: its answer says the server answers.
+ */
+async function answerTo(
+  trouble: Trouble,
+  now: () => number,
+  leaving: Leaving,
+): Promise<{ res: Response } | { refusal: ApiRefusal }> {
+  if (!leaving.isRead) {
+    try {
+      const res = await leaving.own();
+      if (res.status < 500) trouble.answered();
+      return { res };
+    } catch (e) {
+      return { refusal: unanswered(e, true) };
+    }
+  }
+  const standing = (): Standing | Promise<Standing> => trouble.before();
+  let asked = standing();
+  let gate = asked instanceof Promise ? await asked : asked;
+  if (leaving.ahead) {
+    try {
+      const res = await leaving.ahead;
+      if (gate.held === null) gate.settled(verdictOf(res), leaving.key, waitNamed(res));
+      return { res };
+    } catch (e) {
+      if (gate.held === null) gate.settled(aheadVerdictOf(e), leaving.key);
+      asked = standing();
+      gate = asked instanceof Promise ? await asked : asked;
+    }
+  }
+  if (gate.held !== null) return { refusal: heldHere(gate.held, now()) };
+  try {
+    const res = await leaving.own();
+    gate.settled(verdictOf(res), leaving.key, waitNamed(res));
+    return { res };
+  } catch (e) {
+    gate.settled(leaving.signal?.aborted ? "called_off" : "fault", leaving.key);
+    return { refusal: unanswered(e, false) };
+  }
+}
+
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   const inFlight: InFlight = new Map();
   let holds = 0;
   const lead = leadMeter(now);
   const { gathered, gather } = readsGathered(deps.together);
+  const trouble = deps.trouble ?? troubleOf({ now });
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -407,21 +506,15 @@ export function createApi(deps: ApiDeps) {
       if (hit && sharedAt(hit, now())) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
     // The head's answer, else the gathered reads', else its own fetch; one that failed or was not carried, asked alone.
-    const { early, before } = answeredAhead(deps, gathered, url, isRead);
+    // A read asked for while the server is not answering this tab joins no gathered request: it is answered here.
+    const { early, before } = answeredAhead(deps, gathered, url, isRead && !trouble.waiting());
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
-      let res: Response;
-      try {
-        res = before
-          ? await before.catch(() => deps.fetch(url, initFor(key, sent)))
-          : await deps.fetch(url, initFor(key, sent));
-      } catch (e) {
-        // A request that never left changed nothing; one that timed out may
-        // still be doing its work on the server, and a write must not be told
-        // otherwise.
-        const name = (e as { name?: unknown } | null)?.name;
-        const timedOut = name === "TimeoutError" || name === "AbortError";
-        return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write: !isRead }) };
-      }
+      // A request that never left changed nothing; one that timed out may still be doing its work on the server, and a
+      // write must not be told otherwise (unanswered).
+      const own = () => deps.fetch(url, initFor(key, sent));
+      const answered = await answerTo(trouble, now, { key, isRead, signal: opts.signal, ahead: before, own });
+      if ("refusal" in answered) return answered.refusal;
+      const { res } = answered;
       lead.note(res);
       if (res.status === 401) {
         await signedOut(deps, res);
@@ -520,8 +613,21 @@ export function createApi(deps: ApiDeps) {
   /** The oldest moment a read asked for now could be answered from (oldestShared). */
   const sharesFrom = (): number => oldestShared(inFlight, now());
 
-  // How far this browser's clock runs ahead of the servers' (leadMeter), in ms.
-  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead, gather });
+  // How far this browser's clock runs ahead of the servers' (leadMeter), in ms; and the tab's standing (standingOf).
+  const own = { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead, gather };
+  return Object.assign(send, own, standingOf(trouble));
+}
+
+/**
+ * The tab's standing while its reads fail (trouble.ts), as the client hands it on: a person's press ends the wait
+ * (`lookNow`), the runner hears the wait come due (`onReadsDue`), and `readsHeld` says whether reads are held now.
+ */
+function standingOf(trouble: Trouble) {
+  return {
+    lookNow: () => trouble.lookNow(),
+    onReadsDue: (fn: () => void) => trouble.onDue(fn),
+    readsHeld: () => trouble.waiting(),
+  };
 }
 
 export type Api = ReturnType<typeof createApi>;

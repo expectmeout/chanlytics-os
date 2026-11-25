@@ -21,7 +21,7 @@ import {
   DbFailure,
   causedBy,
 } from "@chanlytics/contracts";
-import { ReadCutShort } from "@chanlytics/db/shared";
+import { databaseFailing, ReadCutShort } from "@chanlytics/db/shared";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -38,7 +38,8 @@ import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-ti
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels/tokens";
 import { errField, requestId, requestTimings, requestTouches } from "@chanlytics/log";
 import { log, noteTenant, withRequestId } from "./log";
-import { tenantFactsOf } from "./tenant";
+import { tenantFactsKnown, tenantFactsOf } from "./tenant";
+import { burstsOf } from "./auth/burst";
 import { listMyMemberships } from "@chanlytics/db/workspace";
 import { findPlanStanding } from "@chanlytics/db/billing";
 import type { TenantId } from "@chanlytics/contracts";
@@ -70,6 +71,11 @@ export interface RouteContext {
    * seat asks for it (getMemberContext); absent reads as not shown.
    */
   aal?: string;
+  /**
+   * On a read (GET, HEAD): the session it is asked by, which its burst of reads shares one read of the memberships under
+   * (auth/burst.ts). Absent on a write, which reads who is asking for itself, and in a test's context.
+   */
+  burst?: string;
   /**
    * Where the request came from inside the app, when it says. The Ask
    * palette commits through the same routes a button does; the one thing
@@ -211,6 +217,13 @@ function answerOf<T>(
       }
       const authMs = Date.now() - authFrom;
       userId = String(user.sub);
+      // A read shares who is asking with the reads of its burst. A write asks for itself, and what those reads held of
+      // this person is let go as it begins and as it ends (below): it may change it.
+      const burst = isRead(req) ? sessionOf(user) : undefined;
+      const forgetAfterWrite = () => {
+        if (!isRead(req)) MEMBERSHIPS.forget(String(user.sub));
+      };
+      forgetAfterWrite();
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf = undoOfHeader && UUID.test(undoOfHeader) ? undoOfHeader : undefined;
@@ -228,11 +241,22 @@ function answerOf<T>(
         email: typeof user.email === "string" ? user.email : undefined,
         metadata,
         ...(typeof user.aal === "string" ? { aal: user.aal } : {}),
+        ...(burst === undefined ? {} : { burst }),
         params,
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
+      }).finally(forgetAfterWrite);
+      // With what it asked of the database, so a route's cost is read from production's own log and never by walking it
+      // (a streamed answer's reads run after this line: page-open.ts says theirs in `page_opened`).
+      const calls = requestTimings().get("db");
+      log.info("route_answered", {
+        route,
+        user: user.sub,
+        ms: Date.now() - started,
+        db_n: calls?.n ?? 0,
+        db_ms: Math.round(calls?.ms ?? 0),
+        ...touchedFields(req),
       });
-      log.info("route_answered", { route, user: user.sub, ms: Date.now() - started, ...touchedFields(req) });
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
       // rule every other exit uses, UNLESS the handler asked for a private
@@ -299,7 +323,19 @@ export function answerOfThrow(
     user: at.userId,
     error: error instanceof Error ? error : String(error),
   });
-  return { status: 500, body: err("internal", "Couldn't finish that."), headers: {} };
+  return { status: 500, body: err("internal", "Couldn't finish that."), headers: waitWhileFailing() };
+}
+
+/** How long a tab is told to wait before it asks again, while the database is failing: seconds. */
+const WAIT_WHILE_FAILING_S = 15;
+
+/**
+ * What a fault says in its headers while the database is failing, as this instance has seen it (packages/db
+ * read-again.ts): when to ask again. The tab holds its reads that long (client/trouble.ts), where each of its surfaces
+ * asked again within two seconds of a database that was failing because it was asked too much (24 Nov 2026).
+ */
+function waitWhileFailing(): Record<string, string> {
+  return databaseFailing() ? { "retry-after": String(WAIT_WHILE_FAILING_S) } : {};
 }
 
 /* ---- Control plane (Session A): who is acting, on which tenant, as what ---- */
@@ -340,12 +376,16 @@ export const AMBIGUOUS = "This account belongs to more than one workspace — sa
 export async function getMemberContext(
   ctx: RouteContext,
   wanted?: string | null,
-  /** Only GET /workspaces may fall back to the oldest membership: answering "which workspace should this tab open" is its job. */
-  opts: { defaultAllowed?: boolean } = {},
+  /**
+   * `defaultAllowed`: only GET /workspaces may fall back to the oldest membership: answering "which workspace should this
+   * tab open" is its job. `burst`: a read through route(), whose memberships may be the ones its session's burst of reads
+   * already asked for (auth/burst.ts); any other caller reads them.
+   */
+  opts: { defaultAllowed?: boolean; burst?: boolean } = {},
 ): Promise<MemberContext> {
   const shared = SHARED_MEMBERS.get(ctx);
   if (!shared) return resolveMember(ctx, wanted, opts);
-  const key = `${wanted ?? ""}|${opts.defaultAllowed === true}`;
+  const key = `${wanted ?? ""}|${opts.defaultAllowed === true}|${opts.burst === true}`;
   const had = shared.get(key);
   if (had) return had;
   const resolving = resolveMember(ctx, wanted, opts);
@@ -369,15 +409,47 @@ export function shareMembership(ctx: RouteContext): void {
   if (!SHARED_MEMBERS.has(ctx)) SHARED_MEMBERS.set(ctx, new Map());
 }
 
+/** A person's memberships, as the resolver reads them (db listMyMemberships). */
+type MembershipRows = NonNullable<Awaited<ReturnType<typeof listMyMemberships>>["data"]>;
+
+/** Each session's memberships, shared across a burst of its reads on this instance (auth/burst.ts). */
+const MEMBERSHIPS = burstsOf<MembershipRows>();
+
+/** Tests only: forget every membership a burst holds. */
+export function resetMembershipBursts(): void {
+  MEMBERSHIPS.clear();
+}
+
+/** Whether a request only reads: its method says so. */
+const isRead = (req: Request): boolean => req.method === "GET" || req.method === "HEAD";
+
+/**
+ * The session a token's claims name, as its bursts are kept under: its own id and how it signed in, so the same person's
+ * other sign-in, or this one once it has shown its second factor, shares nothing with it. Undefined for a token that names
+ * no session, which then shares none.
+ */
+function sessionOf(claims: { session_id?: unknown; aal?: unknown }): string | undefined {
+  const session = claims.session_id;
+  if (typeof session !== "string" || !session) return undefined;
+  return `${session}|${typeof claims.aal === "string" ? claims.aal : ""}`;
+}
+
+/** The person's memberships: read, or the ones their session's burst of reads holds where the caller may share them. */
+async function listMembershipsFor(ctx: RouteContext, shares: boolean): Promise<MembershipRows> {
+  const read = async (): Promise<MembershipRows> => {
+    const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
+    if (error) throw new DbFailure(error);
+    return data ?? [];
+  };
+  return shares ? MEMBERSHIPS.shared(ctx.userId, ctx.burst, read) : read();
+}
+
 async function resolveMember(
   ctx: RouteContext,
   wanted: string | null | undefined,
-  opts: { defaultAllowed?: boolean },
+  opts: { defaultAllowed?: boolean; burst?: boolean },
 ): Promise<MemberContext> {
-  const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
-  if (error) throw new DbFailure(error);
-
-  const rows = data ?? [];
+  const rows = await listMembershipsFor(ctx, opts.burst === true);
   // A request that names no workspace, from an account that holds two, is
   // refused — on a read as on a write (plan 3.4). The one default left in the
   // codebase is the oldest membership, and only /workspaces may take it: a
@@ -398,8 +470,12 @@ async function resolveMember(
   noteTenant(membership.tenant_id);
 
   // The workspace's name and clock rode with the membership: a read that would have asked for them first (the
-  // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026).
+  // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026). And a reader beneath a read that
+  // asks for them by the workspace is answered from here (tenant.ts getTenantFacts): never beneath a write, which may
+  // change them.
   const row = membership.tenants;
+  if (ctx.burst !== undefined && typeof row?.timezone === "string")
+    tenantFactsKnown(ctx.supabase, membership.tenant_id, tenantFactsOf(row));
   return {
     tenantId: membership.tenant_id,
     role: membership.role,

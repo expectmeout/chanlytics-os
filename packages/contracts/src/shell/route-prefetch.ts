@@ -452,8 +452,8 @@ export function routePrefetchScript(): string {
     "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
     // One read for a page in PREFETCH_BESIDE, where the browser can read its stream: an answer parked for each read, who is
     // looking and the page's own, then what it draws beside them, each resolved as its line arrives, with the JSON its
-    // own route answers. One it did not carry (a refusal of the whole, a stream cut short) is the page's to ask for itself,
-    // as a prefetch that failed always was. Elsewhere, and in a browser that cannot read a stream, one request each.
+    // own route answers. One it did not carry (a stream cut short, a request that never arrived) is the page's to ask for
+    // itself, as a prefetch that failed always was. Elsewhere, and in a browser that cannot read a stream, one request each.
     'var Y=typeof Response!=="undefined"&&typeof TextDecoder!=="undefined"&&O.call(B,s)&&!f[u[0]];',
     'if(Y){var k=["workspaces"],R={},Z=function(x){return P?x.replace(' + JSON.stringify(DEFAULT_PERIOD) + ",P):x};",
     `for(var j=0;j<t[s].length;j++)k.push(Z(t[s][j]));if(T)k.push(${JSON.stringify(THREAD_PERSON_READ)}+T);`,
@@ -468,7 +468,14 @@ export function routePrefetchScript(): string {
       `if(m.o){try{performance.mark(${JSON.stringify(OPENING_MARK)},{detail:m.o})}catch(e){}return}` +
       'var c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};' +
       "for(var e in m.h||{})H[e]=m.h[e];c[0](new Response(JSON.stringify(m.b),{status:m.s,headers:H}))};",
-    'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;' +
+    // A request the server could not answer (a 5xx) answers every read it parked with that answer, as each read's own
+    // request would have been answered: sent to be asked alone, one failure became twenty requests in the same instant, of
+    // a server that had just said it could not answer (24 Nov 2026; dashboard client/trouble.ts). Any other refusal, and a
+    // request that never arrived, still hands each read back (E): a server from before this route, a session ended.
+    'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){' +
+      "if(r.status>=500)return r.text().then(function(z){for(var y in R)if(R[y]){" +
+      'R[y][0](new Response(z,{status:r.status,headers:{"content-type":"application/json"}}));R[y]=0}});' +
+      "if(!r.ok)throw 0;" +
       'if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});' +
       'var D=r.body.getReader(),C=new TextDecoder(),Q="";' +
       "var N=function(){return D.read().then(function(c){if(c.done){L(Q);return}Q+=C.decode(c.value,{stream:true});" +

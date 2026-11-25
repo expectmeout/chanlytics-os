@@ -1,9 +1,27 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { namedFetch } from "@chanlytics/db/shared";
+import { boundedFetch, namedFetch } from "@chanlytics/db/shared";
+import { SECOND_MS } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { env, servedOverHttps } from "@/server/shared/env";
 import { sessionCookieOptions } from "./cookie-options";
+
+/**
+ * How long a member's request to the database waits before it gives up: a member's statements end at 8 s, and the longest
+ * door they call at 25 (00547), with ten more for the network and the pool, as the service client's bound has. Without
+ * one, a request the database never answered held its function until the platform killed it: on the night of 24 Nov 2026
+ * calls waited one to four minutes each (Supabase's gateway log), long after the browser that asked had given up at 15 s.
+ */
+const MEMBER_FETCH_TIMEOUT_MS = 35 * SECOND_MS;
+
+/**
+ * What both clients here send their calls through: named for the request and counted (packages/db observe.ts), bounded,
+ * and a failed read asked once more at most (read-again.ts), so the client's own three more asks are off.
+ */
+const memberTransport = () => ({
+  db: { retry: false },
+  global: { fetch: boundedFetch(MEMBER_FETCH_TIMEOUT_MS, namedFetch()) },
+});
 
 /**
  * Session-scoped server client — the ONLY client /api/v1 handlers and server
@@ -28,7 +46,7 @@ export async function createClient() {
         }
       },
     },
-    global: { fetch: namedFetch() },
+    ...memberTransport(),
   });
 }
 
@@ -47,6 +65,7 @@ export function createBearerClient(token: string) {
         /* a bearer request has no cookie to refresh */
       },
     },
-    global: { headers: { Authorization: `Bearer ${token}` }, fetch: namedFetch() },
+    db: memberTransport().db,
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: memberTransport().global.fetch },
   });
 }
