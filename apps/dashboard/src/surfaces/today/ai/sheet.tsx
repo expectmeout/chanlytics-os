@@ -28,6 +28,7 @@ import { refreshSurface, routeDoor } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { autonomyVerbs } from "../../settings/autonomy/verbs";
 import { stopSaid } from "../../settings/autonomy/stop-words";
 import { useSurface } from "../../use-surface";
@@ -293,6 +294,8 @@ export function AiSheet() {
   }, [open]);
   // Today left: the sheet is shut, and opens shut on the next visit.
   useEffect(() => closeAiSheet, []);
+  // Open over the page (`.over-page`): the tab bar stands down while it is, said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("overPage", open && !!ai);
   const flash = (msg: string, warn: boolean) => toast(warn ? { tone: "warn", msg: <>{msg}</> } : { msg: <>{msg}</> });
   return (
     <>

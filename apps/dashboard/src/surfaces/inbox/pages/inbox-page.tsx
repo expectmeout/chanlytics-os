@@ -51,6 +51,7 @@ import type { InboxSurface, Thread } from "../types";
 import { cancelSend } from "../verbs";
 import { Button } from "../../kit/button/button";
 import { useHeldList } from "../../kit/motion/held-list";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { ixGoing } from "../thread/thread";
 
 /** The record once the bulk bar's acts are in: what is on screen is read from it. */
@@ -379,6 +380,10 @@ function sendingStrip(ix: InboxRecord) {
   );
 }
 
+/** Whether the Inbox takes the screen over: a conversation open on a phone, and a request or a comment, which take it as one does. */
+const inboxTakesOver = (phoneThreadOpen: boolean, request: string | null, comments: CommentsHere): boolean =>
+  phoneThreadOpen || !!request || !!comments.open;
+
 /** The page drawn: the list, the thread (or the missing link's notice), the agent rail, the sending strip, the toasts. */
 const inboxPage = (
   ix: InboxRecord,
@@ -440,8 +445,7 @@ const inboxPage = (
       ? activeThread
       : null;
   const columns = personThread ? "with-context" : "";
-  // A request or a comment takes the screen on a phone as an open conversation does.
-  const takeover = phoneThreadOpen || !!request || !!comments.open;
+  const takeover = inboxTakesOver(phoneThreadOpen, request, comments);
 
   return (
     <div ref={root} className={`inbox ${columns}`} data-takeover={takeover || undefined}>
@@ -611,5 +615,9 @@ export const Inbox = ({
       going: ixGoing,
     },
   );
+  // Taken over, the page says so on the document's root, where the frame's rules ask it (kit/motion/root-flags.ts): the
+  // Inbox is always the pane's own page, so its takeover is the pane's too.
+  const takesOver = inboxTakesOver(full.phoneThreadOpen, request, here);
+  useRootFlag(["takenOver", "threadOpen", "threadPane"], takesOver);
   return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, request, comments: here, root });
 };

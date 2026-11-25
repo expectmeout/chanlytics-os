@@ -22,6 +22,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Meter } from "../../kit/meter/meter";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { surfaceValue } from "../../surface-values";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
@@ -300,6 +301,8 @@ export const TodaySetupLine = ({ S, note }: { S: SetupSurface; note: ColdEmailNo
   const [toastNode, flash] = useToast();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   const shown = open && !!card;
+  // Open over the page (`.over-page`): the tab bar stands down while it is, said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("overPage", shown);
   return (
     <>
       {card ? (

@@ -38,6 +38,7 @@ import { useCallback, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../frame-verbs";
 import { Icon } from "../icon/icon";
 import { useHeightGlide } from "../motion/use-height-glide";
+import { useRootFlag } from "../motion/root-flags";
 import { cx } from "../variants";
 import { useBackCloses } from "./back";
 import { SheetHandle, type SheetRestControl } from "./handle";
@@ -271,6 +272,9 @@ export function Sheet(props: SheetProps) {
   const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
   const theme = props.dark ? "dark" : undefined;
   useBackCloses(open && !!backCloses, onClose, typeof backCloses === "string" ? backCloses : null);
+  // Open, and not on its way out (data-leaving, as Base UI says it is closing): a toast clears its foot (kit.css), which
+  // asks the document's root (motion/root-flags.ts).
+  useRootFlag("sheetOpen", open);
   const self = useRef<HTMLElement | null>(null);
   // What it held as it was last drawn open: what it shows while it leaves.
   const held = useRef<SheetProps>(props);

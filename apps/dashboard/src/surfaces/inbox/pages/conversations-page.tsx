@@ -8,6 +8,7 @@
 import { BAR_LINE_WORDS, mmss, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { useHeldList } from "../../kit/motion/held-list";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -611,6 +612,9 @@ export const ConversationsPage = ({
   const swap = useSwapMotion(channel);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useState(!!initialId);
+  // A row open on a phone takes the screen over, and the page says so on the document's root (kit/motion/root-flags.ts):
+  // Conversations is always the pane's own page, so its takeover is the pane's too.
+  useRootFlag(["takenOver", "threadOpen", "threadPane"], phoneOpen);
   // A decision is drawn at once (a row's pill), before any read: a draw, and nothing it is kept on. A call's end is a row of
   // the live feed, which the read above draws again.
   const [, setTick] = useState(0);

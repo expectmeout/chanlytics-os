@@ -27,6 +27,7 @@ import type { ReactNode } from "react";
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { cx } from "../../kit/variants";
 
 /** The control CmPane draws to close itself, on a desk and on a phone: the one that asks first where a composer has words. */
@@ -71,6 +72,9 @@ export function PaneSheet({
   children,
 }: PaneSheetProps) {
   const body = useRef<HTMLDivElement | null>(null);
+  // Open over the page (`over`, .cmh-host-over): the tab bar stands down while it is, said on the document's root
+  // (kit/motion/root-flags.ts).
+  useRootFlag("overPage", open && over);
   const close = () => {
     const press = askFirst && body.current ? body.current.querySelector<HTMLElement>(PANE_CLOSE) : null;
     if (press) press.click();
