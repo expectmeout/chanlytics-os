@@ -38,10 +38,10 @@ export function peopleSortItems({
     checked: sortBy === s.by && sortDir === s.dir,
     onClick: () => pickSort(s.by, s.dir),
   }));
-  const said = plSortedBy(sortBy, word);
-  if (sorts.some((s) => s.checked) || !said) return sorts;
+  const inForce = plSortedBy(sortBy, word);
+  if (sorts.some((s) => s.checked) || !inForce) return sorts;
   // Chosen again, the sort in force stays as it is.
-  return [{ label: said, checked: true, onClick: () => undefined }, ...sorts];
+  return [{ label: inForce, checked: true, onClick: () => undefined }, ...sorts];
 }
 
 /**

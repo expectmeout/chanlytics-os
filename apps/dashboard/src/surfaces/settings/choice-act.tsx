@@ -19,7 +19,7 @@ const CHOICE_ACT_WORD = "Change";
  * question and its answer ("When someone wants to book: They book with your link"); `gated` holds the whole menu shut and
  * says why, as a role's gate or a save that is out does.
  */
-export const choiceAct = (o: {
+export const choiceAct = (choice: {
   items: ChoiceItems;
   name: string;
   gated?: string | null;
@@ -28,15 +28,15 @@ export const choiceAct = (o: {
   label: CHOICE_ACT_WORD,
   wrap: (_button, face) => (
     <MoreMenu
-      items={o.items}
+      items={choice.items}
       face={face}
       btnClass="rec-row-act"
-      title={o.name}
-      ariaLabel={o.name}
+      title={choice.name}
+      ariaLabel={choice.name}
       align="right"
       escape
-      gated={o.gated ?? null}
-      testid={o.testid ?? null}
+      gated={choice.gated ?? null}
+      testid={choice.testid ?? null}
     />
   ),
 });

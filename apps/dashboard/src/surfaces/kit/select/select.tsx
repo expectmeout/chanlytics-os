@@ -96,9 +96,9 @@ export function Select<V extends string>({
                     {option.label}
                   </BaseSelect.ItemText>
                   {option.meta ? <span className="rec-combo-meta">{option.meta}</span> : null}
-                  <BaseSelect.ItemIndicator className="rec-combo-tick" keepMounted>
+                  <span className="rec-combo-tick" aria-hidden="true">
                     <Icon name="check" size={13} />
-                  </BaseSelect.ItemIndicator>
+                  </span>
                 </BaseSelect.Item>
               ))}
             </BaseSelect.List>

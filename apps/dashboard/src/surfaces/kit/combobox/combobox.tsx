@@ -105,9 +105,9 @@ export function Combobox<V extends string>(props: ComboboxProps<V>) {
                 >
                   <span className="rec-combo-label">{option.label}</span>
                   {option.meta ? <span className="rec-combo-meta">{option.meta}</span> : null}
-                  <BaseCombobox.ItemIndicator className="rec-combo-tick" keepMounted>
+                  <span className="rec-combo-tick" aria-hidden="true">
                     <Icon name="check" size={13} />
-                  </BaseCombobox.ItemIndicator>
+                  </span>
                 </BaseCombobox.Item>
               )}
             </BaseCombobox.List>

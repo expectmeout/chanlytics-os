@@ -860,6 +860,8 @@ const autonomy = (rows, over = {}, role = "owner") => {
   autonomyVerbs.setPolicy = async () => ({ ok: true });
   return settings("autonomy");
 };
+/** A record row's value, as it is read: the answer a row's act opens the others of (settings/choice-act.tsx). */
+const rowValueOf = (row) => textOf(find(row, (n) => n.props?.className === "rec-row-value"));
 const headCells = (tree) =>
   all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
     head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
@@ -890,13 +892,8 @@ test("on a phone the matrix is one line per class: its mode is the row's value a
     const reply = byTestId(tree, "pol-phone-reply");
     assert.match(textOf(reply), /Replies to customers/);
     const trigger = byTestId(tree, "pol-phone-mode-reply");
-    assert.equal(trigger.props["aria-haspopup"], "menu", "its act opens a menu");
-    assert.ok(String(trigger.props.className).includes("rec-row-act"), "the row's one act, as every row's is");
-    assert.match(
-      textOf(find(reply, (n) => n.props?.className === "rec-row-value")),
-      /Holds it/,
-      "the value is the mode's word, as the matrix's heading says it",
-    );
+    assert.deepEqual([trigger.props["aria-haspopup"], trigger.props.className], ["menu", "rec-row-act"], "its act");
+    assert.match(rowValueOf(reply), /Holds it/, "the value is the mode's word, as the matrix's heading says it");
     assert.equal(all(reply, (n) => n.props?.role === "menuitemradio").length, 0, "closed until pressed");
     press(trigger);
     tree = settle("autonomy");
@@ -929,14 +926,9 @@ test("on a phone the reply dials are their row's value and an act that opens the
     // The element drawn, not the dial's own element, which carries the same name.
     const drawn = (t) => find(t, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "aut-reply-cap");
     const cap = drawn(tree);
-    assert.equal(cap.props["aria-haspopup"], "menu", "the dial is a menu on a phone");
-    assert.ok(String(cap.props.className).includes("rec-row-act"), "opened by its row's act");
+    assert.deepEqual([cap.props["aria-haspopup"], cap.props.className], ["menu", "rec-row-act"], "its row's act");
     const row = find(tree, (n) => n.props?.["data-act"] === "true" && find(n, (k) => k === cap));
-    assert.match(
-      textOf(find(row, (n) => n.props?.className === "rec-row-value")),
-      /20/,
-      "the row's value is the value in force",
-    );
+    assert.match(rowValueOf(row), /20/, "the row's value is the value in force");
     press(cap);
     tree = settle("autonomy");
     const steps = all(tree, (n) => n.props?.role === "menuitemradio");
