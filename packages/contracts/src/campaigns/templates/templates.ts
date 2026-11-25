@@ -221,13 +221,13 @@ export type TemplateDraftCheck = { ok: true; value: TemplateDraft; warnings: str
 
 /** The draft's button checked: none, or its words and the web address it opens. */
 function buttonChecked(
-  asked: TemplateDraftInput["button"],
+  draftButton: TemplateDraftInput["button"],
 ): { ok: true; button: TemplateDraft["button"] } | { ok: false; error: string } {
-  if (!asked) return { ok: true, button: null };
-  const text = String(asked.text ?? "")
+  if (!draftButton) return { ok: true, button: null };
+  const text = String(draftButton.text ?? "")
     .replace(/\s+/g, " ")
     .trim();
-  const url = String(asked.url ?? "").trim();
+  const url = String(draftButton.url ?? "").trim();
   if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
   if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
     return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
