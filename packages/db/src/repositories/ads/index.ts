@@ -42,6 +42,7 @@ export type {
   AdWayInKept,
 } from "./launches";
 export {
+  countAdsOnShowingFile,
   findAd,
   listAdPeople,
   listAdsByIds,

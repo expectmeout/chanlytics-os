@@ -23,7 +23,7 @@ export { adAmountAfter, adApprovedMiles, adChangeFactsOf, adChangeIssue, adChang
 export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adMostOf, adPictureIssue, adRightsOf, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, AD_STATE_WORDS, AD_WARN_STATES, adLeftOn, adPictureFileOf, adResumeRule, adStateOfRow, adWayClosedOf } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
-export { pieceAdBroughtOf, pieceAdLineOf } from "./ads/on-piece";
+export { PIECE_AD_WORDS, pieceAdBroughtOf, pieceAdLineOf } from "./ads/on-piece";
 export { AD_TOLD_MAX } from "./ads/said";
 export { adAccountStateOf, adStateOf } from "./ads/states";
 export { AD_WAY_IN_SAID, adWayInOf, adWayInRowOf } from "./ads/way-in";
@@ -289,6 +289,7 @@ export { contentMarkOf, contentMarkSaid, contentMarkToneOf, contentMoving, conte
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./content/placements/places";
 export { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS, RENDITION_SHAPES, REVISION_MADE_BY } from "./content/placements/sets";
 export { leadOf, pieceStandingOf, placementIsOut, placementStandingOf, postNeverSeen, standingIsOut, standingOnItsWay, videoIsSavedOnly } from "./content/placements/standing";
+export { pieceStandsSaid } from "./content/placements/standing-said";
 export { STANDING_WORDS } from "./content/placements/standing-words";
 export { storyRanItsDay } from "./content/placements/story-day";
 export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_DOWN_WORDS } from "./content/placements/take-down";
@@ -305,7 +306,7 @@ export { cadenceOf, creativesOf, FOOTAGE_ASKS_MOST, planWeekOf, SLOT_CAPTION_MAX
 export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekApprovedByAI, weekEndingOf, weekEndingSaid, weekLeftOut } from "./content/plan/week-endings";
 export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./content/plan/week-view";
 export { WEEK_WORDS, weekDaysSaid } from "./content/plan/words";
-export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
+export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, linkPlaceSaid, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";
 export { COMMENT_ANSWER_WORDS } from "./content/results/answer-words";
 export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./content/results/comment-address";
