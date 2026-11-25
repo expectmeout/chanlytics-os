@@ -206,7 +206,10 @@ test("register: a filing that stands is final, refile or not; a rehearsal and a 
       404,
       { ok: false, error: "not_found", detail: "no such line" },
     ]);
-    assert.deepEqual(await answer(await knock({ op: "register" })), [400, { ok: false, error: "bad_request" }]);
+    assert.deepEqual(await answer(await knock({ op: "register" })), [
+      400,
+      { ok: false, error: "bad_request", detail: "line_id is required" },
+    ]);
   } finally {
     net.restore();
   }
