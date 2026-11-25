@@ -165,7 +165,7 @@ async function unread<T>(text: string, read: () => Promise<T>): Promise<T> {
     return await read();
   } catch (e) {
     throw causedBy(
-      new AppError("internal", `Could not read this person's ${text}, so nothing was deleted. Try again.`, 500),
+      new AppError("internal", `Couldn't load this person's ${text}, so nothing was deleted. Try again.`, 500),
       e,
     );
   }
@@ -184,7 +184,7 @@ async function blockErasure(db: Db, contact: ErasurePerson): Promise<void> {
   } catch (e) {
     logger().error("erase_begin_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
     throw causedBy(
-      new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500),
+      new AppError("internal", "Couldn't start deleting this person, so nothing was deleted. Try again.", 500),
       e,
     );
   }
@@ -242,7 +242,7 @@ async function scrubCopiesFirst(
     throw causedBy(
       new AppError(
         "internal",
-        `AI's memory of this person could not be scrubbed, so nothing was deleted. ${tryAgain(finishWaits)}`,
+        `Couldn't clear AI's memory of this person, so nothing was deleted. ${tryAgain(finishWaits)}`,
         500,
       ),
       error,

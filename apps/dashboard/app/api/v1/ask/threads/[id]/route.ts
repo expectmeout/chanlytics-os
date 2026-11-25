@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { read, write, account } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { deleteThread, readThread } from "@/server/ask/store";
+import { CONVERSATION_GONE, deleteThread, readThread } from "@/server/ask/store";
 
 /**
  * One of the caller's own Ask threads. The thread is the person's, not the
@@ -21,9 +21,9 @@ import { deleteThread, readThread } from "@/server/ask/store";
 export const GET = read({
   scope: account,
   handle: async ({ ctx }) => {
-    const id = requireUuid(ctx.params.id, "thread");
+    const id = requireUuid(ctx.params.id, "conversation");
     const found = await readThread(ctx, id);
-    if (!found) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
+    if (!found) throw new AppError("not_found", CONVERSATION_GONE, 404);
     return { thread: found.thread, messages: found.messages };
   },
 });
@@ -34,7 +34,7 @@ export const DELETE = write({
   role: null,
   rate: null,
   handle: async ({ ctx }) => {
-    const id = requireUuid(ctx.params.id, "thread");
+    const id = requireUuid(ctx.params.id, "conversation");
     await deleteThread(ctx, id);
     return { deleted: id };
   },

@@ -244,7 +244,7 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
     severity: "serious",
     used: "+1 (212) 555-0142",
     known: "+1 (305) 555-0123",
-    knownSource: "provisioned",
+    known_source: "provisioned",
     sentence: "AI tells customers to call +1 (212) 555-0142, but it answers on +1 (305) 555-0123.",
     to: "admin/workspace",
   };

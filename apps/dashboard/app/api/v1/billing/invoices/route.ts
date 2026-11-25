@@ -14,7 +14,7 @@ export const GET = read({
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
         answer.status === 503 ? "upstream_auth" : "upstream_provider",
-        BILLING_SAID[reason] ?? `The invoices could not be read (${reason}).`,
+        BILLING_SAID[reason] ?? `Couldn't load the invoices (${reason}).`,
         answer.status === 503 ? 503 : 502,
       );
     }

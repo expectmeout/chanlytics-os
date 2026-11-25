@@ -101,13 +101,13 @@ test("the form: a name of 2 to 120, an address lower-cased, a zone or none, noth
 
 test("the waiting row: where the handover stands, the address masked, Send again until an owner accepts it", () => {
   const h = {
-    tenantId: A,
+    workspace_id: A,
     name: "Luna Studio",
     email: "owner@luna.example",
-    sentAt: "2026-09-27T12:00:00Z",
-    expiresAt: "2026-10-11T12:00:00Z",
-    acceptedAt: null,
-    declinedAt: null,
+    sent_at: "2026-09-27T12:00:00Z",
+    expires_at: "2026-10-11T12:00:00Z",
+    accepted_at: null,
+    declined_at: null,
   };
   const now = Date.parse("2026-09-28T00:00:00Z");
   assert.equal(maskedEmail("owner@luna.example"), "o…@luna.example");
@@ -122,18 +122,18 @@ test("the waiting row: where the handover stands, the address masked, Send again
   const expired = partnerHandoverVM(h, Date.parse("2026-10-12T00:00:00Z"));
   assert.equal(expired.state, "expired");
   assert.equal(expired.sentence, "The invitation to o…@luna.example expired on Oct 11. Send it again.");
-  const declined = partnerHandoverVM({ ...h, declinedAt: "2026-09-29T09:00:00Z" }, now);
+  const declined = partnerHandoverVM({ ...h, declined_at: "2026-09-29T09:00:00Z" }, now);
   assert.equal(declined.sentence, "Declined by o…@luna.example on Sep 29. Send it again, or to someone else.");
   assert.equal(declined.canResend, true);
-  const accepted = partnerHandoverVM({ ...h, acceptedAt: "2026-09-30T09:00:00Z" }, now);
+  const accepted = partnerHandoverVM({ ...h, accepted_at: "2026-09-30T09:00:00Z" }, now);
   assert.deepEqual([accepted.state, accepted.canResend], ["accepted", false]);
   assert.equal(partnerHandoverVM({ ...h, name: null }, now).name, HANDOVER_WORDS.unnamed, "off its team, unnamed");
 
-  const ten = Array.from({ length: 10 }, (_, i) => ({ ...h, tenantId: String(i) }));
+  const ten = Array.from({ length: 10 }, (_, i) => ({ ...h, workspace_id: String(i) }));
   assert.deepEqual(handoverRoom(ten.slice(0, 9)), { waiting: 9, full: false, words: null });
   assert.equal(handoverRoom(ten).full, true);
   assert.equal(
-    handoverRoom([...ten.slice(0, 9), { ...h, acceptedAt: "x" }]).full,
+    handoverRoom([...ten.slice(0, 9), { ...h, accepted_at: "x" }]).full,
     false,
     "an accepted one is not waiting",
   );
@@ -251,7 +251,7 @@ test("Send again, Accept and Decline: a malformed id names nothing; each functio
   };
   await refused(resend.POST.run(send({ email: "a@b.co" }), ctxFor(tables(), rpcs, { id: "nope" })), "not_found", 404);
   const again = await resend.POST.run(send({ email: "New@B.co" }), ctxFor(tables(), rpcs, { id: A }));
-  assert.deepEqual(again, { email: "new@b.co", expiresAt: "2026-10-11T12:00:00Z", sent: false });
+  assert.deepEqual(again, { email: "new@b.co", expires_at: "2026-10-11T12:00:00Z", sent: false });
   await refused(
     resend.POST.run(send({ email: "a@b.co" }), ctxFor(tables(), rpcs, { id: B })),
     "conflict",
@@ -271,7 +271,7 @@ test("where you are: the handovers waiting for this person ride on the person; n
   const open = [{ tenant_id: B, workspace: "Luna Studio", partner_code: "ada-co", expires_at: "2026-10-11T12:00:00Z" }];
   const home = await workspaces.GET.run(get(`?workspace=${A}`), ctxFor(tables(), { handovers_mine: () => open }));
   assert.deepEqual(home.user.handovers, [
-    { tenantId: B, workspace: "Luna Studio", partnerCode: "ada-co", expiresAt: "2026-10-11T12:00:00Z" },
+    { workspace_id: B, workspace: "Luna Studio", partner_code: "ada-co", expires_at: "2026-10-11T12:00:00Z" },
   ]);
   const nowhere = await workspaces.GET.run(
     get(),
@@ -329,7 +329,7 @@ test("the partner's lists: each handover with its workspace's name; brought coun
     ctxFor(t, { partner_overview: missing, partner_workspace_money: missing }),
   );
   assert.deepEqual(
-    lists.handovers.map((h) => [h.tenantId, h.name, h.email, h.acceptedAt]),
+    lists.handovers.map((h) => [h.workspace_id, h.name, h.email, h.accepted_at]),
     [
       ["t2", "Luna Studio", "owner@luna.example", null],
       ["t3", "Sol", "", "2026-09-28T00:00:00Z"],

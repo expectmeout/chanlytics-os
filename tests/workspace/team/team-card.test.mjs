@@ -53,7 +53,7 @@ Object.assign(teamVerbs, {
   },
   remove: async (id) => {
     calls.remove.push(id);
-    return { ok: true, data: { revokedInvite: id.startsWith("i-") } };
+    return { ok: true, data: { revoked_invite: id.startsWith("i-") } };
   },
   resend: async (id) => {
     calls.resend.push(id);
@@ -66,34 +66,34 @@ Object.assign(teamVerbs, {
 });
 
 const OWNER = {
-  membershipId: "m-ruben",
-  userId: "u1",
+  membership_id: "m-ruben",
+  user_id: "u1",
   email: "ruben@rjcapital.example",
-  displayName: "",
+  display_name: "",
   role: "owner",
   joined_at: "2026-08-28T05:00:00Z",
 };
 const OTHER_OWNER = {
-  membershipId: "m-s",
-  userId: "u2",
+  membership_id: "m-s",
+  user_id: "u2",
   email: "s@example.com",
-  displayName: "",
+  display_name: "",
   role: "owner",
   joined_at: "2026-09-03T15:00:00Z",
 };
 const ALEX = {
-  membershipId: "m-alex",
-  userId: "u3",
+  membership_id: "m-alex",
+  user_id: "u3",
   email: "alex@example.com",
-  displayName: "Alex Rivera",
+  display_name: "Alex Rivera",
   role: "operator",
   joined_at: "2026-10-01T15:00:00Z",
 };
 const PARTNER = {
-  membershipId: "m-p",
-  userId: "u4",
+  membership_id: "m-p",
+  user_id: "u4",
   email: "ada@example.com",
-  displayName: "",
+  display_name: "",
   role: "partner",
   joined_at: null,
 };
@@ -254,7 +254,7 @@ test("Leave asks, and the only owner may not leave; with another owner, the Yes 
 test("alerts on and off go through the settings save, the rest of the section kept; the last address stays", async () => {
   reset();
   fresh();
-  workspace({ team: [OWNER, ALEX, { ...ALEX, membershipId: "m-bo", email: "bo@example.com", displayName: "Bo" }] });
+  workspace({ team: [OWNER, ALEX, { ...ALEX, membership_id: "m-bo", email: "bo@example.com", display_name: "Bo" }] });
   let tree = draw();
   item(menuOf(tree, "team-more-m-bo"), "Email them alerts").onClick();
   await settle();

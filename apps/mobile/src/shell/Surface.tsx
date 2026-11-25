@@ -134,11 +134,11 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
   useEffect(() => {
     const s = { ...getState(), session, token, activityToken, registered };
-    if (!ready || !focused || route === "login" || !shouldRegister(s)) return;
+    if (!ready || !focused || route === "login" || !token || !shouldRegister(s)) return;
     setState({ registered: registrationKey(s) }); // claimed now, so a second page in front does not ask again; a refusal clears it
     handle.ask({
       t: "device",
-      token: token!,
+      token,
       platform: PLATFORM,
       version: Application.nativeApplicationVersion ?? "",
       ...(activityToken ? { activity: activityToken } : {}),

@@ -46,14 +46,14 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
     if (!res.ok)
       throw new AppError(
         "upstream_meta",
-        feedProblemWords("http", res.status) ?? "The calendar answered with an error.",
+        feedProblemWords("http", res.status) ?? "The calendar link didn't answer with a calendar.",
         502,
       );
     text = await res.text();
   } catch (e) {
     if (e instanceof AppError) throw e;
     throw causedBy(
-      new AppError("upstream_meta", feedProblemWords("unreachable") ?? "The calendar could not be reached.", 502),
+      new AppError("upstream_meta", feedProblemWords("unreachable") ?? "Couldn't reach the calendar.", 502),
       e,
     );
   }

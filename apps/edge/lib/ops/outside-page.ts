@@ -36,6 +36,7 @@ const isCondition = (v: unknown): v is OutsideCondition =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(OUTSIDE_CONDITIONS, v);
 
 export async function readPageFromOutside(auth: Admitted, request: Request): Promise<Response> {
+  // screen-word: the platform's pager door, which no workspace calls
   if (auth.via !== "key") return refuse(403, "platform_only", "the platform's key pages; a workspace's token does not");
 
   let body: { condition?: unknown; detail?: unknown } = {};

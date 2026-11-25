@@ -239,7 +239,7 @@ function filingInProgress(state: A2PState): RegisterResult {
     ok: false,
     pending: true,
     error: "registration_pending",
-    detail: "This line's registration is being filed right now. It shows here as soon as the carriers have it.",
+    detail: "This number's texting approval is being filed right now. It shows here as soon as it is filed.",
     state,
     smsState: "registering",
   };

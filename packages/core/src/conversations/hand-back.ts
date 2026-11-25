@@ -19,7 +19,7 @@ export async function handBack(
   // did nothing at all: the thread moved while the person looked.
   const done = await ports.handBack(conv.tenant_id, conv.id);
   if (!done) {
-    throw new AppError("conflict", "Could not hand this thread back — reload and try again.", 409);
+    throw new AppError("conflict", "Couldn't hand this conversation back. Reload and try again.", 409);
   }
   return { state: "open", decision_id: done.decision_id };
 }

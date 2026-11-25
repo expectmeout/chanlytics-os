@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, account } from "@/server/shared/route";
-import { AppError, parseDevice } from "@chanlytics/contracts";
+import { AppError, finiteOrZero, parseDevice, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
 import { forgetDevice, registerDevice } from "@/server/notices/bell";
 
@@ -26,7 +26,7 @@ export const PUT = write({
       ...(device.activity_token ? { p_activity_token: device.activity_token } : {}),
     });
     if (error) throw dbRefusal(error);
-    return data as { id: string };
+    return { id: textOrEmpty(valueAt(data, "id")) };
   },
 });
 
@@ -38,9 +38,9 @@ export const DELETE = write({
   input: z.object({ token: z.string().nullish() }),
   handle: async ({ ctx, input }) => {
     const token = (input.token ?? "").trim();
-    if (!token) throw new AppError("validation", "A device needs its push token.", 400);
+    if (!token) throw new AppError("validation", "A phone needs its notification address.", 400);
     const { data, error } = await forgetDevice(ctx, { p_token: token });
     if (error) throw dbRefusal(error);
-    return data as { forgotten: number };
+    return { forgotten: finiteOrZero(valueAt(data, "forgotten")) };
   },
 });

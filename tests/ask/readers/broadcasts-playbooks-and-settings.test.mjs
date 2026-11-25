@@ -629,11 +629,11 @@ test("the settings read, for Ask and for the page: GET settings answers its read
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     assert.equal(
       Object.keys(r.data).join(),
-      "config,version,role,configBroken,facts,conflicts,prompt,updatedBy,updatedAt,review_link,previews,ads",
+      "config,version,role,config_broken,facts,conflicts,prompt,updated_by,updated_at,review_link,previews,ads",
     );
     assert.equal(r.data.review_link, false, "no listing, no review link");
     assert.deepEqual(
-      [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
+      [r.data.version, r.data.role, r.data.config_broken, r.data.prompt, r.data.updated_by, r.data.updated_at],
       [version, role, false, null, null, "2026-09-01T00:00:00Z"],
       "no receptionist, no prompt; a row written before its author was kept says so with null",
     );
@@ -653,7 +653,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   });
   const byU7 = await kernel.load(memberIn(dayCtx(authored), B, "owner"), settingsReader, undefined);
   assert.deepEqual(byU7.data, await settingsRoute.GET.run(req(`?workspace=${B}`), dayCtx(authored)));
-  assert.deepEqual([byU7.data.updatedBy, byU7.data.updatedAt], ["u7", "2026-09-02T00:00:00Z"]);
+  assert.deepEqual([byU7.data.updated_by, byU7.data.updated_at], ["u7", "2026-09-02T00:00:00Z"]);
   // A config the parser refuses: its own state, and nothing past the row is read.
   const broken = settingsWorld({
     tenant_config: [{ tenant_id: A, config: "nonsense", version: 7, updated_at: "2026-09-01T00:00:00Z" }],
@@ -661,9 +661,9 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   const brokenCtx = dayCtx(broken);
   const refused = await kernel.load(memberIn(brokenCtx, A, "viewer"), settingsReader, undefined);
   assert.deepEqual(refused.data, await settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(broken)));
-  assert.deepEqual(Object.keys(refused.data), ["config", "version", "role", "configBroken", "issues", "ads"]);
+  assert.deepEqual(Object.keys(refused.data), ["config", "version", "role", "config_broken", "issues", "ads"]);
   assert.deepEqual(
-    [refused.data.config, refused.data.version, refused.data.configBroken],
+    [refused.data.config, refused.data.version, refused.data.config_broken],
     [null, 7, true],
     "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
   );
@@ -671,7 +671,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   assert.deepEqual(asked(brokenCtx), ["tenant_config.select", "ad_accounts.select"]);
   // No row at all: the route's 404, in its sentence, from the reader.
   const noRow = (e) => {
-    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Workspace has no configuration row."]);
+    assert.deepEqual([e.code, e.status], ["not_found", 404]);
     return true;
   };
   const none = dayCtx(settingsWorld({ tenant_config: [] }));

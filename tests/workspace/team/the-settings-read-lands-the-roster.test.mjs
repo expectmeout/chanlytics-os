@@ -62,13 +62,13 @@ const { feedFromGlobals } = await import(`${SRC}/bridge/notifications.ts`);
 console.error = quiet;
 
 const ANA = {
-  membershipId: "m-ana",
-  userId: "u-ana",
+  membership_id: "m-ana",
+  user_id: "u-ana",
   email: "ana@example.com",
-  displayName: "Ana García",
+  display_name: "Ana García",
   role: "owner",
 };
-const LEE = { membershipId: "m-lee", userId: "u-lee", email: "lee@example.com", displayName: "", role: "operator" };
+const LEE = { membership_id: "m-lee", user_id: "u-lee", email: "lee@example.com", display_name: "", role: "operator" };
 const SAM = {
   id: "inv-sam",
   email: "sam@example.com",

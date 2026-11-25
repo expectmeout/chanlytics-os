@@ -15,5 +15,7 @@ import { FREED_TIME_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/calendar/freed-time");
   if (!auth.ok) return auth.response;
-  return offerFreedTimeNow(auth, await readBody(request, FREED_TIME_DOOR));
+  const read = await readBody(request, FREED_TIME_DOOR);
+  if (!read.ok) return read.response;
+  return offerFreedTimeNow(auth, read.body);
 });

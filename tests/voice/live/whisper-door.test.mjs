@@ -248,8 +248,9 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
   try {
     assert.equal((await knock({ call_id: CALL, text: WORDS, trigger: true })).status, 200);
     assert.equal(nudge.seen[0].body.call_control.trigger_response, true, "asked to speak now");
-    assert.equal((await knock({ call_id: CALL, text: WORDS, trigger: "yes" })).status, 200);
-    assert.equal(nudge.seen[1].body.call_control.trigger_response, false, "only a real true nudges");
+    // Anything but a real true is no nudge: a word in its place is refused at the door's schema, and nothing is sent.
+    assert.equal((await knock({ call_id: CALL, text: WORDS, trigger: "yes" })).status, 400);
+    assert.equal(nudge.seen.length, 1, "only a real true nudges");
     // A token about no workspace opens nothing: the door could not tell whose call it is (live-call-workspace.test.mjs
     // runs the refusal on each door, and the platform's key on an edge without the secret).
     assert.equal(
@@ -257,7 +258,7 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
       400,
       "a token about no workspace is refused",
     );
-    assert.equal(nudge.seen.length, 2, "and nothing reached the provider for it");
+    assert.equal(nudge.seen.length, 1, "and nothing reached the provider for it");
   } finally {
     nudge.restore();
   }

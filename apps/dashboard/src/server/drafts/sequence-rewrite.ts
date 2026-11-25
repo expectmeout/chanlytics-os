@@ -124,7 +124,7 @@ export async function rewriteLeadEmail(
   seq: { starts: string },
   ask: RewriteAsk,
 ): Promise<LeadRewriteDto> {
-  if (seq.starts !== "leads") throw new AppError("not_found", "Sequence not found.", 404);
+  if (seq.starts !== "leads") throw new AppError("not_found", "Campaign not found.", 404);
   const { ctx, tenantId } = rc;
   const [named, seqs, config, previews] = await Promise.all([
     load(rc, facts.facts, undefined),

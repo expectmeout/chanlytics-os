@@ -95,7 +95,7 @@ export async function answerFactOf(
   if (item.error === "answered") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
   if (item.error || !item.suggestion) {
     log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "door", error: item.error ?? null });
-    throw new AppError("validation", "Could not answer this.");
+    throw new AppError("validation", "Couldn't answer this.");
   }
   return {
     suggestion: item.suggestion,

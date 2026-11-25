@@ -163,12 +163,12 @@ const base = () => ({
     broken: false,
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: true, active: true, number: VOICE, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 0 },
   consent: { yes: 0 },
   requests: { line: null },
   later: [],
@@ -231,7 +231,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   const noLine = setupSteps(
     {
       ...base(),
-      channels: { ...base().channels, voice: { present: false, active: false, number: null, lastInboundAt: null } },
+      channels: { ...base().channels, voice: { present: false, active: false, number: null, last_inbound_at: null } },
     },
     NOW,
   );

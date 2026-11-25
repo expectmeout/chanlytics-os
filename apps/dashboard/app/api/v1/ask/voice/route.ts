@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -18,7 +18,7 @@ export const POST = write({
     if (!secret) throw new AppError("upstream_voice", "Voice is not set up on this deployment.", 503);
     const tenantId = member.tenantId;
     // A body that is not JSON is none: what reads it next refuses.
-    const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+    const body = recordOrNull(await req.json().catch(() => null));
     const { threadId, scope, language, context, surface } = asked(body, tenantId);
 
     // The access token this request was verified with (the header says why it is read here and nowhere else).
@@ -31,8 +31,8 @@ export const POST = write({
     let thread: { id: string; title: string } | null = null;
     if (threadId) {
       const found = await readThread(ctx, threadId);
-      if (!found) throw new AppError("not_found", "That thread does not exist.", 404);
-      if (found.tenantId !== tenantId) throw new AppError("not_found", "That thread is not yours.", 404);
+      if (!found) throw new AppError("not_found", "That conversation does not exist.", 404);
+      if (found.tenantId !== tenantId) throw new AppError("not_found", "That conversation is not yours.", 404);
       thread = { id: found.thread.id, title: found.thread.title };
     }
 
@@ -62,7 +62,7 @@ export const POST = write({
     }
     const token = typeof answer.body?.token === "string" ? answer.body.token : "";
     const conversationId = typeof answer.body?.conversation_id === "string" ? answer.body.conversation_id : null;
-    if (!token) throw new AppError("upstream_voice", "A call with AI could not be started just now.");
+    if (!token) throw new AppError("upstream_voice", "Couldn't start a call with AI just now.");
 
     // A new thread only once the vendor has said yes: a refused conversation leaves no empty thread behind.
     if (!thread) {

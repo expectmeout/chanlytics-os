@@ -389,7 +389,7 @@ test("past status every op needs a database and a workspace id; an unknown op is
     );
     assert.deepEqual(
       await answer(await knock({ op: "portal", tenant_id: "harbor" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
+      [400, { ok: false, error: "bad_request" }],
       "and must name it by id",
     );
   });
@@ -399,8 +399,10 @@ test("past status every op needs a database and a workspace id; an unknown op is
     detail: "op must be status, checkout, portal, invoices, sync, resume, start_now or end",
   };
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, list]);
-  assert.deepEqual(await answer(await knock({})), [400, list]);
-  assert.deepEqual(await answer(await knock("not json")), [400, list]);
+  // No op at all: refused at the door's schema, before the op table is asked.
+  const noOp = [400, { ok: false, error: "bad_request" }];
+  assert.deepEqual(await answer(await knock({})), noOp);
+  assert.deepEqual(await answer(await knock("not json")), noOp);
   assert.equal(db.seen.length, 0);
 });
 

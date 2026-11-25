@@ -35,7 +35,7 @@ export const POST = write({
       const reason = typeof result.error === "string" ? result.error : "failed";
       throw new AppError(
         reason === "no_places_key" ? "conflict" : "upstream_provider",
-        REASON_WORDS[reason] ?? `The listing could not be linked (${edgeRefusalWords(result) ?? reason}).`,
+        REASON_WORDS[reason] ?? `Couldn't link the listing (${edgeRefusalWords(result) ?? reason}).`,
         reason === "no_places_key" ? 409 : 502,
       );
     }
@@ -55,7 +55,7 @@ export const DELETE = write({
         "upstream_provider",
         (typeof body.error === "string" ? REASON_WORDS[body.error] : null) ??
           edgeRefusalWords(body) ??
-          "The listing could not be removed. Try again.",
+          "Couldn't remove the listing. Try again.",
       );
     return { removed: body.removed === true };
   },

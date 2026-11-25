@@ -81,7 +81,7 @@ export interface MetricsSummaryDto {
    * cannot name, and says so rather than printing a smaller whole. Absent is
    * true, as every payload the database answers is.
    */
-  linesRead?: boolean;
+  lines_read?: boolean;
   /**
    * How the day's replies sat against the hold the owner set: the hold most replies waited, in words, and how many went out as it
    * ended, later than it, and with none (`holdOf`, the one rule both reports read; four numbers, however long the day). What

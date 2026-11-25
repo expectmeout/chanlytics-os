@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, BELL_LIST_ROWS } from "@chanlytics/contracts";
+import { AppError, BELL_LIST_ROWS, valueAt } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/shared/reader";
@@ -48,7 +48,8 @@ export const PUT = write({
     if (body.seen === true) {
       const { data, error } = await markBellSeen(ctx, { p_tenant_id: tenantId });
       if (error) throw dbRefusal(error);
-      return { seen_at: ((data ?? {}) as { seen_at?: string }).seen_at ?? null };
+      const seenAt = valueAt(data, "seen_at");
+      return { seen_at: typeof seenAt === "string" ? seenAt : null };
     }
     if (body.ids) {
       if (body.read !== true)

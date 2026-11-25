@@ -29,7 +29,7 @@ export function WhatsappSteps(o: {
     void waConnect
       .config()
       .then((door) => {
-        if (door.canConnect) waConnect.prepare(door);
+        if (door.can_connect) waConnect.prepare(door);
       })
       .catch(() => {});
   }, []);

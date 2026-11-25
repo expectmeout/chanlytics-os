@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { keepIdeaCard } from "@/server/ask/tools/act/leads/idea-card";
 
@@ -19,7 +19,7 @@ export const POST = write({
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
     // A body that is not JSON is none: what reads it next refuses.
-    const body = (await req.json().catch(() => null)) as { words?: unknown } | null;
+    const body = recordOrNull(await req.json().catch(() => null));
     const words = typeof body?.words === "string" ? body.words.trim() : "";
     if (!words || words.length > 200) throw new AppError("validation", "Pick one of the ideas shown.");
     return keepIdeaCard(ctx, member.tenantId, words);

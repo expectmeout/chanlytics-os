@@ -120,18 +120,18 @@ export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Prom
 const adsShownHere = (rc: ReaderContext): Promise<boolean> =>
   readAdsShown(rc.ctx.supabase, rc.tenantId).catch(logAndGoOn("ads shown", false));
 
-/** GET settings' answer: the two shapes, told apart by `configBroken`, which the client narrows on. */
+/** GET settings' answer: the two shapes, told apart by `config_broken`, which the client narrows on. */
 type SettingsRead =
   | {
       config: TenantConfig;
       version: number;
       role: ReaderContext["role"];
-      configBroken: false;
+      config_broken: false;
       facts: ResolvedFacts;
       conflicts: FactConflict[];
       prompt: PromptPreviewDto | null;
-      updatedBy: string | null;
-      updatedAt: string | null;
+      updated_by: string | null;
+      updated_at: string | null;
       /** Whether there is a review link, the owner's own or the Google listing's (db findReviewLink): never the link itself. */
       review_link: boolean;
       /** Whether this workspace makes previews for its leads (decision 0079): ours alone. */
@@ -139,7 +139,7 @@ type SettingsRead =
       /** Whether Campaigns › Ads is drawn here (connections/ads-ready.ts readAdsShown): every page asks this one answer. */
       ads: boolean;
     }
-  | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[]; ads: boolean };
+  | { config: null; version: number; role: ReaderContext["role"]; config_broken: true; issues: string[]; ads: boolean };
 
 /**
  * GET settings, as the route answers it: the tenant's config, with the version the client must echo back on write, the
@@ -154,7 +154,7 @@ export const settings: Reader<undefined, SettingsRead> = {
   name: "settings",
   async read(rc) {
     const row = (await load(rc, readers.config, undefined)).data;
-    if (!row) throw new AppError("not_found", "Workspace has no configuration row.", 404);
+    if (!row) throw new AppError("not_found", "Settings aren't ready yet. Chanlytics is on it.", 404);
     // A config the parser refuses is a different fact from "nothing configured".
     // Collapsing both to {} showed a broken workspace the "no receptionist yet"
     // invitation — and the form behind it would have saved over the broken row,
@@ -194,7 +194,7 @@ export const settings: Reader<undefined, SettingsRead> = {
           config: visible,
           version: row.version,
           role: rc.role,
-          configBroken: false as const,
+          config_broken: false as const,
           // What each fact resolves to and where it came from, plus anything that
           // disagrees. The pane shows a source beside every value instead of a
           // column of identical-looking text boxes, and a serious disagreement --
@@ -204,8 +204,8 @@ export const settings: Reader<undefined, SettingsRead> = {
           conflicts: factConflicts(facts),
           prompt,
           // Who last changed it and when (00085): the Business card says so.
-          updatedBy: row.updated_by ?? null,
-          updatedAt: row.updated_at ?? null,
+          updated_by: row.updated_by ?? null,
+          updated_at: row.updated_at ?? null,
           review_link: reviewLink !== null,
           // Whether it makes previews (decision 0079): the step editor offers {{their preview}} where it does.
           previews: known.ours,
@@ -221,7 +221,7 @@ export const settings: Reader<undefined, SettingsRead> = {
         config: null,
         version: row.version,
         role: rc.role,
-        configBroken: true as const,
+        config_broken: true as const,
         issues: parsed.issues,
         // A config the parser refuses still has its ads: whether they are drawn is no part of the config.
         ads: await adsShownHere(rc),

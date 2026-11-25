@@ -555,7 +555,7 @@ test("Needs you: the pill its row wears and how long they have waited, under the
 });
 
 test("a teammate's thread wears the pill their row wears, in the bar, and offers nothing to take -- the reply box says what a reply does", () => {
-  rosterIs([{ userId: "u-ana", email: "ana@example.com", displayName: "Ana García" }]);
+  rosterIs([{ user_id: "u-ana", email: "ana@example.com", display_name: "Ana García" }]);
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   try {
     const tree = draw(

@@ -21,12 +21,12 @@ const SETUP_LONGEST_WAIT_MS = 10_000;
 
 /**
  * Whether a message or a thread may be the first WhatsApp message Setup is waiting for: the number connected and on, and none
- * answered yet (its `lastInboundAt`). Closed while Setup is unread, and for good once one has arrived: every other message is
+ * answered yet (its `last_inbound_at`). Closed while Setup is unread, and for good once one has arrived: every other message is
  * nothing Setup states, so a busy workspace never reads it for one (the wiring's second audit, W-thread-wait-step-3).
  */
 function awaitsFirstMessage(): boolean {
   const w = surfaceValue("setup")?.dto?.channels?.whatsapp;
-  return !!w && w.present && w.active && !w.lastInboundAt;
+  return !!w && w.present && w.active && !w.last_inbound_at;
 }
 
 export const setupOverride: SurfaceOverride = {
@@ -87,7 +87,7 @@ export const setupOverride: SurfaceOverride = {
         return (
           c.event === "UPDATE" &&
           c.row.status === "ended" &&
-          !surfaceValue("setup")?.dto?.channels?.voice?.lastInboundAt
+          !surfaceValue("setup")?.dto?.channels?.voice?.last_inbound_at
         );
       if (c.table === "messages" || c.table === "conversations") return c.event === "INSERT" && awaitsFirstMessage();
       return c.table !== "contacts" || c.event !== "INSERT";

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, account } from "@/server/shared/route";
-import { AppError, cleanDisplayName, recordOrEmpty } from "@chanlytics/contracts";
+import { AppError, cleanDisplayName, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 import { log } from "@/server/shared/log";
 import { dbRefusal } from "@/server/shared/with-route";
@@ -24,11 +24,8 @@ export const PUT = write({
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
     const { data, error } = await setOwnName(ctx, { p_display_name: cleaned.name });
     if (error) throw dbRefusal(error);
-    const saved =
-      data && typeof data === "object" && !Array.isArray(data)
-        ? (data as { display_name?: string }).display_name
-        : cleaned.name;
-    return { display_name: saved ?? cleaned.name };
+    const saved = valueAt(data, "display_name");
+    return { display_name: typeof saved === "string" ? saved : cleaned.name };
   },
 });
 
@@ -59,7 +56,7 @@ export const DELETE = write({
       log.error("account_delete_failed", { message: error.message.slice(0, 200) });
       throw new AppError(
         "internal",
-        "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
+        "Couldn't delete your account. Nothing was changed. Try again, or write to support.",
       );
     }
     await ctx.supabase.auth.signOut().catch(logAndGoOn("signOut"));

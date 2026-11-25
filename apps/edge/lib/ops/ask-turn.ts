@@ -46,6 +46,7 @@ import {
   LLM_DOOR,
   isOneOf,
   isTenantId,
+  type TenantId,
 } from "@chanlytics/contracts";
 import {
   GATEWAY_MAX_BODY,
@@ -57,6 +58,7 @@ import {
   teeUsage,
   validateGatewayRequest,
   type GatewayPurpose,
+  type GatewayRequest,
 } from "../ai/ask-gateway.js";
 import { mayUseModelFor, recordCall, streamModelCall } from "../ai/model.js";
 import { env } from "../shared/env.js";
@@ -72,25 +74,40 @@ const budgetSeen = new Map<string, { at: number; used: number }>();
 
 const BUDGET_TTL_MS = MIN_MS;
 
+/**
+ * What a knock on the gateway asks, read and checked before anything is spent: under the size cap, a body its door
+ * holds, the workspace and the person (the token's, else the body's), a purpose the gateway knows, and a request it
+ * allows. Each refusal is the one the turn answers.
+ */
+async function gatewayAskOf(
+  auth: Admitted,
+  raw: string,
+): Promise<
+  | { ok: true; tenantId: TenantId; userId: string; purpose: GatewayPurpose; request: GatewayRequest }
+  | { ok: false; response: Response }
+> {
+  if (raw.length > GATEWAY_MAX_BODY) return { ok: false, response: refuse(413, "too_large") };
+  const read = await readBody(raw, LLM_DOOR);
+  if (!read.ok) return read;
+  const ws = workspaceFor(auth, read.body.tenant_id);
+  if (!ws.ok) return ws;
+  const tenantId = ws.tenantId ?? "";
+  const userId = personFor(auth, read.body.user_id) ?? "";
+  const { purpose } = read.body;
+  if (!isTenantId(tenantId) || !UUID.test(userId) || !isOneOf(GATEWAY_PURPOSES, purpose))
+    return { ok: false, response: refuse(400, "bad_request", "tenant_id, user_id and a purpose required") };
+  const result = validateGatewayRequest(read.body.request, purpose);
+  if (!result.ok) return { ok: false, response: refuse(400, result.error, result.detail) };
+  return { ok: true, tenantId, userId, purpose, request: result.request };
+}
+
 export async function askTurn(auth: Admitted, tIn: number, request: Request): Promise<Response> {
   const log = logger();
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
-  const raw = await request.text();
-  if (raw.length > GATEWAY_MAX_BODY) return refuse(413, "too_large");
-  const body = await readBody(raw, LLM_DOOR);
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  body.tenant_id = ws.tenantId ?? undefined;
-  body.user_id = personFor(auth, body.user_id) ?? undefined;
-  const tenantId = String(body.tenant_id || "");
-  const userId = String(body.user_id || "");
-  if (!isTenantId(tenantId) || !UUID.test(userId) || !isOneOf(GATEWAY_PURPOSES, String(body.purpose))) {
-    return refuse(400, "bad_request", "tenant_id, user_id and a purpose required");
-  }
-  const purpose = body.purpose as GatewayPurpose;
-  const result = validateGatewayRequest(body.request, purpose);
-  if (!result.ok) return refuse(400, result.error, result.detail);
+  const ask = await gatewayAskOf(auth, await request.text());
+  if (!ask.ok) return ask.response;
+  const { tenantId, userId, purpose } = ask;
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -117,7 +134,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
 
   const t0 = Date.now();
   const gatewayMs = t0 - tIn;
-  const { model: asked, betas, ...rest } = result.request;
+  const { model: asked, betas, ...rest } = ask.request;
   // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json).
   const up = await streamModelCall(
     {
@@ -133,7 +150,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   if (up.outcome === "held")
     return up.why === "paused"
       ? refuse(403, "model_paused", MODEL_PAUSED_WORDS.edge)
-      : refuse(503, "read_failed", "Whom this call is for could not be read just now.");
+      : refuse(503, "read_failed", "Couldn't tell whom this call is for just now.");
   if (up.outcome !== "ok") {
     const forWhom = { tenantId, userId };
     await recordCall(

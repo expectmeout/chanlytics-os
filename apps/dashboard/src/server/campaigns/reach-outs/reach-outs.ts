@@ -49,7 +49,7 @@ import { deployment } from "@/server/shared/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason, type EdgeBody } from "@/server/shared/edge";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { PREVIEW_TIMEOUT_MS, chainOf, firstEmailOf, saveChain, type SendRow } from "./chain-acts";
-import type { TenantId } from "@chanlytics/contracts";
+import type { ReachOutPreviewDto, TenantId } from "@chanlytics/contracts";
 
 /**
  * The chains of a workspace, without their reports (R23: a report is read when its row is opened), each with what feeds
@@ -410,7 +410,7 @@ const heldOf = (send: SendRow): ReachOutRunDto["held"][number] => ({
 
 /* ---- Reach out (Part 4): a chain saved by the service role, and one business's preview ---- */
 
-type ReachOutPreviewOutcome = { ok: true; preview: unknown } | { ok: false; reason: EdgeReason };
+type ReachOutPreviewOutcome = { ok: true; preview: ReachOutPreviewDto } | { ok: false; reason: EdgeReason };
 
 /**
  * One business's email as the chain would write it (the edge's reach-out-preview door, R11): the model is asked, and

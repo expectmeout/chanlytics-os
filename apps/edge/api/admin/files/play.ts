@@ -14,5 +14,7 @@ import { FILE_PLAY_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/play");
   if (!auth.ok) return auth.response;
-  return signVideoPlay(auth, await readBody(request, FILE_PLAY_DOOR));
+  const read = await readBody(request, FILE_PLAY_DOOR);
+  if (!read.ok) return read.response;
+  return signVideoPlay(auth, read.body);
 });

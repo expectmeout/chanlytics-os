@@ -448,7 +448,7 @@ test("keep, exclude, put back and undo reach their doors with the ids and the ve
   });
   await assert.rejects(
     putBack.POST.run(send({ search_id: S1 }), ctxFor("owner", rpcs, { id: L1 })),
-    /hidden: it is already a customer, or was erased/,
+    /hidden: it is already a customer, or was deleted/,
   );
   await assert.rejects(
     undo.POST.run(send({ version: 3 }), ctxFor("owner", rpcs, { id: O1 })),

@@ -201,7 +201,7 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
     case "not_found" satisfies EdgeErrorCode:
       return new AppError("not_found", "That mailbox isn't this workspace's.", 404);
     default:
-      return new AppError("upstream_provider", `The mailbox could not be ${doing}. Try again in a minute.`);
+      return new AppError("upstream_provider", `The mailbox wasn't ${doing}. Try again in a minute.`);
   }
 }
 
@@ -209,7 +209,7 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
 function mailboxAnswered(a: MailboxAnswer, doing: string): MailboxConnectionDto {
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, doing);
   const m = a.body.mailbox;
-  if (!m) throw new AppError("upstream_provider", `The mailbox could not be ${doing}.`);
+  if (!m) throw new AppError("upstream_provider", `The mailbox wasn't ${doing}.`);
   return m;
 }
 

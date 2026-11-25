@@ -13,5 +13,7 @@ import { SIGNUP_NOTIFY_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
-  return notifySignup(auth, await readBody(request, SIGNUP_NOTIFY_DOOR));
+  const read = await readBody(request, SIGNUP_NOTIFY_DOOR);
+  if (!read.ok) return read.response;
+  return notifySignup(auth, read.body);
 });

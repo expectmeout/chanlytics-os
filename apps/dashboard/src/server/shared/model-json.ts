@@ -102,10 +102,7 @@ async function answerFrom(
     if (ev.type === "text") text += ev.text;
     else if (ev.type === "stop") stop = ev.stopReason;
     else if (ev.type === "error")
-      throw new AppError(
-        "upstream_anthropic",
-        `The ${modelText} could not be written just now. Try again in a moment.`,
-      );
+      throw new AppError("upstream_anthropic", `Couldn't write the ${modelText} just now. Try again in a moment.`);
   }
   return { text, stop };
 }

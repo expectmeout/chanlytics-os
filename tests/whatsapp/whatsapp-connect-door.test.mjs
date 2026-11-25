@@ -25,6 +25,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
+import { WHATSAPP_CONNECT_DOOR } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 // Both doors read these at call time; each test file is its own process. The
@@ -343,20 +344,24 @@ test("connect, the door: a token for another door, a forgery and no credential a
         "a key-holder must name the workspace",
       );
       // ... and the person: a key names none, so the body must.
+      // None is the op's to refuse in its words; one that is not a person's id breaks the door's schema first.
       for (const user_id of [undefined, "not-a-person"])
         assert.deepEqual(
           await answer(await knock(signedUp({ user_id }), { "x-diag-key": "diag-key-for-this-file" })),
-          [400, required],
+          WHATSAPP_CONNECT_DOOR.body.safeParse(signedUp({ user_id })).success
+            ? [400, required]
+            : [400, { ok: false, error: "bad_request" }],
           "a key-holder must name a person",
         );
     });
     assert.equal(db.seen.length, 0);
-    // A token names the person, and the door writes down the token's, not a body's: a body without one, or with a name
-    // that is no person's, is still the token's owner, and reaches Meta's exchange (refused here, by the wire above).
+    // A token names the person, and the door writes down the token's, not a body's: a body without one is still the
+    // token's owner, and reaches Meta's exchange (refused here, by the wire above). A body naming something that is no
+    // person's id breaks the door's schema and is refused before anything is asked.
     for (const user_id of [undefined, "not-a-person"])
       assert.deepEqual(
         (await answer(await knock(signedUp({ user_id }))))[1].error,
-        "exchange_failed",
+        user_id === undefined ? "exchange_failed" : "bad_request",
         `the token's person stands in for ${String(user_id)}`,
       );
     setPg(null);

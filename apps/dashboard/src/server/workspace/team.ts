@@ -61,15 +61,14 @@ const teamDb = (): SupabaseClient<Database> => serviceDb();
 const ONLY_OWNER = "This is the only owner. Promote someone else first.";
 
 interface TeamMember {
-  membershipId: string;
-  userId: string;
+  membership_id: string;
+  user_id: string;
   email: string | null;
   /** The name they gave; "" when none. */
-  displayName: string;
+  display_name: string;
   role: string;
   /** When they joined the workspace (team_roster's `joined_at`, 00068); null where the read did not say. */
   joined_at: string | null;
-  isMe?: boolean;
 }
 
 /**
@@ -139,10 +138,10 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
 /** The team as team_roster answers it (00022), as the pages name its members: here and in Setup (setup_rows' roster). */
 export function rosterOf(rows: Database["public"]["Functions"]["team_roster"]["Returns"]): TeamMember[] {
   return rows.map((m) => ({
-    membershipId: m.membership_id,
-    userId: m.member_user_id,
+    membership_id: m.membership_id,
+    user_id: m.member_user_id,
     email: m.email,
-    displayName: m.display_name,
+    display_name: m.display_name,
     role: m.role,
     joined_at: m.joined_at ?? null,
   }));
@@ -188,7 +187,7 @@ export async function inviteMember(
       }),
       "invite",
     );
-    return joined.already_member === true ? { alreadyMember: true as const } : { added: true as const };
+    return joined.already_member === true ? { already_member: true as const } : { added: true as const };
   }
 
   // The invitation and its row, before the mail: the mail cannot be part of a transaction, so a mail that could not
@@ -203,7 +202,7 @@ export async function inviteMember(
     }),
     "invite",
   );
-  if (inv.already_invited === true) return { alreadyInvited: true as const };
+  if (inv.already_invited === true) return { already_invited: true as const };
   const { error: mailErr } = await inviteUserByEmail(db, email);
   if (mailErr) {
     // The intent row without the email is a lie in the invites list, and on the ledger: take both back. The email's
@@ -241,7 +240,7 @@ export async function setMemberRole(
     "change_role",
     ctx.undoOf,
   );
-  return { membershipId: String(changed.membership_id), role: String(changed.role) };
+  return { membership_id: String(changed.membership_id), role: String(changed.role) };
 }
 
 export async function removeMember(
@@ -264,7 +263,7 @@ export async function removeMember(
     "remove_member",
     ctx.undoOf,
   );
-  return removed.revoked_invite === true ? { revokedInvite: true as const } : { removed: true as const };
+  return removed.revoked_invite === true ? { revoked_invite: true as const } : { removed: true as const };
 }
 
 /** Supabase Auth's refusal of an invitation to an address whose account was confirmed meanwhile. */

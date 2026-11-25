@@ -18,5 +18,7 @@ export const POST = adminDoor(async function POST(request: Request, brain?: Eval
   // as the dashboard mints one; the key opens it only on an edge without the secret.
   const auth = await authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
-  return evaluateCases(auth, await readBody(request, EVAL_DOOR), brain);
+  const read = await readBody(request, EVAL_DOOR);
+  if (!read.ok) return read.response;
+  return evaluateCases(auth, read.body, brain);
 });

@@ -148,7 +148,7 @@ async function tokenForAds(
   }));
   if (!described.ok) return refuse(502, "exchange_failed", described.said);
   const { facts, userId } = described.value;
-  if (!facts.valid) return refuse(502, "exchange_failed", "Meta says the token is not valid.");
+  if (!facts.valid) return refuse(502, "exchange_failed", "Meta's sign-in ended. Connect again.");
   if (!facts.scopes.includes("ads_read")) {
     log.info("ads_connect_refused", { at: "scopes" });
     return refuse(403, "scope_missing", "The business did not allow its ads to be read.");

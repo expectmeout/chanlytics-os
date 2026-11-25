@@ -15,8 +15,10 @@ import { META_CONNECTION_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody(raw, META_CONNECTION_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/meta/connection", { body: raw });
   if (!auth.ok) return auth.response;
+  const read = await readBody(raw, META_CONNECTION_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   return runMetaOp(auth, body);
 });

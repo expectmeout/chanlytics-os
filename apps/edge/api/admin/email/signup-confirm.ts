@@ -14,5 +14,7 @@ import { SIGNUP_CONFIRM_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/signup-confirm");
   if (!auth.ok) return auth.response;
-  return askAgain(auth, await readBody(request, SIGNUP_CONFIRM_DOOR));
+  const read = await readBody(request, SIGNUP_CONFIRM_DOOR);
+  if (!read.ok) return read.response;
+  return askAgain(auth, read.body);
 });

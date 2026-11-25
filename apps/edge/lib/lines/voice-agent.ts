@@ -84,6 +84,7 @@ export async function createVoiceAgent(
         ok: false,
         step: "agent",
         status: 422,
+        // screen-word: an operator's door (voice provisioning); the provider's own terms say what to fix
         detail: "the adopted agent is not on a Retell LLM",
         partial: { llmId, llmVersion },
       };

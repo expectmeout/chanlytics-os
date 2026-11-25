@@ -17,5 +17,7 @@ const AUD = "/api/admin/stop-call";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
-  return stopLiveCall(auth, AUD, await readBody(request, STOP_CALL_DOOR));
+  const read = await readBody(request, STOP_CALL_DOOR);
+  if (!read.ok) return read.response;
+  return stopLiveCall(auth, AUD, read.body);
 });

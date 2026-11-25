@@ -228,5 +228,5 @@ export async function askToConfirmSignup(
     return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
   log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: body?.why ?? null });
-  throw new AppError("upstream_email", "The email asking them to confirm could not be sent. Try again in a minute.");
+  throw new AppError("upstream_email", "Couldn't send the email asking them to confirm. Try again in a minute.");
 }

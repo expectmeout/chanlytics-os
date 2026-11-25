@@ -47,7 +47,7 @@ import {
 
 test("a broadcast is refused in the person's words, in order, before anything is written: the template, who, the list, the template as Meta holds it, the values, the link", async () => {
   const f = fakes();
-  await refused(make(f, { template_id: "nope", audience: everyone }), "validation", 400, "Pick a template.");
+  await refused(make(f, { template_id: "nope", audience: everyone }), "validation", 400, "Pick a saved message.");
   await refused(
     make(f, { template_id: T1, audience: { kind: "carrier pigeons" } }),
     "validation",
@@ -65,7 +65,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     make(fakes({ message: messageOf({ whatsapp: null }) }), { template_id: T1, audience: everyone }),
     "not_found",
     404,
-    "Template not found.",
+    "Saved message not found.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ meta_status: "rejected" }) }) }), {
@@ -84,13 +84,13 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "This template takes 1 value.",
+    "This saved message takes 1 value.",
   );
   await refused(
     make(f, { template_id: T1, params: ["extra"], audience: everyone }),
     "validation",
     400,
-    "This template takes no values.",
+    "This saved message takes no values.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -839,7 +839,7 @@ test("what could not be written says so: the run, its people and its job are one
     const { e, wire, said } = await refusedLoudly(make(f, { template_id: T1, audience: everyone }));
     assert.equal(e.code, "internal");
     assert.equal(e.status, 500);
-    assert.equal(e.message, "The send could not be created. Nothing was sent; try again.");
+    assert.equal(e.message, "Couldn't create the send. Nothing was sent. Try again.");
     assert.deepEqual(f.ops(), ["assemble"], "nothing to fail, nothing recorded");
     // The database's words are the log's: the answer the route sends carries none of them.
     assert.equal(e.details, undefined, "no details to send");

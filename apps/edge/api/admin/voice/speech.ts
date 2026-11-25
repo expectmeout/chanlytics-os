@@ -14,18 +14,11 @@
  * word is not behind the whole): the vendor reads these as carrying on from them, and is not billed for them.
  */
 import { refuse } from "../../../lib/shared/http.js";
-import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/admin-auth.js";
+import { authorizeAdmin, workspaceAndPersonFor } from "../../../lib/shared/admin-auth.js";
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askSpeechConfigured, speakAskVoice } from "../../../lib/voice/ask-voice.js";
-import {
-  ASK_SPEECH_MAX_CHARS,
-  SPEECH_PURPOSES,
-  UUID,
-  VOICE_IS_OFF,
-  VOICE_SPEECH_DOOR,
-  isTenantId,
-} from "@chanlytics/contracts";
+import { ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, VOICE_IS_OFF, VOICE_SPEECH_DOOR } from "@chanlytics/contracts";
 import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
@@ -39,12 +32,12 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askSpeechConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody(request, VOICE_SPEECH_DOOR);
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  const tenantId = ws.tenantId ?? "";
-  const userId = personFor(auth, body.user_id) ?? "";
-  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  const read = await readBody(request, VOICE_SPEECH_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
+  const asker = workspaceAndPersonFor(auth, body);
+  if (!asker.ok) return asker.response;
+  const { tenantId } = asker;
   const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
   if (!text) return refuse(400, "bad_request", "text required");
   if (text.length > ASK_SPEECH_MAX_CHARS)

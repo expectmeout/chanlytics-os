@@ -71,7 +71,7 @@ export async function answerRequestRow(
     // A refusal the sentences lack, or no row and no error: logged raw before the generic sentence.
     const sentence = bookingRequestRefusalOf(item.error);
     if (!sentence) log.error("booking_request_unknown_answer", { appointment: row.id, error: item.error ?? null });
-    throw new AppError("validation", sentence ?? "Could not answer this.");
+    throw new AppError("validation", sentence ?? "Couldn't answer this.");
   }
   if (typeof item.decision_id !== "string")
     throw new Error("booking_request_answer: the door answered without its decision");

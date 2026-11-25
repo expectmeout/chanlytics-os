@@ -236,7 +236,7 @@ export async function recordDealMove(
     if (!(item.error && DEAL_REFUSALS[item.error])) {
       log.error("deal_door_unknown_answer", { contact: contactId, error: item.error ?? null, deal: !!item.deal });
     }
-    throw new AppError("validation", DEAL_REFUSALS[item.error ?? ""] ?? "Could not record this.");
+    throw new AppError("validation", DEAL_REFUSALS[item.error ?? ""] ?? "Couldn't record this.");
   }
   if (typeof item.decision_id !== "string") throw new Error("record_deal: the door answered without its decision");
   return { deal: item.deal, from: item.from ?? null, decision_id: item.decision_id };
