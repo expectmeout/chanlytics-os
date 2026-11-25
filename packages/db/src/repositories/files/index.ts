@@ -107,6 +107,7 @@ export {
   findWeekForAI,
   findWeekRung,
   handOutPlans,
+  holdSlotsLeftOut,
   holdWeek,
   listWeeksApproved,
   markSlotMade,
