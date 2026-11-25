@@ -32,7 +32,7 @@ import {
   THEME_COLORS,
   LOOK_THEME_COLORS,
 } from "../../packages/contracts/src/shell/chrome/theme.ts";
-import { outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-app.ts";
+import { FRAME_DRAWN_ATTR, outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-app.ts";
 import { routeOfAddress, routeOfPath } from "../../packages/contracts/src/shell/address.ts";
 import { FIRST_RUN_ROUTE } from "../../packages/contracts/src/setup/first-run-route.ts";
 import { paintThemeColor } from "../../apps/dashboard/src/bridge/theme-color.ts";
@@ -458,6 +458,7 @@ const outlineBoot = ({ stored = null, storageThrows = false, pathname = "/w/acme
     bare: BARE_ATTR in attrs,
     lit: attrs["data-outline-lit"] ?? null,
     search: "data-outline-search" in attrs,
+    frame: FRAME_DRAWN_ATTR in attrs,
     threw,
   };
 };
@@ -529,6 +530,31 @@ test("it marks the first run, and only the first run, as the app draws it full s
     assert.equal(got.bare, appFullScreen(pathname, hash), `at ${pathname}${hash}`);
   }
   assert.equal(outlineBoot({ pathname: "/w/acme/start" }).bare, true, "the first run is one of them");
+});
+
+// The frame's outline is drawn at a workspace's every address, the first run's too (its page's ground alone), and at the
+// home's while it sends the tab on (bridge/FrameHost.tsx); no other page draws it. The rules that paint the document's
+// ground under the frame ask this flag before any code runs (dashboard kit/motion/root-flags.ts `frame`).
+test("it says the frame is drawn wherever its outline is, before first paint, and nowhere else", () => {
+  const CASES = [
+    ["/w/acme", "", true],
+    ["/w/acme/today", "", true],
+    ["/w/acme/inbox/th-1", "", true],
+    ["/w/acme/start", "", true],
+    ["/w/acme", "#/inbox", true],
+    ["/", "", true],
+    ["/", "#/start", true],
+    ["/login", "", false],
+    ["/signup", "", false],
+    ["/console", "", false],
+    ["/f/acme/a-form", "", false],
+    ["/w", "", false],
+  ];
+  for (const [pathname, hash, frame] of CASES) {
+    const got = outlineBoot({ pathname, hash, routes: OUTLINE_ROUTES });
+    assert.equal(got.threw, null, `threw at ${pathname}${hash}`);
+    assert.equal(got.frame, frame, `the frame at ${pathname}${hash}`);
+  }
 });
 
 test("it says the place the address lights and whether its page searches in Ask's line, from the frame's own places", () => {

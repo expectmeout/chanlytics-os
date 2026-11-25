@@ -16,6 +16,7 @@
  * e2e/shell/outline.spec.ts holds each part to the frame's.
  */
 import { Icon } from "../kit/icon/icon";
+import { useRootFlag } from "../kit/motion/root-flags";
 import { TabBar } from "../kit/tab-bar/tab-bar";
 import { NAV_GROUPS, PHONE_MORE, PHONE_TABS, type NavItem } from "./places";
 
@@ -138,8 +139,12 @@ function OutlineFoot() {
   );
 }
 
-/** The outline, and the one sentence a screen reader hears while it stands. */
+/**
+ * The outline, and the one sentence a screen reader hears while it stands. It holds the frame's flag on the document's
+ * root (kit/motion/root-flags.ts), which the head's script stamped before first paint (contracts outlineBootScript).
+ */
 export function FrameOutline() {
+  useRootFlag("frame", true);
   return (
     <>
       <div className="app-root frame-outline" inert aria-hidden="true">

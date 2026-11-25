@@ -20,6 +20,7 @@ import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
 import { lmPhone, LrPanel } from "./panel";
 import { carriedOver, useHeldList } from "../kit/motion/held-list";
+import { useRootFlag } from "../kit/motion/root-flags";
 
 // The clock ticks once a second while a call is up; a call's calls are read again every eight.
 const CLOCK_MS = 1000;
@@ -96,6 +97,8 @@ const LiveMonitorReal = ({ initialCallId = null }: LivePageProps) => {
 
   // Each call opened, timed from the press that opened it: a move inside the page (client/page-speed.ts).
   usePartShown("live", "call", !!L, activeId ?? L?.now[0]?.callId ?? null);
+  // A call open takes the screen over, and says so on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("takenOver", !!L && detail);
   if (!L) return null;
   const line = L.line;
   const goBack = () => {

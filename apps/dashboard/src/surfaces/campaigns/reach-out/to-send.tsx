@@ -32,6 +32,7 @@ import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { leadOverDoor } from "../../leads/sheet/lead-over";
 import { RoSaidAsk, type SaidMore } from "./said-ask";
 import { reachOuts } from "./surface";
@@ -132,6 +133,8 @@ function MailAppPill(p: {
 
 /** One email handed over: who, what, its mail app with the rest under More, and the owner's word on it at the end. */
 function RoToSendRow({ row, L, may, busy, said, onSay, onTell, dock = false }: RowProps) {
+  // Docked, it is a lead sheet's foot, on the document's body: AI's circle stands down for it (kit/motion/root-flags.ts).
+  useRootFlag("dockUp", dock);
   const [copied, copy] = useCopied();
   const [asked, setAsked] = useState(false);
   const [reading, setReading] = useState(false);

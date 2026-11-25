@@ -34,6 +34,7 @@
  */
 import { VIEW_CHANGE_MS } from "@chanlytics/contracts";
 import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHeight, windowTo } from "./page-scroll";
+import { holdPictured } from "./root-flags";
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
 export const TIMELINE_MS = VIEW_CHANGE_MS;
@@ -478,8 +479,14 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
   for (const [node, [top, left]] of table.scrolled.get(gone) ?? [])
     if (gone.contains(node)) Object.assign(node, { scrollTop: top, scrollLeft: left });
   const anims = leavingAnims(gone, move, was, table.env.now());
+  // What the page pictures (a page that takes the screen over, Settings, a bar docked at its foot) stands on the document's
+  // root until it has gone, as the rules' :has() saw it there (root-flags.ts holdPictured).
+  const letGo = holdPictured(gone);
   // A page that travels its whole width is gone when it has travelled; any other, when it has faded.
-  after(was?.role !== "in" && move.whole ? anims[0] : anims.at(-1), () => gone.remove());
+  after(was?.role !== "in" && move.whole ? anims[0] : anims.at(-1), () => {
+    gone.remove();
+    letGo();
+  });
 }
 
 /** A view React keeps mounted but hidden where it stands (Activity hides it so), rather than one it took away. */

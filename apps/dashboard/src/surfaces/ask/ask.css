@@ -2038,8 +2038,9 @@ body.ask-open .tb-ask .tb-ask-face {
   }
   /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
      and Send sits a thumb from here. Ask comes back with the list, and is there under the page as a thumb carries it back
-     (data-carrying, mobile.css). A bar docked at the foot (data-dock, mobile.css) takes the same room. */
-  :root:not([data-carrying]) body:has([data-takeover]) .phone-ask {
+     (data-carrying, mobile.css). A bar docked at the foot (data-dock, mobile.css) takes the same room. Both are flags on
+     the document's root (kit/motion/root-flags.ts, data-taken-over and data-dock-up), weighing what their :has() did. */
+  :root:not([data-carrying])[data-taken-over] body .phone-ask {
     display: none;
   }
   /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css); not under a page
@@ -2049,7 +2050,7 @@ body.ask-open .tb-ask .tb-ask-face {
       opacity var(--duration-fast) var(--ease-out),
       visibility 0s linear 0s;
   }
-  :root:not([data-carrying]) body:has([data-dock]:not([data-leaving])) .phone-ask {
+  :root:not([data-carrying])[data-dock-up][data-dock-up] body .phone-ask {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -2059,14 +2060,14 @@ body.ask-open .tb-ask .tb-ask-face {
   }
   @media (prefers-reduced-motion: reduce) {
     .phone-ask,
-    body:has([data-dock]) .phone-ask {
+    :where(:root)[data-dock-up][data-dock-up] body .phone-ask {
       transition: none;
     }
   }
   /* A page that takes the screen over, pushed in over its list (kit/motion/held-list.ts, data-pushing): the circle leaves
      with the list as the tab bar does (mobile.css), rather than stand under the page, where its lower edge showed beneath
      the thread at the window's foot until it had landed (Ruben's iPhone recording, 23 Oct 2026). */
-  :root[data-pushing] body:has([data-takeover]) .phone-ask {
+  :root[data-pushing][data-taken-over] body .phone-ask {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;

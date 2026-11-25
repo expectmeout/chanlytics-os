@@ -145,6 +145,7 @@ const HOOKS = [
   "useId",
   "useEffect",
   "useLayoutEffect",
+  "useInsertionEffect",
   "useSyncExternalStore",
 ];
 
@@ -152,11 +153,13 @@ const HOOKS = [
  * The stub React's hooks, set on the react module the kit's TSX imports them from: under this runner's react-server
  * condition that module has none, and a component of the kit calls `useState` from it. installStubReact does it for its
  * own stub; a test that keeps a stub of its own calls this once that stub is in place. A stub with no layout effect runs it
- * as an effect, as the JSX the kit replaced did (`React.useLayoutEffect || React.useEffect`).
+ * as an effect, as the JSX the kit replaced did (`React.useLayoutEffect || React.useEffect`); and one with no insertion
+ * effect (the flags a part stamps on the document's root, kit/motion/root-flags.ts) runs it as its layout effect.
  */
 export function useStubHooks(stub = globalThis.React) {
   for (const hook of HOOKS) if (stub[hook]) reactModule[hook] = stub[hook];
   if (!stub.useLayoutEffect && stub.useEffect) reactModule.useLayoutEffect = stub.useEffect;
+  if (!stub.useInsertionEffect) reactModule.useInsertionEffect = reactModule.useLayoutEffect;
   reactModule.Fragment = stub.Fragment;
   // The frame's error boundary is a class (surfaces/frame/shell-chrome.tsx), and the react-server module has no Component.
   if (stub.Component) reactModule.Component = stub.Component;
@@ -364,6 +367,7 @@ export function installStubReact(extra = {}) {
     },
     useEffect: effect,
     useLayoutEffect: effect,
+    useInsertionEffect: effect,
     // A store outside React: heard while the component is drawn (its subscription made again each draw, the old one
     // let go, as React does when `subscribe` is a new function), and a notice is a reason to draw again.
     useSyncExternalStore: (subscribe, snapshot) => {

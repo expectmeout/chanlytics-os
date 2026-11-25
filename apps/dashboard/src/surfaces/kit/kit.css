@@ -3015,8 +3015,10 @@ a.more-item {
    foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
    for a few seconds, and one over Save hides the one press that finishes. */
 /* A sheet on its way out (data-leaving, below) is not a sheet a toast has to clear: the toast a save raises would
-   otherwise start over where the sheet's foot was and drop as the sheet went. */
-:root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack {
+   otherwise start over where the sheet's foot was and drop as the sheet went. The sheet says it is open on the
+   document's root as it opens (kit/motion/root-flags.ts, data-record-open and data-sheet-open), written twice: the rule
+   weighs what its `:has(.rec-sheet:not([data-leaving]))` did, which every change on the page had the browser read again. */
+:root[data-record-open][data-record-open] .pp-toast-stack {
   bottom: calc(184px + env(safe-area-inset-bottom));
 }
 
@@ -4676,15 +4678,15 @@ a.list-row {
 }
 /* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
    record.css:23-26). */
-:root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+:root[data-sheet-open][data-sheet-open] .pp-toast-stack {
   bottom: calc(184px + env(safe-area-inset-bottom));
 }
 @media (width > 900px) {
-  :root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+  :root[data-sheet-open][data-sheet-open] .pp-toast-stack {
     bottom: 18px;
     left: calc((100vw - min(540px, 92vw)) / 2);
   }
-  :root:has(.sheet:not([data-leaving])) .pp-toast {
+  :root[data-sheet-open][data-sheet-open] .pp-toast {
     max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px));
   }
 }

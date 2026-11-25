@@ -17,6 +17,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { RefObject, UIEvent } from "react";
 import { can, pick, pickAll } from "./dom";
+import { holdPictured } from "../motion/root-flags";
 import { mediaQuery } from "./shell-verbs";
 
 const REC_LEAVE_FALLBACK_MS = 400;
@@ -55,12 +56,15 @@ const recSheetLeaves = (sheet: HTMLElement | null, wash: HTMLElement | null, top
   root.appendChild(sheetCopy);
   const body = can(sheetCopy, "querySelector") ? pick(sheetCopy, ".rec-sheet-body") : null;
   if (body) body.scrollTop = top;
+  // What the copy pictures stands on the document's root until it has gone (motion/root-flags.ts holdPictured).
+  const letGo = holdPictured(sheetCopy);
   let gone = false;
   const go = () => {
     if (gone) return;
     gone = true;
     sheetCopy.remove();
     if (washCopy) washCopy.remove();
+    letGo();
   };
   sheetCopy.addEventListener("transitionend", (e) => {
     if (e.target === sheetCopy) go();

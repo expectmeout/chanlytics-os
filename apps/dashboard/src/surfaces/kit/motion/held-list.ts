@@ -40,6 +40,7 @@ import { pagesOwnTop } from "../head/frame-head";
 import { frameTopInTheFlow, frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
+import { holdWhileMarked } from "./root-flags";
 import {
   clearOfFoot,
   inHeldList,
@@ -585,10 +586,12 @@ function goesWith(part: HTMLElement): HTMLElement {
 /**
  * A page carried over the list held under it, by a thumb or as it is pushed in (its swipe's `onGrab`): it wears
  * `data-going` (its place over the list, clients.css) and the screen it goes back to shows under it, with the sheet of
- * ground it slides over (showHeld).
+ * ground it slides over (showHeld). What the page marked so stands for on the document's root (a person's page carried:
+ * its dock steps aside, clients.css) is held while it is (root-flags.ts holdWhileMarked).
  */
 export function carriedOver(el: Element, on: boolean): void {
   el.toggleAttribute("data-going", on);
+  holdWhileMarked(el, "data-going", on);
   showHeld(on);
 }
 

@@ -14,6 +14,7 @@ import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PL_TABLE_CLASSES } from "../../people/words";
 import { PeopleRail } from "../../people/rail/people-rail";
 import { PeopleStanding } from "../../people/rail/standing";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { DataTable } from "../../kit/table/data-table";
 import type { TableSection } from "../../kit/table/groups";
 import { LeadsBackToday } from "../pile/back-today";
@@ -551,7 +552,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
 
 export const LeadsScope = (p: P) => {
   // The same band People's cards use and the same one the page's listener judges the Columns menu by. The page hands it
-  // down: it listens to the query, so a window resized past the band draws the other shape at once. Nothing here is a hook.
+  // down: it listens to the query, so a window resized past the band draws the other shape at once. It hears no query of its own.
   const phone = !!p.phone;
   // Needs review on a phone: the pile as the table's own sections (ldReviewSections), never the bench.
   const sections =
@@ -559,6 +560,9 @@ export const LeadsScope = (p: P) => {
       ? ldReviewSections({ benchGroups: p.benchGroups, rows: p.rows, review: p.review, canFind: p.cellCtx.canFind })
       : null;
   const railRows = railRowsOf(p, phone);
+  // The first day is the screen as the browser shows it, and no taller (leads.css): said on the document's root, where
+  // the frame's root asks it (kit/motion/root-flags.ts).
+  useRootFlag("leadsFirstDay", !!p.firstDay);
   return (
     <div
       ref={p.scopeView?.ref}

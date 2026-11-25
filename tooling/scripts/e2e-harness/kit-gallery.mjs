@@ -31,12 +31,14 @@
  * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
  * every selector of kit.css in a browser. The words are made up, as every fixture's are.
  *
- * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the sheets this page draws place the
- * toast stack for every entry, beside a sheet on a desk and above its foot on a phone. The bell's list, a desk's
- * twin, is not in a phone's page, where it would put the stack at the foot as the bell's panel does (mobile.css,
- * :root:has(.tbn-pop)), over a sheet's Save.
+ * A rule keyed to the whole document (a flag on its root, kit/motion/root-flags.ts) holds for the whole page: the page
+ * stamps each flag its entries picture as it loads (FLAGS_SCRIPT), as the app's parts stamp theirs, so the sheets this
+ * page draws place the toast stack for every entry, beside a sheet on a desk and above its foot on a phone. The bell's
+ * list, a desk's twin, is not in a phone's page, where it would put the stack at the foot as the bell's panel does
+ * (mobile.css, data-bell-open), over a sheet's Save.
  */
 import { styleLinks } from "./app-styles.mjs";
+import { ROOT_FLAGS } from "../../../apps/dashboard/src/surfaces/kit/motion/root-flags.ts";
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
 
 /**
@@ -2013,7 +2015,7 @@ export const FAMILIES = [
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
       "none with a ×: a press besides a toast takes it. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
-      "a phone (record.css and kit.css, :root:has(.rec-sheet) and :root:has(.sheet)). Its place with none open is " +
+      "a phone (record.css and kit.css, data-record-open and data-sheet-open on the root). Its place with none open is " +
       "drawn by the style-equality recorder's toast scene, not here.",
     entries: [
       {
@@ -3526,6 +3528,23 @@ const GALLERY_SCRIPT = `
     })();
 `;
 
+/**
+ * The flags on the document's root that the entries picture, stamped as the page loads, after the entries bound to the
+ * other width have left: each flag whose selector an entry meets where it stands (root-flags.ts holdPictured, read
+ * once, as the entries stand still). The gallery draws no app root, so nothing the frame's root asks is stamped.
+ */
+const FLAGS_SCRIPT = `
+    (function () {
+      var root = document.documentElement;
+      ${JSON.stringify(Object.values(ROOT_FLAGS))}.forEach(function (f) {
+        var met = Array.prototype.some.call(document.querySelectorAll(f.picture), function (el) {
+          return f.within === "document" || !!el.closest(f.within === "frame" ? ".app-root" : "body");
+        });
+        if (met) root.setAttribute(f.attr, "");
+      });
+    })();
+`;
+
 /** One attribute, or nothing where there is no value. */
 const attr = (name, value) => (value === undefined || value === null ? "" : ` ${name}="${value}"`);
 
@@ -3576,6 +3595,7 @@ export function galleryDocument(families = FAMILIES) {
 ${families.map(familyHtml).join("\n")}
   </main></div>
   <script>${GALLERY_SCRIPT}  </script>
+  <script>${FLAGS_SCRIPT}  </script>
 </body>
 </html>
 `;
