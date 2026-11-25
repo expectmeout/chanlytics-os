@@ -166,10 +166,14 @@ test("TWO lists, because there are two answers: one for messages, one for offers
     "cl-row-offers cl-row-offers-held",
     "marked as held, in the page's own name",
   );
-  assert.match(unsent.td.props.title, /No phone number on file/, "the reason is the send's own (contracts heldWords)");
+  assert.match(
+    unsent.td.props["data-tip"],
+    /No phone number on file/,
+    "the reason is the send's own (contracts heldWords)",
+  );
   const yes = drawn("unknown", "opted_in");
   assert.equal(yes.td.props["data-testid"], "row-offers");
-  assert.equal(yes.td.props.title, yes.p.consent.marketingSub, "and its tooltip is that answer's own history");
+  assert.equal(yes.td.props["data-tip"], yes.p.consent.marketingSub, "and its tip is that answer's own history");
 });
 
 test("the front desk's consent changes take one bucket: sixty a minute", () => {
