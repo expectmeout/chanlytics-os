@@ -514,7 +514,7 @@ function searchBox(list: ListCtx) {
         <button
           className={`ix-views-toggle ${showViews ? "open" : ""}`}
           onClick={() => setShowViews(!showViews)}
-          title="Saved views"
+          data-tip="Saved views"
           aria-label="Saved views"
           aria-expanded={showViews}
         >

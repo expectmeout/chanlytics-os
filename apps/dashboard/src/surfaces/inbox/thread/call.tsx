@@ -537,7 +537,7 @@ function callOpened(c: CallDraw) {
         {(file || reviewId) && (
           <div className="tl-call-acts">
             {file && (
-              <a className="tl-call-file" href={file} download title="Download the transcript">
+              <a className="tl-call-file" href={file} download data-tip="Download the transcript">
                 <Icon name="download" size={11} />
                 Download transcript
               </a>

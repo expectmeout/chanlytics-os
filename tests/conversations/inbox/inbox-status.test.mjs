@@ -196,7 +196,7 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   const standing = find(pane, byTestId("ix-th-standing"));
   assert.equal(textOf(standing), "Needs you40mWaiting 40m");
   const meta = find(standing, hasClass("ix-th-standing-meta"));
-  assert.equal(meta.props.title, "Waiting 40m", "the wait, named on a hover");
+  assert.equal(meta.props["data-tip"], "Waiting 40m", "the wait, named on a hover");
   // The figure is the eye's; a screen reader is told the whole of it, where "40m" alone read as a length of nothing.
   assert.equal(meta.props["aria-hidden"], true);
   assert.equal(textOf(find(standing, hasClass("ix-wait-said"))), "Waiting 40m");

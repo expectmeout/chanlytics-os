@@ -43,7 +43,7 @@ export function pickAll(p: { ids: string[]; selected: string[]; onToggle: (id: s
   const { ids, selected, onToggle, onClear } = p;
   const allSelected = ids.length > 0 && ids.every((id) => selected.includes(id));
   return (
-    <label className="ix-checkall" title={allSelected ? "Clear the selection" : `Select all ${ids.length}`}>
+    <label className="ix-checkall" data-tip={allSelected ? "Clear the selection" : `Select all ${ids.length}`}>
       <input
         type="checkbox"
         checked={allSelected}
@@ -102,7 +102,7 @@ export function pickBar(p: {
             variant="primary"
             size="sm"
             onClick={approve}
-            title="Approves selected approvals with ≥80% confidence"
+            data-tip="Approves selected approvals with ≥80% confidence"
             {...gate("approve")}
           >
             Approve all safe
