@@ -1,17 +1,7 @@
 /**
- * deliver(): the one door a message leaves through.
+ * deliver(): the one door a message leaves through, so the pause and consent are asked one way for every send: the
+ * outbox, a broadcast, the voice booking link and the receptionist's reply.
  *
- * Four sequences used to put words on a wire, each assembled by hand: the
- * outbox job asked "opted out?" and nothing about the thread, the broadcast
- * asked the one predicate with the template's purpose and then checked the
- * pause, the voice booking link asked a gate of its own, and the webhook's
- * reply is the statement order of a 300-line function. They disagreed about
- * the pause and about marketing consent, and the disagreements were the
- * defects: a promotional template reaching someone who had said yes to
- * appointments and no to offers; a held draft firing under the owner's own
- * words.
- *
- * This is the door for the first three, and the shape the fourth grows into.
  * It RE-READS the facts at the wire -- the person's consent, the thread's
  * pause, the workspace's status -- because the moment before the send is the
  * one place a stale answer cannot be taken back. It knows nothing about who
@@ -218,7 +208,7 @@ export interface Delivery {
 function kindOf(d: Delivery): SendKind {
   // A cold email is a broadcast whoever wrote its words and whatever its caller names it: the workspace's pause, the
   // thread's and a live hold all stop it. Read from `sender`, a row a person had edited would pass as their reply; read
-  // from a caller's `kind`, "reply" or "system" would skip the pauses (Part 2.6).
+  // from a caller's `kind`, "reply" or "system" would skip the pauses.
   if (d.purpose === "outreach") return "broadcast";
   if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
@@ -375,6 +365,9 @@ interface OutreachFacts {
   } | null;
 }
 
+/** No lead points at the person: nothing of a lead's own holds the email. */
+const NO_LEAD_FACTS = { leadStage: null, suppressed: false, wroteBack: false, away: false, stopped: false } as const;
+
 /**
  * The facts outreach adds, in one question to the database (00424 outreach_mailbox_facts), and only for an outreach
  * email: a conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is
@@ -385,16 +378,7 @@ async function outreachFacts(db: Db, delivery: Delivery, wireFacts: WireFacts): 
   const unsubscribable =
     !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   const from = addressOf(delivery.email?.from)?.address ?? null;
-  if (!wireFacts.contactId)
-    return {
-      leadStage: null,
-      suppressed: false,
-      wroteBack: false,
-      away: false,
-      stopped: false,
-      unsubscribable,
-      mailbox: null,
-    };
+  if (!wireFacts.contactId) return { ...NO_LEAD_FACTS, unsubscribable, mailbox: null };
   let facts;
   try {
     facts = await getOutreachFacts(db, {
@@ -484,10 +468,7 @@ function refusalFor(
     if (outreachFacts.mailbox.sent_today >= mailboxDailyCap(outreachFacts.mailbox)) return "sending_mailbox_at_cap";
   }
   const kind = kindOf(delivery);
-  // A person's own reply goes out even when the machine is told to stop: the
-  // pause exists for them, and a paused workspace may still answer by hand.
-  // A broadcast is a person's words too, but it is proactive and automated,
-  // and it respects the pause like the machine it is.
+  // A person's own reply goes out whatever holds the machine: a paused workspace may still answer by hand (SendKind).
   if (kind === "reply") return null;
   return sendingRefusal(wireFacts.sendingHold, kind) ?? heldByThread(delivery, wireFacts, nowMs, kind);
 }
@@ -663,9 +644,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
   // brought to agree with the carrier, the way ingest records a STOP it did
   // hear, and the send is the refusal a recorded no is: the row canceled with
   // its reason, nothing escalated, and the next send to this person refused by
-  // the predicate before the provider is asked. It used to be a failure like
-  // any other: the owner told a delivery failed, nothing recorded, and every
-  // later send to that person failing and telling them again.
+  // the predicate before the provider is asked, never a failure the owner is told of on every later send.
   if (!sent.ok && delivery.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
@@ -794,7 +773,7 @@ export async function getTemplatePurpose(
 
 /**
  * The door for a caller that must never see it throw: the webhook, whose
- * outer catch only logs, so a thrown read used to be a customer's reply lost
+ * outer catch only logs, so a thrown read would be a customer's reply lost
  * with nobody told. A wire that cannot be read is a failure with its own
  * name, and the caller alerts a person the way it does for a provider's no.
  */
