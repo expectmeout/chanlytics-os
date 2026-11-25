@@ -465,9 +465,8 @@ keep the surfaces honest:
   surface draws may state a fact the database cannot support. A zero is a measurement and is shown; an invented number
   is not.
 
-The unbuilt surfaces (agent fleet, store, studio, tasks) are parked by decision, with the mockup's own `content` page
-(Content itself is live under Campaigns, at `campaigns/content`): each address draws the "Not in this release" card
-(`apps/dashboard/src/surfaces/frame/route-table.tsx`), and so does the shared report viewer
+The unbuilt surfaces (agent fleet, store, studio, tasks, content) are parked by decision: each address draws the "Not
+in this release" card (`apps/dashboard/src/surfaces/frame/route-table.tsx`), and so does the shared report viewer
 (`apps/dashboard/src/surfaces/frame/app-shell.tsx`). The retired deal board's address, `pipeline`, lands on People
 (`SURFACE_RETIRED` in `apps/dashboard/src/bridge/surface-registry.ts`). The demo session that drew some of them went
 with demo mode (16 November 2026). Their mockups, the seeded Lists and Ask palette and the seed data only they read lived in the shell's

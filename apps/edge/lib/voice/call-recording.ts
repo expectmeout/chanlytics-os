@@ -80,16 +80,16 @@ export function sniffAudioType(bytes: ArrayBuffer, given: string | null): string
 }
 
 /** stored; retry (a try spent, more to come); failed (the last spent, or a refusal for good); deferred (no try spent: the CDN or the bucket could not answer for the file just now). */
-type CopyOutcome = "stored" | "retry" | "failed" | "deferred";
+export type CopyOutcome = "stored" | "retry" | "failed" | "deferred";
 
 /** What the purge needs from the world: the clock, and the bucket's remove. */
-interface PurgePorts {
+export interface PurgePorts {
   now: Date;
   /** storage.from("media").remove(paths): a path already gone is the desired end state, not a failure. */
   remove(paths: string[]): Promise<{ removed: string[]; error: string | null }>;
 }
 
-interface PurgeOutcome {
+export interface PurgeOutcome {
   candidates: number;
   purged: number;
   error: string | null;

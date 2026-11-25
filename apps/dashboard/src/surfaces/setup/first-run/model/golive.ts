@@ -194,7 +194,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
 } as const;
 
 /** What starts at Go live, a row each (canvas 5A): what it is, and what it asks of the owner after. */
-interface GoLiveStartVM {
+export interface GoLiveStartVM {
   key: "calls" | "whatsapp" | "bookings" | "email";
   label: string;
   after: string;
@@ -262,7 +262,7 @@ export interface FirstRunGoLiveVM {
   rows: string[];
 }
 
-interface GoLiveInput {
+export interface GoLiveInput {
   dto: SetupDto;
   vm: SetupVM;
   /** Go live's phone, as first-run-phone.ts says it at `live`. */
@@ -510,7 +510,7 @@ export function firstRunGoLiveOf(goLiveInput: GoLiveInput): FirstRunGoLiveVM {
   const hands = goLiveFacts.hands;
   // Everything else is done: what answers now (5C).
   const none = { pay: null, switchOn: null, live: null, noProvider: null, hands, rows: [] };
-  if (goLiveInput.complete) return { ...none, stage: "live", live: goLiveOf(goLiveInput, goLiveFacts) };
+  if (goLiveInput.complete) return { ...none, stage: "live", live: liveOf(goLiveInput, goLiveFacts) };
   // No provider here, or a person was asked for the line: we set it up with them (5A·d), and say what goes live now of
   // what is connected, never more.
   if (phone.stage === "rows" && !dto.channels.voice.present && (!dto.lines?.ready || dto.requests.line)) {
@@ -531,7 +531,7 @@ export function firstRunGoLiveOf(goLiveInput: GoLiveInput): FirstRunGoLiveVM {
 }
 
 /** What answers now, and Ask's three moves (canvas 5C, 5C·a–c). */
-function goLiveOf(
+function liveOf(
   goLiveInput: GoLiveInput,
   input: { kept: string | null; always: boolean; own: string | null; waOn: boolean },
 ): NonNullable<FirstRunGoLiveVM["live"]> {

@@ -51,7 +51,7 @@ function addressesIn(typed: string, finished: boolean): { found: string[]; rest:
 }
 
 /** What the server's answer to one invitation says happened. */
-function inviteSaidOf(email: string, role: InviteRole, d: Record<string, unknown>): Said {
+function saidOf(email: string, role: InviteRole, d: Record<string, unknown>): Said {
   const as = roleSays(role).label;
   if (d.alreadyMember) return { email, done: false, words: "is already on the team" };
   if (d.added) return { email, done: true, words: `already had an account and joined as ${as}` };
@@ -77,7 +77,7 @@ async function inviteEach(to: readonly string[], people: readonly TeamPerson[], 
       );
     else {
       const r = await teamVerbs.invite(email, role);
-      if (r.ok) out.push(inviteSaidOf(email, role, (r.data ?? {}) as Record<string, unknown>));
+      if (r.ok) out.push(saidOf(email, role, (r.data ?? {}) as Record<string, unknown>));
       else {
         if (r.status === 429) stopped = r.message;
         out.push({ email, done: false, words: r.status === 429 ? `not sent: ${r.message}` : r.message });
