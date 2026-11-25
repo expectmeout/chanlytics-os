@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { serverTimingHeader } = await importSrc("apps/dashboard/src/server/shared/server-timing.ts");
+const { outsideCalls, serverTimingHeader } = await importSrc("apps/dashboard/src/server/shared/server-timing.ts");
 
 test("one part per name, in the order given, whole milliseconds, never below zero", () => {
   assert.equal(serverTimingHeader({ auth: 12.4, app: 310.6 }), "auth;dur=12, app;dur=311");
@@ -246,5 +246,21 @@ test("a request that asks to say its touches says them whatever the sample: the 
   assert.ok(
     ids.every((id) => touchedLine(id, touches, null, true)?.tables === "segments:INSERT"),
     "every one, where it asked",
+  );
+});
+
+test("an answered line says what each call out took, by what it called, and nothing where it called nothing out (decision 0149)", () => {
+  const shares = new Map([
+    ["db", { ms: 40.2, n: 3 }],
+    ["out.edge", { ms: 412.6, n: 1 }],
+    ["read.people", { ms: 12, n: 1 }],
+    ["out.anthropic", { ms: 1_900.4, n: 2 }],
+  ]);
+  assert.deepEqual(outsideCalls(shares), { edge: { n: 1, ms: 413 }, anthropic: { n: 2, ms: 1_900 } });
+  assert.equal(outsideCalls(new Map([["db", { ms: 4, n: 1 }]])), undefined);
+  assert.match(
+    serverTimingHeader({ app: 500 }, shares),
+    /out\.anthropic;dur=1900;desc="2"/,
+    "and the header says them",
   );
 });

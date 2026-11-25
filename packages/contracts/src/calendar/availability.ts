@@ -17,7 +17,7 @@
  * them in (describeOpenings). The feed is read in feed.ts and its text in ics-text.ts, the clock is
  * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
  */
-import { MIN_MS } from "../shared/time";
+import { HOUR_MS, MIN_MS } from "../shared/time";
 import type { Closure, Hours } from "../config/workspace-config/business-profile";
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
@@ -134,7 +134,7 @@ function onTheGrid(tz: string, atMs: number, slotMin: number): number {
   const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
   const c = clockInZone(tz, atMs);
   const into = ((c.mm % grid) * 60 + c.ss) * 1000 + (((atMs % 1000) + 1000) % 1000);
-  return into === 0 ? atMs : atMs - into + grid * 60_000;
+  return into === 0 ? atMs : atMs - into + grid * MIN_MS;
 }
 
 /**
@@ -144,9 +144,9 @@ function onTheGrid(tz: string, atMs: number, slotMin: number): number {
  */
 export function freeWindows(input: FreeWindowsInput): Opening[] {
   const rules = { ...BOOKING_DEFAULTS, ...(input.rules ?? {}) };
-  const leadMs = rules.lead_hours * 3600_000;
-  const bufferMs = rules.buffer_min * 60_000;
-  const slotMs = rules.slot_min * 60_000;
+  const leadMs = rules.lead_hours * HOUR_MS;
+  const bufferMs = rules.buffer_min * MIN_MS;
+  const slotMs = rules.slot_min * MIN_MS;
   // The first moment worth offering: now plus the least notice, up to the slot grid on the business's clock (C5).
   const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy
@@ -204,7 +204,7 @@ export function filterOpenings(
   const day = (by.day ?? "").trim().toLowerCase();
   const weekday = weekdayNamed(day) ?? undefined;
   const key = DAY_KEY.test(day) ? day : undefined;
-  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * MIN_MS : 0;
   const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));
   const first = weekday && !key ? picked.slice(0, 1) : picked; // "Tuesday" means the next one
   return first

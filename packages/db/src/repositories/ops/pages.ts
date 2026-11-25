@@ -23,3 +23,18 @@ export const stampOperatorPage = async (db: Db, key: string, at: string) =>
 /** Everything the pager remembers, the latest fired first. */
 export const listOperatorPages = async (db: Db) =>
   db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });
+
+/** The pager's key for a read that stopped at PostgREST's row cap, the table after its colon (db observe.ts atCap). */
+export const AT_CAP_PAGE = "db_answer_at_cap";
+
+/**
+ * A read of `table` that stopped at the row cap, noted in the pager's memory without a page of its own: its last firing
+ * and how often it fired, so Health shows it under what paged us and the health sweep pages it (layer 12). Either app
+ * notes it, from inside the request that read; only the edge can send a page.
+ */
+export async function noteAnswerAtCap(db: Db, table: string, at: string) {
+  const key = `${AT_CAP_PAGE}:${table}`;
+  const { data, error } = await findOperatorPage(db, key);
+  if (error) return { error };
+  return saveOperatorPage(db, { key, last_at: at, count: (data?.count ?? 0) + 1 });
+}

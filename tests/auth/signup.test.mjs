@@ -260,7 +260,8 @@ test("the wiring: two public paths, the guards on the route, a service role that
   // The server says which of the three doors this is; the field belongs to
   // exactly one of them.
   assert.ok(
-    page.includes('fetch("/api/v1/signup", { method: "GET"') && page.includes('{posture === "invite" && ('),
+    /askOwnRoute<[^>]*>\(\s*"\/api\/v1\/signup",\s*\{\s*headers/.test(page) &&
+      page.includes('{posture === "invite" && ('),
     "the code field appears only when the server asks for it",
   );
 });

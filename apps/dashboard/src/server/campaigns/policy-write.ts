@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import {
+  MIN_MS,
   AppError,
   isOneOf,
   POLICY_CLASSES,
@@ -24,7 +25,7 @@ import type { Member } from "@/server/shared/route";
 
 /** Each dial's refusal, said once: by the schema for a value that is not a number, below for one out of its range. */
 const DIAL_WORDS = {
-  reply_delay_ms: `The reply delay must be between ${REPLY_DELAY_MIN_MS / 1000}s and ${REPLY_DELAY_MAX_MS / 60000} minutes.`,
+  reply_delay_ms: `The reply delay must be between ${REPLY_DELAY_MIN_MS / 1000}s and ${REPLY_DELAY_MAX_MS / MIN_MS} minutes.`,
   min_confidence: "The confidence dial is a number from 0 (off) to 1.",
   max_llm_tokens_day: "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.",
   max_replies_day: "The reply cap is a whole number from 1 to 200.",

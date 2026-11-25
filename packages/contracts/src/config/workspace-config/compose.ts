@@ -22,7 +22,7 @@ import { offersAnswerRule, offersAskRule } from "./offers-ask";
 import { CALL_RULES, CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
 import { promptHoursLines, joinList } from "./prompt-hours";
 import { dayInZone } from "../../shared/zone/math";
-import { dateFormat } from "../../shared/time";
+import { DAY_MS, dateFormat } from "../../shared/time";
 
 /**
  * The receptionist's instructions, composed from the business's facts.
@@ -81,7 +81,7 @@ function labelDate(key: string, withWeekday: boolean): string {
 function businessToday(tz: string | null | undefined, at: Date): string | null {
   // No zone means we do not know what day it is there. Err toward stating a
   // closure (or a note) a day longer rather than hiding one that is live.
-  return (tz && dateKeyInZone(tz, at)) || dateKeyInZone("UTC", new Date(at.getTime() - 86400000));
+  return (tz && dateKeyInZone(tz, at)) || dateKeyInZone("UTC", new Date(at.getTime() - DAY_MS));
 }
 
 /** The closures still ahead of the business on its day (businessToday), oldest first. */

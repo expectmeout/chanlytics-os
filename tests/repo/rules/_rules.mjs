@@ -1,5 +1,5 @@
 /**
- * Whether a rule is said once: a function the same as another but for its names, a sentence in several modules, a call to the outside past a client, and the patterns that say what an id, a day
+ * Whether a rule is said once: a function the same as another but for its names, a sentence in several modules, a call to the outside past a client, a line past the logger, and the patterns that say what an id, a day
  * or a number looks like. The numbers check:debt holds (RULE_RATCHETS) and the homes rules.test.mjs holds outright (decision 0108).
  */
 import ts from "typescript";
@@ -219,17 +219,66 @@ export function fetchesIn(sf) {
   return n;
 }
 
-/** Where a provider's wire belongs is `packages/channels`; these trees should reach the outside through it or through one client of their own. */
-const PAST_A_CLIENT_TREES = [
-  "apps/edge/lib",
-  "apps/edge/api",
-  "apps/dashboard/src/server",
-  "apps/dashboard/app/api",
-  "packages/core/src",
-  "packages/jobs/src",
-  "packages/db/src",
-];
 const NOT = /\.d\.ts$|\.generated\.|database\.types\.ts$|\.type-test\.|(^|\/)test\/|\.test\./;
+
+/**
+ * Where a global `fetch` may still be written, each with why (layer 12, 25 Nov 2026). Every other call out leaves through
+ * one door: a provider's, the edge's, the dashboard's own and the bucket's through channels' `fetchFromProvider`, a page's
+ * through the API client or `client/own-route.ts`, and a client takes the fetch it calls as its dependency. These are
+ * not on it. A path names a file, or a whole tree with its trailing slash. (The map's worker, the vendored maplibre file
+ * under `apps/dashboard/public`, is a file the browser loads as it is, and no tree read here.)
+ */
+export const FETCH_EXCEPTIONS = {
+  "packages/channels/":
+    "the providers' wire: every adapter leaves through fetchFromProvider, and a byte download from a provider's CDN (Retell's recordings, WhatsApp's media) counts toward no provider's breaker",
+  "apps/relay/": "a Cloudflare Worker: its own runtime and deploy, which bundles nothing of ours",
+  "apps/mobile/":
+    "the phone app (paused, 7 Oct 2026): it reads the site's version itself and shares no client with the site",
+  "apps/dashboard/src/auth/GoogleSignIn.tsx":
+    "a page's read of Supabase's auth settings, as the person: a page's call to the identity store stays in the browser (CLAUDE.md, Where new code goes)",
+};
+
+const excepted = (f) => Object.keys(FETCH_EXCEPTIONS).some((at) => (at.endsWith("/") ? f.startsWith(at) : f === at));
+
+/** Each module of apps and packages that calls the global fetch, by how many calls: past the one door, or excepted. */
+export function fetchesBy({ exceptions }) {
+  return Object.fromEntries(
+    repoFiles(["apps", "packages"])
+      .filter((f) => /\.(m?[jt]sx?)$/.test(f) && !NOT.test(f) && excepted(f) === exceptions)
+      .map((f) => [f, fetchesIn(parse(f))])
+      .filter(([, n]) => n > 0),
+  );
+}
+
+/** The calls a syntax tree makes to `console`: a line no query can read, where the logger writes one that can. */
+export function consoleCallsIn(sf) {
+  let n = 0;
+  const walk = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "console"
+    )
+      n += 1;
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return n;
+}
+
+/**
+ * The two places a line is written with `console` on purpose, each with why: the logger's own transport, and db's stand-in
+ * for it before an app hands its logger in. Every other server and package line goes through the logger (the lint refuses
+ * `console` in those trees); the browser's and the phone app's are counted, and fall as lane 7 brings them behind one
+ * report seam.
+ */
+export const CONSOLE_SINKS = {
+  "packages/log/src/logger.ts":
+    "the logger's transport: Vercel keeps stdout per invocation, and the level rides the method",
+  "packages/db/src/shared/observe.ts":
+    "db's lines before an app hands it the logger (a script, a test of db alone): db leans on contracts alone, so it writes the logger's envelope itself",
+};
 
 /** The patterns a syntax tree writes that are some rule's, as `{ rule, written }`. */
 export function rulePatternsIn(sf) {
@@ -279,16 +328,16 @@ export const RULE_RATCHETS = [
       "A word a person reads is contracts' (decision 0027), or a words module beside the doors that say it. Name it once and import it.",
   },
   {
-    name: "fetch calls past a client",
-    file: "fetches-outside-a-client.json",
+    name: "console calls past the logger",
+    file: "console-calls.json",
     measure: () =>
       Object.fromEntries(
-        repoFiles(PAST_A_CLIENT_TREES)
-          .filter((f) => /\.tsx?$/.test(f) && !NOT.test(f))
-          .map((f) => [f, fetchesIn(parse(f))])
+        repoFiles(["apps", "packages"])
+          .filter((f) => /\.(m?[jt]sx?)$/.test(f) && !NOT.test(f) && !(f in CONSOLE_SINKS))
+          .map((f) => [f, consoleCallsIn(parse(f))])
           .filter(([, n]) => n > 0),
       ),
     advice:
-      "A provider's wire is packages/channels': it owns the timeout, the error and the log line. Layer 12 moves what is left.",
+      "A line is the logger's: log.info|warn|error(name, fields) on the server and in the packages (one JSON object, a name of the closed set). A page's report goes through the browser's report seam as lane 7 builds it.",
   },
 ];

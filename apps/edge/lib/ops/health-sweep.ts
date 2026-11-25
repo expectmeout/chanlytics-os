@@ -36,6 +36,7 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
+import { watchRowCap } from "./cap-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
 import { keepResultsMoving } from "../content/results-upkeep.js";
@@ -64,6 +65,24 @@ async function watchCampaignsDomain({ db, L }: Pick<SweepTick, "db" | "L">): Pro
   if (c.trouble) {
     const page = describeCampaignsDomainTrouble(c.trouble, campaigns);
     await pageOperator({ db }, `campaigns_domain:${campaigns}`, page.subject, page.body);
+  }
+}
+
+/**
+ * Due work nobody is claiming is the platform's condition whatever the sweep rows say: the heartbeat can be scheduled and
+ * answering and still not draining. One page per window until it does.
+ */
+async function pageJobsBacklog({ db, L }: Pick<SweepTick, "db" | "L">): Promise<void> {
+  const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
+  if (backlogErr) L.error("sweep_health_backlog_unreadable", { error: backlogErr.message });
+  const due = typeof backlog === "number" ? backlog : 0;
+  if (due > 0) {
+    await pageOperator(
+      { db },
+      "jobs_backlog",
+      `${due} due jobs have waited more than two minutes`,
+      "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.",
+    );
   }
 }
 
@@ -127,21 +146,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const { error: markErr } = await markSweepsAlerted(db, delivered ? plan.alert.map((r) => r.sweep) : [], plan.healthy);
   if (markErr) L.error("sweep_health_mark_failed", { error: markErr.message });
 
-  // Due work nobody is claiming is the platform's condition whatever the
-  // sweep rows say: the heartbeat can be scheduled and answering and still
-  // not draining. One page per window until it does.
-  const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
-  if (backlogErr) L.error("sweep_health_backlog_unreadable", { error: backlogErr.message });
-  const due = typeof backlog === "number" ? backlog : 0;
-  if (due > 0) {
-    await pageOperator(
-      { db },
-      "jobs_backlog",
-      `${due} due jobs have waited more than two minutes`,
-      "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.",
-    );
-  }
-
+  await pageJobsBacklog({ db, L });
   await pagePausedKinds({ db, L });
 
   // WhatsApp messages that never heard back, in a workspace where nothing
@@ -198,6 +203,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   // The voice provider: its account's calls at once against its limit, and once a day every live agent against the
   // product's shell and settings (decision 0092).
   const voice = await watchVoice(db);
+  // A list either app read at the 1,000-row cap, noted as it happened (layer 12), paged once per window.
+  const rowCapPaged = await watchRowCap(db);
   // Forms' watch (00675, 00680); a post's numbers read at their steps, and touches aged to counts (00699).
   const kept = { ...(await watchForms(db, Date.now())), ...(await keepResultsMoving(db)) };
 
@@ -226,6 +233,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     site_credits: siteCredits,
     voice_concurrency: voice.concurrency,
     voice_drifted: voice.drifted,
+    row_cap_paged: rowCapPaged,
     ...kept,
   });
 
