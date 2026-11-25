@@ -158,7 +158,7 @@ test("an email has its subject, and its answer comes to the team: there is no ch
   const signed = reachOf({ deal_id: "d1" }, null, "Sam Reyes\nFounder · Harbor Studio\nwww.harbor.example | 555-0142");
   const drawn = draw(NewMessage, { s: stateOf(signed, "email").s, reach: signed });
   assert.equal(said(drawn, "ix-new-signed"), "Signed Sam Reyes · Founder · Harbor Studio · www.harbor.example");
-  assert.equal(byTestId(drawn, "ix-new-signed").props.title, signed.email_signed);
+  assert.equal(byTestId(drawn, "ix-new-signed").props["data-tip"], signed.email_signed);
 });
 
 test("where WhatsApp carries only an approved message, the ones that can go are offered with the words of the one chosen", () => {

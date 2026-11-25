@@ -171,7 +171,7 @@ function whenPart(p: BarProps) {
           size="sm"
           iconOnly
           className="cal-nav"
-          title="Previous"
+          data-tip="Previous"
           aria-label="Previous"
           onClick={() => move(-1)}
           data-testid="cal-prev"
@@ -193,7 +193,7 @@ function whenPart(p: BarProps) {
           size="sm"
           iconOnly
           className="cal-nav"
-          title="Next"
+          data-tip="Next"
           aria-label="Next"
           onClick={() => move(1)}
           data-testid="cal-next"
@@ -209,7 +209,7 @@ function whenPart(p: BarProps) {
         label="Go to a date"
         glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
         trigger={
-          <Button variant="quiet" size="sm" className="cal-title" title="Go to a date" data-testid="cal-jump">
+          <Button variant="quiet" size="sm" className="cal-title" data-tip="Go to a date" data-testid="cal-jump">
             <span
               className="cal-title-range"
               aria-live="polite"
@@ -295,7 +295,7 @@ function settingsPart(p: BarProps) {
         <Button
           variant="quiet"
           className="cal-options"
-          title="Calendar settings"
+          data-tip="Calendar settings"
           aria-label="Calendar settings"
           data-testid="cal-options"
         >

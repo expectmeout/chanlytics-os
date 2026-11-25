@@ -40,3 +40,6 @@ export const ROUTES = {
   thread: (id: string) => `inbox/${id}`,
   admin: (pane: string) => `admin/${pane}`,
 };
+
+/** The mark beside a thread's name where a person of the business has spoken with them: its name and its tip. */
+export const HUMAN_BEFORE = "Has spoken with a human before";
