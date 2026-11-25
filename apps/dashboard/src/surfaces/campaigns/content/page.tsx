@@ -16,9 +16,10 @@
  * starters for Content, contracts content/ideas.ts). A video being made and a post on its way are told to no page, so while
  * one moves the page asks again, a few seconds apart, and stops when none does.
  */
-// The page's own rules, and Files' tile's, loaded with it: the page is loaded on demand (campaigns/home/route.tsx).
+// The page's own rules, and Files' tile's, loaded with it: the page is loaded on demand (campaigns/home/route.tsx). A
+// post's frame (files/post.css) is one of the frame's stylesheets (styles/sheets.json), which the page links with the
+// rest of its own: imported here as well, a tab on this page held its rules twice (25 Nov 2026).
 import "../../files/files.css";
-import "../../files/post.css";
 import "./content.css";
 import "./sheets/sheets.css";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
