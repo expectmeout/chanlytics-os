@@ -46,9 +46,15 @@ test("the overrides lift each advisory to its first fixed version, and query-str
   const overrides = settingBlock("overrides");
   assert.equal(overrides["uuid@<11.1.1"], "^11.1.1", "GHSA-w5hq-g745-h8pq");
   assert.equal(overrides["decode-uri-component@<0.5.1"], "^0.5.1", "GHSA-vcc3-ghjq-m6fr, then GHSA-qr28-fpjm-wq7f");
-  assert.equal(overrides["source-map-js@<1.2.2"], "^1.2.2", "GHSA-68fv-2mgg-jv7q, through Next's postcss");
-  assert.equal(overrides["sharp@<0.35.5"], "^0.35.5", "GHSA-wq5f-xc86-pv6w, through Next");
+  assert.equal(overrides["source-map-js@<1.2.2"], "^1.2.2", "GHSA-68fv-2mgg-jv7q, through postcss");
   assert.equal(overrides["shell-quote@<1.11.0"], "^1.11.0", "GHSA-pqg4-j6r4-53mv, through react-native's devtools");
+  assert.equal(overrides["esbuild@<0.28.1"], "^0.28.2", "GHSA-g7r4-m6w7-qqqr, through tsx (~0.28.0)");
+  assert.equal(overrides["postcss@<8.5.23"], "^8.5.28", "GHSA-fxqj-rqcc-2cmp, through Expo's Metro config");
+  // Within zod 4 alone: @vercel/sandbox's OIDC config pins 4.1.11, and the Expo CLI's zod 3 has no fixed version
+  // (it stays ignored, below), so a selector of `<4.6.6` would have lifted the CLI onto zod 4.
+  assert.equal(overrides["zod@>=4.0.0 <4.6.6"], "^4.6.7", "GHSA-mrhx-c7xc-m3w5, through @vercel/sandbox");
+  // A line whose dependents all ask for the fixed version leaves: Next asks sharp ^0.35.5 itself (25 Nov 2026).
+  assert.equal(overrides["sharp@<0.35.5"], undefined, "GHSA-wq5f-xc86-pv6w is inside Next's own range now");
   assert.equal(
     overrides["node-forge@<1.4.1"],
     "^1.4.1",
