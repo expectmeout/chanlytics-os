@@ -12,8 +12,8 @@
  *
  *  - A read is answered here, with how long is left, and never leaves: every surface's own retry is then a retry of
  *    nothing, and each waits out the time it was told (surface-runner.ts retryLater).
- *  - Once the wait is over, a few reads leave to look: the first asked for, and up to two more of addresses that have
- *    not failed since the trouble began. Reads asked for while they are out wait for what they say. One answered, and
+ *  - Once the wait is over, two reads leave to look: the first asked for, and one more of an address that has not
+ *    failed since the trouble began. Reads asked for while they are out wait for what they say. One answered, and
  *    the tab is as it was; all failed, and the wait doubles: 5 s, then 10, 20, 40 and on to five minutes, each a little
  *    longer by chance so tabs do not look as one. A wait the server names (`Retry-After`) is kept where it is longer.
  *  - Once a look is answered, reads leave a few at a time for a while: every surface held back would otherwise ask in the
@@ -21,9 +21,11 @@
  *
  * Why more than one read looks: two reads broken by a fault of their own (a route's bug, not the server's) trip the
  * hold as an outage does, and a tab that then looked through one of them alone would hold every healthy read back for
- * as long as the page stayed open. A read of an address that has not failed is the witness that ends it at once, so a
- * couple of those leave during each wait too, without waiting for its end: a press that opens another page is answered
- * by the server where the server answers.
+ * as long as the page stayed open. A read of an address that has not failed is the witness that ends it at once, so
+ * one of those leaves during each wait too, without waiting for its end: a press that opens another page is answered
+ * by the server where the server answers. One, and alone: a page reads thirty addresses, and in an outage each of them
+ * is one that "has not failed" until it has, so every witness more is a request more from every tab (counted on CI's
+ * stack, 25 Nov 2026: two a wait with two beside each sent 27 requests in an outage's first minute).
  *
  * A person's own press (the shell's Retry, the network coming back) ends the wait at once: the next reads look. A write
  * is never held: it is somebody's act, and its answer says the server answers.
@@ -42,10 +44,10 @@ const WAIT_FIRST_MS = 5 * SECOND_MS;
 const WAIT_MAX_MS = 5 * MIN_MS;
 /** How much longer a wait may be by chance, as a share of itself. */
 const WAIT_SPREAD = 0.25;
-/** How many reads look once a wait is over: the first asked, and the rest of addresses that have not failed. */
-const LOOKS_A_ROUND = 3;
-/** How many reads of addresses that have not failed may leave during one wait, before its end: the witnesses. */
-const WITNESSES_A_WAIT = 2;
+/** How many reads look once a wait is over: the first asked, and one of an address that has not failed. */
+const LOOKS_A_ROUND = 2;
+/** How many reads of an address that has not failed may leave during one wait, before its end: the witness. */
+const WITNESSES_A_WAIT = 1;
 /** Once a look is answered, reads leave this many at a time, for this long. */
 const MENDING_LANES = 2;
 const MENDING_MS = 10 * SECOND_MS;
@@ -297,7 +299,7 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     return lookWith(round, address);
   };
 
-  /** While the wait lasts: a read of an address that has not failed leaves as a witness, a couple a wait; any other is held. */
+  /** While the wait lasts: a read of an address that has not failed leaves as the witness, one a wait; any other is held. */
   const heldOrWitness = (address: string): ReadLeaves | ReadHeld => {
     if (failedSince.has(address) || witnesses <= 0) return { held: leftS() };
     witnesses -= 1;
@@ -306,10 +308,11 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
 
   const before = (address: string, route: string = address): ReturnType<Trouble["before"]> => {
     if (round) {
-      // Looks are out. A read of an address that has not failed joins them, a few at most: the witness a route's own
-      // fault cannot silence. Any other waits for what they say, which is its answer too.
+      // Looks are out. A read of an address that has not failed joins them, to LOOKS_A_ROUND: the witness a route's
+      // own fault cannot silence. A wait's own witness looks alone. Any other read waits for what they say, which is
+      // its answer too.
       const fresh = !failedSince.has(address) && !round.addresses.has(address);
-      if (fresh && round.addresses.size < LOOKS_A_ROUND) return lookWith(round, address);
+      if (fresh && !round.early && round.addresses.size < LOOKS_A_ROUND) return lookWith(round, address);
       return round.verdict.then((answered) => (answered ? before(address, route) : { held: leftS() }));
     }
     if (until !== null) return now() < until ? heldOrWitness(address) : beginRound(address, false);

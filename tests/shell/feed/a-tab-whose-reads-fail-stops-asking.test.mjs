@@ -94,22 +94,28 @@ test("during the wait, a read of an address that has not failed leaves as a witn
   assert.ok(leaves(await s.read("GET today")));
 });
 
-test("witnesses that fail too are a couple a wait, and leave the wait as it stands", async () => {
+test("a witness that fails too is one a wait, looks alone, and leaves the wait as it stands", async () => {
   const s = standing();
   await s.trip();
-  (await s.read("GET contacts"))("fault");
-  (await s.read("GET settings"))("fault");
+  const witness = await s.read("GET contacts");
+  assert.ok(leaves(witness));
+  let beside = "waiting";
+  const other = s.read("GET settings").then((answer) => (beside = answer));
+  await Promise.resolve();
+  assert.equal(beside, "waiting", "a second address does not leave beside it: it waits on what the witness says");
+  witness("fault");
+  assert.deepEqual(await other, { held: 5 });
   assert.deepEqual(
     await s.read("GET views"),
     { held: 5 },
-    "a third address in the same wait is held: two looked already",
+    "another address in the same wait is held: one looked already",
   );
-  assert.deepEqual(await s.read("GET contacts"), { held: 5 }, "and one that failed as a witness is held with the rest");
+  assert.deepEqual(await s.read("GET contacts"), { held: 5 }, "and the one that failed as the witness, with the rest");
   s.pass(5_000);
-  assert.ok(leaves(await s.read("GET today")), "the wait ended when it was set to: the witnesses did not move it");
+  assert.ok(leaves(await s.read("GET today")), "the wait ended when it was set to: the witness did not move it");
 });
 
-test("once the wait is over a few reads look, addresses that have not failed beside the first, and the rest wait on what they say", async () => {
+test("once the wait is over two reads look, an address that has not failed beside the first, and the rest wait on what they say", async () => {
   const s = standing();
   await s.trip();
   s.pass(5_000);
@@ -118,16 +124,14 @@ test("once the wait is over a few reads look, addresses that have not failed bes
   let waited = "waiting";
   const failedBefore = s.read("GET calendar").then((answer) => (waited = answer));
   const second = await s.read("GET contacts");
-  const third = await s.read("GET settings");
-  assert.ok(leaves(second) && leaves(third), "two addresses that have not failed look beside it");
-  let fourth = "waiting";
-  const beyond = s.read("GET views").then((answer) => (fourth = answer));
+  assert.ok(leaves(second), "one address that has not failed looks beside it");
+  let third = "waiting";
+  const beyond = s.read("GET settings").then((answer) => (third = answer));
   await Promise.resolve();
-  assert.deepEqual([waited, fourth], ["waiting", "waiting"], "an address that failed, and a read past the three, wait");
+  assert.deepEqual([waited, third], ["waiting", "waiting"], "an address that failed, and a read past the two, wait");
   first("fault");
-  second("fault");
   assert.equal(waited, "waiting", "not until the last look is in");
-  third("fault");
+  second("fault");
   assert.deepEqual(await failedBefore, { held: 10 }, "all failed: held again, and the wait has doubled");
   assert.deepEqual(await beyond, { held: 10 });
 });
@@ -178,12 +182,15 @@ test("an outage costs a tab a handful of requests: twenty-five addresses asked a
     }
   };
   await askAll();
-  assert.equal(sent, 5, "three failed and the tab stopped asking, but for two witnesses: twenty reads never left");
+  assert.equal(sent, 4, "three failed and the tab stopped asking, but for one witness: twenty-one reads never left");
+  let inAMinute = 0;
   for (let elapsed = 0; elapsed < 300_000; elapsed += 1_000) {
     s.pass(1_000);
     await askAll();
+    if (elapsed + 1_000 === 60_000) inAMinute = sent;
   }
-  assert.ok(sent <= 30, `five minutes of every read asked again each second: ${sent} requests, where 7,500 left`);
+  assert.ok(inAMinute <= 12, `the first minute, where the waits are short: ${inAMinute} requests, where 1,500 left`);
+  assert.ok(sent <= 20, `five minutes of every read asked again each second: ${sent} requests, where 7,500 left`);
   assert.equal(s.trouble.waiting(), true);
 });
 
@@ -354,12 +361,12 @@ test("a read leaves in the turn it is asked in while the tab stands", () => {
   assert.deepEqual(c.sent, ["GET /api/v1/views"], "sent before the caller's next line, as it always was");
 });
 
-test("with every read failing, a pass of twenty-five reads and its retries reach the server eight times", async () => {
+test("with every read failing, a pass of twenty-five reads and its retries reach the server six times", async () => {
   const c = client(() => failed());
   const READS = ["GET views", "GET calls", "GET channels", "GET segments", "GET team"];
   // A pass: twenty-five reads of five addresses, one after another.
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 5, "three failed and the tab stopped asking, but for two witnesses: twenty never left");
+  assert.equal(c.sent.length, 4, "three failed and the tab stopped asking, but for one witness: twenty-one never left");
   const held = await c.api("GET views");
   assert.equal(held.ok, false);
   assert.equal(held.code, "unavailable");
@@ -369,10 +376,10 @@ test("with every read failing, a pass of twenty-five reads and its retries reach
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
   c.pass(2_000);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 5);
+  assert.equal(c.sent.length, 4);
   c.pass(10_000);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 8, "three look together once the wait is over, where seventy-five more requests left");
+  assert.equal(c.sent.length, 6, "one look once the wait is over and the next wait's witness, where seventy-five left");
 });
 
 test("two reads broken by a fault of their own hold nothing healthy back: a read of another address ends the hold", async () => {
