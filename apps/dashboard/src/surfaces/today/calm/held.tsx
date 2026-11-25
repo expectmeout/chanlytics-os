@@ -21,6 +21,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { afterSheetCloses } from "../../kit/sheet/back";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { useSeeOver } from "../../see/see-mount";
 import { useAiSheetOpen } from "../ai/open";
 import { TODAY_LINE_WORDS } from "../model/lines";
@@ -209,6 +210,8 @@ function HeldActsOf({ line }: { line: HeldActs }) {
 /** The held line's acts, over Today. */
 export function HeldSheet() {
   const line = useHeldLine();
+  // Open over the page (`.over-page`): the tab bar stands down while it is, said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("overPage", line !== null);
   return (
     <Sheet
       open={line !== null}

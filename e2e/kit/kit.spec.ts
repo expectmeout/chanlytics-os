@@ -713,11 +713,13 @@ test("check 5 names a toast over a sheet's foot: on a phone as the bell's list l
   baseURL,
 }) => {
   const faults = {
-    // The bell's list, which a phone's page drew until it kept a desk's twin to a desk (mobile.css, :root:has(.tbn-pop)).
+    // The bell's list, which a phone's page drew until it kept a desk's twin to a desk, open as the app's bell says it is
+    // (mobile.css, data-bell-open on the root: kit/motion/root-flags.ts).
     phone: (page: Page) =>
-      page.evaluate(() =>
-        document.querySelector(".gx-entries")?.insertAdjacentHTML("beforeend", '<section class="tbn-pop"></section>'),
-      ),
+      page.evaluate(() => {
+        document.querySelector(".gx-entries")?.insertAdjacentHTML("beforeend", '<section class="tbn-pop"></section>');
+        document.documentElement.setAttribute("data-bell-open", "");
+      }),
     // The stack at the page's right edge, over the sheet, where the kit stands it beside.
     desk: (page: Page) =>
       page.addStyleTag({

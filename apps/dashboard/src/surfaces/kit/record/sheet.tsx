@@ -60,6 +60,7 @@ import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
 import { touchSwipe } from "../../frame-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
+import { useRootFlag } from "../motion/root-flags";
 import { useBackCloses } from "../sheet/back";
 import { leaveOverlay, listen, portal, trapTab, unlisten } from "./shell-verbs";
 
@@ -248,6 +249,9 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
 /** A list you scroll, in room of its own beside the page (from the bottom, on a phone). */
 export function RecordSheet(props: RecordSheetProps) {
   const { onClose, focusOn = null, saving = false } = props;
+  // Drawn, it is open and holds the page (aria-modal): said on the document's root, where a toast and the page's scroll
+  // ask them (motion/root-flags.ts).
+  useRootFlag(["recordOpen", "modalOpen"], true);
   const phone = useRecPhone();
   const closeRef = useRef<(() => void) | null>(onClose);
   // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.

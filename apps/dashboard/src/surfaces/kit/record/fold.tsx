@@ -79,6 +79,7 @@ import type { FoldId } from "./registry";
 import { RecordFoot, RecordSays } from "./says";
 import { touchSwipe } from "../../frame-verbs";
 import { glideHeight } from "../motion/use-height-glide";
+import { useRootFlag } from "../motion/root-flags";
 import { portal, trapTab } from "./shell-verbs";
 
 /** A fold's Cancel: what Close, the foot's Cancel, a press on the wash and Escape all do. */
@@ -373,6 +374,9 @@ export function RecordFold(props: RecordFoldProps) {
   // and then the other holds the same hooks too.
   const phone = useRecPhone();
   const sheet = open && (frame === "sheet" || phone);
+  // As a sheet it is a record's sheet and holds the page (aria-modal), and says both on the document's root, where a
+  // toast and the page's scroll ask them (motion/root-flags.ts).
+  useRootFlag(["recordOpen", "modalOpen"], sheet);
   const onFocus = useRecFocus(id, open, box, {
     inner: ".rec-fold-inner",
     fallback: sheet ? ".rec-sheet-close" : ".rec-fold-close",

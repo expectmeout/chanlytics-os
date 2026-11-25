@@ -6,6 +6,7 @@
  * published by frame-globals.ts with `openShortcuts`) until the frame itself is TypeScript (step 7e).
  */
 import { Fragment, useEffect, useRef, useState } from "react";
+import { useRootFlag } from "../kit/motion/root-flags";
 import { frameChrome, frameGlyph } from "./frame-window";
 
 // The sheet's own opener, handed here while the sheet is drawn: openShortcuts() asks it. A door is a call to the sheet
@@ -51,6 +52,8 @@ export function ShortcutsSheet() {
     };
   }, []);
   const chrome = frameChrome();
+  // Open, it holds the page (aria-modal), said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("modalOpen", open && !!chrome);
   if (!open || !chrome) return null;
   const groups = chrome.shortcutGroups(chrome.shortcuts);
   return (

@@ -146,7 +146,8 @@ test("no dock takes the tab bar or Ask's circle down under a page carried back t
       if (!takesDown) continue;
       for (const selector of rule.selectors) {
         const s = JSON.stringify(selector);
-        if (!s.includes('"name":"data-dock"') || !s.includes(`"name":"${bar}"`)) continue;
+        // A dock is asked of the document's root since 25 Nov 2026 (data-dock-frame, data-dock-up: kit/motion/root-flags.ts).
+        if (!/"name":"data-dock(?:-frame|-up)?"/.test(s) || !s.includes(`"name":"${bar}"`)) continue;
         hides += 1;
         assert.ok(s.includes('"name":"data-carrying"'), `${sheet}: a dock takes .${bar} down under a carried page`);
       }
