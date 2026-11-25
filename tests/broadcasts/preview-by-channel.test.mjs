@@ -23,7 +23,16 @@ import { pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
 import { installStubReact, fresh, all, find, byTestId, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
+bridgeHolds({
+  who: {
+    workspaces: [
+      { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+    ],
+    activeWorkspaceId: "t-studio",
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/studio",
@@ -33,10 +42,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [
-    { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
-  ],
-  __ACTIVE_WORKSPACE: "t-studio",
 });
 const SRC = "../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);

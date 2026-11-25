@@ -15,6 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { PERSON_ROW, TZ, here, movesWhileRead, msg, peopleWorld, personExportLink } from "./_exports.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("GET /export: owners only, the workspace named, one JSON file that parses and carries every section", async () => {
   const { setRateStore, memoryStore } = await import(
@@ -639,9 +640,11 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     useRef: (v) => HOOKS.useRef(v),
     useCallback: (f) => HOOKS.useCallback(f),
   };
+  bridgeHolds(
+    { who: { me: { role: "owner" } }, parts: { href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=t1` } },
+    { fresh: true },
+  );
   globalThis.window = {
-    __ME: { role: "owner" },
-    __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=t1`,
     canDo: (perm) => perm === "export",
     gate: (perm, doing) =>
       globalThis.window.canDo(perm)

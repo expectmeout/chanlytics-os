@@ -27,8 +27,10 @@ import {
 } from "@chanlytics/contracts";
 import { pipelinePeekOf } from "../../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
 import { installStubReact, fresh, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);

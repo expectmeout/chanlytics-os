@@ -8,7 +8,6 @@
 import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS, USUAL_DAYS, dayCameToWords, usualDayWords } from "../model/lines";
 import { useLastDays } from "../calm/days";
-import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { Icon } from "../../kit/icon/icon";
@@ -20,7 +19,8 @@ import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 import { useTodayQuiet } from "../calm/quiet";
 import { useSinceSaid } from "../ai/since";
-import { borrowed, useMoved } from "../shell";
+import { useMoved } from "../shell";
+import { surfaceValue } from "../../surface-values";
 import { useDayTurned, useTodayEvening, weekdayNow } from "./head";
 
 /** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the pins draw. */
@@ -36,7 +36,7 @@ void listsCode().then(
 function usePins() {
   useMoved(["people", "today_pins"]);
   const lists = useCode(listsCode, true).loaded;
-  const people = borrowed<PeopleListsLike>("__PEOPLE");
+  const people = surfaceValue("people");
   return people && lists ? lists.lists.pinned() : [];
 }
 

@@ -15,15 +15,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
 globalThis.document ??= { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 
 const { startSurfaces, refreshSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");

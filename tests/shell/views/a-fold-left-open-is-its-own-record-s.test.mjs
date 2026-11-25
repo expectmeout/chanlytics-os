@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { again, find, installStubReact, press, unmount } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 installStubReact();
 const { RecordDisclosure } = await importSrc("apps/dashboard/src/surfaces/kit/record/disclosure.tsx");
@@ -22,12 +23,16 @@ const W = globalThis.window;
 /** The tab's memory as the record kit reads it: a place per fold, by its id, under the page `folds`. */
 function aTabMemory(left = {}) {
   const places = new Map(Object.entries(left).map(([id, open]) => [id, open ? { open: true } : {}]));
-  W.__tabMemory = {
-    place: (page, id) => (page === "folds" ? places.get(id) : undefined),
-    keepPlace: (page, id, v) => {
-      if (page === "folds") places.set(id, v);
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: (page, id) => (page === "folds" ? places.get(id) : undefined),
+        keepPlace: (page, id, v) => {
+          if (page === "folds") places.set(id, v);
+        },
+      },
     },
-  };
+  });
   return { leftOpen: (id) => places.get(id)?.open === true };
 }
 

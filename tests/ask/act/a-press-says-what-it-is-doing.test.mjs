@@ -8,8 +8,10 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, textOf, press, kitPages } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
+bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
+installStubReact({});
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
 const { AskCards } = await import("../../../apps/dashboard/src/surfaces/ask/card.tsx");

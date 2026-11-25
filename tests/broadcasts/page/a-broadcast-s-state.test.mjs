@@ -50,6 +50,7 @@ import {
   went,
   withMessage,
 } from "./_page.mjs";
+import { provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ a slot's words ------------------------------ */
 
@@ -204,7 +205,7 @@ test("a one-off that went is sent again from its record: New's Send once, filled
 });
 
 test("a run waiting on you opens as the sheet the canvas draws -- where it sits in the queue, who it reaches by the rules that made it, the words, and Approve alone at the foot -- and approving opens the next one", async () => {
-  const today = globalThis.window.__clock.dayKey(Date.now());
+  const today = provided("clock").dayKey(Date.now());
   const offer = {
     id: "tpl-offer",
     channel: "whatsapp",
@@ -454,7 +455,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
 });
 
 test("REGRESSION: a run waiting on you says the words on the channel its reader is reached on -- an email's subject and words, a text's words and STOP line -- named for the channel, never WhatsApp's under another's name", async () => {
-  const today = globalThis.window.__clock.dayKey(Date.now());
+  const today = provided("clock").dayKey(Date.now());
   const note = withMessage({
     id: "tpl-note",
     channel: "whatsapp",
@@ -554,7 +555,7 @@ test("REGRESSION: a run waiting on you says the words on the channel its reader 
 });
 
 test("a run that kept who it left out opens as the board's card: of how many, the grey and the amber, a line per reason, and the door to getting their yes", async () => {
-  const today = globalThis.window.__clock.dayKey(Date.now());
+  const today = provided("clock").dayKey(Date.now());
   const offer = {
     id: "tpl-offer",
     channel: "whatsapp",
@@ -652,7 +653,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     finished_at: null,
     scheduled_for: iso(-H),
     // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
-    run_for: globalThis.window.__clock.dayKey(Date.now()),
+    run_for: provided("clock").dayKey(Date.now()),
     counts: quiet,
   });
   setSurfaceValue("broadcasts", broadcastsSurface({ rows: [waiting].map((b) => toBroadcastVM(b, ZONE)) }));
@@ -717,7 +718,7 @@ test("REGRESSION (C14): Approve says it is approving and cannot approve twice --
     finished_at: null,
     scheduled_for: iso(-H),
     // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
-    run_for: globalThis.window.__clock.dayKey(Date.now()),
+    run_for: provided("clock").dayKey(Date.now()),
     counts: quiet,
   });
   setSurfaceValue("broadcasts", broadcastsSurface({ rows: [waiting, dto()].map((b) => toBroadcastVM(b, ZONE)) }));
@@ -755,7 +756,7 @@ test("REGRESSION (C15): the sending hours are the published ones -- they were ty
   // The hours are the contracts' published words (SENDING_HOURS_WORDS), the very object the page's clock hands every page
   // (zone.ts pageClock): change them and each page says the new ones; a page that typed its own would say nine to
   // twenty still.
-  const realClock = globalThis.__clock;
+  const realClock = provided("clock");
   const published = { ...realClock.hours };
   Object.assign(realClock.hours, {
     min: 8,

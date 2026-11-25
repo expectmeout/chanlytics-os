@@ -10,17 +10,18 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { toSlotParts } from "../../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 export const W = globalThis;
 export const toasts = [];
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 Object.assign(W, {
   CHANLY: { nav() {}, R: {} },
   appNavigate() {},
   // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  __roleGate: contracts.roleGate,
-  __surfaceState: () => "live",
   useHotkey: () => {},
 });
 export const SRC = "../../../apps/dashboard/src";

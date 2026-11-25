@@ -20,6 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { landFacts, landSettings, saving, W } from "../../_business-tab-harness.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // The last card this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -38,8 +39,8 @@ const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}
     },
     conflicts: [],
   });
-  W.__WORKSPACES = [{ id: "t-new", name: "Bella Nails", timezone: "America/New_York" }];
-  W.__ACTIVE_WORKSPACE = "t-new";
+  bridgeHolds({ who: { workspaces: [{ id: "t-new", name: "Bella Nails", timezone: "America/New_York" }] } });
+  bridgeHolds({ who: { activeWorkspaceId: "t-new" } });
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
@@ -322,12 +323,16 @@ test("a number typed and then put back to the line is stored as no number, not a
 /** The workspace's courier (bridge/identity.ts `patch`), standing in for it: it records what it is sent. */
 const courier = () => {
   const sent = [];
-  W.__workspace = {
-    patch: async (fields) => {
-      sent.push(fields);
-      return { ok: true, workspace: fields, message: "" };
+  bridgeHolds({
+    parts: {
+      workspace: {
+        patch: async (fields) => {
+          sent.push(fields);
+          return { ok: true, workspace: fields, message: "" };
+        },
+      },
     },
-  };
+  });
   return sent;
 };
 const toasts = (flashes) => flashes.map((f) => [f.tone ?? "ok", textOf(f.msg)]);
@@ -352,7 +357,7 @@ test("the fold asks nothing of how customers buy, and its save sends nothing to 
     assert.deepEqual(patched, [], "nothing goes to the workspace's courier");
     assert.deepEqual(toasts(flashes), [["ok", RECEPTIONIST_SAVED]]);
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 

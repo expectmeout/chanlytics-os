@@ -11,13 +11,10 @@ import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { declareReads, keepForItsPage, ownsTheScreen } from "@/bridge/surface-registry";
 import { routeOnScreen } from "@/bridge/workspace";
 import { channelsHeld, followChannels } from "../channels/surface";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
 /** The phone line right now: the calls in progress and the ones that just ended, with the line's number and switch. */
 export type LiveSurface = LiveVM;
-
-// The frame (its top bar, its tab strip and the first run) and Ask read this under its old name until they move.
-declareSurfaceValue("live", "__LIVE");
 
 /** The calls and the zone Live was last made of: its line is made again of them as the channels read is published. */
 let made: { calls: CallDto[]; tz: string } | null = null;
@@ -59,7 +56,6 @@ followChannels("live", (held, rows) => (made ? toLiveVM(made.calls, rows, made.t
  */
 export const liveOverride: SurfaceOverride = {
   key: "live",
-  globals: [],
   events: ["surface:live"],
   // The calls: a transcript turn is a calls UPDATE and nothing else needs to repaint for it; the note a call leaves in the
   // thread is a messages INSERT the default surfaces already follow. The line's number and its switch are the channels read's,

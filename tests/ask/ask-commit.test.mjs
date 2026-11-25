@@ -23,6 +23,7 @@ import {
   applySettingsChange,
   PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
+import { provided } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1065,7 +1066,7 @@ test("REGRESSION: edit in the composer leaves the words as the thread's reply dr
   t.win.dispatchEvent = (e) => heard.push([e.type, e.detail]);
   editReply(t.win, card("reply", { conversation_id: C1, text: "On our way." }));
   assert.equal(
-    t.win.__tabMemory.draft("reply", `th-${C1}`),
+    provided("tabMemory").draft("reply", `th-${C1}`),
     "On our way.",
     "the draft the conversation's box opens with",
   );

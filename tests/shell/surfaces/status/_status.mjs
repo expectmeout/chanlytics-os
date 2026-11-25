@@ -27,6 +27,7 @@
 import { importSrc } from "../../../_source.mjs";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { historyOf, legacyAddress } from "../../address/_address.mjs";
+import { bridgeHolds } from "../../_bridge-holds.mjs";
 
 export const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -145,12 +146,12 @@ export const PAGES = { surfaceRoutes: SURFACE_ROUTES, routePage: { type: "RouteP
 
 /** People as the frame's chrome and the page read it: the surface's value, and the window's copy the JSX pages still read. */
 export const setPeople = (people) => {
-  win.__PEOPLE = people;
+  bridgeHolds({ values: { people: people } });
   setSurfaceValue("people", people);
 };
 
 export const clearPeople = () => {
-  delete win.__PEOPLE;
+  bridgeHolds({ values: { people: undefined } });
   setSurfaceValue("people", undefined);
 };
 

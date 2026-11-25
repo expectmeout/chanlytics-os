@@ -13,6 +13,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { DAY_MS } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -35,6 +36,14 @@ const PHOTO = "f0f0f0f0-9999-4000-8000-000000000001";
 const KEY = "e0e0e0e0-9999-4000-8000-000000000001";
 const KEPT_AT = "2026-11-20T21:00:00.123456+00:00";
 const TZ = "America/New_York";
+/**
+ * A day in the business's zone, whole days from today there, as a draft's end is written. The press counts the days it
+ * has left from today (draft-checks.ts), so the draft ends eleven days on: $75 is over Meta's least at $5 a day and
+ * under it at $9, whatever the hour. It ended on 3 Dec 2026, and $9 a day stopped it only until New York's midnight on
+ * the 26th.
+ */
+const dayOn = (days) => new Date(Date.now() + days * DAY_MS).toLocaleDateString("en-CA", { timeZone: TZ });
+const END_DAY = dayOn(11);
 
 const WORDS = [
   {
@@ -44,14 +53,14 @@ const WORDS = [
   { headline: "Harbor Studio", text: "First visits at Harbor Studio, 45 minutes. Message us on WhatsApp for a time." },
   { headline: "First visit", text: "45 minutes at Harbor Studio. Message us on WhatsApp to book." },
 ];
-/** The kept draft: three versions of words, a photo, five miles, $75 to the first Thursday of December. */
+/** The kept draft: three versions of words, a photo, five miles, $75 over the eleven days from today. */
 const DRAFT = {
   service: "Consultation",
   label: "First visit",
   picture: PHOTO,
   miles: 5,
   total_minor: 7500,
-  end_day: "2026-12-03",
+  end_day: END_DAY,
   versions: WORDS,
   answers: {},
 };
@@ -279,7 +288,7 @@ test("a press that shows what the draft holds is handed on as judged: the most, 
     miles: 5,
     total_minor: 7500,
     most_minor: 7500,
-    end_day: "2026-12-03",
+    end_day: END_DAY,
     versions: WORDS,
     address: "12 Harbor St, Miami",
     whatsapp: "+13055550142",
@@ -296,7 +305,7 @@ test("a press that shows what the draft holds is handed on as judged: the most, 
 test("a press drawn from an older amount, end, area, picture or words is refused, and the edge is told nothing", async () => {
   for (const [why, stale] of [
     ["an older amount", { most_minor: 7000 }],
-    ["another end", { end_day: "2026-12-10" }],
+    ["another end", { end_day: dayOn(12) }],
     ["another area", { miles: 8 }],
     ["a wider place the draft doesn't hold", { area: { kind: "region", key: "3847" } }],
     ["another picture", { picture: "f0f0f0f0-9999-4000-8000-000000000009" }],

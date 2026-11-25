@@ -27,7 +27,6 @@ import {
   PROMPT_ONLY,
   S,
   STORED,
-  W,
   door,
   landSettings,
   read,
@@ -39,6 +38,7 @@ import {
   withoutPaths,
   wordsOf,
 } from "./_folds.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ what each fold owns ------------------------------------ */
 
@@ -695,11 +695,15 @@ test("a fold's save goes through the tab's one saver as a patch of the whole con
   const saver = S.saver;
   landSettings({ version: 7, config: stored() });
   const sent = [];
-  W.__saveSettings = (config, version, accepted) => {
-    sent.push({ config: structuredClone(config), version });
-    accepted({ config: structuredClone(config), version: version + 1 });
-    return new Promise(() => {});
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) => {
+        sent.push({ config: structuredClone(config), version });
+        accepted({ config: structuredClone(config), version: version + 1 });
+        return new Promise(() => {});
+      },
+    },
+  });
   saver.reset();
   try {
     const job = (fold, draft) => ({
@@ -738,7 +742,7 @@ test("a fold's save goes through the tab's one saver as a patch of the whole con
   } finally {
     saver.reset();
     landSettings(undefined);
-    delete W.__saveSettings;
+    bridgeHolds({ parts: { saveSettings: undefined } });
   }
 });
 

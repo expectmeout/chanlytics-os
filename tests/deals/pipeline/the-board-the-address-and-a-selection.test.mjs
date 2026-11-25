@@ -63,11 +63,12 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
+import { bridgeHolds, surfaceValue, provided } from "../../shell/_bridge-holds.mjs";
 
 test("a viewer's cards do not drag, and a phone keeps the list whatever was chosen", async () => {
   await fresh();
   globalThis.localStorage.setItem("pipeline.view", "board");
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     let tree = draw();
     const wes = find(byTestId(tree, "pipeline-board"), (n) => n.props?.id === "person-wes");
@@ -84,7 +85,7 @@ test("a viewer's cards do not drag, and a phone keeps the list whatever was chos
       );
     });
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     globalThis.localStorage.removeItem("pipeline.view");
   }
 });
@@ -306,7 +307,7 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
   await fresh();
   const { recordDeal } = await import("../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const { startSurfaces } = await import("../../../apps/dashboard/src/bridge/surface-runner.ts");
-  const before = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes").deal;
+  const before = surfaceValue("people").rows.find((r) => r.id === "wes").deal;
   const now = Date.now();
   const dto = (over) => ({
     id: before.id,
@@ -355,7 +356,7 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
       "the sheet is answered as the door takes the move, not once People is read again",
     );
     assert.equal(r.ok, true);
-    assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won", "the row took it");
+    assert.equal(surfaceValue("people").rows.find((x) => x.id === "wes").deal.stage, "won", "the row took it");
     // The refresh map is loaded as it is first asked for, so the re-read starts a few ticks after the answer.
     for (let i = 0; i < 30 && !asked.includes("GET /api/v1/contacts"); i += 1)
       await new Promise((res) => setTimeout(res, 10));
@@ -380,12 +381,12 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
       waited(),
     ]);
     assert.equal(again.ok, true);
-    const row = globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes");
+    const row = surfaceValue("people").rows.find((x) => x.id === "wes");
     assert.deepEqual([row.deal.id, row.deal.service], [before.id, "Color correction"], "the row's own deal stays");
     // No `current` in the answer (a server from before it): the row waits for the re-read.
     answer = { deal: dto({ stage: "lost", decided_at: iso(now), version: 3 }), from: "won", decision_id: "dec-3" };
     await Promise.race([recordDeal("wes", { stage: "lost", deal_id: before.id, version: 2 }), waited()]);
-    assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won");
+    assert.equal(surfaceValue("people").rows.find((x) => x.id === "wes").deal.stage, "won");
     const { placeDeal } = await import("../../../apps/dashboard/src/surfaces/people/surface.ts");
     assert.equal(placeDeal("nobody-here", won), false, "someone People does not hold: nothing to move");
   } finally {
@@ -399,13 +400,17 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
 test("a person a link names stays open where this tab kept a cursor in that view: the address's person takes the cursor", async () => {
   await fresh();
   // The tab's place for the whole Pipeline (usePlPlace): the cursor was left on Wes.
-  globalThis.window.__tabMemory = {
-    place: (page, view) => (page === "pipeline" && view === "all" ? { q: "", cursor: "wes", top: 0 } : null),
-    keepPlace() {},
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: (page, view) => (page === "pipeline" && view === "all" ? { q: "", cursor: "wes", top: 0 } : null),
+        keepPlace() {},
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   try {
     let tree;
     for (let i = 0; i < 4; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
@@ -415,7 +420,7 @@ test("a person a link names stays open where this tab kept a cursor in that view
     for (let i = 0; i < 3; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
     assert.deepEqual(replaced, ["clients/pipeline:p-cat"], "the keys walk on from the person the link opened");
   } finally {
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -562,7 +567,7 @@ test("a row's menu: the deal's own acts where the member may record one, then th
     "the conversation's Deal group but its send, which is the deal sheet's",
   );
   items[0].onClick();
-  const wes = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes");
+  const wes = surfaceValue("people").rows.find((r) => r.id === "wes");
   assert.deepEqual(asked, [{ personId: "wes", mode: "won", dealId: wes.deal.id }]);
   items.at(-1).onClick();
   assert.deepEqual(opened, ["wes"], "their page");
@@ -589,14 +594,14 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
   // A viewer keeps the door and sees no act it may not press.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     assert.deepEqual(
       listOf(menuOf(draw(), "wes")).map((it) => it.label),
       ["Open the conversation", "Open their page"],
     );
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 
@@ -881,7 +886,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
   const flashes = [];
   const keepToast = globalThis.window.usePPToast;
   globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
-  const dealOfRow = (id) => globalThis.window.__PEOPLE.rows.find((r) => r.id === id).deal;
+  const dealOfRow = (id) => surfaceValue("people").rows.find((r) => r.id === id).deal;
   // The bridge reads each person afresh (people-detail.ts passDeals): Wes is still a proposal out, Nia has become a
   // client since the rows were drawn.
   seen.person = (id) => {
@@ -1067,14 +1072,14 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   click(byTestId(col, "pipeline-col-more"));
   assert.equal(cards().length, 27, "and all of them, asked");
   // A viewer's cards neither drag nor move by menu.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     assert.equal(
       find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === Menu),
       null,
     );
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 
@@ -1179,16 +1184,12 @@ test("the bridge publishes the deal kit the pages still read by name (the thread
     for (const k of ["__passDeals", "__personDetail", "__peekPerson"]) delete globalThis.window[k];
     installPeopleCourier();
     // The bridge's own contracts, by name: this file and the bridge load the package as two module instances.
-    assert.equal(
-      globalThis.window.__deal.menu.name,
-      dealMenuActs.name,
-      "the conversation's Deal group reads its acts by name",
-    );
+    assert.equal(provided("deal").menu.name, dealMenuActs.name, "the conversation's Deal group reads its acts by name");
     // The card's next act, the sheet's rules and the cards' words are imported where they are drawn (person-deal.tsx,
     // the sheets): the frame stopped carrying them for every page (the loadability review, 19 Oct 2026).
-    assert.equal(globalThis.window.__deal.next, undefined, "the card's next act is imported, not published");
-    assert.equal(globalThis.window.__deal.sheet, undefined);
-    assert.equal(typeof globalThis.window.__warmPerson, "function", "the shell's routeDoor warms a person by it");
+    assert.equal(provided("deal").next, undefined, "the card's next act is imported, not published");
+    assert.equal(provided("deal").sheet, undefined);
+    assert.equal(typeof provided("warmPerson"), "function", "the shell's routeDoor warms a person by it");
     // The pages import these (people-detail.ts passDeals, personDetail, peekPerson): the window names went with the
     // last page that read them there (O4b).
     for (const k of ["__passDeals", "__personDetail", "__peekPerson", "__warmPeople"])

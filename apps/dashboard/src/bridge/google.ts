@@ -30,7 +30,7 @@ import {
 import { readAged, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
 import { commitVerb } from "./verbs/commit";
-import { bellNow } from "./notifications";
+import { provided } from "./provided";
 import { declareReads, ownsTheScreen } from "./surface-registry";
 import { surfaceMoved } from "./surface-status";
 import { routeOnScreen } from "./workspace";
@@ -132,7 +132,7 @@ function readNoticesOfReview(id: string): void {
   if (typeof window === "undefined") return;
   const held = surfaceValue("google")?.dto.reviews.find((r) => r.id === id);
   const review = { id, reviewId: held?.review_id ?? null };
-  bellNow()?.readWhere((n) => n.kind === "review" && reviewNoticeIsAbout(n.about, review));
+  provided("bell")?.readWhere((n) => n.kind === "review" && reviewNoticeIsAbout(n.about, review));
 }
 
 /**

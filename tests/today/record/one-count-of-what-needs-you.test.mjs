@@ -36,9 +36,10 @@ import { installStubReact, fresh, byTestId, textOf } from "../../_stub-react.mjs
 import { importSrc } from "../../_source.mjs";
 import { PLAN } from "../../_lead-fixtures.mjs";
 import { NOW as DAY, ZONE, handoffDay, metrics, msg, thread } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate() {},
   usePPToast: () => [null, () => {}],
   canDo: () => true,
@@ -645,11 +646,11 @@ test("Today's head says the runs waiting for a word, and no more than they are",
     ],
   };
   setSurfaceValue("broadcasts", runs);
-  W.__BROADCASTS = runs;
+  bridgeHolds({ values: { broadcasts: runs } });
   try {
     assert.equal(head(day), "1", "one run waits for a word; the one about to go is the day's, with its Stop");
   } finally {
     setSurfaceValue("broadcasts", undefined);
-    delete W.__BROADCASTS;
+    bridgeHolds({ values: { broadcasts: undefined } });
   }
 });

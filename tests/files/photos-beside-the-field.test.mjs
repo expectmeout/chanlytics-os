@@ -23,7 +23,6 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  __refreshSurface: async () => {},
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -40,6 +39,7 @@ URL.revokeObjectURL = (u) => gone.push(u);
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export * from "../../apps/dashboard/src/surfaces/ask/line/attached.tsx";\n' +
       'export { arSubmitter } from "../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
@@ -76,6 +76,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `beside-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => {});
 fs.rmSync(file, { force: true });
 
 const t = S.askText("en");

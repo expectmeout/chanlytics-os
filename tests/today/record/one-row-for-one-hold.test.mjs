@@ -16,6 +16,7 @@ import { EMPTY_READ_STATE, buildNotificationFeed, unreadCount } from "@chanlytic
 import { bellFeed, holdMarksOf } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -231,14 +232,15 @@ const puts = () =>
 const bell = (notices, threads = [thread(C1, "Dana")]) => {
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  bridgeHolds({
+    values: { inbox: { THREADS: threads }, live: { now: [], recent: [] } },
+    reads: { notifications: { dto: { notifications: notices, seen_at: null } } },
+  });
   const win = {
     addEventListener() {},
     document: { visibilityState: "visible" },
     focus() {},
     location: { hash: "" },
-    INBOX_DATA: { THREADS: threads },
-    __LIVE: { now: [], recent: [] },
-    __NOTIFICATIONS: { dto: { notifications: notices, seen_at: null } },
   };
   return { api: bridge.installNotifications(win, storage), win, store };
 };

@@ -11,6 +11,7 @@ import { read } from "@/bridge/api";
 import { readCache } from "@/bridge/read-cache";
 import { firstDrawWaitsFor } from "@/bridge/surface-status";
 import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { pageReport } from "@/client/page-report";
 
 const searchesHeld = readCache<ReachOutSourceDto[]>("reach_out_sources", () => true, { tab: true });
 
@@ -21,7 +22,7 @@ export async function readSources(): Promise<ReachOutSourceDto[] | null> {
   try {
     return await searchesHeld.through(getActiveWorkspace() ?? "", searchesRead);
   } catch (e) {
-    console.error("reach_out_sources_failed", e instanceof Error ? e.message : e);
+    pageReport.error("reach_out_sources_failed", e instanceof Error ? e.message : e);
     return null;
   }
 }

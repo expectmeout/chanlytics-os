@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { HAVE_SESSION, WHY_SKIPPED, signInAndGo } from "../session";
+import { activeWorkspace, apiGet } from "../workspace";
 
 /**
  * The Team card writes to the SERVER.
@@ -114,16 +115,12 @@ test.describe("the chrome tells the truth", () => {
 
   test("the sidebar names the workspace the data belongs to", async ({ page }) => {
     await signInAndGo(page, "#/today");
-    // The globals are written by the seam's workspace override, which lands
-    // after first paint — wait for it rather than reading an empty list.
-    await page.waitForFunction(() => !!(window as unknown as { __WORKSPACES?: unknown[] }).__WORKSPACES, undefined, {
-      timeout: 20_000,
-    });
-    const active = await page.evaluate(() => {
-      const w = window as unknown as { __WORKSPACES?: { id: string; name: string }[]; __ACTIVE_WORKSPACE?: string };
-      const list = w.__WORKSPACES ?? [];
-      return (list.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? list[0])?.name ?? null;
-    });
+    // The workspace the address names, as the server names it: the read the sidebar draws from (the seam's workspace
+    // read, which lands after first paint: the name is waited for below).
+    const id = await activeWorkspace(page);
+    const listed = await (await apiGet(page, "/api/v1/workspaces")).json();
+    const workspaces: { id: string; name: string }[] = listed?.data?.workspaces ?? [];
+    const active = (workspaces.find((t) => t.id === id) ?? workspaces[0])?.name ?? null;
     test.skip(!active, "no workspace resolved");
     await expect(page.locator(".sb-team-name")).toHaveText(active!);
   });

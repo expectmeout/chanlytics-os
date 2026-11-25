@@ -17,6 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -62,9 +63,8 @@ const channels = [
 
 // The page's clock is a window interval, only while a call is up: held here, so a test fires it and reads whether it is still running.
 const intervals = [];
+bridgeHolds({ who: { workspaces: [{ id: "w1", timezone: ZONE }], activeWorkspaceId: "w1" } });
 installStubReact({
-  __WORKSPACES: [{ id: "w1", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "w1",
   CHANLY: { nav() {} },
   setInterval: (fn, ms) => {
     intervals.push({ fn, ms, running: true });

@@ -21,13 +21,14 @@ import { toTodayVM } from "@chanlytics/contracts";
 import { readRaw } from "../_source.mjs";
 import { changesOf } from "../_live-feed.mjs";
 import { installStubReact, fresh, all, byTestId } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The queue and the hero are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn on the
 // stub React over the day the seam holds; a stand-in window gives them the frame's door, and a timer that never fires
 // (the rail's clock ticks once a second while a call is up).
 const went = [];
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   canDo: () => true,
   setInterval: () => 1,
@@ -141,7 +142,7 @@ test("Today's queue leaves the call in progress to the frame's bar, draws the pe
   const vm = toTodayVM(metrics(), [waiting], [escalation], [], NOW);
   assert.equal(vm.queue.rows.length, 1, "a person is waiting on a person");
   setSurfaceValue("today", vm);
-  globalThis.__LIVE = onTheLine();
+  bridgeHolds({ values: { live: onTheLine() } });
   went.length = 0;
   const queue = byTestId(draw(NeedYou), "today-queue");
   assert.equal(
@@ -173,7 +174,7 @@ test("Today's queue leaves the call in progress to the frame's bar, draws the pe
     0,
     "the hero no longer repeats the queue",
   );
-  delete globalThis.__LIVE;
+  bridgeHolds({ values: { live: undefined } });
   setSurfaceValue("today", undefined);
 });
 

@@ -20,7 +20,8 @@ import {
 } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import type { FrameFlash } from "../../frame-verbs";
-import { pageConsole, saveSettingsFn, settingsNow, tzApi, workspaceApi } from "./shell";
+import { saveSettingsFn, settingsNow, tzApi, workspaceApi } from "./shell";
+import { pageReport } from "@/client/page-report";
 
 /* ------------------------------------ the config, as far as this tab reads it ------------------------------------ */
 
@@ -234,8 +235,7 @@ const btSafely = <A = undefined,>(fn: ((arg: A) => unknown) | undefined, arg?: A
   try {
     fn(arg as A);
   } catch (err) {
-    const log = pageConsole();
-    if (log) log.error(err);
+    pageReport.error(err);
   }
 };
 
@@ -245,8 +245,7 @@ const btTell = (subs: Set<() => void>) => {
     try {
       fn();
     } catch (err) {
-      const log = pageConsole();
-      if (log) log.error(err);
+      pageReport.error(err);
     }
   }
 };
@@ -264,8 +263,7 @@ const btTried = (config: Config, job: SaveJob): Tried => {
     return { patched };
   } catch (failed) {
     // A patch's own refusal is an answer, not a fault: base() meets it on every draw while the job waits.
-    const log = pageConsole();
-    if (log && typeof (failed as { said?: unknown }).said !== "string") log.error(failed);
+    if (typeof (failed as { said?: unknown }).said !== "string") pageReport.error(failed);
     return { failed };
   }
 };

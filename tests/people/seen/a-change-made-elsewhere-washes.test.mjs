@@ -10,8 +10,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PERSON_WASH_WORDS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 // The reader's press is heard on the document (capture): kept here so a test can press.
 const pressedOn = {};
 let said = null;

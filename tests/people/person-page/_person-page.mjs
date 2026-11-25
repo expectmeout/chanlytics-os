@@ -29,6 +29,7 @@ import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
@@ -204,6 +205,15 @@ globalThis.document = {
 /** Every event the window was told, in order: the page's own listeners come and go with its draws; what was said stays. */
 export const dispatched = [];
 
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -234,8 +244,6 @@ globalThis.window = {
   innerHeight: 800,
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
 };
 
 export const json = (status, body) =>
@@ -446,6 +454,7 @@ globalThis.leadArmOnReturn = () => () => undefined;
 
 globalThis.leadPeekFocus = () => () => undefined;
 
+bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   // The frame's own Back to People, which the person's page asks for (person-verbs.ts backToPeople).
@@ -456,8 +465,6 @@ Object.assign(globalThis.window, {
     address: await legacyAddress(),
     R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}`, clientSeg: (id) => `clients/seg:${id}` },
   },
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,

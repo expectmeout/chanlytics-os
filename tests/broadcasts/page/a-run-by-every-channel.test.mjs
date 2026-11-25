@@ -33,6 +33,7 @@ import {
   toBroadcastVM,
   versionRow,
 } from "./_page.mjs";
+import { provided } from "../../shell/_bridge-holds.mjs";
 
 test("a person's line on a run says the channel it went by where the run went by more than WhatsApp: by email, by text, on WhatsApp -- and says nothing of it for a run that went by WhatsApp alone", () => {
   const run = (recipients, over = {}) =>
@@ -77,7 +78,7 @@ test("a person's line on a run says the channel it went by where the run went by
 });
 
 test("a run waiting on you says who it reaches on which channel, as the run counted them when it was drawn", async () => {
-  const today = globalThis.window.__clock.dayKey(Date.now());
+  const today = provided("clock").dayKey(Date.now());
   const offerless = { ...noteRow(), id: "tpl-note", variables: [] };
   const reach = {
     pool: 20,
@@ -229,10 +230,7 @@ test("a run decided on its sheet alone is never approved or skipped from its pan
     }),
     ZONE,
   );
-  const own = toBroadcastVM(
-    dto({ ...waiting, id: "b-own", run_for: globalThis.window.__clock.dayKey(Date.now()) }),
-    ZONE,
-  );
+  const own = toBroadcastVM(dto({ ...waiting, id: "b-own", run_for: provided("clock").dayKey(Date.now()) }), ZONE);
   const stale = toBroadcastVM(dto({ ...waiting, id: "b-stale" }), ZONE);
   assert.equal(bcOpensOnItsSheet(reach), true);
   assert.equal(bcOpensOnItsSheet(own), false);

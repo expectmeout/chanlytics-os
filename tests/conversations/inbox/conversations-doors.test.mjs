@@ -16,10 +16,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again, find as findNode, textOf } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -164,12 +165,14 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 const went = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
+});
 installStubReact({
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
-  __surfaceState: () => "live",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -396,7 +399,7 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone" },
   });
   // The route's address as the client builds it, with the workspace named (inbox-verbs.ts window.__href).
-  globalThis.window.__href = (route, p) => `${route}|${p.id}|workspace=marisas`;
+  bridgeHolds({ parts: { href: (route, p) => `${route}|${p.id}|workspace=marisas` } });
   try {
     withRows([rec]);
     fresh();
@@ -436,7 +439,7 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     again.props.onClick();
     assert.deepEqual([el.loaded, el.played], [1, 2], "the second press asks the route again, and plays");
   } finally {
-    delete globalThis.window.__href;
+    bridgeHolds({ parts: { href: undefined } });
     setSurfaceValue("inbox", undefined);
   }
 });

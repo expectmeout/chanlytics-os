@@ -50,6 +50,7 @@ import {
   went,
   withFacts,
 } from "./_first-run-world.mjs";
+import { provided } from "../shell/_bridge-holds.mjs";
 
 const { waConnect } = await importSrc("apps/dashboard/src/surfaces/settings/connections/whatsapp.ts");
 const PW = FIRST_RUN_HELPERS.phoneWords;
@@ -139,7 +140,7 @@ test("Go live: back from Stripe before the plan lands is confirming with the ban
     "Confirming with your bank…Some banks ask you to approve in their app. This page moves on by itself.Usually a few seconds",
   );
   // A reload before the webhook lands: the tab remembers the card was given, and offers no second checkout.
-  globalThis.window.__billing.outcome = () => null;
+  provided("billing").outcome = () => null;
   assert.ok(byTestId(open("live"), "fr-pay-confirming"), "a reload says confirming, not Pay again");
   assert.deepEqual(asked.buy, []);
   // The webhook lands: the plan runs, and the number row buys. (This stub runs an effect on a component's first draw

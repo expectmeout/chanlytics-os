@@ -12,7 +12,7 @@ interface GoOptions {
   quiet?: boolean;
 }
 
-/** The bridge's address (bridge/shell.ts `__shell`), where the frame has one. */
+/** The bridge's address (bridge/shell.ts, provided as `shell`), where the frame has one. */
 type ShellAddress = {
   route: () => string;
   href: (route: string) => string;

@@ -11,6 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -28,11 +29,13 @@ globalThis.CustomEvent = class CustomEvent {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" } },
+  { fresh: true },
+);
 globalThis.window = {
   // People's list, a workspace's: Leads is the tab beside it, and no page of its own is on screen.
   location: { pathname: "/w/harbor/people", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener: (type, fn) => {

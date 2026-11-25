@@ -23,7 +23,6 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  __refreshSurface: async () => {},
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -33,6 +32,7 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, querySe
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { contentGroupOf } from "../../apps/dashboard/src/surfaces/settings/autonomy/content-rows.tsx";\n' +
       'export { PolicyTable, PolPhoneRows } from "../../apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx";\n' +
       'export { uiRows } from "../../apps/dashboard/src/bridge/policy-store.ts";\n' +
@@ -62,6 +62,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `the-content-rows-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => {});
 fs.rmSync(file, { force: true });
 
 /** The four rows as the pane hands them, each at the mode the workspace holds. */

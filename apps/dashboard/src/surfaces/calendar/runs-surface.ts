@@ -19,6 +19,7 @@ import { afterBoot, routeOnScreen, warmsOnItsOwn } from "@/bridge/workspace";
 import { knownZone } from "@/bridge/zone";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { getCalendarSpan } from "./surface";
+import { provided } from "@/bridge/provided";
 
 /** What Show draws over the visits, which are always drawn: the open times, the campaigns, cold email, and posts. */
 export interface CalendarShow {
@@ -37,7 +38,7 @@ const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false, p
  * with (use-calendar.ts), and whether the campaigns are worth reading before it is opened (`readRunsSoon`).
  */
 export function keptShow(): CalendarShow {
-  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
+  const mem = provided("tabMemory");
   const was = mem?.place("calendar", "show");
   const on = (k: keyof CalendarShow) => (typeof was?.[k] === "boolean" ? was[k] : SHOW_DEFAULT[k]);
   return { open: on("open"), campaigns: on("campaigns"), cold: on("cold"), posts: on("posts") };

@@ -15,6 +15,8 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { read } from "@/bridge/api";
 import { getActiveWorkspace } from "@/bridge/workspace";
 import { routeDoor } from "../../frame-verbs";
+import { provided } from "@/bridge/provided";
+import { pageReport } from "@/client/page-report";
 
 /** How many show before "N more". */
 const SHOWN = 3;
@@ -27,13 +29,13 @@ let backKept: { workspace: string | null; leads: LeadBackDto[] | null; at: numbe
 const keptHere = () => (backKept && backKept.workspace === getActiveWorkspace() ? backKept : null);
 
 /** The business's zone, as the shell's clock holds it. */
-const clockZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
+const clockZone = (): string => provided("clock")?.zone() ?? "UTC";
 
 async function readBack(): Promise<LeadBackDto[] | null> {
   try {
     return (await read("GET leads/back")).leads;
   } catch (e) {
-    console.error("leads_back_failed", e instanceof Error ? e.message : e);
+    pageReport.error("leads_back_failed", e instanceof Error ? e.message : e);
     return null;
   }
 }

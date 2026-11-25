@@ -47,6 +47,7 @@ import {
   typed,
   until,
 } from "./_palette.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ N3 ------------------------------ */
 
@@ -247,7 +248,7 @@ test("a question asked in an open thread hands the page's context the thread it 
 });
 
 test("the Line at rest: Right now is Today's queue, said once, and no preset question under it; earlier conversations are the head's Earlier -- and no key is drawn", async () => {
-  globalThis.window.TODAY_DATA = askQueue();
+  bridgeHolds({ values: { today: askQueue() } });
   try {
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
@@ -290,7 +291,7 @@ test("the Line at rest: Right now is Today's queue, said once, and no preset que
     assert.equal(byTestId(tree, "ask-open"), null);
     await closes();
   } finally {
-    delete globalThis.window.TODAY_DATA;
+    bridgeHolds({ values: { today: undefined } });
   }
 });
 

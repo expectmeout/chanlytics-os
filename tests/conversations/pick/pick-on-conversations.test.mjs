@@ -17,6 +17,7 @@ import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/mod
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -24,18 +25,21 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 /* ---------------------------------- the window ---------------------------------- */
 
 const went = [];
+bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: stateOf } } });
 installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  __surfaceState: () => "live",
-  __chrome: { state: stateOf },
   appNavigate: (to, opts) => went.push(["app", to, opts || null]),
+});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
 });
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
   CHANLY: {
     nav: (to) => went.push(["nav", to]),
     address: await legacyAddress(),

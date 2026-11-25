@@ -14,6 +14,7 @@ import { after } from "node:test";
 import assert from "node:assert/strict";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";
 import { marisa, redrawTab, W } from "../../../_business-tab-harness.mjs";
+import { bridgeHolds, whoIsLooking } from "../../../shell/_bridge-holds.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -103,14 +104,25 @@ export const typeHeard = (tree, name, text) => heardBox(tree, name).props.onChan
  */
 export const courier = ({ answer = null } = {}) => {
   const sent = [];
-  W.__workspace = {
-    patch: (fields) => {
-      sent.push(fields);
-      const r = answer || { ok: true, workspace: fields, message: "" };
-      if (r.ok) W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
-      return Promise.resolve(r);
+  bridgeHolds({
+    parts: {
+      workspace: {
+        patch: (fields) => {
+          sent.push(fields);
+          const r = answer || { ok: true, workspace: fields, message: "" };
+          if (r.ok)
+            bridgeHolds({
+              who: {
+                workspaces: whoIsLooking().workspaces.map((t) =>
+                  t.id === whoIsLooking().activeWorkspaceId ? { ...t, ...fields } : t,
+                ),
+              },
+            });
+          return Promise.resolve(r);
+        },
+      },
     },
-  };
+  });
   return { sent };
 };
 

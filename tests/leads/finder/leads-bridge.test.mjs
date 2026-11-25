@@ -19,6 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SECOND_MS } from "@chanlytics/contracts";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the window ------------------------------ */
 
@@ -40,12 +41,13 @@ globalThis.CustomEvent = class CustomEvent {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" } },
+  { fresh: true },
+);
 globalThis.window = {
   // On a workspace page, so the client names the workspace on every request the way it does in the browser.
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  // The zone the surface says its times in, published the way the workspace surface publishes it: no extra read.
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener: (type, fn) => {

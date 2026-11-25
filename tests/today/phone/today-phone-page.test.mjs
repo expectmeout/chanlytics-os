@@ -11,17 +11,22 @@ import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../record/_world.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const went = [];
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  },
+});
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, () => {}],
   canDo: () => true,
   gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
 // The phone's width, as tokens.css --bp-phone asks it (surfaces/today/phone.ts), and the desk's where a test says so.
@@ -34,9 +39,11 @@ W.matchMedia = (q) => ({
   addEventListener() {},
   removeEventListener() {},
 });
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
 });
 W.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "unavailable", message: "not read here" } }), {
@@ -67,13 +74,13 @@ const nobodyWaiting = () => toTodayVM(metrics(), [], [], [], NOW);
 
 const set = (vm) => {
   setSurfaceValue("today", vm);
-  W.__PEOPLE = { rows: peopleWithSteps([["b", "Ben", -1]]), fetchedAt: NOW.getTime() };
+  bridgeHolds({ values: { people: { rows: peopleWithSteps([["b", "Ben", -1]]), fetchedAt: NOW.getTime() } } });
 };
 after(() => {
   setSurfaceValue("today", undefined);
-  delete W.__PEOPLE;
-  delete W.__BROADCASTS;
-  delete W.__notifs;
+  bridgeHolds({ values: { people: undefined } });
+  bridgeHolds({ values: { broadcasts: undefined } });
+  bridgeHolds({ parts: { bell: undefined } });
 });
 const draw = (Comp) => {
   fresh();
@@ -265,11 +272,11 @@ test("on a phone a run waiting for your OK says so once, in its title, and opens
   };
   // On the seam, which the page's card reads, and on the window, which the lines read.
   setSurfaceValue("broadcasts", { rows: [reach] });
-  W.__BROADCASTS = { rows: [reach] };
+  bridgeHolds({ values: { broadcasts: { rows: [reach] } } });
   try {
     phone = true;
     set(nobodyWaiting());
-    W.__PEOPLE = { rows: [], fetchedAt: NOW.getTime() };
+    bridgeHolds({ values: { people: { rows: [], fetchedAt: NOW.getTime() } } });
     const card = cardOf(draw(NeedYouOnToday));
     assert.equal(card.props["data-holder"], "wait", "the run holds the card");
     const said = textOf(card);
@@ -281,7 +288,7 @@ test("on a phone a run waiting for your OK says so once, in its title, and opens
     );
   } finally {
     setSurfaceValue("broadcasts", undefined);
-    delete W.__BROADCASTS;
+    bridgeHolds({ values: { broadcasts: undefined } });
     phone = true;
   }
 });
@@ -300,18 +307,22 @@ test("under a phone's head only what stops customers being answered: a run waiti
     time: "1h",
     actions: [{ label: "Open", to: "inbox", primary: true }],
   });
-  W.__notifs = {
-    feed: () => [
-      note("n1", "playbook", "Movers nearby waits for your OK"),
-      note("n2", "job_failed", "A lead_collect job did not finish"),
-      note("n3", "number", "Your WhatsApp number's rating dropped"),
-    ],
-    onChange: () => () => {},
-    older: () => 0,
-    read() {},
-    dismiss() {},
-    seenAll() {},
-  };
+  bridgeHolds({
+    parts: {
+      bell: {
+        feed: () => [
+          note("n1", "playbook", "Movers nearby waits for your OK"),
+          note("n2", "job_failed", "A lead_collect job did not finish"),
+          note("n3", "number", "Your WhatsApp number's rating dropped"),
+        ],
+        onChange: () => () => {},
+        older: () => 0,
+        read() {},
+        dismiss() {},
+        seenAll() {},
+      },
+    },
+  });
   try {
     phone = true;
     set(twoWaiting());
@@ -321,8 +332,8 @@ test("under a phone's head only what stops customers being answered: a run waiti
     assert.ok(rows[0].includes("WhatsApp number"), rows[0]);
     // Two at most, and only what is still New: one the bell was closed over has been seen (its close is the member
     // looking), and the bell keeps it.
-    const feed = W.__notifs.feed();
-    W.__notifs.feed = () => [
+    const feed = provided("bell").feed();
+    provided("bell").feed = () => [
       ...feed,
       note("n4", "sweep", "Replies are not being read"),
       note("n5", "billing", "Your card was declined"),
@@ -332,7 +343,7 @@ test("under a phone's head only what stops customers being answered: a run waiti
     assert.equal(capped.length, 2, capped.join(" | "));
     assert.ok(!capped.some((r) => r.includes("is limited")), "a warning already seen stays in the bell");
   } finally {
-    delete W.__notifs;
+    bridgeHolds({ parts: { bell: undefined } });
   }
 });
 

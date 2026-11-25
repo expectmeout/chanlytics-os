@@ -27,6 +27,17 @@ import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { bootWaitsFor } from "@/bridge/hearing/page-waits";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { provide } from "@/bridge/provided";
+import { whoIsLooking } from "@/bridge/who";
+
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** A person's steps: one done or open again, and a step's day once it has come. */
+    personNotes: PersonNotesCourier;
+    /** A deal's acts as a thread's Deal group offers them, and their words. */
+    deal: DealMenuCourier;
+  }
+}
 
 /**
  * The profile courier: `personDetail(id)`.
@@ -48,7 +59,7 @@ const personShape = codeOnce(() => import("./person-shape"));
  * A person's page (person/person-real.tsx) as a chunk of its own within People's route: People's list, Leads and the
  * Pipeline draw none of it, and carried in their first load it put People's page over its ceiling (the loadability review,
  * 19 Oct 2026). Fetched at once where the address the tab opened on names a person (people-route.tsx), once People's list
- * is idle, and as a pointer reaches a person's link anywhere (`__warmPerson`, below), so a press finds it in. What it
+ * is idle, and as a pointer reaches a person's link anywhere (`warmPerson`, provided below), so a press finds it in. What it
  * reads of the module is named, so the dead-exports check (knip) sees the use.
  */
 export const profileCode = codeOnce(() =>
@@ -65,7 +76,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
       personShape(),
     ]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
-    const me = (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
+    const me = whoIsLooking().me?.id ?? null;
     // More's sends are judged against the lines People read (null until it has: the sheet judges them again).
     if (r.ok)
       return shape.toPersonVM(r.data.person, tz, new Date(), me, {
@@ -692,22 +703,17 @@ export async function decidePersonNote(
   return api()("POST contacts/[id]/notes/decide", { params: { id }, body });
 }
 
-declare global {
-  interface Window {
-    /** A person's steps as the shell's pages still reach them (0007): one done or open again (00166), and a step's day once
-     * it has come, as every page judges it (contracts steps.ts): Today's queue and the Inbox's thread header. */
-    __personNotes?: {
-      done: typeof markStepDone;
-      dueDay: typeof dueStepDay;
-    };
-    /** Read someone before their row is clicked (the shell's `routeDoor` asks, frame-doors.ts). */
-    __warmPerson?: (id: string) => void;
-    /** A deal's acts as the thread's Deal group offers them (0008: deal-sheet.ts dealMenuActs), and their words. */
-    __deal?: {
-      menu: typeof dealMenuActs;
-      actWords: typeof DEAL_ACT_WORDS;
-    };
-  }
+/** A person's steps as the shell's pages still reach them (0007): one done or open again (00166), and a step's day once
+ * it has come, as every page judges it (contracts steps.ts): Today's queue and the Inbox's thread header. */
+interface PersonNotesCourier {
+  done: typeof markStepDone;
+  dueDay: typeof dueStepDay;
+}
+
+/** A deal's acts as the thread's Deal group offers them (0008: deal-sheet.ts dealMenuActs), and their words. */
+interface DealMenuCourier {
+  menu: typeof dealMenuActs;
+  actWords: typeof DEAL_ACT_WORDS;
 }
 
 /**
@@ -742,10 +748,10 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
  */
 export function installPeopleCourier(): void {
   // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).
-  window.__warmPerson = (id) => {
+  provide("warmPerson", (id) => {
     void warmPerson(id);
     profileCode.warm();
-  };
-  window.__personNotes = { done: markStepDone, dueDay: dueStepDay };
-  window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
+  });
+  provide("personNotes", { done: markStepDone, dueDay: dueStepDay });
+  provide("deal", { menu: dealMenuActs, actWords: DEAL_ACT_WORDS });
 }
