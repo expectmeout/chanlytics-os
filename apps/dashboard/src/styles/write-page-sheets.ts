@@ -5,7 +5,8 @@
  * under public/sheets, each minified as Next's own build minifies a stylesheet (Lightning CSS, Next's browsers and its
  * older spelling of a media query's range: byte for byte what the one bundle held, 24 Nov 2026) and named by what it
  * holds, so a deploy that changes no rule of a file leaves it in every browser's cache. What comes back is the list the
- * app reads (`NEXT_PUBLIC_SHEETS`): the files in the cascade's order, and each page's.
+ * app reads (`NEXT_PUBLIC_SHEETS`): the files in the cascade's order, each page's, and each stylesheet's ladder of
+ * nested files, of which a tab keeps one (sheet-ladders.ts).
  *
  * `whole` is the development server's: every page links every stylesheet whole, under names that never change, so an
  * edit shows on the next load and nothing is worked out from code that is being written.
@@ -140,6 +141,12 @@ function moduleGraph(app: string) {
     if (specifier.startsWith(".")) return moduleAt(path.resolve(path.dirname(from), specifier));
     return null;
   };
+  /** Each stylesheet a module reached imports itself, with a module that does. */
+  const stylesheets = new Map<string, string>();
+  const stylesheetAt = (from: string, specifier: string): string | null => {
+    if (specifier.startsWith("@/")) return path.join(app, "src", specifier.slice(2));
+    return specifier.startsWith(".") ? path.resolve(path.dirname(from), specifier) : null;
+  };
   const readAt = (file: string): ModuleRead => {
     const had = read.get(file);
     if (had) return had;
@@ -154,24 +161,42 @@ function moduleGraph(app: string) {
       if (seen.has(file)) continue;
       seen.add(file);
       for (const specifier of readAt(file).imports) {
+        const stylesheet = specifier.endsWith(".css") ? stylesheetAt(file, specifier) : null;
+        if (stylesheet) stylesheets.set(stylesheet, file);
         const next = resolved(file, specifier);
         if (next && !seen.has(next)) todo.push(next);
       }
     }
     return [...seen].map(readAt);
   };
-  return { readAt, reached };
+  return { readAt, reached, stylesheets };
 }
 
 /** What each page's code writes, and the frame's: the contracts' words with what each one's entries reach. */
-function writtenByPage(app: string, pages: readonly PageEntry[]): { frame: Written; pages: Record<string, Written> } {
+function writtenByPage(
+  app: string,
+  pages: readonly PageEntry[],
+): { frame: Written; pages: Record<string, Written>; imported: ReadonlyMap<string, string> } {
   const graph = moduleGraph(app);
   const contracts = filesUnder(path.join(app, "../../packages/contracts/src"), (name) => /\.ts$/.test(name) && !/\.(test|type-test)\./.test(name));
   const shared = contracts.map(graph.readAt);
   const frame = ["app/layout.tsx", "app/(os)/layout.tsx", "app/(os)/w/[workspace]/layout.tsx"].map((file) => path.join(app, file));
   const each: Record<string, Written> = {};
   for (const page of pages) each[page.key] = writtenBy([...shared, ...graph.reached(page.starts)]);
-  return { frame: writtenBy([...shared, ...graph.reached(frame)]), pages: each };
+  return { frame: writtenBy([...shared, ...graph.reached(frame)]), pages: each, imported: graph.stylesheets };
+}
+
+/**
+ * Refuse a stylesheet the frame lists that a page's module imports as well. Next ships an import in a chunk of its own,
+ * beside the frame's file that holds the same rules, so a tab on that page held them twice, and the later copy decided
+ * the cascade (the Content page's post.css, 25 Nov 2026). A page links the listed stylesheets its code can draw.
+ */
+function refuseImported(sheets: readonly Sheet[], imported: ReadonlyMap<string, string>, app: string): void {
+  const twice = sheets.flatMap((sheet) => {
+    const by = imported.get(sheet.file);
+    return by ? [`${path.relative(app, by)} imports ${path.relative(app, sheet.file)}`] : [];
+  });
+  if (twice.length > 0) throw new Error(`a stylesheet ${SHEET_LIST} lists is the frame's to link, and no module's to import: ${twice.join("; ")}`);
 }
 
 /** One stylesheet as it is served: its files from the narrowest to the whole, and which each page links (-1: none). */
@@ -217,8 +242,7 @@ function wholeSheet(sheet: Sheet, pages: readonly PageEntry[]): Cut {
   return { name: sheet.name, files: [css], of: Object.fromEntries(pages.map((page) => [page.key, sheet.apart ? -1 : 0])) };
 }
 
-/** A narrowest file this small rides on the stylesheet before it; and two neighbours join where it costs no page more than this. */
-const RIDES_UNDER = 2048;
+/** Two neighbours join where it costs no page more than this. */
 const JOIN_COSTS = 3072;
 
 /** Whether two neighbours that are one file each may be one file: no page is handed more than a little it did not link. */
@@ -234,10 +258,12 @@ function joins(before: Cut, cut: Cut): boolean {
 
 /**
  * The stylesheets as the fewest files that read the same. Two neighbours that are one file each become one where no
- * page is handed more than a little it did not link: nothing stands between them in the cascade. And a narrowest file
- * of a few rules (the frame's part of a page's own stylesheet) rides at the end of every file of the stylesheet before
- * it: the wider file of its own stylesheet still follows it, so its rules are read where they were, and a page asks
- * for one file fewer.
+ * page is handed more than a little it did not link: nothing stands between them in the cascade.
+ *
+ * A file never holds a part of another stylesheet's ladder. Until 25 November 2026 a narrowest file of a few rules rode
+ * at the end of every file of the stylesheet before it, a request fewer, but its rules are in its own wider file too
+ * (they sit among that file's rules in the source), so a tab that held both held them twice, and nothing could take
+ * one copy out without reordering the cascade. It is the narrowest rung of its own ladder now.
  */
 function joinedCuts(cuts: readonly Cut[], apart: ReadonlySet<string>): Cut[] {
   const out: Cut[] = [];
@@ -249,16 +275,6 @@ function joinedCuts(cuts: readonly Cut[], apart: ReadonlySet<string>): Cut[] {
     if (!before || apart.has(cut.name)) {
       out.push(cut);
       continue;
-    }
-    const [narrowest = ""] = cut.files;
-    if (cut.files.length > 1 && narrowest.length <= RIDES_UNDER) {
-      before.files = before.files.map((css) => `${css}
-${narrowest}`);
-      cut.files.shift();
-      for (const [page, place] of Object.entries(cut.of)) {
-        if (place >= 0) before.of[page] = Math.max(before.of[page] ?? -1, 0);
-        cut.of[page] = place - 1;
-      }
     }
     if (joins(before, cut)) {
       before.files = [`${before.files[0] ?? ""}
@@ -288,18 +304,26 @@ export function writePageSheets(app: string, mode: "split" | "whole", folder: st
   const sheets = sheetsOf(app);
   const apart = new Set(sheets.filter((sheet) => sheet.apart).map((sheet) => sheet.name));
   const written = mode === "split" ? writtenByPage(app, pages) : null;
+  if (written) refuseImported(sheets, written.imported, app);
   const cuts = sheets.map((sheet) => (written && !sheet.apart ? cutSheet(sheet, written) : wholeSheet(sheet, pages)));
-  const manifest: SheetManifest = { files: [], pages: Object.fromEntries(pages.map((page) => [page.key, []])), apart: {} };
+  const manifest: SheetManifest = {
+    files: [],
+    pages: Object.fromEntries(pages.map((page) => [page.key, []])),
+    apart: {},
+    ladders: [],
+  };
   const served = new Map<string, string>();
   for (const cut of written ? joinedCuts(cuts, apart) : cuts) {
-    cut.files.forEach((css, rank) => {
+    const ladder = cut.files.map((css, rank) => {
       const called = rank === cut.files.length - 1 ? cut.name : `${cut.name}-${rank + 1}`;
       const name = written ? `${called}.${createHash("sha256").update(css).digest("hex").slice(0, 10)}.css` : `${called}.css`;
       served.set(name, css);
       const place = manifest.files.push([`s${String(manifest.files.length).padStart(2, "0")}`, `${SERVED_AT}/${name}`]) - 1;
       if (apart.has(cut.name)) manifest.apart[cut.name] = place;
       for (const [page, linked] of Object.entries(cut.of)) if (linked === rank) manifest.pages[page]?.push(place);
+      return place;
     });
+    if (ladder.length > 1) manifest.ladders.push(ladder);
   }
   keepSheetFiles(folder, served);
   return manifest;
