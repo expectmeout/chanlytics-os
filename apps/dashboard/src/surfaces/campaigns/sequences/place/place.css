@@ -70,15 +70,15 @@
 .sq-rail-row:last-child::after {
   display: none;
 }
+/* Start, Day 1, Day 4 in the text face, the day's number in columns (the phone change list's D2, 25 Nov 2026: in mono). */
 .sq-rail-day {
   align-self: start;
   justify-self: center;
   margin-top: var(--space-2);
   white-space: nowrap;
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
 }
 .sq-rail-day.is-need {
