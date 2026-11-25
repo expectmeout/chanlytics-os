@@ -66,6 +66,7 @@ async function proposeKeep(
   const sentence = input.said.trim().slice(0, FOLLOW_UP_SAID_MAX);
   const prompt = input.prompt.trim().slice(0, FOLLOW_UP_PROMPT_MAX);
   if (!sentence || !prompt)
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     return refuse("said (the line they read) and prompt (what you will ask yourself) are both needed");
   let subject: string | null = null;
   let on: string | null = null;
@@ -77,6 +78,7 @@ async function proposeKeep(
     // An earlier plan step's token (a search it starts) stands in for its id, filled at the commit.
     if (!UUID.test(subject) && stepNamed(toolContext, subject) === null)
       return refuse(
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "subject is the search's, the campaign's or the cold email's id a read returned, or a plan step's token",
       );
   }
@@ -119,6 +121,7 @@ async function proposeClear(toolContext: ToolContext, input: { ids: string[] }):
 export const propose_follow_up = defineActions({
   name: "propose_follow_up",
   description: `Propose a follow-up of your own, as a card the person approves: a note to come back when something happens (a lead search finishing or stopping to ask, replies on a campaign or a cold email, or a day), or clearing one you came back to. They hold at most ${ASK_FOLLOW_UPS_MAX}; signals says a due one first.`,
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   tail: "Offer one after a card whose result comes later (a lead search, a campaign or a cold email started), in the same plan. When a due one is read, do what its prompt says, and clear it beside the cards you make.",
   actions: {
     keep: actAction({
@@ -144,6 +147,7 @@ export const propose_follow_up = defineActions({
       ],
       label: "Keeping a follow-up",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action keep keeps a follow-up: said, prompt, wake, and its subject (an id or a plan step's token) or its day.",
       build: proposeKeep,
     }),

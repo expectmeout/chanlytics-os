@@ -51,6 +51,7 @@ async function proposePolicy(
   if (cls === "outreach") return refuse("a cold email's runs are set where cold emails are made, not here");
   // Content's rows (00714): only the owner moves a rung, on the Autonomy pane, where AI suggests one with its record.
   if (isOneOf(CONTENT_POLICY_CLASSES, cls)) return refuse("content's rows are set by the owner on the Autonomy page");
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
   const notOffered = mode ? policyModeRefusal(cls, mode as PolicyMode) : null;
@@ -117,6 +118,7 @@ export const autonomyAction = actAction({
     { class: "reply", min_confidence: 0.8 },
   ],
   label: "Preparing an autonomy change",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   words: `Action autonomy changes what AI may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want it to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its Autonomy row offers (veto holds a reply, or the reply to a review, so a person can stop it); a mode a class does not take is refused in that page's words. For reengage, campaign and follow_up the row is what a NEW campaign starts as (decision 0064): each existing campaign keeps its own mode, changed by propose_sequence's change with its mode, and a campaign that should not send is paused, so those rows take no never. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
   build: (t, input) =>
     proposePolicy(t, { class: input.class, mode: input.mode ?? "", min_confidence: input.min_confidence }),
