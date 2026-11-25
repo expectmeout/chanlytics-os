@@ -87,8 +87,8 @@ function onHarbor(theirs) {
 test("a person removed from the workspace on their screen leaves it for another of theirs, and nothing it kept stays on the device", async () => {
   onHarbor([ws("harbor", "Harbor"), ws("luna", "Luna")]);
   // What a visit keeps: the surfaces' rows, written by the cache itself, and a phone's copy of two screens.
-  globalThis.__TODAY_PROBE = { who: "Robin Example", said: "Can I move my appointment?" };
-  snapshotSurface("today", ["__TODAY_PROBE"], "id-harbor");
+  bridgeHolds({ values: { today: { who: "Robin Example", said: "Can I move my appointment?" } } });
+  snapshotSurface("today", "id-harbor", undefined, "today");
   flushSurfaceCache();
   localStorage.setItem(`${COPY}harbor:inbox`, copyOf("Robin Example"));
   localStorage.setItem(`${COPY}luna:inbox`, copyOf("Sam Example"));
@@ -103,11 +103,11 @@ test("a person removed from the workspace on their screen leaves it for another 
   assert.deepEqual(kept(), [], "and the device keeps none of the rows: Harbor's, and every other's, as at a sign-out");
 
   // A read of Harbor's that was already out lands before the page unloads: it is written nowhere.
-  snapshotSurface("today", ["__TODAY_PROBE"], "id-harbor");
+  snapshotSurface("today", "id-harbor", undefined, "today");
   flushSurfaceCache();
   globalThis.window.dispatchEvent(new Event("pagehide"));
   assert.deepEqual(kept(), [], "sealed: nothing read from here on is kept");
-  delete globalThis.__TODAY_PROBE;
+  bridgeHolds({ values: { today: undefined } });
 });
 
 test("removed from their only workspace, they go to the front door, and the device forgets which workspace it last opened", async () => {

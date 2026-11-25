@@ -42,7 +42,7 @@ import {
 } from "@chanlytics/contracts";
 import { attentionRow } from "../../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 const at = (iso) => Date.parse(iso);
 const iso = (ms) => new Date(ms).toISOString();
@@ -553,7 +553,7 @@ test("the pages read one clock, the workspace's: a time, a schedule box, when a 
   bridgeHolds({ who: { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id } });
   Object.assign(globalThis.window, {});
   installClock();
-  const clock = globalThis.window.__clock;
+  const clock = provided("clock");
   assert.equal(clock.time(at(WROTE)), "1:30 AM");
   assert.equal(clock.city(), "Tokyo");
   assert.equal(clock.inputValue(at("2026-09-15T13:30:00Z")), "2026-09-15T22:30");

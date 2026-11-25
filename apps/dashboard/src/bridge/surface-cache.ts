@@ -312,7 +312,7 @@ export function dropExpiredSlots(now: number = Date.now()): void {
 const HELD_SLOT = "$held";
 
 /** What a surface's snapshot holds now: the read the bridge holds for it, under its slot; nothing for any other surface. */
-function heldBy(key: string): Record<string, unknown> {
+function bridgeHeldIn(key: string): Record<string, unknown> {
   const it = isHeldRead(key) ? heldRead(key) : undefined;
   return it === undefined ? {} : { [HELD_SLOT]: it };
 }
@@ -352,8 +352,8 @@ export function hydrateSurfaceCache(): Set<string> {
 }
 
 /**
- * Persist the read the bridge holds for a surface (held-reads.ts), and its typed value where it has one (`value`, the key it is
- * published under), after its apply succeeded. `trim` is the surface's own say over what the cache holds of it (Leads: its
+ * Persist the read the bridge holds for a surface (held-reads.ts) where it holds one (`held`), and its typed value where it
+ * has one (`value`, the key it is published under), after its apply succeeded. `trim` is the surface's own say over what the cache holds of it (Leads: its
  * first hundred rows, which is all an instant paint needs); what the surface holds is untouched.
  */
 export function snapshotSurface(
@@ -361,13 +361,14 @@ export function snapshotSurface(
   tenant: string | null,
   trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
   value?: SurfaceKey,
+  held = false,
 ): void {
-  if ((!isHeldRead(key) && !value) || deviceSealed()) return;
+  if ((!held && !value) || deviceSealed()) return;
   const kept = current();
   // Rows join only a cache of the same workspace, by both its names: the address's, and the one the server resolved
   // where both have said it. Any other cache is another workspace's, and these rows start one of their own.
   const was = ofThisAddress(kept) && (!tenant || !kept.tenant || kept.tenant === tenant) ? kept : null;
-  const snap = heldBy(key);
+  const snap = held ? bridgeHeldIn(key) : {};
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   // A new object over the one kept, never the kept one changed: what was written stays what it says. Of the one kept,
@@ -394,7 +395,7 @@ export function resnapshotHere(key: string, value?: SurfaceKey): void {
 export function resnapshotSurface(key: string, tenant: string | null, value?: SurfaceKey): void {
   const blob = current();
   if (deviceSealed() || !ofThisAddress(blob) || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
-  const snap = heldBy(key);
+  const snap = bridgeHeldIn(key);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   snap[KEPT_SLOT] = keptNow(key);

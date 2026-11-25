@@ -34,7 +34,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 /** What the client asked for, by path. */
 const asked = [];

@@ -68,7 +68,7 @@ const settle = async () => {
 
 test("REGRESSION: a 401 seals the tab's cache before it goes to sign in, in the page's workspace -- a read landing before the page unloaded wrote the last person's rows back", async () => {
   bridgeHolds({ values: { inbox: { THREADS: [{ id: "t1", who: "A customer of theirs" }] } } });
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-b");
+  cache.snapshotSurface("inbox", "tenant-b", undefined, "inbox");
   cache.flushSurfaceCache();
   assert.ok(store.get(CACHE), "cached, as a reload would paint it");
 
@@ -83,7 +83,7 @@ test("REGRESSION: a 401 seals the tab's cache before it goes to sign in, in the 
   assert.equal(store.get(CACHE), undefined, "cleared before it left");
 
   // Another surface's read lands before the page unloads: the runner persists it, as it persists every read.
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-b");
+  cache.snapshotSurface("inbox", "tenant-b", undefined, "inbox");
   cache.flushSurfaceCache();
   for (const fn of heard.pagehide ?? []) fn();
   assert.equal(store.get(CACHE), undefined, "REGRESSION: their rows written back after the session ended");

@@ -9,9 +9,7 @@
  * comes later. Words alone, read off the window as asked: the frame's route table loads this module before any page, so it draws nothing and takes no hook as it
  * loads (today/shell.ts takes React's for `useMoved`, which a test's stand-in React must be in place before).
  */
-import type { PageClock } from "@/bridge/zone";
 import type { HeadFirst } from "../kit/head/standing";
-import { windowObject } from "../frame-verbs";
 import { provided } from "@/bridge/provided";
 import { whoIsLooking } from "@/bridge/who";
 

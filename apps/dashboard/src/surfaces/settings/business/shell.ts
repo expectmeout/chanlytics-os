@@ -6,15 +6,7 @@
  * stand-in is the one read. Each is a line to delete on the day the tab imports what it reads; nothing here is new
  * behaviour.
  */
-import {
-  knownTimezones,
-  timezoneCity,
-  timezoneWords,
-  usableDeviceTimezone,
-  zoneSearchWords,
-} from "@chanlytics/contracts";
 import type { PoliciesSurface } from "@/bridge/policy-store";
-import type { TzApi } from "@/bridge/identity";
 import { provided } from "@/bridge/provided";
 import { whoIsLooking } from "@/bridge/who";
 import { surfaceValue } from "../../surface-values";
@@ -47,15 +39,8 @@ export const setupNow = () => surfaceValue("setup");
 export const workspacesNow = () => whoIsLooking().workspaces;
 export const activeWorkspaceNow = () => whoIsLooking().activeWorkspaceId;
 export const workspaceApi = () => provided("workspace");
-/** A zone's words, contracts': the tab's hours and its zone picker. */
-const TZ_WORDS: TzApi = {
-  words: timezoneWords,
-  city: timezoneCity,
-  known: knownTimezones,
-  device: usableDeviceTimezone,
-  also: zoneSearchWords,
-};
-export const tzApi = () => TZ_WORDS;
+/** A zone's words and this device's zone (identity.ts installIdentity, provided as `tz`): the tab's hours and its picker. */
+export const tzApi = () => provided("tz");
 
 /* ---------------------------------------------------------------- the calendar --------------------------------------------------------------- */
 

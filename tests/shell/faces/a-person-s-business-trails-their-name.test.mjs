@@ -30,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, daysAgo, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 const opened = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
@@ -451,7 +451,7 @@ test("a page that names someone People does not hold yet asks for People again: 
   // business until People was opened.
   const { wantPerson } = await import(`${S}/surfaces/people/want-person.ts`);
   const asked = [];
-  const keep = globalThis.window.__refreshSurface;
+  const keep = provided("refreshSurface");
   bridgeHolds({
     parts: {
       refreshSurface: async (key) => {

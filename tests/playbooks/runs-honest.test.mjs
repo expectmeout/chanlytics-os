@@ -36,7 +36,7 @@ import {
   settle,
 } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -633,7 +633,7 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     finished_at: null,
     scheduled_for: iso(-H),
     // Today's run: one made for an earlier day is refused by the verb, and no page offers to approve it.
-    run_for: globalThis.window.__clock.dayKey(Date.now()),
+    run_for: provided("clock").dayKey(Date.now()),
     counts: quiet,
   });
   const soon = dto({
@@ -733,7 +733,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
   setSurfaceValue("broadcasts", { rows: [toBroadcastVM(soon, ZONE)] });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   const cancelled = [];
-  const keep = { verbs: globalThis.window.__broadcasts, toast: globalThis.window.usePPToast };
+  const keep = { verbs: provided("broadcasts"), toast: globalThis.window.usePPToast };
   bridgeHolds({
     parts: {
       broadcasts: {

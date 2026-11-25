@@ -53,7 +53,7 @@ import {
   went,
   wrote,
 } from "./_people-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION: on a phone People is one bar, one line and the people -- a 57px search box, three text buttons and an 'Everyone' title stood between them", () =>
   onPhone(async () => {
@@ -441,7 +441,7 @@ test("Esc ends a Select-people selection; a member who may neither edit nor expo
     assert.ok(byTestId(draw(), "bulk-bar"));
     assert.equal(press("Escape"), true, "the page takes the key");
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and the mode ends");
-    const me = globalThis.window.__ME;
+    const me = whoIsLooking().me;
     bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       await freshPage({ people: [person(1)] });
@@ -615,7 +615,7 @@ test("on a phone Add to list › New list names the list in the sheet, with its 
     tree = draw();
     assert.equal(openSheet(tree, "bulk-sheet"), null, "made, the sheet shuts");
     assert.match(textOf(flashes.at(-1).msg), /1 on the new list Saturday/);
-    const me = globalThis.window.__ME;
+    const me = whoIsLooking().me;
     bridgeHolds({ who: { me: { role: "viewer" } } });
     // No role may export and not edit (ROLE_PERMS: the file is the owner's, who may also edit), so the two answers the bar
     // asks apart are given apart here: this member may export, and may not edit.
@@ -707,7 +707,7 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
 test("on a phone the Lists sheet is compact: the groups name its blocks, an empty list is said in a line, and the one picked is drawn even when empty", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)] });
-    const lists = globalThis.window.__PEOPLE.lists;
+    const lists = surfaceValue("people").lists;
     const empty = lists.filter((l) => l.count === 0);
     const full = lists.filter((l) => l.count > 0);
     assert.ok(empty.length > 0 && full.length > 0, "the fixture has lists of both kinds");
@@ -782,7 +782,7 @@ test("a desktop's rail keeps every list and its heading: compact is the phone's 
       ),
     ),
   ];
-  assert.equal(rows.length, globalThis.window.__PEOPLE.lists.length, "an empty list has its row on a desktop");
+  assert.equal(rows.length, surfaceValue("people").lists.length, "an empty list has its row on a desktop");
   assert.equal(
     find(tree, (n) => n.props?.className === "cl-rail-empty"),
     null,
@@ -815,7 +815,7 @@ test("a link to a list People doesn't have says so and shows nobody; an archived
   draw({ initialSegment: "booked" });
   const hidden = draw({ initialSegment: "booked" });
   assert.equal(textOf(byTestId(hidden, "list-gone")), "Booked can't be counted here");
-  assert.equal(tableEmpty(hidden).props.body, globalThis.window.__PEOPLE.hidden.find((h) => h.id === "booked").why);
+  assert.equal(tableEmpty(hidden).props.body, surfaceValue("people").hidden.find((h) => h.id === "booked").why);
   draw({ initialSaved: "s2" });
   const tree = draw({ initialSaved: "s2" });
   assert.equal(textOf(byTestId(tree, "list-gone")), "VIP is archived");
@@ -941,7 +941,7 @@ test("Save these keeps the rule behind the view by default -- a copy of one of P
   tree = draw({ initialSegment: "opted_in" });
   assert.equal(byTestId(tree, "list-gone"), null, "the list on its way is not called missing");
   // Once it has arrived it is a list like any other: gone again, it is said to be gone.
-  globalThis.window.__PEOPLE.saved = [
+  surfaceValue("people").saved = [
     {
       id: "s2",
       name: "My yeses",
@@ -957,7 +957,7 @@ test("Save these keeps the rule behind the view by default -- a copy of one of P
   ];
   draw({ initialSegment: "opted_in" });
   draw({ initialSegment: "opted_in" });
-  globalThis.window.__PEOPLE.saved = [];
+  surfaceValue("people").saved = [];
   draw({ initialSegment: "opted_in" });
   tree = draw({ initialSegment: "opted_in" });
   assert.equal(
@@ -1015,7 +1015,7 @@ test("a state address for Needs you or You have it opens the list, and any list 
   // Views that could not be read are never saved over: that would wipe the pins not shown.
   refused = false;
   const before = saves().length;
-  globalThis.window.__PEOPLE.viewsRead = false;
+  surfaceValue("people").viewsRead = false;
   tree = draw({ initialSegment: "opted_in" });
   await byTestId(tree, "list-pin").props.onClick();
   assert.equal(saves().length, before, "nothing saved");
@@ -1054,7 +1054,7 @@ test("export follows the list that is open, and is not offered for a list that c
     // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why and opens nothing.
     draw({ initialSaved: "s3" });
     const blocked = exportItem(draw({ initialSaved: "s3" }));
-    assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
+    assert.equal(blocked.props["data-tip"], surfaceValue("people").saved[0].unknown);
     const before = opened.length;
     const said = flashes.length;
     blocked.props.onClick();
@@ -1078,7 +1078,7 @@ test("export follows the list that is open, and is not offered for a list that c
       null,
       "no Import word: the owner brings a list in through Add people",
     );
-    const me = globalThis.window.__ME;
+    const me = whoIsLooking().me;
     bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       draw();
@@ -1105,7 +1105,7 @@ test("the New list door's address stands until a list is made, then is that list
   const tree = draw({ newList: true });
   assert.equal(routeNow(), "clients/new-list", "the box is what the address opened");
   await find(tree, (n) => typeof n.props?.onCreateList === "function").props.onCreateList("Regulars");
-  globalThis.window.__PEOPLE.saved = [
+  surfaceValue("people").saved = [
     { id: "s9", name: "Regulars", count: 0, ids: [], members: [], byHand: true, tip: "" },
   ];
   draw({ newList: true });
@@ -1136,7 +1136,7 @@ test("every list's tip is the surface's, from contracts: a built-in's line, and 
       { id: "s2", name: "Texters", ids: [], rule: { all: [{ field: "channel", op: "is", channel: "whatsapp" }] } },
     ],
   });
-  const P = globalThis.window.__PEOPLE;
+  const P = surfaceValue("people");
   assert.ok(P.lists.length > 0 && P.lists.every((l) => typeof l.tip === "string" && l.tip.length > 10));
   assert.deepEqual(
     P.saved.map((l) => l.tip),
@@ -1194,7 +1194,8 @@ test("on a phone an empty list of your own is said in the quiet line, and a shee
 
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-  const route = globalThis.window.__listRoute;
+  // The shell asks People's rule through its verbs (frame-verbs.ts listRoute), as every page that links a list does.
+  const { listRoute: route } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
   assert.equal(route("s1"), "clients/list:s1", "a list kept by hand");
   assert.equal(route("needs_you"), "clients/seg:needs_you", "a smart list");
   // A list People doesn't have: its own address all the same, where People says so (decision 0009).

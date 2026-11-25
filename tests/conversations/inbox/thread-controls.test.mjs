@@ -24,7 +24,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -838,7 +838,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
   // The surfaces read again (frame-verbs refreshSurface, through the runner's door).
   const readAgain = [];
   const w = globalThis.window;
-  bridgeHolds({ parts: { refreshSurface: w.__refreshSurface } });
+  bridgeHolds({ parts: { refreshSurface: provided("refreshSurface") } });
   const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
   bridgeHolds({
     parts: {
@@ -983,7 +983,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const itemsOf = (tree) => itemsIn(find(tree, (n) => n.type === Menu));
   const shape = (tree) => menuShape(find(tree, (n) => n.type === Menu));
-  const was = { deal: globalThis.window.__deal, open: globalThis.window.openDealSheet };
+  const was = { deal: provided("deal"), open: globalThis.window.openDealSheet };
   const opened = [];
   // What happens, in order: the Actions button taking focus, and the sheet asked for.
   const order = [];

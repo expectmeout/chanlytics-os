@@ -21,7 +21,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const keepError = console.error;
 console.error = () => {};

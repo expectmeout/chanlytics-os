@@ -18,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, kitPages, textOf } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue } from "../shell/_bridge-holds.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -323,7 +323,7 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
   // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts):
   // the Inbox read and empty, the runs as the window has them.
   setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
-  setSurfaceValue("broadcasts", globalThis.window.__BROADCASTS);
+  setSurfaceValue("broadcasts", surfaceValue("broadcasts"));
   try {
     fresh();
     const tree = again(() => NeedYouOnToday());

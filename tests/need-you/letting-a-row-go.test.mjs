@@ -24,7 +24,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 /** What the row asked of the wire, by method and path; every ask answered as done. */
 const asked = [];
 globalThis.fetch = async (url, init = {}) => {

@@ -20,12 +20,10 @@ import { build } from "esbuild";
 import { ROOT } from "../../_source.mjs";
 import { piecesToReadAhead } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 const CONTENT = "../../apps/dashboard/src/surfaces/campaigns/content";
 
-bridgeHolds({ parts: { refreshSurface: async () => {} } }, { fresh: true });
 globalThis.window = {
   location: { pathname: "/w/harbor/campaigns/content", search: "", hash: "", href: "http://127.0.0.1/", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -80,6 +78,7 @@ const PRESSES_OF =
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       `export { PieceDesk } from "${CONTENT}/viewer/desk.tsx";\n` +
       `export { PieceViewer } from "${CONTENT}/viewer/viewer.tsx";\n` +
       `export { AskLine } from "${CONTENT}/sheets/ask-change.tsx";\n` +
@@ -112,6 +111,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `a-piece-opens-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => {});
 fs.rmSync(file, { force: true });
 
 const count = (html, testid) => html.split(`data-testid="${testid}"`).length - 1;

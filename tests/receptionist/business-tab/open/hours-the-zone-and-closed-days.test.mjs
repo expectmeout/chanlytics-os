@@ -46,7 +46,7 @@ import {
   written,
 } from "../../../_business-tab-harness.mjs";
 import { NEW_YEAR, XMAS, copyTo, place, summaryOf } from "./_open.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("When you're open draws three rows in the spec's order, under a line contracts wrote", () => {
   const tree = drawTab();
@@ -647,7 +647,7 @@ test("the timezone row says the zone and the time there, and saves through the w
       workspace: {
         setTimezone: async (tz) => {
           asked.push(tz);
-          bridgeHolds({ who: { workspaces: W.__WORKSPACES.map((t) => ({ ...t, timezone: tz })) } });
+          bridgeHolds({ who: { workspaces: whoIsLooking().workspaces.map((t) => ({ ...t, timezone: tz })) } });
           return { ok: true, tz, message: "" };
         },
       },
@@ -727,7 +727,11 @@ test("the timezone row says the zone and the time there, and saves through the w
     await settle();
     tree = redrawTab(flash);
     assert.deepEqual([asked.length, openRows(tree)], [1, []]);
-    W.__workspace.setTimezone = async () => ({ ok: false, tz: "", message: "Only the owner can change the timezone." });
+    provided("workspace").setTimezone = async () => ({
+      ok: false,
+      tz: "",
+      message: "Only the owner can change the timezone.",
+    });
     openFold(tree, "timezone");
     tree = redrawTab(flash);
     press(byTestId(tree, "rec-inline-timezone-device") || { props: { onClick() {} } });

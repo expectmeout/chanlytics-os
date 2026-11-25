@@ -1,6 +1,6 @@
 /**
- * Identity and workspace on the classic pages: the words for who is signed in
- * and for a member (contracts/identity.ts), the writes a person may make
+ * Identity and workspace on the classic pages: a zone's words and this device's zone (`TzApi`, provided as `tz`
+ * for the Business tab), the writes a person may make
  * about themselves — their name, their account (`meVerbs`, which Settings › Profile
  * imports) — and the ones their workspace owns, its
  * timezone and its word for a booking (00458). The workspace read holds who is
@@ -8,10 +8,6 @@
  * the list current after a change and tells the chrome. And who is acting: the one role every gate reads (`roleOf`).
  */
 import {
-  identityWords,
-  memberWords,
-  personInitials,
-  workspaceInitials,
   type IdentityInput,
   timezoneWords,
   timezoneCity,
@@ -27,14 +23,6 @@ import { sealSurfaceCache } from "./surface-cache";
 import type { Workspace } from "./surface-data";
 import { provide } from "./provided";
 import { holdWhoIsLooking, whoIsLooking } from "./who";
-
-export interface IdentityApi {
-  words: typeof identityWords;
-  member: typeof memberWords;
-  initials: typeof personInitials;
-  /** A workspace's initials, for its circle where it has no logo: the sidebar's row, the rail and the switcher. */
-  workspace: typeof workspaceInitials;
-}
 
 export interface MeApi {
   /** Set your own name; empty clears it. Never throws. */
@@ -155,6 +143,14 @@ export const meVerbs: MeApi = {
 
 export function installIdentity(win: Window = window): void {
   installRoles(win);
+  // A zone's words, and this device's zone, an environment's answer a test stands in for.
+  provide("tz", {
+    words: timezoneWords,
+    city: timezoneCity,
+    known: knownTimezones,
+    device: usableDeviceTimezone,
+    also: zoneSearchWords,
+  });
   const patch: WorkspaceApi["patch"] = async (fields) => {
     const r = await api()("PATCH workspaces", { body: fields });
     if (!r.ok) return { ok: false, workspace: {}, message: r.message };

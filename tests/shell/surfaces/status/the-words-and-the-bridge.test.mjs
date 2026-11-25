@@ -18,6 +18,7 @@ import {
   win,
   workspace,
 } from "./_status.mjs";
+import { provided } from "../../_bridge-holds.mjs";
 
 /* ---------------------------------- the words ---------------------------------- */
 
@@ -198,12 +199,12 @@ test("the live feed: a blip it rejoins is not news, a drop that outlasts the gra
 test("Retry reads every surface again, through the runner that is running", async () => {
   shell.installShell(win);
   const { asked, overrides } = surfaces("inbox", "today");
-  await win.__shell.retry();
+  await provided("shell").retry();
   assert.deepEqual(asked, [], "no runner, nothing to read");
   const stop = runner.startSurfaces(overrides);
   await settle();
   asked.length = 0;
-  await win.__shell.retry();
+  await provided("shell").retry();
   assert.deepEqual([...asked].sort(), ["inbox", "today"]);
   stop();
 });

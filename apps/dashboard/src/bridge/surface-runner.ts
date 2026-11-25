@@ -273,7 +273,7 @@ function signOutOnUnauthorized(run: SurfaceRun): void {
 }
 
 function persistSurface(o: SurfaceOverride): void {
-  snapshotSurface(o.key, viewedWorkspace(), o.trimSnapshot, o.value);
+  snapshotSurface(o.key, viewedWorkspace(), o.trimSnapshot, o.value, o.held === true);
 }
 
 /**

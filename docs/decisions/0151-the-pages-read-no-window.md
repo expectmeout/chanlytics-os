@@ -36,7 +36,7 @@ scripts could not import, which is over.
 
 1. **What the bridge installs is held in one typed store, `apps/dashboard/src/bridge/provided.ts`.** `provide(name, part)`
    as the bridge installs a part, `provided(name)` where a page or the frame uses it, read when it is used and undefined
-   before the bridge has installed it, as the window was. The names and their types are one interface (`Provided`); the
+   before the bridge has installed it, as the window was. The names and their types are one interface (`BridgeParts`); the
    module imports nothing at run time, so the kit, the frame and every surface can import it. A test hands in its stand-in
    with `provide`. This is a module-level store, the first of the four replacements the plan offered: a part installed once
    for the life of the tab has no subscriber to tell, a React context would not reach the non-React readers (the runner,

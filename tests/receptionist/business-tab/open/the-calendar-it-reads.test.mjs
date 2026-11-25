@@ -37,7 +37,7 @@ import {
   setSurfaceValue,
   surfaceValue,
 } from "./_open.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("the booking tool row says where its calendar link reads and when, and keeps the address, the count and the source in its fold", () => {
   setSurfaceValue("calendar", calendarRead(readOk()));
@@ -397,7 +397,7 @@ test("a workspace with no address is given the one its name makes in one press: 
 });
 
 test("a calendar that could not be read says so in the Calendar page's words; with no read, the row says nothing of one and asks", () => {
-  const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
+  const was = { calendar: provided("calendar"), failed: provided("surfaceFailed") };
   try {
     // The last read failed: the pill, the reason as the owner can act on it, and when it was tried.
     setSurfaceValue(
@@ -482,7 +482,7 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
 });
 
 test("(B1) an address pasted into the fold is read as it lands -- how many appointments and the next, or why not -- and each calendar says where it keeps one", async () => {
-  const was = W.__calendar;
+  const was = provided("calendar");
   const asked = [];
   let answer = {
     ok: true,
@@ -943,7 +943,7 @@ test("a day switched on with no times is said under its day, and the week is not
 test("an idle page stops stating a read when the Calendar page would have read again: one timer, at the read's own age", () => {
   // The spec review's probe: `fresh` was worked out as the row drew and nothing looked again, so a page left open said
   // "read 4m ago" for forty minutes.
-  const was = { calendar: W.__calendar };
+  const was = { calendar: provided("calendar") };
   const time = clock();
   const asked = [];
   bridgeHolds({
@@ -1042,7 +1042,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
 });
 
 test("while a new read is on its way the last one stays where it is, dimmed; it does not vanish and move the rows under it", async () => {
-  const was = { calendar: W.__calendar };
+  const was = { calendar: provided("calendar") };
   let land = null;
   bridgeHolds({
     parts: {

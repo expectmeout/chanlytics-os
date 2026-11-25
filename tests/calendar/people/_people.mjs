@@ -18,7 +18,7 @@ import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../../_log-lines.mjs";
 import { installStubReact, installRoleStore, fresh, again } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -54,7 +54,7 @@ export async function peopleHarness() {
   const went = moved;
   Object.assign(globalThis.window, {
     mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
-    canDo: (action) => !!ROLE_PERMS[globalThis.window.__ME.role]?.[action],
+    canDo: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action],
     gate: () => ({}),
     usePPToast: () => [null, () => {}],
     CHANLY: { nav: (route) => went.push(route) },

@@ -87,7 +87,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     false,
     "the switch is the frame's strip over the page (people/moments/people-views.test.mjs)",
   );
-  const vm = pipelineOf(globalThis.window.__PEOPLE.rows, Date.now(), ZONE, null);
+  const vm = pipelineOf(surfaceValue("people").rows, Date.now(), ZONE, null);
   assert.deepEqual(lineParts(tree), vm.summary);
   assert.deepEqual(vm.summary, ["2 proposals out", "2 waiting over a week", "1 client"]);
   // The part that counts what waits on the owner is a press; the other counts are words.
@@ -299,7 +299,7 @@ test("the Pipeline keeps a view of its own, apart from People's and Leads': the 
 
 test("one clock with the rows: the Pipeline counts at the moment the surface published them, not at the draw", async () => {
   await fresh();
-  const published = globalThis.window.__PEOPLE.fetchedAt;
+  const published = surfaceValue("people").fetchedAt;
   // The rows were said at `published`; a page that grouped them at the draw's own moment could say a consultation
   // held two days ago beside a proposal's wait said the day before. Moved back a day, the Pipeline's own counts move
   // with the surface's clock, and never with the wall's.
@@ -315,7 +315,7 @@ test("one clock with the rows: the Pipeline counts at the moment the surface pub
 
 test("past the people People has loaded, the line says it counts only them, in People's own words", async () => {
   await fresh({ total: 1400, hasMore: true });
-  const people = globalThis.window.__PEOPLE;
+  const people = surfaceValue("people");
   assert.equal(people.page.has_more, true, "the surface stopped with more to follow");
   const tree = draw();
   const parts = lineParts(tree);
@@ -374,7 +374,7 @@ test("a view in the address holds its rows alone; the line's press opens it, and
   assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^2 deals/, "the foot counts the view");
   assert.deepEqual(
     lineParts(tree),
-    pipelineOf(globalThis.window.__PEOPLE.rows, globalThis.window.__PEOPLE.fetchedAt, ZONE, null).summary,
+    pipelineOf(surfaceValue("people").rows, surfaceValue("people").fetchedAt, ZONE, null).summary,
     "the line stays the whole Pipeline's",
   );
   click(byTestId(tree, "pipeline-line-waiting"));
@@ -902,7 +902,7 @@ test("a row opens its deal sheet beside the rows: the head at once (its name the
   );
   // A send opens their thread with the words in the box, the person page's own way.
   click(lead);
-  const threadId = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes").threadId;
+  const threadId = surfaceValue("people").rows.find((r) => r.id === "wes").threadId;
   assert.equal(went.at(-1), `inbox/${threadId}`);
   const carried = JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose"));
   assert.equal(carried.threadId, threadId);

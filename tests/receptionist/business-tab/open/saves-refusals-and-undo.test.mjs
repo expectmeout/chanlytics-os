@@ -45,12 +45,12 @@ import {
   W,
 } from "../../../_business-tab-harness.mjs";
 import { calendarRead, copyTo, place, readOk, setSurfaceValue, surfaceValue } from "./_open.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("a stale read whose refresh failed says so where the read would be, with a Retry, and never goes on stating the old one", async () => {
   // The spec review's probe: FailedRead drew only when there was no surface at all, so a read from half an hour ago
   // whose refresh had failed was stated as if nothing had happened, or not stated and not explained.
-  const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
+  const was = { calendar: provided("calendar"), failed: provided("surfaceFailed") };
   const answers = [];
   bridgeHolds({ parts: { calendar: { refresh: () => new Promise((resolve) => answers.push(resolve)) } } });
   try {
@@ -331,7 +331,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
   // had failed, so a re-read that FAILED left the row blank for good: the read in the window stays the old calendar's.
   const sent = saving();
   const asked = [];
-  const was = W.__surfaceFailed;
+  const was = provided("surfaceFailed");
   bridgeHolds({
     parts: {
       calendar: {

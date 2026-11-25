@@ -20,6 +20,7 @@ import { holdRead } from "../held-reads";
  */
 export const notificationsOverride: SurfaceOverride = {
   key: "notifications",
+  held: true,
   events: ["surface:notifications"],
   ...declareReads("notifications", { reads: ["notification"], fresh: "live" }),
   apply: async () => {

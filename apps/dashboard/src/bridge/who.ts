@@ -10,12 +10,9 @@
  *
  * This module imports only held-reads.ts at run time, so the kit, the frame and every surface can import it.
  */
-import type { PendingWorkspace } from "@chanlytics/contracts";
+import type { PendingWorkspace, SignupPosture } from "@chanlytics/contracts";
 import type { Me, Workspace } from "./surface-data";
 import { heldRead, holdRead } from "./held-reads";
-
-/** The door a first workspace meets: the invite code, or the list (the create screen asks nothing of its own). */
-export type SignupPosture = "open" | "waitlist" | "invite";
 
 /** What the workspace read said, as one answer. */
 export interface WhoIsLooking {
@@ -27,14 +24,21 @@ export interface WhoIsLooking {
   activeWorkspaceId: string | null;
   /** A workspace being made for this person that is not in the list yet. */
   pending: PendingWorkspace | null;
+  /** The door a first workspace meets: the invite code, or the list (the create screen asks nothing of its own). */
   posture: SignupPosture;
 }
 
-const NOBODY: WhoIsLooking = { workspaces: null, me: null, activeWorkspaceId: null, pending: null, posture: "open" };
+const NOBODY_LOOKING: WhoIsLooking = {
+  workspaces: null,
+  me: null,
+  activeWorkspaceId: null,
+  pending: null,
+  posture: "open",
+};
 
 /** What the workspace read said, now; nobody before it. */
 export function whoIsLooking(): WhoIsLooking {
-  return heldRead("workspace") ?? NOBODY;
+  return heldRead("workspace") ?? NOBODY_LOOKING;
 }
 
 /** Hold what the read said, or part of it, over what was held: a new answer, never the old one changed. */

@@ -11,13 +11,23 @@
  *
  * `fresh` empties the bridge's parts, its reads and who is looking first, as a new window did; a surface's values are the
  * seam's, which a new window never emptied, and are left. `undefined` takes one away.
+ *
+ * The stores are required, as the pages require them: tsx loads the dashboard's modules as CommonJS, and a static `import`
+ * of one from an .mjs is a second copy the pages never write to or read (the record registry's trap, _stub-react.mjs).
  */
-import { provide } from "../../apps/dashboard/src/bridge/provided.ts";
-import { holdRead } from "../../apps/dashboard/src/bridge/held-reads.ts";
-import { holdWhoIsLooking } from "../../apps/dashboard/src/bridge/who.ts";
-import { setSurfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-/** Every part the bridge installs (provided.ts `Provided`), so a fresh world holds none of them. */
+const requireFromDashboard = createRequire(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../apps/dashboard/src/bridge/_.js"),
+);
+const { provide, provided } = requireFromDashboard("./provided.ts");
+const { holdRead, heldRead } = requireFromDashboard("./held-reads.ts");
+const { holdWhoIsLooking, whoIsLooking } = requireFromDashboard("./who.ts");
+const { setSurfaceValue, surfaceValue } = requireFromDashboard("../surfaces/surface-values.ts");
+
+/** Every part the bridge installs (provided.ts `BridgeParts`), so a fresh world holds none of them. */
 const PARTS = [
   "surfaceState",
   "surfaceRetired",
@@ -36,6 +46,7 @@ const PARTS = [
   "personNotes",
   "deal",
   "workspace",
+  "tz",
   "replies",
   "href",
   "setPolicy",
@@ -49,13 +60,32 @@ const PARTS = [
 /** Every read the bridge holds itself (held-reads.ts `HeldReads`). */
 const READS = ["workspace", "notifications", "reach_out_replies"];
 
+/**
+ * The three parts the record kit still reads off the window (kit/record/shell-verbs.ts, the kit lane's file), which the app
+ * writes there too as it provides them (shell.ts, frame/tip.ts, tab-memory.ts): a test's stand-in goes both ways, as theirs do.
+ */
+const ON_THE_WINDOW = { chrome: "__chrome", tip: "__tip", tabMemory: "__tabMemory" };
+
+function hold(name, part) {
+  provide(name, part);
+  const onWindow = ON_THE_WINDOW[name];
+  if (!onWindow) return;
+  // Before a test has a window, onto the global it is about to become (installStubReact's window is globalThis).
+  const win = globalThis.window ?? globalThis;
+  if (part === undefined) delete win[onWindow];
+  else win[onWindow] = part;
+}
+
 export function bridgeHolds({ who, values, reads, parts } = {}, { fresh = false } = {}) {
   if (fresh) {
-    for (const name of PARTS) provide(name, undefined);
+    for (const name of PARTS) hold(name, undefined);
     for (const key of READS) holdRead(key, undefined);
   }
   if (who) holdWhoIsLooking(who);
   for (const [key, value] of Object.entries(values ?? {})) setSurfaceValue(key, value);
   for (const [key, value] of Object.entries(reads ?? {})) holdRead(key, value);
-  for (const [name, part] of Object.entries(parts ?? {})) provide(name, part);
+  for (const [name, part] of Object.entries(parts ?? {})) hold(name, part);
 }
+
+/* What the bridge holds, read back by a test as the app reads it. */
+export { provided, heldRead, whoIsLooking, surfaceValue };

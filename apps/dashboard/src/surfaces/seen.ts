@@ -26,7 +26,6 @@ import { api } from "@/bridge/api";
 import type { BellApi } from "@/bridge/notifications";
 import { resnapshotHere } from "@/bridge/surface-cache";
 import { carryMark, keepsCarried } from "./seen-carry";
-import { object } from "./shell-doors";
 import { provided } from "@/bridge/provided";
 
 // A surface a mark changed is kept in the tab's cache as a saved view is (surface-cache.ts resnapshotHere), under the

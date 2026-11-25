@@ -17,7 +17,7 @@ import { provided } from "@/bridge/provided";
 import { surfaceHook } from "@/bridge/surface-status";
 import type { SurfaceNames } from "@/bridge/surface-status";
 import { askAbout, askCalls, canDo, mayAtLeast } from "../frame-verbs";
-import { fn, object, type Flash } from "../shell-doors";
+import { fn, type Flash } from "../shell-doors";
 
 export { askAbout, canDo, mayAtLeast };
 

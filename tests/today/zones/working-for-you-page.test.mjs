@@ -39,7 +39,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 // Every write is refused: what a press does with a refusal is what is proved here, and nothing is sent anywhere.
 W.fetch = async () =>
   new Response(

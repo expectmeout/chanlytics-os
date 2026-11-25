@@ -18,7 +18,7 @@ import { LIST_MESSAGES_EACH, memberWords, stateOf, toInboxThreadVM } from "@chan
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again as drawAgain } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -277,7 +277,7 @@ globalThis.window.fetch = async (url) => {
   if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
   if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 const threadOf = (id) => surfaceValue("inbox").THREADS.find((t) => t.conversationId === id);

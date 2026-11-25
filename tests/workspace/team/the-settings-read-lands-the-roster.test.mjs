@@ -66,7 +66,7 @@ const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { api } = await import(`${SRC}/bridge/api.ts`);
 const { holderName } = await import(`${SRC}/surfaces/holder-names.ts`);
-const { feedFromGlobals } = await import(`${SRC}/bridge/notifications.ts`);
+const { derivedFeedNow } = await import(`${SRC}/bridge/notifications.ts`);
 console.error = quiet;
 
 const ANA = {
@@ -115,10 +115,12 @@ const land = async () => {
   }
 };
 /** The bell's rows for invitations, by key, as its feed derives them now. */
-const invitedNow = () =>
-  feedFromGlobals({ INBOX_DATA: { THREADS: [] } }, Date.parse("2026-11-11T15:00:00Z"))
+const invitedNow = () => {
+  bridgeHolds({ values: { inbox: { THREADS: [] } } });
+  return derivedFeedNow(Date.parse("2026-11-11T15:00:00Z"))
     .map((r) => r.key)
     .filter((k) => k.startsWith("invite:"));
+};
 
 test("the roster and the open invitations are the settings surface's, whole, and each reader takes them from there", async () => {
   wire({ members: [ANA, LEE], invites: [SAM] });

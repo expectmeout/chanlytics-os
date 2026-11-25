@@ -83,8 +83,6 @@ export function refusalToast(r: unknown, what?: string | null): Flash {
 
 /* ---------------------------- what the tab remembers ---------------------------- */
 
-type Place = Record<string, unknown>;
-
 /** The tab's memory (tab-memory.ts, provided as `tabMemory`), or nothing where the shell has none: the standalone harness. */
 export function tabMemory(): TabMemory | undefined {
   return provided("tabMemory");

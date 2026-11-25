@@ -28,8 +28,20 @@ import {
 import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
 import { bridgeHolds } from "./shell/_bridge-holds.mjs";
 
-bridgeHolds({ parts: { chrome: { state: stateOf } } });
 installStubReact({});
+bridgeHolds({
+  parts: {
+    chrome: { state: stateOf },
+    // The zone's words (identity.ts, provided as `tz`). This device is in Chicago.
+    tz: {
+      words: timezoneWords,
+      city: timezoneCity,
+      known: knownTimezones,
+      device: () => "America/Chicago",
+      also: zoneSearchWords,
+    },
+  },
+});
 const went = [];
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },

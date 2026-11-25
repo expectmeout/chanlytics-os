@@ -340,7 +340,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
   assert.ok(smartRow, "the smart list is on the rail, marked");
   assert.ok(textOf(smartRow).includes("WhatsApp people") && textOf(smartRow).includes("1"), textOf(smartRow));
   assert.equal(smartRow.props["data-tip"], "Keeps itself current: Reaches you by WhatsApp");
-  const saved = globalThis.window.__PEOPLE.saved.find((s) => s.id === "s2");
+  const saved = surfaceValue("people").saved.find((s) => s.id === "s2");
   assert.deepEqual(
     [saved.ids, saved.rule],
     [["p1"], ["Reaches you by WhatsApp"]],

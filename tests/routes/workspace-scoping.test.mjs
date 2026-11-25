@@ -289,8 +289,8 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
     const { switchWorkspace } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
     const cache = await importSrc("apps/dashboard/src/bridge/surface-cache.ts");
     // The workspace being left, read and cached, as a reload would paint it.
-    globalThis.window.INBOX_PROBE = { threads: ["harbor-moving's"] };
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    bridgeHolds({ values: { inbox: { threads: ["harbor-moving's"] } } });
+    cache.snapshotSurface("inbox", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", undefined, "inbox");
     cache.flushSurfaceCache();
     assert.ok(globalThis.localStorage.getItem("chanlytics.surfaces.v2:harbor-moving"), "cached");
     switchWorkspace("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "glow-studio");
@@ -310,7 +310,7 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
       "the cache cleared before it left",
     );
     // A read lands before the page unloads: the runner persists it, as it persists every read, and the hide writes it.
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    cache.snapshotSurface("inbox", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", undefined, "inbox");
     cache.flushSurfaceCache();
     assert.equal(
       globalThis.localStorage.getItem("chanlytics.surfaces.v2:harbor-moving"),
@@ -323,10 +323,10 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
 });
 
 test("the cache is keyed on the ACTIVE workspace", () => {
-  // Keyed on __WORKSPACES[0] this was constant for a member of two workspaces,
+  // Keyed on the list's first workspace this was constant for a member of two workspaces,
   // so the guard against restoring one tenant's rows under another's name could
-  // never fire — the exact case it exists for.
-  assert.match(runner, /__ACTIVE_WORKSPACE/);
+  // never fire — the exact case it exists for. The one the server resolved is who.ts's.
+  assert.match(runner, /const viewedWorkspace = \(\) => whoIsLooking\(\)\.activeWorkspaceId;/);
 });
 
 /* ---------------- the checks every mutation should pass ------------------- */

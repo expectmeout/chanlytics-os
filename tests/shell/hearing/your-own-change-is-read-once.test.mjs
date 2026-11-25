@@ -28,7 +28,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 const { startSurfaces, refreshSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");

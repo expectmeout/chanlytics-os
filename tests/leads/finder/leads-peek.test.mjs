@@ -114,7 +114,6 @@ let recorded = null;
 const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-bridgeHolds({ parts: { chrome: { state: stateOf } } }, { fresh: true });
 globalThis.window = {
   document: globalThis.document,
   addEventListener: on(listeners),
@@ -161,6 +160,7 @@ globalThis.window = {
     },
   },
 };
+bridgeHolds({ parts: { chrome: { state: stateOf } } }, { fresh: true });
 // The shell's helpers the sheet still asks of the window by way of frame-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();

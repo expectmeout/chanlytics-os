@@ -50,7 +50,7 @@ import {
   textOf,
   wire,
 } from "./_people-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, whoIsLooking, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("the table's columns: Person, State, Next step and Last contact, and with a calendar Visits; every other column waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
@@ -325,7 +325,7 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
   await freshPage({ people: [person(1), person(2)] });
   // The shell draws the sheet before any page, so its listener hears a key before People's does; by the time People's
   // hears it, the sheet has closed. It draws in a frame of its own, its state apart from the page's.
-  const chrome = globalThis.window.__chrome;
+  const chrome = provided("chrome");
   bridgeHolds({ parts: { chrome: { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false } } });
   const sheet = () => {
     frames.begin();
@@ -408,7 +408,7 @@ test("Esc closes the phone's lists sheet, and a selection on takes the lists but
 
 test("x and Space select nobody for a member who can neither edit lists nor export", async () => {
   await freshPage({ people: [person(1), person(2)] });
-  const me = globalThis.window.__ME;
+  const me = whoIsLooking().me;
   bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     draw();
@@ -680,7 +680,7 @@ test("every workspace's People rows carry their deals, whatever the retired answ
   });
   for (const hasDeals of [true, false]) {
     await freshPage({ people: [proposed, person(2)], hasDeals });
-    const P = globalThis.window.__PEOPLE;
+    const P = surfaceValue("people");
     assert.equal(P.rows.find((r) => r.id === "p1").deal.stage, "proposed", `a deal on file: ${hasDeals}`);
     assert.equal(P.rows.find((r) => r.id === "p1").deal.proposal.url, "https://docs.example.com/p/one");
     assert.deepEqual(

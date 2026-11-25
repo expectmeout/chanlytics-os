@@ -27,6 +27,7 @@ const repliesHeld = (): ReachOutRepliesDto | null | undefined => heldRead("reach
 
 export const repliesOverride: SurfaceOverride = {
   key: "reach_out_replies",
+  held: true,
   events: ["surface:reach_out_replies"],
   // And the mailbox a reply came to, which the strip names (decision 0056): a mailbox connected, renamed or paused, a few a year.
   ...declareReads("reach_out_replies", {

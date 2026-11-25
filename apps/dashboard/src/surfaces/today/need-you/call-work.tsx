@@ -10,7 +10,6 @@ import { NEED_YOU_OLD_MS, NEED_YOU_WORDS as W, callDays, type TodayQueueRowVM } 
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { Button, Segmented } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
-import type { PeopleSurface } from "../../people/surface";
 import { appNavigate, gate } from "../shell";
 import { surfaceValue } from "../../surface-values";
 import { provided } from "@/bridge/provided";

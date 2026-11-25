@@ -17,7 +17,6 @@ import {
   isUuid,
   parsePageMessage,
   parseShellMessage,
-  type LiveVM,
   type PageMessage,
   type TodayVM,
   type Waits,

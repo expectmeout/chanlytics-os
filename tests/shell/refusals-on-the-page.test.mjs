@@ -17,7 +17,7 @@ import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
@@ -86,7 +86,6 @@ globalThis.document = {
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   gate: () => ({}),
@@ -100,6 +99,7 @@ globalThis.window = {
   canDo: () => true,
   appNavigate() {},
 };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 Object.assign(globalThis.window, kitPages);
@@ -450,7 +450,7 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
   );
   // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts).
   setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
-  setSurfaceValue("broadcasts", globalThis.window.__BROADCASTS);
+  setSurfaceValue("broadcasts", surfaceValue("broadcasts"));
   cells = [];
   frames.begin();
   const tree = NeedYouOnToday();

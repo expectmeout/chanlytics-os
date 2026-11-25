@@ -257,15 +257,15 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     'className="more-menu sb-menu"',
     'testid="sb-account-menu"',
     'testid="sb-workspace-menu"',
-    "window.__shell.signOut();",
-    "window.__shell.switchWorkspace(w.id)",
-    "window.__identity.words(me)",
+    "frameShell()?.signOut();",
+    "frameShell()?.switchWorkspace(w.id)",
+    "identityWords(me)",
     "const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;",
     // The sheet opens on ?, and on a desk from the account menu's row (keys-in-the-sheet.test.mjs draws it).
     // Settings came in from the sidebar's list.
     'data-testid="sb-me-settings"',
     'data-testid="sb-me-shortcuts"',
-    "window.__shell?.createWorkspace();",
+    "frameShell()?.createWorkspace();",
   ])
     assert.ok(sidebar.includes(pin), pin);
   assert.ok(

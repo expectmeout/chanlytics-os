@@ -506,7 +506,7 @@ test("the pages link to the routes, and only where the bridge can name the works
     "and the role is asked before the link is: a role that may not never reaches the door",
   );
   const bridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
-  assert.ok(bridge.includes("window.__href = href;"));
+  assert.ok(bridge.includes('provide("href", href);'));
   assert.equal(
     roleGate("operator", "export").reason,
     "Only an owner can export the customer list.",

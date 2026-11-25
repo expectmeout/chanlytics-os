@@ -31,7 +31,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
 // rest until it is in front (shell/feed/the-runner-heals.test.mjs).
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };

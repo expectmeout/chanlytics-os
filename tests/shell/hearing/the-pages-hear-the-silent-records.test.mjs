@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/a", hash: "#/today" };
@@ -36,7 +36,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -301,7 +300,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     answers.workspaces = { workspaces: [ws("a"), ws("b")], activeWorkspaceId: "id-a", user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, [], "the first read has no seat to have lost");
-    assert.equal(w.__ACTIVE_WORKSPACE, "id-a");
+    assert.equal(whoIsLooking().activeWorkspaceId, "id-a");
 
     // A teammate removes their seat in A: the memberships notice makes the next read, and the list no longer holds A.
     answers.workspaces = { workspaces: [ws("b")], activeWorkspaceId: "id-b", user };
@@ -327,7 +326,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, [], "a seat that stands is no reason to leave");
-    assert.equal(w.__ME.role, "viewer");
+    assert.equal(whoIsLooking().me.role, "viewer");
   } finally {
     globalThis.location.replace = was;
     await flush();

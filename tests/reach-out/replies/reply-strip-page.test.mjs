@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -112,12 +112,12 @@ test("Use the draft hands the draft to the composer's door, and the door takes i
 
 test("the composer is seeded with the draft once written, by the thread's id either way it is spelled", () => {
   world([reading()]);
-  assert.equal(W.__replies.draftOf(`th-${CONV}`), "Thank you for writing.\n\nSam");
-  assert.equal(W.__replies.draftOf(CONV), "Thank you for writing.\n\nSam");
+  assert.equal(provided("replies").draftOf(`th-${CONV}`), "Thank you for writing.\n\nSam");
+  assert.equal(provided("replies").draftOf(CONV), "Thank you for writing.\n\nSam");
   world([reading({ draft_state: "waiting", draft: null })]);
-  assert.equal(W.__replies.draftOf(CONV), "", "nothing seeded until it is written");
+  assert.equal(provided("replies").draftOf(CONV), "", "nothing seeded until it is written");
   world([reading({ intent: "no", undone: true })]);
-  assert.equal(W.__replies.draftOf(CONV), "", "an undone reading seeds nothing");
+  assert.equal(provided("replies").draftOf(CONV), "", "an undone reading seeds nothing");
 });
 
 test("a no: its undo is pressed once; a refusal says the door's words, a success says it came back", async () => {
@@ -200,7 +200,11 @@ test("the row's chip says what the newest reply was read as, and nothing for a t
 });
 
 test("the surface reads the readings, and says so at once when it could not", async () => {
-  assert.deepEqual(bridge.repliesOverride.globals, ["__REPLIES"]);
+  assert.equal(
+    bridge.repliesOverride.held,
+    true,
+    "a read the bridge holds itself, kept with its snapshot (held-reads.ts)",
+  );
   // And the mailbox a reply came to (decision 0056; the owed reads closed by #1602).
   assert.deepEqual(bridge.repliesOverride.refreshOnTables, ["sequence_replies", "mailboxes", "mailbox_connections"]);
 });

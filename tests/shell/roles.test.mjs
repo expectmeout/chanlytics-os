@@ -70,5 +70,6 @@ test("with no workspace read the gates fail closed, and a window with no store i
   assert.equal(closed.store.myRole(), "viewer", "never the owner a demo made up, which went with demo mode");
   assert.equal(closed.store.mayAtLeast("operator"), false);
   // No store, as in a window the bridge does not serve: nothing to complete, nothing thrown.
-  assert.doesNotThrow(() => installRoles({ __ME: { role: "owner" } }));
+  bridgeHolds({ who: { me: { role: "owner" } } });
+  assert.doesNotThrow(() => installRoles({}));
 });

@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -32,7 +32,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 const listeners = new Map();
 const doc = {
   visibilityState: "visible",
@@ -225,7 +224,7 @@ test("the day the clocks go back is twenty-five hours long: the timer is armed a
 });
 
 test("a zone saved moves the next midnight: the timer is armed again by the new zone, and the old one does not fire", async (t) => {
-  const zones = globalThis.__WORKSPACES;
+  const zones = whoIsLooking().workspaces;
   const r = await running(t, [{ key: "today", readAtMidnight: true }], NY_MIDNIGHT - 10 * 60 * SECOND);
   try {
     // The owner moves the business to Chicago (five hours behind UTC then): its next midnight is an hour after New York's. The

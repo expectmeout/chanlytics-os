@@ -35,7 +35,7 @@ import {
   way,
   withMessages,
 } from "./_person-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
 
 test("a person's email address is said once, in Reach them, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
@@ -108,7 +108,7 @@ test("an address that is there shows with a quiet pencil; the door's refusal is 
     restore();
   }
 
-  const me = globalThis.window.__ME;
+  const me = whoIsLooking().me;
   bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     const withOne = (await profile(vm))();
@@ -225,7 +225,7 @@ test("a person opened from a People view steps to the one before and after (‹ 
   const { tabMemoryFor } = await importSrc("apps/dashboard/src/bridge/tab-memory.ts");
   const { keepWalk, leaveWalk, takeStep } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
   const keep = {
-    memory: globalThis.window.__tabMemory,
+    memory: provided("tabMemory"),
     nav: globalThis.window.CHANLY.nav,
     mq: globalThis.window.matchMedia,
   };

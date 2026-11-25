@@ -13,13 +13,13 @@ import type { NotificationsDto, ReachOutRepliesDto } from "@chanlytics/contracts
 import type { WhoIsLooking } from "./who";
 
 /** The bell's kept notices and when they were read (surfaces/notifications.ts). */
-export interface NotificationsHeld {
+interface NotificationsHeld {
   dto: NotificationsDto;
   fetchedAt: number;
 }
 
 /** Each read the bridge holds, by its surface's key. */
-export interface HeldReads {
+interface HeldReads {
   workspace: WhoIsLooking;
   notifications: NotificationsHeld;
   /** Null when the read failed: a thread is drawn without them, never with a reading nobody read. */
@@ -28,17 +28,17 @@ export interface HeldReads {
 
 type HeldKey = keyof HeldReads;
 
-const held: Partial<HeldReads> = {};
+const heldAnswers: Partial<HeldReads> = {};
 
 /** Hold what a read answered under its surface's key: the read as it lands, the cache at boot, a test's world. */
 export function holdRead<K extends HeldKey>(key: K, value: HeldReads[K] | undefined): void {
-  if (value === undefined) delete held[key];
-  else held[key] = value;
+  if (value === undefined) delete heldAnswers[key];
+  else heldAnswers[key] = value;
 }
 
 /** What a read last answered; undefined before it has. */
 export function heldRead<K extends HeldKey>(key: K): HeldReads[K] | undefined {
-  return held[key];
+  return heldAnswers[key];
 }
 
 // The keys as a value, so a key from the cache is checked against the same list the type is.
@@ -50,5 +50,5 @@ export const isHeldRead = (key: string): key is HeldKey => Object.hasOwn(HELD_KE
 /** What the cache gives back of a read held here, as an earlier visit of this build kept it (surface-cache.ts). */
 export function holdKeptRead(key: string, value: unknown): void {
   // As this build kept it: its own shape (surface-cache.ts draws another build's none of it).
-  if (isHeldRead(key) && value !== undefined) Reflect.set(held, key, value);
+  if (isHeldRead(key) && value !== undefined) Reflect.set(heldAnswers, key, value);
 }

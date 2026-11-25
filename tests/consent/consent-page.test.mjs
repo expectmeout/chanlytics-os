@@ -381,7 +381,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   );
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.ok(
-    sd.includes("const slug = workspaceOverride.current()?.slug ?? null;") &&
+    sd.includes("const slug = currentWorkspace()?.slug ?? null;") &&
       sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"),
     "the address is built from the workspace being viewed",
   );

@@ -35,7 +35,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 const { RECORD_KINDS, liveTablesOf } = await importSrc("packages/contracts/src/activity/record-kinds.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");

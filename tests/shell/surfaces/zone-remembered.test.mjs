@@ -40,6 +40,8 @@ test("the workspace's own zone, once published, is what the tab knows, and this 
 });
 
 test("a cold boot answers from the zone this browser remembers, and makes no read to learn it", async () => {
+  // A tab of its own, as each one was: no workspace read has landed in it.
+  bridgeHolds({}, { fresh: true });
   const win = tab();
   win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ marisas: "America/Chicago", other: "Asia/Tokyo" }));
   assert.equal(knownZone(win), "America/Chicago", "REGRESSION: null until the workspace read answered");
@@ -58,6 +60,8 @@ test("the workspace's own zone wins over the remembered one, and replaces it", (
 });
 
 test("off a workspace's address, and with storage blocked, nothing is invented", () => {
+  // A tab of its own, as each one was: no workspace read has landed in it.
+  bridgeHolds({}, { fresh: true });
   assert.equal(knownZone(tab({ location: { pathname: "/", hash: "" } })), null);
   const blocked = tab({
     location: { pathname: "/w/blocked", hash: "" },

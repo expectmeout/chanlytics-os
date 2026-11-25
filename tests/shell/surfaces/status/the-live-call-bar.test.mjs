@@ -317,12 +317,15 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   const asked = redraw();
   assert.equal(line(asked).props.open, true, "the ✦ opens it");
   assert.ok(ask(asked), "on the web it stays in the bar's row while AI is open");
-  // Inside the native app AI keeps a screen of its own over the circle, which goes while it is open.
-  win.__IN_APP = true;
+  // Inside the native app (the class contracts' boot script puts on the root, IN_APP_CLASS) AI keeps a screen of its own
+  // over the circle, which goes while it is open.
+  const doc = globalThis.document;
+  const root = doc.documentElement;
+  doc.documentElement = { ...root, classList: { contains: (name) => name === "in-app" } };
   try {
     assert.equal(ask(redraw()), undefined, "inside the app, the circle goes while AI is open");
   } finally {
-    delete win.__IN_APP;
+    doc.documentElement = root;
   }
 });
 

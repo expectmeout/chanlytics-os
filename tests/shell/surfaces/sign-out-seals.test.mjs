@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue } from "../_bridge-holds.mjs";
 
 // The cache's slot where the address names no workspace: local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:-";
@@ -64,18 +64,18 @@ const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 test("REGRESSION (defect 52): a read that lands while the sign-out waits for the phone writes nothing back", async () => {
   // Someone's workspace, booted: the Inbox read and cached.
   bridgeHolds({ values: { inbox: { THREADS: [{ id: "t1", who: "A customer of theirs" }] } } });
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-a");
+  cache.snapshotSurface("inbox", "tenant-a", undefined, "inbox");
   cache.flushSurfaceCache();
   assert.ok(store.get(CACHE), "cached, as a reload would paint it");
 
   installShell(win);
-  win.__shell.signOut();
+  provided("shell").signOut();
   assert.equal(store.get(CACHE), undefined, "cleared at the press");
   assert.deepEqual(posted, [], "the form waits for the phone to be forgotten");
 
   // The live feed's refresh lands in that wait: the runner persists it, as it persists every read.
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-a");
-  cache.resnapshotSurface("inbox", ["INBOX_DATA"], "tenant-a");
+  cache.snapshotSurface("inbox", "tenant-a", undefined, "inbox");
+  cache.resnapshotSurface("inbox", "tenant-a", undefined, "inbox");
   cache.flushSurfaceCache();
   for (const fn of heard.pagehide ?? []) fn();
   assert.equal(store.get(CACHE), undefined, "REGRESSION: their rows written back after the session ended");
@@ -87,5 +87,5 @@ test("REGRESSION (defect 52): a read that lands while the sign-out waits for the
   // The next person to sign in on this tab: nothing of the last one's is painted before the tenant guard looks.
   bridgeHolds({ values: { inbox: undefined } });
   assert.deepEqual([...cache.hydrateSurfaceCache()], []);
-  assert.equal(win.INBOX_DATA, undefined);
+  assert.equal(surfaceValue("inbox"), undefined);
 });

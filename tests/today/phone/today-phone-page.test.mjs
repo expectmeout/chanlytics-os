@@ -11,7 +11,7 @@ import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../record/_world.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const went = [];
 bridgeHolds({
@@ -45,7 +45,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 W.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "unavailable", message: "not read here" } }), {
     status: 503,
@@ -333,8 +332,8 @@ test("under a phone's head only what stops customers being answered: a run waiti
     assert.ok(rows[0].includes("WhatsApp number"), rows[0]);
     // Two at most, and only what is still New: one the bell was closed over has been seen (its close is the member
     // looking), and the bell keeps it.
-    const feed = W.__notifs.feed();
-    W.__notifs.feed = () => [
+    const feed = provided("bell").feed();
+    provided("bell").feed = () => [
       ...feed,
       note("n4", "sweep", "Replies are not being read"),
       note("n5", "billing", "Your card was declined"),

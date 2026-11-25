@@ -26,7 +26,7 @@ import {
 import { installStubReact, fresh, again, all, find, byTestId, textOf, settle, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, heldRead } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -351,7 +351,7 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
 
 test("REGRESSION: a bucket the member picked survives the next read -- picking an empty Snoozed and waiting threw them into Needs you, a moment after the tap", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
+  const had = provided("tabMemory");
   bridgeHolds({
     parts: {
       tabMemory: {
@@ -444,7 +444,7 @@ const waitingRun = () => {
 
 test("a campaign run waiting for your say is a row of Needs you: its chip counts it, the Inbox opens on it, a search stands it aside, and no card says nobody is waiting over it", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
+  const had = provided("tabMemory");
   bridgeHolds({
     parts: {
       tabMemory: {
@@ -512,7 +512,7 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
 
 test("REGRESSION: a run that Sent's read brings after the Inbox opened on the runs the tab's cache restored moves it to Needs you, unless the member picked a bucket -- it sat on Handled under 'Needs you 1'", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
+  const had = provided("tabMemory");
   bridgeHolds({
     parts: {
       tabMemory: {
@@ -973,7 +973,7 @@ test("Needs you with nobody but someone past a week says nothing needs you over 
 
 test("one number: a search waiting for its answer, alone, opens the Inbox on Needs you, as the badge over it says", async () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
+  const had = provided("tabMemory");
   bridgeHolds({
     parts: {
       tabMemory: {
@@ -1414,7 +1414,7 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
     await Promise.all([todayOverride.apply(), repliesOverride.apply()]);
     assert.equal(asked(), 1, "one read of the replies on a Today load, the one main makes");
     assert.deepEqual(
-      globalThis.__REPLIES.replies.map((r) => [r.conversation_id, r.intent]),
+      heldRead("reach_out_replies").replies.map((r) => [r.conversation_id, r.intent]),
       [["c4", "wrong_person"]],
       "and the surface holds what Today lays over its rows",
     );
@@ -1423,7 +1423,7 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
     wire();
     todayWire(salon());
     await repliesOverride.apply().catch(() => {});
-    assert.equal(globalThis.__REPLIES, null);
+    assert.equal(heldRead("reach_out_replies"), null);
   } finally {
     globalThis.fetch = realFetch;
     bridgeHolds({ reads: { reach_out_replies: undefined } });

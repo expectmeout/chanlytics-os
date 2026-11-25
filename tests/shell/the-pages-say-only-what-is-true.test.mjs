@@ -27,7 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -281,10 +281,6 @@ globalThis.document = {
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-bridgeHolds(
-  { parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou }, surfaceState: () => "live" } },
-  { fresh: true },
-);
 globalThis.window = {
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
@@ -293,6 +289,10 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds(
+  { parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou }, surfaceState: () => "live" } },
+  { fresh: true },
+);
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit, published as the app publishes it before any page loads.
 Object.assign(globalThis.window, kitPages);
@@ -699,9 +699,9 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
 const inTokyo = (nowIso, fn) => {
   const before = {
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
-    bc: globalThis.window.__BROADCASTS,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
+    bc: surfaceValue("broadcasts"),
   };
   const realNow = Date.now;
   bridgeHolds({

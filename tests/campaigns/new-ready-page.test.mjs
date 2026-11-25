@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, press } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -53,7 +53,7 @@ Object.assign(globalThis, {
 });
 const { installTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);
-const TM = globalThis.__tabMemory;
+const TM = provided("tabMemory");
 const { StartView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-start.tsx`);
 const { NEW_READY_WORDS: R } = await import(`${SRC}/surfaces/campaigns/sequences/new/ready-rules.ts`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);

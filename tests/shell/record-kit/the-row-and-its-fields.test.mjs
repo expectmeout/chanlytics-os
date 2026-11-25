@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import { all, find, textOf, classes, press } from "../../_stub-react.mjs";
 import { W, byId, components, draw, isIcon, numbers, redraw } from "./_record-kit.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 /* ------------------------------------ the row ------------------------------------ */
 
@@ -1020,7 +1020,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   );
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
   const shown = [];
-  const tip = W.__tip;
+  const tip = provided("tip");
   bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
   const el = { tag: "the mark" };
   btn.props.onClick({ currentTarget: el, stopPropagation() {}, preventDefault() {} });

@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LEAD_PREVIEW_WORDS, SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SCREEN = path.join(ROOT, "apps/dashboard/src/bridge/CreateWorkspace.tsx");
@@ -548,7 +548,7 @@ const WAITING = {
 const ask = (ready = true) => {
   at = 0;
   dirty = false;
-  last = useHandoverAsk(ready, globalThis.window.__ME?.handovers);
+  last = useHandoverAsk(ready, whoIsLooking().me?.handovers);
   return last;
 };
 const settleAsk = async () => {

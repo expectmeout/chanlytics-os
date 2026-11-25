@@ -5,7 +5,6 @@
  * with the words written.
  */
 import type { ReplyDraftDto, TodayQueueRowVM } from "@chanlytics/contracts";
-import type { PeopleSurface } from "../../people/surface";
 import { surfaceValue } from "../../surface-values";
 import { stepNoteNow, type DraftWant } from "./drafts";
 

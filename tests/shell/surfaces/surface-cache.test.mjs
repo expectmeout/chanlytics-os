@@ -12,7 +12,7 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 const TID = "t-salon";
 /** A workspace's slot in the browser's local storage, by its address's word. */
@@ -222,7 +222,7 @@ test("with no workspace active, a save writes nothing into the cache -- not even
   // Cached before any workspace was known, so the entry names none.
   snapshotSurface(peopleOverride.key, null, undefined, peopleOverride.value);
   const before = stored();
-  const active = globalThis.window.__ACTIVE_WORKSPACE;
+  const active = whoIsLooking().activeWorkspaceId;
   bridgeHolds({ who: { activeWorkspaceId: undefined } });
   try {
     await saveView("people", HIDDEN);
@@ -282,28 +282,28 @@ test("a cache that would be too big sheds its biggest surfaces until it fits, ra
 
 test("a surface may say what of itself the cache holds: Leads keeps its first hundred rows, which is all an instant paint needs", () => {
   clearSurfaceCache();
-  globalThis.window.__LEADS_PROBE = {
+  setSurfaceValue("leads", {
     rows: Array.from({ length: 500 }, (_, i) => ({ id: `l${i}` })),
     next: { key: "k", id: "l499" },
     offered: 12,
     view: { list: "all" },
-  };
+  });
   snapshotSurface(
     "leads",
     TID,
     (snap) => ({
       ...snap,
-      __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 },
+      $value: { ...snap.$value, rows: snap.$value.rows.slice(0, 100), next: null, offered: 0 },
     }),
     "leads",
   );
-  const kept = JSON.parse(stored()).surfaces.leads.__LEADS_PROBE;
+  const kept = JSON.parse(stored()).surfaces.leads.$value;
   assert.deepEqual(
     [kept.rows.length, kept.next, kept.offered, kept.view],
     [100, null, 0, { list: "all" }],
     "the first hundred, no page after them and nothing offered: the read that follows says the rest",
   );
-  assert.equal(globalThis.window.__LEADS_PROBE.rows.length, 500, "and the page's own rows are untouched");
+  assert.equal(surfaceValue("leads").rows.length, 500, "and the page's own rows are untouched");
   setSurfaceValue("leads", undefined);
   clearSurfaceCache();
 });
@@ -313,7 +313,8 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
   try {
     clearSurfaceCache();
     cacheWrites = 0;
-    for (const k of ["today", "inbox", "calendar", "people", "settings"]) {
+    // Five surfaces no other follows (the settings read's value is: offered-templates.ts makes the pickers of it).
+    for (const k of ["today", "inbox", "calendar", "people", "reports"]) {
       setSurfaceValue(k, { k });
       snapshotSurface(k, TID, undefined, k);
       mock.timers.tick(300);
@@ -326,7 +327,7 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
       "calendar",
       "inbox",
       "people",
-      "settings",
+      "reports",
       "today",
     ]);
     // Snapshots that never stop still reach the tab's storage within five seconds of the first one waiting.
@@ -337,7 +338,7 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
     }
     assert.ok(cacheWrites >= 1, `written while they kept coming: ${cacheWrites}`);
   } finally {
-    for (const k of ["today", "inbox", "calendar", "people", "settings"]) setSurfaceValue(k, undefined);
+    for (const k of ["today", "inbox", "calendar", "people", "reports"]) setSurfaceValue(k, undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -392,7 +393,7 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
     assert.equal(parses, 0, "REGRESSION: every snapshot after a write parsed the slot");
     assert.equal(cachedTenantNow(), TID);
     JSON.parse = parse;
-    assert.deepEqual(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces.today.__PARSE_PROBE, { rows: [4] });
+    assert.deepEqual(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces.today.$value, { rows: [4] });
     // A slot written by anything else is read as it is: parsed again, never the copy.
     globalThis.localStorage.setItem(
       CACHE,
@@ -419,9 +420,9 @@ test("REGRESSION: a load at another workspace's address draws none of the rows c
   setSurfaceValue("inbox", { THREADS: [{ id: "t1", who: "A customer of the salon's" }] });
   // The workspace surface's globals ride in the same cache: the name on the sidebar, and the id every guard reads.
   snapshotSurface("inbox", TID, undefined, "inbox");
-  snapshotSurface("workspace", ["__WORKSPACES", "__ACTIVE_WORKSPACE"], TID);
+  snapshotSurface("workspace", TID, undefined, undefined, true);
   flushSurfaceCache();
-  const ws = w.__WORKSPACES;
+  const ws = whoIsLooking().workspaces;
   setSurfaceValue("inbox", undefined);
   bridgeHolds({ who: { workspaces: undefined } });
   bridgeHolds({ who: { activeWorkspaceId: undefined } });
@@ -433,9 +434,13 @@ test("REGRESSION: a load at another workspace's address draws none of the rows c
       [],
       "REGRESSION: the salon's surfaces were drawn under bayside's address",
     );
-    assert.equal(w.__INBOX_PROBE, undefined, "none of its rows");
-    assert.equal(w.__WORKSPACES, undefined, "nor its name");
-    assert.equal(w.__ACTIVE_WORKSPACE, undefined, "nor its id, which every read after would have taken as bayside's");
+    assert.equal(surfaceValue("inbox"), undefined, "none of its rows");
+    assert.equal(whoIsLooking().workspaces, undefined, "nor its name");
+    assert.equal(
+      whoIsLooking().activeWorkspaceId,
+      undefined,
+      "nor its id, which every read after would have taken as bayside's",
+    );
     assert.equal(globalThis.localStorage.getItem(slot("bayside")), null, "bayside's own slot holds nothing yet");
     assert.ok(globalThis.localStorage.getItem(CACHE), "and the salon's stays the salon's, for its own next load");
     assert.equal(cachedTenantNow(), null, "so the runner's guard has no other workspace to reload the tab for");
@@ -491,7 +496,7 @@ test("REGRESSION: rows read at one workspace's address never join the cache of a
   setSurfaceValue("inbox", undefined);
   setSurfaceValue("today", undefined);
   assert.deepEqual([...hydrateSurfaceCache()], ["today"]);
-  assert.equal(w.__INBOX_PROBE, undefined);
+  assert.equal(surfaceValue("inbox"), undefined);
   setSurfaceValue("today", undefined);
   clearSurfaceCache();
 });
@@ -563,10 +568,10 @@ test("a page's rows leave the slot once they are a day old, though the slot is w
     snapshotSurface("today", TID, undefined, "today");
     assert.deepEqual(kept(), ["people", "today"]);
     mock.timers.tick(6 * 3_600_000);
-    resnapshotSurface("today", TID, undefined, "today");
+    resnapshotSurface("today", TID, "today");
     assert.deepEqual(kept(), ["today"], "People's, a day old, went with Today's own write");
   } finally {
-    for (const name of ["__INBOX_PROBE", "__TODAY_PROBE", "__PEOPLE_PROBE"]) delete w[name];
+    for (const key of ["inbox", "today", "people"]) setSurfaceValue(key, undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -586,7 +591,7 @@ test("REGRESSION: over its size the slot sheds what the page on screen does not 
       setSurfaceValue("people", book(500)); // ~1 MB, People's book: Today draws it
       setSurfaceValue("inbox", book(600)); // ~1.2 MB, the Inbox's threads: Today does not
       setSurfaceValue("today", { small: true });
-      for (const k of ["people", "inbox", "today"]) snapshotSurface(k, [], TID, undefined, k);
+      for (const k of ["people", "inbox", "today"]) snapshotSurface(k, TID, undefined, k);
       const slot = JSON.parse(stored() ?? "null");
       assert.deepEqual(Object.keys(slot.surfaces).sort(), kept, `${hash}: ${shed} is the one left out`);
     }
@@ -709,7 +714,7 @@ test("a value's type is fingerprinted all the way down: a field renamed three le
 test("each snapshot says the build, its value's type and the time it was kept under", () => {
   clearSurfaceCache();
   setSurfaceValue("today", { n: 2 });
-  snapshotSurface("today", [], TID, undefined, "today");
+  snapshotSurface("today", TID, undefined, "today");
   const { $kept } = JSON.parse(stored()).surfaces.today;
   assert.equal($kept.build, process.env.NEXT_PUBLIC_BUILD_SHA || "dev");
   assert.equal($kept.shape, SURFACE_SHAPES.today);
@@ -813,13 +818,7 @@ test("REGRESSION: a refresh paints the Inbox's times as the clock says them when
   try {
     clearSurfaceCache();
     await quietly(() => inboxOverride.apply());
-    snapshotSurface(
-      inboxOverride.key,
-      inboxOverride.globals ?? [],
-      TID,
-      inboxOverride.trimSnapshot,
-      inboxOverride.value,
-    );
+    snapshotSurface(inboxOverride.key, TID, inboxOverride.trimSnapshot, inboxOverride.value);
     flushSurfaceCache();
     const read = surfaceValue("inbox").THREADS;
     assert.deepEqual(
@@ -877,7 +876,7 @@ test("a snapshot that does not say the zone its times were said in is painted as
     CHANNEL_LABELS: {},
     INBOX_BASELINE: { doneThisWeek: 0 },
   });
-  snapshotSurface("inbox", [], TID, undefined, "inbox");
+  snapshotSurface("inbox", TID, undefined, "inbox");
   flushSurfaceCache();
   setSurfaceValue("inbox", undefined);
   hydrateSurfaceCache();
@@ -936,13 +935,7 @@ test("a person erased while a teammate's device holds their thread: the read tha
   robin.messages[0].body = "Please delete everything you hold about me.";
   const sam = thread("c-sam", "Sam Example");
   const keep = () => {
-    snapshotSurface(
-      inboxOverride.key,
-      inboxOverride.globals ?? [],
-      TID,
-      inboxOverride.trimSnapshot,
-      inboxOverride.value,
-    );
+    snapshotSurface(inboxOverride.key, TID, inboxOverride.trimSnapshot, inboxOverride.value);
     return stored() ?? "";
   };
   inboxWire.conversations = [robin, sam];

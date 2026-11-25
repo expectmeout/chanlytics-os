@@ -57,7 +57,7 @@ import {
   systemBlocks,
   where,
 } from "./_line.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("grounding: a citation must name a row a tool returned this turn; pages are always allowed", () => {
   const read = emptyReadSet();
@@ -233,12 +233,12 @@ test("the Pipeline is every workspace's jump, after Leads; the back office for C
 });
 
 test("the bridge's jump index reads the bit the back office's door is drawn by, and a few words reach each new page", () => {
-  const index = (w) => jumpIndexFrom({ ...w });
+  // Each world is who is looking and what People holds, as the bridge holds them (decision 0151).
+  const world = (me, people) => () => bridgeHolds({ who: { me }, values: { people } });
+  const index = (w) => (w(), jumpIndexFrom());
   const first = (words, w) => askJump(words, index(w))[0]?.to ?? null;
-  bridgeHolds({ who: { me: { role: "owner", platform_admin: true } }, values: { people: { rows: [] } } });
-  const staff = {};
-  bridgeHolds({ who: { me: { role: "owner" } }, values: { people: { rows: [] } } });
-  const owner = {};
+  const staff = world({ role: "owner", platform_admin: true }, { rows: [] });
+  const owner = world({ role: "owner" }, { rows: [] });
   assert.equal(first("pipe", staff), "clients/pipeline");
   assert.ok(
     askJump("deals", index(staff)).some((j) => j.to === "clients/pipeline"),
@@ -247,7 +247,11 @@ test("the bridge's jump index reads the bit the back office's door is drawn by, 
   assert.equal(first("back office", staff), "admin/platform");
   assert.equal(first("pipe", owner), "clients/pipeline", "every workspace's Pipeline");
   assert.equal(first("back office", owner), null, "not staff: no back office");
-  assert.equal(first("pipe", {}), "clients/pipeline", "and before People is read: the page is there whatever it holds");
+  assert.equal(
+    first("pipe", world(null, undefined)),
+    "clients/pipeline",
+    "and before People is read: the page is there whatever it holds",
+  );
   for (const w of [staff, owner]) {
     assert.equal(first("memory", w), "admin/receptionist", "Memory lands on How it answers");
     assert.equal(first("ai memory", w), "admin/receptionist", "and so does the pane's own name");
@@ -255,8 +259,7 @@ test("the bridge's jump index reads the bit the back office's door is drawn by, 
     assert.equal(first("setting up", w), "start", "the first run is a jump away");
   }
   // The rest of the index is the browser's own rows, after the pages.
-  bridgeHolds({ values: { people: { rows: [{ id: "p-1", name: "Pip Adams" }] } } });
-  const people = index({ ...staff });
+  const people = index(world({ role: "owner", platform_admin: true }, { rows: [{ id: "p-1", name: "Pip Adams" }] }));
   assert.deepEqual(
     askJump("pip", people).map((j) => j.label),
     ["Pipeline", "Reports › Pipeline", "Pip Adams"],
@@ -907,6 +910,9 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(!idx.some((j) => /Aisha/.test(j.label)), "a seeded thread never reaches the jump list");
   assert.ok(idx.some((j) => j.to === `clients/${ID}`));
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
+  // Right now from Today's queue and its one count, as before the Inbox's threads are counted (needs-you.ts needsYouParts
+  // answers nothing until the Inbox is read): the threads above were for the jump list alone.
+  bridgeHolds({ values: { inbox: undefined } });
   assert.equal(
     api.rightNow("en"),
     "Nora needs you. A send is waiting for your approval.",
@@ -929,15 +935,20 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     "REGRESSION: a run is called by its own name less its day, as Today's queue and the Inbox say it; by its audience's label a one-off sent to a list was the list (18 Oct 2026)",
   );
   // A run whose audience has no name (a reach-out's carries its ids alone) is called the same way (contracts runTitleOf).
-  const named = win.__BROADCASTS.rows[0].audience;
-  win.__BROADCASTS.rows[0].audience = null;
+  const named = surfaceValue("broadcasts").rows[0].audience;
+  surfaceValue("broadcasts").rows[0].audience = null;
   assert.equal(api.waiting().runs[0].label, "Win-back");
-  win.__BROADCASTS.rows[0].audience = named;
+  surfaceValue("broadcasts").rows[0].audience = named;
   // How many more wait past the rows is the one count's threads (Today's own copy until the Inbox is read), not a sum of rows.
-  const counted = win.TODAY_DATA.needsYou;
-  win.TODAY_DATA.needsYou = { ...(counted ?? { hint: "", rows: [], empty: null }), count: 9, holds: 9, sends: 0 };
+  const counted = surfaceValue("today").needsYou;
+  surfaceValue("today").needsYou = {
+    ...(counted ?? { hint: "", rows: [], empty: null }),
+    count: 9,
+    holds: 9,
+    sends: 0,
+  };
   assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (the one count's threads)");
-  win.TODAY_DATA.needsYou = counted;
+  surfaceValue("today").needsYou = counted;
   assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
   const needs = await api.quick("who needs me?");
   assert.deepEqual(
@@ -961,7 +972,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   const proposals = (lang) =>
     api.suggestions("people", null, lang).some((s) => /proposal out|propuesta pendiente/.test(s.q));
   assert.equal(proposals("en"), false, "People's surface has not said a deal is on file");
-  win.__PEOPLE.hasDeals = true;
+  surfaceValue("people").hasDeals = true;
   assert.equal(proposals("en"), true, "it has: the question about proposals is offered, read from the surface");
   assert.equal(proposals("es"), true);
   assert.equal(api.timezone(), "America/New_York");

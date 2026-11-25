@@ -93,19 +93,6 @@ const door = {
 const kept = new Map();
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-bridgeHolds(
-  {
-    who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" },
-    parts: {
-      tabMemory: {
-        draft: (kind, key) => kept.get(`${kind}:${key}`) ?? null,
-        keepDraft: (kind, value, key) => kept.set(`${kind}:${key}`, value),
-        dropDraft: (kind, key) => kept.delete(`${kind}:${key}`),
-      },
-    },
-  },
-  { fresh: true },
-);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
   localStorage: globalThis.localStorage,
@@ -129,6 +116,19 @@ globalThis.window = {
     return json(200, { ok: true, data: {} });
   },
 };
+bridgeHolds(
+  {
+    who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" },
+    parts: {
+      tabMemory: {
+        draft: (kind, key) => kept.get(`${kind}:${key}`) ?? null,
+        keepDraft: (kind, value, key) => kept.set(`${kind}:${key}`, value),
+        dropDraft: (kind, key) => kept.delete(`${kind}:${key}`),
+      },
+    },
+  },
+  { fresh: true },
+);
 
 const { installFrameGlobals } = await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts");
 installFrameGlobals();

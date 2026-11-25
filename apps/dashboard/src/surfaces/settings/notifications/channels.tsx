@@ -6,7 +6,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { personInitials, type PhoneDto } from "@chanlytics/contracts";
 import { ALERT_ADDRESSES_MIN, ALERT_PANE_WORDS as W, phoneLine } from "@chanlytics/contracts/alert-pane";
-import type { BellApi } from "@/bridge/notifications";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -14,7 +13,6 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField, RecordSwitch } from "../../kit/record/field";
 import { RecordChips, RecordRow } from "../../kit/record/row";
 import { gateTitle, showTip, type GateProps, type FrameFlash } from "../../frame-verbs";
-import { object } from "../../shell-doors";
 import { provided } from "@/bridge/provided";
 
 /** An address on the list, and whose it is: a teammate's name and face, "you", or no teammate. */

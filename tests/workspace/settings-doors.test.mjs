@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -321,7 +321,7 @@ const stripe = () => {
     called.push(what);
     return { ok: true, message: "" };
   };
-  Object.assign(globalThis.window.__billing, {
+  Object.assign(provided("billing"), {
     checkout: ok("checkout"),
     portal: ok("portal"),
     resume: ok("resume"),
@@ -1579,8 +1579,8 @@ test("REGRESSION: an account deleted leaves nothing of theirs in the tab, and no
   };
   w.location.assign = (url) => went.push(`assign ${url}`);
   try {
-    w.INBOX_PROBE = { threads: ["studio's"] };
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "t-studio");
+    bridgeHolds({ values: { inbox: { threads: ["studio's"] } } });
+    cache.snapshotSurface("inbox", "t-studio", undefined, "inbox");
     cache.flushSurfaceCache();
     assert.ok(globalThis.localStorage.getItem(CACHE), "their rows, cached, as a reload would paint them");
     const r = await meVerbs.deleteAccount();
@@ -1588,11 +1588,11 @@ test("REGRESSION: an account deleted leaves nothing of theirs in the tab, and no
     assert.deepEqual(went, ["DELETE /api/v1/me", "assign /login"]);
     assert.equal(globalThis.localStorage.getItem(CACHE), null, "REGRESSION: the deleted account's rows stayed");
     // A read lands before the page unloads: persisted as every read is, and written by the page's hide.
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "t-studio");
+    cache.snapshotSurface("inbox", "t-studio", undefined, "inbox");
     cache.flushSurfaceCache();
     assert.equal(globalThis.localStorage.getItem(CACHE), null, "and nothing is written back");
   } finally {
-    delete w.INBOX_PROBE;
+    bridgeHolds({ values: { inbox: undefined } });
     w.fetch = was.fetch;
     w.location.assign = was.assign;
   }

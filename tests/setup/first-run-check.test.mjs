@@ -12,7 +12,7 @@ import { profileRefusal } from "../../apps/dashboard/src/surfaces/settings/busin
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -161,7 +161,11 @@ const courier = () => {
         patch: async (fields) => {
           sent.push(fields);
           bridgeHolds({
-            who: { workspaces: W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t)) },
+            who: {
+              workspaces: whoIsLooking().workspaces.map((t) =>
+                t.id === whoIsLooking().activeWorkspaceId ? { ...t, ...fields } : t,
+              ),
+            },
           });
           return { ok: true, workspace: fields, message: "" };
         },

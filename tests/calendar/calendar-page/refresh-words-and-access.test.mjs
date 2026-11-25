@@ -45,7 +45,7 @@ import {
   went,
   withNext,
 } from "./_calendar-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------- C2: refresh, loading, and a calendar that can't be read ------------------- */
 
@@ -94,7 +94,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   fresh();
   const asked = [];
   let release = null;
-  globalThis.window.__calendar.refresh = (opts) => {
+  provided("calendar").refresh = (opts) => {
     asked.push(opts);
     return new Promise((r) => {
       release = r;
@@ -116,7 +116,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.equal(textOf(button()), "Refresh");
   assert.match(textOf(toasts.at(-1).msg), /Read your calendar just now/);
   // It landed, and the calendar still couldn't be reached: the last good read stays, and the toast says so.
-  globalThis.window.__calendar.refresh = async () => {
+  provided("calendar").refresh = async () => {
     setSurfaceValue("calendar", {
       vm: toCalendarVM(
         dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }),
@@ -131,7 +131,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar · showing the last good read/);
   assert.match(textOf(toasts.at(-1).msg), /The calendar answered 503\./, "with why");
   // Nothing landed at all.
-  globalThis.window.__calendar.refresh = async () => false;
+  provided("calendar").refresh = async () => false;
   await byTestId(page(), "cal-refresh").props.onClick();
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Couldn't reach Chanlytics/);
@@ -152,7 +152,7 @@ test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, 
     }),
   );
   const asked = [];
-  globalThis.window.__calendar.refresh = async (opts) => {
+  provided("calendar").refresh = async (opts) => {
     asked.push(opts);
     return true;
   };
@@ -163,7 +163,7 @@ test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, 
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Still couldn't read your calendar/);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
-  globalThis.window.__calendar.refresh = async (opts) => {
+  provided("calendar").refresh = async (opts) => {
     asked.push(opts);
     return true;
   };
@@ -175,7 +175,7 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   const later = dto({ from: "2026-09-14", to: "2026-09-20" });
   later.days = later.days.map((d, i) => ({ key: shiftKey("2026-09-14", i), items: [], windows: [] }));
   fresh(later);
-  globalThis.window.__calendar.ensure = () => new Promise(() => {});
+  provided("calendar").ensure = () => new Promise(() => {});
   page();
   let tree = page();
   const reading = byTestId(tree, "cal-reading");
@@ -203,8 +203,8 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
   };
   bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
@@ -244,8 +244,8 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
   bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
@@ -309,8 +309,8 @@ test("a window the board has read paints at once on the way back, and is read ag
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
   bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
@@ -391,8 +391,8 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
   bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
@@ -508,8 +508,8 @@ test("a window read ahead is held and paints at once when the board gets there; 
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
   bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
@@ -839,7 +839,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
       },
     }),
   );
-  globalThis.window.__calendar.refresh = () => new Promise(() => {});
+  provided("calendar").refresh = () => new Promise(() => {});
   let tree = page();
   assert.equal(textOf(byTestId(tree, "cal-feed-retry")), "Retry", "REGRESSION: 'Try again', beside FailedRead's Retry");
   byTestId(tree, "cal-feed-retry").props.onClick();

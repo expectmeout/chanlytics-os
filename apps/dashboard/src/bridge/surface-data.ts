@@ -41,6 +41,11 @@ export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
   key: string;
   /**
+   * Its answer is a read the bridge holds itself (held-reads.ts: who is looking, the bell's notices, the leads' replies),
+   * which the runner keeps with the surface's snapshot so the next boot paints it before the first read.
+   */
+  held?: true;
+  /**
    * The key its typed value is published under (surface-values.ts), for a surface a TSX page reads through
    * `useSurface`: the cache keeps that value with the surface's snapshot and gives it back before React draws.
    */
@@ -279,6 +284,7 @@ let seatedRead = false;
 
 export const workspaceOverride: SurfaceOverride = {
   key: "workspace",
+  held: true,
   events: ["surface:workspace"], // the sidebar, the arrival line and the bell listen for the list read again
   // The seats and the workspaces' own status (0047): a seat taken, changed or left (the role this person acts under, the
   // switcher's list, and the end of their own seat in the workspace on screen) and the workspace paused or resumed (the

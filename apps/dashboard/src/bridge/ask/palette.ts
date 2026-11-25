@@ -40,7 +40,6 @@ import {
   type AskSuggestion,
   type AskSurface,
   type AskWaiting,
-  type FeedLive,
   type TodayQueueRowVM,
   type Waits,
   runRoute,
@@ -57,24 +56,6 @@ import { focusAsDrawn } from "@/surfaces/frame-verbs";
 import { derivedFeedNow } from "../notifications";
 import { currentWorkspace, whoIsLooking } from "../who";
 import { pageSpecs } from "../verbs/commit";
-import type { Workspace } from "../surface-data";
-
-/** A playbook's run as the broadcasts surface publishes it, as far as who is waiting reads it. */
-interface Run {
-  id: string;
-  state: string;
-  /** The playbook that made it, and the day it was made for: what the approve verb asks of its day. */
-  playbook_id: string | null;
-  run_for?: string | null;
-  recipient_count: number;
-  when: string;
-  counts: { sent: number; replied: number };
-  audience?: { label?: string } | null;
-  /** Its own name: what says the run, less a campaign run's day (contracts runTitleOf). */
-  name: string;
-  /** The sequence it is a day of, which its home is under (contracts runRoute). */
-  sequence_id?: string | null;
-}
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
 

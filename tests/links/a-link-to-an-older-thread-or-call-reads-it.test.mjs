@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { memberWords, stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -246,7 +246,7 @@ globalThis.window.fetch = async (url) => {
   if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: waiting } });
   if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 const onScreen = (route) => {

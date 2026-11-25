@@ -72,7 +72,7 @@ import {
   writes,
   wrote,
 } from "./_page.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("Leads draws every row of a list on its first draw where its box cannot be watched", async () => {
   // The window of a long list's rows (kit/rows/shown-rows.ts) is drawn only where the browser can watch the list's box;
@@ -282,7 +282,7 @@ test("Export, for a role that may not take the file, stays on the page, says why
 test("a press on a gated Export shows the reason at the button, as every gate does (a finger has no hover)", async () => {
   await fresh({ role: "operator" });
   const shown = [];
-  const keep = globalThis.window.__tip;
+  const keep = provided("tip");
   bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
   try {
     const exportIt = byTestId(seen(draw()), "leads-export");

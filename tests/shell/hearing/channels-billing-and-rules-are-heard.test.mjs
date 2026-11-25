@@ -14,7 +14,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -39,7 +39,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -337,7 +336,7 @@ test("naming yourself is a write the workspace and the Team list are re-read aft
     const r = await meVerbs.setName("Dana Ortiz");
     assert.deepEqual([r.ok, r.name], [true, "Dana Ortiz"]);
     assert.equal(
-      globalThis.__ME.display_name,
+      whoIsLooking().me.display_name,
       "Dana Ortiz",
       "who is looking is the workspace read's, landed before the save is over",
     );

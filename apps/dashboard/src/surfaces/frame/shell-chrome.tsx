@@ -406,9 +406,9 @@ const closeAsk = (s: ChromeAt) => {
 
 /**
  * Inside the native app: the class contracts' boot script puts on the root before paint (IN_APP_CLASS), where the app's
- * own rules hang from too. A test's stand-in document may have no class list: not in the app.
+ * own rules hang from too. A test's stand-in document may have no root or no class list: not in the app.
  */
-const inApp = (): boolean => !!document.documentElement.classList?.contains(IN_APP_CLASS);
+const inApp = (): boolean => !!document.documentElement?.classList?.contains(IN_APP_CLASS);
 
 /** The phone's tab bar, unless the native app's own stands here. */
 const phoneTabs = (s: ChromeAt) =>

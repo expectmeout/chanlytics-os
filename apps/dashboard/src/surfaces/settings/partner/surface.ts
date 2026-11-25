@@ -37,7 +37,6 @@ import { declareReads } from "@/bridge/surface-registry";
 import { refreshSurfaces } from "@/bridge/surface-runner";
 import { browserClient } from "@/lib/supabase/browser-client";
 import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@/auth/second-factor";
-import { windowObject, windowValue } from "../../frame-verbs";
 import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 import { provided } from "@/bridge/provided";

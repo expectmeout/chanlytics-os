@@ -330,7 +330,7 @@ export interface TemplateDto extends ApprovedTemplate {
   fix_words?: string | null;
 }
 
-/** What the Inbox surface publishes: the seam's value for `inbox` (`INBOX_DATA` to the pages that have not moved). */
+/** What the Inbox surface publishes: the seam's value for `inbox`. */
 export interface InboxSurface {
   INBOX_BUCKETS: InboxBucket[];
   INBOX_VIEWS: InboxView[];
@@ -448,7 +448,7 @@ export interface ConversationTab {
   label: string;
 }
 
-/** What the Conversations surface publishes: the seam's value for `conversations` (`CONVERSATIONS_DATA` to the pages that have not moved). */
+/** What the Conversations surface publishes: the seam's value for `conversations`. */
 export interface ConversationsSurface {
   CONVERSATIONS: ConversationLine[];
   CV_CHANNELS: ConversationTab[];

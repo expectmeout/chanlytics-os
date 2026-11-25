@@ -29,6 +29,7 @@ const { PeopleBulkBar } = await importSrc("apps/dashboard/src/surfaces/people/bu
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 const { plViewRows } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
 const { plListRoute } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+const { listRoute } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 test("the tables: the workspace's, members read, acting members write, a person of another workspace or an erased one cannot be put on a list", () => {
   const m = readRaw("supabase/migrations/00044_saved_lists.sql");
@@ -314,8 +315,8 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   assert.equal(closed, 1);
   // list-action (the list's one door) and show-everyone are the page's own (page/screen.tsx): pressed in
   // people/people-page/, with the shell's and a profile's New list (segments:new) opening the box.
-  // The People page owns where a list's route lands:
-  assert.equal(peoplePages.__listRoute, plListRoute, "the People page owns where a list's route lands");
+  // The People page owns where a list's route lands, and the shell asks it there (frame-verbs.ts listRoute, decision 0151):
+  assert.equal(listRoute("s1"), plListRoute("s1"), "the People page owns where a list's route lands");
   // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell/surfaces/status/), no
   // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
 });

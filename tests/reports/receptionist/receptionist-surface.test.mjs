@@ -28,7 +28,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 // The shell's way of moving, as far as a pick needs it: the address says the route it was sent to.
 globalThis.window.CHANLY = {

@@ -287,7 +287,6 @@ globalThis.document = {
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 globalThis.window = {
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
@@ -296,6 +295,7 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
 const { StatePill } = kitPages;

@@ -29,7 +29,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 globalThis.document = { visibilityState: "visible", addEventListener: () => {}, removeEventListener: () => {} };
 
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");

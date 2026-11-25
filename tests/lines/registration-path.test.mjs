@@ -53,7 +53,7 @@ import {
 } from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -461,7 +461,7 @@ test("an empty record guesses no website: left empty, the filing names this work
   // used to pre-fill the website with `/yes/` + the FIRST workspace's slug; the
   // owner saved it without a glance, and the filing sent another business's
   // opt-in page to the carriers as this business's website.
-  const was = { list: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE };
+  const was = { list: whoIsLooking().workspaces, active: whoIsLooking().activeWorkspaceId };
   bridgeHolds({
     who: {
       workspaces: [

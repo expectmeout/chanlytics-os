@@ -23,7 +23,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 const listeners = new Map();
 globalThis.document = {
   visibilityState: "visible",

@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -116,7 +116,7 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
           conversations: [],
           escalations: [],
           templates: [],
-          workspaces: globalThis.window.__WORKSPACES,
+          workspaces: whoIsLooking().workspaces,
           activeWorkspaceId: "t1",
         },
       });
@@ -268,7 +268,7 @@ test("a single act tells the page the moment the server takes it, while the Inbo
         templates: [],
         calls: [],
         metrics,
-        workspaces: globalThis.window.__WORKSPACES,
+        workspaces: whoIsLooking().workspaces,
         activeWorkspaceId: "t1",
         days: 1,
         // Today's one read (GET today, Today in three zones, 2 Nov 2026), its day whole.

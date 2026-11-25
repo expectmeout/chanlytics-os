@@ -28,8 +28,9 @@ export const mayAtLeast = (rung: string): boolean => {
 
 /** Why the role acting may not do it, in contracts' words. */
 export const gateTitle = (a: string, doing?: string): string => {
+  const store = window.ST_STORE;
   const said = roleGate(
-    window.ST_STORE ? window.ST_STORE.myRole() : "viewer",
+    store && typeof store.myRole === "function" ? store.myRole() : "viewer",
     a as Parameters<typeof roleGate>[1],
     doing,
   );

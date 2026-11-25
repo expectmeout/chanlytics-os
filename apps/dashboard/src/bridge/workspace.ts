@@ -589,7 +589,7 @@ export function keepWarm(routes: readonly string[], win: AddressWindow = window)
  */
 export function warmPhonePlaces(win: AddressWindow = window): void {
   // Inside the native app (the class contracts' boot script puts on the root before paint), its own bar stands here.
-  const inApp = typeof document !== "undefined" && !!document.documentElement.classList?.contains(IN_APP_CLASS);
+  const inApp = typeof document !== "undefined" && !!document.documentElement?.classList?.contains(IN_APP_CLASS);
   if (inApp || !warmsOnItsOwn()) return;
   if (typeof matchMedia !== "function" || !matchMedia(PAGE_PHONE_QUERY).matches) return;
   for (const route of PHONE_WARM_ROUTES) warmRoute(route, win);

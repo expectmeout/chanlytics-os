@@ -591,8 +591,17 @@ test("a phone's tab pages, and the pages a swipe walks to from them, are asked f
     globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
     Object.defineProperty(globalThis, "navigator", { value: { connection }, configurable: true });
     const w = windowAt({ pathname: `/w/acme/${at}` });
-    if (inApp) w.win.__IN_APP = true;
-    warmPhonePlaces(w.win);
+    // Inside the native app: the class contracts' boot script puts on the root before paint (IN_APP_CLASS).
+    const doc = globalThis.document;
+    globalThis.document = {
+      ...doc,
+      documentElement: { classList: { contains: (name) => inApp && name === "in-app" } },
+    };
+    try {
+      warmPhonePlaces(w.win);
+    } finally {
+      globalThis.document = doc;
+    }
     return [...asked];
   };
   setAppRouter({ push: () => {}, replace: () => {}, prefetch: (href) => asked.push(href) });

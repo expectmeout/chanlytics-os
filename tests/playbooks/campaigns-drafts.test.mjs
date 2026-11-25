@@ -42,7 +42,7 @@ import {
   press,
   settle,
 } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 const { stateOf, NEW_WORDS: W } = contracts;
 const TID = "t-studio";
@@ -76,7 +76,7 @@ installClock();
 // The tab's memory, as the app installs it (surface-cache.ts): the one store every composer keeps its words in.
 const { installTabMemory, clearTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);
-const TM = globalThis.__tabMemory;
+const TM = provided("tabMemory");
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

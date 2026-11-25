@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again as drawOver } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-21T14:00:00Z");
@@ -792,7 +792,7 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
   const url = "https://www.docs.example.com/p/emily";
   const dealUrl = "https://quotes.example.com/p/emily-deal";
   // The deal's kit, as the courier publishes it (0008): the send's words are the Deal group's.
-  const dealWas = globalThis.window.__deal;
+  const dealWas = provided("deal");
   bridgeHolds({ parts: { deal: { menu: dealMenuActs, actWords: DEAL_ACT_WORDS } } });
   // People's rows as the thread's head reads them: People's surface, read at a clock as People publishes it.
   const peopleAre = (value) => setSurfaceValue("people", value && { fetchedAt: Date.now(), ...value });

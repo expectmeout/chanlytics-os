@@ -20,7 +20,7 @@ import {
 } from "../../../apps/dashboard/src/bridge/mascot/arrival.ts";
 import { needsYouNow } from "../../../apps/dashboard/src/bridge/arrival.ts";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /** A clock, and timers that fire as it is moved. */
@@ -244,7 +244,7 @@ test("what needs you is asked when the light is decided, never remembered: Ask c
 
 test("what needs you, as the wiring hands it in: people, runs or searches Ask says wait, a follow-up of Ask's come due (the closed-loop read, 17 Oct 2026), or a notification not read; nothing of these is no light", () => {
   const w = globalThis.window;
-  const was = { ask: askCalls(), notifs: w?.__notifs };
+  const was = { ask: askCalls(), notifs: provided("bell") };
   const quiet = { people: 0, runs: 0, searches: 0 };
   globalThis.window ??= globalThis;
   try {

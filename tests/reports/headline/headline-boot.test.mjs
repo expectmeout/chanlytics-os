@@ -26,7 +26,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 const keepError = console.error;
 console.error = () => {};
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");

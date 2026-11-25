@@ -69,7 +69,7 @@ import {
   went,
   withNobodyAnswered,
 } from "./_page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ above the work ------------------------------------ */
 
@@ -129,10 +129,10 @@ test("what is not a number: never the traffic the figures say, nor a reply that 
   );
   // A run that went out is said in the day, at the time it went, with what it has earned so far.
   const day = draw(DayZone);
-  const run = W.__BROADCASTS.rows[2]; // the run drawn: a second broadcasts() can fall a minute later
+  const run = surfaceValue("broadcasts").rows[2]; // the run drawn: a second broadcasts() can fall a minute later
   const done = byTestId(day, "today-day-went");
   assert.ok(done, "a run that went out, in the day");
-  const at = W.__clock.time(Date.parse(run.started_at));
+  const at = provided("clock").time(Date.parse(run.started_at));
   assert.ok(textOf(done).includes(`went out at ${at} · ${todayRunWords(run).done.counts}`), textOf(done));
   assert.ok(!textOf(done).includes("—"), "no em dash in a new sentence");
   assert.ok(busy().recap.receipts.length > 0, "the fixture is a day with replies");
@@ -886,12 +886,15 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
     unread: () => 1,
     older: () => 0,
   };
-  bridgeHolds({ values: { people: people(), broadcasts: broadcasts() }, parts: { clock: W.__clock, bell: bell } });
   set({
     today: busy(),
     __TODAY_SAMPLE: {
+      __PEOPLE: people(),
+      __BROADCASTS: broadcasts(),
       __CALENDAR: calendar([block("b9", 9, "Gloss")]),
       __PLAYBOOKS: noPlaybooks(),
+      __clock: provided("clock"),
+      __notifs: bell,
     },
   });
   const drawn = draw(TodayZones);
@@ -902,7 +905,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
     assert.equal(
       W[name],
       undefined,
-      `${name}: the mockup's other pages switch to their real variants on the bridge's names`,
+      `${name}: the sample is copied onto nothing; the pages read the seam (decision 0151)`,
     );
   // A workspace never reads the sample: the same globals outside a demo session draw nothing borrowed.
   const real = draw(TodayZones);

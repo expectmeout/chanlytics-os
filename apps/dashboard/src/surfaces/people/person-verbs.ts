@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from "react";
 import { backToPeople } from "../frame-doors";
-import { useFrameToast, windowValue } from "../frame-verbs";
+import { useFrameToast } from "../frame-verbs";
 import { currentWorkspace } from "@/bridge/who";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
@@ -63,12 +63,6 @@ export { backToPeople };
 /** Where a smart list of the workspace is on People: `clients/seg:<id>`, the spelling the route table's `clientSeg` gives. */
 export function clientSegRoute(id: string): string {
   return `clients/seg:${id}`;
-}
-
-/** What the shell's workspace list names of one workspace: its id and its words. */
-interface WorkspaceRow {
-  id?: unknown;
-  name?: unknown;
 }
 
 /** The name of the workspace being looked at (who.ts); nothing before the workspace read. */

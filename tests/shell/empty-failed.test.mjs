@@ -108,17 +108,6 @@ const storage = () => {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
-bridgeHolds(
-  {
-    parts: {
-      chrome: { state: stateOf },
-      refreshSurface: async (key) => {
-        calls.refresh.push(key);
-      },
-    },
-  },
-  { fresh: true },
-);
 globalThis.window = {
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   gate: () => ({ "data-gated": "" }),
@@ -138,6 +127,17 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds(
+  {
+    parts: {
+      chrome: { state: stateOf },
+      refreshSurface: async (key) => {
+        calls.refresh.push(key);
+      },
+    },
+  },
+  { fresh: true },
+);
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
 Object.assign(globalThis.window, kitPages);

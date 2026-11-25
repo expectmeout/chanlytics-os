@@ -44,7 +44,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 
 const { watchTheClock, HEAL_AFTER_MS } = await importSrc("apps/dashboard/src/bridge/hearing/clock.ts");
 const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");

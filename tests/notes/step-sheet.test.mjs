@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 const { STEP_SHEET_WORDS, NOTE_REFUSALS, dealStepOf, stepSheetBody, stepSheetDirty, stepSheetFor, zoneDayKey } =
   contracts;
@@ -688,7 +688,7 @@ test("a note's write answers when the server takes it: People, whose rows carry 
       "a step written",
       () => N.writePersonNote("p1", { body: "Call", due_on: zoneDayKey(now + 3 * D, ZONE), team_only: true }),
     ],
-    ["a step done", () => W.__personNotes.done("p1", "n1", true, 2)],
+    ["a step done", () => provided("personNotes").done("p1", "n1", true, 2)],
     ["a note taken away", () => N.removePersonNote("p1", "n1")],
   ]) {
     const waited = new Promise((r) => setTimeout(() => r("waited on People's read"), 1000));

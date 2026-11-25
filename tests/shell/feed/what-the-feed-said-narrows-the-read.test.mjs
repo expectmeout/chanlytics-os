@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { memberWords, stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 const quiet = async (fn) => {
   const e = console.error;
@@ -62,7 +62,7 @@ globalThis.window.fetch = async (url) => {
       ? json(500, { ok: false, error: { code: "internal", message: "down" } })
       : json(200, { ok: true, data: { calls: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: globalThis.__WORKSPACES, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 

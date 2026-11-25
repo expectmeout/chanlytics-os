@@ -8,6 +8,7 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { installAppBridge } from "../../apps/dashboard/src/bridge/app-bridge.ts";
+import { needsYouOnToday } from "../../apps/dashboard/src/surfaces/needs-you.ts";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 globalThis.CustomEvent ??= class CustomEvent extends Event {
@@ -192,8 +193,8 @@ test("a tapped push for another workspace opens that workspace's page, sealing w
     win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
     assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
     assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
-    win.INBOX_PROBE = { threads: ["acme-plumbing's"] };
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    bridgeHolds({ values: { inbox: { threads: ["acme-plumbing's"] } } });
+    cache.snapshotSurface("inbox", HERE, undefined, "inbox");
     cache.flushSurfaceCache();
     assert.ok(kept.get(CACHE), "this workspace's rows, cached, as a reload would paint them");
     win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
@@ -205,11 +206,12 @@ test("a tapped push for another workspace opens that workspace's page, sealing w
     assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
     assert.equal(kept.get(CACHE), undefined, "REGRESSION: the other workspace's address loaded with this one's rows");
     // A read lands before the page unloads: persisted as every read is, and written by the page's hide.
-    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    cache.snapshotSurface("inbox", HERE, undefined, "inbox");
     cache.flushSurfaceCache();
     assert.equal(kept.get(CACHE), undefined, "REGRESSION: written back into the tab the other workspace loads in");
   } finally {
     Object.assign(globalThis, was);
+    bridgeHolds({ values: { inbox: undefined } });
   }
 });
 
@@ -230,6 +232,8 @@ test("REGRESSION: a push that arrives before the workspaces read lands leaves th
   };
   // A page just loaded: its workspace's cache in its slot, and no workspaces read landed yet (no __ACTIVE_WORKSPACE).
   const cold = (pathname) => {
+    // A page of its own: no workspaces read has landed in it (who.ts holds nobody yet).
+    bridgeHolds({}, { fresh: true });
     const page = windowOf({ pathname, hash: "" });
     globalThis.window = page.win;
     CACHE = `chanlytics.surfaces.v2:${pathname.split("/")[2] || "-"}`;
@@ -411,7 +415,9 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   };
   const { win, posted, fire } = windowOf();
   bridgeHolds({ values: { today: vm } });
-  installAppBridge(win, doors());
+  // The one count not said yet (needs-you.ts needsYouNow, which counts the Inbox's threads): the widget says Today's own line.
+  const notCounted = { now: () => null, hear: () => () => {}, parts: (day) => needsYouOnToday(day) };
+  installAppBridge(win, doors(), notCounted);
   const first = posted.find((m) => m.t === "today");
   assert.equal(first.snapshot.headline, "Quiet so far");
   assert.deepEqual(first.snapshot.figures, [{ label: "messages", value: 4 }]);
@@ -419,6 +425,7 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   fire("surface:today");
   assert.equal(posted.at(-1).snapshot.headline, "1 person needs you");
   const bare = windowOf();
+  bridgeHolds({ values: { today: undefined } });
   installAppBridge(bare.win, doors());
   assert.ok(!bare.posted.some((m) => m.t === "today"), "no Today yet, nothing to hand over");
 });

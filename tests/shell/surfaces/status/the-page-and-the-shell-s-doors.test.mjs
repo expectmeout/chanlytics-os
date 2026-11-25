@@ -38,10 +38,10 @@ import {
   walk,
   win,
 } from "./_status.mjs";
-import { bridgeHolds } from "../../_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue } from "../../_bridge-holds.mjs";
 
 test("the line under the top bar: a live region that is always there, the words, and the one press", async () => {
-  const kept = win.__shell;
+  const kept = provided("shell");
   setDeep(true);
   setCells([]);
   const bar = () => {
@@ -50,8 +50,11 @@ test("the line under the top bar: a live region that is always there, the words,
   };
   const cta = (tree) => find(tree, (n) => n.props?.["data-testid"] === "shell-status-cta");
   bridgeHolds({ parts: { chrome: { statusLine: shellStatusLine } } });
+  // What the shell last published for the line (bridge/shell.ts `status()`), as the frame reads it.
+  let status = null;
+  bridgeHolds({ parts: { shell: { status: () => status } } });
 
-  win.__SHELL_STATUS = { stale: false, degraded: [] };
+  status = { stale: false, degraded: [] };
   let tree = bar();
   assert.equal(tree.props.role, "status");
   assert.equal(tree.props["aria-live"], "polite", "mounted while all is well, so the next change is announced");
@@ -61,7 +64,7 @@ test("the line under the top bar: a live region that is always there, the words,
     "and empty",
   );
 
-  win.__SHELL_STATUS = { stale: false, degraded: [], offline: true };
+  status = { stale: false, degraded: [], offline: true };
   tree = bar();
   assert.match(textOf(tree), /You're offline/);
   assert.equal(cta(tree), undefined, "nothing to press without a connection to press it with");
@@ -71,6 +74,7 @@ test("the line under the top bar: a live region that is always there, the words,
   bridgeHolds({
     parts: {
       shell: {
+        status: () => status,
         retry: () => {
           retried += 1;
           return new Promise((r) => {
@@ -80,7 +84,7 @@ test("the line under the top bar: a live region that is always there, the words,
       },
     },
   });
-  win.__SHELL_STATUS = { stale: false, degraded: ["Inbox", "Calendar"] };
+  status = { stale: false, degraded: ["Inbox", "Calendar"] };
   tree = bar();
   assert.match(textOf(tree), /Inbox and Calendar stopped refreshing/);
   assert.match(textOf(tree), /You're seeing what was last loaded\./);
@@ -119,7 +123,7 @@ test("the line under the top bar: a live region that is always there, the words,
   bridgeHolds({ parts: { billing: { vm: (d, nowMs) => toBillingVM(d, nowMs) } } });
   const went = [];
   win.CHANLY = { nav: (to) => went.push(to), address };
-  win.__SHELL_STATUS = { stale: true, degraded: [] };
+  status = { stale: true, degraded: [] };
   tree = bar();
   assert.match(textOf(tree), /AI is paused/, "and outranks a newer build");
   cta(tree).props.onClick();
@@ -517,7 +521,7 @@ test("a page can say the same place more exactly: a replaced address makes no en
 test("REGRESSION: a person's Back returns to the list they were opened from -- it pushed plain People, and the list, its scroll and its words went", () => {
   shell.installShell(win);
   const keepHistory = win.history;
-  const keepPeople = win.__PEOPLE;
+  const keepPeople = surfaceValue("people");
   // Back is the browser's; the shell never writes history.state (Next reloads on a Back to an entry it did not mark).
   const h = {
     backs: 0,
@@ -526,7 +530,7 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
     },
   };
   win.history = { ...keepHistory, back: () => h.back() };
-  bridgeHolds({ values: { people: { rows: [{ id: "p-1", name: "Rosa Díaz" }] } } });
+  bridgeHolds({ values: { people: { rows: [{ id: "p-1", name: "Rosa Díaz" }], lists: [], saved: [] } } });
   // The shell drawn again with the state it kept, after the browser moved its address (popstate), as React would.
   const arrive = (hash) => {
     // The path says the product's word (contracts ROUTE_WORDS): the shell's route clients is /people.
@@ -905,8 +909,12 @@ test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key 
 
 test("the look travels as the theme does: stamped beside it on every root the shell draws, handed to the account menu, and its words published by the bridge", () => {
   shell.installShell(win);
-  assert.deepEqual(win.__chrome.looks, LOOK_OPTIONS, "the looks beside the themes");
-  assert.equal(win.__chrome.lookOffered, LOOK_OFFERED, "and whether the account menu offers them, as contracts says");
+  assert.deepEqual(provided("chrome").looks, LOOK_OPTIONS, "the looks beside the themes");
+  assert.equal(
+    provided("chrome").lookOffered,
+    LOOK_OFFERED,
+    "and whether the account menu offers them, as contracts says",
+  );
   const onLook = () => {};
   const drawAt = (hash) => {
     setDeep(false);
@@ -919,7 +927,7 @@ test("the look travels as the theme does: stamped beside it on every root the sh
   };
   // The first run and the shared viewer are drawn instead of the chrome, each on a root of its own that carries the
   // theme; a [data-look] rule has to find the look on every one of them.
-  const keptState = win.__surfaceState;
+  const keptState = provided("surfaceState");
   bridgeHolds({ parts: { surfaceState: undefined } });
   win.FirstRun = "FirstRun";
   try {
@@ -947,7 +955,7 @@ test("the look travels as the theme does: stamped beside it on every root the sh
 
 test("the first run keeps AI: the palette is drawn over the step, closed, and the shell's ⌘K and appAsk open it and its close closes it; nothing else of the chrome, no door (Ask Rewired, Phase 7)", () => {
   shell.installShell(win);
-  const keptState = win.__surfaceState;
+  const keptState = provided("surfaceState");
   bridgeHolds({ parts: { surfaceState: undefined } });
   const draw = () => {
     frames.begin();
@@ -1024,7 +1032,7 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
 
 test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
   shell.installShell(win);
-  const keptState = win.__surfaceState;
+  const keptState = provided("surfaceState");
   bridgeHolds({ parts: { surfaceState: undefined } });
   const NAMES = ["appNavigate", "appAsk", "appBackToPeople"];
   const kept = Object.fromEntries(NAMES.map((k) => [k, win[k]]));

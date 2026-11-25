@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { PEOPLE_LISTS, listNamer, listRuleParts } from "@chanlytics/contracts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -150,7 +150,7 @@ test("People's rail says a rule's lists by the one namer", async () => {
   };
   const { peopleOverride } = await import(at("apps/dashboard/src/surfaces/people/surface.ts"));
   await peopleOverride.apply();
-  const rail = globalThis.window.__PEOPLE;
+  const rail = surfaceValue("people");
   const regulars = rail.saved.find((l) => l.name === "Regulars");
   assert.ok(regulars, JSON.stringify(rail.saved));
   assert.deepEqual(regulars.rule, listRuleParts(RULE, listNamer(SAVED)));

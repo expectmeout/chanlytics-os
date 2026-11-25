@@ -225,7 +225,7 @@ const painted = (key, rows) => {
 /** Published and cached as the runner does after a read lands (surface-runner.ts persistSurface). */
 const landed = (override, value) => {
   setSurfaceValue(override.value, value);
-  snapshotSurface(override.key, override.globals ?? [], TID, override.trimSnapshot, override.value);
+  snapshotSurface(override.key, TID, override.trimSnapshot, override.value);
 };
 
 /** The Inbox's threads as its read makes them: Sam and Rosa, both new to the reader. */
@@ -327,7 +327,7 @@ test("Conversations' rows carry it too, each row a person's row stands for among
 test("People's row says it from its own record, so its facts agree: new to the reader, how far they had seen, the mark's stamp; and the cache follows", async () => {
   clearSurfaceCache();
   await peopleOverride.apply();
-  snapshotSurface(peopleOverride.key, peopleOverride.globals ?? [], TID, peopleOverride.trimSnapshot, "people");
+  snapshotSurface(peopleOverride.key, TID, peopleOverride.trimSnapshot, "people");
   const rowOf = (value, id) => value.rows.find((r) => r.id === id);
   const before = rowOf(surfaceValue("people"), ROSA);
   assert.equal(before.unseen, true, "the read's word: new to the reader");

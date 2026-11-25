@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { historyOf, legacyAddress } from "../../shell/address/_address.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const heard = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
@@ -1056,7 +1056,7 @@ test("a page reached for reads what it draws only when drawn, before the press: 
         (keys) => void runner.refreshSurfaces(r.overrides.filter((o) => keys.includes(o.key))),
       ),
     );
-    win.__shell.warm("reports");
+    provided("shell").warm("reports");
     await settle();
     assert.deepEqual(
       r.take(),
@@ -1066,27 +1066,27 @@ test("a page reached for reads what it draws only when drawn, before the press: 
     assert.equal(status.getSurfaceStatuses().get("reports"), "live", "so it is in before its page is asked for");
     assert.equal(status.getSurfaceStatuses().get("reports_campaigns"), "live", "and so is the Campaigns read");
     // Reached for again, then opened: it is in, and neither reads it a second time.
-    win.__shell.warm("reports");
+    provided("shell").warm("reports");
     await settle();
     await r.go("#/reports");
     assert.deepEqual(r.take(), [], "REGRESSION: the press read the report again behind Reading…");
     await r.go("#/today");
     r.take();
     // A page read at boot is nobody's to warm: its surface is in. Nor is one whose on-demand reads are already in.
-    for (const route of ["inbox", "today", "admin/workspace", "nowhere"]) win.__shell.warm(route);
+    for (const route of ["inbox", "today", "admin/workspace", "nowhere"]) provided("shell").warm(route);
     await settle();
     assert.deepEqual(r.take(), [], "a reach for a page the boot read asks for nothing");
     // The lens with a read of its own is reached for by its own address.
-    win.__shell.warm("reports/reviews");
+    provided("shell").warm("reports/reviews");
     await settle();
     assert.deepEqual(r.take(), ["reports_reviews"], "and Reports' own is not read again for it");
-    win.__shell.warm("reports/receptionist");
+    provided("shell").warm("reports/receptionist");
     await settle();
     assert.deepEqual(r.take(), ["reports_receptionist"], "the Receptionist lens, the same: by its own address alone");
-    win.__shell.warm("reports/people");
+    provided("shell").warm("reports/people");
     await settle();
     assert.deepEqual(r.take(), ["reports_people"], "and the People lens, the same: by its own address alone");
-    win.__shell.warm("reports/campaigns");
+    provided("shell").warm("reports/campaigns");
     await settle();
     assert.deepEqual(
       r.take(),
@@ -1097,7 +1097,7 @@ test("a page reached for reads what it draws only when drawn, before the press: 
     // press nothing: it used to be read as it was reached for and again as its page arrived.
     await r.away(10 * 60_000);
     r.take();
-    win.__shell.warm("reports");
+    provided("shell").warm("reports");
     await settle();
     assert.deepEqual(
       r.take(),
@@ -1132,7 +1132,7 @@ test("a warm that failed is asked for once, and the page still reads its surface
         (keys) => void runner.refreshSurfaces(r.overrides.filter((o) => keys.includes(o.key))),
       ),
     );
-    win.__shell.warm("reports");
+    provided("shell").warm("reports");
     await settle();
     assert.deepEqual(
       r.take(),
@@ -1141,7 +1141,7 @@ test("a warm that failed is asked for once, and the page still reads its surface
     );
     assert.notEqual(status.getSurfaceStatuses().get("reports"), "live", "a read that failed is not a read");
     assert.equal(status.getSurfaceStatuses().get("reports_campaigns"), "live", "and the other is in");
-    win.__shell.warm("reports");
+    provided("shell").warm("reports");
     await settle();
     assert.deepEqual(r.take(), [], "a pointer that crosses the row again does not ask again");
     fail = false;

@@ -11,11 +11,9 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { ROOT } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
-bridgeHolds({ parts: { refreshSurface: async () => {} } }, { fresh: true });
 globalThis.window = {
   location: { pathname: "/w/harbor/today", search: "", hash: "", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -33,6 +31,7 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, querySe
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { AskPieceCard } from "../../apps/dashboard/src/surfaces/ask/card-piece.tsx";\n' +
       'export { askText } from "../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -60,6 +59,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `video-card-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => {});
 fs.rmSync(file, { force: true });
 
 const { pieceWordsIn } = await import("../../packages/contracts/src/content/piece-words.ts");

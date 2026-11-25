@@ -35,7 +35,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {});
 const docListeners = new Set();
 const doc = {
   visibilityState: "visible",

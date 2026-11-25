@@ -22,7 +22,7 @@ import {
 import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue, heldRead } from "../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
@@ -173,7 +173,7 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
     Notification: FakeNotification,
   };
   const api = mod.installNotifications(win, storage);
-  assert.equal(win.__notifs, api, "published for the top bar");
+  assert.equal(provided("bell"), api, "published for the top bar");
   assert.equal(api.feed().length, 1);
   assert.equal(api.unread(), 1);
   assert.equal(api.feed()[0].actions[0].to, "inbox/t1");
@@ -181,17 +181,17 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   handlers["surface:inbox"]();
   assert.deepEqual(fired, []);
   // Alerts are off until the owner asks.
-  win.INBOX_DATA.THREADS.push(thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 30_000 }));
+  surfaceValue("inbox").THREADS.push(thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 30_000 }));
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [], "off by default");
   const r = await api.setAlerts(true);
   assert.deepEqual(r, { on: true, permission: "granted" });
   assert.equal(api.alerts().on, true);
-  win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 20_000 }));
+  surfaceValue("inbox").THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 20_000 }));
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [{ title: "Ana needs you", tag: "needs:t3" }], "only the new one, only in the background");
   win.document.visibilityState = "visible";
-  win.INBOX_DATA.THREADS.push(thread({ id: "t4", who: "Bea", needsYou: true, escalatedAtMs: base - 10_000 }));
+  surfaceValue("inbox").THREADS.push(thread({ id: "t4", who: "Bea", needsYou: true, escalatedAtMs: base - 10_000 }));
   handlers["surface:inbox"]();
   assert.equal(fired.length, 1, "in view, the bell is enough");
   // Read state lives in this device's storage, keyed by workspace.
@@ -266,13 +266,13 @@ test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's rea
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [], "REGRESSION: one first look for every source made each thread already waiting a new one");
   // What appears after each source's first look alerts, whichever source it is.
-  win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 10_000 }));
+  surfaceValue("inbox").THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 10_000 }));
   handlers["surface:inbox"]();
   bridgeHolds({
     values: {
       live: {
         now: [],
-        recent: [...win.__LIVE.recent, call({ callId: "k2", cvId: "cv-k2", startedAtMs: base - 5_000 })],
+        recent: [...surfaceValue("live").recent, call({ callId: "k2", cvId: "cv-k2", startedAtMs: base - 5_000 })],
       },
     },
   });
@@ -310,7 +310,8 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
     read: false,
     dismissed: false,
   });
-  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } });
+  // A window of its own, as each device's was: nobody's workspace, so its marks are kept under "default".
+  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } }, { fresh: true });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -345,7 +346,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
   });
   handlers["surface:notifications"]();
   assert.deepEqual(fired, [], "the rows there when the bell first loads are the backlog");
-  win.__NOTIFICATIONS.dto.notifications.unshift(
+  heldRead("notifications").dto.notifications.unshift(
     kept(
       Q2,
       "leads_question",
@@ -380,7 +381,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
 test("two devices agree after a look: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  const device = (over = {}) => {
+  const device = (over = {}, notices = { notifications: [], seen_at: null }) => {
     const store = new Map();
     const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
     bridgeHolds({
@@ -389,7 +390,7 @@ test("two devices agree after a look: the seen moment is the server's, the marks
         inbox: { THREADS: [thread({ needsYou: true, escalatedAtMs: NOW - 60_000 })] },
         live: { now: [], recent: [] },
       },
-      reads: { notifications: { dto: { notifications: [], seen_at: null } } },
+      reads: { notifications: { dto: notices } },
     });
     const win = {
       addEventListener: () => {},
@@ -408,11 +409,10 @@ test("two devices agree after a look: the seen moment is the server's, the marks
   assert.ok(a.store.has(`chanlytics:notifs:${WS}`), "keyed by the workspace's id, not its slug");
   assert.ok(!a.store.has("chanlytics:notifs:default"));
   // Device B has nothing stored, but the server's seen moment is after the row: nothing unread.
-  bridgeHolds({ reads: { notifications: { dto: { notifications: [], seen_at: new Date(NOW).toISOString() } } } });
-  const b = device({});
+  const b = device({}, { notifications: [], seen_at: new Date(NOW).toISOString() });
   assert.equal(b.api.unread(), 0, "the badge is the same number on the second device");
   // A row newer than that moment is unread on B, until B marks it.
-  b.win.INBOX_DATA.THREADS.push(thread({ id: "t7", who: "Ana", needsYou: true, escalatedAtMs: NOW + 60_000 }));
+  surfaceValue("inbox").THREADS.push(thread({ id: "t7", who: "Ana", needsYou: true, escalatedAtMs: NOW + 60_000 }));
   assert.equal(b.api.unread(), 1);
   b.api.read("needs:t7");
   assert.equal(b.api.unread(), 0);
@@ -422,7 +422,7 @@ test("two devices agree after a look: the seen moment is the server's, the marks
     JSON.stringify({ ...JSON.parse(b.store.get(`chanlytics:notifs:${WS}`)), dismissed: ["call:k9"] }),
   );
   bridgeHolds({ values: { live: undefined } });
-  b.win.INBOX_DATA.THREADS = b.win.INBOX_DATA.THREADS.filter((t) => t.id !== "t7");
+  surfaceValue("inbox").THREADS = surfaceValue("inbox").THREADS.filter((t) => t.id !== "t7");
   b.api.read("needs:t1");
   const saved = JSON.parse(b.store.get(`chanlytics:notifs:${WS}`));
   assert.deepEqual(saved.read, ["needs:t1"], "the mark for the row that left is gone");
@@ -591,7 +591,8 @@ async function bellIn(browser, { alertsKept = false, key = "BKey" } = {}) {
   else delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   // The browser's own question is asked of its global, as the page asks it (bridge/ask/web-push.ts).
   globalThis.Notification = FakeNotification;
-  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } });
+  // A window of its own, as each device's was: nobody's workspace, so its marks are kept under "default".
+  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } }, { fresh: true });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -608,7 +609,9 @@ async function bellIn(browser, { alertsKept = false, key = "BKey" } = {}) {
   let n = 0;
   const someoneNeedsYou = () => {
     n += 1;
-    win.INBOX_DATA.THREADS.push(thread({ id: `p${n}`, who: `Person ${n}`, needsYou: true, escalatedAtMs: Date.now() }));
+    surfaceValue("inbox").THREADS.push(
+      thread({ id: `p${n}`, who: `Person ${n}`, needsYou: true, escalatedAtMs: Date.now() }),
+    );
     handlers["surface:inbox"]();
   };
   const restore = () => {

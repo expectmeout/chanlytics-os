@@ -24,7 +24,7 @@ import { bellFeed } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, surfaceValue } from "../../shell/_bridge-holds.mjs";
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -383,7 +383,7 @@ test("a group is read by one press: the server's rows in one write, a derived ro
     seen_at: null,
     read_through_at: null,
   });
-  win.INBOX_DATA.THREADS = [thread("t1", 5)];
+  surfaceValue("inbox").THREADS = [thread("t1", 5)];
   assert.deepEqual(
     feedDots(api).filter(([, unread]) => unread).length,
     4,

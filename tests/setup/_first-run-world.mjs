@@ -16,7 +16,7 @@ import { setupSteps, RECEPTIONIST_MET, REHEARSE_SKIPPED } from "@chanlytics/cont
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 export const NOW = Date.parse("2026-09-07T15:00:00Z");
 export const blank = {
@@ -384,9 +384,9 @@ export const atChannels = (dto) => surface(dto, { later: MET });
 export const atLive = (dto, { want = KEEP, later = [], choices } = {}) =>
   surface(dto, { later: [...MET, ...later], want, ...(choices ? { choices } : {}) });
 /** What the tab has kept under a draft's name, read where the page keeps it (the window's sessionStorage). */
-export const draftOf = (kind) => globalThis.window.__tabMemory.draft(kind);
+export const draftOf = (kind) => provided("tabMemory").draft(kind);
 /** A choice kept in the tab, as the page keeps it (memory.ts). */
-export const keepChoice = (choice) => globalThis.window.__tabMemory.keepDraft("first-run-phone", choice);
+export const keepChoice = (choice) => provided("tabMemory").keepDraft("first-run-phone", choice);
 /** A tab with nothing kept in it: the drafts the last world left are gone, as a new world's own were. */
 export const emptyTab = () => clearTabMemory(globalThis.window.sessionStorage);
 /** The tab's drafts (empty), Stripe and the line doors, each remembering what it was asked. */

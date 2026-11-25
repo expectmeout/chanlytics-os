@@ -971,7 +971,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
   // settings read's): the verbs publish themselves and no function to read the surface again.
   const verbs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
-  assert.ok(verbs.includes("window.__broadcasts = broadcasts;"));
+  assert.ok(verbs.includes('provide("broadcasts", broadcasts);'));
   assert.equal(verbs.includes("__refreshBroadcasts"), false, "the hook went with the template rows' calls to it");
 });
 

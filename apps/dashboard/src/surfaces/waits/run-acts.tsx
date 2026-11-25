@@ -21,7 +21,6 @@ import {
   todayRunApproved,
   type BroadcastVM,
 } from "@chanlytics/contracts";
-import type { BroadcastsSurface } from "../campaigns/broadcasts/surface";
 import { approvalDaysNow, bcWhenWords } from "../campaigns/broadcasts/when-words";
 import { canDo } from "../frame-verbs";
 import { fn, object, type Flash } from "../shell-doors";
@@ -109,7 +108,7 @@ interface RunVerbs {
 }
 
 /** A field of what the server answered, whatever it is. */
-const answered = (data: object | undefined, field: string): unknown => (data ? Reflect.get(data, field) : undefined);
+const answerField = (data: object | undefined, field: string): unknown => (data ? Reflect.get(data, field) : undefined);
 
 /** The broadcasts surface's verbs (provided as `broadcasts`): stop a run, approve one; nothing before they are installed. */
 export const broadcastVerbs = (): RunVerbs | undefined => provided("broadcasts");
@@ -137,7 +136,7 @@ async function stopNow(r: BroadcastVM, api: RunVerbs, flash: Say): Promise<void>
   let said = false;
   const say = (data?: object) => {
     said = true;
-    const was = answered(data, "was");
+    const was = answerField(data, "was");
     flash({
       msg: (
         <>
@@ -157,7 +156,7 @@ async function approveNow(r: BroadcastVM, api: RunVerbs, flash: Say, stop: (r: B
   let said = false;
   const say = (data: object) => {
     said = true;
-    const count = answered(data, "recipient_count");
+    const count = answerField(data, "recipient_count");
     const n = (typeof count === "number" && count) || r.recipient_count;
     const when = bcWhenWords(receiptOf(data));
     const t = todayRunApproved(runTitleOf(r), n, when);
