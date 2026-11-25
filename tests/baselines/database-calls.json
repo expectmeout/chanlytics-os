@@ -1,0 +1,6 @@
+{
+  "note": "What a page may cost the database, as the nightly's whole suite counts it on its own stack (e2e/shell/database-calls.spec.ts): the database calls behind one cold load of each main page in a browser that holds nothing, with the requests it sent; the calls behind a minute of a tab left open; and the requests a tab sends in a minute while every read fails. Not yet set: the first count on the stack sets them.",
+  "load": {},
+  "idle": {},
+  "failing": {}
+}
