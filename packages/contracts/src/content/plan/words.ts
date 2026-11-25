@@ -26,7 +26,7 @@ export const WEEK_WORDS = {
     `${size}, ${days}. They go up ${when} unless you stop them.`,
   /** And for a week made while AI is paused (Stop everything): no time is promised, it waits for the owner. */
   readyBodyPaused: (size: string, days: string) =>
-    `${size}, ${days}. AI is paused, so they wait for you. Nothing goes up until you approve them.`,
+    `${size}, ${days}. AI is paused, so nothing goes up until you approve them.`,
   /** And for a week AI sends as soon as it is ready (00714). */
   readyBodySent: (size: string, days: string) =>
     `${size}, ${days}. AI approves them, as you set it. Each goes up at its time.`,

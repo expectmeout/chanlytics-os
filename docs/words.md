@@ -285,7 +285,7 @@ says why." A post left out because its reason no longer stands says that reason 
 | Not approved: it changed as AI read it | AI didn't approve it. Nothing goes up until you approve it.             | This week's posts are waiting for you · AI didn't approve them.           | AI didn't approve this week's posts · The week changed while AI was approving it at 8:00 AM, so nothing went up. Look at it, then approve the week. |
 
 A reel AI's approval begins is never said to go up: "a reel is being made and waits for your approval". A week made
-while AI is paused is promised no time: its notice says "AI is paused, so they wait for you. Nothing goes up until you
+while AI is paused is promised no time: its notice says "AI is paused, so nothing goes up until you
 approve them." A held week's notice names the day with the time: "They go up Mon 8:00 AM unless you stop them."
 
 ### A problem, said right

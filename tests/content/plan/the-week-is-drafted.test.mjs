@@ -282,7 +282,7 @@ test("made while AI is paused, a week is held to no time under Holds it, and its
   assert.equal(w.holds[0].p_goes_at, undefined, "no time is asked for while AI is paused");
   assert.equal(w.tables.content_plans[0].goes_at, undefined, "nothing says it goes up at 8:00 AM");
   const said = w.tables.notifications.find((n) => n.kind === "plan_ready").body;
-  assert.ok(said.endsWith("AI is paused, so they wait for you. Nothing goes up until you approve them."), said);
+  assert.ok(said.endsWith("AI is paused, so nothing goes up until you approve them."), said);
   assert.doesNotMatch(said, /8:00 AM|unless you stop/);
 });
 
