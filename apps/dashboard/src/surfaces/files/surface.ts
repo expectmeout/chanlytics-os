@@ -63,7 +63,7 @@ function show(value: FilesSurface): void {
 }
 
 const viewKeyOf = (view: FilesView) => `${view.shelf}|${view.kind ?? ""}|${view.about ?? ""}`;
-const viewOf = (dto: FilesPageDto): FilesView => ({ shelf: dto.shelf, kind: dto.kind, about: dto.about });
+const filesViewOf = (dto: FilesPageDto): FilesView => ({ shelf: dto.shelf, kind: dto.kind, about: dto.about });
 
 /** Each view as it was last shown this visit: one seen before shows at a press, and is read again behind it. */
 const surfacesSeen = new Map<string, FilesSurface>();
@@ -86,13 +86,13 @@ function shownOfKind(held: FilesSurface, view: FilesView): FilesSurface | null {
 export async function showFiles(view: FilesView): Promise<void> {
   const ask = (onScreen = { ...view });
   const now = surfaceValue("files");
-  if (now) surfacesSeen.set(viewKeyOf(viewOf(now.dto)), now);
+  if (now) surfacesSeen.set(viewKeyOf(filesViewOf(now.dto)), now);
   const early = surfacesSeen.get(viewKeyOf(view)) ?? (now ? shownOfKind(now, view) : null);
   if (early) show(early);
   const dto = await readAsked(ask);
   if (ask !== onScreen) return;
   const landed = { dto, fetchedAt: Date.now() };
-  surfacesSeen.set(viewKeyOf(viewOf(dto)), landed);
+  surfacesSeen.set(viewKeyOf(filesViewOf(dto)), landed);
   show(landed);
 }
 
@@ -103,7 +103,7 @@ export async function showFiles(view: FilesView): Promise<void> {
  */
 export async function readFilesWaiting(): Promise<FilesPageDto> {
   const dto = await read("GET files", { query: { shelf: "inbox" } });
-  surfacesSeen.set(viewKeyOf(viewOf(dto)), { dto, fetchedAt: Date.now() });
+  surfacesSeen.set(viewKeyOf(filesViewOf(dto)), { dto, fetchedAt: Date.now() });
   return dto;
 }
 
@@ -128,7 +128,7 @@ export async function showMoreFiles(): Promise<void> {
 /** The next read of the view on show asks for this many, where a batch that just arrived would run past a page. */
 export function readFilesUpTo(limit: number): void {
   const dto = surfaceValue("files")?.dto;
-  if (dto) onScreen = { ...viewOf(dto), limit };
+  if (dto) onScreen = { ...filesViewOf(dto), limit };
 }
 
 export const filesOverride: SurfaceOverride = {

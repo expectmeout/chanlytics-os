@@ -162,7 +162,7 @@ async function noteOf(
 }
 
 /** A member's change: the words they keep, as data, what they asked, and what is open, so "offer my next two" can be done. */
-const changeOf = (given: string | null, frame: string, open: string | null): string =>
+const askedChangeOf = (given: string | null, frame: string, open: string | null): string =>
   [given ? `Your last draft said:\n${fenced("reply", given)}` : null, frame, open].filter(Boolean).join("\n\n");
 
 /** How long a change waits on the calendar before it is written without its open times. */
@@ -274,7 +274,7 @@ async function changeAsked(
   if (!instruction) return { change: undefined, given: null };
   const open = ask.instruction ? await openingsForChange(rt, at, tenantId) : null;
   const frame = ask.instruction ? frameDraftChange(ask.instruction) : frameSteer(instruction);
-  return { change: changeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
+  return { change: askedChangeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
 }
 
 async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten> {

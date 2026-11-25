@@ -65,7 +65,7 @@ interface AskUsage {
   speed?: ModelSpeed;
 }
 
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+const finiteOrZero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /**
  * Ask's tokens in the last day, this workspace: input, cache writes and output of every usage.ask_tokens event of the
@@ -78,7 +78,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: T
   try {
     const { data, error } = await findAskTokensToday(db, tenantId);
     if (error) throw new DbFailure(error, "ask_tokens_day");
-    return num(Number(data));
+    return finiteOrZero(Number(data));
   } catch (e) {
     log.error("ask_budget_read_failed", { error: errField(e) });
     return null;
@@ -168,12 +168,12 @@ export function teeUsage(
       }
       if (ev.type === "message_start" && ev.message?.usage) {
         const u = ev.message.usage;
-        usage.input_tokens = num(u.input_tokens);
-        usage.cache_read_input_tokens = num(u.cache_read_input_tokens);
-        usage.cache_creation_input_tokens = num(u.cache_creation_input_tokens);
+        usage.input_tokens = finiteOrZero(u.input_tokens);
+        usage.cache_read_input_tokens = finiteOrZero(u.cache_read_input_tokens);
+        usage.cache_creation_input_tokens = finiteOrZero(u.cache_creation_input_tokens);
         noteSpeed(u.speed);
       } else if (ev.type === "message_delta") {
-        if (ev.usage) usage.output_tokens = num(ev.usage.output_tokens) || usage.output_tokens;
+        if (ev.usage) usage.output_tokens = finiteOrZero(ev.usage.output_tokens) || usage.output_tokens;
         noteSpeed(ev.usage?.speed);
         if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
       }
@@ -436,7 +436,7 @@ export function validateGatewayRequest(
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
   const ceiling = ceilingOf(purpose, effortInForce(gatewayRequest.messages, effort));
-  const maxTokens = Math.min(ceiling, Math.max(64, Math.round(num(gatewayRequest.max_tokens) || 800)));
+  const maxTokens = Math.min(ceiling, Math.max(64, Math.round(finiteOrZero(gatewayRequest.max_tokens) || 800)));
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);

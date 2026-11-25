@@ -138,7 +138,7 @@ type Settled = "sent" | "held" | "left" | "put_off";
  * A due occasion as a run can take it, or why it is left before anything is read for it: its step does not run now,
  * it was found more than a day past its time, or its step is gone or holds no message.
  */
-function liveOf(row: DueOccasion, nowMs: number): Live | { why: string } {
+function occasionLiveOf(row: DueOccasion, nowMs: number): Live | { why: string } {
   if (!row.runs) return { why: "off" };
   if (nowMs - Date.parse(row.dueAt) > OCCASION_LATE_MS) return { why: "too_late" };
   const step = row.step;
@@ -233,7 +233,7 @@ export async function runDueOccasions(
   // What can no longer run is settled before anything is read for it.
   const live: Live[] = [];
   for (const row of rows) {
-    const read = liveOf(row, now.getTime());
+    const read = occasionLiveOf(row, now.getTime());
     if ("why" in read) await leave(row, read.why);
     else live.push(read);
   }

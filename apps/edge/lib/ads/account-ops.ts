@@ -72,7 +72,7 @@ import {
   readsInstagram,
   runsPage,
   sharedIds,
-  standingOf,
+  accountStandingOf,
   type MetaSignIn,
 } from "./meta-facts.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
@@ -284,7 +284,7 @@ async function connectAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId
       name: one?.name ?? null,
       currency: one?.currency ?? null,
       timezone: one?.timezone ?? null,
-      standing: one ? { ...standingOf(one) } : {},
+      standing: one ? { ...accountStandingOf(one) } : {},
       config: { ...config },
       token_expires_at: secret.expires_at,
     },
@@ -314,7 +314,7 @@ async function chooseAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId:
       name: account.name,
       currency: account.currency,
       timezone: account.timezone,
-      standing: { ...standingOf(account) },
+      standing: { ...accountStandingOf(account) },
       config: { ...kept, ...accountConfigOf(account), choices: [] },
       token_expires_at: waiting.token_expires_at,
     },
@@ -358,7 +358,7 @@ async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: num
   const outcome = await keepAdAccountRead(db, tenantId, account.id, {
     name: read.value.name,
     timezone: read.value.timezone,
-    standing: { ...standingOf(read.value) },
+    standing: { ...accountStandingOf(read.value) },
     // A Page Meta would not describe this time keeps what was last known of it.
     config: { ...accountConfigOf(read.value), ...(page?.ok ? pageConfigOf(page.value) : {}) },
     ...(usage ? { usage_pct: usage.pct } : {}),

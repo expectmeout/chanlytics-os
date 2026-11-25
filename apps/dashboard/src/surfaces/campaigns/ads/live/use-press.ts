@@ -40,7 +40,7 @@ const mayUndoPause = (ad: AdLiveDto): boolean =>
   ).ok;
 
 /** What a press that was taken says. */
-function saidOf(press: Press, outcome: string, name: string): string {
+function pressSaidOf(press: Press, outcome: string, name: string): string {
   if (outcome === "sent") return press === "pause" ? SHEET.pauseUnsure(name) : SHEET.resumeUnsure(name);
   if (press === "pause") return outcome === "soon" ? SHEET.pausedSoon(name) : SHEET.paused(name);
   return outcome === "soon" ? SHEET.resumedSoon(name) : SHEET.resumed(name);
@@ -167,7 +167,7 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
         outcome !== "sent" && (kind === "resume" || outcome === "soon" || (ad !== undefined && mayUndoPause(ad)))
           ? () => void press(kind === "pause" ? "resume" : "pause", id, next, false)
           : null;
-      return flash({ msg: saidOf(kind, outcome, ad?.name ?? ""), undo: undoable ? back : null });
+      return flash({ msg: pressSaidOf(kind, outcome, ad?.name ?? ""), undo: undoable ? back : null });
     },
     [ads, again, flash],
   );

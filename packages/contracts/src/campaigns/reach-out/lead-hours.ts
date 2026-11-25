@@ -76,7 +76,7 @@ function timeOf(text: string): { min: number; meridiem: "am" | "pm" | null } | n
 const withMeridiem = (min: number, meridiem: "am" | "pm") => (meridiem === "pm" ? min + 12 * 60 : min);
 
 /** One range: "9 AM to 6 PM", "8 to 11 AM", "6 PM–2 AM". Null when it is not one. */
-function rangeOf(text: string): OpenWindow | null {
+function openWindowOf(text: string): OpenWindow | null {
   const parts = text.split(/\s*(?:to|–|—|-)\s*/i);
   if (parts.length !== 2) return null;
   const time = timeOf(parts[0] ?? "");
@@ -99,7 +99,7 @@ function dayWindowsOf(words: string): OpenWindow[] | null {
     .toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
-  const ranges = w.split(/\s*,\s*/).map(rangeOf);
+  const ranges = w.split(/\s*,\s*/).map(openWindowOf);
   return ranges.every((r): r is OpenWindow => r !== null) && ranges.length > 0 ? ranges : null;
 }
 

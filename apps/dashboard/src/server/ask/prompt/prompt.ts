@@ -286,7 +286,7 @@ export interface SearchAnswering {
   leaving_out: string[];
 }
 
-const clip = (s: unknown, n: number): string =>
+const clipText = (s: unknown, n: number): string =>
   typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
 
 /** The stored shape read back, or null for a turn that answered nothing. */
@@ -301,12 +301,12 @@ export function answeringOf(value: unknown): SearchAnswering | null {
     return null;
   return {
     search_id: searchAnswering.search_id,
-    name: clip(searchAnswering.name, 80),
-    question: clip(searchAnswering.question, 300),
-    asked: clip(searchAnswering.asked, 200),
+    name: clipText(searchAnswering.name, 80),
+    question: clipText(searchAnswering.question, 300),
+    asked: clipText(searchAnswering.asked, 200),
     leaving_out: (Array.isArray(searchAnswering.leaving_out) ? searchAnswering.leaving_out : [])
       .slice(0, 8)
-      .map((x) => clip(x, 80))
+      .map((x) => clipText(x, 80))
       .filter(Boolean),
   };
 }
