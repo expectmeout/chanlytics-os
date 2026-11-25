@@ -417,20 +417,14 @@ function phoneBar(s: PeopleState) {
 }
 
 /** The line of counts, Needs you the tap that shows them: under the bar on a phone, over the table on a desk. */
-function peopleLine(s: PeopleState) {
-  const { agg, listId, setSavedId, setTab, setListId } = s;
-  return (
-    <PeopleStanding
-      scope="people"
-      agg={agg}
-      needsShown={listId === "needs_you"}
-      onNeeds={() => {
-        setSavedId(null);
-        setTab("all");
-        setListId((l) => (l === "needs_you" ? null : "needs_you"));
-      }}
-    />
-  );
+function peopleLine(screen: PeopleState) {
+  const needs = screen.listId === "needs_you";
+  const onNeeds = () => {
+    screen.setSavedId(null);
+    screen.setTab("all");
+    screen.setListId(needs ? null : "needs_you");
+  };
+  return <PeopleStanding scope="people" agg={screen.agg} needsShown={needs} onNeeds={onNeeds} />;
 }
 
 /**

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   LIFECYCLE_WORDS,
+  SEQUENCE_ACT_WORDS as A,
   SEQUENCES_ROUTE,
   SEQUENCE_WORDS,
   peopleTabWord,
@@ -29,7 +30,9 @@ import {
   type SequenceRowDto,
   type SequenceTab,
 } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { Icon } from "../../kit/icon/icon";
 import { heldAlong, heldUnder } from "../../kit/motion/held-list";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
@@ -43,15 +46,7 @@ import { usePartShown, useSurface } from "../../use-surface";
 import { CmPane, cmGoing, useCmPhone } from "../parts/split";
 import { SequenceHistory } from "./history";
 import { SequencePeople } from "./people";
-import {
-  HeadActs,
-  HeadActsReading,
-  RecordNotice,
-  RecordQuestion,
-  RenameForm,
-  phoneFootOf,
-  useRecordActs,
-} from "./record-acts";
+import { HeadActs, RecordNotice, RecordQuestion, RenameForm, phoneFootOf, useRecordActs } from "./record-acts";
 import { SequenceSteps } from "./steps";
 import { RecordFootContext } from "./record-foot";
 import { recordBackNow } from "./trip";
@@ -251,6 +246,18 @@ function OpenRecord(p: {
       </RecordFootContext.Provider>
       {toast}
     </CmPane>
+  );
+}
+
+/**
+ * The head's caret on a phone while the record is still being read: drawn where More will be, at its size, and taking no
+ * press until the record that says what it holds has come, so the head is laid out once (SequenceRecord, below).
+ */
+function HeadActsReading({ name }: { name: string }) {
+  return (
+    <Button variant="quiet" size="touch" iconOnly aria-label={A.more(name)} aria-disabled data-testid="sq-more-reading">
+      <Icon name="chevron-down" size={18} />
+    </Button>
   );
 }
 

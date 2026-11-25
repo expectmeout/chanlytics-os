@@ -8,14 +8,11 @@
 import { BAR_LINE_WORDS, mmss, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { useHeldList } from "../../kit/motion/held-list";
-import { UnderRow } from "../../kit/head/under-row";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
-import { Search } from "../../kit/search/search";
-import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { OutcomePill } from "./outcome-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { usePageSearch } from "../../kit/head/page-search";
@@ -34,7 +31,8 @@ import {
   inChannel,
 } from "../cv-rules";
 import { useCvPick, type CvPick } from "./conversations-pick";
-import { pickAll, pickBox, pickKeys } from "./pick";
+import { CvListChannels, CvListTop } from "./conversations-top";
+import { pickBox, pickKeys } from "./pick";
 import { useCvVisible } from "./calls-saying";
 import { useShownCvRows } from "./cv-shown";
 import { RowGap } from "../../kit/rows/row-gap";
@@ -353,30 +351,6 @@ const useCvAddress = (
   return { openRow, closeRow };
 };
 
-/** The list's channels, each with its count: a phone's frame top draws them over the search, a desk's list under it. */
-function channelFilters(
-  channels: ConversationsSurface["CV_CHANNELS"],
-  channel: string,
-  counts: Record<string, number>,
-) {
-  return (
-    <div className="cv-filters">
-      <SubTabs
-        label="Conversations by channel"
-        dense
-        value={channel}
-        onSelect={(id) => navigate(cvAddress(id, null))}
-        tabs={channels.map((ch) => ({
-          id: ch.id,
-          label: ch.label,
-          count: counts[ch.id],
-          testid: `cv-tab-${ch.id}`,
-        }))}
-      />
-    </div>
-  );
-}
-
 /** The list: the search, the tabs with their counts, and the rows (or what there is instead). */
 function listPane(p: {
   data: ConversationsSurface;
@@ -415,37 +389,11 @@ function listPane(p: {
     },
     attr: "data-row-id",
   });
-  const phoneTop = !p.away && !inLine;
-  const head = (
-    <div className="cv-list-head" data-line={inLine ? "" : undefined}>
-      {canPick.length > 0 &&
-        pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
-      {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page);
-            on a desk the bar's line is the search. */}
-      {!inLine && (
-        <Search
-          className="cv-lookup"
-          label="Search names, transcripts, messages"
-          value={query}
-          onChange={setQuery}
-          testid="cv-search"
-        />
-      )}
-    </div>
-  );
-  const filters = channelFilters(CV_CHANNELS, channel, counts);
+  // What stands over the rows: on a phone in the frame's top, elsewhere in the list (conversations-top.tsx).
+  const top = { away: p.away, inLine, channels: CV_CHANNELS, channel, counts, canPick, pick, query, setQuery };
   return (
     <aside className={`cv-list ${pick.selected.length > 0 ? "picking" : ""}`}>
-      {/* On a phone the channels and the search stand in the frame's top, still as the rows scroll under them, the
-          channels first as the Inbox's buckets are (kit/head/under-row.tsx); elsewhere in the list's own head. */}
-      {phoneTop ? (
-        <UnderRow className={pick.selected.length > 0 ? "cv-under picking" : "cv-under"}>
-          {filters}
-          {head}
-        </UnderRow>
-      ) : (
-        head
-      )}
+      <CvListTop {...top} />
       {CALLS_READ === false && (
         <FailedRead
           kind="line"
@@ -455,7 +403,7 @@ function listPane(p: {
           testid="cv-calls-failed"
         />
       )}
-      {phoneTop ? null : filters}
+      <CvListChannels {...top} />
       {pick.bar && <div className="ix-list-head">{pick.bar}</div>}
       {pick.ask}
       {/* A listbox while it holds rows, as the Inbox's is; with none, what it says instead is no option of one. */}

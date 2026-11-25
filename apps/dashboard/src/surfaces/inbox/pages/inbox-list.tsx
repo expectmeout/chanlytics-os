@@ -492,7 +492,7 @@ function searchBox(L: ListCtx) {
   // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
   const folded = !inLine && !query;
   return (
-    <div className={foldedLookup("ix-search-row", folded)} data-folded={folded || undefined}>
+    <div className={foldedLookup("ix-search-row ix-find-line", folded)} data-folded={folded || undefined}>
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),
