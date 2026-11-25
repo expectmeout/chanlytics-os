@@ -119,7 +119,13 @@ test("only Approve the week offers more than asking: the other rows draw no dot 
 });
 
 test("AI suggests holding the week only with four weeks approved as planned behind it, and Use it is the owner's press", () => {
-  assert.doesNotMatch(draw({ phone: false, rows: contentRows(), weeks: [clean, clean, clean] }), /AI suggests/);
+  const short = draw({ phone: false, rows: contentRows(), weeks: [clean, clean, clean] });
+  assert.doesNotMatch(short, /AI suggests/);
+  // With nothing to suggest, nothing is drawn under the four rows: no empty foot row.
+  assert.doesNotMatch(short, /pol-group-foot/);
+  assert.doesNotMatch(draw({ phone: false, rows: contentRows(), weeks: null }), /pol-group-foot/);
+  const desk = draw({ phone: false, rows: contentRows(), weeks: [clean, clean, clean, clean] });
+  assert.equal((desk.match(/class="pol-group-foot"/g) ?? []).length, 1, "the suggestion is the group's one foot");
   const html = draw({ phone: true, rows: contentRows(), weeks: [clean, clean, clean, clean] });
   assert.match(text(html), /AI suggests Holds it: 4 weeks approved with no edits/);
   assert.match(text(html), /Use it/);
@@ -129,4 +135,6 @@ test("AI suggests holding the week only with four weeks approved as planned behi
 test("taken, the suggestion goes: the week held, no suggestion under it", () => {
   const html = draw({ phone: true, rows: contentRows("veto"), weeks: [clean, clean, clean, clean] });
   assert.doesNotMatch(html, /AI suggests/);
+  const desk = draw({ phone: false, rows: contentRows("veto"), weeks: [clean, clean, clean, clean] });
+  assert.doesNotMatch(desk, /pol-group-foot/, "and no empty row is left where it stood");
 });
