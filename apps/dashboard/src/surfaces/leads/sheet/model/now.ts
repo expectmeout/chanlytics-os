@@ -166,7 +166,7 @@ function batchWordsOf(f: Pick<LeadNowFacts, "batch" | "batchAt" | "pace" | "tz" 
 const daysToGo = (n: number, pace: number | null | undefined): number => (pace && pace > 0 ? Math.ceil(n / pace) : 0);
 
 /** What Approve asks before their batch goes. */
-export interface LeadApproveAskVM {
+interface LeadApproveAskVM {
   question: string;
   /** From which mailbox and over how long, and the held emails that stay with you; null where none of it is known. */
   detail: string | null;

@@ -208,7 +208,7 @@ function answerOf<T>(
         // session alone.
         if (isRetryableAuthError(authErr)) {
           log.error("auth_unavailable", { route, error: authErr?.message });
-          return NextResponse.json(err("upstream_auth", "Could not verify your session just now — try again."), {
+          return NextResponse.json(err("upstream_auth", "Couldn't check your sign-in just now. Try again."), {
             status: 503,
             headers: PRIVATE,
           });
@@ -494,7 +494,7 @@ export async function requireFreshSession(ctx: Pick<RouteContext, "live">): Prom
   const verdict = ctx.live ? await ctx.live() : "live";
   if (verdict === "gone") throw new AppError("unauthorized", "Sign in again to do this.", 401, SESSION_ENDED);
   if (verdict === "unknown")
-    throw new AppError("upstream_auth", "Could not verify your session just now — try again.", 503);
+    throw new AppError("upstream_auth", "Couldn't check your sign-in just now. Try again.", 503);
 }
 
 /**
@@ -689,7 +689,7 @@ export async function requireSpend(
   // No row is not permission. Every workspace gets one at creation
   // (create_workspace_for), so its absence means something is wrong with this
   // workspace, not that it may spend freely.
-  if (error) throw new AppError("unavailable", "Billing could not be read just now. Try again in a moment.");
+  if (error) throw new AppError("unavailable", "Couldn't load billing just now. Try again in a moment.");
   if (!data)
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
   const reason = whyCannotSpend(data.mode, data.status, doing);

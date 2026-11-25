@@ -71,15 +71,15 @@ const RETRY_AFTER_MS = 30_000;
  * stayed unread under the thread it had just read.
  */
 let moves = 0;
-const hearers = new Set<() => void>();
+const seenHearers = new Set<() => void>();
 const told = () => {
   moves += 1;
-  for (const hear of [...hearers]) hear();
+  for (const hear of [...seenHearers]) hear();
 };
 const hearStore = (hear: () => void) => {
-  hearers.add(hear);
+  seenHearers.add(hear);
   return () => {
-    hearers.delete(hear);
+    seenHearers.delete(hear);
   };
 };
 const movesNow = () => moves;

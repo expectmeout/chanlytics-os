@@ -142,7 +142,7 @@ export function phoneAct(pushOff: readonly PushKind[], setBusy: (key: string | n
 
 /** The teammates whose address is not on the list, each by name, and the member's own as "You". */
 export function teammatesOf(
-  team: readonly { email: string | null; displayName: string }[] | null | undefined,
+  team: readonly { email: string | null; display_name: string }[] | null | undefined,
   notif: Section,
   me: string | null,
 ): { email: string; name: string }[] {
@@ -155,7 +155,7 @@ export function teammatesOf(
             name:
               !!me && key(m.email) === key(me)
                 ? "You"
-                : memberWords({ email: m.email, display_name: m.displayName }).name,
+                : memberWords({ email: m.email, display_name: m.display_name }).name,
           },
         ]
       : [],

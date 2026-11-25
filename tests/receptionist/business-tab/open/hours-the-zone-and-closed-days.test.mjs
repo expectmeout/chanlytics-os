@@ -647,7 +647,7 @@ test("the timezone row says the zone and the time there, and saves through the w
       workspace: {
         setTimezone: async (tz) => {
           asked.push(tz);
-          W.__WORKSPACES = W.__WORKSPACES.map((t) => ({ ...t, timezone: tz }));
+          bridgeHolds({ who: { workspaces: W.__WORKSPACES.map((t) => ({ ...t, timezone: tz })) } });
           return { ok: true, tz, message: "" };
         },
       },

@@ -111,12 +111,12 @@ export const SETUP_FIXTURE = {
   },
   conflicts: [],
   channels: {
-    whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", lastInboundAt: ago(1) },
-    voice: { present: true, active: true, number: "+19296566623", lastInboundAt: ago(2) },
+    whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", last_inbound_at: ago(1) },
+    voice: { present: true, active: true, number: "+19296566623", last_inbound_at: ago(2) },
   },
-  templates: { approved: 5, pending: 0, startersApproved: 5 },
+  templates: { approved: 5, pending: 0, starters_approved: 5 },
   calendar: { state: "ok" },
-  team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+  team: { members: 2, invites_open: 0, alert_emails: 1 },
   consent: { yes: 12 },
   requests: { line: null },
   lines: {

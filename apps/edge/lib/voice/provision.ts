@@ -156,7 +156,9 @@ async function checkProvisionKnock(auth: Admitted, request: Request): Promise<Pr
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const body = await readBody(request, VOICE_PROVISION_DOOR);
+  const read = await readBody(request, VOICE_PROVISION_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   const apply = body.apply === true;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

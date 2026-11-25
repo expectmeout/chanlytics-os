@@ -22,7 +22,7 @@ import { findWorkspaceWebsite } from "./website-read.js";
 type Db = SupabaseClient<Database>;
 
 /** How long a site waits between its reads on their own. */
-export const SITE_READ_AGAIN_MS = 30 * DAY_MS;
+const SITE_READ_AGAIN_MS = 30 * DAY_MS;
 /** The most sites one pass asks to be read. */
 export const SITES_AGAIN_TAKES = 10;
 /** How far apart a pass's reads start, so ten sites are not read in one minute. */

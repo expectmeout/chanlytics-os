@@ -12,7 +12,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import { allowanceLines } from "@chanlytics/contracts";
 import { useStanding } from "../../kit/head/standing";
-import { Icon } from "../../kit/icon/icon";
 import { useSurface } from "../../use-surface";
 
 interface CmHeadProps {
@@ -123,29 +122,3 @@ export const cmRowPress = (e: MouseEvent<HTMLElement> | undefined) => {
   const opener: Partial<HTMLElement> | null = row.querySelector("[data-row-open]");
   if (opener && typeof opener.click === "function") opener.click();
 };
-
-interface CmBannerProps {
-  tone?: string;
-  lead: ReactNode;
-  children?: ReactNode;
-  act?: ReactNode;
-  testid?: string | null;
-}
-
-/**
- * A notice that sits between the head and the list: one bold sentence saying
- * what is true, the rest saying what it costs, and the one act that fixes it.
- */
-export function CmBanner({ tone = "warn", lead, children = null, act = null, testid = null }: CmBannerProps) {
-  return (
-    <div className="cm-banner" data-tone={tone} data-testid={testid || undefined}>
-      <Icon name={tone === "plain" ? "info" : "notice"} size={15} />
-      <span className="cm-banner-text">
-        <strong>{lead}</strong>
-        {/* What it costs: beside the sentence on a desk, and left to the act on a phone, where it was five lines. */}
-        {children ? <span className="cm-banner-more"> {children}</span> : null}
-      </span>
-      {act}
-    </div>
-  );
-}

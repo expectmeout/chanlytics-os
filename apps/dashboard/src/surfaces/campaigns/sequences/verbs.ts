@@ -40,7 +40,7 @@ const leadEmails = readCache<LeadEmailsAnswer>("lead_emails", (r) => r.ok, { tab
 const leadWords = readCache<LeadWordsAnswer>("lead_words", (r) => r.ok, { tab: true });
 
 const readRecord = (id: string) => api()("GET sequences/[id]", { params: { id } });
-const readPeople = (id: string) => api()("GET sequences/[id]/people", { params: { id } });
+const readSequencePeople = (id: string) => api()("GET sequences/[id]/people", { params: { id } });
 const readHistory = (id: string) => api()("GET sequences/[id]/history", { params: { id } });
 const readPlace = (leadId: string) => api()("GET leads/[id]/place", { params: { id: leadId } });
 const readLeadEmails = (leadId: string) => api()("GET leads/[id]/emails", { params: { id: leadId } });
@@ -51,7 +51,7 @@ export const sequenceVerbs = {
   record: (id: string) => records.through(id, () => readRecord(id)),
   peekRecord: (id: string): RecordAnswer | null => records.peek(id),
   /** Who is in it, by where they stand. */
-  people: (id: string) => peoples.through(id, () => readPeople(id)),
+  people: (id: string) => peoples.through(id, () => readSequencePeople(id)),
   peekPeople: (id: string): PeopleAnswer | null => peoples.peek(id),
   /** What it sent, newest first; `before` pages back. The first page is kept, a page further back never. */
   history: (id: string, before?: string) =>
@@ -102,7 +102,7 @@ export function warmSequenceRoute(route: string): void {
   // A warm never throws: one that fails leaves nothing held, and the page reads as it opens (read-cache warm).
   if (tab === "steps") void warmRecord(id);
   else void records.warm(id, () => readRecord(id));
-  if (tab === "people") void peoples.warm(id, () => readPeople(id));
+  if (tab === "people") void peoples.warm(id, () => readSequencePeople(id));
   else if (tab === "history") void histories.warm(id, () => readHistory(id));
 }
 
@@ -129,7 +129,7 @@ const stepsDrawPeople = (r: RecordAnswer | null): boolean =>
 async function warmRecord(id: string): Promise<void> {
   const read = records.warm(id, () => readRecord(id));
   const rec = read ? await read.catch(() => null) : records.peek(id);
-  if (stepsDrawPeople(rec)) await peoples.warm(id, () => readPeople(id))?.catch(() => null);
+  if (stepsDrawPeople(rec)) await peoples.warm(id, () => readSequencePeople(id))?.catch(() => null);
 }
 
 /**

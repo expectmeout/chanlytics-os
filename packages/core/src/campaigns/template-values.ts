@@ -21,18 +21,18 @@ export const TEMPLATE_VALUE_WORDS = {
  * The message a version's id names, read once from the rows this workspace holds of it (contracts campaignMessageOf):
  * the one verb a broadcast, a playbook and Ask's proposals read a message by. The id is any version's, WhatsApp's or an
  * email's or a text's, and names the same message; a message needs no WhatsApp row. Refused: an id that is not one
- * ("Pick a template.") and a version this workspace does not hold ("Template not found.", a 404). Whether a channel can
+ * ("Pick a saved message.") and a version this workspace does not hold ("Saved message not found.", a 404). Whether a channel can
  * send the message is each tick's to say (message-channels.ts), so a version WhatsApp has not approved is no refusal here.
  */
 export async function readCampaignMessage(
   ports: Pick<TemplateValuesPorts, "message">,
   id: string,
 ): Promise<CampaignMessage> {
-  if (!UUID.test(id)) throw new AppError("validation", "Pick a template.");
+  if (!UUID.test(id)) throw new AppError("validation", "Pick a saved message.");
   const rows = await ports.message(id);
   const row = rows.find((r) => r.id === id);
   const message = row ? campaignMessageOf(rows, row.name, row.language) : null;
-  if (!message) throw new AppError("not_found", "Template not found.", 404);
+  if (!message) throw new AppError("not_found", "Saved message not found.", 404);
   return message;
 }
 
@@ -57,8 +57,8 @@ export async function getTemplateValues(
     throw new AppError(
       "validation",
       expected === 0
-        ? "This template takes no values."
-        : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`,
+        ? "This saved message takes no values."
+        : `This saved message takes ${expected} value${expected === 1 ? "" : "s"}.`,
     );
   }
   // Each slot: typed text once, or a value the job fills per person.

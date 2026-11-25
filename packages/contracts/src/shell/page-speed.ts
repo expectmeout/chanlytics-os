@@ -234,7 +234,7 @@ function indexOf(rows: readonly PageSpeedRowDto[]) {
 type Lookup = ReturnType<typeof indexOf>;
 
 /** "7 in 10": a share, in tens, as the card says it. */
-function share(part: number, whole: number): string {
+function percentOf(part: number, whole: number): string {
   return `${Math.round((part / whole) * 10)} in 10`;
 }
 
@@ -252,7 +252,9 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
   const waits = read?.waits_on ?? load?.waits_on ?? null;
   const phrases = [
     load ? `opened ${msWords(load.p75)}` : null,
-    move ? `moved to ${msWords(move.p75)}${held ? `, ${share(held.samples, move.samples)} from held rows` : ""}` : null,
+    move
+      ? `moved to ${msWords(move.p75)}${held ? `, ${percentOf(held.samples, move.samples)} from held rows` : ""}`
+      : null,
     read ? `${msWords(read.p75)} when it had to read` : null,
     settled ? `all in ${msWords(settled.p75)}` : null,
     waits ? `waits on ${waits}` : null,
@@ -364,7 +366,7 @@ function firstRowsLine(rows: readonly PageSpeedRowDto[], page: string): PageSpee
   ]
     .filter(Boolean)
     .join(" · ");
-  const value = could > 0 ? share(drawn, could) : MISS_WORDS.none;
+  const value = could > 0 ? percentOf(drawn, could) : MISS_WORDS.none;
   return {
     key: `${FIRST_ROWS_PART}.${page}`,
     label: `${pageSpeedLabel(page)} · ${value}`,

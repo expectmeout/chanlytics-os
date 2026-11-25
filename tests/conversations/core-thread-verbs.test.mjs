@@ -87,7 +87,7 @@ test("take over: a door that changed no row is a 409 that leaves nothing behind"
   // matched nothing simply did not happen, and the door wrote nothing after it.
   for (const c of [conv(), conv({ phone_e164: null })]) {
     const lost = fakes({ takeOver: null });
-    await refused(core.takeOver(lost.ports, { conv: c }), "conflict", 409, /reload/);
+    await refused(core.takeOver(lost.ports, { conv: c }), "conflict", 409, /reload/i);
     assert.deepEqual(lost.ops(), ["takeOver"]);
   }
 });
@@ -121,14 +121,14 @@ test("hand back, snooze and archive: a row that did not change leaves nothing be
   // holds by construction: a verb that changed no row did nothing at all.
   const until = new Date(NOW + HOUR).toISOString();
   const hb = fakes({ handBack: null });
-  await refused(core.handBack(hb.ports, { conv: conv({ paused_until: until }) }), "conflict", 409, /reload/);
+  await refused(core.handBack(hb.ports, { conv: conv({ paused_until: until }) }), "conflict", 409, /reload/i);
   assert.deepEqual(hb.ops(), ["handBack"], "no decision and no resolve for a change that never happened");
   const sn = fakes({ snooze: false });
   await refused(
     core.snooze(sn.ports, { conv: conv({ paused_until: until }), until: new Date(NOW + 2 * HOUR).toISOString() }),
     "conflict",
     409,
-    /reload/,
+    /reload/i,
   );
   assert.deepEqual(sn.ops(), ["snooze"]);
   const ar = fakes({
@@ -179,7 +179,7 @@ test("wake: only a snoozed thread wakes, only while still snoozed, and it goes b
   await refused(core.wake(open.ports, { conv: conv({ state: "open" }) }), "conflict", 409, /not snoozed/);
   assert.deepEqual(open.ops(), []);
   const raced = fakes({ wake: false });
-  await refused(core.wake(raced.ports, { conv: conv({ state: "snoozed" }) }), "conflict", 409, /reload/);
+  await refused(core.wake(raced.ports, { conv: conv({ state: "snoozed" }) }), "conflict", 409, /reload/i);
   assert.deepEqual(raced.ops(), ["wake"]);
 });
 
@@ -198,7 +198,7 @@ test("archive: the thread closed and the escalation resolved, held or not", asyn
     "the same three, because closing a thread clears its pause in the one UPDATE",
   );
   const stale = fakes({ archive: false });
-  await refused(core.archive(stale.ports, { conv: conv() }), "conflict", 409, /reload/);
+  await refused(core.archive(stale.ports, { conv: conv() }), "conflict", 409, /reload/i);
   assert.deepEqual(stale.ops(), ["archive"]);
 });
 

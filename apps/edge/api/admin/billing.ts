@@ -15,5 +15,7 @@ import { BILLING_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
-  return runBillingOp(auth, await readBody(request, BILLING_DOOR));
+  const read = await readBody(request, BILLING_DOOR);
+  if (!read.ok) return read.response;
+  return runBillingOp(auth, read.body);
 });

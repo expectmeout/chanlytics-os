@@ -352,8 +352,8 @@ const FACTS = {
 };
 /** The roster the team read answers with, where a test says no other: an owner and an operator. */
 const ROSTER = [
-  { membershipId: "m-dana", email: "dana@northside.example", displayName: "Dana", role: "owner" },
-  { membershipId: "m-lee", email: "lee@northside.example", displayName: "Lee", role: "operator" },
+  { membership_id: "m-dana", email: "dana@northside.example", display_name: "Dana", role: "owner" },
+  { membership_id: "m-lee", email: "lee@northside.example", display_name: "Lee", role: "operator" },
 ];
 /**
  * A workspace as `role` reads it. Its record, roster, open invitations and policy rows are the settings surface's alone

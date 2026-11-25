@@ -83,6 +83,40 @@ const askedOf = (plan: LeadSearchPlan): Record<string, string> => {
   return a;
 };
 
+/** What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4). */
+function listingKept(cleanPlace: CleanPlace, excluded: boolean) {
+  const raw = cleanPlace.raw;
+  if (excluded)
+    return {
+      neighborhood: null,
+      about: null,
+      hours: [],
+      image_url: null,
+      price: null,
+      reviews_dist: null,
+      facebook_url: null,
+      linkedin_url: null,
+      tiktok_url: null,
+      claimed: null,
+      maps_url: null,
+      rank: null,
+    };
+  return {
+    neighborhood: raw.neighborhood,
+    about: raw.about,
+    hours: raw.hours,
+    image_url: raw.imageUrl,
+    price: raw.price,
+    reviews_dist: raw.reviewsDist,
+    facebook_url: raw.facebook,
+    linkedin_url: raw.linkedin,
+    tiktok_url: raw.tiktok,
+    claimed: raw.claimed,
+    maps_url: raw.mapsUrl,
+    rank: raw.rank,
+  };
+}
+
 /** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
 export function memberOf(
   plan: LeadSearchPlan,
@@ -163,19 +197,7 @@ export function memberOf(
       email_state: excluded ? "none" : emailState,
       rating: cleanPlace.raw.rating,
       reviews: cleanPlace.raw.reviews,
-      // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
-      neighborhood: excluded ? null : cleanPlace.raw.neighborhood,
-      about: excluded ? null : cleanPlace.raw.about,
-      hours: excluded ? [] : cleanPlace.raw.hours,
-      image_url: excluded ? null : cleanPlace.raw.imageUrl,
-      price: excluded ? null : cleanPlace.raw.price,
-      reviews_dist: excluded ? null : cleanPlace.raw.reviewsDist,
-      facebook_url: excluded ? null : cleanPlace.raw.facebook,
-      linkedin_url: excluded ? null : cleanPlace.raw.linkedin,
-      tiktok_url: excluded ? null : cleanPlace.raw.tiktok,
-      claimed: excluded ? null : cleanPlace.raw.claimed,
-      maps_url: excluded ? null : cleanPlace.raw.mapsUrl,
-      rank: excluded ? null : cleanPlace.raw.rank,
+      ...listingKept(cleanPlace, excluded),
       // The business's own mark (D6) and the copy we keep (00161): read from its home page by markPlaces, below.
       logo_url: null,
       mark_path: null,

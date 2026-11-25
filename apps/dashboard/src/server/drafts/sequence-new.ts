@@ -45,7 +45,7 @@ interface NewMade {
 }
 
 /** What the one creator answered, as New says it: the sequence it made and its state ('draft' or 'on'). */
-function madeOf(r: { id?: string; state?: string }, kind: NewMakeBody["kind"], start: boolean): NewMade {
+function newMadeOf(r: { id?: string; state?: string }, kind: NewMakeBody["kind"], start: boolean): NewMade {
   if (!r.id) throw new AppError("internal", NEW_WORDS.cannot.noMessage, 500);
   return { made: r.id, kind, state: r.state ?? (start ? "on" : "draft") };
 }
@@ -228,7 +228,7 @@ async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: Ne
   }
   const input = await peopleSequenceOf(newMake, (step) => templateOf(ctx, member, step, newMake.channels));
   const item = await makeSequenceNow(ctx, member.tenantId, input);
-  const created = madeOf(item, "sequence", newMake.start);
+  const created = newMadeOf(item, "sequence", newMake.start);
   await letKeptGo(ctx, member, newMake.draft_id);
   return created;
 }
@@ -266,7 +266,7 @@ export function leadFirstOf(newMake: NewMakeBody): Record<string, unknown> {
 async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBody): Promise<NewMade> {
   const start = b.kind === "once" ? true : b.start;
   const r = await makeSequenceNow(ctx, member.tenantId, { first: leadFirstOf(b), then: [], start });
-  const created = madeOf(r, b.kind, start);
+  const created = newMadeOf(r, b.kind, start);
   await letKeptGo(ctx, member, b.draft_id);
   return created;
 }
@@ -315,7 +315,7 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
       once: jsonCopyOf({ who: newMake.who, at: newMake.at, channels: newMake.channels, step: filed }),
     });
     if (kept.error) throw dbRefusal(kept.error);
-    return madeOf(kept.data, "once", false);
+    return newMadeOf(kept.data, "once", false);
   }
   const templateId = await templateOf(ctx, member, step, newMake.channels);
   const tz = (await load(readerContext(ctx, member), facts.facts, undefined)).data.timezone;

@@ -63,9 +63,9 @@ export const POST = write({
         402,
       );
     if (answer.status === 409 && body.error === "no_business_record")
-      throw new AppError("conflict", "Fill in your business on record first — the carriers ask who you are.", 409);
+      throw new AppError("conflict", "Fill in your business on record first: texting approval asks who you are.", 409);
     if (answer.status === 409 && body.error === "already_registered")
-      throw new AppError("conflict", "This line is already registered with the carriers.", 409);
+      throw new AppError("conflict", "Texting approval is already filed for this number.", 409);
     // A rehearsal filing, which this route deliberately cannot replace: making it
     // real charges the workspace, so it is an operator's call with the record in
     // front of them, not the outcome of an owner pressing resubmit. Without this
@@ -84,7 +84,7 @@ export const POST = write({
       const sentence = typeof body.reason === "string" && body.reason.trim() ? ` They said: ${body.reason.trim()}` : "";
       throw new AppError(
         "conflict",
-        `The carriers sent this registration back.${sentence} Chanlytics resubmits it once the business on record answers what they named — correct it here and we take it from there.`,
+        `Texting approval was sent back.${sentence} Chanlytics files it again once the business on record answers what was named. Correct it here, and Chanlytics takes it from there.`,
         409,
       );
     }
@@ -100,12 +100,12 @@ export const POST = write({
         "conflict",
         problems.length
           ? problems.join(" ")
-          : "Something on your business record is not ready for the carriers yet. Open it and the form will say which field.",
+          : "Something on your business record is not ready for texting approval yet. Open it and the form says which field.",
         409,
       );
     }
     if (answer.status !== 200 && answer.status !== 502)
-      throw new AppError("upstream_provider", "The carriers did not answer. Try again in a moment.");
+      throw new AppError("upstream_provider", "Texting approval didn't answer. Try again in a moment.");
     return {
       ok: body.ok === true,
       pending: body.pending === true,

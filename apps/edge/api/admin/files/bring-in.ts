@@ -14,5 +14,7 @@ import { FILE_BRING_IN_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/bring-in");
   if (!auth.ok) return auth.response;
-  return bringInLink(auth, await readBody(request, FILE_BRING_IN_DOOR));
+  const read = await readBody(request, FILE_BRING_IN_DOOR);
+  if (!read.ok) return read.response;
+  return bringInLink(auth, read.body);
 });

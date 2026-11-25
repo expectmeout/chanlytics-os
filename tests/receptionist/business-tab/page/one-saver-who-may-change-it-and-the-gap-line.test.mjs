@@ -760,7 +760,7 @@ test("a name the workspace goes by is shown against the business's, and never of
   const tree = drawTab({ resolved: { ...KNOWN, workspace: { name: "Billing probe", timezone: "America/New_York" } } });
   const row = byTestId(tree, "rec-row-name");
   const conflict = factsHeld().conflicts.find((k) => k.fact === "business_name");
-  assert.equal(conflict.knownSource, "workspace", "the fixture is the workspace's own name");
+  assert.equal(conflict.known_source, "workspace", "the fixture is the workspace's own name");
   assert.match(
     textOf(row),
     /this workspace is named Billing probe/,

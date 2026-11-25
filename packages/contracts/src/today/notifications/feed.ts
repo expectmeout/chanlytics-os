@@ -142,7 +142,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   reply_read: { stopped: "Couldn't read a lead's reply", to: "inbox" },
   // A thread's draft. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be written, on the thread itself.
   reply_draft: { stopped: "Couldn't draft a reply", to: "inbox" },
-  // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
+  // A booking tool's email about a visit: the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "Couldn't read a booking your booking tool emailed", to: "calendar" },
   // A fact's delivery to a subscriber (00334). Not sent (packages/jobs TOLD_ELSEWHERE): a subscriber that fails is the

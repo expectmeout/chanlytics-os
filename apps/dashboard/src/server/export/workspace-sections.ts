@@ -24,7 +24,7 @@ export function workspaceSections(
       return [
         ...members.map((m): BundleTeamMember => ({
           email: m.email,
-          name: m.displayName || null,
+          name: m.display_name || null,
           role: m.role,
           state: "member",
           since: m.joined_at,

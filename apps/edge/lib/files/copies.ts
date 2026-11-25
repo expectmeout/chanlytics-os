@@ -311,7 +311,9 @@ async function warmCopies(
 }
 
 export async function listFileCopies(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody(request, FILE_COPIES_DOOR);
+  const read = await readBody(request, FILE_COPIES_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";

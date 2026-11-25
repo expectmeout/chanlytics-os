@@ -653,7 +653,7 @@ export function createApi(deps: ApiDeps) {
 
   // How far this browser's clock runs ahead of the servers' (leadMeter), in ms; and the tab's standing (standingOf).
   const own = { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead, gather };
-  return Object.assign(send, own, standingOf(trouble));
+  return Object.assign(send, own, troubleStandingOf(trouble));
 }
 
 /**
@@ -661,7 +661,7 @@ export function createApi(deps: ApiDeps) {
  * (`lookNow`), a page's boot begins standing (`standAgain`), the runner hears the wait come due (`onReadsDue`), and
  * `readsHeld` says whether reads are held now.
  */
-function standingOf(trouble: Trouble) {
+function troubleStandingOf(trouble: Trouble) {
   return {
     lookNow: () => trouble.lookNow(),
     standAgain: () => trouble.standAgain(),

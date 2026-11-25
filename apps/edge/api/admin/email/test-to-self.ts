@@ -14,5 +14,7 @@ import { TEST_TO_SELF_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/test-to-self");
   if (!auth.ok) return auth.response;
-  return sendTestToSelf(auth, await readBody(request, TEST_TO_SELF_DOOR));
+  const read = await readBody(request, TEST_TO_SELF_DOOR);
+  if (!read.ok) return read.response;
+  return sendTestToSelf(auth, read.body);
 });

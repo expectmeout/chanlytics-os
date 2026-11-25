@@ -285,7 +285,7 @@ export const MODEL_ROUTES = {
     secondKey: 0.8,
     thinking: "off",
   },
-  // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
+  // A booking tool's notice read into an appointment: a short
   // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
   booking_read: {
     attributed: "workspace",

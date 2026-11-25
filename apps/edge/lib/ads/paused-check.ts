@@ -1,6 +1,6 @@
 /**
- * POST /api/admin/ads/check: the paused-ad check on an owner's own ad account (the Ads plan's step 4, "Checking against
- * Meta without spending"; the order is on docs/plans/2026-11-18-ads-meta-checks.md). Signed admin token only: the
+ * POST /api/admin/ads/check: the paused-ad check on an owner's own ad account: checking against Meta without spending.
+ * Signed admin token only: the
  * dashboard's /api/v1/ads/check route is the caller, for the owner, with the draft it judged.
  *
  * What it sends, once, each make PAUSED: the least Meta takes a day and the Instagram accounts the ad account names

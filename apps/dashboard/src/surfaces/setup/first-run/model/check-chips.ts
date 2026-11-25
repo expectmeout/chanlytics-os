@@ -124,7 +124,7 @@ export interface CheckChipSetVM {
   full: string | null;
 }
 
-export interface CheckChipsVM {
+interface CheckChipsVM {
   /** Google's kind's suggestions. */
   services: CheckChipSetVM;
   /** The common languages, then any chosen one they do not name. */

@@ -48,7 +48,7 @@ export async function activateCapability(
   const dto = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
   const before = capabilityStatus(kind, dto);
   if (!before.ready)
-    throw new AppError("conflict", `Not ready to activate: ${before.blockers[0]?.words ?? "the records say no."}`, 409);
+    throw new AppError("conflict", `Not ready to turn on: ${before.blockers[0]?.words ?? "the records say no."}`, 409);
   // The row and its event, one write (00514). `first` says this is the workspace's first activation of any channel.
   const { data, error } = await activateCapabilityFn(ctx.supabase, member.tenantId, kind, input.note ?? null);
   if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
@@ -70,6 +70,6 @@ export async function deactivateCapability(ctx: RouteContext & { params: Params 
   const { data, error } = await deactivateCapabilityFn(ctx.supabase, member.tenantId, kind);
   if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
   const row = readAnswer("capability_deactivate", Deactivated, data ?? {});
-  if (row.error === "not_activated") throw new AppError("conflict", "This capability was not activated.", 409);
+  if (row.error === "not_activated") throw new AppError("conflict", "This wasn't turned on.", 409);
   return { capability: kind, deactivated_at: row.deactivated_at ?? new Date().toISOString() };
 }

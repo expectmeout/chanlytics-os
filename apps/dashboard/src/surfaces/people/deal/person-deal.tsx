@@ -198,7 +198,7 @@ export function dealSteps(steps: readonly DealStepVM[], row = false) {
 }
 
 /** The proposal's link, and the facts beside it; with `copy`, the link copies too (the opened row). */
-function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
+function dealLine(c: DealCardVM, cardWords: typeof DEAL_CARD_WORDS, copy = false) {
   return (
     <p className="cl-prof-deal-line" data-testid="person-deal-line">
       {c.link ? (
@@ -208,7 +208,7 @@ function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
           target="_blank"
           rel="noopener noreferrer"
           title={c.link.url}
-          aria-label={`${W.openLink}: ${c.link.host}`}
+          aria-label={`${cardWords.openLink}: ${c.link.host}`}
           data-testid="person-deal-link"
         >
           <Icon name="external" size={11} />
@@ -217,7 +217,12 @@ function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
       ) : null}
       {/* On the person page's opened row, the link copies too (canvas A, P4.3): said in place, never a toast. */}
       {c.link && copy ? (
-        <CopyButton text={c.link.url} label={W.copyLink} said={W.copied} testid="person-deal-copy-link" />
+        <CopyButton
+          text={c.link.url}
+          label={cardWords.copyLink}
+          said={cardWords.copied}
+          testid="person-deal-copy-link"
+        />
       ) : null}
       {/* Each fact keeps its words together; a line breaks between them, after the dot. */}
       {[...c.facts, ...(c.pace ? [c.pace] : [])].map((f, i) => (

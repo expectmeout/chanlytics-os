@@ -111,7 +111,9 @@ export const courier = ({ answer = null } = {}) => {
           sent.push(fields);
           const r = answer || { ok: true, workspace: fields, message: "" };
           if (r.ok)
-            W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
+            bridgeHolds({
+              who: { workspaces: W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t)) },
+            });
           return Promise.resolve(r);
         },
       },

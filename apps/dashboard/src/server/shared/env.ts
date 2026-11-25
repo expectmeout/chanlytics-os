@@ -89,7 +89,7 @@ const SCHEMA = {
   // The platform's clock, which knocks on Ask's morning sweep with it (D20 of the answers canvas); unset, the sweep does nothing.
   CRON_SECRET: optionalText,
 
-  // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md): the key a voice session's access token is
+  // Ask spoken: the key a voice session's access token is
   // sealed under at rest, and the secret the voice agent sends the brain door with every custom LLM request.
   ASK_VOICE_SECRET: optionalText,
   ELEVENLABS_LLM_SECRET: optionalText,

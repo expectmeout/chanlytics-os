@@ -14,5 +14,7 @@ import { HANDOVER_INVITE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/handover-invite");
   if (!auth.ok) return auth.response;
-  return sendHandoverInvite(auth, await readBody(request, HANDOVER_INVITE_DOOR));
+  const read = await readBody(request, HANDOVER_INVITE_DOOR);
+  if (!read.ok) return read.response;
+  return sendHandoverInvite(auth, read.body);
 });

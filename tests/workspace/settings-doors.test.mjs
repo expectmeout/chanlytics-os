@@ -926,7 +926,7 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
   const realStart = waConnect.start;
   const realPrepare = waConnect.prepare;
   const prepared = [];
-  const door = { ready: true, reason: null, canConnect: true };
+  const door = { ready: true, reason: null, can_connect: true };
   let finish;
   Object.assign(waConnect, {
     config: async () => door,
@@ -980,8 +980,8 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
     settle(Connections);
     assert.deepEqual(prepared, []);
 
-    // A member who may not connect a number: the server said so (canConnect), and nothing is fetched for a press they cannot make.
-    Object.assign(waConnect, { config: async () => ({ ...door, canConnect: false }) });
+    // A member who may not connect a number: the server said so (can_connect), and nothing is fetched for a press they cannot make.
+    Object.assign(waConnect, { config: async () => ({ ...door, can_connect: false }) });
     seam({ channels: [], google: null, setup: null });
     render(Connections);
     await flush();

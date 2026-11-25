@@ -1,6 +1,6 @@
 /**
  * The viewer's picture, full bleed on the dark (the content canvas, board PhView): a video filling the screen, Files' Stream
- * player playing at once, muted and looping (files/video-player.tsx VideoReel), with a line under it that runs the reel's
+ * player playing at once, muted and looping (files/video/player.tsx VideoReel), with a line under it that runs the reel's
  * length; a picture post, or a photo of the Library, fitted over its own copy blurred to the screen's edges. On a desk's
  * stage, wider than a reel, a reel Ask made stands in the middle over its own poster blurred to the edges, as a post does
  * (board Desk, content.css); on a phone the reel covers the poster.
@@ -10,7 +10,7 @@ import { CONTENT_WORDS as W, fileViewOf, type FileDto } from "@chanlytics/contra
 import { Meter } from "../../../kit/meter/meter";
 import { Press } from "../../../kit/press";
 import { AskLooking } from "../../../files/looking";
-import { VideoOpened } from "../../../files/video-player";
+import { VideoOpened } from "../../../files/video/player";
 import { postShapeAddress } from "../../../files/post-shapes";
 import { fileVerbs } from "../../../files/verbs";
 
@@ -71,7 +71,7 @@ function ReelRun({ seconds }: { seconds: number | null }) {
 }
 
 /** A new version being made over the one standing (the version board, cell 1): what plays dims under AI's three at work. */
-export interface PictureMaking {
+interface PictureMaking {
   title: string;
   stage: string;
   share: number;

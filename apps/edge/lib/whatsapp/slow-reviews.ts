@@ -44,7 +44,7 @@ const MAX_SLOW = 20;
 const SLOW_SUBJECT = "WhatsApp has been checking a message for over a day";
 
 /** What one visit did: every message listed is decided, still in review (told now or before), unreadable, or left. */
-export interface SlowReviewCounts {
+interface SlowReviewCounts {
   slow: number;
   decided: number;
   still: number;
@@ -53,7 +53,7 @@ export interface SlowReviewCounts {
   left: number;
 }
 
-export interface SlowReviewPorts {
+interface SlowReviewPorts {
   db: SupabaseClient<Database>;
   log: Logger;
   now: () => number;

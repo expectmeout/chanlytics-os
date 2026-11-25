@@ -14,8 +14,10 @@ import { ADS_PRESS_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody(raw, ADS_PRESS_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/ads/press", { body: raw });
   if (!auth.ok) return auth.response;
+  const read = await readBody(raw, ADS_PRESS_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   return runAdPress(auth, body);
 });

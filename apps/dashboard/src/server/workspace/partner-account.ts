@@ -104,10 +104,10 @@ export async function setPartnerLettersOf(
 export async function readPartnerInvitations(ctx: RouteContext): Promise<{ invitations: PartnerInvitationDto[] }> {
   return {
     invitations: (await getPartnerInvitations(ctx.supabase)).map((i) => ({
-      workspaceId: i.tenantId,
+      workspace_id: i.tenantId,
       workspace: i.workspace,
-      sentAt: i.sentAt,
-      expiresAt: i.expiresAt,
+      sent_at: i.sentAt,
+      expires_at: i.expiresAt,
     })),
   };
 }
@@ -139,7 +139,19 @@ export async function readPartnerWorkspaces(ctx: RouteContext): Promise<{
     getPartnerWorkspaces(ctx.supabase),
     getPartnerHandovers(ctx.supabase),
   ]);
-  return { overview, money, handovers };
+  return {
+    overview,
+    money,
+    handovers: handovers.map((h) => ({
+      workspace_id: h.tenantId,
+      name: h.name,
+      email: h.email,
+      sent_at: h.sentAt,
+      expires_at: h.expiresAt,
+      accepted_at: h.acceptedAt,
+      declined_at: h.declinedAt,
+    })),
+  };
 }
 
 export async function setUpWorkspaceForBusiness(
@@ -172,11 +184,11 @@ export async function setUpWorkspaceForBusiness(
 export async function resendWorkspaceHandover(
   ctx: RouteContext & { params: Params },
   input: z.infer<typeof HandoverResendSchema>,
-): Promise<{ email: string; expiresAt: string; sent: boolean }> {
+): Promise<{ email: string; expires_at: string; sent: boolean }> {
   requireSecondFactor(ctx);
   const id = asTenantId(requireUuid(ctx.params.id, "workspace"));
   const r = await resendHandover(ctx.supabase, id, input.email);
   if (!r.ok) throw handoverRefusal(r);
   const sent = await sendHandoverInvite(id, r.value.email, ctx.userId);
-  return { email: r.value.email, expiresAt: r.value.expiresAt, sent };
+  return { email: r.value.email, expires_at: r.value.expiresAt, sent };
 }

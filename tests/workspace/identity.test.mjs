@@ -117,7 +117,7 @@ test("the wiring: one profile row per account, written by its owner only, read b
 
   const service = readCode("apps/dashboard/src/server/workspace/team.ts");
   assert.ok(
-    service.includes("displayName: m.display_name,") && service.includes("displayName: string;"),
+    service.includes("display_name: m.display_name,") && service.includes("display_name: string;"),
     "the roster carries the name",
   );
 
@@ -151,7 +151,7 @@ test("the wiring: one profile row per account, written by its owner only, read b
     "apps/dashboard/src/surfaces/settings/team/rows.tsx",
   );
   assert.ok(
-    team.includes("memberWords({ email: m.email, display_name: m.displayName })"),
+    team.includes("memberWords({ email: m.email, display_name: m.display_name })"),
     "the roster reads the same words",
   );
   assert.ok(!team.includes('split("@")[0]'), "never the local part dressed as a name");

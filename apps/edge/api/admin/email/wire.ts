@@ -25,7 +25,9 @@ import { EMAIL_WIRE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/wire");
   if (!auth.ok) return auth.response;
-  const body = await readBody(request, EMAIL_WIRE_DOOR);
+  const read = await readBody(request, EMAIL_WIRE_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   if (body.op === "status")
     return json(200, { ok: true, ready: emailCanSend(), offers: await findCampaignsDomainVerified() });
   return refuse(400, "unknown_op");

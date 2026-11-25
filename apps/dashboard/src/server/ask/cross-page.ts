@@ -29,7 +29,7 @@ import { calledName, type ToolRun } from "./tools";
 export const CROSS_PAGE_MAX = 2;
 
 /** The day a question names, as the calendar tool takes it (contracts dayWordIn), or `fallback`. */
-function dayOf(q: string, fallback: string): string {
+function askedDayOf(q: string, fallback: string): string {
   return dayWordIn(q) ?? fallback;
 }
 
@@ -228,9 +228,9 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     const days = daysOf(query);
     if (surface !== "reports" || String(days) !== view) add("report", { period: `${days}d` });
   }
-  if (OPENINGS.test(query)) add("calendar", { action: "openings", day: dayOf(query, ""), service: "" });
+  if (OPENINGS.test(query)) add("calendar", { action: "openings", day: askedDayOf(query, ""), service: "" });
   else if (CANCELED.test(query)) add("inbox", { action: "search", words: CANCEL_WORDS, days: cancelDaysOf(query) });
-  else if (CALENDAR.test(query)) add("calendar", { action: "week", day: dayOf(query, "today") });
+  else if (CALENDAR.test(query)) add("calendar", { action: "week", day: askedDayOf(query, "today") });
   if (PIPELINE.test(query)) add("people", { action: "pipeline" });
   if (PLAYBOOKS.test(query)) add("sequences", { action: "moments" });
   if (surface === "campaigns" && REACH.test(query)) add("sequences", { action: "lists" }, new Set());

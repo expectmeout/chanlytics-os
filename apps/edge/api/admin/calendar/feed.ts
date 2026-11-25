@@ -14,5 +14,7 @@ import { CALENDAR_FEED_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/calendar/feed");
   if (!auth.ok) return auth.response;
-  return grantFeedFor(auth, await readBody(request, CALENDAR_FEED_DOOR));
+  const read = await readBody(request, CALENDAR_FEED_DOOR);
+  if (!read.ok) return read.response;
+  return grantFeedFor(auth, read.body);
 });

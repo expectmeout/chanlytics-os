@@ -45,13 +45,13 @@ const SETUP = {
     broken: false,
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: true, active: true, number: "+13055550123", last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
 };
 const asked = [];
@@ -242,7 +242,7 @@ test("an owner whose receptionist answers nowhere lands on the first run, once a
   w.appNavigate = (to) => navs.push(to);
   wire.setup = {
     ...SETUP,
-    channels: { ...SETUP.channels, voice: { present: false, active: false, number: null, lastInboundAt: null } },
+    channels: { ...SETUP.channels, voice: { present: false, active: false, number: null, last_inbound_at: null } },
   };
   globalThis.sessionStorage.removeItem(FIRST_RUN_LANDED_KEY);
   try {

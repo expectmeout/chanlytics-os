@@ -295,13 +295,13 @@ export function ChannelsCard({
 /** Each address on the list, said whose it is by the roster: a teammate's name and face, and "you" for the member's own. */
 export function addressesOf(
   emails: readonly string[],
-  team: readonly { email: string | null; displayName: string }[] | null | undefined,
+  team: readonly { email: string | null; display_name: string }[] | null | undefined,
   me: string | null,
 ): AlertAddress[] {
   const key = (e: string | null | undefined) => (e ?? "").trim().toLowerCase();
   return emails.map((email) => {
     const m = (team ?? []).find((t) => key(t.email) === key(email));
-    const name = m?.displayName.trim() || null;
+    const name = m?.display_name.trim() || null;
     return {
       email,
       teammate: !!m,

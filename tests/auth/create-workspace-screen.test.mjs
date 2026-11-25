@@ -540,10 +540,10 @@ const { useHandoverAsk } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/invitations/handover.tsx")).href
 );
 const WAITING = {
-  tenantId: "11111111-1111-4111-8111-111111111111",
+  workspace_id: "11111111-1111-4111-8111-111111111111",
   workspace: "Luna Studio",
-  partnerCode: "ada-co",
-  expiresAt: "2026-10-11T12:00:00Z",
+  partner_code: "ada-co",
+  expires_at: "2026-10-11T12:00:00Z",
 };
 const ask = (ready = true) => {
   at = 0;
@@ -562,7 +562,7 @@ const settleAsk = async () => {
 test("a handover (0016): asked before anything opens, in the partner's name, and Accept makes the owner and opens it at its first run", async () => {
   const w = standIn({
     status: 200,
-    body: { ok: true, data: { workspace: { id: WAITING.tenantId, slug: "luna-studio", name: "Luna Studio" } } },
+    body: { ok: true, data: { workspace: { id: WAITING.workspace_id, slug: "luna-studio", name: "Luna Studio" } } },
   });
   w.location.pathname = "/w/mine/";
   w.location.hash = "";
@@ -581,7 +581,7 @@ test("a handover (0016): asked before anything opens, in the partner's name, and
   await settleAsk();
   assert.deepEqual(
     w.asked.map((r) => [r.method, r.url.split("?")[0]]),
-    [["POST", `/api/v1/handovers/${WAITING.tenantId}/accept`]],
+    [["POST", `/api/v1/handovers/${WAITING.workspace_id}/accept`]],
   );
   assert.match(w.went.at(-1) ?? "", /\/w\/luna-studio\/start$/, "into it, at its first run, by its slug");
 });
@@ -590,7 +590,9 @@ test("a handover: Decline says no through its door and the app opens; Not now as
   const w = standIn({ status: 200, body: { ok: true, data: { declined: true } } });
   bridgeHolds({
     who: {
-      me: { handovers: [WAITING, { ...WAITING, tenantId: "22222222-2222-4222-8222-222222222222", workspace: "Sol" }] },
+      me: {
+        handovers: [WAITING, { ...WAITING, workspace_id: "22222222-2222-4222-8222-222222222222", workspace: "Sol" }],
+      },
     },
   });
   globalThis.window = w;
@@ -600,7 +602,7 @@ test("a handover: Decline says no through its door and the app opens; Not now as
   tree = await settleAsk();
   assert.deepEqual(
     w.asked.map((r) => r.url),
-    [`/api/v1/handovers/${WAITING.tenantId}/decline`],
+    [`/api/v1/handovers/${WAITING.workspace_id}/decline`],
   );
   assert.match(textOf(byTestId(tree, "handover-body")), /set Sol up for you/, "then the next one");
   byTestId(tree, "handover-later").props.onClick();

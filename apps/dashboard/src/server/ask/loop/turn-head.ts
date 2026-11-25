@@ -62,8 +62,7 @@ import { finishTurn, notAgain, planFallback, turnMeter, turnUnmade, type PlanOwe
  * as the person, in parallel, and go back as one message. An act tool never
  * acts: it checks and proposes, and may share a round with the answer. Say
  * streams as the answer is written; the last allowed round may call no tool, so
- * a turn always ends in an answer or a stated failure. "How a turn ends" in
- * docs/superpowers/plans/2026-09-23-ask-the-line-3-the-answer.md is this loop.
+ * a turn always ends in an answer or a stated failure.
  */
 
 // The whole round -- the model's thinking, every tool call it makes and, when

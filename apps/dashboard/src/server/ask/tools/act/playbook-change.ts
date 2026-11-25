@@ -182,7 +182,7 @@ const leadsPast = (id: string): string =>
  * A card's payload: what changes, under the keys the PUT takes, but its sequence's mode as `sequence_mode` (contracts
  * playbookChangeSpec: the payload's own `mode` is what a pause's undo resumes under).
  */
-function payloadOf(set: PlaybookPatch): Record<string, unknown> {
+function patchPayloadOf(set: PlaybookPatch): Record<string, unknown> {
   const { mode, ...rest } = set;
   return { ...rest, ...(mode ? { sequence_mode: mode } : {}) };
 }
@@ -211,7 +211,7 @@ function proposeLeadsState(
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,
-      ...payloadOf(set),
+      ...patchPayloadOf(set),
       was,
       run_waits: row.waiting !== null,
       timezone: toolContext.timezone,
@@ -299,7 +299,7 @@ async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAske
       payload: {
         playbook_id: row.id,
         playbook_name: row.name,
-        ...payloadOf(set),
+        ...patchPayloadOf(set),
         was,
         run_waits: row.waiting !== null,
         timezone: toolContext.timezone,

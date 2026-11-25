@@ -18,6 +18,7 @@ import { Panel } from "../../../kit/panel/panel";
 import { routeDoor } from "../../../frame-verbs";
 import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
 import { CARD, QUESTION } from "./words";
+import { META_TAB } from "../live/words";
 
 /** What the card's presses do. */
 export interface AdCardActs {
@@ -37,9 +38,6 @@ const DOT: Record<ConnectCardVM["state"], string> = {
   question: "ok",
   connected: "ok",
 };
-
-/** A page of Meta's opens in a tab of its own: the owner comes back to this one, and the card looks again. */
-export const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /** A need's one act: a door to Meta, Meta's window again, or a page of the app. */
 function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) {

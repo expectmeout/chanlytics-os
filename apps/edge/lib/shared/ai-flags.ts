@@ -32,10 +32,10 @@ export const FLAG_MECHANISMS = [
   "model_override",
   "rollout",
 ] as const;
-export type FlagMechanism = (typeof FLAG_MECHANISMS)[number];
+type FlagMechanism = (typeof FLAG_MECHANISMS)[number];
 
 /** What a security switch's weaker mode is, and how it is proven closable. */
-export interface WeakerMode {
+interface WeakerMode {
   /** What the weaker mode allows while it is open, and where it is open. */
   allows: string;
   /** The log event whose readings prove it can be closed, and what they must say. */

@@ -18,5 +18,7 @@ const AUD = "/api/admin/hand-over";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
-  return handOverCall(auth, AUD, await readBody(request, HAND_OVER_DOOR));
+  const read = await readBody(request, HAND_OVER_DOOR);
+  if (!read.ok) return read.response;
+  return handOverCall(auth, AUD, read.body);
 });

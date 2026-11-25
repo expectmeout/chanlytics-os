@@ -64,7 +64,7 @@ export const ROUTE_WORDS: Readonly<Record<string, string>> = {
   admin: "settings",
 };
 
-const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
+const routeHeadOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
 
 /**
  * Where a retired address lands, in one move, or null where the address is a page's own (the Campaigns wiring review's
@@ -110,7 +110,7 @@ export function retiredRouteOf(route: string): string | null {
 
 /** retiredRouteOf for a route without its query. */
 function retiredPathOf(path: string): string | null {
-  const head = headOf(path);
+  const head = routeHeadOf(path);
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "messages") return path === head ? SEQUENCES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
@@ -166,7 +166,7 @@ function campaignsLandingOf(path: string, param: string): string | null {
 
 /** A route as the shell names it: the product's word at its head (`people/c1`) is the route's own name (`clients/c1`). */
 export function shellRoute(route: string): string {
-  const head = headOf(route);
+  const head = routeHeadOf(route);
   const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
   return name === undefined ? route : name + route.slice(head.length);
 }
@@ -184,7 +184,7 @@ export function canonicalRoute(route: string): string {
 
 /** A route as its path writes it: the route's own name at its head (`clients/c1`) is the product's word (`people/c1`). */
 function pathRoute(route: string): string {
-  const head = headOf(route);
+  const head = routeHeadOf(route);
   const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : undefined;
   return word === undefined ? route : word + route.slice(head.length);
 }
@@ -223,7 +223,7 @@ export function movedAddress(address: AddressParts): string | null {
     // query read with it: Settings › Files' `?do=file:<id>` is the file, open in Content.
     const door = retiredRouteOf(shellRoute(written) + (address.search ?? ""));
     if (door !== null) return `/w/${match[1] ?? ""}/${door}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(match[2]))) {
+    if (Object.hasOwn(ROUTE_WORDS, routeHeadOf(match[2]))) {
       return `/w/${match[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
     }
   }

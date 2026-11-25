@@ -20,7 +20,7 @@ export interface ApnsPort {
 }
 
 /** Started; gone (Apple's 410: the token is dead, forget it); or refused, with Apple's reason or the wire's. */
-export type ActivitySend =
+type ActivitySend =
   | { token: string; state: "started" }
   | { token: string; state: "gone" }
   | { token: string; state: "refused"; error: string };

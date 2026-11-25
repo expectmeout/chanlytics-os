@@ -69,7 +69,7 @@ const FACTS = {
   voice_line: { value: "+13055550124", source: "provisioned" },
   handoff_number: { value: null, source: "absent" },
 };
-const CONFLICTS = [{ fact: "business_name", knownSource: "workspace", sentence: "The workspace is named Northside." }];
+const CONFLICTS = [{ fact: "business_name", known_source: "workspace", sentence: "The workspace is named Northside." }];
 
 /** The wire, answering the settings surface's reads; `settings` is what GET settings answers. */
 const wire = (settings) => {
@@ -102,7 +102,7 @@ test("a config that would not parse lands no facts: null, which closes the forms
   wire({ config: { brain: {} }, version: 3, role: "owner", facts: FACTS, conflicts: [] });
   await settingsOverride.apply();
   assert.ok(surfaceValue("settings").facts, "read once, whole");
-  wire({ configBroken: true, issues: ["brain.booking_link: Invalid url"], version: 3, role: "owner" });
+  wire({ config_broken: true, issues: ["brain.booking_link: Invalid url"], version: 3, role: "owner" });
   await settingsOverride.apply();
   assert.equal(surfaceValue("settings").facts, null);
   assert.deepEqual(surfaceValue("settings").settings.broken, { issues: ["brain.booking_link: Invalid url"] });

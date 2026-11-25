@@ -213,6 +213,28 @@ const NOT_A_CUSTOMER = {
 type CustomerVerdict = Exclude<PlatformVerdict, keyof typeof NOT_A_CUSTOMER>;
 const isCustomer = (v: PlatformVerdict): v is CustomerVerdict => !(v in NOT_A_CUSTOMER);
 
+/** Why a workspace waits on its owner: their billing, or their texting with the carriers' reason beside it. */
+function waitingOwnerSentence(platformTenant: PlatformTenantDto): string {
+  // TWO causes reach this verdict, and rendering one sentence for both told
+  // a workspace with no card on file that its texting was fine. Each cause
+  // gets the owner's own words for that cause.
+  const mode = (platformTenant.billing_mode ?? "direct") as BillingMode;
+  const status = (platformTenant.billing_status ?? "none") as BillingStatus;
+  if (!THEIRS_TO_FIX.includes(platformTenant.sms_state ?? "") && mode === "stripe") {
+    return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
+  }
+  // The customer's own sentence, plus the carriers' reason where there is
+  // one. Setup's version deliberately leaves the reason out -- the owner has
+  // it on their texting row -- but the reason is the entire content of a
+  // support question, so here it travels with the state.
+  const words = textingWords({
+    sms_state: platformTenant.sms_state ?? "none",
+    reg_mock: platformTenant.reg_mock ?? false,
+    reg_sole_prop: platformTenant.reg_sole_prop ?? false,
+  }).sentence;
+  return platformTenant.line_error ? `${words} — ${platformTenant.line_error}` : words;
+}
+
 function sentenceFor(platformTenant: PlatformTenantDto, verdict: CustomerVerdict, nowMs: number): string {
   const heard = isoMs(platformTenant.last_inbound_at);
   const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
@@ -229,26 +251,8 @@ function sentenceFor(platformTenant: PlatformTenantDto, verdict: CustomerVerdict
       return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
     case "stalled":
       return `Set up ${agoWords(isoMs(platformTenant.created_at) ?? nowMs, nowMs)} and nothing answers yet${platformTenant.members <= 1 ? ", with one person in the workspace" : ""}.`;
-    case "waiting_owner": {
-      // TWO causes reach this verdict, and rendering one sentence for both told
-      // a workspace with no card on file that its texting was fine. Each cause
-      // gets the owner's own words for that cause.
-      const mode = (platformTenant.billing_mode ?? "direct") as BillingMode;
-      const status = (platformTenant.billing_status ?? "none") as BillingStatus;
-      if (!THEIRS_TO_FIX.includes(platformTenant.sms_state ?? "") && mode === "stripe") {
-        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
-      }
-      // The customer's own sentence, plus the carriers' reason where there is
-      // one. Setup's version deliberately leaves the reason out -- the owner has
-      // it on their texting row -- but the reason is the entire content of a
-      // support question, so here it travels with the state.
-      const words = textingWords({
-        sms_state: platformTenant.sms_state ?? "none",
-        reg_mock: platformTenant.reg_mock ?? false,
-        reg_sole_prop: platformTenant.reg_sole_prop ?? false,
-      }).sentence;
-      return platformTenant.line_error ? `${words} — ${platformTenant.line_error}` : words;
-    }
+    case "waiting_owner":
+      return waitingOwnerSentence(platformTenant);
     case "quiet":
       return quietFor === null
         ? "Answering, and no customer has ever reached them."

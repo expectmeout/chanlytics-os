@@ -377,10 +377,10 @@ test("the workspace and the case set: a body naming another workspace than the t
     need("tenant_id and 1-6 cases required"),
     "small on purpose: sequential model calls inside the function's minute",
   );
-  assert.deepEqual(
-    await answer(await knock({ tenant_id: T, cases: [{ text: "hi" }] }, { brain: b.port })),
-    need("each case needs an id and a text of 1-500 chars"),
-  );
+  assert.deepEqual(await answer(await knock({ tenant_id: T, cases: [{ text: "hi" }] }, { brain: b.port })), [
+    400,
+    { ok: false, error: "bad_request" },
+  ]);
   assert.deepEqual(
     await answer(await knock({ tenant_id: T, cases: [{ id: "x", text: "   " }] }, { brain: b.port })),
     need("each case needs an id and a text of 1-500 chars"),
@@ -410,8 +410,8 @@ test("the workspace and the case set: a body naming another workspace than the t
         { brain: b.port },
       ),
     ),
-    need("history is up to 12 turns of { role, content }"),
-    "no third role reaches the model",
+    [400, { ok: false, error: "bad_request" }],
+    "no third role reaches the model: the door's schema refuses it",
   );
   assert.equal(db.seen.length, 0);
   assert.equal(b.asked.length, 0);
@@ -838,15 +838,7 @@ test("who a case is with, out of its shape, is refused before anything is read o
       await answer(
         await knock({ tenant_id: T, cases: [{ ...CASES[0], who: person }] }, { workspace: T, brain: b.port }),
       ),
-      [
-        400,
-        {
-          ok: false,
-          error: "bad_request",
-          detail:
-            "who is { name, returning?, ad? }: a name of up to 200 characters, and the ad as AI is told it, each part one line",
-        },
-      ],
+      [400, { ok: false, error: "bad_request" }],
       JSON.stringify(person),
     );
   }

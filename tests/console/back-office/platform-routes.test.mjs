@@ -202,14 +202,14 @@ test("billing's three: the invoices and a resume the owner's, a refresh an opera
     invoices.GET.run(get(inB), ctxFor(tables)),
     "upstream_auth",
     503,
-    "The invoices could not be read (no_edge_credential).",
+    "Couldn't load the invoices (no_edge_credential).",
   );
   await refused(resume.POST.run(send("POST", undefined, inA), ctxFor(tables)), "forbidden", 403, "Only an owner");
   await refused(
     resume.POST.run(send("POST", undefined, inB), ctxFor(tables)),
     "upstream_auth",
     503,
-    "The subscription could not be resumed (no_edge_credential).",
+    "Couldn't resume the subscription (no_edge_credential).",
   );
   const viewer = { memberships: both("viewer", "operator") };
   await refused(
@@ -222,7 +222,7 @@ test("billing's three: the invoices and a resume the owner's, a refresh an opera
     sync.POST.run(send("POST", undefined, inB), ctxFor(viewer)),
     "upstream_auth",
     503,
-    "Billing could not be refreshed (no_edge_credential).",
+    "Couldn't refresh billing (no_edge_credential).",
   );
   await refused(sync.POST.run(send("POST"), ctxFor(viewer)), "choose_workspace", 400);
 });

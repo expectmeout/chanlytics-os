@@ -189,7 +189,7 @@ test("a leg that stops an erasure before any copy is gone says nothing was delet
     "the block": [
       { faults: { "contacts.update": { message: "denied" } } },
       [],
-      /being erased, so nothing was deleted\. Try again\.$/,
+      /Couldn't start deleting this person, so nothing was deleted\. Try again\.$/,
       false,
     ],
     // The one call it makes is the one the database refused, and one function commits whole or not at all. The block
@@ -197,7 +197,7 @@ test("a leg that stops an erasure before any copy is gone says nothing was delet
     "the Ask pre-scrub": [
       { rpcs: { scrub_ask_for_contact: refused } },
       ["rpc:scrub_ask_for_contact"],
-      /memory of this person could not be scrubbed, so nothing was deleted\. It will finish on its own within the hour, or try again now\.$/,
+      /Couldn't clear AI's memory of this person, so nothing was deleted\. It will finish on its own within the hour, or try again now\.$/,
       true,
     ],
   };

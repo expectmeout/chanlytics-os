@@ -39,6 +39,7 @@ import {
   sourceOf,
   type ContextRow,
   type Provider,
+  readZone,
 } from "./rows";
 
 /**
@@ -47,13 +48,11 @@ import {
  * and a lead through the Leads page's own read; a row the reader did not return is absent, and nothing names it.
  */
 
-const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
-
 /** Everyone, each as People draws their row for the member asking. */
 async function peopleRows(rc: ReaderContext) {
   const [all, tz, ready] = await Promise.all([
     load(rc, everyoneReader, undefined).then((r) => r.data),
-    zone(rc),
+    readZone(rc),
     load(rc, facts.channelsReady, undefined).then((r) => r.data),
   ]);
   const vm = (r: PersonRowDto) => poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, ready });
@@ -215,7 +214,7 @@ export const readLeads: Provider = async (rc, ctx) => {
   const [read, found, tz] = await Promise.all([
     load(rc, leadsReader, query),
     load(rc, searchesReader, undefined).then((r) => r.data),
-    zone(rc),
+    readZone(rc),
   ]);
   const page = read.data;
   const byId = new Map(page.rows.map((r) => [r.id, r]));

@@ -65,11 +65,12 @@ function wordsFrom(json: Json): ReplyDraftWords {
 const underTheRules = (r: ConversationDraftRow): boolean =>
   r.rules === (r.kind === "step" ? STEP_NOTE_RULES : REPLY_DRAFT_RULES);
 
-const stateOf = (s: string | null): ReplyDraftState | undefined => (isOneOf(REPLY_DRAFT_STATES, s) ? s : undefined);
+const draftStateOf = (s: string | null): ReplyDraftState | undefined =>
+  isOneOf(REPLY_DRAFT_STATES, s) ? s : undefined;
 
 /** A kept row as the routes answer it, with the words its reply is signed with where it leaves from a mailbox (00487). */
 function dtoOf(conversationDraft: ConversationDraftRow, signed: string | null = null): ReplyDraftDto {
-  const state = stateOf(conversationDraft.state);
+  const state = draftStateOf(conversationDraft.state);
   return {
     conversation_id: conversationDraft.conversation_id,
     kind: isOneOf(KEPT_DRAFT_KINDS, conversationDraft.kind) ? conversationDraft.kind : "reply",
@@ -130,7 +131,7 @@ export async function draftUseOfReply(
 }
 
 /** What a refusal of the edge's door says to the member, in the words their page has for why. */
-function refusalOf(reason: string, detail: string | null, change: boolean): AppError {
+function draftRefusalOf(reason: string, detail: string | null, change: boolean): AppError {
   const money = reason === "policy_block_price" || (reason === "draft_refused" && detail === "named_money");
   if (money && change) return new AppError("validation", DRAFT_CHANGE_NAMED_MONEY);
   if (reason === "policy_block_price") return new AppError("validation", draftFailedWords("named_money").words);
@@ -167,5 +168,5 @@ export async function draftForThread(
     );
     if (kept && !instruction) return dtoOf(kept, signed);
   }
-  throw refusalOf(done.reason, done.detail, !!instruction);
+  throw draftRefusalOf(done.reason, done.detail, !!instruction);
 }

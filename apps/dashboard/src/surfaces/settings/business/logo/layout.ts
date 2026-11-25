@@ -13,17 +13,17 @@
  */
 
 /** The picture as the page read it from a canvas: RGBA, four bytes a pixel, row by row. */
-export interface LogoPixels {
+interface LogoPixels {
   data: ArrayLike<number>;
   width: number;
   height: number;
 }
 
-export type LogoMode = "fit" | "fill";
+type LogoMode = "fit" | "fill";
 /** What the owner is told before they save. */
 export type LogoNote = "wide" | "small";
 
-export interface LogoLayout {
+interface LogoLayout {
   mode: LogoMode;
   /** The part of the picture drawn, in its own pixels. */
   crop: { x: number; y: number; w: number; h: number };

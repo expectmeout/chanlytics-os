@@ -85,7 +85,7 @@ export function ownersTyped(toolContext: ToolContext): string {
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */
-export const postLookKeyOf = (plan: PostPlan): string =>
+const postLookKeyOf = (plan: PostPlan): string =>
   createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0, 10);
 
 const LOOK_NOTE =

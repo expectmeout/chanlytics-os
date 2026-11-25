@@ -1,6 +1,5 @@
 /**
- * The page context: what the page a person is on sends with a question, and with the palette's warm (the spec, 5.2;
- * the Phase 2 plan, docs/superpowers/plans/2026-09-26-ask-rewired-2-page-context.md). Identities and words, never
+ * The page context: what the page a person is on sends with a question, and with the palette's warm. Identities and words, never
  * facts: the surface, the route, the view the page is set to, the row open or the row the words name, and the rows on
  * screen in the order shown. The server re-reads every id under the person's RLS, so a row another workspace holds is
  * a miss, and nothing the tab says about a row is believed.

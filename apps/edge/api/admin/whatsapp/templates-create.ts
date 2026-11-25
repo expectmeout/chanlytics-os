@@ -14,5 +14,7 @@ import { WHATSAPP_TEMPLATES_CREATE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
-  return createWhatsappTemplate(auth, await readBody(request, WHATSAPP_TEMPLATES_CREATE_DOOR));
+  const read = await readBody(request, WHATSAPP_TEMPLATES_CREATE_DOOR);
+  if (!read.ok) return read.response;
+  return createWhatsappTemplate(auth, read.body);
 });

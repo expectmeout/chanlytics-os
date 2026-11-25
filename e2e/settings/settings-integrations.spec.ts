@@ -57,7 +57,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const { data } = await res.json();
     expect(typeof data.ready).toBe("boolean");
     if (!data.ready) expect(typeof data.reason).toBe("string");
-    expect(typeof data.canConnect).toBe("boolean");
+    expect(typeof data.can_connect).toBe("boolean");
     // Never a credential in the answer.
     expect(JSON.stringify(data)).not.toMatch(/secret|token/i);
   });

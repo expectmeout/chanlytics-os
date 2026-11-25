@@ -120,6 +120,6 @@ export async function grantFeedFor(
     from,
     to: Math.min(to, from + FEED_SPAN_MAX_MS),
   });
-  if (text === null) return refuse(502, "unreadable", "the calendar could not be read through the mailbox now");
+  if (text === null) return refuse(502, "unreadable", "couldn't load the calendar through the mailbox now");
   return json(200, { ok: true, text });
 }

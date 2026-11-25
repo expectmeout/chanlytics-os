@@ -73,7 +73,7 @@ test("an invitation to a new address: the invitation and its row in one call, th
   assert.deepEqual(w.mails, ["bo@example.com"]);
   const again = platform({ lookup_user_for_invite: null, team_invite: { already_invited: true } });
   assert.deepEqual(await inviteMember(A, USER, "bo@example.com", "viewer", undefined, again.svc), {
-    alreadyInvited: true,
+    already_invited: true,
   });
   assert.deepEqual(again.mails, [], "an open invitation is not mailed twice");
 });
@@ -89,7 +89,7 @@ test("an invitation to a known account joins them now, through the platform's lo
     { p_tenant_id: A, p_actor: USER, p_user_id: "u3", p_role: "viewer", p_email: "cy@example.com" },
   ]);
   assert.deepEqual(await inviteMember(A, USER, "di@example.com", "viewer", undefined, w.svc), {
-    alreadyMember: true,
+    already_member: true,
   });
   assert.deepEqual(w.mails, [], "no sign-up ceremony for an account that exists");
 });
@@ -116,7 +116,7 @@ test("an invitation the mail could not carry is taken back with its row, and the
 test("a role change hands the database the actor, the card's mark and the undo's link; each refusal reaches the owner in words", async () => {
   const w = platform({ team_change_role: { membership_id: "m2", role: "owner", decision_id: "d1" } });
   assert.deepEqual(await setMemberRole(ctx({ via: "ask", undoOf: "d0" }), A, "m2", "owner", w.svc), {
-    membershipId: "m2",
+    membership_id: "m2",
     role: "owner",
   });
   assert.deepEqual(w.calls, [
@@ -161,7 +161,7 @@ test("an undo whose decision the database does not have keeps the change without
 
 test("a removal: an open invitation revoked or a member removed, as the database found it; nobody removes themself", async () => {
   const invite = platform({ team_remove: { revoked_invite: true } });
-  assert.deepEqual(await removeMember(ctx({ via: "ask" }), A, "i1", invite.svc), { revokedInvite: true });
+  assert.deepEqual(await removeMember(ctx({ via: "ask" }), A, "i1", invite.svc), { revoked_invite: true });
   assert.deepEqual(invite.calls, [["team_remove", { p_tenant_id: A, p_actor: USER, p_id: "i1", p_via: "ask" }]]);
   assert.deepEqual(await removeMember(ctx(), A, "m2", platform({ team_remove: { removed: true } }).svc), {
     removed: true,

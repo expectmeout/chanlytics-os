@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { SETUP_REQUEST_KINDS, isOneOf } from "@chanlytics/contracts";
+import { SETUP_REQUEST_KINDS, isOneOf, valueAt } from "@chanlytics/contracts";
 import { tellPlatformOfSetupRequest } from "@/server/workspace/tell";
 import { dbRefusal } from "@/server/shared/with-route";
 import { requestWorkspaceSetup } from "@/server/setup/setup";
@@ -32,12 +32,7 @@ export const POST = write({
     const subject = input.what;
     const { data, error } = await requestWorkspaceSetup(ctx, { p_tenant_id: member.tenantId, p_what: subject });
     if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
-    const already = !!(
-      data &&
-      typeof data === "object" &&
-      !Array.isArray(data) &&
-      (data as { already?: unknown }).already === true
-    );
+    const already = valueAt(data, "already") === true;
     const wasTold = already
       ? false
       : await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId);

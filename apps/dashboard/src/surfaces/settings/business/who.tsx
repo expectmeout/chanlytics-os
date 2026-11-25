@@ -155,7 +155,7 @@ interface Take<D> {
  * that stores nothing would say the disagreement was settled while the database still holds it.
  */
 const btDispute = <D,>(f: FactOf, conflict: FactConflict | null, take: Take<D>) => {
-  const theirs = f.disputed || (conflict ? { value: conflict.known, source: conflict.knownSource } : null);
+  const theirs = f.disputed || (conflict ? { value: conflict.known, source: conflict.known_source } : null);
   if (!theirs) return null;
   const offered = !take.from || take.from.includes(theirs.source);
   return {

@@ -277,7 +277,7 @@ export const settingsOverride: SurfaceOverride = {
     // The prompt rides with the config: composed on the server from inputs the
     // browser cannot see, null when there is no receptionist to compose for.
     // The surface's `settings` alone: a global beside it, `__SETTINGS`, until 12 Nov 2026.
-    const record: SettingsRecord = cfg.configBroken
+    const record: SettingsRecord = cfg.config_broken
       ? {
           config: null,
           version: cfg.version,
@@ -296,8 +296,8 @@ export const settingsOverride: SurfaceOverride = {
           role: cfg.role,
           broken: null,
           prompt: cfg.prompt ?? null,
-          updatedBy: cfg.updatedBy ?? null,
-          updatedAt: cfg.updatedAt ?? null,
+          updatedBy: cfg.updated_by ?? null,
+          updatedAt: cfg.updated_at ?? null,
           reviewLink: cfg.review_link === true,
           previews: cfg.previews === true,
           ads: cfg.ads === true,
@@ -305,7 +305,7 @@ export const settingsOverride: SurfaceOverride = {
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
-    const facts: SettingsSurface["facts"] = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
+    const facts: SettingsSurface["facts"] = cfg.config_broken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
     // What uses each template and when each last went out are the surface's alone: null where the templates read failed.
     let templateUse: TemplateUse | null = null;
     let templateSent: Record<string, TemplateSentWords> | null = null;

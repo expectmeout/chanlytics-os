@@ -17,5 +17,7 @@ const AUD = "/api/admin/previews/after-call";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
-  return previewAfterCall(auth, await readBody(request, PREVIEW_AFTER_CALL_DOOR));
+  const read = await readBody(request, PREVIEW_AFTER_CALL_DOOR);
+  if (!read.ok) return read.response;
+  return previewAfterCall(auth, read.body);
 });

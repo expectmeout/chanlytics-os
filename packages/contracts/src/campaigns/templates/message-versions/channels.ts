@@ -10,7 +10,7 @@ export type VersionChannel = (typeof VERSION_CHANNELS)[number];
 /** A version written here rather than at Meta: an email's or a text's. */
 export type OwnVersionChannel = Exclude<VersionChannel, "whatsapp">;
 
-export const OWN_VERSION_CHANNELS: readonly OwnVersionChannel[] = ["email", "sms"];
+export const OWN_VERSION_CHANNELS = ["email", "sms"] as const satisfies readonly OwnVersionChannel[];
 
 /** What each channel is called on a page. */
 export const VERSION_CHANNEL_WORDS: Record<VersionChannel, string> = {

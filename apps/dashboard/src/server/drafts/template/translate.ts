@@ -102,7 +102,7 @@ export async function getTranslationSource(
   } else {
     const { data, error } = await findTemplateToTranslate(ctx.supabase, tenantId, ref.id);
     if (error) throw new DbFailure(error);
-    if (!data) return { ok: false, code: "not_found", message: "That template is not on file here." };
+    if (!data) return { ok: false, code: "not_found", message: "That saved message is not on file." };
     const parts = templateParts(data.components);
     const reason = templateUntranslatable({
       ...parts,

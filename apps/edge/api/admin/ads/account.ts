@@ -14,8 +14,10 @@ import { ADS_ACCOUNT_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody(raw, ADS_ACCOUNT_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/ads/account", { body: raw });
   if (!auth.ok) return auth.response;
+  const read = await readBody(raw, ADS_ACCOUNT_DOOR);
+  if (!read.ok) return read.response;
+  const body = read.body;
   return runAdsAccountOp(auth, body);
 });

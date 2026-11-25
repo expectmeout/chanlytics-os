@@ -9,10 +9,9 @@
  * dashboard's `callEdge` takes a declared path and that door's body, and the door reads the body through the same schema
  * (apps/edge/lib/shared/admin-door.ts `readBody`).
  *
- * The door reports a body its schema does not hold, by field and never by value, and goes on as it always did; its op
- * still refuses what it refuses, in its own words. It refuses at the schema once production has sent nothing the
- * schema refuses (decision 0109). Either deploy order works: a field is added as optional, and a door keeps reading
- * one the other side may not send yet.
+ * The door refuses a body its schema does not hold (400 `bad_request`, naming the fields and never their values), and
+ * the dashboard does not read an answer the door's answer schema does not hold (decision 0109, since 25 Nov 2026). Either
+ * deploy order works: a field is added as optional, and a door keeps reading one the other side may not send yet.
  */
 import { z } from "zod";
 import type { EdgeAnswerBody } from "../edge-errors";
@@ -46,8 +45,8 @@ export const edgeDoor = <A extends DoorPath, S extends z.ZodType, R extends z.Zo
 export type DoorBody<D extends EdgeDoor> = z.input<D["body"]>;
 
 /**
- * What a door reads: each field as its schema says, every one of them possibly absent, since a door still reads a body
- * its schema would refuse. Absent, not undefined: JSON drops undefined, so an op's own exact optional fields take it.
+ * What a door reads: each field as its schema says, read as possibly absent, as each op's own parameter type takes it.
+ * Absent, not undefined: JSON drops undefined, so an op's own exact optional fields take it.
  */
 export type DoorRead<D extends EdgeDoor> = {
   [K in keyof z.output<D["body"]>]?: Exclude<z.output<D["body"]>[K], undefined>;

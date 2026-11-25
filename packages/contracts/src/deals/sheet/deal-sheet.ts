@@ -29,6 +29,7 @@ import type { DealVM } from "../vm";
 import { proposalMessage } from "../../people/person-reach";
 import { consultedService, dealSendOf, type DealPerson, type DealSend, type DealSheetMode } from "./deal-acts";
 import { keysOf } from "../../shared/unknown";
+import { capitalize } from "../../shared/words";
 
 /* --------------------------------------------- the sheet ---------------------------------------------------- */
 
@@ -221,8 +222,6 @@ const DRAFT_EMPTY: DealSheetDraft = {
   message: null,
 };
 
-const capital = (s: string) => (s ? (s[0] ?? "").toUpperCase() + s.slice(1) : s);
-
 /** The deal a move is about: the one it was opened for, else the person's current one. */
 function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | undefined): DealVM | null {
   if (mode === "propose") return null;
@@ -266,7 +265,7 @@ export function dealSheetFor(
     value: m.id,
     label: [`“${m.words}”`, m.via, m.when].filter(Boolean).join(" · "),
   }));
-  const pers = DEAL_PERS.map((x) => ({ value: x, label: capital(DEAL_PER_WORDS[x]) }));
+  const pers = DEAL_PERS.map((x) => ({ value: x, label: capitalize(DEAL_PER_WORDS[x]) }));
   // The deal's amount as a box shows it ("$2,500", without how often: the sheet asks that apart); parseAmount reads
   // it back to the same cents.
   const valueOf = (deal && amountWords(deal.amountCents, null, deal.currency)) || "";

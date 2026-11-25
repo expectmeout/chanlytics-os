@@ -147,7 +147,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
   const supabase = originOf(o.supabaseUrl);
   // Realtime's websocket on the same host: wss for https, and ws for the local stack's http (docs/runbook.md, "See a real
   // page"), where the https rule alone named the http origin twice and left Realtime with no source.
-  const supabaseWs = supabase ? supabase.replace(/^http(s?):/, "ws$1:") : null;
+  const supabaseWs = supabase?.replace(/^http(s?):/, "ws$1:");
   const leadMap = originOf(o.leadMapBase);
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
@@ -171,7 +171,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
       "connect-src",
       [
         "'self'",
-        ...(supabase ? [supabase, supabaseWs!] : []),
+        ...(supabase && supabaseWs ? [supabase, supabaseWs] : []),
         ...META,
         ...VOICE_AGENT,
         ...REHEARSAL_CALL,

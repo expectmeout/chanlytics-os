@@ -27,7 +27,7 @@ export async function snooze(
   // first and put it back when the row did not change; there is no second
   // store now, so a snooze that changes nothing leaves nothing behind.
   if (!(await ports.snooze(conv.id, snooze_until))) {
-    throw new AppError("conflict", "Could not snooze this thread — reload and try again.", 409);
+    throw new AppError("conflict", "Couldn't snooze this conversation. Reload and try again.", 409);
   }
   // No timer to set: wake_stale_snoozes() reopens the thread from snooze_until (00098).
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snooze_until });

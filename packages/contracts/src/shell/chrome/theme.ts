@@ -54,8 +54,7 @@ export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) 
 const STRANGER_PAGE_PREFIXES: readonly string[] = ["/preview/"];
 
 /**
- * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
- * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass, the canvases', is the one look
+ * The look: the finish every page is drawn in, the interface kit's second setting beside the theme. Glass, the canvases', is the one look
  * since Classic, the app as it was drawn before, retired on 2 October 2026 (the plan's step 5.7): a device that kept
  * Classic is a device that kept a look this build no longer knows, and wears the default. The setting stays as the
  * theme's twin for the next look: kept on this device in the same stored object, stamped as `data-look` beside

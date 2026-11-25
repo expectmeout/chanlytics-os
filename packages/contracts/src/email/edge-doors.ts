@@ -17,7 +17,8 @@ export const ALERT_TEST_DOOR = edgeDoor(
 export const SIGNUP_CONFIRM_DOOR = edgeDoor(
   "/api/admin/email/signup-confirm",
   z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional(), contact_id: DOOR_ID.optional() }),
-  answerFields({ asked: z.boolean(), why: z.string() }),
+  // `why` is null when it asked (apps/edge/lib/website/signup-confirm.ts).
+  answerFields({ asked: z.boolean(), why: z.string().nullable() }),
 );
 
 /** POST /api/admin/email/test-to-self: a sequence's email, sent to the member who asked. */

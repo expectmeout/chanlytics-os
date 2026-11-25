@@ -456,7 +456,8 @@ function hearFeed(win: Window, alertsOn: () => boolean, emit: () => void): void 
     if (!dto) return [];
     const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
     const keys = new Set(rows.map((r) => r.key));
-    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
+    const before = knownKept;
+    const out = before === null ? [] : rows.filter((r) => !before.has(r.key));
     knownKept = keys;
     return out;
   };

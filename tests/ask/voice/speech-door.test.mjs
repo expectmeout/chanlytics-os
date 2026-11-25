@@ -232,11 +232,17 @@ test("the rest of a reading: the words read just before it go to the vendor as w
     apply_text_normalization: "on",
     previous_text: "Two people need you.",
   });
-  // Blank, or not words at all: a clip like any other.
-  for (const before of ["   ", 7, null]) {
-    const one = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
-    assert.equal((await knock(T(1), ask({ before }))).status, 200);
-    assert.equal("previous_text" in JSON.parse(one.calls[0].body), false);
+  // Blank: a clip like any other.
+  const blank = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  assert.equal((await knock(T(1), ask({ before: "   " }))).status, 200);
+  assert.equal("previous_text" in JSON.parse(blank.calls[0].body), false);
+  // Not words at all: refused at the door's schema, and the vendor is not asked.
+  for (const before of [7, null]) {
+    const none = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+    const refused = await knock(T(1), ask({ before }));
+    assert.equal(refused.status, 400);
+    assert.equal((await refused.json()).error, "bad_request");
+    assert.equal(none.calls.length, 0);
   }
   // Longer than a clip's own words may be: its end, which is what the next clip carries on from.
   const long = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));

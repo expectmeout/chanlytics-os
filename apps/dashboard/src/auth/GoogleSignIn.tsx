@@ -15,9 +15,10 @@ import { sealSurfaceCache } from "@/bridge/surface-cache";
  */
 let known: Promise<boolean> | null = null;
 function googleEnabled(): Promise<boolean> {
-  known ??= fetch(`${publicEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
-    headers: { apikey: publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
-  })
+  const url = publicEnv.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return Promise.resolve(false);
+  known ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } })
     .then((r) => r.json())
     .then((j: { external?: { google?: boolean } }) => j?.external?.google === true)
     .catch(() => false);

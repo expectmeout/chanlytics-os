@@ -435,7 +435,7 @@ function switchItemsOf(
 ): GoLiveItemVM[] {
   const switchOn = FIRST_RUN_GOLIVE_WORDS.switchOn;
   const voice = goLiveInput.dto.channels.voice.present;
-  const approved = goLiveInput.dto.templates.startersApproved > 0;
+  const approved = goLiveInput.dto.templates.starters_approved > 0;
   const items: GoLiveItemVM[] = goLiveFacts.noCalls
     ? []
     : [
@@ -470,7 +470,7 @@ function switchOnOf(goLiveInput: GoLiveInput, goLiveFacts: GoLiveFacts): NonNull
   const switchOn = FIRST_RUN_GOLIVE_WORDS.switchOn;
   const { dto } = goLiveInput;
   const fw = forwardedLineOf(dto.lines);
-  const proof = { proved: !!fw && fw.forwarding_state === "verified", tested: !!dto.channels.voice.lastInboundAt };
+  const proof = { proved: !!fw && fw.forwarding_state === "verified", tested: !!dto.channels.voice.last_inbound_at };
   const items = switchItemsOf(goLiveInput, goLiveFacts, proof);
   const callsOn = goLiveFacts.kept ? proof.proved : proof.tested;
   const answers: NonNullable<FirstRunGoLiveVM["switchOn"]>["answers"] = [

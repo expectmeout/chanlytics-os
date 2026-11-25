@@ -14,5 +14,7 @@ import { LINES_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/lines");
   if (!auth.ok) return auth.response;
-  return runLineOp(auth, await readBody(request, LINES_DOOR));
+  const read = await readBody(request, LINES_DOOR);
+  if (!read.ok) return read.response;
+  return runLineOp(auth, read.body);
 });

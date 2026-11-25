@@ -1,7 +1,6 @@
 // Chanlytics — Settings › How it answers: How it talks, What it knows, and the two limits Autonomy draws.
 //
-// The fourth card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.5 and §4.6; the canvas's
-// Record and Group-Answers boards): the voice, the languages, the rules it always keeps, how it hands you a customer,
+// The fourth card of the record (the canvas's Record and Group-Answers boards): the voice, the languages, the rules it always keeps, how it hands you a customer,
 // the things it should know, what it is told in your own words, and the three messages sent in your name when it cannot
 // answer. Seven rows, each a fold (BtFold, gestures/), in two cards on How it answers and, for the rules it keeps and
 // how it hands you a customer, on Autonomy's Limits (17 Oct 2026). It replaces the old form's "How it answers" group
@@ -229,8 +228,8 @@ const BtaNotes = ({
           i={i}
           notes={notes}
           press={press}
-          bad={(problems[`note-${i}`] as string | undefined) || null}
-          badUntil={(problems[`note-${i}-until`] as string | undefined) || null}
+          bad={problems[`note-${i}`] || null}
+          badUntil={problems[`note-${i}-until`] || null}
           ended={BUSINESS_TAB.noteEndedWords(n && n.until, zone, now)}
           readOnly={readOnly}
         />

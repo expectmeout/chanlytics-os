@@ -22,8 +22,8 @@ import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 const calls = { flash: [], remove: [], cancel: [], arm: [], nav: [] };
 // The roster and its one open invitation, as the settings read lands them on the seam (below): the surface's alone.
 const TEAM = [
-  { membershipId: "m-ruben", email: "ruben@rjcapital.example", displayName: "Ruben", role: "owner" },
-  { membershipId: "m-lena", email: "lena@example.com", displayName: "Lena Park", role: "operator" },
+  { membership_id: "m-ruben", email: "ruben@rjcapital.example", display_name: "Ruben", role: "owner" },
+  { membership_id: "m-lena", email: "lena@example.com", display_name: "Lena Park", role: "operator" },
 ];
 const INVITES = [{ id: "i-jay", email: "jay@example.com", role: "viewer", expires_at: "2026-09-20T00:00:00Z" }];
 bridgeHolds({
@@ -220,7 +220,7 @@ const { teamVerbs } = await import(`${S}/bridge/inbox-verbs.ts`);
 Object.assign(teamVerbs, {
   remove: async (id) => {
     calls.remove.push(id);
-    return { ok: true, data: { revokedInvite: id.startsWith("i-") } };
+    return { ok: true, data: { revoked_invite: id.startsWith("i-") } };
   },
   setRole: async () => ({ ok: true }),
   invite: async () => ({ ok: true }),

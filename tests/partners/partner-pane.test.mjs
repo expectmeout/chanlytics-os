@@ -35,10 +35,10 @@ const teamRead = () =>
     templateSent: null,
     team: [
       {
-        membershipId: "m-me",
-        userId: "u-me",
+        membership_id: "m-me",
+        user_id: "u-me",
         email: "owner@example.com",
-        displayName: "",
+        display_name: "",
         role: "owner",
         joined_at: null,
       },
@@ -721,10 +721,10 @@ test("over the real bridge: who is asking, joining and declining, and the owner'
           data: {
             invitations: [
               {
-                workspaceId: "t9",
+                workspace_id: "t9",
                 workspace: "Harbor",
-                sentAt: "2026-09-27T12:00:00Z",
-                expiresAt: "2026-10-11T12:00:00Z",
+                sent_at: "2026-09-27T12:00:00Z",
+                expires_at: "2026-10-11T12:00:00Z",
               },
             ],
           },

@@ -693,7 +693,7 @@ test("the template send is the reply box's capsule: the message it will send at 
 });
 
 test("the search asks for what it searches, and a teammate's email keeps its own letters", () => {
-  rosterIs([{ userId: "u-b", email: "billing@rjcapital.example", displayName: "" }]);
+  rosterIs([{ user_id: "u-b", email: "billing@rjcapital.example", display_name: "" }]);
   // The list's own box is a phone's: on a desk the search is the top bar's line (page-search.ts).
   const keep = globalThis.window.matchMedia;
   globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });

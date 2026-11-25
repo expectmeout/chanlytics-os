@@ -330,7 +330,7 @@ test("provision, the workspace: a token naming one refuses a body naming another
       ]);
       assert.deepEqual(
         await answer(await knock({ tenant_id: "not-a-workspace" }, { "x-diag-key": "diag-key-for-this-file" })),
-        [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
+        [400, { ok: false, error: "bad_request" }],
       );
       const [status, body] = await answer(await knock({ tenant_id: B }, { "x-diag-key": "diag-key-for-this-file" }));
       assert.equal(status, 200, "a key-holder's body is believed");

@@ -23,7 +23,7 @@ interface CardSheetProps {
 }
 
 /** The foot's two acts, where the member may take them. */
-function footOf({ onChange, onDisconnect }: Pick<CardSheetProps, "onChange" | "onDisconnect">): ReactNode {
+function cardSheetFoot({ onChange, onDisconnect }: Pick<CardSheetProps, "onChange" | "onDisconnect">): ReactNode {
   if (!onChange && !onDisconnect) return null;
   return (
     <>
@@ -51,7 +51,7 @@ export function CardSheet({ open, vm, onClose, onChange, onDisconnect }: CardShe
       title={CARD.name}
       sub={vm.connectedOn ?? undefined}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
-      foot={footOf({ onChange, onDisconnect })}
+      foot={cardSheetFoot({ onChange, onDisconnect })}
       flatFoot
       fit
       testid="ads-conn-sheet"

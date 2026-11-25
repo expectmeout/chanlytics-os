@@ -116,7 +116,7 @@ export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
     case "day_cap":
       return new AppError("conflict", "Today's searching is at its cap. Try again tomorrow.", 409);
     case "hidden":
-      return new AppError("conflict", "This place is hidden: it is already a customer, or was erased.", 409);
+      return new AppError("conflict", "This place is hidden: it is already a customer, or was deleted.", 409);
     case "out_of_area":
       return new AppError("conflict", "This place is outside the area the search covers.", 409);
     case "changed":

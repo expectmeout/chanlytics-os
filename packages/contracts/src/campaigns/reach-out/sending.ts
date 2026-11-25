@@ -202,7 +202,7 @@ function checksFor(shown: Mailbox | undefined, sending: readonly Mailbox[]): Col
 }
 
 /** A mailbox that sends and fails a check: which, what fails, and what the check says to do about it. */
-export interface ColdEmailNeedsLook {
+interface ColdEmailNeedsLook {
   /** The check's title, behind the mailbox's address where more than one sends. */
   why: string;
   /** What the check says to do, or what happens next. */

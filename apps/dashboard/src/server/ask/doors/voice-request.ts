@@ -55,7 +55,8 @@ export function scopeAsked(raw: unknown): AskScope | null {
 }
 
 export function asked(body: Record<string, unknown> | null, tenantId: TenantId): Asked {
-  const threadId = typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+  const threadId =
+    typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
   const context = contextAsked(body?.context, tenantId);
   const surface =
     typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : (context?.surface ?? null);
@@ -78,7 +79,7 @@ export function refusalOf(edgeAnswer: EdgeAnswer): AppError {
     "upstream_voice",
     reason === "no_provider_key"
       ? "Voice is not set up yet."
-      : "A call with AI could not be started just now. Try again in a moment.",
+      : "Couldn't start a call with AI just now. Try again in a moment.",
     503,
     { reason },
   );

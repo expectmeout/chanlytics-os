@@ -77,7 +77,7 @@ const PROVIDERS: Record<AskSurface, Provider> = {
 
 /** How long a build is kept, and how many at most (D7). */
 export const CONTEXT_TTL_MS = MIN_MS;
-export const CONTEXT_CACHE_CAP = 200;
+const CONTEXT_CACHE_CAP = 200;
 /** Room kept in the aggregate for the sentence that says the cut. */
 const CUT_ROOM = 64;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -191,7 +191,7 @@ export async function buildContext(rc: ReaderContext, context: PageContext): Pro
 const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const yes = (on: boolean, word: string, not = "not ") => (on ? word : `${not}${word}`);
 /** The shape block's ceiling (the plan, D9). */
-export const SHAPE_MAX = 1_500;
+const SHAPE_MAX = 1_500;
 
 /**
  * The shape of the workspace as one block (the plan, D9): what it is set up with, sorted, the same bytes for the same

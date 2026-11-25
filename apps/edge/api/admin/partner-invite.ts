@@ -14,5 +14,7 @@ import { PARTNER_INVITE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/partner-invite");
   if (!auth.ok) return auth.response;
-  return sendPartnerInvite(auth, await readBody(request, PARTNER_INVITE_DOOR));
+  const read = await readBody(request, PARTNER_INVITE_DOOR);
+  if (!read.ok) return read.response;
+  return sendPartnerInvite(auth, read.body);
 });

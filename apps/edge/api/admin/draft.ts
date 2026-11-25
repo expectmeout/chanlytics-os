@@ -14,5 +14,7 @@ import { DRAFT_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/draft");
   if (!auth.ok) return auth.response;
-  return draftAtTheDoor(auth, await readBody(request, DRAFT_DOOR));
+  const read = await readBody(request, DRAFT_DOOR);
+  if (!read.ok) return read.response;
+  return draftAtTheDoor(auth, read.body);
 });

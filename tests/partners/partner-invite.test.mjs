@@ -114,18 +114,23 @@ test("the owner's card, state by state: none asks, waiting takes back, declined 
   const now = Date.parse("2026-09-28T12:00:00Z");
   const none = workspacePartnerVM({ partner: null, invitation: null }, now);
   assert.deepEqual([none.state, none.canInvite, none.canWithdraw, none.sentence], ["none", true, false, null]);
-  const open = { code: "ada-co", sentAt: "2026-09-27T12:00:00Z", expiresAt: "2026-10-11T12:00:00Z", declinedAt: null };
+  const open = {
+    code: "ada-co",
+    sent_at: "2026-09-27T12:00:00Z",
+    expires_at: "2026-10-11T12:00:00Z",
+    declined_at: null,
+  };
   const waiting = workspacePartnerVM({ partner: null, invitation: open }, now);
   assert.deepEqual([waiting.state, waiting.canInvite, waiting.canWithdraw], ["waiting", false, true]);
   assert.match(waiting.sentence, /^Waiting for ada-co to accept/);
   const declined = workspacePartnerVM(
-    { partner: null, invitation: { ...open, declinedAt: "2026-09-28T00:00:00Z" } },
+    { partner: null, invitation: { ...open, declined_at: "2026-09-28T00:00:00Z" } },
     now,
   );
   assert.deepEqual([declined.state, declined.canInvite, declined.canWithdraw], ["declined", true, false]);
   assert.match(declined.sentence, /^ada-co declined on/);
   const expired = workspacePartnerVM(
-    { partner: null, invitation: { ...open, expiresAt: "2026-09-28T00:00:00Z" } },
+    { partner: null, invitation: { ...open, expires_at: "2026-09-28T00:00:00Z" } },
     now,
   );
   assert.equal(expired.state, "expired");
@@ -156,15 +161,15 @@ test("the owner's card, state by state: none asks, waiting takes back, declined 
 
 test("what the partner is shown and sent: who asked and until when; whether joining earns a share", () => {
   const row = {
-    workspaceId: A,
+    workspace_id: A,
     workspace: "Harbor",
-    sentAt: "2026-09-27T12:00:00Z",
-    expiresAt: "2026-10-11T12:00:00Z",
+    sent_at: "2026-09-27T12:00:00Z",
+    expires_at: "2026-10-11T12:00:00Z",
   };
   assert.match(partnerInvitationWords(row), /^Harbor asks you to be its partner\. Open until /);
   assert.match(partnerJoinedWords("Harbor", true), /your share is written as for a workspace you brought/);
   assert.match(partnerJoinedWords("Harbor", false), /already paying when you joined, so it earns you no share/);
-  const mail = partnerInviteEmail({ workspace: "Harbor", expiresAt: row.expiresAt, signInUrl: "https://app/login" });
+  const mail = partnerInviteEmail({ workspace: "Harbor", expiresAt: row.expires_at, signInUrl: "https://app/login" });
   assert.equal(mail.subject, "Harbor asks you to be its partner on Chanlytics");
   assert.match(mail.body, /never touch its billing or its team\./);
   assert.match(mail.body, /Settings › Partner to join or decline: https:\/\/app\/login/);
@@ -201,7 +206,7 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
     workspace_partner: () => ({ partner: null, invitation: { code: "ada-co", sent_at: "s", expires_at: "e" } }),
   };
   const r = await team.POST.run(inA("POST", { code: "https://app.chanlytics.com/p/Ada-Co" }), ctxFor(rpcs));
-  assert.deepEqual(r, { code: "ada-co", expiresAt: "2026-10-12T00:00:00Z", sent: false }, "off production, no email");
+  assert.deepEqual(r, { code: "ada-co", expires_at: "2026-10-12T00:00:00Z", sent: false }, "off production, no email");
   assert.deepEqual(asked[0], { p_tenant: A, p_code: "ada-co" });
   await refused(team.POST.run(inA("POST", { code: "nobody" }), ctxFor(rpcs)), "not_found", 404, /No active partner/);
   await refused(
@@ -215,7 +220,7 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
   const card = await team.GET.run(inA(), ctxFor(rpcs));
   assert.deepEqual(card, {
     partner: null,
-    invitation: { code: "ada-co", sentAt: "s", expiresAt: "e", declinedAt: null },
+    invitation: { code: "ada-co", sent_at: "s", expires_at: "e", declined_at: null },
   });
 
   // An operator is refused at the door, before the function is asked.
@@ -260,7 +265,7 @@ test("the partner's routes: on the account, counted; joining asks for the second
     },
   };
   assert.deepEqual(await invitations.GET.run(new Request("http://localhost/api/v1/x"), ctxFor(rpcs)), {
-    invitations: [{ workspaceId: A, workspace: "Harbor", sentAt: "s", expiresAt: "e" }],
+    invitations: [{ workspace_id: A, workspace: "Harbor", sent_at: "s", expires_at: "e" }],
   });
   await refused(accept.POST.run(post(), ctxFor(rpcs, { aal: "aal1", params: { id: A } })), "mfa_required", 403);
   assert.deepEqual(asked, [], "nothing asked of the database without the second factor");

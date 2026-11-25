@@ -15,5 +15,7 @@ import { REACH_OUT_PREVIEW_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
-  return previewReachOut(auth, await readBody(request, REACH_OUT_PREVIEW_DOOR));
+  const read = await readBody(request, REACH_OUT_PREVIEW_DOOR);
+  if (!read.ok) return read.response;
+  return previewReachOut(auth, read.body);
 });

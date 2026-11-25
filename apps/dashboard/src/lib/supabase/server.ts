@@ -4,6 +4,7 @@ import { boundedFetch, namedFetch } from "@chanlytics/db/shared";
 import { SECOND_MS } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { env, servedOverHttps } from "@/server/shared/env";
+import { supabaseProject } from "@/lib/public-env";
 import { sessionCookieOptions } from "./cookie-options";
 
 /**
@@ -37,7 +38,8 @@ const memberTransport = () => ({
  */
 export async function createClient() {
   const cookieStore = await cookies();
-  return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const project = supabaseProject(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return createServerClient<Database>(project.url, project.anonKey, {
     cookieOptions: sessionCookieOptions(servedOverHttps()),
     cookies: {
       getAll() {
@@ -62,7 +64,8 @@ export async function createClient() {
  * verification is the route's (getClaims over it), never assumed from the header.
  */
 export function createBearerClient(token: string) {
-  return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const project = supabaseProject(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return createServerClient<Database>(project.url, project.anonKey, {
     cookies: {
       getAll() {
         return [];

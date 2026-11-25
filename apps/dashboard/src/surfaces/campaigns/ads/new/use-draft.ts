@@ -71,7 +71,7 @@ const sentDraft = (held: Pick<Held, "answer" | "local">): AdDraftState => ({
 const draftWords = (answer: AdDraftHere): AdWordsHere =>
   answer.draft.versions.length > 0 ? { at: "written" } : { at: "writing" };
 
-const standOf = (answer: AdDraftAnswer | null): AdStand => {
+const draftStandOf = (answer: AdDraftAnswer | null): AdStand => {
   if (answer === null) return { at: "failed" };
   if (!answer.can) return { at: "missing", missing: answer.missing };
   return { at: "draft", answer, local: localOf(answer), words: draftWords(answer), version: 0 };
@@ -139,7 +139,9 @@ async function writeWords(io: Asking, held: Held, noPrice = false): Promise<void
   if (turn !== io.turns.current) return;
   if (answer === null || !answer.can) {
     const local = draftNow(io)?.local ?? held.local;
-    io.show(answer === null ? { at: "draft", ...held, local, words: { at: "none", why: "failed" } } : standOf(answer));
+    io.show(
+      answer === null ? { at: "draft", ...held, local, words: { at: "none", why: "failed" } } : draftStandOf(answer),
+    );
     return;
   }
   const local = localAfter(io, answer, setsAt);
@@ -168,7 +170,7 @@ async function judgeDraft(io: Asking, held: Held, act?: "next_picture"): Promise
   if (turn !== io.turns.current) return;
   // No answer leaves the draft as it stands; a writer this ask overtook is asked again, so its words still come.
   if (answer === null) return held.words.at === "writing" ? writeWords(io, held) : undefined;
-  if (!answer.can) return io.show(standOf(answer));
+  if (!answer.can) return io.show(draftStandOf(answer));
   const next: Held = { answer, local: localAfter(io, answer, setsAt), words: held.words, version: held.version };
   // Words asked for before this change, or let go by it (the service is no longer in Services), are asked for again.
   if (held.words.at === "writing" || (held.words.at === "written" && answer.draft.versions.length === 0))
@@ -201,7 +203,7 @@ async function openDraft(io: Asking): Promise<void> {
     io.from.drafted.current = piece;
     io.from.done.current();
   }
-  const first = standOf(answer);
+  const first = draftStandOf(answer);
   if (turn !== io.turns.current) return;
   // Closed meanwhile: nothing is held for it and AI is asked for no words; opened again, it asks afresh.
   if (!io.from.open.current) return io.show({ at: "opening" });
@@ -278,7 +280,7 @@ async function tellAiToChange(io: Asking, words: string): Promise<void> {
     // A writer this ask overtook is asked again, so its words still come.
     return held.words.at === "writing" ? writeWords(io, held) : undefined;
   }
-  if (!answer.can) return io.show(standOf(answer));
+  if (!answer.can) return io.show(draftStandOf(answer));
   const setSince = io.sets.current !== setsAt;
   const change = tellOutcome(answer);
   io.setOutcome(setSince && setOverByOwner(answer, change) ? null : change);

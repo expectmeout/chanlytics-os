@@ -317,7 +317,9 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
 export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { voice, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
   if (voiceReady) {
-    const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    const last = voice.last_inbound_at
+      ? `Last call ${agoWords(Date.parse(voice.last_inbound_at), nowMs)}`
+      : "No calls yet";
     const cap = capabilityStatus("voice", setupInputs, nowMs);
     // A line can be bought in a minute and the facts take longer, so a
     // receptionist can be answering with nothing to answer WITH. It does not
@@ -414,10 +416,10 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
     id: "try",
     icon: "phone",
     title: "Try it",
-    state: voice.lastInboundAt ? "ready" : "waiting_you",
+    state: voice.last_inbound_at ? "ready" : "waiting_you",
     required: false,
-    sentence: voice.lastInboundAt
-      ? `A call reached AI ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.`
+    sentence: voice.last_inbound_at
+      ? `A call reached AI ${agoWords(Date.parse(voice.last_inbound_at), nowMs)}.`
       : fwTry
         ? // A phone cannot call itself: only an office phone system's owner is sure to hold another phone, their cell.
           `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
@@ -425,7 +427,7 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
     details: [],
     // The first run's Go live checks the line with this call (decision 0073; firstRunStepRoute("live")), spelled here:
     // that file reads this one.
-    verb: voice.lastInboundAt ? null : { label: "Check my line", to: "start/live" },
+    verb: voice.last_inbound_at ? null : { label: "Check my line", to: "start/live" },
   };
 }
 

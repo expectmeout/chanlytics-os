@@ -11,7 +11,7 @@ import { AI_WORDS } from "../model/ai";
 import { workspaceClock } from "../shell";
 
 /** The sentence, or null where it is not said. */
-export function sinceSaidOf(ai: TodayAiVM | null | undefined, quiet: TodayQuiet, turned: boolean): string | null {
+function sinceSaidOf(ai: TodayAiVM | null | undefined, quiet: TodayQuiet, turned: boolean): string | null {
   if (!ai?.since || ai.lookedMs === null || turned) return null;
   if (quiet.kind !== "sure" && quiet.kind !== "settling") return null;
   const zone = workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;

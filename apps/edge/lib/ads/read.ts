@@ -169,11 +169,11 @@ async function ask<T>(reading: Reading, question: () => Promise<Asked<T>>): Prom
   if (reading.usage !== null && reading.usage.pct >= ADS_USAGE_HOLD_PCT)
     return { stopped: true, fault: "slowed", usage: reading.usage };
   reading.calls += 1;
-  return heard(reading, await question());
+  return answerHeard(reading, await question());
 }
 
 /** What one answer came to, its usage kept on the reading: the answer read, or why the read stops. */
-function heard<T>(reading: Reading, asked: Asked<T>): T | Stopped {
+function answerHeard<T>(reading: Reading, asked: Asked<T>): T | Stopped {
   reading.usage = asked.usage ?? reading.usage;
   if (!asked.ok) return { stopped: true, fault: asked.fault, usage: asked.usage };
   return asked.value;

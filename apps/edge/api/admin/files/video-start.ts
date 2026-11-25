@@ -14,5 +14,7 @@ import { FILE_VIDEO_START_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/video-start");
   if (!auth.ok) return auth.response;
-  return startVideoUpload(auth, await readBody(request, FILE_VIDEO_START_DOOR));
+  const read = await readBody(request, FILE_VIDEO_START_DOOR);
+  if (!read.ok) return read.response;
+  return startVideoUpload(auth, read.body);
 });

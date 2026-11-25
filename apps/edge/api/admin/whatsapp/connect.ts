@@ -15,5 +15,7 @@ import { WHATSAPP_CONNECT_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/connect");
   if (!auth.ok) return auth.response;
-  return connectWhatsAppNumber(auth, await readBody(request, WHATSAPP_CONNECT_DOOR));
+  const read = await readBody(request, WHATSAPP_CONNECT_DOOR);
+  if (!read.ok) return read.response;
+  return connectWhatsAppNumber(auth, read.body);
 });
