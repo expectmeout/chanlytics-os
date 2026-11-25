@@ -9,6 +9,7 @@ import type { ContentGoal } from "./sets";
 import type { WeekPageDto } from "./week-page";
 import type { cadenceOf } from "./week";
 import { claimsStanding } from "./claims";
+import { capitalize } from "../../shared/words";
 
 /** How a line is changed: its sentence said again, its offers one by one, or the page that keeps it. */
 export type ContentLineEdit = "words" | "offers" | "page";
@@ -55,8 +56,6 @@ const LANGUAGE_NAMES: Record<string, string> = {
 /** "a, b and c". */
 const listed = (parts: readonly string[]): string =>
   parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
-
-const capital = (words: string): string => (words ? words[0]?.toUpperCase() + words.slice(1) : words);
 
 /** "2 reels", "a post", none for 0. */
 function countSaid(count: number, one: string, many: string): string | null {
@@ -108,7 +107,9 @@ export function contentLinesOf(
       label: "What posts are for",
       words:
         own.goals ??
-        (goals.length ? `${capital(listed(goals))}.` : "Be seen by people nearby, and fill the days that have room."),
+        (goals.length
+          ? `${capitalize(listed(goals))}.`
+          : "Be seen by people nearby, and fill the days that have room."),
       edit: "words",
       to: null,
     },

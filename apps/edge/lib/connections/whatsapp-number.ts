@@ -204,7 +204,7 @@ async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, phoneNumberId
  * the sign-up granted, the newest first, and the account lists its numbers. One number is the business that just signed
  * up and is connected as if named; none, or several with none named, is said rather than guessed.
  */
-async function idsOf(
+async function readNumberIds(
   db: Db,
   tenantId: TenantId,
   app: { id: string; secret: string },
@@ -335,7 +335,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   const token = tok.data.access_token;
 
   // The ids: the window's, or the token's own grant (and a number found that way checked as one named is).
-  const ids = await idsOf(db, tenantId, { id: appId, secret: appSecret }, token, given);
+  const ids = await readNumberIds(db, tenantId, { id: appId, secret: appSecret }, token, given);
   if (ids instanceof Response) return ids;
   const { phoneNumberId, wabaId } = ids;
   log = boundLog(tenantId, phoneNumberId, wabaId);

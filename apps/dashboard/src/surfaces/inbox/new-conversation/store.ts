@@ -17,7 +17,7 @@ interface NewConversationAsk {
 }
 
 const NEVER: NewConversationAsk = { open: false, personId: null, wire: null, session: 0 };
-let asked: NewConversationAsk = NEVER;
+let pendingAsk: NewConversationAsk = NEVER;
 const watchers = new Set<() => void>();
 
 const tellAsked = (): void => {
@@ -27,19 +27,19 @@ const onAsked = (fn: () => void): (() => void) => {
   watchers.add(fn);
   return () => watchers.delete(fn);
 };
-const askedNow = (): NewConversationAsk => asked;
+const askedNow = (): NewConversationAsk => pendingAsk;
 const neverAsked = (): NewConversationAsk => NEVER;
 
 /** Open the sheet: on the pick, or on one person, and on the wire a door named. */
 export function openNewConversation(personId: string | null = null, wire: ConsentChannel | null = null): void {
-  asked = { open: true, personId, wire, session: asked.session + 1 };
+  pendingAsk = { open: true, personId, wire, session: pendingAsk.session + 1 };
   tellAsked();
 }
 
 /** Close it. What it held stays drawn while it leaves (the kit's sheet plays its way out). */
 export function closeNewConversation(): void {
-  if (!asked.open) return;
-  asked = { ...asked, open: false };
+  if (!pendingAsk.open) return;
+  pendingAsk = { ...pendingAsk, open: false };
   tellAsked();
 }
 
@@ -49,7 +49,7 @@ export function useNewConversation(): NewConversationAsk {
 }
 
 /** What is asked of the sheet, read once: for the page's key, and for a test. */
-export const newConversationAsked = (): NewConversationAsk => asked;
+export const newConversationAsked = (): NewConversationAsk => pendingAsk;
 
 let warmer: (() => void) | null = null;
 

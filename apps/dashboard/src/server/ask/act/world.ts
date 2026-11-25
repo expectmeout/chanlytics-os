@@ -97,7 +97,7 @@ const newWordsOf = (p: AskProposal): boolean =>
     : false;
 
 /** How many people a card touches, where it says. */
-const countOf = (p: AskProposal): number | null => {
+const proposalCountOf = (p: AskProposal): number | null => {
   const ids = p.payload?.ids ?? p.payload?.contact_ids ?? p.payload?.lead_ids;
   return Array.isArray(ids) ? ids.length : typeof p.payload?.count === "number" ? p.payload.count : null;
 };
@@ -136,7 +136,7 @@ export async function runAlone(
       may: roleAtLeast(member.role, spec.needs),
       takesBack: !!spec.undo,
       newWords: newWordsOf(p),
-      count: countOf(p),
+      count: proposalCountOf(p),
       moved: false,
     });
     if (verdict.answer !== "run" && verdict.answer !== "hold") continue;

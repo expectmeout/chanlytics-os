@@ -186,7 +186,7 @@ interface Asked {
  * the row that offers it, in full and until Connect is pressed again: the toast that says it is one line on a phone, and gone in
  * seconds.
  */
-function rowsOf(
+function connectionRowsOf(
   channels: Parameters<typeof connectionRows>[0]["channels"] | undefined,
   asked: Asked,
   S: SetupSurface | null | undefined,
@@ -510,7 +510,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
 
   const doors = { instagram: logins.ig.door, meta: logins.meta.door };
   const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid, footage: drive.footage };
-  const rows = rowsOf(channels, asked, S, G);
+  const rows = connectionRowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
     if (r.kind === "drive") {

@@ -36,7 +36,7 @@ export interface Zoomed {
 }
 
 /** The photo's bytes to cut from, and whether they are the original (whose size may sit on its side) or Storage's upright copy. */
-async function sourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original: boolean } | null> {
+async function readSourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original: boolean } | null> {
   const mime = file.mime;
   const path = filePathOf(file.tenant_id, file.id, mime);
   const whole = FILE_TYPES[mime] !== "heic" && (file.bytes ?? 0) <= ORIGINAL_MOST_BYTES;
@@ -53,7 +53,7 @@ async function sourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original:
 export async function getZoomInto(file: FileMemberRow, wanted: ZoomBox, of: ZoomSize): Promise<Zoomed | ZoomWont> {
   const box = boxShown(wanted, of);
   if ("wont" in box) return box;
-  const source = await sourceOf(file);
+  const source = await readSourceOf(file);
   if (!source) return { wont: "the photo could not be read just now" };
   const image = sharp(source.bytes).rotate();
   const meta = await image.metadata();

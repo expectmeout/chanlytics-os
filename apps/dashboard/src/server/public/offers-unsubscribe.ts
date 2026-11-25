@@ -59,7 +59,7 @@ interface OfferPageSays {
   stopped: { title: string; lead: (b: string) => string; body: string };
 }
 
-const SAYS: Record<SenderLanguage, OfferPageSays> = {
+const OFFER_PAGE_SAYS: Record<SenderLanguage, OfferPageSays> = {
   en: {
     business: "this business",
     foot: (b) => `${b} sends its email with Chanlytics.`,
@@ -120,7 +120,7 @@ const SAYS: Record<SenderLanguage, OfferPageSays> = {
 
 /** Every sentence the page says to a customer on an offer, in the language of the email it came in. */
 export function offerUnsubscribeWords(unsubscribeView: OfferUnsubscribeView, language: string | null): OfferPageWords {
-  const says = SAYS[senderLanguage(language)];
+  const says = OFFER_PAGE_SAYS[senderLanguage(language)];
   const text = unsubscribeView.business?.trim() || says.business;
   const foot = says.foot(text);
   switch (unsubscribeView.kind) {

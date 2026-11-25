@@ -122,8 +122,6 @@ const lineSaysOf = (line: string, tone: GoesTone, more: Partial<Said> = {}): Sai
   ...more,
 });
 
-const KIND_SAID: Record<PostKind, string> = { picture: "post", story: "story", reel: "reel" };
-
 /** A post being taken down, or one a take-down could not finish. */
 function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
   const down = postComingDownOf(post, known.takeDown, known.nowMs);
@@ -147,7 +145,7 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
     : [];
   const stillUp = down.said === TAKE_DOWN_WORDS.stillUp(place);
   return lineSaysOf(TAKE_DOWN_WORDS.cant(place), "you", {
-    note: stillUp ? down.said : TAKE_DOWN_WORDS.cantHow(place, KIND_SAID[post.kind]),
+    note: stillUp ? down.said : TAKE_DOWN_WORDS.cantHow(place, post.kind),
     acts,
   });
 }

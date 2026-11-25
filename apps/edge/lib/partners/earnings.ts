@@ -24,7 +24,7 @@ import { DbFailure } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
 
-const idOf = (x: string | { id: string } | null | undefined): string | null =>
+const stripeIdOf = (x: string | { id: string } | null | undefined): string | null =>
   typeof x === "string" ? x : (x?.id ?? null);
 
 /** The error a call to a function or a read of a table the database does not have yet comes back with. */
@@ -121,7 +121,7 @@ export async function findInvoiceOfPayment(
     { payment: { type: "payment_intent", payment_intent: paymentIntent }, limit: 1 },
     options,
   );
-  return idOf(list.data[0]?.invoice);
+  return stripeIdOf(list.data[0]?.invoice);
 }
 
 export type ReversalKind = "refund" | "dispute" | "dispute_won";

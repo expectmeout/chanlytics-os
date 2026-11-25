@@ -48,7 +48,7 @@ function itemOf(it: PeopleMenuItem): MenuItem {
 }
 
 /** A run of items one of which is chosen: the one ticked is the value, and a choice acts as the item would. */
-function choiceOf(set: readonly PeopleMenuItem[]): MenuGroup {
+function menuGroupOf(set: readonly PeopleMenuItem[]): MenuGroup {
   const options = set.map((it, at) => ({ value: String(at), label: it.label ?? "" }));
   const chosen = set.findIndex((it) => it.checked);
   return {
@@ -77,7 +77,7 @@ export function menuGroups(items: readonly PeopleMenuItem[]): MenuGroup[] {
     run = [];
   };
   const endSet = () => {
-    if (set.length) put(choiceOf(set));
+    if (set.length) put(menuGroupOf(set));
     set = [];
   };
   for (const it of items) {

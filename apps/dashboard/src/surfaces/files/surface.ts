@@ -66,7 +66,7 @@ const viewKeyOf = (view: FilesView) => `${view.shelf}|${view.kind ?? ""}|${view.
 const viewOf = (dto: FilesPageDto): FilesView => ({ shelf: dto.shelf, kind: dto.kind, about: dto.about });
 
 /** Each view as it was last shown this visit: one seen before shows at a press, and is read again behind it. */
-const seen = new Map<string, FilesSurface>();
+const surfacesSeen = new Map<string, FilesSurface>();
 
 /**
  * What one kind holds of what all of it already shows: the newest of all are each kind's newest, so Photos or Videos from All
@@ -86,13 +86,13 @@ function shownOfKind(held: FilesSurface, view: FilesView): FilesSurface | null {
 export async function showFiles(view: FilesView): Promise<void> {
   const ask = (onScreen = { ...view });
   const now = surfaceValue("files");
-  if (now) seen.set(viewKeyOf(viewOf(now.dto)), now);
-  const early = seen.get(viewKeyOf(view)) ?? (now ? shownOfKind(now, view) : null);
+  if (now) surfacesSeen.set(viewKeyOf(viewOf(now.dto)), now);
+  const early = surfacesSeen.get(viewKeyOf(view)) ?? (now ? shownOfKind(now, view) : null);
   if (early) show(early);
   const dto = await readAsked(ask);
   if (ask !== onScreen) return;
   const landed = { dto, fetchedAt: Date.now() };
-  seen.set(viewKeyOf(viewOf(dto)), landed);
+  surfacesSeen.set(viewKeyOf(viewOf(dto)), landed);
   show(landed);
 }
 
@@ -103,7 +103,7 @@ export async function showFiles(view: FilesView): Promise<void> {
  */
 export async function readFilesWaiting(): Promise<FilesPageDto> {
   const dto = await read("GET files", { query: { shelf: "inbox" } });
-  seen.set(viewKeyOf(viewOf(dto)), { dto, fetchedAt: Date.now() });
+  surfacesSeen.set(viewKeyOf(viewOf(dto)), { dto, fetchedAt: Date.now() });
   return dto;
 }
 

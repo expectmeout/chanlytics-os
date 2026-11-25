@@ -103,7 +103,7 @@ const VOICE_LINES = {
   moment: { en: "One moment", es: "Un momento" },
 } as const;
 type Line = keyof typeof VOICE_LINES;
-const lineOf = (line: Line, language: AskLanguage): string => VOICE_LINES[line][language === "es" ? "es" : "en"];
+const voiceLineOf = (line: Line, language: AskLanguage): string => VOICE_LINES[line][language === "es" ? "es" : "en"];
 
 const SSE_HEADERS = {
   "content-type": "text/event-stream; charset=utf-8",
@@ -195,11 +195,11 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
   const over = async (reason: string): Promise<Knock> => {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: reason });
     if (!row.ended_at) await endVoiceSession(service, row.id, { endedAt: new Date(now()).toISOString() });
-    return knockAnswered(spoken(lineOf("reconnect", language)));
+    return knockAnswered(spoken(voiceLineOf("reconnect", language)));
   };
   if (row.ended_at) {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "ended" });
-    return knockAnswered(spoken(lineOf("gone", language)));
+    return knockAnswered(spoken(voiceLineOf("gone", language)));
   }
   const secret = env.ASK_VOICE_SECRET;
   if (!secret || Date.parse(row.token_expires_at) <= now()) return over("expired");
@@ -211,7 +211,7 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     // never "start again" for a token that may be good (with-route.ts draws the same line for a typed request).
     if (isRetryableAuthError(verify.error)) {
       log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "auth_unavailable" });
-      return knockAnswered(spoken(lineOf("busy", language)));
+      return knockAnswered(spoken(voiceLineOf("busy", language)));
     }
     return over("token");
   }
@@ -235,7 +235,7 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
     // The database could not be asked: the row is kept and the person hears to try again, never a status, which the
     // vendor would retry three times and then close the conversation on.
     log.error("ask_voice_door_failed", { tenant_id: row.tenant_id, error: e, why: "member_db" });
-    return knockAnswered(spoken(lineOf("failed", language)));
+    return knockAnswered(spoken(voiceLineOf("failed", language)));
   }
 }
 
@@ -280,7 +280,7 @@ async function runOwn(admitted: Admitted, text: string, speak: (s: string) => vo
     else if (ev.t === "final" && ev.message) {
       const answer = ev.message.answer;
       if (answer) grow(spoken, answer.say.headline, answer.say.detail, speak);
-      if (!spoken.headline) speak(ev.message.text || lineOf("failed", admitted.language));
+      if (!spoken.headline) speak(ev.message.text || voiceLineOf("failed", admitted.language));
       // The list is never previewed: it is read once the answer lands, after the Say, entry by entry.
       else if (answer?.show.list.entries.length) speak(` ${listSpoken(answer.show.list)}`);
     }
@@ -349,7 +349,7 @@ async function follow(
     }
     await pollPause(deps.pollMs ?? POLL_MS);
   }
-  speak(lineOf("failed", admitted.language));
+  speak(voiceLineOf("failed", admitted.language));
 }
 
 /** The turn's stream: the claim, the run or the follow, the buffer words whenever the model is quiet, the end. */
@@ -380,7 +380,7 @@ function speakTurn(admitted: Admitted, text: string, position: number, deps: Voi
       const tick = Math.max(5, Math.min(1_000, Math.floor(Math.min(pulseMs, firstWordsMs) / 4)));
       const pulse = setInterval(() => {
         // The model slow to its first words: the door says "One moment… " itself, once, as a read's label is said.
-        if (!chars && now() - startedAt >= firstWordsMs) speak(`${lineOf("moment", admitted.language)}… `);
+        if (!chars && now() - startedAt >= firstWordsMs) speak(`${voiceLineOf("moment", admitted.language)}… `);
         if (now() - lastSpeakableAt >= pulseMs) {
           send(chunk(BUFFER_WORDS));
           lastSpeakableAt = now();
@@ -405,7 +405,7 @@ function speakTurn(admitted: Admitted, text: string, position: number, deps: Voi
       } catch (e) {
         failed = true;
         log.error("ask_voice_door_failed", { tenant_id: admitted.row.tenant_id, error: e });
-        speak(lineOf("failed", admitted.language));
+        speak(voiceLineOf("failed", admitted.language));
       } finally {
         clearInterval(pulse);
       }
@@ -447,7 +447,7 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   // silence from one that spoke, since "I'm here." left no line.
   if (!text) {
     log.info("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "missed" });
-    return spoken(lineOf("missed", knock.language));
+    return spoken(voiceLineOf("missed", knock.language));
   }
   // Silence: after turn_timeout the vendor asks the model with "..." (seen 3 Oct, Chrome), and a transcript with no
   // word in it is the same. The session's microphone is muted (the hold is the one mic, 4 Oct evening), so this is
@@ -466,14 +466,14 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
   } catch (e) {
     if (e instanceof AppError && e.code === "rate_limited") {
       log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "rate" });
-      return spoken(lineOf("busy", knock.language));
+      return spoken(voiceLineOf("busy", knock.language));
     }
     throw e;
   }
   // More than a turn takes: the typed route's 400 (ASK_MAX_CHARS), spoken; the vendor retries an empty stream.
   if (text.length > ASK_MAX_CHARS) {
     log.warn("ask_voice_door_refused", { tenant_id: knock.row.tenant_id, why: "long" });
-    return spoken(lineOf("long", knock.language));
+    return spoken(voiceLineOf("long", knock.language));
   }
   return speakTurn(knock, text, userTurns(body?.messages), deps, t0);
 }

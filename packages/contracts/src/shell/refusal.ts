@@ -101,7 +101,7 @@ const TITLES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** Ours, for a refusal whose envelope carried no sentence. */
-const REASON_WORDS: ReadonlyMap<string, string> = new Map([
+const REFUSAL_REASON_WORDS: ReadonlyMap<string, string> = new Map([
   ["forbidden", "Your role can't do this."],
   ["not_found", "That isn't here any more."],
   ["validation", "Something in this form wasn't accepted."],
@@ -266,14 +266,14 @@ export function refusalOf(input: RefusalInput): Refusal {
       return refusal(
         code,
         needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed",
-        sentence || (REASON_WORDS.get(code) as string),
+        sentence || (REFUSAL_REASON_WORDS.get(code) as string),
       );
     }
     default:
       return refusal(
         code,
         TITLES.get(code) ?? "Not done",
-        sentence || REASON_WORDS.get(code) || "That didn't go through.",
+        sentence || REFUSAL_REASON_WORDS.get(code) || "That didn't go through.",
       );
   }
 }

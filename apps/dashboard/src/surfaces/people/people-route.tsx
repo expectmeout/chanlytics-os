@@ -53,7 +53,7 @@ import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
  * What the address names of the page's view (contracts parsePeopleRoute): the props the rows gave the page, and the
  * person peeked at over it on a desk (`:p-<id>`), which the page follows as it follows its own address.
  */
-function viewOf(param: string) {
+function peopleViewOf(param: string) {
   if (param === "new-list") return { newList: true };
   const at = parsePeopleRoute(`clients/${param}`);
   if (!at) return {};
@@ -344,7 +344,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
           {listDrawn ? (
             <PeopleReal
               key={mount}
-              {...viewOf(kept.at.people)}
+              {...peopleViewOf(kept.at.people)}
               scopeView={kept.viewOfScope("people")}
               onNavigate={ownGo}
               onOpenProfile={onOpenProfile}

@@ -32,7 +32,7 @@ export function sameListed(first: string, second: string): boolean {
   return x !== "" && x === foldName(String(second ?? "").trim());
 }
 
-const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const tokensOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 /**
  * The listed service somebody means, from what they said ("a haircut", "the
@@ -51,11 +51,11 @@ export function matchService<S extends ServiceLike>(services: readonly S[] | und
   if (exact) return exact.s;
   const contains = named.find((x) => x.n && (x.n.includes(query) || query.includes(x.n)));
   if (contains) return contains.s;
-  const asks = wordsOf(query).filter((w) => w.length >= 4);
+  const asks = tokensOf(query).filter((w) => w.length >= 4);
   let best: S | null = null;
   let bestScore = 0;
   for (const { s, n } of named) {
-    const own = wordsOf(n);
+    const own = tokensOf(n);
     const score = asks.filter((w) => own.includes(w)).length;
     if (score > bestScore) {
       best = s;
@@ -135,13 +135,13 @@ export function offerFor<S extends ServiceLike>(
     return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   if (!needsConsultation(service.name, rules))
     return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
-  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  const own = tokensOf(foldName(service.name)).filter((w) => w.length >= 4);
   let consultationService: S | null = null;
   let best = -1;
   for (const s of services ?? []) {
     const n = foldName(s.name);
     if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
-    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    const score = tokensOf(n).filter((w) => own.includes(w)).length;
     if (score > best) {
       consultationService = s;
       best = score;

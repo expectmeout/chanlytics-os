@@ -27,8 +27,8 @@ export function sheetSubOf(
   if (row.kind === "visit")
     return [row.when, (row.status[1] ?? "").replace(` · ${row.who}`, "")].filter(Boolean).join(" · ");
   if (row.kind === "review") {
-    const at = row.review?.published_at ? Date.parse(row.review.published_at) : NaN;
-    return ["Google", Number.isFinite(at) ? `${formatWaited(Math.max(0, nowMs - at))} ago` : ""]
+    const momentAt = row.review?.published_at ? Date.parse(row.review.published_at) : NaN;
+    return ["Google", Number.isFinite(momentAt) ? `${formatWaited(Math.max(0, nowMs - momentAt))} ago` : ""]
       .filter(Boolean)
       .join(" · ");
   }

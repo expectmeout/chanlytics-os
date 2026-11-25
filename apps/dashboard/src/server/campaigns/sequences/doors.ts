@@ -77,7 +77,7 @@ const NONE_STANDING_IN: StandIns = new Map();
  * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0082) of the
  * person it reaches. `standIns`: messages not filed yet, read as their filing will leave them (judgeSequenceNow).
  */
-async function valuesOf(
+async function readValuesOf(
   ctx: RouteContext,
   tenantId: TenantId,
   step: { template_id: string; params: unknown },
@@ -136,7 +136,7 @@ export async function judgeSequenceNow(
         : {
             after_days: t.after_days,
             template_id: t.template_id,
-            params: await valuesOf(ctx, tenantId, { template_id: t.template_id ?? "", params: t.params }, standIns),
+            params: await readValuesOf(ctx, tenantId, { template_id: t.template_id ?? "", params: t.params }, standIns),
             only_if: t.only_if ?? [],
             ...(t.name ? { name: t.name } : {}),
           },
@@ -268,7 +268,7 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
     ? { hand: input.hand }
     : {
         template_id: input.template_id,
-        params: await valuesOf(ctx, seq.tenant_id, { template_id: input.template_id ?? "", params: input.params }),
+        params: await readValuesOf(ctx, seq.tenant_id, { template_id: input.template_id ?? "", params: input.params }),
         ...(input.channels ? { channels: input.channels } : {}),
       };
   const step = {
@@ -299,7 +299,7 @@ export async function changeSequenceStep(ctx: RouteContext, seq: Sequence, stepI
   const params =
     input.params === undefined
       ? undefined
-      : await valuesOf(ctx, seq.tenant_id, { template_id: step.template_id ?? "", params: input.params });
+      : await readValuesOf(ctx, seq.tenant_id, { template_id: step.template_id ?? "", params: input.params });
   const change = {
     id: step.id,
     ...(input.after_days !== undefined ? { after_days: input.after_days } : {}),
@@ -332,7 +332,7 @@ export async function changeSequenceWords(ctx: RouteContext, seq: Sequence, step
   const step = await stepOfSequence(ctx, seq, stepId);
   // A call or a note sends no message: its words are its own (the step door), never a message's.
   if (step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand);
-  const params = await valuesOf(ctx, seq.tenant_id, { template_id: input.template_id, params: input.params });
+  const params = await readValuesOf(ctx, seq.tenant_id, { template_id: input.template_id, params: input.params });
   return doorAnswer(
     await setSequenceStepWords(ctx.supabase, {
       tenantId: seq.tenant_id,

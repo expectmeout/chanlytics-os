@@ -227,7 +227,7 @@ async function eventsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> 
 }
 
 /** One read of both ledgers from `cut`, merged: a page of rows, and whether more is behind it. */
-async function readFrom(a: Ask, cut: Cut | null): Promise<{ rows: ActivityRowDto[]; more: boolean }> {
+async function readActivityFrom(a: Ask, cut: Cut | null): Promise<{ rows: ActivityRowDto[]; more: boolean }> {
   const [decisions, events] = await Promise.all([decisionsFrom(a, cut), eventsFrom(a, cut)]);
   const merged = [...decisions, ...events].sort(newestFirst);
   const after = cut ? merged.filter((r) => newestFirst(r, cut) > 0) : merged;
@@ -235,7 +235,7 @@ async function readFrom(a: Ask, cut: Cut | null): Promise<{ rows: ActivityRowDto
 }
 
 /** The span of instants a day, or a span of days, covers by the workspace's clock; null for no day asked. */
-function rangeOf(f: ActivityFilter, timezone: string): Ask["range"] {
+function activityRangeOf(f: ActivityFilter, timezone: string): Ask["range"] {
   const from = f.day ?? f.from ?? null;
   const to = f.day ?? f.to ?? null;
   if (!from && !to) return null;
@@ -305,14 +305,14 @@ export async function getActivityLog(
     activityFilter.person ? subjectsOf(ctx, tenantId, heldContactId(activityFilter.person)) : null,
     activityFilter.day || activityFilter.from || activityFilter.to ? zone : null,
   ]);
-  const range = zoneFirst ? rangeOf(activityFilter, zoneFirst) : null;
+  const range = zoneFirst ? activityRangeOf(activityFilter, zoneFirst) : null;
   const ask: Ask = { ctx, tenantId, f: activityFilter, narrowed: narrowedTo(activityFilter), range, subjects };
 
   const page: ActivityRowDto[] = [];
   let cut = first;
   let more = true;
   for (let read = 0; read < ACTIVITY_MAX_READS && more; read += 1) {
-    const [got, timezone] = await Promise.all([readFrom(ask, cut), zone]);
+    const [got, timezone] = await Promise.all([readActivityFrom(ask, cut), zone]);
     page.push(...got.rows);
     more = got.more;
     const end = got.rows[got.rows.length - 1];

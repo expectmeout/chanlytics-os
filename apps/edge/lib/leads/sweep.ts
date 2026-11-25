@@ -65,7 +65,7 @@ async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>
 }
 
 /** A read's rows, or its error thrown: a read that failed is not an answer. */
-function rowsOf<T>(r: { data: T[] | null; error: { message: string } | null }): T[] {
+function rowsOrThrow<T>(r: { data: T[] | null; error: { message: string } | null }): T[] {
   if (r.error) throw new DbFailure(r.error);
   return r.data ?? [];
 }
@@ -86,22 +86,22 @@ async function sweepRows(
     // and only the sweep carries it on (00140's trigger_leads_sweep).
     listOpenRounds(db),
   ]);
-  const rounds = rowsOf(open);
+  const rounds = rowsOrThrow(open);
   const roundIds = rounds.map((r) => r.id);
-  const ofRounds = await inChunks(roundIds, async (part) => rowsOf(await listRunsOfRounds(db, part)));
+  const ofRounds = await inChunks(roundIds, async (part) => rowsOrThrow(await listRunsOfRounds(db, part)));
   const byId = new Map<string, RunRead>();
-  for (const r of [...rowsOf(live), ...rowsOf(leased), ...ofRounds]) byId.set(r.id, r);
+  for (const r of [...rowsOrThrow(live), ...rowsOrThrow(leased), ...ofRounds]) byId.set(r.id, r);
   // These runs' collects, coming, failed for good (a failed row is kept 90 days, 00215) or the sweep's own carry-ons,
   // read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
   // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
   const collectsOf = (states: SchemaSet<"jobs.state">[], part: string[], carriesOnly: boolean) =>
     listCollectJobs(db, part, states, carriesOnly);
   const collects = await inChunks([...byId.keys()], async (part) => [
-    ...rowsOf(await collectsOf(["scheduled", "fired", "failed"], part, false)),
-    ...rowsOf(await collectsOf(["done"], part, true)),
+    ...rowsOrThrow(await collectsOf(["scheduled", "fired", "failed"], part, false)),
+    ...rowsOrThrow(await collectsOf(["done"], part, true)),
   ]);
   const roundJobsRead = await inChunks(roundIds, async (part) =>
-    rowsOf(await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])),
+    rowsOrThrow(await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])),
   );
   return assemble([...byId.values()], rounds, collects, roundJobsRead);
 }
@@ -163,7 +163,7 @@ async function assemble(
  * never told its round (its collect decides what that end should have), or its checks. Marked as the sweep's own
  * (`carry_on`, a collect's `r` sequence), so the next tick counts what it has tried since the round last moved.
  */
-async function carryOn(db: SweepTick["db"], carryAction: CarryAction): Promise<void> {
+async function carryActionOn(db: SweepTick["db"], carryAction: CarryAction): Promise<void> {
   const job =
     carryAction.kind === "carry_start"
       ? {
@@ -371,7 +371,7 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
         case "carry_start":
         case "carry_collect":
         case "carry_check":
-          await carryOn(db, action);
+          await carryActionOn(db, action);
           counts.carried_on += 1;
           break;
         case "end_stuck": {

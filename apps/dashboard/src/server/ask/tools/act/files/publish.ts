@@ -79,7 +79,7 @@ const publishInput = z.object({
 type PublishInput = z.infer<typeof publishInput>;
 
 /** The time asked, as the doors take it, and as the card says it; or why it cannot be. Null `at` is now. */
-function whenOf(said: string | undefined, zone: string): { at: number | null } | { refused: string } {
+function publishWhenOf(said: string | undefined, zone: string): { at: number | null } | { refused: string } {
   if (!said) return { at: null };
   const parts = /^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})$/.exec(said.trim());
   if (!parts) return { refused: `when ${said} is not YYYY-MM-DD HH:MM` };
@@ -254,7 +254,7 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   if (found.refused !== undefined) return refuse(found.refused);
   const { file, places, as } = found;
   // The time first: only a time named can say that a post already set at a place asked is to move to it (00621).
-  const when = whenOf(input.when, toolContext.timezone);
+  const when = publishWhenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
   const posts = await readFilePosts(toolContext.ctx, toolContext.tenantId, file.id);
   const set = movesOf(posts, { places, as, at: when.at }, Date.now());

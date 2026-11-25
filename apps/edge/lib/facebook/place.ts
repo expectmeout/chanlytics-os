@@ -80,7 +80,7 @@ const NOTHING_KEPT: PlaceAnswerKept = { status: null, json: null };
 const keptOf = (answer: FacebookAnswer): PlaceAnswerKept => ({ status: answer.status || null, json: answer.json });
 
 /** Facebook's refusal, in the owner's sentence for what was sent. */
-function refusalOf(answer: FacebookAnswer, kind: PostKind): PlaceRefusal {
+function placeRefusalOf(answer: FacebookAnswer, kind: PostKind): PlaceRefusal {
   const r = pageRefusalOf(answer, kind);
   return {
     words: ON_FACEBOOK.refused[r.refusal],
@@ -115,7 +115,7 @@ async function askPageToken(poster: PagePoster, call: PageHands["call"]): Promis
   if (token) return { is: "hand", hand: { pageToken: token, appSecret: poster.appSecret, pageId: poster.pageId } };
   const kept = { status: answer.status || null, json: null };
   if (answer.outcome !== "ok" && answer.outcome !== "refused") return { is: "unknown", kept };
-  const refused = answer.outcome === "refused" ? refusalOf(answer, "picture") : null;
+  const refused = answer.outcome === "refused" ? placeRefusalOf(answer, "picture") : null;
   if (refused?.busy) return { is: "refused", refusal: refused, kept };
   const words = refused?.code === 190 ? ON_FACEBOOK.refused.token : ON_FACEBOOK.refused.permission;
   const refusal = { words, code: refused?.code ?? null, subcode: refused?.subcode ?? null, busy: false };
@@ -127,7 +127,8 @@ async function askPageToken(poster: PagePoster, call: PageHands["call"]): Promis
 /** A photo kept unpublished for a picture or a story: Meta fetches it now, so a fault in it shows well before its time. */
 async function photoOf(h: PageHands, hand: PageHand, post: PlacementToSend): Promise<Prepared> {
   const made = await h.call(pagePhotoRequest(hand, post.mediaUrl));
-  if (made.outcome === "refused") return { is: "refused", refusal: refusalOf(made, post.kind), kept: keptOf(made) };
+  if (made.outcome === "refused")
+    return { is: "refused", refusal: placeRefusalOf(made, post.kind), kept: keptOf(made) };
   const id = made.outcome === "ok" ? parsePageMade(made.json, "id") : null;
   return id ? { is: "made", ref: id, kept: keptOf(made) } : { is: "unknown", kept: keptOf(made) };
 }
@@ -136,12 +137,12 @@ async function photoOf(h: PageHands, hand: PageHand, post: PlacementToSend): Pro
 async function reelOf(h: PageHands, hand: PageHand, post: PlacementToSend): Promise<Prepared> {
   const started = await h.call(pageReelStartRequest(hand));
   if (started.outcome === "refused")
-    return { is: "refused", refusal: refusalOf(started, "reel"), kept: keptOf(started) };
+    return { is: "refused", refusal: placeRefusalOf(started, "reel"), kept: keptOf(started) };
   const videoId = started.outcome === "ok" ? parsePageMade(started.json, "video_id") : null;
   if (!videoId) return { is: "unknown", kept: keptOf(started) };
   const fetched = await h.call(pageReelFetchRequest(hand, videoId, post.mediaUrl));
   if (fetched.outcome === "refused")
-    return { is: "refused", refusal: refusalOf(fetched, "reel"), kept: keptOf(fetched) };
+    return { is: "refused", refusal: placeRefusalOf(fetched, "reel"), kept: keptOf(fetched) };
   if (fetched.outcome !== "ok" || !parsePageSuccess(fetched.json)) return { is: "unknown", kept: keptOf(fetched) };
   return { is: "made", ref: videoId, kept: keptOf(started) };
 }
@@ -200,7 +201,8 @@ const placedOf = (at: { id: string; permalink: string | null; createdTime: strin
 /** A post made with the kept photo, and its address read back from the Page. */
 async function publishPicture(h: PageHands, hand: PageHand, post: PlacementToSend, ref: string): Promise<SendOutcome> {
   const sent = await h.call(pagePostRequest(hand, { photoId: ref, caption: post.caption }));
-  if (sent.outcome === "refused") return { is: "refused", refusal: refusalOf(sent, post.kind), kept: keptOf(sent) };
+  if (sent.outcome === "refused")
+    return { is: "refused", refusal: placeRefusalOf(sent, post.kind), kept: keptOf(sent) };
   const id = sent.outcome === "ok" ? parsePageMade(sent.json, "id") : null;
   if (!id) return { is: "unknown", kept: keptOf(sent) };
   const read = await h.call(pagePostReadRequest(hand, id));
@@ -212,7 +214,7 @@ async function publishPicture(h: PageHands, hand: PageHand, post: PlacementToSen
 /** The kept photo put up as the Page's story, and the story read back among the Page's own. */
 async function publishStory(h: PageHands, hand: PageHand, ref: string): Promise<SendOutcome> {
   const sent = await h.call(pageStoryRequest(hand, ref));
-  if (sent.outcome === "refused") return { is: "refused", refusal: refusalOf(sent, "story"), kept: keptOf(sent) };
+  if (sent.outcome === "refused") return { is: "refused", refusal: placeRefusalOf(sent, "story"), kept: keptOf(sent) };
   const id = sent.outcome === "ok" ? parsePageMade(sent.json, "post_id") : null;
   if (!id) return { is: "unknown", kept: keptOf(sent) };
   const listed = await h.call(pageStoriesRequest(hand));
@@ -225,7 +227,7 @@ async function publishStory(h: PageHands, hand: PageHand, ref: string): Promise<
 /** The fetched reel published with its words. Meta names no post for it: the reel's own id is kept, and it is seen later. */
 async function publishReel(h: PageHands, hand: PageHand, post: PlacementToSend, ref: string): Promise<SendOutcome> {
   const sent = await h.call(pageReelFinishRequest(hand, { videoId: ref, caption: post.caption }));
-  if (sent.outcome === "refused") return { is: "refused", refusal: refusalOf(sent, "reel"), kept: keptOf(sent) };
+  if (sent.outcome === "refused") return { is: "refused", refusal: placeRefusalOf(sent, "reel"), kept: keptOf(sent) };
   if (sent.outcome !== "ok" || !parsePageSuccess(sent.json)) return { is: "unknown", kept: keptOf(sent) };
   return {
     is: "sent",

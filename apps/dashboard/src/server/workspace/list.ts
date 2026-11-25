@@ -95,7 +95,7 @@ interface TenantRead {
 }
 
 /** The rows as the list answers them: a workspace's logo as the address it is served at, never its storage path. */
-const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
+const workspaceRowsOf = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
   rows?.map(({ logo_path: path, ...t }) => ({
     ...t,
     appointment_word: t.appointment_word ?? null,
@@ -122,7 +122,7 @@ async function tenantsOf(
   let last: { message: string } | null = null;
   for (const next of reads) {
     const r = await next();
-    if (!r.error) return { data: listed(r.data), error: null };
+    if (!r.error) return { data: workspaceRowsOf(r.data), error: null };
     if (!lacksNewer(r.error.message)) return { data: null, error: r.error };
     last = r.error;
   }

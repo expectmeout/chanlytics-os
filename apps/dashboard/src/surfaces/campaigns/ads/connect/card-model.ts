@@ -93,7 +93,7 @@ export function currencyWords(currency: string): string {
   }
 }
 
-const actOf = (need: NeedWords, how: NeedHow | null): NeedAct | null =>
+const needActOf = (need: NeedWords, how: NeedHow | null): NeedAct | null =>
   need.act === null || how === null ? null : { ...how, words: need.act };
 
 /** The first check not met, as the card's one need; null where every check is met or not known yet. */
@@ -104,7 +104,7 @@ function needOfChecks(card: AdAccountCard): NeedVM | null {
     return {
       ...UNSETTLED,
       tone: "warn",
-      act: actOf(UNSETTLED, { kind: "meta", href: META_DOOR.billing(card.external_id) }),
+      act: needActOf(UNSETTLED, { kind: "meta", href: META_DOOR.billing(card.external_id) }),
     };
   const words = needOf(missing.id);
   const how: Record<AdCardCheckId, NeedHow | null> = {
@@ -112,7 +112,7 @@ function needOfChecks(card: AdAccountCard): NeedVM | null {
     payment: { kind: "meta", href: META_DOOR.billing(card.external_id) },
     "page-linked": null,
   };
-  return { ...words, tone: "warn", act: actOf(words, how[missing.id]) };
+  return { ...words, tone: "warn", act: needActOf(words, how[missing.id]) };
 }
 
 /** What came back from Meta's window, as the card's one need. */
@@ -124,7 +124,7 @@ function needOfOutcome(why: string): NeedVM {
       : why === "ad_account_taken" || why === "accounts_unreadable" || why === "state_expired"
         ? { kind: "connect" }
         : null;
-  return { ...words, tone: why === "closed" ? "calm" : "warn", act: actOf(words, how) };
+  return { ...words, tone: why === "closed" ? "calm" : "warn", act: needActOf(words, how) };
 }
 
 const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
@@ -135,7 +135,7 @@ const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
   });
 
 /** Who Meta charges, the Page, and Meta's own limit. */
-function factsOf(card: AdAccountCard): ConnectCardVM["facts"] {
+function cardFactsOf(card: AdAccountCard): ConnectCardVM["facts"] {
   const currency = card.currency ?? "";
   const limit =
     card.spend_limit_minor === null
@@ -205,7 +205,7 @@ function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMomen
     ...BASE,
     state: "connected",
     word: CARD.connected,
-    facts: factsOf(card),
+    facts: cardFactsOf(card),
     ready: met === card.checks.length ? null : CARD.ready(met, card.checks.length),
     need,
     checks: checksOf(card, false),

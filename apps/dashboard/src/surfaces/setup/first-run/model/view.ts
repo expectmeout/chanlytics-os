@@ -83,10 +83,10 @@ export const FIRST_RUN_STEPS: readonly FirstRunStepDef[] = /* @__PURE__ */ FIRST
   ...STEP_DEFS[key],
 }));
 
-const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) => r.id === id) ?? null;
+const setupRowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) => r.id === id) ?? null;
 /** A row the step waits on is ready, or the workspace does not have it. */
 const ready = (vm: SetupVM, id: string): boolean => {
-  const r = rowOf(vm, id);
+  const r = setupRowOf(vm, id);
   return !r || r.state === "ready";
 };
 
@@ -109,7 +109,7 @@ const STEP_DONE: Record<FirstRunStepKey, (vm: SetupVM) => boolean> = {
   // Not by phone (decision 0091): the plan runs and a channel it chose answers, with no line and no call owed.
   live: (vm) => {
     if (vm.noCalls) return ready(vm, "billing") && vm.readiness.answering;
-    const row = rowOf(vm, "try");
+    const row = setupRowOf(vm, "try");
     return (
       ready(vm, "billing") &&
       ready(vm, "line") &&
@@ -582,7 +582,7 @@ function faceOf(options: {
     }
     case "receptionist": {
       // Held while what it answers from is still missing: the facts row's own sentence says what.
-      const facts = rowOf(vm, "facts");
+      const facts = setupRowOf(vm, "facts");
       return {
         heading: words.check.found(business),
         lead: vm.check.listed ? words.check.foundLead : words.check.basicsLead,
@@ -641,14 +641,14 @@ export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstR
     name: def.name,
     number: i + 1,
     state: def.key === current && !complete ? "current" : done[def.key] ? "done" : "ahead",
-    rows: def.rows.map((id) => rowOf(vm, id)).filter((r): r is SetupRowVM => r !== null),
+    rows: def.rows.map((id) => setupRowOf(vm, id)).filter((r): r is SetupRowVM => r !== null),
     to: def.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def.key),
   }));
   const { asked, findAsked } = stepAskedOf(at);
   const shown = shownStep(steps, asked, current);
   // Find, while an owner can link a listing: Google searchable and nothing linked (Setup's `findable`), and not put
   // off, unless Find was asked for by name.
-  const google = rowOf(vm, "google");
+  const google = setupRowOf(vm, "google");
   const find =
     shown.key === "business" && !!firstRunWho?.owner && vm.findable && !!google && (findAsked || !google.later);
   const connect =

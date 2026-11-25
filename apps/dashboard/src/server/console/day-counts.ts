@@ -38,16 +38,16 @@ export async function listPlatformDays(
     // The spine's five (00332): a day rolled before them reads as none, never as zero.
     job_lag_ms: counts(row.job_lag_ms),
     first_answer_ms: counts(row.first_answer_ms),
-    duplicate_sends: whole(row.duplicate_sends),
+    duplicate_sends: wholeCount(row.duplicate_sends),
     dead_letters: counts(row.dead_letters),
-    relay_lag_ms: whole(row.relay_lag_ms),
+    relay_lag_ms: wholeCount(row.relay_lag_ms),
     // Intake lag by provider (00337): a day rolled before it reads as none.
     intake_lag_ms: counts(row.intake_lag_ms),
   }));
 }
 
 /** A stored count as a number, or null for anything that is not one. */
-function whole(v: unknown): number | null {
+function wholeCount(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 

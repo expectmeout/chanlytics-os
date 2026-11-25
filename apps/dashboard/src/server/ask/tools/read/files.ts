@@ -118,7 +118,7 @@ const lineWithStands = (line: string, stands: readonly string[] | undefined): st
   stands?.length ? `${line} · stands: ${stands.join("; ")}` : line;
 
 /** A copy's size, where the edge said it, as the model is told it. */
-const sizeOf = (c: { width: number | null; height: number | null }): ZoomSize | null =>
+const zoomSizeOf = (c: { width: number | null; height: number | null }): ZoomSize | null =>
   c.width && c.height ? [c.width, c.height] : null;
 
 /** What was heard of a video, read by id under the caller's RLS; nothing heard where it could not be read. */
@@ -127,7 +127,7 @@ const soundOf = async (t: ToolContext, f: FileForAsk): Promise<FileSound> =>
 
 /** A video's sheet as the model is shown it: named a video of its length, and what was heard after it. */
 async function sheetPicture(turn: ToolContext, file: FileForAsk, copy: FileCopy): Promise<ToolPicture> {
-  const size = sizeOf(copy);
+  const size = zoomSizeOf(copy);
   return {
     name: file.name,
     id: file.id,
@@ -161,7 +161,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
     shown.map(async (f) => {
       const copy = copies.get(f.id) as FileCopy;
       if (isVideo(f)) return sheetPicture(turn, f, copy);
-      const size = sizeOf(copy);
+      const size = zoomSizeOf(copy);
       return { name: f.name, id: f.id, fileId: copy.fileId, ...(size ? { size } : {}) };
     }),
   );
@@ -175,7 +175,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
   );
   return {
     shown: shown.map((f) => {
-      const size = sizeOf(copies.get(f.id) as FileCopy);
+      const size = zoomSizeOf(copies.get(f.id) as FileCopy);
       const made = madeAs.get(f.id);
       return {
         name: f.name,
@@ -206,7 +206,7 @@ async function pictureZoomed(turn: ToolContext, file: FileForAsk, box: ZoomBox) 
     listFileCopiesOf(member, [file.id], timeLeftOf(turn)).then((m) => m.get(file.id) ?? null),
     findFile(turn.ctx.supabase, file.id),
   ]);
-  const of = copy ? sizeOf(copy) : null;
+  const of = copy ? zoomSizeOf(copy) : null;
   if (!copy || !of || !row) return { error: `${file.name} could not be opened just now; say so` };
   const cut = await getZoomInto(row, box, of);
   if ("wont" in cut) return { error: `${file.name}: ${cut.wont}` };
@@ -260,7 +260,7 @@ async function videoSpanOpened(turn: ToolContext, file: FileForAsk, zoom: VideoZ
     timeLeftOf(turn),
   );
   if ("wont" in drawn) return { error: `${file.name}: ${drawn.wont}; say so` };
-  const size = sizeOf(drawn);
+  const size = zoomSizeOf(drawn);
   const shownFrom = drawn.from ?? from;
   const shownTo = drawn.to ?? to;
   const picture: ToolPicture = {
@@ -288,7 +288,7 @@ async function videoZoomed(turn: ToolContext, file: FileForAsk, zoom: VideoZoomA
     timeLeftOf(turn),
   );
   if ("wont" in drawn) return { error: `${file.name}: ${drawn.wont}; say so` };
-  const size = sizeOf(drawn);
+  const size = zoomSizeOf(drawn);
   const picture: ToolPicture = {
     name: file.name,
     id: file.id,

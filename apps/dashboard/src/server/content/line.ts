@@ -41,7 +41,7 @@ const RANGE = { type: "array", items: { type: "integer", minimum: 0, maximum: 7 
 const HEX_OR_NONE = { type: ["string", "null"] } as const;
 const SAID_OR_NONE = { type: ["string", "null"] } as const;
 
-const DAYS = {
+const DAY_WORDS = {
   type: "array",
   items: { type: "string", enum: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] },
 } as const;
@@ -58,7 +58,7 @@ const LINE_SCHEMAS: Record<ContentLine, Record<string, unknown>> = {
           properties: {
             goal: { type: "string", enum: [...CONTENT_GOALS] },
             service: { type: ["string", "null"] },
-            days: DAYS,
+            days: DAY_WORDS,
           },
           required: ["goal", "service", "days"],
           additionalProperties: false,
@@ -84,7 +84,7 @@ const LINE_SCHEMAS: Record<ContentLine, Record<string, unknown>> = {
   },
   quiet_days: {
     type: "object",
-    properties: { quiet_days: DAYS },
+    properties: { quiet_days: DAY_WORDS },
     required: ["quiet_days"],
     additionalProperties: false,
   },

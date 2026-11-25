@@ -81,7 +81,7 @@ function consentSourceOf(
 }
 
 /** The note, trimmed to what the door takes, or nothing. */
-function noteOf(note: unknown): string | null {
+function consentNoteOf(note: unknown): string | null {
   return typeof note === "string" && note.trim() ? note.trim().slice(0, 200) : null;
 }
 
@@ -99,7 +99,7 @@ async function recordOne(ctx: RouteContext, contact: ContactRow, purpose: AskedP
     purpose,
     consent: input.consent,
     source,
-    note: noteOf(input.note),
+    note: consentNoteOf(input.note),
     messageId,
     batch: null,
     via: ctx.via ?? null,
@@ -165,7 +165,7 @@ export async function recordConsentMany(
   input: { ids: string[] } & ConsentInput,
 ): Promise<ManyOutcome> {
   const source = consentSourceOf(input, purpose, "many");
-  const note = noteOf(input.note);
+  const note = consentNoteOf(input.note);
   const ids = [...new Set(input.ids)];
   const { data, error } = await listPeopleStanding(ctx.supabase, ids.map(heldContactId));
   if (error) throw new DbFailure(error);

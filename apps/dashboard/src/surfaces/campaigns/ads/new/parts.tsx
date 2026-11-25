@@ -10,7 +10,8 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Token } from "../../../kit/picker/picker";
-import { CardNeed, META_TAB } from "../connect/card";
+import { CardNeed } from "../connect/card";
+import { META_TAB } from "../live/words";
 import type { AdLinePress, AdLocal, LineAct, LineVM, NewAdVM } from "./model";
 import { NEW } from "./words";
 

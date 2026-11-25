@@ -15,11 +15,11 @@ import { keepsUntilSeen, takeFromAddress } from "./model/came-back";
  * Whether this deployment can connect an account, and this member may: asked once as Connections opens, and kept in the tab,
  * so the row draws the last answer while it asks again (settings/frame/pane-reads.ts).
  */
-const doorOf = async () => unwrap(await instagramDoorRead.read());
-export type InstagramDoor = Awaited<ReturnType<typeof doorOf>>;
+const readInstagramDoor = async () => unwrap(await instagramDoorRead.read());
+export type InstagramDoor = Awaited<ReturnType<typeof readInstagramDoor>>;
 
 export const igConnect = {
-  config: doorOf,
+  config: readInstagramDoor,
   /** The door as this tab last read it, or null: what the row draws in its first frame. */
   held: (): InstagramDoor | null => instagramDoorRead.held(),
   /** What Instagram's screen sent the browser back with, kept until its row's Ok (model/came-back.ts). */

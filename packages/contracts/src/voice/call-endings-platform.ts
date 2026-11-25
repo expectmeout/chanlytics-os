@@ -35,7 +35,7 @@ interface CallEndingForPlatform {
 export type CallEnding = CallEndingForOwner & CallEndingForPlatform;
 
 /** An ending of the caller's or the business's: said, never paged. */
-const said = (platform: string, owner: "caller" | "business"): CallEndingForPlatform => ({
+const endingFor = (platform: string, owner: "caller" | "business"): CallEndingForPlatform => ({
   platform,
   whose: owner,
   pages: false,
@@ -50,26 +50,26 @@ const providerError = (platform: string, mend: string): CallEndingForPlatform =>
 });
 
 const CALL_ENDINGS_FOR_PLATFORM = {
-  user_hangup: said("hung up", "caller"),
-  agent_hangup: said("the receptionist ended it", "business"),
-  call_transfer: said("passed to a person", "business"),
-  transfer_bridged: said("passed to a person", "business"),
-  transfer_cancelled: said("a transfer did not go through", "business"),
-  voicemail_reached: said("reached voicemail", "caller"),
-  machine_detected: said("reached an answering machine", "caller"),
-  ivr_reached: said("reached an automated menu", "caller"),
-  dial_no_answer: said("nobody answered", "caller"),
-  dial_busy: said("the line was busy", "caller"),
-  dial_failed: said("the call couldn't connect", "caller"),
-  user_declined: said("the customer declined it", "caller"),
-  error_user_not_joined: said("the caller never joined", "caller"),
-  registered_call_timeout: said("the caller never joined in time", "caller"),
-  inactivity: said("went quiet", "caller"),
-  marked_as_spam: said("flagged as spam by the carrier", "caller"),
-  scam_detected: said("ended as a likely scam", "caller"),
-  max_duration_reached: said("ran past the longest a call may last", "business"),
-  manual_stopped: said("ended from the dashboard", "business"),
-  call_take_over: said("a person took it over", "business"),
+  user_hangup: endingFor("hung up", "caller"),
+  agent_hangup: endingFor("the receptionist ended it", "business"),
+  call_transfer: endingFor("passed to a person", "business"),
+  transfer_bridged: endingFor("passed to a person", "business"),
+  transfer_cancelled: endingFor("a transfer did not go through", "business"),
+  voicemail_reached: endingFor("reached voicemail", "caller"),
+  machine_detected: endingFor("reached an answering machine", "caller"),
+  ivr_reached: endingFor("reached an automated menu", "caller"),
+  dial_no_answer: endingFor("nobody answered", "caller"),
+  dial_busy: endingFor("the line was busy", "caller"),
+  dial_failed: endingFor("the call couldn't connect", "caller"),
+  user_declined: endingFor("the customer declined it", "caller"),
+  error_user_not_joined: endingFor("the caller never joined", "caller"),
+  registered_call_timeout: endingFor("the caller never joined in time", "caller"),
+  inactivity: endingFor("went quiet", "caller"),
+  marked_as_spam: endingFor("flagged as spam by the carrier", "caller"),
+  scam_detected: endingFor("ended as a likely scam", "caller"),
+  max_duration_reached: endingFor("ran past the longest a call may last", "business"),
+  manual_stopped: endingFor("ended from the dashboard", "business"),
+  call_take_over: endingFor("a person took it over", "business"),
   concurrency_limit_reached: {
     platform: "too many calls at once",
     whose: "platform",
@@ -150,7 +150,7 @@ export function callEndingOf(reason: string | null | undefined): CallEnding | nu
       needsEar: true,
       ...providerError(words, "The voice provider's log has the call: look it up by its time."),
     };
-  return { owner: words.charAt(0).toUpperCase() + words.slice(1), needsEar: false, ...said(words, "caller") };
+  return { owner: words.charAt(0).toUpperCase() + words.slice(1), needsEar: false, ...endingFor(words, "caller") };
 }
 
 /** What the Health page says of each ending (console/health-parts/models-connections.ts). */

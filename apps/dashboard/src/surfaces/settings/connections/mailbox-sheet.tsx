@@ -23,7 +23,7 @@ import { EmailSetupForm } from "./email-setup";
 const MAILBOXES = connectedMailboxes;
 /** Settings' words for what a mailbox signs with, and the sheet's (contracts). */
 const SIGNS = MAILBOXES.signs.words;
-const CARD = MAILBOXES.card;
+const MAILBOX_CARD = MAILBOXES.card;
 
 type Email = NonNullable<SetupDto["email"]>;
 
@@ -101,10 +101,12 @@ const SendingSwitch = (p: {
     <div className="set-mbx-say">
       <span className="set-mbx-say-words">
         <span className="set-mbx-say-name" id={id}>
-          {CARD.sendsNow}
+          {MAILBOX_CARD.sendsNow}
         </span>
         <span className="set-mbx-lines" data-testid={`mailbox-sending-${m.address}`}>
-          {switchable ? <span>{on ? CARD.sendingOn(m.address) : CARD.sendingOff(m.address)}</span> : null}
+          {switchable ? (
+            <span>{on ? MAILBOX_CARD.sendingOn(m.address) : MAILBOX_CARD.sendingOff(m.address)}</span>
+          ) : null}
           {MAILBOXES.sending(m, Date.now(), pageClock().zone()).map((line) => (
             <span key={line}>{line}</span>
           ))}
@@ -137,13 +139,13 @@ const BackupGroup = (p: {
   return (
     <section className="set-mbx-group" aria-labelledby="mailbox-backup-title" data-testid="mailbox-backup">
       <h3 className="set-mbx-group-title" id="mailbox-backup-title">
-        {CARD.backup}
+        {MAILBOX_CARD.backup}
       </h3>
       <div className="set-mbx-say">
         <span className="set-mbx-lines">
-          <span>{CARD.backupSays(hosted.address, p.m.address)}</span>
+          <span>{MAILBOX_CARD.backupSays(hosted.address, p.m.address)}</span>
         </span>
-        {!open ? <LinkButton onClick={() => setOpen(true)}>{CARD.changeName}</LinkButton> : null}
+        {!open ? <LinkButton onClick={() => setOpen(true)}>{MAILBOX_CARD.changeName}</LinkButton> : null}
       </div>
       {open ? (
         <EmailSetupForm email={p.email} businessName={p.businessName} flash={p.flash} onClose={() => setOpen(false)} />
@@ -166,7 +168,7 @@ const SignatureGroup = (p: {
   return (
     <section className="set-mbx-group" aria-labelledby={`mailbox-signs-label-${m.id}`} data-testid="mailbox-signs">
       <h3 className="set-mbx-group-title" id={`mailbox-signs-label-${m.id}`}>
-        {CARD.signature}
+        {MAILBOX_CARD.signature}
       </h3>
       <Segmented
         labelledBy={`mailbox-signs-label-${m.id}`}
@@ -265,13 +267,13 @@ export const MailboxSheet = (props: SheetProps) => {
       {head}
       <section className="set-mbx-group" aria-labelledby="mailbox-sending-title">
         <h3 className="set-mbx-group-title" id="mailbox-sending-title">
-          {CARD.sending}
+          {MAILBOX_CARD.sending}
         </h3>
         <div className="set-mbx-two">
           <RecordField
             id={`mailbox-name-${m.id}`}
             testid="mailbox-name"
-            label={CARD.senderName}
+            label={MAILBOX_CARD.senderName}
             value={name}
             onChange={setName}
             problem={problems.name}
@@ -280,7 +282,7 @@ export const MailboxSheet = (props: SheetProps) => {
           <RecordField
             id={`mailbox-cap-${m.id}`}
             testid="mailbox-cap"
-            label={CARD.dailyLimit}
+            label={MAILBOX_CARD.dailyLimit}
             value={cap}
             onChange={setCap}
             type="number"
@@ -302,7 +304,7 @@ export const MailboxSheet = (props: SheetProps) => {
       {brought ? (
         <section className="set-mbx-group" aria-labelledby={`mailbox-brought-${m.id}`}>
           <h3 className="set-mbx-group-title" id={`mailbox-brought-${m.id}`}>
-            {CARD.brought}
+            {MAILBOX_CARD.brought}
           </h3>
           {brought}
         </section>
@@ -311,10 +313,10 @@ export const MailboxSheet = (props: SheetProps) => {
       {remove ? (
         <section className="set-mbx-group set-mbx-say" data-testid="mailbox-remove-group">
           <span className="set-mbx-lines">
-            <span>{CARD.removeSays}</span>
+            <span>{MAILBOX_CARD.removeSays}</span>
           </span>
           <LinkButton tone="danger" onClick={() => setAsking(true)} data-testid="mailbox-remove-ask">
-            {CARD.remove(m.address)}
+            {MAILBOX_CARD.remove(m.address)}
           </LinkButton>
         </section>
       ) : null}

@@ -24,15 +24,15 @@ export type ZoomSize = readonly [number, number];
 export type ZoomWont = { wont: string };
 
 const round = (n: number) => Math.round(n);
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const clampTo = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /** One side of a box, its ends in order and inside the picture, and no shorter than the least worth cutting, widened around its middle. */
 function sideShown(from: number, to: number, most: number): [number, number] {
   let [a, b] = from <= to ? [from, to] : [to, from];
-  a = clamp(round(a), 0, most);
-  b = clamp(round(b), 0, most);
+  a = clampTo(round(a), 0, most);
+  b = clampTo(round(b), 0, most);
   if (b - a >= BOX_SIDE_LEAST) return [a, b];
-  const lo = clamp(round((a + b) / 2 - BOX_SIDE_LEAST / 2), 0, most - BOX_SIDE_LEAST);
+  const lo = clampTo(round((a + b) / 2 - BOX_SIDE_LEAST / 2), 0, most - BOX_SIDE_LEAST);
   return [lo, lo + BOX_SIDE_LEAST];
 }
 
@@ -65,9 +65,9 @@ export function boxInSource(
   const [srcW, srcH] = source;
   const sx = srcW / of[0];
   const sy = srcH / of[1];
-  const left = clamp(round(box[0] * sx), 0, srcW - 1);
-  const top = clamp(round(box[1] * sy), 0, srcH - 1);
-  const width = clamp(round((box[2] - box[0]) * sx), 1, srcW - left);
-  const height = clamp(round((box[3] - box[1]) * sy), 1, srcH - top);
+  const left = clampTo(round(box[0] * sx), 0, srcW - 1);
+  const top = clampTo(round(box[1] * sy), 0, srcH - 1);
+  const width = clampTo(round((box[2] - box[0]) * sx), 1, srcW - left);
+  const height = clampTo(round((box[3] - box[1]) * sy), 1, srcH - top);
   return { left, top, width, height };
 }

@@ -248,7 +248,7 @@ function askOf(
 }
 
 /** What the writer answered, as the row keeps it. */
-function keptOf(
+function draftKeptOf(
   kind: ReplyDraftKind,
   written: ReplyWritten | BriefWritten,
 ): { state: "ready" | "failed" | "pitch"; words: Json; used?: readonly string[]; whyFailed?: string } {
@@ -311,7 +311,7 @@ export async function writeReplyDraft(
     deadline: cmd.deadline,
   });
   const written = kind === "brief" ? await ports.write.brief(tenantId, ask) : await ports.write.reply(tenantId, ask);
-  const result = keptOf(kind, written);
+  const result = draftKeptOf(kind, written);
   const row = await ports.keep({ ...base, ...result });
   if (!row) return "older";
   // A call back read as someone selling to the business is no customer's, so nobody is asked to ring them (decision
@@ -387,7 +387,7 @@ export async function rewriteReplyDraft(
     deadline: cmd.deadline,
   });
   const written = kind === "brief" ? await ports.write.brief(tenantId, ask) : await ports.write.reply(tenantId, ask);
-  const kept = keptOf(kind, written);
+  const kept = draftKeptOf(kind, written);
   if ("why" in written) {
     // The kept words stand under a change the writer refused; only a row this call took says it failed.
     if (took) await ports.keep({ ...base, source, ...kept });

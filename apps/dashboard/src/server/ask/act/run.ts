@@ -153,7 +153,7 @@ async function tabHere(ctx: RouteContext, member: Member, kind: string): Promise
   return { settings: row ? { config: row.config ?? null, version: row.version } : null };
 }
 
-const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
+const isProposalRefusal = (c: object): c is ProposalRefusal => "refused" in c;
 const isMany = (c: ProposalCall | readonly ProposalCall[]): c is readonly ProposalCall[] => Array.isArray(c);
 const asCalls = (c: ProposalCall | readonly ProposalCall[]): readonly ProposalCall[] => (isMany(c) ? c : [c]);
 
@@ -169,11 +169,11 @@ async function cardOnTurn(ctx: RouteContext, messageId: string, proposalId: stri
 }
 
 /** The refresh the browser owes each call it did not send itself. */
-const told = (calls: readonly ProposalCall[]): AskActAnswer["calls"] =>
+const callsTold = (calls: readonly ProposalCall[]): AskActAnswer["calls"] =>
   calls.map((c) => ({ route: c.route, events: c.events ?? [] }));
 
 /** Stopped, in one sentence, with one way forward, kept on the turn and in the record. */
-async function failed(
+async function failedAnswer(
   ctx: RouteContext,
   sides: { messageId: string; proposalId: string; actionId: string | null },
   words: {
@@ -249,7 +249,7 @@ async function cardAsItStands(
   if (moved) return { stopped: { message: moved.says, code: "moved", moved: true, redraft: moved.redraft } };
   // A plan's step: what its earlier steps made, in place of their tokens.
   const filled = cardWithSteps(card, card.plan ? planMadeOf(card.plan.id, proposals) : {});
-  if (isRefusal(filled)) return { stopped: { message: filled.refused, code: "waits", moved: false } };
+  if (isProposalRefusal(filled)) return { stopped: { message: filled.refused, code: "waits", moved: false } };
   return { filled };
 }
 
@@ -263,7 +263,7 @@ async function sendThen(
 ): Promise<ProposalThen | undefined> {
   const next = spec.then?.(card, data) ?? null;
   if (!next) return undefined;
-  if (isRefusal(next)) return { ok: false, message: next.refused };
+  if (isProposalRefusal(next)) return { ok: false, message: next.refused };
   const r = await callRoute(req, next, { key: `${key}:then` });
   return r.ok ? { ok: true, data: r.data } : { ok: false, message: r.message };
 }
@@ -333,7 +333,7 @@ export async function runAct(
   if (!spec) throw new AppError("validation", "This card cannot be pressed from here.");
   const sides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null as string | null };
   const stands = await cardAsItStands(ctx, tenantId, card, proposals);
-  if ("stopped" in stands) return failed(ctx, sides, { ...stands.stopped, card });
+  if ("stopped" in stands) return failedAnswer(ctx, sides, { ...stands.stopped, card });
   const filled = cardAsPressed(stands.filled, spec, input.settled ?? null);
   const started = await recordFirst(ctx, {
     tenantId,
@@ -347,18 +347,23 @@ export async function runAct(
     reason: input.why ?? null,
   });
   if (!started)
-    return failed(ctx, sides, { message: PROPOSAL_WORDS.unrecorded, code: "unrecorded", moved: false, card });
+    return failedAnswer(ctx, sides, { message: PROPOSAL_WORDS.unrecorded, code: "unrecorded", moved: false, card });
   sides.actionId = started.id;
   const key = card.plan ? `plan:${card.plan.id}:${card.plan.step}` : card.id;
   const tab = await tabHere(ctx, member, card.kind);
   const made = spec.commit(filled, tab);
-  if (!Array.isArray(made) && isRefusal(made as object))
-    return failed(ctx, sides, { message: (made as ProposalRefusal).refused, code: "refused", moved: false, card });
+  if (!Array.isArray(made) && isProposalRefusal(made as object))
+    return failedAnswer(ctx, sides, {
+      message: (made as ProposalRefusal).refused,
+      code: "refused",
+      moved: false,
+      card,
+    });
   const calls = asCalls(made as ProposalCall | readonly ProposalCall[]);
   const sent = await sendAll(req, calls, key);
   if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
   if (!sent.ok)
-    return failed(ctx, sides, {
+    return failedAnswer(ctx, sides, {
       ...stoppedAt(sent.refused, sent.landed, calls.length),
       moved: sent.refused.status === 404 || sent.refused.status === 409,
       card,
@@ -383,7 +388,7 @@ export async function runAct(
       madeKind: madeId ? card.kind : null,
       madeId,
     }).catch(logAndGoOn("act record", null));
-  return { ok: true, message: "", outcome, calls: told(calls), forward: null };
+  return { ok: true, message: "", outcome, calls: callsTold(calls), forward: null };
 }
 
 /** Undo a card (POST ask/act/undo): what its commit kept, through its spec's own way back, its row marked. */
@@ -400,7 +405,7 @@ export async function undoAct(
   if (!spec?.undo || !record) throw new AppError("validation", "This one has no undo.");
   const tab = await tabHere(ctx, member, card.kind);
   const made = spec.undo.call(record, tab);
-  if (!Array.isArray(made) && isRefusal(made as object))
+  if (!Array.isArray(made) && isProposalRefusal(made as object))
     return {
       ok: false,
       message: (made as ProposalRefusal).refused,
@@ -428,7 +433,7 @@ export async function undoAct(
   await markAskActionUndone(ctx.supabase, tenantId, input.messageId, input.proposalId).catch(
     logAndGoOn("act record", null),
   );
-  return { ok: true, message: "", outcome, calls: told(calls), forward: null };
+  return { ok: true, message: "", outcome, calls: callsTold(calls), forward: null };
 }
 
 /** The body the undo door reads: which card, and how. */

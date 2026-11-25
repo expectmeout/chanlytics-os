@@ -53,6 +53,12 @@ export const POST_PLACE_SAID = {
 export const POST_KINDS = ["picture", "story", "reel"] as const;
 export type PostKind = (typeof POST_KINDS)[number];
 
+/** A kind as a sentence says it: a picture in the feed is a post. */
+export const POST_KIND_SAID = { picture: "post", story: "story", reel: "reel" } as const satisfies Record<
+  PostKind,
+  string
+>;
+
 /** What a press may send to Instagram. */
 export const INSTAGRAM_POST_KINDS = ["picture", "story", "reel"] as const satisfies readonly PostKind[];
 export type InstagramPostKind = (typeof INSTAGRAM_POST_KINDS)[number];

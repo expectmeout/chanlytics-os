@@ -16,7 +16,7 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 
-const doorLog = logger();
+const deauthorizeLog = logger();
 
 /**
  * Meta's signed request out of the body it posted (a form, `signed_request=…`), trusted only where the Meta app's
@@ -40,6 +40,6 @@ export async function receiveAdsDeauthorize(request: Request): Promise<Response>
       marked += 1;
       logger({ tenant_id: account.tenant_id, account_id: account.id }).info("ads_revoked", { how: "platform" });
     }
-  if (marked === 0) doorLog.info("ads_deauthorize_unmatched", {});
+  if (marked === 0) deauthorizeLog.info("ads_deauthorize_unmatched", {});
   return json(200, { ok: true });
 }

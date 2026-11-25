@@ -171,7 +171,7 @@ const OPENINGS_MS = 4 * SECOND_MS;
 /** What is open on the calendar as a change is asked (his call D9, 9 Nov 2026); nothing where it cannot say in time. */
 async function openingsForChange(rt: TenantRuntime, at: Date, tenantId: TenantId): Promise<string | null> {
   try {
-    const open = await inTime(findOpenings(rt, "chat", at), OPENINGS_MS);
+    const open = await writtenInTime(findOpenings(rt, "chat", at), OPENINGS_MS);
     return open ? `What is open on the business's calendar right now, if they ask you to offer times:\n${open}` : null;
   } catch (e) {
     logger({ tenant_id: tenantId }).warn("reply_draft", { openings: "unavailable", error: errField(e) });
@@ -221,7 +221,7 @@ function moneyRefused(
 }
 
 /** One answer of the brain, inside the job's deadline. */
-function inTime<T>(ran: Promise<T>, ms: number): Promise<T> {
+function writtenInTime<T>(ran: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     ran,
@@ -299,7 +299,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const askBrain = async (steer: string | undefined) => {
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");
-    const timed = await inTime(
+    const timed = await writtenInTime(
       brain({
         history: thread.history,
         userText: theirs,

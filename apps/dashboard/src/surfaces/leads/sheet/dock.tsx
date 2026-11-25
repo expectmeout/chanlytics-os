@@ -146,7 +146,7 @@ function primaryOf(s: LeadSheetSlotVM, p: DockProps) {
  * A glyph before the acts (Not a fit, Later): on a desk a round one named by its words, which its hover says; on a phone
  * its word under it.
  */
-const glyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
+const dockGlyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
   const label = act === "later" ? D.later : D.notFit;
   return (
     <Button
@@ -177,8 +177,8 @@ export const SheetDock = (p: DockProps) => {
   const wide = !d.primary && !d.x;
   return (
     <div className={`lw-dock${d.x ? " x" : ""}`} data-busy={p.busy ? "true" : undefined} data-testid="lead-sheet-dock">
-      {d.x ? glyphOf(p, "not_a_fit") : null}
-      {d.later ? glyphOf(p, "later") : null}
+      {d.x ? dockGlyphOf(p, "not_a_fit") : null}
+      {d.later ? dockGlyphOf(p, "later") : null}
       {d.toSend ? p.toSend : null}
       {d.others.map((s) => otherOf(s, wide, p))}
       {d.primary ? primaryOf(d.primary, p) : null}

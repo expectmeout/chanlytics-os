@@ -32,9 +32,9 @@ import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** The longest words WhatsApp takes in a message's body. */
-const WORDS_MAX = 1024;
+const TEMPLATE_WORDS_MAX = 1024;
 
-export const TemplateWords = z.object({ body: z.string().trim().min(1).max(WORDS_MAX) });
+export const TemplateWords = z.object({ body: z.string().trim().min(1).max(TEMPLATE_WORDS_MAX) });
 
 /** The statuses whose words Meta lets be changed. */
 const CHANGEABLE = new Set(["approved", "rejected", "paused"]);

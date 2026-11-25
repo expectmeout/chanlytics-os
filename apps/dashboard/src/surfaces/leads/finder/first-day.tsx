@@ -251,7 +251,7 @@ const LeadLineDeskSheet = (p: LineSheetProps) => (
  * another read writes them or this page's first read is out, or, for a read that never landed, that they are not
  * available; nothing while there are ideas to show.
  */
-const noteOf = (suggestions: LeadSuggestionsDto | null, shown: number, reading: boolean): string | null =>
+const firstDayNoteOf = (suggestions: LeadSuggestionsDto | null, shown: number, reading: boolean): string | null =>
   !suggestions
     ? reading
       ? FIRST_DAY_SAYS.writing
@@ -380,7 +380,7 @@ export const LeadsFirstDay = ({
   onCancelLine = () => undefined,
 }: FirstDayProps) => {
   const items = (suggestions && suggestions.items) || [];
-  const note = noteOf(suggestions, items.length, ideasReading);
+  const note = firstDayNoteOf(suggestions, items.length, ideasReading);
   const findGate = canFind ? {} : gate("find", "find businesses for you");
   const line: LineSheetProps = {
     draft: lineDraft,
