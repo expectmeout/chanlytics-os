@@ -57,7 +57,7 @@ const healed = (o: SurfaceOverride): boolean => !o.onDemand && (o.fresh === "liv
 const minuteOf = (ms: number): number => Math.floor(ms / MIN_MS);
 
 /** The business's day at `ms`, by the workspace's zone; null before the zone is known, or for one the browser cannot read. */
-function dayAt(ms: number, win: Window): string | null {
+export function dayAt(ms: number, win: Window): string | null {
   const zone = knownZone(win);
   if (!zone) return null;
   try {

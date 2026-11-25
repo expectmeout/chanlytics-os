@@ -42,6 +42,8 @@ import {
 import { bootStarted, getActiveWorkspace, onRouteAsked, routeOnScreen, signInHref } from "./workspace";
 import { pageDrawnIn, pageFirst, pageReadsIn } from "./hearing/page-waits";
 import { watchTheClock } from "./hearing/clock";
+import { keptUnchanged } from "./hearing/kept";
+import { keptAskHere, standOnKeptCopies } from "./hearing/kept-here";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
 import { passesOf, type Passes } from "./hearing/passes";
@@ -557,7 +559,7 @@ interface SurfaceBoot {
   whoIsLooking: Promise<void>;
 }
 
-function bootInPasses(run: SurfaceRun): SurfaceBoot {
+function bootInPasses(run: SurfaceRun, catchUp: CatchUp | undefined): SurfaceBoot {
   const { overrides } = run;
   // Who is looking, known: the workspace surface's boot settled, which says the workspace on screen
   // (__ACTIVE_WORKSPACE), the topic the live feed is joined on.
@@ -622,7 +624,16 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     dropPrefetched(window);
     return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
   });
-  const booted = pageOnScreen.then(() => (run.cancelled ? undefined : bootTogether(strangers, boot)));
+  // What the device holds of the pages not on screen, and the workspace's topic says has not changed since, is not read
+  // again (hearing/kept.ts): asked as the boot begins, so the answer is in by the time the page on screen is drawn.
+  const unchanged = keptUnchanged(
+    strangers,
+    keptAskHere(catchUp, () => viewedWorkspace() ?? ""),
+  );
+  const booted = pageOnScreen.then(async () => {
+    if (!run.cancelled) await standOnKeptCopies(strangers, unchanged, (o, at) => run.readFrom.set(readSlot(o), at));
+    return run.cancelled ? undefined : bootTogether(strangers, boot);
+  });
   void booted.then(stopFollowing, stopFollowing);
   // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this
   // one; what is read ahead for a press (afterBoot("page")) waits for the page on screen, drawn.
@@ -747,7 +758,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   run.passes = passes;
   // While the server does not answer this tab, its reads are held and it looks once in a while (client/trouble.ts).
   const stopMend = watchTheMend({ overrides, passes, onDue: api().onReadsDue, stopped: () => run.cancelled });
-  const boot = bootInPasses(run);
+  const boot = bootInPasses(run, catchUp);
   const feed = watchLiveFeed(run, boot.booted, catchUp);
   joinFeedEarly(run, boot, joinFeed, feed);
   const stopDay = watchTheDayTurn({ overrides, passes, stopped: () => run.cancelled });
