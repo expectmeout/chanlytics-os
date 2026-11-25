@@ -10,7 +10,7 @@
  * finding the table not drawn with it yet, wrote the address from the table and left the two saying different things.
  *
  * Run against the page's hooks that hold the address, the chips, the rows' place, the peek and its address, in the order
- * LeadsReal calls them (page/leads-real.tsx useLeadsView), in a component drawn by hand. leads-honest.test.mjs draws the
+ * LeadsReal calls them (page/leads-real.tsx useLeadsView), in a component drawn by hand. leads/finder/page/ draws the
  * whole page, and its effects run once; this draws the commit as React makes it: the draw, every effect after it, in the
  * StrictMode check every effect again over that same draw, and only then what they set.
  */

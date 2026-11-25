@@ -4,7 +4,7 @@
  * writes its threads itself, past ingest_inbound, so it writes their clocks too. On 27 Oct 2026 it did not: Robin's thread,
  * re-dated in place, still held the clock 00484's backfill gave it the night before, its WhatsApp window read as shut, and
  * thread.spec.ts's reply waited on a Send that never came, four minutes a try, three tries, past the nightly's hour.
- * e2e-workspace.test.mjs holds the rest of the seed (it is at its length).
+ * e2e/workspace/ holds the rest of the seed (it is at its length).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

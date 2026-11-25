@@ -2,7 +2,7 @@
  * A pause is a person taking the thread: the receptionist's held drafts on
  * it are withdrawn with it, all but the holding message the same handoff
  * queued. The door waives the pause for a queued row on exactly this promise
- * (deliver.test.mjs runs the door); here the promise itself is run.
+ * (messages/deliver/ runs the door); here the promise itself is run.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

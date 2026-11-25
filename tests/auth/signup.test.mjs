@@ -228,17 +228,9 @@ test("the wiring: two public paths, the guards on the route, a service role that
   );
   const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts", "apps/dashboard/src/server/workspace/list.ts");
   assert.ok(list.includes("pending: pendingWorkspaceOf(ctx.metadata)"), "nowhere yet comes with what sign-up kept");
-  const sql = readRaw("supabase/migrations/00072_signup.sql");
-  assert.ok(
-    sql.includes(
-      "revoke execute on function public.create_workspace_for(uuid, text, text) from public, anon, authenticated;",
-    ),
-    "service role alone may name an owner",
-  );
-  assert.ok(
-    sql.includes("from public.create_workspace_for(auth.uid(), p_name, p_timezone) w"),
-    "the signed-in wrapper delegates",
-  );
+  // The service role alone may name an owner, and the signed-in wrapper delegates: create_workspace_for, redefined
+  // since 00072 through 00497, run on the stack (auth/workspace-created.db.test.mjs, partners/handover.db.test.mjs).
+  // Pinned as 00072's text until 25 Nov 2026, which no longer said what the database does.
   const record = readRaw("supabase/migrations/00104_a_workspace_is_recorded_where_it_is_made.sql");
   assert.ok(
     record.includes("after insert on public.tenants") &&

@@ -18,7 +18,7 @@
  *   - the clock: a cron job `channel-quality-sweep` at :41 every sixth hour, registered in sweep_status as judged on its
  *     requests within 19 hours, reported by sweep_health(), asking the edge only when a number is connected.
  *
- * Runs the way tenancy.db.test.mjs does: its own workspaces and channels, made with the service key and removed after,
+ * Runs the way database/tenancy/ does: its own workspaces and channels, made with the service key and removed after,
  * against the database `supabase start` builds on this machine, never production. Two blocks go through the CLI
  * (SUPABASE_CLI names the binary when `supabase` is not on PATH; SUPABASE_DB_URL aims it), in a transaction that never
  * commits. A local stack holds no edge address in Vault, so asking the edge posts nothing and is recorded as a note.

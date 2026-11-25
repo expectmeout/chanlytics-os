@@ -48,7 +48,6 @@ const middleware = read("apps/dashboard/proxy.ts");
 const signout = read("apps/dashboard/app/auth/signout/route.ts");
 const login = read("apps/dashboard/app/login/page.tsx");
 const withRoute = read("apps/dashboard/src/server/shared/with-route.ts");
-const nextConfig = read("apps/dashboard/next.config.ts");
 /**
  * TOML comments are `#`, and the JS stripper would misread an apostrophe in
  * prose ("the attacker's page") as opening a string literal and swallow real
@@ -575,20 +574,9 @@ test("no development origin is trusted by the production project", () => {
 
 /* ------------------------------------------------------------- headers ---- */
 
-test("the dashboard cannot be framed", () => {
-  // Its signed-in surface has Approve, Send and Take-over buttons; without this
-  // an attacker's page can embed it invisibly and harvest those clicks.
-  assert.match(nextConfig, /frame-ancestors 'none'/);
-  assert.match(nextConfig, /X-Frame-Options["']?\s*,\s*value:\s*["']DENY/);
-  assert.match(nextConfig, /X-Content-Type-Options/);
-  assert.match(nextConfig, /Referrer-Policy/);
-  assert.match(nextConfig, /Permissions-Policy/);
-});
-
-test("the sign-in page is never stored in a shared cache", () => {
-  assert.match(nextConfig, /source:\s*["']\/login["']/);
-  assert.match(nextConfig, /no-store/);
-});
+// The dashboard cannot be framed, and the sign-in page is never stored: run below on the headers Next serves from the
+// config ("the headers Next serves", and "a workspace's documents and the home are never stored"), pinned as
+// next.config.ts's text until 25 Nov 2026.
 
 /* ------------------------------------------------------------ the gate, run -- */
 
@@ -819,6 +807,25 @@ test("a form framed on a business's own website is the one address that may be f
     assert.equal(headers.get("content-security-policy"), null, path);
     assert.equal(headers.get("x-content-type-options"), "nosniff", `${path}: and keeps every other header`);
     assert.equal(headers.get("referrer-policy"), "strict-origin-when-cross-origin", path);
+  }
+});
+
+test("the headers Next serves: the dashboard cannot be framed, sniffed or followed by its referrer, and asks for the microphone alone", async () => {
+  // Its signed-in surface has Approve, Send and Take-over buttons; without frame-ancestors an attacker's page can embed it
+  // invisibly and harvest those clicks. Hold-to-talk is the one thing the page asks the browser for (Ask's voice).
+  const headersOf = async (path) =>
+    (await unstable_getResponseFromNextConfig({ url: `${APP}${path}`, nextConfig: loadedConfig })).headers;
+  for (const path of ["/", "/w/acme", "/w/acme/inbox", "/login"]) {
+    const headers = await headersOf(path);
+    assert.equal(headers.get("content-security-policy"), "frame-ancestors 'none'", path);
+    assert.equal(headers.get("x-frame-options"), "DENY", path);
+    assert.equal(headers.get("x-content-type-options"), "nosniff", path);
+    assert.equal(headers.get("referrer-policy"), "strict-origin-when-cross-origin", path);
+    const allowed = Object.fromEntries(
+      (headers.get("permissions-policy") ?? "").split(",").map((d) => d.trim().split("=")),
+    );
+    assert.equal(allowed.microphone, "(self)", `${path}: the page may ask for the microphone`);
+    for (const k of ["camera", "geolocation", "payment"]) assert.equal(allowed[k], "()", `${path}: ${k} stays denied`);
   }
 });
 

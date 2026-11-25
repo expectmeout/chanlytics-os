@@ -1,7 +1,7 @@
 /**
  * The day Ask's quick answer reads from "today" and "tomorrow" is the workspace's, and with no zone (or one Intl cannot
  * use) it is the UTC day, never the machine's. The edge runs in UTC, so nothing changes there; a machine twelve hours
- * east said the day after the one UTC says, and `ask-tool-names.test.mjs` failed under Pacific/Auckland on 29 Sep 2026.
+ * east said the day after the one UTC says, and `ask/tool-names/` failed under Pacific/Auckland on 29 Sep 2026.
  *
  * This file runs twelve hours east on purpose, and sets the zone before contracts is imported, since a formatter
  * built at import keeps the zone it was built in.

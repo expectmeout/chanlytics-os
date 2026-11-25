@@ -1,6 +1,6 @@
 /**
  * Every event kind declared is emitted somewhere, and every kind emitted is
- * declared. A repo-wide lint (listed in SOURCE_SCAN_EXEMPT, _measures.mjs).
+ * declared. A rule test (under tests/repo/, RULE_TESTS_DIR in _measures.mjs).
  *
  * Three declared kinds were never written and fourteen written kinds were
  * never declared before this existed; an owner reading the activity log

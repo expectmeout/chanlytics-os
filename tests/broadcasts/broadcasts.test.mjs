@@ -40,7 +40,7 @@ import {
   heldNoticeWords,
   vetoRunNotice,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 import { installStubReact, fresh as freshTree, all, find, byTestId, textOf } from "../_stub-react.mjs";
@@ -77,21 +77,10 @@ const person = (over = {}) => ({
 });
 
 test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
-  const m = readRaw("supabase/migrations/00046_broadcasts.sql");
-  assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
-  assert.ok(m.includes("check (state in ('scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
-  assert.ok(m.includes("check (state in ('queued', 'sent', 'skipped', 'failed'))"));
-  assert.ok(
-    m.includes("grant update (state) on public.broadcasts to authenticated;"),
-    "a session client cancels and changes nothing else",
-  );
-  assert.ok(!/grant delete|for delete/.test(m), "a sent broadcast is a record");
-  assert.ok(
-    m.includes(
-      "and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = broadcast_recipients.tenant_id and c.erased_at is null)",
-    ),
-  );
-  assert.ok(m.includes("'send_broadcast', 'cancel_broadcast'") && m.includes("'channel', 'broadcast'"));
+  // The tables' states, redefined since 00046 (00080, 00334), and their grants and policies are the database's: a
+  // session may move a broadcast's state and nothing else, and nobody deletes (database/privileges.db.test.mjs, "a column
+  // UPDATE grant is a fence"; database/tenancy/, who reads which workspace's rows). Pinned as 00046's text until 25 Nov
+  // 2026, which no longer said what the database does. The ledger knows the verbs:
   assert.ok(
     DECISION_VERBS.includes("send_broadcast") &&
       DECISION_VERBS.includes("cancel_broadcast") &&
@@ -168,7 +157,7 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
 });
 
 test("the refusal names the yes that was actually missing", () => {
-  // Nobody on it said either yes; a yes with no number to send to is core-campaigns.test.mjs's, through the route.
+  // Nobody on it said either yes; a yes with no number to send to is broadcasts/core-campaigns/'s, through the route.
   const nobody = [person({ consent: { state: "unknown", dnc: false, marketing: "unknown" } })];
   assert.match(
     emptyAudienceRefusal("marketing", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
@@ -687,9 +676,9 @@ test("the job reads the stalls it carried, so a run that keeps stalling stops at
 });
 
 test("the routes: a message, values its slots take, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", async () => {
-  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
-  assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
-  // The message, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
+  // The route is an operator's, counted as a broadcast: its declared policy, held in playbooks/routes/ ("the seventeen
+  // declare their policy") and route-policy.json.
+  // The message, the values, the audience, the number, the assembly and the ledger are run: broadcasts/core-campaigns/.
   // The route's read of the message is every row of it, on any channel, whichever version's id is picked, with the category
   // (or the purpose is always marketing) and no other workspace's.
   const { templateValuePorts } = await importSrc("apps/dashboard/src/server/campaigns/ports.ts");
@@ -745,11 +734,8 @@ test("the routes: a message, values its slots take, an audience crossed with who
     l.includes('if (status === "delivered" || status === "read") count.delivered += 1;'),
     "delivered comes from the receipts, never from the send",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'broadcast: { limit: 10, windowMs: MIN_MS, noun: "broadcasts" }',
-    ),
-  );
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.deepEqual(RATE.broadcast, { limit: 10, windowMs: 60_000, noun: "broadcasts" });
 });
 
 /* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
@@ -904,7 +890,7 @@ test("the surface and the page: Broadcasts is real, and fed by the same rules", 
     [],
     "nor one it approved in a shape this product cannot send whole, which the Messages list does not show",
   );
-  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installBroadcasts();"));
+  // The frame installs the broadcasts' verbs at its load: the nightly's campaign specs press them (e2e/campaigns/).
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
 
@@ -940,7 +926,7 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 });
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", async () => {
-  // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
+  // The detail route answers getBroadcast's own answer: run through its reader in ask/readers/.
   const s = [
     "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
     "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
@@ -958,8 +944,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "names come with the rows",
   );
   assert.ok(s.includes("replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),"));
-  // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
-  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
+  // The number's refusals are run: broadcasts/core-campaigns/. Its quality, read from the row's config, is run through the
+  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in ask/readers/.
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   // The number is the channels read's now (S10-9): its health is made where every composer's is, from the active
   // WhatsApp line's quality, its last quality event and its messaging limit (parts/channels.ts cmNumberOf).
@@ -974,17 +960,9 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
   // broadcasts-honest and runs-honest draw them.
-  const vm = readCode("packages/contracts/src/conversations/message-author.ts");
-  assert.ok(
-    vm.includes('{ kind: "broadcast", name: textOrEmpty(message.meta.broadcast_name ?? "broadcast") }') &&
-      vm.includes('{ kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }'),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
-      "`a one-off send (${entry.via.name})`",
-    ) && readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
-    "the thread says which one-off send, or which campaign",
-  );
+  // The thread says which one-off send, or which campaign ("a one-off send (Spring offer)", "the Win-back campaign"):
+  // drawn from a message's meta in conversations/inbox/conversations-doors.test.mjs. Pinned as message-author.ts's and
+  // timeline.tsx's text until 25 Nov 2026.
   // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
   // settings read's): the verbs publish themselves and no function to read the surface again.
   const verbs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
@@ -1071,7 +1049,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
 test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campaign.broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
-  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.audiences with every size named for what it
+  // Both tools are the registry's, and run in ask/turn/: campaigns.audiences with every size named for what it
   // counts, and propose_campaign.broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
   // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
   // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
@@ -1140,7 +1118,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     ACT_TOOLS.find((t) => t.name === "propose_sequence").description.includes("never propose a send to nobody"),
     "a broadcast to nobody is never proposed",
   );
-  // Its card's mark and word: executed in ask-palette.test.mjs ("a send's card carries its mark and its word").
+  // Its card's mark and word: executed in ask/palette/ ("a send's card carries its mark and its word").
   const s = buildAskSuggestions({
     lang: "en",
     surface: "other",

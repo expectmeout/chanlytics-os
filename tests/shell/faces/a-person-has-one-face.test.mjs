@@ -53,7 +53,7 @@ const glyphIn = (tree) => find(tree, (n) => n.type === Icon)?.props.name ?? null
 /** The face inside a drawn tree. */
 const faceIn = (tree) => find(tree, (n) => n.type === Face);
 
-/** A person as people_list returns them (the shape deals/pipeline.test.mjs pins), who wrote 40 days ago. */
+/** A person as people_list returns them (the shape deals/pipeline/ pins), who wrote 40 days ago. */
 const personRow = (id, name, over = {}) => ({
   id,
   display_name: name,

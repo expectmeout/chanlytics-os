@@ -2,7 +2,7 @@
  * The doors every page uses to move and to ask (surfaces/frame-doors.ts), EXECUTED: the frame fills the registry as it renders,
  * a page imports the door, the names the pages that have not moved read go through the same registry, and a door nobody
  * filled says so once and does nothing. The frame's side (it fills them, once, as it renders) is shell/surfaces/
- * shell-status.test.mjs; the route table's address for a door the shell did not give is routeDoor's, below.
+ * shell/surfaces/status/; the route table's address for a door the shell did not give is routeDoor's, below.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";

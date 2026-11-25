@@ -5,8 +5,8 @@
  * states one fact and at most ONE quiet signal. So what is asserted here is as much what the card does NOT draw --
  * a sentence on a row that is whole, a pill, a switch, the same hold said six times -- as what it does.
  *
- * Its own file, as every other card has one (business-tab-open.test.mjs, business-tab-offer.test.mjs); the plan named
- * business-tab-page.test.mjs, which is the page's own file and is already two thousand lines of the gap line, the
+ * Its own file, as every other card has one (receptionist/business-tab/open/, receptionist/business-tab/offer/); the plan named
+ * receptionist/business-tab/page/, which is the page's own file and is already two thousand lines of the gap line, the
  * saver and Who you are. The page, the fixture and the presses are _business-tab-harness.mjs, shared with all of them.
  *
  * Every sentence the card says is contracts' (abilityRows, cannotRows), so a test that meant to hold a wording holds

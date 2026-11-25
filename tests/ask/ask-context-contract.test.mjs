@@ -114,7 +114,7 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
   }
   // A page with no chips of its own yet is offered those it was offered before it had a name: the Pipeline People's,
   // the Calendar and Campaigns other's. The first run has its own since the palette opens there (Ask Rewired, Phase 7;
-  // ask.test.mjs holds them).
+  // ask/line/ holds them).
   for (const [surface, was] of [
     ["pipeline", "people"],
     ["calendar", "other"],

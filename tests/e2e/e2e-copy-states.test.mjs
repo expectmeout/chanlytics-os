@@ -2,7 +2,7 @@
  * What only a copy may hold (tooling/scripts/e2e-harness/copy-states.mjs): a run waiting for an OK and emails handed to
  * their owner, the states the specs read that production's sweeps would act on, so the seed never writes them, and a list
  * of the owner's own whose Needs review and Left out the whole suite's Leads checks act on. Run here
- * over the seed's own workspace in memory, and read by the rules the pages read them by. e2e-workspace.test.mjs holds the
+ * over the seed's own workspace in memory, and read by the rules the pages read them by. e2e/workspace/ holds the
  * seed (it is at its length), and workflow-rules.test.mjs which job runs which.
  */
 import { test } from "node:test";

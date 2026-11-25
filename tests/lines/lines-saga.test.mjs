@@ -525,7 +525,7 @@ test("the saga given no random source takes the secure default: the vault holds 
 test("wiring: the saga's ports, the receptionist shared with voice-provision, the migration, the manifest, the events", async () => {
   // The edge endpoint itself -- the knock, every op, the spend rule, one line
   // per workspace, and that it schedules the saga rather than running it -- is
-  // run in lines-door.test.mjs.
+  // run in lines/door/.
   // The saga and everything it has to tell people moved to lib/provision.ts, because
   // two things provision a line now: a person pressing a button, and the sweep that
   // resumes one the lambda killed. A sweep that assembled its own version of "and

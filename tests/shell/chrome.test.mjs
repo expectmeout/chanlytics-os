@@ -75,7 +75,7 @@ test("typing: a field being typed in keeps its keys", () => {
 });
 
 test("the shell's one line: a newer build outranks stale surfaces, and nothing is nothing", () => {
-  // Every state's words, and the order between them, run in shell-status.test.mjs.
+  // Every state's words, and the order between them, run in shell/surfaces/status/.
   assert.equal(shellStatusLine(null), null);
   // Anthropic has paused the workspace (decision 0097): the same plain state, with no press, since Billing mends nothing.
   const modelPaused = shellStatusLine({ stale: false, degraded: [], modelStanding: "paused" });
@@ -447,7 +447,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
     .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
     .join("\n");
   assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
-  // What it mounts under is a separate question, and it is asked of the shell as drawn (shell-status.test.mjs: one
+  // What it mounts under is a separate question, and it is asked of the shell as drawn (shell/surfaces/status/: one
   // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
   assert.ok(
     shell.includes("const viewKey = routeLoading && !onStrip && !inPlace ? `${mountKey}/reading` : mountKey;") &&
@@ -457,7 +457,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   assert.ok(shell.includes("routeReady(page, param)"), "the readiness check still sees the param");
 
   // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
-  // on the shell as drawn (shell-status.test.mjs), the safe default with them. Broadcasts follows its run and its
+  // on the shell as drawn (shell/surfaces/status/), the safe default with them. Broadcasts follows its run and its
   // list as props: drawn in runs-honest.test.mjs.
   const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(settings.includes('const active = SET_TAB(tab || "workspace");'), "Settings derives its tab every render");

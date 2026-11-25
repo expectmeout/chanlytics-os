@@ -3,7 +3,7 @@
  * builders answer over the same readers -- each row as contracts toBroadcastVM says it (a run waiting on a person said
  * as such), and one run as contracts toRunReportVM draws it, by the business's clock -- over the database in memory, the
  * registry dispatching as a turn does. The readers themselves are GET broadcasts' and GET broadcasts/[id]'s
- * (ask/readers.test.mjs).
+ * (ask/readers/).
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ const T0 = Date.parse("2026-09-20T15:00:00Z");
 const NOW = new Date(T0 + 5 * HOUR);
 const iso = (ms) => new Date(T0 + ms).toISOString();
 
-/** A broadcast row as outbound-routes.test.mjs builds one. */
+/** A broadcast row as playbooks/routes/ builds one. */
 const bcRow = (id, tenant_id, over = {}) => ({
   id,
   tenant_id,
@@ -82,7 +82,7 @@ const said = (conversation_id, direction, ms, body, sender) => ({
   type: "text",
 });
 /**
- * Harbor's broadcasts (ask/readers.test.mjs's run-report shape): a run sent to three -- Ana replied, Lu asked to stop,
+ * Harbor's broadcasts (ask/readers/'s run-report shape): a run sent to three -- Ana replied, Lu asked to stop,
  * Rosa was held back -- a playbook's run waiting for a person to approve it, and a failed one; one of Bayside's.
  */
 const tables = () => ({

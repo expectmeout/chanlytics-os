@@ -3,7 +3,7 @@
  * field says what is wrong) and the record kit's row (RecordRow, RecordChips). They are TSX in surfaces/kit, the one
  * implementation (Confirm is the one the pages that have not moved read by name: kit-globals.ts, published by
  * seed-globals; the others are imported by the TSX that draws them, and by this test through `kitParts`). The record
- * kit's fold, sheet and fields are held by shell/record-kit.test.mjs; this is the small part any page draws.
+ * kit's fold, sheet and fields are held by shell/record-kit/; this is the small part any page draws.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

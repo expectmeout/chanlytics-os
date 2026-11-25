@@ -3,7 +3,7 @@
  * the line.
  *
  * Nothing in lint or the build runs a page; a page that throws at render is found by the first owner who opens it. So
- * the page is drawn here the way reports-page.test.mjs draws Reports: the real component tree over the legacy stub React
+ * the page is drawn here the way reports/page/ draws Reports: the real component tree over the legacy stub React
  * (_stub-react.mjs), its view model handed over the seam (setSurfaceValue), and the call verbs run for real over a
  * fetch this test holds, so what a click reaches is the request the route would take. What is proved is what a click
  * reaches, and what the transcript says about who spoke.

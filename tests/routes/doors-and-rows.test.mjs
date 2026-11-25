@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw } from "../_source.mjs";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { isRetryableAuthError } = await import(
@@ -119,13 +119,17 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
   );
 });
 
-test("the doors agree with the code above them", () => {
+test("the doors agree with the code above them", async () => {
   const sql = readRaw("supabase/migrations/00033_doors_and_rows.sql");
   // Operators may tune the WORKSPACE rows — the route, the permissions and the
   // legend all said so; the RLS was the laggard.
   assert.ok(sql.includes("create policy policies_acting_member_update on public.policies"));
   assert.ok(sql.includes("subject_type is null"), "person-scoped rows stay owner-only");
-  assert.match(readCode("apps/dashboard/app/api/v1/policies/route.ts"), /role: "operator",/);
+  const policies = await importSrc("apps/dashboard/app/api/v1/policies/route.ts");
+  assert.ok(
+    Object.values(policies).some((handler) => handler?.policy?.role === "operator"),
+    "the route lets an operator tune them too",
+  );
   // Idempotency keys: acting members only.
   assert.ok(sql.includes("drop policy if exists idempotency_member_all"));
   assert.ok(sql.includes("create policy idempotency_acting_member_all"));

@@ -4,7 +4,7 @@
  * demo's sample, and what the page does with no read at all.
  *
  * The real store, the real cache and the real hook, over a window with sessionStorage and the page tests' stub React. The
- * page's own behaviour is executed in calendar-honest.test.mjs; the equality with the JSX it replaced was proved by a
+ * page's own behaviour is executed in calendar/calendar-page/; the equality with the JSX it replaced was proved by a
  * recorder before the JSX went (the pull request says what it ran).
  */
 import { test } from "node:test";

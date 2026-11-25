@@ -1,7 +1,7 @@
 /**
  * The world Today's zones are drawn in for these tests (Today in three zones, 2 Nov 2026): the stub React with the shell's
  * doors on the window, a fetch every test may hold, a workspace, and a day made by the real contracts. As
- * today/today-page.test.mjs sets it up, in one place for the zones' own tests.
+ * today/page/ sets it up, in one place for the zones' own tests.
  */
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
