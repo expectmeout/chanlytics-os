@@ -311,11 +311,17 @@ test.describe("what a page costs the database", () => {
     const cold = await freshPage(browser);
     let refused = 0;
     const refusedAt = new Map<string, number>();
-    /** What was asked while failing, by path, most first: which requests a change to the tab's rule lets leave. */
+    /** Each refused read in the order it left, with the seconds since the first: when a tab's rule let it leave. */
+    const refusedWhen: string[] = [];
+    let firstRefused = 0;
+    /** What was asked while failing, by path, most first, then in order with its second: what the tab's rule let leave. */
     const sayRefused = (name: string) => {
       const most = [...refusedAt].sort((a, b) => b[1] - a[1]);
       console.log(`database-calls   failing ${name}: ${most.map(([path, n]) => `${path} ${n}`).join(", ")}`);
+      console.log(`database-calls   failing ${name} in order: ${refusedWhen.join(", ")}`);
       refusedAt.clear();
+      refusedWhen.length = 0;
+      firstRefused = 0;
     };
     // A database that cannot be reached answers nothing that needs it, a write no more than a read: both are refused,
     // and the reads are what is counted. (With writes let through, each one answered told the tab the server answers.)
@@ -325,6 +331,8 @@ test.describe("what a page costs the database", () => {
           refused += 1;
           const path = new URL(route.request().url()).pathname.slice(API.length);
           refusedAt.set(path, (refusedAt.get(path) ?? 0) + 1);
+          firstRefused ||= Date.now();
+          refusedWhen.push(`${path}@${((Date.now() - firstRefused) / 1000).toFixed(1)}`);
         }
         return route.fulfill({
           status: 503,
@@ -344,6 +352,8 @@ test.describe("what a page costs the database", () => {
     const warm = await coldLoad(browser, `/w/${where.slug}/today`);
     refused = 0;
     refusedAt.clear();
+    refusedWhen.length = 0;
+    firstRefused = 0;
     await failing(warm.context);
     const hide = (hidden: boolean) =>
       warm.page.evaluate((isHidden) => {
