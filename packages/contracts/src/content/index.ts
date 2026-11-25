@@ -256,15 +256,8 @@ export type {
   SlotWords,
   WeekPlanDto,
 } from "./plan/week";
-export {
-  slotTimePassed,
-  WEEK_MADE_AHEAD_MS,
-  weekApprovedByAI,
-  weekEndingOf,
-  weekEndingSaid,
-  weekLeftOut,
-} from "./plan/week-endings";
-export type { WeekEnding, WeekEndingSaid } from "./plan/week-endings";
+export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekEndingOf, weekEndingSaid } from "./plan/week-endings";
+export type { WeekEnding } from "./plan/week-endings";
 export { WEEK_MADE_DOOR } from "./plan/week-made-door";
 export type { WeekMadeBody } from "./plan/week-made-door";
 export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";

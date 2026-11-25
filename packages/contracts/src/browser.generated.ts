@@ -303,7 +303,7 @@ export { REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLine
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";
 export { cadenceSaid, contentLinesOf } from "./content/plan/settings-lines";
 export { cadenceOf, creativesOf, FOOTAGE_ASKS_MOST, planWeekOf, SLOT_CAPTION_MAX, slotWordsOf, weekdayShortOf, weekSizeSaid } from "./content/plan/week";
-export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekApprovedByAI, weekEndingOf, weekEndingSaid, weekLeftOut } from "./content/plan/week-endings";
+export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekEndingOf, weekEndingSaid } from "./content/plan/week-endings";
 export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./content/plan/week-view";
 export { WEEK_WORDS, weekDaysSaid } from "./content/plan/words";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, linkPlaceSaid, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";

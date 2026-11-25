@@ -34,7 +34,7 @@ export type WeekEnding =
   | { is: "paused" | "asks" | "stopped" | "changed" | "unapproved" };
 
 /** What an ending says: the Week's head, Today's point (its name and the line under it), and the bell's one notice. */
-export interface WeekEndingSaid {
+interface WeekEndingSaid {
   head: string | null;
   today: { name: string; said: string } | null;
   bell: { subject: string; body: string } | null;
@@ -51,12 +51,12 @@ function goingSaid(going: number, reels: number): string {
   return going > 0 ? `${posts}, and ${made}` : `${made.charAt(0).toUpperCase()}${made.slice(1)}`;
 }
 
-const E = W.ending;
+const ENDING = W.ending;
 
 /** A week AI did not approve that waits on its owner: the one line, on the Week's head and under Today's point. */
 const waiting = (head: string, today: string, bell: WeekEndingSaid["bell"]): WeekEndingSaid => ({
   head: `${head} ${W.untilApproved}`,
-  today: { name: E.todayWaits, said: today },
+  today: { name: ENDING.todayWaits, said: today },
   bell,
 });
 
@@ -72,38 +72,41 @@ export function weekEndingSaid(ending: WeekEnding, when: string): WeekEndingSaid
       const set = `${goingSaid(ending.going, ending.reels)}, as you set it.`;
       return {
         head: `${W.approvedBy.ai(when)} ${left ?? W.eachGoes}`,
-        today: { name: E.todayApproved, said: left ?? W.eachGoes },
-        bell: { subject: E.todayApproved, body: left ? `${set} ${left}` : set },
+        today: { name: ENDING.todayApproved, said: left ?? W.eachGoes },
+        bell: { subject: ENDING.todayApproved, body: left ? `${set} ${left}` : set },
       };
     }
     case "paused":
       // The Week's own head says AI is paused, with Resume: Today's point and the bell say what that meant for the week.
       return {
         head: null,
-        today: { name: E.todayWaits, said: E.paused },
-        bell: { subject: E.notApproved, body: `AI is paused, so nothing went up${at}. ${E.waitsThem}` },
+        today: { name: ENDING.todayWaits, said: ENDING.paused },
+        bell: { subject: ENDING.notApproved, body: `AI is paused, so nothing went up${at}. ${ENDING.waitsThem}` },
       };
     case "asks":
       return {
         head: null,
         today: null,
-        bell: { subject: E.todayWaits, body: `You set AI to ask you first, so nothing went up${at}. ${E.waitsThem}` },
+        bell: {
+          subject: ENDING.todayWaits,
+          body: `You set AI to ask you first, so nothing went up${at}. ${ENDING.waitsThem}`,
+        },
       };
     case "nothing":
       return {
-        head: E.noneReady,
-        today: { name: E.todayWaits, said: E.noneReady },
-        bell: { subject: E.notApproved, body: `No post was ready to go up${at}. Each says why on the Week.` },
+        head: ENDING.noneReady,
+        today: { name: ENDING.todayWaits, said: ENDING.noneReady },
+        bell: { subject: ENDING.notApproved, body: `No post was ready to go up${at}. Each says why on the Week.` },
       };
     case "stopped":
-      return { head: `${E.youStopped} ${W.untilApproved}`, today: null, bell: null };
+      return { head: `${ENDING.youStopped} ${W.untilApproved}`, today: null, bell: null };
     case "changed":
-      return waiting(E.aiDidnt, E.aiDidntThem, {
-        subject: E.notApproved,
-        body: `The week changed while AI was approving it${at}, so nothing went up. ${E.look}`,
+      return waiting(ENDING.aiDidnt, ENDING.aiDidntThem, {
+        subject: ENDING.notApproved,
+        body: `The week changed while AI was approving it${at}, so nothing went up. ${ENDING.look}`,
       });
     case "unapproved":
-      return waiting(E.aiDidnt, E.aiDidntThem, null);
+      return waiting(ENDING.aiDidnt, ENDING.aiDidntThem, null);
   }
 }
 
