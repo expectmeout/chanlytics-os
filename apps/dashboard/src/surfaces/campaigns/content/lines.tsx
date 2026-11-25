@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import {
   CONTENT_WORDS as W,
+  STANDING_WORDS,
   contentMakingSaid,
   contentMarkSaid,
   contentMarkToneOf,
@@ -264,7 +265,7 @@ export function NeedsRows({
         <Line
           key={line.post.id}
           line={line}
-          sub={W.views.didntPost(postStoppedWhyOf(line.post) ?? W.piece.place[line.post.place])}
+          sub={STANDING_WORDS.stopped.line(postStoppedWhyOf(line.post) ?? W.piece.place[line.post.place])}
           subNeeds
           end={null}
           open={line.file.id === openId}
@@ -371,7 +372,7 @@ export function ContentLines({
           <Line
             key={line.post.id}
             line={line}
-            sub={postLineEnded(line, now) ? W.views.upEnded(upLineOf(line)) : upLineOf(line)}
+            sub={postLineEnded(line, now) ? STANDING_WORDS.ended.posted(upLineOf(line)) : upLineOf(line)}
             end={null}
             door={
               line.post.permalink && !postLineEnded(line, now) ? (

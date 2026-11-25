@@ -100,7 +100,6 @@ export const TAKE_DOWN_WORDS = {
   pill: { asking: "Taking it down", byHand: (place: string) => `${place} needs you`, done: "Taken down" },
   /** A placement's line while its take-down runs, and after. */
   asking: (place: PostPlace) => `Taking it down from ${POST_PLACE_SAID[place]}`,
-  cameDown: (when: string | null) => (when ? `Taken down · ${when}` : "Taken down"),
   cant: (place: PostPlace) => `Chanlytics can't take this down from ${POST_PLACE_SAID[place]}`,
   cantHow: (place: PostPlace, kind: string) =>
     `Open the ${kind} in ${POST_PLACE_SAID[place]}, then Delete. Chanlytics checks it's gone.`,
@@ -126,13 +125,12 @@ export const TAKE_DOWN_WORDS = {
 } as const;
 
 /**
- * What the bell says of a take-down (00682; the canvas's Today 6): a piece gone from every place it was asked down from,
- * and one a place would not take down for Chanlytics, which its owner deletes there. A piece that cannot be named is
- * "A post", never a blank title. The second is closed by the first (waits/notice-mends.ts holds both titles).
+ * What the bell says of a take-down a place would not make for Chanlytics, which its owner deletes there (00682; the
+ * canvas's Today 6). A piece that cannot be named is "A post", never a blank title. It is closed by the notice that
+ * the piece came down, whose words are the one table's (standing-words.ts `came_down.bell`; waits/notice-mends.ts
+ * holds both titles).
  */
 export const TAKE_DOWN_BELL = {
-  down: (piece: string) => `Taken down · ${piece || "A post"}`,
-  downFrom: (places: readonly PostPlace[]) => `From ${places.map((place) => POST_PLACE_SAID[place]).join(" and ")}`,
   byHand: (place: PostPlace, piece: string) => `Delete it in ${POST_PLACE_SAID[place]} · ${piece || "A post"}`,
   byHandWhy: "Chanlytics couldn't take it down there",
 } as const;

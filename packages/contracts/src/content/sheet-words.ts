@@ -53,8 +53,6 @@ export const CONTENT_SHEET_WORDS = {
   /** Where a piece stands at each place, in the one list both Post and the status row open (post-both.tsx). */
   places: {
     title: "Where it's posted",
-    /** A post set for its time: "Goes up Sat, 9:00 AM". */
-    timed: (when: string) => `Goes up ${when}`,
     /** Why a place takes no post, short, beside the way to put it right (Settings › Connections). */
     notConnected: "Not connected",
     lineOff: "Posting is off",

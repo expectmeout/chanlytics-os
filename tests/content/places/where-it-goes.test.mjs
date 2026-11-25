@@ -69,7 +69,7 @@ test("up is said only once the account was seen holding it, and a story says whe
   const google = one(post({ place: "google", kind: "picture", verified_at: null }));
   assert.equal(google.said, "On Google · @17:00");
   const story = one(post({ kind: "story", published_at: ago(26 * HOUR) }));
-  assert.equal(story.said, "Was on Instagram for a day · @16:00");
+  assert.equal(story.said, "Story ended · @16:00");
   assert.equal(story.tone, "gone");
   assert.deepEqual(story.acts, []);
 });
@@ -291,7 +291,7 @@ test("Take down is offered only where something of the piece is up: never for a 
   const ended = post({ kind: "story", published_at: ago(25 * HOUR), verified_at: ago(25 * HOUR) });
   const live = post({ kind: "story", published_at: ago(2 * HOUR), verified_at: ago(2 * HOUR) });
   // The story's line already says it ended by itself, and a take-down asks nothing of it (00682): nothing to press.
-  assert.equal(one(ended).said, "Was on Instagram for a day · @17:00");
+  assert.equal(one(ended).said, "Story ended · @17:00");
   assert.equal(takeDownOffered([ended], NOW), false, "a story past its day is gone already");
   assert.equal(takeDownOffered([live], NOW), true, "a story still in its day is up");
   assert.equal(takeDownOffered([ended, post({ kind: "picture" })], NOW), true, "the post beside it is up");

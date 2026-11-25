@@ -47,7 +47,7 @@ test("ready is for a piece that never went out: one let go leaves it ready, one 
   assert.deepEqual(contentMarkOf([post("instagram", "pulled")], NOW), { is: "ready" });
   // The review of 24 Nov 2026: a post taken down read "Ready to post" on its tile and "Taken down" in the open piece.
   const down = contentMarkOf([post("google", "taken_down")], NOW);
-  assert.deepEqual(down, { is: "down", place: "google", at: null });
+  assert.deepEqual(down, { is: "down", place: "google", at: null, there: false });
   assert.equal(
     contentMarkSaid(down, () => "Tuesday"),
     "Taken down",

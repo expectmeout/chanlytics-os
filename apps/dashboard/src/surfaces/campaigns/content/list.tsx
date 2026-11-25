@@ -12,7 +12,7 @@
 import { useMemo } from "react";
 import {
   CONTENT_WORDS as W,
-  TAKE_DOWN_WORDS,
+  STANDING_WORDS,
   contentMakingSaid,
   contentPieceMarkOf,
   contentMarkToneOf,
@@ -73,16 +73,18 @@ function MakingStands({ making }: { making: ContentMakingDto }) {
  * "Ready to post"): the columns beside it say where and when, so the tile's "On Instagram · Monday" would say it twice.
  */
 function standsWordOf(mark: ContentMark): string {
-  if (mark.is === "posted") return W.piece.stands.up(null);
-  if (mark.is === "going") return W.piece.stands.going;
+  // The one table's words (contracts standing-words.ts), without the day or the place: the columns beside say those.
+  const says = STANDING_WORDS;
+  if (mark.is === "posted") return says.up.row(null);
+  if (mark.is === "going") return says.going_up.row;
   if (mark.is === "timed") return W.views.name.scheduled;
-  if (mark.is === "stuck") return W.piece.stands.stuck;
-  if (mark.is === "unsure") return W.piece.stands.unsure;
-  if (mark.is === "ended") return W.mark.ended(null);
-  if (mark.is === "down") return TAKE_DOWN_WORDS.cameDown(null);
+  if (mark.is === "stuck") return says.stopped.row;
+  if (mark.is === "unsure") return says.unconfirmed.row;
+  if (mark.is === "ended") return says.ended.tile(null);
+  if (mark.is === "down") return mark.there ? says.removed.row(null) : says.came_down.tile(null);
   if (mark.is === "by_hand") return W.piece.byHand.stands;
-  if (mark.is === "save") return W.mark.save;
-  return W.mark.ready;
+  if (mark.is === "save") return says.saved.tile;
+  return says.never.tile;
 }
 
 /** What a cell draws from besides its row: the time now, the business's clock, and whether Instagram takes a reel. */
@@ -95,13 +97,16 @@ interface ListCtx {
 
 /** A place's cell in words: when it went up, when it goes, or, where it is no longer there, when that was. */
 function placeTopOf(stands: PieceStandsAt, x: ListCtx): string {
-  const words = W.piece.stands;
-  const stamp = (at: string | null) => (at ? x.stamp(Date.parse(at)) : null);
-  if (stands.is === "up") return words.up(stamp(stands.at));
+  const says = STANDING_WORDS;
+  const stamp = "at" in stands && stands.at ? x.stamp(Date.parse(stands.at)) : null;
+  if (stands.is === "up") return says.up.row(stamp);
   if (stands.is === "timed") return x.when(Date.parse(stands.at));
-  if (stands.is === "ended") return words.ended(stamp(stands.at));
-  if (stands.is === "down") return words.down(stamp(stands.at));
-  return words[stands.is];
+  if (stands.is === "ended") return says.ended.row(stamp);
+  if (stands.is === "down") return stands.there ? says.removed.row(stamp) : says.came_down.row(stamp);
+  if (stands.is === "going") return says.going_up.row;
+  if (stands.is === "stuck") return says.stopped.row;
+  if (stands.is === "unsure") return says.unconfirmed.row;
+  return says.never.row;
 }
 
 /**

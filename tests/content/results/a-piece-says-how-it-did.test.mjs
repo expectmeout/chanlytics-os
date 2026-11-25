@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
+/** An hour after the reads below: no post here says when it went up unless its test does, so none has ended. */
+const NOW = Date.parse("2026-12-03T14:00:00Z");
 const n = (metric, value, availability = "available") => ({ metric, value, availability });
 const reel = {
   post_id: "p-reel",
@@ -21,7 +23,7 @@ const reel = {
 const empty = { conversations: 0, direct: 0, assisted: 0, people: [], link: null, window_days: 14 };
 
 test("one line of the place's numbers, comments as Instagram counts them, and when it is read next", () => {
-  const said = pieceResultsSaid({ posts: [reel], ...empty }, TZ);
+  const said = pieceResultsSaid({ posts: [reel], ...empty }, TZ, NOW);
   assert.deepEqual(said.howItDid.lines, [
     "2,140 reached · 3,420 plays · 31 saves",
     "188 likes · 14 comments · 9 shares",
@@ -39,8 +41,8 @@ test("a story's numbers are read once more before it ends, and that read is its 
     read_at: "2026-12-03T13:00:00Z",
     numbers: [n("reach", 12), n("views", 20), n("shares", 1)],
   };
-  assert.match(pieceResultsSaid({ posts: [story], ...empty }, TZ).howItDid.fine, /Next before the story ends\./);
-  const last = pieceResultsSaid({ posts: [{ ...story, step: "1d" }], ...empty }, TZ);
+  assert.match(pieceResultsSaid({ posts: [story], ...empty }, TZ, NOW).howItDid.fine, /Next before the story ends\./);
+  const last = pieceResultsSaid({ posts: [{ ...story, step: "1d" }], ...empty }, TZ, NOW);
   assert.match(last.howItDid.fine, /Read for the last time\./);
 });
 
@@ -61,7 +63,7 @@ test("a story too few saw says why, a place with no numbers says not available, 
     read_at: "2026-12-03T13:00:00Z",
     numbers: [n("reach", null, "unsupported")],
   };
-  const said = pieceResultsSaid({ posts: [reel, story, google], ...empty }, TZ);
+  const said = pieceResultsSaid({ posts: [reel, story, google], ...empty }, TZ, NOW);
   assert.deepEqual(said.howItDid.missing, [
     "Story: not available · fewer than 5 people saw it",
     "Google: not available",
@@ -71,7 +73,7 @@ test("a story too few saw says why, a place with no numbers says not available, 
 
 test("numbers read just before a take-down say so, and promise no next read", () => {
   const last = { ...reel, step: "last" };
-  const said = pieceResultsSaid({ posts: [last], ...empty }, TZ);
+  const said = pieceResultsSaid({ posts: [last], ...empty }, TZ, NOW);
   assert.deepEqual(said.howItDid.lines, [
     "2,140 reached · 3,420 plays · 31 saves",
     "188 likes · 14 comments · 9 shares",
@@ -80,9 +82,45 @@ test("numbers read just before a take-down say so, and promise no next read", ()
   assert.doesNotMatch(said.howItDid.fine, /Next at|last time/);
 });
 
+test("where no later read comes, nothing says this time or names a next read (the review of 24 Nov 2026, A7)", () => {
+  const unread = [n("reach", null, "failed"), n("views", null, "failed")];
+  const how = (post) => pieceResultsSaid({ posts: [post], ...empty }, TZ, NOW).howItDid;
+  const line = (post, down = false) =>
+    resultLineText(pieceResultLineOf({ ...empty, posts: [post] }, { down, nowMs: NOW }));
+  // A reel in the middle of its reads: this one failed, and the next is three days on.
+  assert.deepEqual(how({ ...reel, numbers: unread }).missing, ["Reel: couldn't be read this time"]);
+  // A story past its day: its numbers will never be read now, and the read it had is said in the past.
+  const story = { ...reel, post_id: "p-s", kind: "story", step: "1h", published_at: "2026-12-02T10:00:00Z" };
+  assert.deepEqual(how({ ...story, numbers: unread }).missing, ["Story: its numbers couldn't be read before it ended"]);
+  assert.match(how(story).fine, /Read before the story ended\.$/);
+  // A post that came down, by a take-down or at its place: no read comes after.
+  const down = { ...reel, down: true, published_at: "2026-11-30T10:00:00Z" };
+  assert.deepEqual(how({ ...down, numbers: unread }).missing, [
+    "Reel: its numbers couldn't be read before it came down",
+  ]);
+  assert.match(how(down).fine, /Read while it was up\.$/);
+  // Past its last read: the read at 28 days failed, and no step follows it.
+  assert.deepEqual(how({ ...reel, step: "28d", numbers: unread }).missing, ["Reel: its numbers couldn't be read"]);
+  // Never read at all, and no read left to come: it does not promise numbers "an hour after it went up".
+  const never = { ...story, step: null, read_at: null, numbers: [] };
+  assert.equal(how(never).fine, "Its numbers weren't read while it was up.");
+  assert.equal(line(never), "Its numbers weren't read while it was up.");
+  assert.equal(
+    line({ ...down, step: null, read_at: null, numbers: [] }, true),
+    "Its numbers weren't read while it was up.",
+  );
+  // None of them says a later read is coming.
+  const final = [story, down, { ...reel, step: "28d" }, never];
+  for (const post of final.flatMap((one) => [one, { ...one, numbers: one.numbers.length ? unread : [] }])) {
+    const said = how(post);
+    const sentences = [...said.lines, ...said.missing, said.fine, line(post, post.down === true)].join(" ");
+    assert.doesNotMatch(sentences, /this time|Next |come an hour/, sentences);
+  }
+});
+
 test("before the first read, the piece says when its numbers come", () => {
   const fresh = { ...reel, step: null, read_at: null, numbers: [] };
-  const said = pieceResultsSaid({ posts: [fresh], ...empty }, TZ);
+  const said = pieceResultsSaid({ posts: [fresh], ...empty }, TZ, NOW);
   assert.deepEqual(said.howItDid.lines, []);
   assert.match(said.howItDid.fine, /an hour after it went up/);
 });
@@ -124,7 +162,7 @@ test("what it brought: conversations, then booked by class, new people and known
       }),
     ],
   };
-  const said = pieceResultsSaid({ posts: [reel], ...brought }, TZ);
+  const said = pieceResultsSaid({ posts: [reel], ...brought }, TZ, NOW);
   assert.equal(said.whatItBrought.head, "4 conversations · 2 booked from this post · 1 it helped");
   assert.equal(said.whatItBrought.newPeople.length, 3);
   assert.equal(said.whatItBrought.known.length, 1);
@@ -140,13 +178,13 @@ test("what it brought: conversations, then booked by class, new people and known
 });
 
 test("nothing brought yet is said, not hidden", () => {
-  const said = pieceResultsSaid({ posts: [reel], ...empty }, TZ);
+  const said = pieceResultsSaid({ posts: [reel], ...empty }, TZ, NOW);
   assert.equal(said.whatItBrought.head, "No one has written about it yet");
 });
 
 test("the one line beside Run as an ad, in the canvas's four states, its numbers set apart (pass 6, Loop1)", () => {
   const line = (dto, down = false) => {
-    const parts = pieceResultLineOf({ ...empty, ...dto }, { down });
+    const parts = pieceResultLineOf({ ...empty, ...dto }, { down, nowMs: NOW });
     return parts === null ? null : resultLineText(parts);
   };
   assert.equal(line({ posts: [] }), null, "nothing went up: nothing is said");

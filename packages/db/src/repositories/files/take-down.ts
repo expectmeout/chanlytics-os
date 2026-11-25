@@ -116,6 +116,39 @@ export async function isPostTakeDownAsking(db: Db, tenantId: TenantId, postId: s
   return data.length > 0;
 }
 
+/**
+ * The places where every take-down from here keeps an action on its post (post_take_down_begin). Google's older
+ * "remove" press (the dashboard's takeFileOffGoogle) keeps none, so a Google post that came down with no action may
+ * have been taken down from here, and is never said to be removed there.
+ */
+const TAKE_DOWNS_KEPT_AT: readonly string[] = ["instagram", "facebook"];
+
+/**
+ * Of these posts that came down, the ones their place removed itself, by its owner there or by the place (the content
+ * status review of 24 Nov 2026, A12): no take-down from here ever asked the post down. An ask its owner answered with
+ * "Keep it up" (left_up) is no ask. Under the caller's RLS for a page, or the service role for the bell; one read by
+ * the posts' ids, and none where no post is at a place that keeps its take-downs.
+ */
+export async function listPostsRemovedThere(
+  db: Db,
+  tenantId: TenantId,
+  down: readonly { id: string; place: string }[],
+): Promise<string[]> {
+  const ids = down.filter((post) => TAKE_DOWNS_KEPT_AT.includes(post.place)).map((post) => post.id);
+  if (ids.length === 0) return [];
+  const { data, error } = await db
+    .from("remediation_actions")
+    .select("target_id")
+    .eq("tenant_id", tenantId)
+    .eq("target_type", "post")
+    .eq("act", "take_down")
+    .neq("outcome", "left_up")
+    .in("target_id", ids);
+  if (error) throw new DbFailure(error, "posts asked down");
+  const askedDown = new Set(data.map((row) => row.target_id));
+  return ids.filter((id) => !askedDown.has(id));
+}
+
 /** What keeping a place's answer came to: whether this call kept it, the piece and place it was about, and the news. */
 export interface TakeDownKept {
   kept: boolean;

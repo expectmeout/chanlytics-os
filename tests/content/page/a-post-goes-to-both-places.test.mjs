@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONTENT_WORDS as W, postPlaceTakenOf } from "@chanlytics/contracts";
+import { CONTENT_WORDS as W, STANDING_WORDS, postPlaceTakenOf } from "@chanlytics/contracts";
 import {
   instagramAsOf,
   instagramKindsFree,
@@ -135,13 +135,13 @@ test("Instagram takes one of each kind at a time: a story beside a post that wai
 });
 
 test("a post going up says the tile's own words for it", () => {
-  assert.equal(statusOf([post("google", "queued")]).said, W.mark.going("google"));
+  assert.equal(statusOf([post("google", "queued")]).said, STANDING_WORDS.going_up.tile("google"));
 });
 
 test("what needs the owner is said before a post that waits, as the act that leads is chosen", () => {
   const posts = [post("instagram", "failed"), waits("google")];
   assert.deepEqual(pieceNextOf(PICTURE, posts, BOTH, NOW), { is: "again", place: "instagram" });
-  assert.deepEqual(statusOf(posts), { tone: "need", said: W.mark.stuck, pull: null });
+  assert.deepEqual(statusOf(posts), { tone: "need", said: STANDING_WORDS.stopped.tile, pull: null });
 });
 
 const CAN = {

@@ -3,7 +3,7 @@
  * stopped, in Content's one sheet (Post it, campaigns/content/post-both.tsx); this is the door its row keeps to the post once
  * it is up.
  */
-import { CONTENT_WORDS, ON_INSTAGRAM, placementStandingOf, type PostDto } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, STANDING_WORDS, placementStandingOf, type PostDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 
@@ -14,9 +14,9 @@ import { Icon } from "../../kit/icon/icon";
  */
 function standsSaid(post: PostDto): string {
   const standing = placementStandingOf(post, null, Date.now());
-  if (standing.is === "up") return ON_INSTAGRAM.status.published;
-  if (standing.is === "unconfirmed") return CONTENT_WORDS.piece.stands.unsure;
-  return ON_INSTAGRAM.status.publishing;
+  if (standing.is === "up") return STANDING_WORDS.up.line(post.place, null);
+  if (standing.is === "unconfirmed") return STANDING_WORDS.unconfirmed.row;
+  return STANDING_WORDS.going_up.line(post.place);
 }
 
 /** Where the post that is up on Instagram is: as what it went up, and where to see it. */

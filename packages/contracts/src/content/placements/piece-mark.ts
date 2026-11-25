@@ -5,10 +5,10 @@
  * name: only the Content page reads a mark, and only it carries the standing's rules.
  */
 import type { FileDto } from "../../files/views";
-import { CONTENT_WORDS, type ContentPageDto } from "../page";
+import type { ContentPageDto } from "../page";
 import { linkPlaceSaid, type HandPostDto, type PostDto, type PostPlace } from "../posts";
 import { pieceStandingOf, videoIsSavedOnly } from "./standing";
-import { TAKE_DOWN_WORDS } from "./take-down";
+import { STANDING_WORDS } from "./standing-words";
 
 /** Where a made piece stands, as its tile says it. */
 export type ContentMark =
@@ -26,8 +26,11 @@ export type ContentMark =
   | { is: "unsure"; place: PostPlace }
   /** Nothing of it is up any more, and the last of it was a story that ran its day: where, and when it ended. */
   | { is: "ended"; place: PostPlace; at: string | null }
-  /** Nothing of it is up any more, and the last of it came down: where, and when, where that was kept. */
-  | { is: "down"; place: PostPlace; at: string | null }
+  /**
+   * Nothing of it is up any more, and the last of it came down: where, and when, where that was kept. `there`: removed
+   * at its place itself, not taken down from here.
+   */
+  | { is: "down"; place: PostPlace; at: string | null; there: boolean }
   /** Posted by its owner's own hand, as they said (00620): when they said so, and where its link says, if it has one. */
   | { is: "by_hand"; at: string; where: string | null };
 
@@ -63,24 +66,28 @@ export function contentMarkOf(posts: readonly PostDto[], nowMs: number): Content
   if (lead.is === "going_up") return { is: "going", place };
   if (lead.is === "waiting") return { is: "timed", place, at: lead.when };
   if (lead.is === "up") return { is: "posted", places: [...new Set(lead.all.map((at) => at.place))], at: lead.when };
-  return { is: lead.is === "ended" ? "ended" : "down", place, at: lead.when };
+  if (lead.is === "ended") return { is: "ended", place, at: lead.when };
+  const { standing } = lead.at;
+  return { is: "down", place, at: lead.when, there: standing.is === "came_down" && standing.there };
 }
 
 /**
- * A mark in the owner's words. A made video is ready to save only where it has no road from here (contentPieceMarkOf).
- * `dayOf` says a day by the business's own clock.
+ * A mark in the owner's words, from the one table (standing-words.ts, its `tile` column). A made video is ready to
+ * save only where it has no road from here (contentPieceMarkOf). `dayOf` says a day by the business's own clock.
  */
 export function contentMarkSaid(mark: ContentMark, dayOf: (at: string) => string): string {
-  if (mark.is === "going") return CONTENT_WORDS.mark.going(mark.place);
-  if (mark.is === "unsure") return CONTENT_WORDS.mark.unsure(mark.place);
-  if (mark.is === "ended") return CONTENT_WORDS.mark.ended(mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "down") return TAKE_DOWN_WORDS.cameDown(mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "timed") return CONTENT_WORDS.mark.timed(dayOf(mark.at));
-  if (mark.is === "posted") return CONTENT_WORDS.mark.posted(mark.places, mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "stuck") return CONTENT_WORDS.mark.stuck;
-  if (mark.is === "by_hand") return CONTENT_WORDS.mark.byHand(mark.where, dayOf(mark.at));
-  if (mark.is === "save") return CONTENT_WORDS.mark.save;
-  return CONTENT_WORDS.mark.ready;
+  const says = STANDING_WORDS;
+  const day = "at" in mark && mark.at ? dayOf(mark.at) : null;
+  if (mark.is === "going") return says.going_up.tile(mark.place);
+  if (mark.is === "unsure") return says.unconfirmed.tile(mark.place);
+  if (mark.is === "ended") return says.ended.tile(day);
+  if (mark.is === "down") return mark.there ? says.removed.tile(mark.place, day) : says.came_down.tile(day);
+  if (mark.is === "timed") return says.waiting.tile(dayOf(mark.at));
+  if (mark.is === "posted") return says.up.tile(mark.places, day);
+  if (mark.is === "stuck") return says.stopped.tile;
+  if (mark.is === "by_hand") return says.by_hand.tile(mark.where, dayOf(mark.at));
+  if (mark.is === "save") return says.saved.tile;
+  return says.never.tile;
 }
 
 /**

@@ -17,7 +17,15 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { DAY_MS, MIN_MS, ON_INSTAGRAM, TAKE_DOWN_BELL, TAKE_DOWN_WORDS, warningsMendedBy } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  MIN_MS,
+  ON_INSTAGRAM,
+  STANDING_WORDS,
+  TAKE_DOWN_BELL,
+  TAKE_DOWN_WORDS,
+  warningsMendedBy,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const k of ["RESEND_API_KEY", "SUPABASE_URL", "META_APP_ID"]) delete process.env[k];
@@ -455,11 +463,16 @@ test("a post that was never up rings nothing: there is nothing for its owner to 
 
 test("the bell's words are the ones the mend is held to, at either place and for a piece with no name", () => {
   for (const piece of ["The finish", ""]) {
-    const [warns] = warningsMendedBy({ kind: "post_down", title: TAKE_DOWN_BELL.down(piece) });
+    const [warns] = warningsMendedBy({ kind: "post_down", title: STANDING_WORDS.came_down.bell.title(piece) });
     assert.equal(warns?.kind, "post_by_hand");
     assert.equal(warns.sameSubject, true, "one piece's news never closes another's");
     for (const place of ["instagram", "google"]) assert.match(TAKE_DOWN_BELL.byHand(place, piece), warns.title);
   }
-  assert.equal(TAKE_DOWN_BELL.down(""), "Taken down · A post", "never a blank title");
-  assert.equal(TAKE_DOWN_BELL.downFrom(["instagram", "google"]), "From Instagram and Google");
+  assert.equal(STANDING_WORDS.came_down.bell.title(""), "Taken down · A post", "never a blank title");
+  assert.equal(STANDING_WORDS.came_down.bell.body(["instagram", "google"]), "From Instagram and Google");
+  // A post removed at its place itself was never asked down: its line mends no "Delete it in" line, and never says
+  // it was taken down (the review of 24 Nov 2026, A12).
+  const removed = STANDING_WORDS.removed.bell.title("instagram", "The finish");
+  assert.equal(removed, "Removed on Instagram · The finish");
+  assert.deepEqual(warningsMendedBy({ kind: "post_down", title: removed }), []);
 });

@@ -204,7 +204,7 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
 /** Each read kept: its step, and how each number it asked stood. */
 const keptOf = (w) => w.tables.kept.map((k) => [k.p_step, [...new Set(k.p_rows.map((r) => r.availability))].sort()]);
 
-test("removed on Instagram: the account reads without it, so it is taken down here and its owner told once", async () => {
+test("removed on Instagram: the account reads without it, so it is down here and its owner told once, in its own words", async () => {
   meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
   meta[`GET /${MEDIA}`] = BY_ID_GONE;
   meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
@@ -213,7 +213,16 @@ test("removed on Instagram: the account reads without it, so it is taken down he
   assert.deepEqual(calls, [`GET /${MEDIA}/insights`, `GET /${MEDIA}`, `GET /${ACCOUNT}/media`]);
   assert.equal(w.post().status, "taken_down");
   assert.deepEqual(keptOf(w), [["3d", ["failed", "unsupported"]]], "the read is kept as it came, as before");
-  assert.deepEqual(w.bell(), [["post_down", "Taken down · The finish", "From Instagram", false]]);
+  // Nobody asked it down from here: the line says where it was removed, and that Chanlytics did not do it (the review
+  // of 24 Nov 2026, A12). Never "Taken down", which is the owner's own press.
+  assert.deepEqual(w.bell(), [
+    [
+      "post_down",
+      "Removed on Instagram · The finish",
+      "Chanlytics didn't take it down. It was deleted on Instagram itself.",
+      false,
+    ],
+  ]);
   // Asked again (a job run twice): a post taken down is read no more, and the bell is not rung a second time.
   calls.length = 0;
   assert.deepEqual(await w.run(), { skipped: "taken_down" });

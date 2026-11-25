@@ -6,6 +6,7 @@
 import { clockDate, clockTime, wallClockAt, zoneDayKey } from "../../shared/clock";
 import { shiftKey } from "../../shared/zone/day-keys";
 import { placementStandingOf, standingOnItsWay, type PlacementStanding } from "../placements/standing";
+import { STANDING_WORDS } from "../placements/standing-words";
 import { postStoppedWhyOf, type PostDto, type PostKind, type PostPlace } from "../posts";
 import { creativesOf, weekdayShortOf, weekSizeSaid, type PlanSlotDto } from "./week";
 import type { WeekPageDto, WeekPieceDto } from "./week-page";
@@ -159,16 +160,16 @@ function postsStandOf(
   at: { zone: string; paused: boolean },
 ): RowStands | null {
   const stopped = stands.find((s) => didNotGo(s.standing));
-  if (stopped) return rowNeeds(W.didNotPost(stopped.post.place, postStoppedWhyOf(stopped.post) ?? ""));
+  if (stopped) return rowNeeds(STANDING_WORDS.stopped.week(stopped.post.place, postStoppedWhyOf(stopped.post) ?? ""));
   const unsure = stands.find((s) => s.standing.is === "unconfirmed");
-  if (unsure) return rowNeeds(W.unsure(unsure.post.place));
+  if (unsure) return rowNeeds(STANDING_WORDS.unconfirmed.week(unsure.post.place));
   if (at.paused && first.state !== "proposed") return rowSays(W.waits(slotWhenSaid(first.at, at.zone)));
   const moving = stands.find((s) => standingOnItsWay(s.standing));
-  if (moving) return rowSays(W.goesUp(slotWhenSaid(moving.slot.at, at.zone)));
+  if (moving) return rowSays(STANDING_WORDS.waiting.week(slotWhenSaid(moving.slot.at, at.zone)));
   const up = stands.filter((s) => s.standing.is === "up");
   if (up.length > 0)
     return rowSays(
-      W.upOn(
+      STANDING_WORDS.up.week(
         up.map((s) => s.post.place),
         weekdayShortOf(zoneDayKey(Date.parse(first.at), at.zone)),
       ),
@@ -179,7 +180,9 @@ function postsStandOf(
     stands.find((s) => s.standing.is === "ended") ??
     stands.find((s) => s.standing.is === "let_go");
   if (!last) return null;
-  return rowSays(last.standing.is === "came_down" ? W.cameDown : last.standing.is === "ended" ? W.storyEnded : W.letGo);
+  if (last.standing.is === "ended") return rowSays(STANDING_WORDS.ended.week);
+  if (last.standing.is !== "came_down") return rowSays(STANDING_WORDS.let_go.week);
+  return rowSays(last.standing.there ? STANDING_WORDS.removed.week(last.post.place) : STANDING_WORDS.came_down.week);
 }
 
 /** One creative's line, tone and fix, as its slots and what they were made into stand. */

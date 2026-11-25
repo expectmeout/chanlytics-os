@@ -72,6 +72,7 @@ const posted = (n, fileN, place, status, over = {}) => ({
   error: null,
   external_id: status === "published" ? `ext-${n}` : null,
   created_at: minutesAgo(n),
+  updated_at: minutesAgo(n),
   ...over,
 });
 
@@ -616,6 +617,40 @@ test("Posted's count is its list's: a story that ran its day is in both, a post 
     ],
   );
   assert.equal(body.tally.posted, body.lines.length, "the count counts the rows the list draws");
+});
+
+test("a post that came down says whether its place removed it itself: nobody asked it down from here", async () => {
+  // The review of 24 Nov 2026, A12: a post deleted on Instagram read "Taken down", as if its owner had pressed it here.
+  const asked = (postN, outcome) => ({
+    id: `cccccccc-0000-4000-8000-${String(postN).padStart(12, "0")}`,
+    tenant_id: A,
+    target_type: "post",
+    target_id: posted(postN, 1, "instagram", "taken_down").id,
+    act: "take_down",
+    outcome,
+  });
+  const { body } = await read({
+    files: [made(1), made(2), made(3), made(4), made(5)],
+    posts: [
+      // Removed on Instagram itself: it came down, and no take-down was ever asked.
+      posted(11, 1, "instagram", "taken_down", { updated_at: minutesAgo(5) }),
+      // Taken down from here: its take-down kept an action, and its place said done.
+      posted(12, 2, "instagram", "taken_down"),
+      // Asked down, left to its owner, who chose to keep it up; later deleted on the Page itself.
+      posted(13, 3, "facebook", "taken_down"),
+      // Google's older remove press keeps no action, so a Google post is never said to be removed there.
+      posted(14, 4, "google", "taken_down"),
+      posted(15, 5, "instagram", "published"),
+    ],
+    remediation_actions: [asked(12, "done"), asked(13, "left_up")],
+  });
+  const postOf = (n) => body.made.find((m) => m.file.name === `post-${n}`).posts[0];
+  assert.deepEqual(
+    [1, 2, 3, 4, 5].map((n) => postOf(n).removed_there === true),
+    [true, false, true, false, false],
+  );
+  assert.equal(postOf(1).updated_at, minutesAgo(5), "when it was noticed is when its row last moved");
+  assert.equal("removed_there" in postOf(2), false, "said only where it is so");
 });
 
 test("Needs you counts by placement: a story that went up after a post was refused does not answer for the post", async () => {

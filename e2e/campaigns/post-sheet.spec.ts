@@ -67,7 +67,7 @@ const goesLine = (page: Page, at: string) => ({
   move: page.getByTestId(`cnv-goes-move-${at}`),
   pull: page.getByTestId(`cnv-goes-pull-${at}`),
 });
-/** What a placement set for its time says (GOES_WORDS.timed). */
+/** What a placement set for its time says (contracts STANDING_WORDS.waiting.line). */
 const GOES_UP = /^Goes up /;
 
 /** Where the sheet is one pane's body (a desk) and where it is a sheet over the picture (a phone, where this went wrong). */
