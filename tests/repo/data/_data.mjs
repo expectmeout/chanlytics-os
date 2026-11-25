@@ -91,6 +91,8 @@ export const SERVICE_ROLE_KEPT = {
     "A page load's timings (page_vitals, 00255): the platform's measure, naming no person or workspace, which no session writes",
   "apps/dashboard/src/server/shared/rate-limit.ts":
     "The rate limiter: every request is counted (rate_hits), before a member is known or with none",
+  "apps/dashboard/src/server/shared/log.ts":
+    "The pager's memory of a read that stopped at the 1,000-row cap (operator_pages, decision 0149): a platform row no member may write",
   // A page anyone may open, and a door with no member behind it.
   "apps/dashboard/src/server/public/facts.ts": "A workspace's public page, read by its slug with no session",
   "apps/dashboard/src/server/public/link-page.ts": "A public link page, read with no session",

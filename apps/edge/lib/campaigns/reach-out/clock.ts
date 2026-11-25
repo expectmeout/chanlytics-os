@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
-import { draftRefusalOf, isWaitRefusal, DbFailure, SECOND_MS } from "@chanlytics/contracts";
+import { MIN_MS, draftRefusalOf, isWaitRefusal, DbFailure, SECOND_MS } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
@@ -59,9 +59,9 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** A planned send this late in a run that goes ahead was left, not merely due: it is planned again. */
-export const STALE_AFTER_MS = 15 * 60_000;
+export const STALE_AFTER_MS = 15 * MIN_MS;
 /** A claim this old never became an email: its writer died mid-send. */
-export const CLAIM_STUCK_AFTER_MS = 10 * 60_000;
+export const CLAIM_STUCK_AFTER_MS = 10 * MIN_MS;
 /** How long an email of unknown outcome waits for its receipt before its send is failed. */
 /** When the clock stops for the tick: its door has 60 s (vercel.json), and what is left is the next minute's. */
 export const CLOCK_YIELD_AT_MS = 40_000;

@@ -114,6 +114,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   is `replyWindow`. A second implementation of a rule is a bug even when it agrees. What an id, a day or a phone number looks like has
   one home too (`repo/rules/rules.test.mjs`, decision 0108).
 - **One send door.** Everything a customer receives leaves through `packages/core/src/deliver/deliver.ts`.
+- **Every call out goes through its door.** A server's call to a provider, the edge, the dashboard or the files bucket
+  leaves through channels' `fetchFromProvider`: named, bounded, retried by outcome, its time said under `out.<name>`;
+  the dashboard reaches the edge with `callEdge` or `streamEdge` over it. A page reaches its own server through the API
+  client, or `client/own-route.ts` for a route outside the typed set. `repo/rules/rules.test.mjs` fails any other global
+  `fetch` in `apps` or `packages` but the named exceptions (`FETCH_EXCEPTIONS`, decision 0149).
 - **Every route declares its policy** with `route()`: scope, role, rate, spend, input.
   `route-policy.json` pins the declarations; a change there is a change to who may do what.
 - **Every edge door's knock is pinned.** `tests/edge/door-policy.json` holds the checks each door
@@ -151,7 +156,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`); a test's wait that counts turns of
   the loop or time instead of waiting for what it asserts (`counted-waits`); a name `docs/naming.md` would refuse (`short-names`,
-  `async-verb-first`, `value-names`, `file-repeats-folder`, `type-casing`, `boolean-names`, `exported-twice`, `house-words`); an import against the code's direction (`module-circles`, `type-circles`, `domain-circles`, `one-tree-contracts`, `root-names`), and a module or a door past its length or its width (`long-modules`, `wide-modules`, `long-doors`), and a function past a cognitive complexity of 25 (`cognitive-complexity`), a function the same as another but for its names (`same-functions`), a long run of tokens copied from another module (`copied-runs`), a sentence in a second module (`repeated-sentences`), a `fetch` past a client (`fetches-outside-a-client`), a request read with no schema (`hand-read-requests`), an edge answer cast instead of read (`edge-answer-casts`), a refusal's status not its code's (`codes-off-their-status`, `edge-codes-with-two-statuses`), and a new shape for a page of results (`page-shapes`). CI's debt job measures each
+  `async-verb-first`, `value-names`, `file-repeats-folder`, `type-casing`, `boolean-names`, `exported-twice`, `house-words`); an import against the code's direction (`module-circles`, `type-circles`, `domain-circles`, `one-tree-contracts`, `root-names`), and a module or a door past its length or its width (`long-modules`, `wide-modules`, `long-doors`), and a function past a cognitive complexity of 25 (`cognitive-complexity`), a function the same as another but for its names (`same-functions`), a long run of tokens copied from another module (`copied-runs`), a sentence in a second module (`repeated-sentences`), a `console` call past the logger (`console-calls`), a request read with no schema (`hand-read-requests`), an edge answer cast instead of read (`edge-answer-casts`), a refusal's status not its code's (`codes-off-their-status`, `edge-codes-with-two-statuses`), and a new shape for a page of results (`page-shapes`). CI's debt job measures each
   pull request's base and head (decision 0074): a number that rose, or an offender that is new, fails unless the
   description carries a line `Debt: <why>`; a fall needs nothing, and no number is kept in the repository, so nothing
   is banked. Where a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in

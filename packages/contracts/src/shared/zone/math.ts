@@ -8,6 +8,7 @@
  * A zone Intl cannot use throws here, as the constructor does: a caller that must say something on a page anyway asks
  * for usableZone(tz) first, which is the zone or UTC.
  */
+import { DAY_MS } from "../time";
 
 /* ------------------------------------------------------------- zone math */
 
@@ -136,7 +137,7 @@ export function dayInZone(tz: string, atMs: number): { key: string; weekday: str
 
 /** Days since epoch for a calendar date, for stepping and week arithmetic. */
 export const dayNumber = (year: number, month: number, day: number) =>
-  Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+  Math.floor(Date.UTC(year, month - 1, day) / DAY_MS);
 
 /** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
 export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -170,7 +171,7 @@ export function dayPlusInZone(
 ): { key: string; weekday: string; y: number; m: number; d: number } {
   const from = dayInZone(tz, atMs);
   if (days === 0) return from;
-  const at = new Date((dayNumber(from.y, from.m, from.d) + days) * 86400000);
+  const at = new Date((dayNumber(from.y, from.m, from.d) + days) * DAY_MS);
   const y = at.getUTCFullYear(),
     m = at.getUTCMonth() + 1,
     d = at.getUTCDate();

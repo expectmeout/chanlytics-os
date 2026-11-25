@@ -1,5 +1,5 @@
 import "server-only";
-import { fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
+import { MIN_MS, fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
 import type { WorkspaceShape } from "../readers/shape";
 import {
@@ -76,7 +76,7 @@ const PROVIDERS: Record<AskSurface, Provider> = {
 };
 
 /** How long a build is kept, and how many at most (D7). */
-export const CONTEXT_TTL_MS = 60_000;
+export const CONTEXT_TTL_MS = MIN_MS;
 export const CONTEXT_CACHE_CAP = 200;
 /** Room kept in the aggregate for the sentence that says the cut. */
 const CUT_ROOM = 64;

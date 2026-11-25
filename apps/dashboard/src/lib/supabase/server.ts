@@ -25,7 +25,7 @@ const MEMBER_FETCH_TIMEOUT_MS = 35 * SECOND_MS;
 const memberTransport = () => ({
   db: { retry: false },
   global: {
-    fetch: namedFetch(boundedFetch(MEMBER_FETCH_TIMEOUT_MS, (input, init) => globalThis.fetch(input, init))),
+    fetch: namedFetch(boundedFetch(MEMBER_FETCH_TIMEOUT_MS)),
   },
 });
 

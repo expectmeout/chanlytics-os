@@ -37,8 +37,14 @@
  * silence before: during an outage the only trace was each caller's own failure words. The state is one per process,
  * however many copies of this module the builds inlined (core's, jobs', the edge's own), so what the diagnostic reads
  * is what a send was held by.
+ *
+ * Its time, under its name (layer 12, 25 Nov 2026): each call notes how long its caller waited under `out.<provider>` in
+ * the request's timings (packages/log noteTiming), beside the database's `db` and each reader's `read.<name>`, so the
+ * dashboard's answer says it in Server-Timing and its `route_answered` line, and a call that took half its bound or more
+ * says so (`outside_call_slow`). Before it, an outside call's time was said nowhere: a slow provider looked like a slow
+ * route. A call the breaker held went nowhere and notes nothing.
  */
-import { logger } from "@chanlytics/log";
+import { logger, noteTiming } from "@chanlytics/log";
 
 import { jittered, recordOrEmpty, globalSlot, valueAt } from "@chanlytics/contracts";
 
@@ -73,6 +79,13 @@ const PROVIDER_NAMES = [
   // The shelf where a made video keeps its own copy, asked through the relay (files/shelf.ts): Cloudflare's too, but
   // its own breaker, so a relay that gives no answer never holds a call to the video platform.
   "relay",
+  // Our own two apps, each asked by the other: the dashboard's calls to the edge (its server/shared/edge.ts), and the
+  // edge's and Ask's calls to the dashboard (tokens/dashboard-call.ts, the unsubscribe probe, Ask's presses). Always
+  // made (`breaker: "count"`): named for their time and their faults, never held, as they never were.
+  "edge",
+  "dashboard",
+  // The files bucket's bytes, read by a signed link (Supabase Storage): a file's first bytes, a copy its decoder drew.
+  "storage",
 ] as const;
 export type Provider = (typeof PROVIDER_NAMES)[number];
 
@@ -339,6 +352,24 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
   return providerReply;
 }
 
+/** How much of its bound a call may take before it is said to be slow. */
+const SLOW_SHARE = 0.5;
+
+/** A call's time, under its name: the request's share, and a line when it took half its bound or more. */
+function sayTime(provider: Provider, call: ProviderCall, providerReply: ProviderReply, ms: number): void {
+  if (providerReply.error === "breaker_open") return;
+  noteTiming(`out.${provider}`, ms);
+  if (ms < call.timeoutMs * SLOW_SHARE) return;
+  breakerLog.warn("outside_call_slow", {
+    provider,
+    ms: Math.round(ms),
+    timeout_ms: call.timeoutMs,
+    status: providerReply.status,
+    outcome: providerReply.outcome,
+    tries: providerReply.tries,
+  });
+}
+
 /** One call to a provider, bounded, never thrown, retried only when asking again cannot do the work twice. */
 export async function fetchFromProvider(
   provider: Provider,
@@ -353,6 +384,19 @@ export async function fetchFromProvider(
     random: deps.random ?? Math.random,
   };
   const started = required.now();
+  const providerReply = await askUntilAnswered(provider, url, call, required, started);
+  sayTime(provider, call, providerReply, required.now() - started);
+  return providerReply;
+}
+
+/** The tries of one call: asked again while asking again cannot do the work twice, within its deadline. */
+async function askUntilAnswered(
+  provider: Provider,
+  url: string,
+  call: ProviderCall,
+  required: Required<ProviderDeps>,
+  started: number,
+): Promise<ProviderReply> {
   const max = Math.max(1, Math.floor(call.tries ?? 1));
   for (let count = 1; ; count++) {
     const result = await once(provider, url, call, required, count);

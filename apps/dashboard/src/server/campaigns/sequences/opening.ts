@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { sendOpeningsOf, undoSendRewrite } from "@chanlytics/db/campaigns";
 import { deployment } from "@/server/shared/env";
-import { callEdge, edgeAnswered, edgeHeaders, edgeUrl } from "@/server/shared/edge";
+import { callEdge, edgeAnswered, streamEdge } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -62,18 +62,17 @@ async function relaySteps(
   params: { ctx: RouteContext; tenantId: TenantId; ids: string[]; gone: AbortSignal },
   send: (line: ReachOutCheckLine) => void,
 ): Promise<void> {
-  const body = JSON.stringify({ send_ids: params.ids, stream: true });
   const seen = new Set(params.ids);
   try {
-    const res = await fetch(`${edgeUrl()}${CHECK_DOOR}`, {
-      method: "POST",
-      headers: edgeHeaders(CHECK_DOOR, { workspace: params.tenantId, user: params.ctx.userId, body }),
-      body,
-      cache: "no-store",
-      signal: AbortSignal.any([AbortSignal.timeout(CHECK_NOW_MS), params.gone]),
-    });
-    if (!res.ok || !res.body) {
-      log.warn("reach_out_rewrite_unchecked", { tenant_id: params.tenantId, status: res.status });
+    const res = await streamEdge(
+      CHECK_DOOR,
+      { send_ids: params.ids, stream: true },
+      { workspace: params.tenantId, user: params.ctx.userId, timeoutMs: CHECK_NOW_MS, signal: params.gone },
+    );
+    if (!res.body) {
+      // No answer at all is said as it always was (status 0), unless the page let go first.
+      if (res.status !== 0 || !params.gone.aborted)
+        log.warn("reach_out_rewrite_unchecked", { tenant_id: params.tenantId, status: res.status });
       return;
     }
     const reader = res.body.getReader();

@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  HOUR_MS,
   ASK_THREAD_VERBS,
   clockWhen,
   dayInZone,
@@ -61,7 +62,7 @@ async function proposeThreadVerb(
             toolContext.timezone,
             shiftKey(dayInZone(toolContext.timezone, toolContext.now.getTime()).key, 1),
           ) +
-            10 * 3600_000,
+            10 * HOUR_MS,
         );
     if (Number.isNaN(date.getTime()) || date.getTime() <= toolContext.now.getTime())
       return refuse("until must be a future ISO time");

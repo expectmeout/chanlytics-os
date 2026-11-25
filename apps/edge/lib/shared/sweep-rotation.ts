@@ -41,7 +41,7 @@ import { getDueCalendars, getDuePlaybooks, type DueCalendar, type DuePage, type 
 import type { Database } from "@chanlytics/db/types";
 import { patchConfigRow } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure } from "@chanlytics/contracts";
+import { MIN_MS, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -52,7 +52,7 @@ type Db = SupabaseClient<Database>;
 export const HAND_OUT_SPREAD_SECONDS = 300;
 
 /** How long a calendar rests between reads: the clock's hour, with room for its drift. */
-export const CALENDAR_REST_MS = 55 * 60_000;
+export const CALENDAR_REST_MS = 55 * MIN_MS;
 
 export type { DueStep };
 

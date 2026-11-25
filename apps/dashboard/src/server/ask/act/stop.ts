@@ -28,6 +28,7 @@ import {
   adStateOfRow,
   parseTenantConfigResult,
   type AskStopped,
+  type ProposalCall,
   type TenantId,
 } from "@chanlytics/contracts";
 import { findAdAccountForPage, listMadeAds, pauseAdsForStop } from "@chanlytics/db/ads";
@@ -35,6 +36,7 @@ import { findConfigRow, findConfigRowVersioned, putTenantConfig, setSendingStopp
 import { listRunningPlaybookIds } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
+import { callRoute } from "./run";
 import { serviceDb } from "@/server/shared/service-db";
 import { load, readerContext } from "@/server/shared/reader";
 import { policies as policiesReader } from "@/server/readers/facts";
@@ -65,24 +67,9 @@ async function writeAskKey(
   throw new AppError("conflict", "Settings moved just then. Try again.", 409);
 }
 
-/** One of the verbs a stop presses, under the member's own session, as a press in a browser would. */
-async function callOwn(req: Request, method: string, path: string, body: unknown): Promise<boolean> {
-  const at = new URL(req.url);
-  const url = new URL(`/api/v1/${path}`, at.origin);
-  const workspace = at.searchParams.get("workspace");
-  if (workspace) url.searchParams.set("workspace", workspace);
-  const cookie = req.headers.get("cookie");
-  const res = await fetch(url, {
-    method,
-    headers: {
-      origin: at.origin,
-      "x-via": "ask",
-      "content-type": "application/json",
-      ...(cookie ? { cookie } : {}),
-    },
-    body: JSON.stringify(body),
-  }).catch(logAndGoOn("stop call", null));
-  return !!res?.ok;
+/** One of the verbs a stop presses, under the member's own session, as a press in a browser would (run.ts callRoute). */
+async function callOwn(req: Request, call: ProposalCall): Promise<boolean> {
+  return (await callRoute(req, call, { key: null })).ok;
 }
 
 /** What Stop everything keeps while it is on, as the workspace's settings hold it; null while it is off. */
@@ -191,7 +178,7 @@ async function holdReplies(
   const mode = rows.find((r) => r.class === "reply")?.mode ?? null;
   // No row is Asks you (core replyPosture), and Asks you is what a stop wants.
   if (mode === null || mode === "ask") return { held: true, reply: kept };
-  const held = await callOwn(req, "PUT", "policies", { class: "reply", mode: "ask" });
+  const held = await callOwn(req, { route: "PUT policies", body: { class: "reply", mode: "ask" } });
   return { held, reply: held ? (kept ?? mode) : kept };
 }
 
@@ -211,7 +198,7 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
   const paused = new Set(already?.playbooks ?? []);
   const left: string[] = [];
   for (const id of await listRunningPlaybookIds(ctx.supabase, tenantId)) {
-    if (await callOwn(req, "PUT", `playbooks/${id}`, { state: "paused" })) paused.add(id);
+    if (await callOwn(req, { route: "PUT playbooks/[id]", params: { id }, body: { state: "paused" } })) paused.add(id);
     else left.push(id);
   }
   const replies = await holdReplies(ctx, req, member, already?.reply ?? null);
@@ -249,9 +236,12 @@ export async function resumeEverything(ctx: RouteContext, req: Request, member: 
   }
   const still: string[] = [];
   for (const id of was.playbooks)
-    if (!(await callOwn(req, "PUT", `playbooks/${id}`, { state: "running" }))) still.push(id);
+    if (!(await callOwn(req, { route: "PUT playbooks/[id]", params: { id }, body: { state: "running" } })))
+      still.push(id);
   const reply =
-    was.reply && !(await callOwn(req, "PUT", "policies", { class: "reply", mode: was.reply })) ? was.reply : null;
+    was.reply && !(await callOwn(req, { route: "PUT policies", body: { class: "reply", mode: was.reply } }))
+      ? was.reply
+      : null;
   await writeTheStop(tenantId, null);
   // The ads the stop paused stay paused: turning them back on spends, so it is the owner's own press, which this names.
   const ads = await adsAfterResume(ctx, tenantId);

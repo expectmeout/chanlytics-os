@@ -1,8 +1,9 @@
 /**
  * How late a message is, the one statement of it: the receptionist's steps ask it of what came in, and the send door asks it of a draft it held.
  */
-export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
-export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
+import { MIN_MS, HOUR_MS } from "@chanlytics/contracts";
+export const STALE_MS = 10 * MIN_MS; // "late" — worth noting in the log
+export const STALE_REPLY_MS = 2 * HOUR_MS; // past this a person answers, not the bot
 
 /**
  * How late a message is, and what that means. Inside the reply horizon the

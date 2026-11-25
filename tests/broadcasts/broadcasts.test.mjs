@@ -747,7 +747,7 @@ test("the routes: a message, values its slots take, an audience crossed with who
   );
   assert.ok(
     readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" }',
+      'broadcast: { limit: 10, windowMs: MIN_MS, noun: "broadcasts" }',
     ),
   );
 });

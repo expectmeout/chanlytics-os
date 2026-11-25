@@ -1,14 +1,19 @@
 /**
  * A rule's pattern lives in one place (decision 0108), and each measure of what is said twice is kept honest on a source written for it. `_rules.mjs` has the measures; what still falls is check:debt's (RULE_RATCHETS).
+ * And every call out leaves through its door (layer 12, 25 Nov 2026): no global fetch past a client but the named exceptions.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import ts from "typescript";
 import {
+  CONSOLE_SINKS,
+  FETCH_EXCEPTIONS,
   RULE_PATTERNS,
   RULE_RATCHETS,
+  consoleCallsIn,
   copiedRuns,
+  fetchesBy,
   fetchesIn,
   functionsIn,
   patternsOutsideTheirHomes,
@@ -107,6 +112,35 @@ test("the global fetch is counted, a port's or a client's method of that name is
   assert.equal(fetchesIn(sf), 2);
 });
 
+test("every call out leaves through its door: no global fetch in apps or packages but where a named exception says why", () => {
+  assert.deepEqual(
+    fetchesBy({ exceptions: false }),
+    {},
+    "a provider, the edge, the dashboard or the bucket: channels' fetchFromProvider; a page's own route: the API client or client/own-route.ts",
+  );
+});
+
+test("each exception is still there and still calls out, so the list says only what is true", () => {
+  const excepted = Object.keys(fetchesBy({ exceptions: true }));
+  for (const [at, why] of Object.entries(FETCH_EXCEPTIONS)) {
+    assert.ok(why.length > 20, `${at}: says why`);
+    assert.ok(
+      excepted.some((f) => (at.endsWith("/") ? f.startsWith(at) : f === at)),
+      `${at} calls out no more: take it off the list`,
+    );
+  }
+});
+
+test("a console call is counted, a logger's line is not; the two sinks still write with it", () => {
+  const sf = source('console.warn("a", 1);', 'console.log("b");', 'log.warn("c", {});', 'logger().error("d");');
+  assert.equal(consoleCallsIn(sf), 2);
+  for (const [file, why] of Object.entries(CONSOLE_SINKS)) {
+    assert.ok(why.length > 20, `${file}: says why`);
+    const sink = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+    assert.ok(consoleCallsIn(sink) > 0, `${file} writes no console line: take it off the list`);
+  }
+});
+
 test("a rule's pattern is read by what it says, whatever its flags", () => {
   const sf = source(
     "const a = /^[0-9a-f-]{36}$/;",
@@ -143,8 +177,8 @@ test("no rule's pattern is written outside its home", () => {
 
 test("the ratchets say what they hold and read the tree", () => {
   assert.deepEqual(RULE_RATCHETS.map((r) => r.file).sort(), [
+    "console-calls.json",
     "copied-runs.json",
-    "fetches-outside-a-client.json",
     "repeated-sentences.json",
     "same-functions.json",
   ]);

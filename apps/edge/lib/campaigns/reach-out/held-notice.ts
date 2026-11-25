@@ -12,7 +12,7 @@
  * which goes stale in CLAIM_STALE_MS and is asked again then, and is the tick's error, never the check's.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { heldNoticeWords, isReachOutHold, type ReachOutHold, runRoute } from "@chanlytics/contracts";
+import { MIN_MS, DAY_MS, heldNoticeWords, isReachOutHold, type ReachOutHold, runRoute } from "@chanlytics/contracts";
 import { listHeldNoticeDue, markHeldNotice } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { notifyOnce, type NotifyMessage } from "../../shared/alerts/notify.js";
@@ -23,9 +23,9 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** A claim that never went is asked again after this: a tick that stopped half way, or a mail that failed. */
-const CLAIM_STALE_MS = 10 * 60_000;
+const CLAIM_STALE_MS = 10 * MIN_MS;
 /** Holds older than this are not news: a hold is given up past fourteen days (R10). */
-const HELD_SINCE_MS = 14 * 86_400_000;
+const HELD_SINCE_MS = 14 * DAY_MS;
 /** The held sends one tick reads to find its runs. */
 const HELD_READ = 1000;
 

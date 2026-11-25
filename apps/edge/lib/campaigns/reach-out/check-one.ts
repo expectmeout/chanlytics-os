@@ -59,6 +59,9 @@ import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import type { PreviewForOpening } from "../../previews/for-opening.js";
 
+/** The least a call is bounded by: one with no time left still ends at once, never waits for ever. */
+const LEAST_BOUND_MS = 1;
+
 type Db = SupabaseClient<Database>;
 
 /** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */
@@ -145,7 +148,8 @@ export function checkBudget(
 ): CheckBudget {
   return {
     late: () => now() - started > limits.callsUntilMs,
-    signal: () => AbortSignal.timeout(Math.max(1, Math.min(CHECK_CALL_MS, limits.doneByMs - (now() - started)))),
+    signal: () =>
+      AbortSignal.timeout(Math.max(LEAST_BOUND_MS, Math.min(CHECK_CALL_MS, limits.doneByMs - (now() - started)))),
   };
 }
 
