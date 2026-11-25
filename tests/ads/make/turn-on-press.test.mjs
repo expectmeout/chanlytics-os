@@ -329,9 +329,12 @@ test("a draft shown across a wider place is pressed with that place, and no stre
 });
 
 test("every check before Turn on runs again at the press, and what would stop the ad stops the press", async () => {
-  // Meta's least for a day rose since the draft was drawn: $75 is under it now.
+  // Meta's least for a day rose since the draft was drawn: past the whole $75, so a day's share is under it whatever day
+  // the suite runs (at $9.00 it held only while more than eight days were left to 3 December).
   const said = await refusal(
-    press({ account: { config: { page_id: "2000000000000092", min_daily_minor: 900, scopes: ["ads_management"] } } })(),
+    press({
+      account: { config: { page_id: "2000000000000092", min_daily_minor: 7600, scopes: ["ads_management"] } },
+    })(),
   );
   assert.equal(said, "Something on New ad would stop this ad. Fix it there, then press again.");
   // The ad account can no longer be charged.
