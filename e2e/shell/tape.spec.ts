@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Response } from "@playwright/test";
+import { test, expect, type Response } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 
 /**
@@ -17,7 +17,8 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * What is kept: every GET a page made of the app's own API and of the database's doors, the first answer of each,
  * under the method and the address without its origin (`db:` and the path for the database's doors, whatever host the
  * build names). The page's clock is held at the moment the walk began, and that moment is kept, so a draw from the
- * tape asks for the same days. It is one attachment on the report, `tape.json`.
+ * tape asks for the same days. It is one attachment on the report, `tape.json`, with the pages that did not go quiet
+ * in time under `notReady`.
  */
 const ON_THIS_MACHINE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(process.env.E2E_BASE_URL ?? "");
 
@@ -72,18 +73,6 @@ function tapeKeyOf(response: Response): string | null {
   return at.pathname.startsWith("/api/") ? `GET ${at.pathname}${at.search}` : null;
 }
 
-/** Whether the page on screen has said it is ready: the frame's own measure, the one the speed reports read. */
-const hasSaidReady = (page: Page): Promise<boolean> =>
-  page
-    .evaluate(() =>
-      performance.getEntriesByType("measure").some((measure) => {
-        const speed = ((measure as PerformanceMeasure).detail as { speed?: { name?: string; part?: string } } | null)
-          ?.speed;
-        return speed?.name === "READY" && !speed.part;
-      }),
-    )
-    .catch(() => false);
-
 if (ON_THIS_MACHINE) {
   test.describe("a tape of the copy's answers", () => {
     test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -124,15 +113,18 @@ if (ON_THIS_MACHINE) {
       for (const address of TAPED_PAGES) {
         const before = answers.size;
         await page.goto(`/w/${slug}/${address}`);
-        const ready = await expect
-          .poll(() => hasSaidReady(page), { timeout: 20_000 })
-          .toBe(true)
+        // Settled is quiet twice, a moment apart: a read a page makes just after its first ones is part of it. Not the
+        // frame's own "ready" measure, which a page whose clock is held never shows: the held clock stands in for the
+        // page's performance entries too, and every page waited out its twenty seconds (run 45536570064).
+        const quiet = () => page.waitForLoadState("networkidle", { timeout: 20_000 });
+        const settled = await quiet()
+          .then(() => page.waitForTimeout(1_500))
+          .then(quiet)
           .then(
             () => true,
             () => false,
           );
-        if (!ready) notReady.push(address);
-        await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+        if (!settled) notReady.push(address);
         await Promise.all([...reading]);
         keptBy[address] = answers.size - before;
       }
@@ -158,7 +150,7 @@ if (ON_THIS_MACHINE) {
       });
 
       expect(answers.size, "the pages' reads were kept").toBeGreaterThan(TAPED_PAGES.length);
-      expect(notReady, "every page said it was ready within 20 s").toEqual([]);
+      expect(notReady, "every page went quiet within 20 s").toEqual([]);
     });
   });
 }
