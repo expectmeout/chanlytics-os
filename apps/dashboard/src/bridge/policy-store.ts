@@ -13,6 +13,7 @@ import {
   type PolicyLimits,
   type PolicyMode,
 } from "@chanlytics/contracts";
+import { provided } from "./provided";
 /**
  * The workspace policy matrix, on the mockup's own store interface.
  *
@@ -285,7 +286,6 @@ export function seedPolicyStore(): SeedStore {
 
 interface PolicyWindow {
   POLICY?: SeedStore;
-  __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
 }
 
 /**
@@ -323,10 +323,11 @@ export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurfac
       if (!s) return; // not read, or the read failed: there is nothing to write against
       const r = UI_ROWS.find((x) => x.id === id);
       const mode = dbMode(m);
-      if (!r || r.locked || !mode || !win.__setPolicy) return;
+      const setPolicy = provided("setPolicy");
+      if (!r || r.locked || !mode || !setPolicy) return;
       // A mode the class cannot honour is not written: the pane shows a dash there.
       if (!policyModeOffered(r.cls, mode)) return;
-      void win.__setPolicy(r.cls, mode);
+      void setPolicy(r.cls, mode);
     },
     /** True when the store answers from the workspace's real rows. */
     real(): boolean {

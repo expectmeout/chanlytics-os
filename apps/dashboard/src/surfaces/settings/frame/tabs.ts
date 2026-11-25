@@ -20,6 +20,7 @@
  * AI memory is not here on purpose. It renders the "not built" pane for every real workspace, so as a rail item it was
  * a permanent promise of nothing -- the route still answers, because an old link should land somewhere honest.
  */
+import { whoIsLooking } from "@/bridge/who";
 // No imports: the route table reads this module (src/surfaces/routes.ts) as the frame boots, before the bridge's modules
 // have run, so it holds the rule alone; a tab's warm read is the page's (page.tsx WARM).
 
@@ -84,8 +85,7 @@ const SET_TABS_UNLISTED: readonly SetTab[] = [];
 export const SET_TABS_PLATFORM: readonly SetTab[] = [
   { id: "platform", label: "The Console", icon: "monitor", group: "Chanlytics" },
 ];
-export const isPlatformAdmin = (): boolean =>
-  !!(Reflect.get(window, "__ME") as { platform_admin?: boolean } | null | undefined)?.platform_admin;
+export const isPlatformAdmin = (): boolean => !!whoIsLooking().me?.platform_admin;
 
 /**
  * Which page holds each of the business's rows that left Details, by the id the fold registry opens it by. A row not

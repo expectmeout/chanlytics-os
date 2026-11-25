@@ -33,19 +33,24 @@ import {
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, ZONE, handoffDay, peopleWithSteps } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const went = [];
 const flashes = [];
 const opened = [];
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  },
+});
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, (m) => flashes.push(m)],
   canDo: () => true,
   gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
@@ -251,11 +256,15 @@ const clear = () => {
   opened.length = 0;
   doneCalls.length = 0;
   doneAnswer = async () => ({ ok: true });
-  W.__PEOPLE = { rows: SIX(), fetchedAt: nowMs };
-  W.__personNotes = {
-    done: (...args) => (doneCalls.push(args), doneAnswer()),
-    words: NOTE_WORDS,
-  };
+  bridgeHolds({ values: { people: { rows: SIX(), fetchedAt: nowMs } } });
+  bridgeHolds({
+    parts: {
+      personNotes: {
+        done: (...args) => (doneCalls.push(args), doneAnswer()),
+        words: NOTE_WORDS,
+      },
+    },
+  });
   W.openStepSheet = (ask) => opened.push(ask);
   setSurfaceValue("today", handoffDay());
 };
@@ -266,8 +275,8 @@ const nobodyWaits = () => {
   setSurfaceValue("today", vm);
 };
 after(() => {
-  delete W.__PEOPLE;
-  delete W.__personNotes;
+  bridgeHolds({ values: { people: undefined } });
+  bridgeHolds({ parts: { personNotes: undefined } });
   delete W.openStepSheet;
   setSurfaceValue("today", undefined);
 });
@@ -354,9 +363,13 @@ test("a Done the door refuses says so in the door's words, keeps the step, and r
   clear();
   nobodyWaits();
   const readAgain = [];
-  W.__refreshSurface = async (key) => {
-    readAgain.push(key);
-  };
+  bridgeHolds({
+    parts: {
+      refreshSurface: async (key) => {
+        readAgain.push(key);
+      },
+    },
+  });
   try {
     doneAnswer = async () => ({ ok: false, message: "Only an owner or an operator can mark a step done." });
     const tree = draw();
@@ -370,7 +383,7 @@ test("a Done the door refuses says so in the door's words, keeps the step, and r
     // so the step stands or goes as the server has it rather than as this tab last read it.
     assert.deepEqual(readAgain, ["people"], "REGRESSION: a refused Done left the row as this tab last read it");
   } finally {
-    delete W.__refreshSurface;
+    bridgeHolds({ parts: { refreshSurface: undefined } });
   }
 });
 
@@ -391,9 +404,9 @@ test("a day with only steps due is not an empty queue; no step due, or People un
     "the empty state says nothing waits",
   );
   // Nothing due, or People unread: there is no To do.
-  W.__PEOPLE = { rows: peopleWithSteps([["e", "Eli", 2]]), fetchedAt: nowMs };
+  bridgeHolds({ values: { people: { rows: peopleWithSteps([["e", "Eli", 2]]), fetchedAt: nowMs } } });
   assert.equal(linesOf(draw(), "queue-step").length, 0);
-  delete W.__PEOPLE;
+  bridgeHolds({ values: { people: undefined } });
   assert.equal(linesOf(draw(), "queue-step").length, 0, "People not read yet: no step is claimed");
 });
 

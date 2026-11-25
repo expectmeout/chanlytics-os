@@ -14,18 +14,23 @@ import { SEND_GRACE_MS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/con
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const went = [];
 const flashes = [];
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  },
+});
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
   usePPToast: () => [null, (m) => flashes.push(m)],
   canDo: () => true,
   gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
 // Need you as the page draws it, with the card its arrangement names (Today, calm).

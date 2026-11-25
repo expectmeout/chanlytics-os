@@ -44,8 +44,7 @@ type Flash = (f: FrameFlash) => void;
  * which is where the menu points and where a person looks.
  */
 function YourName({ flash }: { flash: Flash }) {
-  const me = meNow() || {};
-  const stored = me.display_name || "";
+  const stored = meNow()?.display_name || "";
   // The record kit's row and inline editor, as the Business tab edits a value where it is stated: the row says the
   // name, Change opens the box on the row's own line, Enter saves, Esc cancels, and the registry keeps one editor open.
   // It was a box always drawn, with a Save that appeared beside it.

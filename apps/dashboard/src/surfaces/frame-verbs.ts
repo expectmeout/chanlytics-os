@@ -13,6 +13,9 @@ import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 import { BACK_SETTLE_MS } from "./kit/sheet/back";
+import { provided } from "@/bridge/provided";
+import { whoIsLooking, type Me } from "@/bridge/who";
+import type { Params, RouteKey } from "@/client/api";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface FrameFlash {
@@ -39,8 +42,6 @@ declare global {
     };
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
-    __listRoute?: (id: string) => string;
-    __refreshSurface?: (key: string) => Promise<void>;
     usePPToast?: () => [ReactNode, (flash: FrameFlash) => void];
   }
 }
@@ -67,9 +68,9 @@ export function onRolesChanged(fn: () => void): () => void {
   return () => window.removeEventListener("team:changed", fn);
 }
 
-/** Sign out of every session (the frame's `__shell.signOut`); false where there is no frame to do it. */
+/** Sign out of every session (the shell's `signOut`, provided.ts); false where there is no frame to do it. */
 export function shellSignOut(): boolean {
-  const shell = windowObject<{ signOut?: () => void }>("__shell");
+  const shell = provided("shell");
   if (!shell || !shell.signOut) return false;
   shell.signOut();
   return true;
@@ -169,11 +170,6 @@ export function askCalls(): AskApi | undefined {
   return askHeld;
 }
 
-/** Where a People list is, by its id: the list picked (People's own rule), or People itself before its lists are read. */
-export function listRoute(id: string): string {
-  return window.__listRoute ? window.__listRoute(id) : "clients";
-}
-
 /*
  * The Booking tool's sheet, on the page a door to it was pressed on (settings/booking-tool/, Ruben, 9 October 2026).
  * The door's verb stands here, with the verbs every page already loads, and not beside the sheet: a module of its own
@@ -201,12 +197,12 @@ export function openBookingTool(orAt: string): void {
 
 /** Read one surface again by its key (a failed read's Retry): the runner's own, which the cache, the status and the pill follow. */
 export function refreshSurface(key: string): Promise<void> | undefined {
-  return window.__refreshSurface?.(key);
+  return provided("refreshSurface")?.(key);
 }
 
-/** Whether a retry can be pressed at all: the runner published its verb. */
+/** Whether a retry can be pressed at all: the runner provided its verb. */
 export function canRefreshSurfaces(): boolean {
-  return !!window.__refreshSurface;
+  return !!provided("refreshSurface");
 }
 
 /** The shell's toast: its node, to be drawn by the page, and the flash that raises one. Nothing to draw where the shell has none. */
@@ -247,21 +243,21 @@ export function windowObject<T extends object>(name: string): T | undefined {
 
 /**
  * The props of a control that refuses, with the sentence that says why (frame/gate.ts `gatedProps`): focusable, described,
- * inert, and pressing it shows the reason at the control (`window.__tip`). None where the shell has no role gate.
+ * inert, and pressing it shows the reason at the control (the provided `tip`). None where the shell has no role gate.
  */
 export function gatedProps(reason: string): Record<string, unknown> {
   const g = windowFn<[string], Record<string, unknown>>("gatedProps");
   return g ? g(reason) : {};
 }
 
-/** Whether the shell can build a link to a route at all (`__href`): the standalone mockup cannot. */
+/** Whether the bridge can build a link to a route at all (the provided `href`): a page drawn alone cannot. */
 export function hasHref(): boolean {
-  return !!windowFn("__href");
+  return !!provided("href");
 }
 
-/** A link the browser follows to a route (`__href`: a download, a photo), or null where the shell builds none. */
-export function hrefOf(key: string, params?: Record<string, string>): string | null {
-  const href = windowFn<[string, Record<string, string> | undefined], string>("__href");
+/** A link the browser follows to a route (the provided `href`: a download, a photo), or null where the bridge builds none. */
+export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string | null {
+  const href = provided("href");
   return href ? href(key, params) : null;
 }
 
@@ -315,12 +311,12 @@ export function openAutonomy(): void {
 }
 
 /**
- * The frame's tip, which a control's mark shows on a press (`window.__tip.show`, as the attention row's "what else is
- * known" mark does): read when it is asked, and nothing where the shell has no tip.
+ * The frame's tip, which a control's mark shows on a press (the provided `tip`, as the attention row's "what else is known"
+ * mark does): read when it is asked, and nothing where the shell has no tip.
  */
 export function showTip(target: Element | null): void {
-  const tip = windowObject<{ show?: (el: Element) => void }>("__tip");
-  if (tip && tip.show && target) tip.show(target);
+  const tip = provided("tip");
+  if (tip && target) tip.show(target);
 }
 
 /* ------------------------- the shell's helpers a surface's controls take (surfaces/frame) -------------------------- */
@@ -379,7 +375,6 @@ declare global {
     routeDoor?: (to: string, go?: ((to: string) => void) | null) => RouteDoor;
     refusalToast?: (r: Refusal | null | undefined, what?: string | null) => FrameFlash;
     useHotkey?: (matcher: (e: KeyboardEvent, typing: boolean) => boolean, handler: (e: KeyboardEvent) => void) => void;
-    __tip?: { show: (el: Element) => void };
     openDealSheet?: (ask: DealSheetAsk) => void;
   }
 }
@@ -534,27 +529,12 @@ export function replaceRoute(route: string): void {
   window.appNavigate?.(route, { replace: true });
 }
 
-/** Who is acting, as the workspace read said (`window.__ME`); null before it lands. */
-export function meNow(): {
-  id?: string | null;
-  role?: string | null;
-  display_name?: string | null;
-  email?: string | null;
-  platform_admin?: boolean;
-} | null {
-  type Me = {
-    id?: string | null;
-    role?: string | null;
-    display_name?: string | null;
-    email?: string | null;
-    platform_admin?: boolean;
-  };
-  return (window as Window & { __ME?: Me | null }).__ME ?? null;
+/** Who is acting, as the workspace read said (bridge/who.ts); null before it lands. */
+export function meNow(): Me | null {
+  return whoIsLooking().me;
 }
 
-/** Whether the surface a route draws from failed to read (`window.__surfaceFailed`): where the registry has none, no. */
+/** Whether the surface a route draws from failed to read (the route gate's, provided.ts): where there is no gate, no. */
 export function surfaceFailed(page: string, param?: string | null): boolean {
-  const failed = (window as Window & { __surfaceFailed?: (page: string, param?: string | null) => boolean })
-    .__surfaceFailed;
-  return !!(failed && failed(page, param));
+  return !!provided("surfaceFailed")?.(page, param);
 }

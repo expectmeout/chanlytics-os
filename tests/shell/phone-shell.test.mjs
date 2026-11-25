@@ -66,8 +66,8 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
       shell.includes("onPlace={s.onPlace}"),
   );
   assert.ok(
-    shell.includes("!window.__IN_APP && ("),
-    "and only outside the app: inside it the native tab bar stands there (window.__IN_APP, stamped before paint)",
+    shell.includes("!inApp() && ("),
+    "and only outside the app: inside it the native tab bar stands there (the root's in-app class, stamped before paint)",
   );
   const css = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(css.includes(".phone-places { display: none; }"), "desktop never sees it");

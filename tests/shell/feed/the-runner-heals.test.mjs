@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -30,9 +31,11 @@ globalThis.window.dispatchEvent = (e) => {
   for (const fn of [...(windowListeners.get(e.type) ?? [])]) fn(e);
   return true;
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 const docListeners = new Set();
 const doc = {
@@ -218,8 +221,8 @@ test("the feed's first join reads again what tells of a customer's message or a 
 
 test("a tab that could not say its workspace says the feed is down, and joins it as soon as a later read says the workspace (S2-6)", async (t) => {
   t.mock.method(console, "error", () => {});
-  const was = globalThis.__ACTIVE_WORKSPACE;
-  delete globalThis.__ACTIVE_WORKSPACE;
+  const was = whoIsLooking().activeWorkspaceId;
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   let reachable = false;
   const r = await running(t, [
     {
@@ -227,7 +230,7 @@ test("a tab that could not say its workspace says the feed is down, and joins it
       // Who is looking: the read that says the workspace on screen, and with it the feed's topic.
       answer: () => {
         if (!reachable) throw new Error("unreachable");
-        globalThis.__ACTIVE_WORKSPACE = "t1";
+        bridgeHolds({ who: { activeWorkspaceId: "t1" } });
       },
     },
     { key: "late", refreshOnTables: ["messages"] },
@@ -254,7 +257,7 @@ test("a tab that could not say its workspace says the feed is down, and joins it
       "and what the feed tells of is read, since nothing was heard while it was not joined",
     );
   } finally {
-    globalThis.__ACTIVE_WORKSPACE = was;
+    bridgeHolds({ who: { activeWorkspaceId: was } });
     t.mock.timers.reset();
     r.stop();
   }

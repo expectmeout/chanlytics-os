@@ -19,7 +19,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { ROLE_PERMS, roleGate } from "@chanlytics/contracts";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
@@ -73,7 +73,7 @@ fs.rmSync(file, { force: true });
 /** The member acting, as the shell seeds it (bridge/seed-globals.ts): the role store and the gate's own sentence. */
 function actAs(role) {
   globalThis.window.ST_STORE = { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role };
-  globalThis.window.__roleGate = roleGate;
+
   globalThis.window.gate = S.gate;
 }
 

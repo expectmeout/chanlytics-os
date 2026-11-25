@@ -36,6 +36,7 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
+import { surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("their next step on the page: a column after Stage that sorts by its day, in the warn ink once it has come; the phone's card and the board's say it, and Steps due holds only theirs", async () => {
   const now = Date.now();
@@ -177,7 +178,7 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
   // eight-day pace and a fifth (ten days) only Wes does.
   await fresh({ dealPace: { median_days: 8, yeses: 6 } });
   let tree = draw();
-  assert.deepEqual(globalThis.window.__PEOPLE.dealPace, {
+  assert.deepEqual(surfaceValue("people").dealPace, {
     medianDays: 8,
     yeses: 6,
     waitDays: 10,
@@ -251,7 +252,11 @@ test("the sheet says the follow-up has them where their row does (0006): the day
     },
   });
   const W = globalThis.window;
-  assert.equal(W.__PEOPLE.rows.find((r) => r.id === "wes").followUp?.kind, "will", "their row: in a run to come");
+  assert.equal(
+    surfaceValue("people").rows.find((r) => r.id === "wes").followUp?.kind,
+    "will",
+    "their row: in a run to come",
+  );
   // Their thread carries the proposal that went, eleven days ago.
   seen.person = (id) => {
     const d = detailOf(seen.rawOf(id));

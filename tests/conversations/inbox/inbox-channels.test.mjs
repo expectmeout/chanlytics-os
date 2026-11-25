@@ -5,14 +5,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, find, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
-  __surfaceState: () => "live",
-});
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
+installStubReact({});
 Object.assign(globalThis, { CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } } });
 const S = "../../../apps/dashboard/src";
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);

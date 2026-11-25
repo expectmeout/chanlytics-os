@@ -47,10 +47,11 @@ export interface FeedThread {
   /** Absolute times, when the view-model carries them. */
   lastAtMs?: number;
   escalatedAtMs?: number;
+  /** A reply held to send: its end and its message, which a real thread's always carries (the Inbox's own Veto). */
   veto?: {
     window: number;
-    endsAtMs: number;
-    messageId: string;
+    endsAtMs?: number;
+    messageId?: string;
     draft: string;
     why?: { heldFor?: string | null; summary?: string };
   };
@@ -97,7 +98,7 @@ export interface FeedInvite {
 }
 
 export interface FeedInput {
-  threads?: FeedThread[] | null;
+  threads?: readonly FeedThread[] | null;
   calls?: FeedCall[] | null;
   invites?: FeedInvite[] | null;
   now: number;

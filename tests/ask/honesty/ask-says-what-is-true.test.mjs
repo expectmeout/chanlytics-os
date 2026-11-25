@@ -28,6 +28,7 @@ import {
   missedCall,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -331,12 +332,16 @@ test("did anyone call: today's missed calls are the customers' dials that never 
 });
 
 test("the palette reads every call Live holds, each once: today's missed calls past the page's newest few count, and a dial we placed is not one -- in the quick answer, the suggestion's count and the jump list's word", async () => {
-  const win = (live) => ({
-    __WORKSPACES: [{ id: "w1", slug: "h", name: "Harbor", status: "active", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "w1",
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: live,
-  });
+  const win = (live) => {
+    bridgeHolds({
+      who: {
+        workspaces: [{ id: "w1", slug: "h", name: "Harbor", status: "active", timezone: TZ }],
+        activeWorkspaceId: "w1",
+      },
+      values: { inbox: { THREADS: [] }, live },
+    });
+    return {};
+  };
   const call = (callId, over) => ({
     callId,
     cvId: `cv-${callId}`,

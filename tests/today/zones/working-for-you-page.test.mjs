@@ -9,17 +9,22 @@ import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, ZONE, escalation, metrics, msg, thread, waiting } from "../record/_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const flashed = [];
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  },
+});
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: () => {},
   usePPToast: () => [null, (f) => flashed.push(f)],
   canDo: () => true,
   gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
 W.matchMedia = (q) => ({
@@ -28,9 +33,11 @@ W.matchMedia = (q) => ({
   addEventListener() {},
   removeEventListener() {},
 });
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
 });
 // Every write is refused: what a press does with a refusal is what is proved here, and nothing is sent anywhere.
 W.fetch = async () =>

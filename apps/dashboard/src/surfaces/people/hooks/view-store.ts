@@ -4,6 +4,7 @@
  * 0015). The workspace's copy is saved one at a time (plViewSaver).
  */
 import { saveView } from "../people-detail";
+import { pageReport } from "@/client/page-report";
 
 const PL_VIEW_KEYS: Record<string, string> = {
   people: "chanlytics-people-view",
@@ -52,7 +53,7 @@ export const plViewSaver = (page: string): ((view: Record<string, unknown>, retr
       next = null;
       if (waiting) push(waiting);
       else if (!(r && r.ok) && !retried) push(view, true);
-      else if (!(r && r.ok)) console.error("people_view_not_saved", page, r && r.message);
+      else if (!(r && r.ok)) pageReport.error("people_view_not_saved", page, r && r.message);
     };
     saveView(page, view).then(landed, (e: { message?: string } | null) => landed({ ok: false, message: e?.message }));
   };

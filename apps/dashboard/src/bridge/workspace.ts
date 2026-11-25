@@ -25,6 +25,7 @@ import {
   routeOfHash,
   routeOfPath,
   workspacePath,
+  IN_APP_CLASS,
 } from "@chanlytics/contracts";
 import { LAST_WORKSPACE_STORAGE } from "@/frame-boot";
 import type { AddressParts } from "@chanlytics/contracts";
@@ -586,8 +587,10 @@ export function keepWarm(routes: readonly string[], win: AddressWindow = window)
  * (7 Nov 2026). A desk's pointer warms what it reaches, and the native
  * app's tab bar stands in this one's place.
  */
-export function warmPhonePlaces(win: AddressWindow & { __IN_APP?: boolean } = window): void {
-  if (win.__IN_APP || !warmsOnItsOwn()) return;
+export function warmPhonePlaces(win: AddressWindow = window): void {
+  // Inside the native app (the class contracts' boot script puts on the root before paint), its own bar stands here.
+  const inApp = typeof document !== "undefined" && !!document.documentElement?.classList?.contains(IN_APP_CLASS);
+  if (inApp || !warmsOnItsOwn()) return;
   if (typeof matchMedia !== "function" || !matchMedia(PAGE_PHONE_QUERY).matches) return;
   for (const route of PHONE_WARM_ROUTES) warmRoute(route, win);
 }
@@ -608,7 +611,7 @@ export function reachFor(route: string, win: AddressWindow = window): void {
   reachedFor?.(canonicalRoute(route));
 }
 
-/** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */
+/** The four of them on the shell's verbs, for the pages that cannot import (shell.ts installShell, provided.ts `shell`). */
 export function addressApi(win: AddressWindow = window) {
   return {
     route: () => routeOnScreen(win),

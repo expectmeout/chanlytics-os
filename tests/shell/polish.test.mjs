@@ -78,7 +78,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   );
   // A call said by name, about its call or the thread that needs a call back, runs: voice/calls/retell-door/.
   assert.ok(
-    /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
+    /bellFeed\(\{\s*derived: derivedFeedNow\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
     "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
   );
   const server = [

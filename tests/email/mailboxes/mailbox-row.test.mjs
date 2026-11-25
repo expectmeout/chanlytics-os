@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, find, all, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const SAM = "sam@getharbor.example";
@@ -22,9 +23,8 @@ const { Segmented } = await import("../../../apps/dashboard/src/surfaces/kit/seg
 const role = { owner: true };
 // The workspace's zone, as the workspace list publishes it: a day the card says is its, never the suite's own.
 const ZONE = "America/Los_Angeles";
+bridgeHolds({ who: { workspaces: [{ id: "w1", timezone: ZONE }], activeWorkspaceId: "w1" } });
 Object.assign(globalThis.window, {
-  __WORKSPACES: [{ id: "w1", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "w1",
   canDo: () => role.owner,
   gate: (_perm, doing) => (role.owner ? {} : { "aria-disabled": "true", "data-gated": doing }),
   gateTitle: (_perm, doing) => `Only an owner can ${doing}.`,

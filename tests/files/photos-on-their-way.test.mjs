@@ -34,8 +34,6 @@ const win = {
   addEventListener: (t, fn) => (heard[t] ||= []).push(fn),
   removeEventListener() {},
   dispatchEvent: () => true,
-  // The read a run's end asks for: as a real one does, it lands in the surface's value, unless a test says otherwise.
-  __refreshSurface: async () => theReadLands(),
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -57,6 +55,7 @@ URL.revokeObjectURL = (u) => goneUrls.push(u);
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export * from "../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
@@ -87,6 +86,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `sending-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => theReadLands());
 fs.rmSync(file, { force: true });
 
 const stateNow = () => {

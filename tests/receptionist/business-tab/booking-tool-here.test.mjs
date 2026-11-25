@@ -18,6 +18,7 @@ import {
   without,
   written,
 } from "../../_business-tab-harness.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const BT = "../../../apps/dashboard/src/surfaces/settings/booking-tool";
@@ -117,12 +118,16 @@ test("on a page that has not read Settings or the Calendar, each is asked for on
   landSettings(undefined);
   setSurfaceValue("calendar", undefined);
   const asked = [];
-  W.__refreshSurface = (key) => {
-    asked.push(key);
-    if (key === "settings") landSettings(record);
-    else setSurfaceValue("calendar", { vm: null });
-    return Promise.resolve();
-  };
+  bridgeHolds({
+    parts: {
+      refreshSurface: (key) => {
+        asked.push(key);
+        if (key === "settings") landSettings(record);
+        else setSurfaceValue("calendar", { vm: null });
+        return Promise.resolve();
+      },
+    },
+  });
   const draw = () => W.React.createElement(BookingToolSheet, { onClosed: () => {}, flash: () => {} });
   assert.equal(sheetOf(draw()), null, "nothing drawn before the reads");
   assert.deepEqual(asked, ["settings", "calendar"]);
@@ -130,5 +135,5 @@ test("on a page that has not read Settings or the Calendar, each is asked for on
   assert.ok(sheetOf(again(draw)) || sheetOf(again(draw)), "read, it opens");
   assert.equal(W.__recordFolds.open(), "calendar");
   assert.deepEqual(asked, ["settings", "calendar"], "asked once");
-  delete W.__refreshSurface;
+  bridgeHolds({ parts: { refreshSurface: undefined } });
 });

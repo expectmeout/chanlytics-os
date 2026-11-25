@@ -27,6 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -281,15 +282,17 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
-  __surfaceState: () => "live",
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds(
+  { parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou }, surfaceState: () => "live" } },
+  { fresh: true },
+);
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit, published as the app publishes it before any page loads.
 Object.assign(globalThis.window, kitPages);
@@ -696,25 +699,28 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
 const inTokyo = (nowIso, fn) => {
   const before = {
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
-    bc: globalThis.window.__BROADCASTS,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
+    bc: surfaceValue("broadcasts"),
   };
   const realNow = Date.now;
-  Object.assign(globalThis.window, {
-    __WORKSPACES: [{ id: "t-tokyo", slug: "tokyo", name: "Tokyo Salon", status: "active", timezone: "Asia/Tokyo" }],
-    __ACTIVE_WORKSPACE: "t-tokyo",
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "t-tokyo", slug: "tokyo", name: "Tokyo Salon", status: "active", timezone: "Asia/Tokyo" }],
+      activeWorkspaceId: "t-tokyo",
+    },
   });
+  Object.assign(globalThis.window, {});
   Date.now = () => Date.parse(nowIso);
   try {
     return fn();
   } finally {
     Date.now = realNow;
-    Object.assign(globalThis.window, {
-      __WORKSPACES: before.ws,
-      __ACTIVE_WORKSPACE: before.active,
-      __BROADCASTS: before.bc,
+    bridgeHolds({
+      who: { workspaces: before.ws, activeWorkspaceId: before.active },
+      values: { broadcasts: before.bc },
     });
+    Object.assign(globalThis.window, {});
   }
 };
 
@@ -780,19 +786,23 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
 test("REGRESSION (D5): Today's 'went out' line is the business's today, at the business's time", () => {
   // 2 PM on the 7th in Tokyo; 1 AM on the 7th in New York. The run went out at 1:30 AM on the 7th in Tokyo.
   inTokyo("2026-09-07T05:00:00Z", () => {
-    globalThis.window.__BROADCASTS = {
-      rows: [
-        {
-          id: "b1",
-          name: "Spring offer",
-          state: "sent",
-          started_at: "2026-09-06T16:30:00Z",
-          playbook_id: null,
-          audience: { label: "Everyone" },
-          counts: { sent: 8, replied: 1 },
+    bridgeHolds({
+      values: {
+        broadcasts: {
+          rows: [
+            {
+              id: "b1",
+              name: "Spring offer",
+              state: "sent",
+              started_at: "2026-09-06T16:30:00Z",
+              playbook_id: null,
+              audience: { label: "Everyone" },
+              counts: { sent: 8, replied: 1 },
+            },
+          ],
         },
-      ],
-    };
+      },
+    });
     setSurfaceValue("today", todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
     cells = [];
     frames.begin();
@@ -1016,9 +1026,17 @@ let campaigns = null;
 const campaignsWorld = async () => {
   if (campaigns) return campaigns;
   const toasts = [];
+  bridgeHolds({
+    who: {
+      me: { role: "owner" },
+      workspaces: [
+        { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: "t-studio",
+    },
+    parts: { surfaceState: () => "live" },
+  });
   installStubReact({
-    __surfaceState: () => "live",
-    __ME: { role: "owner" },
     ...shellDoors,
     // The policy store the chip on a card reads (the shell publishes it; policy-store.ts).
     POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
@@ -1030,10 +1048,6 @@ const campaignsWorld = async () => {
       replace() {},
       reload() {},
     },
-    __WORKSPACES: [
-      { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
-    ],
-    __ACTIVE_WORKSPACE: "t-studio",
     usePPToast: () => [null, (t) => toasts.push(t)],
     CHANLY: { nav() {}, R: {} },
     appNavigate() {},

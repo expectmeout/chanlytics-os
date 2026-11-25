@@ -28,6 +28,7 @@ import { onSurfaceMoved, surfaceMoved } from "../surface-status";
 import { hearAddress, routeOnScreen } from "../workspace";
 import { knownZone } from "../zone";
 import { hearFront, pageHidden } from "./front";
+import { pageReport } from "@/client/page-report";
 
 /** What the clock asks of the runner it keeps time for. */
 export interface ClockRun {
@@ -77,7 +78,7 @@ function remake(o: SurfaceOverride, now: Date, win: Window): void {
   try {
     moved = o.rederive?.(now) === true;
   } catch (e) {
-    console.error("surface_rederive_failed", o.key, e instanceof Error ? e.message : e);
+    pageReport.error("surface_rederive_failed", o.key, e instanceof Error ? e.message : e);
     return;
   }
   if (!moved) return;

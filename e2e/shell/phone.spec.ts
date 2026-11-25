@@ -1408,11 +1408,10 @@ test.describe("Phone shell on a real workspace", () => {
   }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const ids = await page.evaluate(() =>
-      ((window as unknown as { __PEOPLE?: { rows: { id: string }[] } }).__PEOPLE?.rows ?? [])
-        .slice(0, 8)
-        .map((r) => r.id),
-    );
+    // The people People's page lists, by the read it draws from (GET contacts), the first eight.
+    const listed = (await (await apiGet(page, "/api/v1/contacts")).json())?.data?.people as
+      { id: string }[] | undefined;
+    const ids = (listed ?? []).slice(0, 8).map((r) => r.id);
     test.skip(ids.length === 0, "nobody on this workspace");
     let tabs = 0;
     let person = ids[0] ?? "";

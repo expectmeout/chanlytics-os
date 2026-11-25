@@ -17,11 +17,12 @@ import { importSrc } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
 import { historyOf, legacyAddress } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const listening = new Map();
+bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
   __afterTheMoveMs: 0,
-  __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/people", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!listening.has(type)) listening.set(type, new Set());
@@ -44,7 +45,7 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
+bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const REAL = [];

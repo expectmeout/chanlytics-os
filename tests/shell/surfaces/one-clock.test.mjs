@@ -42,6 +42,7 @@ import {
 } from "@chanlytics/contracts";
 import { attentionRow } from "../../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 const at = (iso) => Date.parse(iso);
 const iso = (ms) => new Date(ms).toISOString();
@@ -487,7 +488,8 @@ test("REGRESSION (D5): on a cold load the Inbox waits for the workspace's zone -
 });
 
 test("a person's profile says its days by the workspace's zone", async () => {
-  Object.assign(globalThis.window, { __WORKSPACES: [WORKSPACE], __ACTIVE_WORKSPACE: WORKSPACE.id });
+  bridgeHolds({ who: { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id } });
+  Object.assign(globalThis.window, {});
   const detail = {
     row: row(),
     identities: [],
@@ -506,7 +508,8 @@ test("a person's profile says its days by the workspace's zone", async () => {
 });
 
 test("REGRESSION: a snooze with no time asked for wakes at ten tomorrow by the business's clock -- it was ten wherever the browser was", async () => {
-  Object.assign(globalThis.window, { __WORKSPACES: [WORKSPACE], __ACTIVE_WORKSPACE: WORKSPACE.id });
+  bridgeHolds({ who: { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id } });
+  Object.assign(globalThis.window, {});
   const seen = wire({ "POST /api/v1/conversations/c1/snooze": { conversation: { id: "c1", state: "snoozed" } } });
   const { inboxVerb } = await import("../../../apps/dashboard/src/surfaces/inbox/verbs.ts");
   // 1:30 AM on the 7th in Tokyo; 12:30 PM on the 6th in New York.
@@ -525,12 +528,14 @@ test("the palette offers the missed-calls question for the business's today", as
   const missedQ = C.buildAskSuggestions({ ...base, missedToday: 1 })
     .map((s) => s.q)
     .find((q) => !none.includes(q));
-  const win = {
-    __WORKSPACES: [WORKSPACE],
-    __ACTIVE_WORKSPACE: WORKSPACE.id,
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: { now: [], recent: [{ callId: "k1", who: "Aiko", missed: true, live: false, startedAtMs: at(WROTE) }] },
-  };
+  bridgeHolds({
+    who: { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id },
+    values: {
+      inbox: { THREADS: [] },
+      live: { now: [], recent: [{ callId: "k1", who: "Aiko", missed: true, live: false, startedAtMs: at(WROTE) }] },
+    },
+  });
+  const win = {};
   // 2 PM on the 7th in Tokyo, where the call was today; 1 AM on the 7th in New York, where it was yesterday.
   const qs = await pinned(at("2026-09-07T05:00:00Z"), () =>
     askPalette(win, null)
@@ -545,9 +550,10 @@ test("the palette offers the missed-calls question for the business's today", as
 
 test("the pages read one clock, the workspace's: a time, a schedule box, when a send really goes", async () => {
   const { installClock } = await import("../../../apps/dashboard/src/bridge/zone.ts");
-  Object.assign(globalThis.window, { __WORKSPACES: [WORKSPACE], __ACTIVE_WORKSPACE: WORKSPACE.id });
+  bridgeHolds({ who: { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id } });
+  Object.assign(globalThis.window, {});
   installClock();
-  const clock = globalThis.window.__clock;
+  const clock = provided("clock");
   assert.equal(clock.time(at(WROTE)), "1:30 AM");
   assert.equal(clock.city(), "Tokyo");
   assert.equal(clock.inputValue(at("2026-09-15T13:30:00Z")), "2026-09-15T22:30");

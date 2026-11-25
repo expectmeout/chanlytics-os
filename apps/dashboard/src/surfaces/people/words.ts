@@ -311,7 +311,7 @@ export const PL_OVERLAY = [
 
 /**
  * Where a list's own route lands now that Lists is a view of People: the list, picked, by its kind. A link that named the
- * old page (Playbooks' list, an answer's jump, an address someone kept) still arrives. The shell asks (window.__listRoute).
+ * old page (Playbooks' list, an answer's jump, an address someone kept) still arrives. The shell asks (reports/blocks.tsx, settings/activity/log.tsx).
  */
 export const plListRoute = (id: string | null | undefined): string => {
   const people = surfaceValue("people");

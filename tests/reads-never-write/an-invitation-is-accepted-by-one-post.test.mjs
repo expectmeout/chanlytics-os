@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { youJoinedWords } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 /* ---- a window, a wire and a place in the world ---- */
 globalThis.window ??= globalThis;
@@ -72,8 +73,8 @@ const { JOINED_EVENT, takeJoinedWords } = await importSrc("apps/dashboard/src/br
 const forgetPlace = () => {
   // The client shares identical reads for two seconds: a test's read must not be answered with the one before it.
   api().forget();
-  globalThis.__WORKSPACES = undefined;
-  globalThis.__ACTIVE_WORKSPACE = undefined;
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   calls.length = 0;
   replaced.length = 0;
 };
@@ -122,7 +123,7 @@ test("a list that holds no workspace waits for the accept and is read again for 
   assert.equal(asked("GET workspaces"), 2, "read, then read again with the seat");
   assert.equal(asked("POST me/invitations/accept"), 0, "the accept is the page's one, not asked again");
   assert.deepEqual(
-    (globalThis.__WORKSPACES ?? []).map((w) => w.slug),
+    (whoIsLooking().workspaces ?? []).map((w) => w.slug),
     ["luna"],
     "the list the tab holds is the one with the seat",
   );

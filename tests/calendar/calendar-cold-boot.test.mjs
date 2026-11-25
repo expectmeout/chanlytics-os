@@ -8,12 +8,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { windowFor } from "@chanlytics/contracts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const asked = [];
 /** Every read as it was spelled: the path and its own query, the workspace aside. */
 const spelled = [];
 /** The weeks the route answers `around=today` with, by the business's clock: its to work out, not the page's. */
 const AROUND = windowFor("2026-09-08");
+bridgeHolds(
+  { who: { workspaces: [{ id: "t1", timezone: "America/New_York" }], activeWorkspaceId: "t1" } },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/harbor",
@@ -22,8 +27,6 @@ globalThis.window = {
     assign() {},
     replace() {},
   },
-  __WORKSPACES: [{ id: "t1", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {
@@ -82,7 +85,7 @@ test("the weeks around today are asked for by that word, before anyone knows the
   // The page asked by the first day of its window, which it could not say until it knew the business's zone: its first
   // read waited for who is looking, and the document's head, which knows no zone, could not start it (9 Oct 2026: the
   // Calendar's read left 600 ms into a load whose Inbox's had left at 150). Nobody has said who is looking here.
-  delete globalThis.window.__WORKSPACES;
+  bridgeHolds({ who: { workspaces: undefined } });
   setCalendarSpan(null);
   spelled.length = 0;
   await calendarOverride.apply();

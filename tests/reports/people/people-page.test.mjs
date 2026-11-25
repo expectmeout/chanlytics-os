@@ -14,24 +14,30 @@ import { toPeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
 import { quiet, surface } from "../_report-world.mjs";
 import { POOL, QUIET, dtoWith, held } from "./_people-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const navigated = [];
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
-globalThis.__WORKSPACES = [
-  {
-    id: "w1",
-    slug: "harbor",
-    name: "Harbor Studio",
-    status: "active",
-    timezone: "America/New_York",
-    appointment_word: "meeting",
-    role: "owner",
+bridgeHolds({
+  who: {
+    workspaces: [
+      {
+        id: "w1",
+        slug: "harbor",
+        name: "Harbor Studio",
+        status: "active",
+        timezone: "America/New_York",
+        appointment_word: "meeting",
+        role: "owner",
+      },
+    ],
   },
-];
-globalThis.__ACTIVE_WORKSPACE = "w1";
+});
+bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 const S = "../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

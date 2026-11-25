@@ -24,11 +24,12 @@ import {
   type NumberHealth,
   type OpenToCustomers,
 } from "@chanlytics/contracts";
-import { type SurfaceOverride, workspaceOverride } from "@/bridge/surface-data";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { currentWorkspace } from "@/bridge/who";
 import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS } from "@/bridge/surface-realtime";
 import { declareReads } from "@/bridge/surface-registry";
 import { followSettings } from "../../offered-templates";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { channelsHeld, followChannels } from "../../channels/surface";
 import {
   cmBusinessOf,
@@ -38,9 +39,6 @@ import {
   cmSameNumber,
   type CmOffered,
 } from "../parts/channels";
-
-// The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
-declareSurfaceValue("broadcasts", "__BROADCASTS");
 
 /* ------------------------------ Broadcasts ------------------------------- */
 
@@ -235,7 +233,7 @@ export const broadcastsOverride: SurfaceOverride = {
     // The number's health as WhatsApp last said it.
     const number = { present: wa.present, display: wa.display, health: wa.health };
     // The workspace being VIEWED, for the public page's address.
-    const slug = workspaceOverride.current()?.slug ?? null;
+    const slug = currentWorkspace()?.slug ?? null;
     optInFrom = { slug, open: bc.open_to_customers ?? null };
     lastRuns = { runs: bc.broadcasts, tz };
     setSurfaceValue("broadcasts", {

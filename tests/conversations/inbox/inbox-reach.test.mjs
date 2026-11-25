@@ -15,8 +15,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all as findAll, find, textOf, walk } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -96,7 +97,8 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
@@ -106,6 +108,7 @@ const { ixReadAgain, ixHeld } = await import(`${S}/surfaces/inbox/rules.ts`);
 const { ixHoldAll } = await import(`${S}/surfaces/inbox/pages/hold-all.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+bridgeHolds({ parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } } });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -115,8 +118,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},

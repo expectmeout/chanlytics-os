@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { holdsAlike, wordsLessHolds } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -208,7 +209,8 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 test("the Line draws it as it draws a campaign's: the rows, with every email whole and nothing behind Details", async () => {
   const { card: p } = await card([CONNECTED]);
   const { installStubReact, fresh, all, textOf, kitPages } = await import("../../_stub-react.mjs");
-  installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
+  bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
+  installStubReact({});
   Object.assign(globalThis.window, kitPages);
   Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
   const { AskCards } = await import(at("apps/dashboard/src/surfaces/ask/card.tsx"));

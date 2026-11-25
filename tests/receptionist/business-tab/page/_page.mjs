@@ -14,6 +14,7 @@
 import { after } from "node:test";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";
 import { foldOf, KNOWN, landFacts, landSettings, marisa, W } from "../../../_business-tab-harness.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 /**
  * The card PaneWorkspace draws INSTEAD of the page for a workspace whose config holds no brain
@@ -51,15 +52,19 @@ export const useOn = (tree, row) =>
 /** Stand in for the bridge's PUT, holding each save until the test takes it (`accept`) or answers it (`answer`). */
 export const holding = () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise((answer) => {
-      sent.push({
-        config: structuredClone(config),
-        version,
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-        answer,
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise((answer) => {
+          sent.push({
+            config: structuredClone(config),
+            version,
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+            answer,
+          });
+        }),
+    },
+  });
   return sent;
 };
 

@@ -12,9 +12,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { memberWords, stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
+import { stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { all, again, find, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -259,11 +260,9 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
 
 /* ------------------------------------ the pane ------------------------------------ */
 
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

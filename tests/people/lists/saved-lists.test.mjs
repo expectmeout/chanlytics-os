@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw, importSrc } from "../../_source.mjs";
-import { installStubReact, fresh, again, byTestId, find, press, textOf, peoplePages } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -314,8 +314,8 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   assert.equal(closed, 1);
   // list-action (the list's one door) and show-everyone are the page's own (page/screen.tsx): pressed in
   // people/people-page/, with the shell's and a profile's New list (segments:new) opening the box.
-  // The People page owns where a list's route lands:
-  assert.equal(peoplePages.__listRoute, plListRoute, "the People page owns where a list's route lands");
+  // The People page owns where a list's route lands (words.ts plListRoute), and every page that links a list imports it.
+  assert.equal(plListRoute("s1"), "clients", "before People's lists are read, People itself");
   // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell/surfaces/status/), no
   // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
 });
