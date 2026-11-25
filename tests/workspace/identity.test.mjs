@@ -128,7 +128,10 @@ test("the wiring: one profile row per account, written by its owner only, read b
   // and the bridge patches nothing ahead of them: shell/hearing/channels-billing-and-rules-are-heard.test.mjs runs it.
   assert.ok(!bridge.includes("me:changed"), "the bridge no longer announces a name of its own");
   assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installIdentity();"));
-  assert.ok(readCode("apps/dashboard/src/bridge/surface-data.ts").includes("display_name?: string | null"));
+  assert.ok(
+    readCode("apps/dashboard/src/bridge/who.ts").includes("display_name?: string | null"),
+    "who is looking carries the name",
+  );
 
   const sidebar = ["sidebar", "sidebar-who"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))

@@ -32,6 +32,13 @@ import { pathWorkspace } from "./workspace";
 import { provide } from "./provided";
 import { currentWorkspace } from "./who";
 
+declare module "./provided" {
+  interface BridgeParts {
+    /** The business's clock: every method says the workspace's time. */
+    clock: PageClock;
+  }
+}
+
 /** The zone the workspace read answered here, for whatever paints before the workspace surface publishes it. */
 let lastRead: string | null = null;
 

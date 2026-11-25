@@ -16,20 +16,12 @@
  *
  * This module imports nothing at run time, so the kit, the frame and every surface can import it.
  */
-import type { PageClock } from "./zone";
-import type { TabMemory } from "./tab-memory";
-import type { BellApi } from "./notifications";
-import type { ChromeWords, ShellApi } from "./shell";
-import type { TzApi, WorkspaceApi } from "./identity";
-import type { RepliesApi } from "./reach-out/replies";
-import type { InboxVerbs } from "./inbox-verbs";
-import type { DealMenuCourier, PersonNotesCourier } from "../surfaces/people/people-detail";
-import type { BroadcastVerbs } from "../surfaces/campaigns/broadcasts/verbs";
-import type { CalendarVerbs } from "../surfaces/calendar/verbs";
-import type { BillingApi } from "../surfaces/settings/billing/surface";
-
-/** Each part by its name, as the bridge installs it. */
-interface BridgeParts {
+/**
+ * Each part by its name, as the bridge installs it. The parts typed by their owner's own interface are declared beside it,
+ * by the owner (`declare module "…/provided" { interface BridgeParts { clock: PageClock } }`), as each once declared its
+ * window name (`declare global { interface Window }`): the store imports none of them, so it leans on nothing.
+ */
+export interface BridgeParts {
   /** What the registry says of a page: real, demo, or nothing it knows (surface-registry.ts installSurfaceRegistry). */
   surfaceState: (page: string, param?: string | null) => string | undefined;
   /** Where an address lands now, if it moved: a retired page, a pane that left (installSurfaceRegistry). */
@@ -44,42 +36,12 @@ interface BridgeParts {
   routeWaitMs: number;
   /** Read one surface again by its key, through the runner (FrameApp.tsx): a page's Retry. */
   refreshSurface: (key: string) => Promise<void>;
-  /** The business's clock: every method says the workspace's time (zone.ts installClock). */
-  clock: PageClock;
-  /** The tab's memory of a page's place and its work half-done (tab-memory.ts installTabMemory). */
-  tabMemory: TabMemory;
-  /** The bell: its rows, its read state and this device's alerts (notifications.ts installNotifications). */
-  bell: BellApi;
   /** The one tooltip, shown at a control at once (frame/tip.ts installTip). */
   tip: { show: (el: Element) => void };
-  /** The shell's verbs over the window: the address, sign-out, the workspace switch, Retry all, the tab's name (shell.ts). */
-  shell: ShellApi;
-  /** The chrome's words, as the shell installs them (shell.ts installShell). */
-  chrome: ChromeWords;
   /** Read someone before their row is pressed, and their page's code with them (people-detail.ts installPeopleCourier). */
   warmPerson: (id: string) => void;
-  /** A person's steps: one done or open again, and a step's day once it has come (installPeopleCourier). */
-  personNotes: PersonNotesCourier;
-  /** A deal's acts as a thread's Deal group offers them, and their words (installPeopleCourier). */
-  deal: DealMenuCourier;
-  /** A zone's words and this device's zone, an environment's answer (identity.ts installIdentity). */
-  tz: TzApi;
-  /** The workspace's own changes an owner makes: its zone, its word for a booking (identity.ts installIdentity). */
-  workspace: WorkspaceApi;
-  /** A sent message's reply from a lead, as a thread shows it (reach-out/replies.ts installReplies). */
-  replies: RepliesApi;
-  /** A link to a route the browser follows, a policy's mode and dials, the settings saved (inbox-verbs.ts installInboxVerbs). */
-  href: InboxVerbs["href"];
-  setPolicy: InboxVerbs["setPolicy"];
-  saveSettings: InboxVerbs["saveSettings"];
-  /** Sent's verbs: a run stopped, one approved (campaigns/broadcasts/verbs.ts installBroadcasts). */
-  broadcasts: BroadcastVerbs;
   /** The playbooks read again after a run's verb elsewhere (campaigns/playbooks/verbs.ts installPlaybooks). */
   refreshPlaybooks: () => Promise<void>;
-  /** The Calendar's verbs the Business tab's calendar row presses (calendar/verbs.ts installCalendar). */
-  calendar: CalendarVerbs;
-  /** Billing's verbs and words, which the line under the top bar reads (settings/billing/surface.ts installBilling). */
-  billing: BillingApi;
 }
 
 const installedParts: Partial<BridgeParts> = {};

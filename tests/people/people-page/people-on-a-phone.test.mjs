@@ -1194,8 +1194,8 @@ test("on a phone an empty list of your own is said in the quiet line, and a shee
 
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-  // The shell asks People's rule through its verbs (frame-verbs.ts listRoute), as every page that links a list does.
-  const { listRoute: route } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
+  // People's rule, as every page that links a list imports it (words.ts plListRoute).
+  const { plListRoute: route } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
   assert.equal(route("s1"), "clients/list:s1", "a list kept by hand");
   assert.equal(route("needs_you"), "clients/seg:needs_you", "a smart list");
   // A list People doesn't have: its own address all the same, where People says so (decision 0009).

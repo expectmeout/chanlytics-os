@@ -10,9 +10,44 @@
  *
  * This module imports only held-reads.ts at run time, so the kit, the frame and every surface can import it.
  */
-import type { PendingWorkspace, SignupPosture } from "@chanlytics/contracts";
-import type { Me, Workspace } from "./surface-data";
+import type { MembershipRole, OpenHandoverDto, PendingWorkspace, SignupPosture } from "@chanlytics/contracts";
 import { heldRead, holdRead } from "./held-reads";
+
+declare module "./held-reads" {
+  interface HeldReads {
+    /** Who is looking, and at which workspace: the workspace read's answer, as one value. */
+    workspace: WhoIsLooking;
+  }
+}
+
+/** A workspace this person has a seat in, as the workspace read lists it (GET /api/v1/workspaces). */
+export interface Workspace {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  timezone: string;
+  /** What it calls a booking (00458): appointment, visit, meeting, session or lesson; null where it never picked one. */
+  appointment_word?: string | null;
+  /** The caller's role in it (0012): said beside every workspace on the switcher. */
+  role?: string | null;
+  /** Where its own logo is served (00407): the sidebar's circle, the rail and the switcher draw it over its initials. */
+  logo_url?: string | null;
+}
+
+/** Who is looking, as the workspace read says: their seat's role and what the frame offers them. */
+export interface Me {
+  id: string;
+  email: string | null;
+  role?: MembershipRole | null;
+  display_name?: string | null;
+  /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
+  platform_admin?: boolean;
+  /** Whether this person is a partner (0012), and their code. */
+  partner?: { code: string; status: string } | null;
+  /** The hand-overs open to this person, which the frame offers once they are in (invitations/handover.ts). */
+  handovers?: OpenHandoverDto[];
+}
 
 /** What the workspace read said, as one answer. */
 export interface WhoIsLooking {

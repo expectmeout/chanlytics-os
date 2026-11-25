@@ -14,10 +14,8 @@ import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-door
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 import { BACK_SETTLE_MS } from "./kit/sheet/back";
 import { provided } from "@/bridge/provided";
-import { whoIsLooking } from "@/bridge/who";
-import type { Me } from "@/bridge/surface-data";
+import { whoIsLooking, type Me } from "@/bridge/who";
 import type { Params, RouteKey } from "@/client/api";
-import { plListRoute } from "./people/words";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface FrameFlash {
@@ -170,11 +168,6 @@ export function holdAsk(calls: AskApi | undefined): void {
 /** Ask's calls; none before the bridge installs them, and none where there is no bridge. */
 export function askCalls(): AskApi | undefined {
   return askHeld;
-}
-
-/** Where a People list is, by its id: the list picked (People's own rule), or People itself before its lists are read. */
-export function listRoute(id: string): string {
-  return plListRoute(id);
 }
 
 /*

@@ -5,8 +5,7 @@
  */
 import type { SyntheticEvent } from "react";
 import { identityWords, workspaceInitials } from "@chanlytics/contracts";
-import type { Workspace } from "@/bridge/surface-data";
-import { currentWorkspace, whoIsLooking } from "@/bridge/who";
+import { currentWorkspace, whoIsLooking, type Workspace } from "@/bridge/who";
 
 /** A workspace as the switcher draws it: the workspace read's row (bridge/surface-data.ts). */
 type SbWorkspace = Workspace & {

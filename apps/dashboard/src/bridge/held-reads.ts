@@ -10,7 +10,6 @@
  * This module imports nothing at run time, so every module of the browser can import it.
  */
 import type { NotificationsDto, ReachOutRepliesDto } from "@chanlytics/contracts";
-import type { WhoIsLooking } from "./who";
 
 /** The bell's kept notices and when they were read (surfaces/notifications.ts). */
 interface NotificationsHeld {
@@ -18,9 +17,11 @@ interface NotificationsHeld {
   fetchedAt: number;
 }
 
-/** Each read the bridge holds, by its surface's key. */
-interface HeldReads {
-  workspace: WhoIsLooking;
+/**
+ * Each read the bridge holds, by its surface's key. Who is looking (`workspace`) is declared beside its reader, who.ts
+ * (`declare module "./held-reads"`), so this module imports none of the bridge's types.
+ */
+export interface HeldReads {
   notifications: NotificationsHeld;
   /** Null when the read failed: a thread is drawn without them, never with a reading nobody read. */
   reach_out_replies: ReachOutRepliesDto | null;

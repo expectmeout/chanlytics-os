@@ -30,6 +30,15 @@ import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace
 import { provide } from "@/bridge/provided";
 import { whoIsLooking } from "@/bridge/who";
 
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** A person's steps: one done or open again, and a step's day once it has come. */
+    personNotes: PersonNotesCourier;
+    /** A deal's acts as a thread's Deal group offers them, and their words. */
+    deal: DealMenuCourier;
+  }
+}
+
 /**
  * The profile courier: `personDetail(id)`.
  *
@@ -696,13 +705,13 @@ export async function decidePersonNote(
 
 /** A person's steps as the shell's pages still reach them (0007): one done or open again (00166), and a step's day once
  * it has come, as every page judges it (contracts steps.ts): Today's queue and the Inbox's thread header. */
-export interface PersonNotesCourier {
+interface PersonNotesCourier {
   done: typeof markStepDone;
   dueDay: typeof dueStepDay;
 }
 
 /** A deal's acts as the thread's Deal group offers them (0008: deal-sheet.ts dealMenuActs), and their words. */
-export interface DealMenuCourier {
+interface DealMenuCourier {
   menu: typeof dealMenuActs;
   actWords: typeof DEAL_ACT_WORDS;
 }

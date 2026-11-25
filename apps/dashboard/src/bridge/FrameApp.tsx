@@ -37,7 +37,8 @@ import "./manifest";
 // frame.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { readIsOut, workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
+import { readIsOut, workspaceOverride, switchWorkspace } from "./surface-data";
+import type { Workspace } from "./who";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/override";

@@ -35,6 +35,15 @@ import type { Connection, SurfaceStatus } from "./surface-status";
 import { crumbsShown } from "@/surfaces/kit/head/standing";
 import { provide } from "./provided";
 
+declare module "./provided" {
+  interface BridgeParts {
+    /** The shell's verbs over the window: the address, sign-out, the switch, Retry all, the tab's name. */
+    shell: ShellApi;
+    /** The chrome's words. */
+    chrome: ChromeWords;
+  }
+}
+
 export interface ShellApi {
   /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
   signOut(): void;

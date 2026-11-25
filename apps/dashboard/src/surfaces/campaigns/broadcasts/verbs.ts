@@ -31,6 +31,13 @@ import type { Output } from "@/client/api";
 import { surfaceValue } from "../../surface-values";
 import { peekRunDetail, runDetail } from "./detail-read";
 
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** Sent's verbs: a run stopped, one approved. */
+    broadcasts: BroadcastVerbs;
+  }
+}
+
 export interface SendBody {
   template_id: string;
   params: ParamSpec[];
@@ -123,7 +130,7 @@ export const broadcasts = {
 };
 
 /** Sent's verbs, as a page reaches them without carrying this module (provided.ts). */
-export type BroadcastVerbs = typeof broadcasts;
+type BroadcastVerbs = typeof broadcasts;
 
 export function installBroadcasts(): void {
   provide("broadcasts", broadcasts);

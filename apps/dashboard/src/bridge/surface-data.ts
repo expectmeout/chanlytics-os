@@ -17,7 +17,7 @@
  */
 
 import { sealSurfaceCache } from "./surface-cache";
-import { holdWhoIsLooking, whoIsLooking } from "./who";
+import { holdWhoIsLooking, whoIsLooking, type Me } from "./who";
 import { noteReadFailed } from "./hearing/freshness";
 import { declareReads } from "./surface-registry";
 import { ApiError } from "../client/api";
@@ -25,13 +25,7 @@ import { api, read } from "./api";
 import { acceptedInTime, acceptInvitations } from "./invitations/accept";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { Freshness, OmittedTables, RealtimeChange } from "./surface-realtime";
-import {
-  MIN_MS,
-  type MembershipRole,
-  type MessageStatus,
-  type OpenHandoverDto,
-  type RecordKind,
-} from "@chanlytics/contracts";
+import { MIN_MS, type MessageStatus, type RecordKind } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
 import { pageReport } from "@/client/page-report";
@@ -245,38 +239,6 @@ async function readAndPublish(o: SurfaceOverride, heard?: readonly RealtimeChang
     noteReadFailed(o.key, err instanceof ApiError ? err.code : "threw", hidden);
     return false;
   }
-}
-
-/**
- * First consumer: the real workspace (RLS-scoped tenants via /api/v1/workspaces).
- * Stashes the result for the bridge pill; Slice 1's conversations override
- * follows this exact fetch→map→dispatch pattern against CONVERSATIONS_DATA.
- */
-export interface Workspace {
-  id: string;
-  slug: string;
-  name: string;
-  status: string;
-  timezone: string;
-  /** What it calls a booking (00458): appointment, visit, meeting, session or lesson; null where it never picked one. */
-  appointment_word?: string | null;
-  /** The caller's role in it (0012): said beside every workspace on the switcher. */
-  role?: string | null;
-  /** Where its own logo is served (00407): the sidebar's circle, the rail and the switcher draw it over its initials. */
-  logo_url?: string | null;
-}
-
-export interface Me {
-  id: string;
-  email: string | null;
-  role?: MembershipRole | null;
-  display_name?: string | null;
-  /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
-  platform_admin?: boolean;
-  /** Whether this person is a partner (0012), and their code. */
-  partner?: { code: string; status: string } | null;
-  /** The hand-overs open to this person, which the frame offers once they are in (invitations/handover.ts). */
-  handovers?: OpenHandoverDto[];
 }
 
 /** Whether the list has been read again for the seat the boot's accept made (invitations/accept.ts): once, not at every read after it. */

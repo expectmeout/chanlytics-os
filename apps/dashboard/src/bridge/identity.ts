@@ -20,9 +20,17 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
-import type { Workspace } from "./surface-data";
 import { provide } from "./provided";
-import { holdWhoIsLooking, whoIsLooking } from "./who";
+import { holdWhoIsLooking, whoIsLooking, type Workspace } from "./who";
+
+declare module "./provided" {
+  interface BridgeParts {
+    /** The workspace's own changes an owner makes: its zone, its word for a booking. */
+    workspace: WorkspaceApi;
+    /** A zone's words and this device's zone, an environment's answer. */
+    tz: TzApi;
+  }
+}
 
 export interface MeApi {
   /** Set your own name; empty clears it. Never throws. */

@@ -31,7 +31,7 @@ import {
   type PartnerWorkspacesVM,
   type WorkspacePartnerVM,
 } from "@chanlytics/contracts";
-import { switchWorkspace, type SurfaceOverride, type Workspace } from "@/bridge/surface-data";
+import { switchWorkspace, type SurfaceOverride } from "@/bridge/surface-data";
 import { api, read } from "@/bridge/api";
 import { declareReads } from "@/bridge/surface-registry";
 import { refreshSurfaces } from "@/bridge/surface-runner";
@@ -40,7 +40,7 @@ import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@
 import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 import { provided } from "@/bridge/provided";
-import { whoIsLooking } from "@/bridge/who";
+import { whoIsLooking, type Workspace } from "@/bridge/who";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;

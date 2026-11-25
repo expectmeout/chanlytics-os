@@ -3,8 +3,7 @@
  * holds (its name and its clock), and the settings read's brain and resolved numbers.
  */
 import { DEFAULT_TIMEZONE, type ReceptionistCardInputs } from "@chanlytics/contracts";
-import type { Workspace } from "@/bridge/surface-data";
-import { currentWorkspace } from "@/bridge/who";
+import { currentWorkspace, type Workspace } from "@/bridge/who";
 import type { SettingsSurface, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import type { SetupSurface } from "../surface";
 

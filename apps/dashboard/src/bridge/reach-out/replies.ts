@@ -19,6 +19,13 @@ import { declareReads } from "../surface-registry";
 import { provide, provided } from "../provided";
 import { heldRead, holdRead } from "../held-reads";
 
+declare module "../provided" {
+  interface BridgeParts {
+    /** A sent message's reply from a lead, as a thread shows it. */
+    replies: RepliesApi;
+  }
+}
+
 /**
  * The readings ({ replies, mailbox }), held the moment they are read, newest first (held-reads.ts). Null when they could
  * not be read: the Inbox then draws the thread without them, never a reading it did not read. Undefined before the first.
@@ -112,7 +119,7 @@ export const replies = {
 };
 
 /** What a thread reaches of the readings without carrying this module (provided.ts). */
-export type RepliesApi = typeof replies;
+type RepliesApi = typeof replies;
 
 export function installReplies(): void {
   provide("replies", replies);

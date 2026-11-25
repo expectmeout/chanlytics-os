@@ -14,6 +14,17 @@ import type { ApiOptions, ApiResult, Input, Output, Params, RouteKey } from "../
 import type { Api } from "../client/api";
 import { provide } from "./provided";
 
+declare module "./provided" {
+  interface BridgeParts {
+    /** A link to a route the browser follows (a download, a recording). */
+    href: typeof href;
+    /** A policy's mode and dials. */
+    setPolicy: typeof setPolicy;
+    /** The settings saved. */
+    saveSettings: typeof saveSettings;
+  }
+}
+
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 type VerbResult = ApiResult<unknown>;
 
@@ -181,13 +192,6 @@ export async function setPolicy(cls: string, mode: string | undefined, limits: P
  */
 const href = <K extends RouteKey>(key: K, params?: Params<K>, query?: ApiOptions<K>["query"]) =>
   api().url(key, { params, query });
-
-/** The three verbs a page reaches without carrying this module (provided.ts). */
-export interface InboxVerbs {
-  href: typeof href;
-  setPolicy: typeof setPolicy;
-  saveSettings: typeof saveSettings;
-}
 
 export function installInboxVerbs(): void {
   // A download is a plain link to a route, and the route needs the workspace

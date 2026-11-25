@@ -81,6 +81,13 @@ import {
 import { onSurfaceMoved } from "./surface-status";
 import { getActiveWorkspace, goToRoute } from "./workspace";
 
+declare module "./provided" {
+  interface BridgeParts {
+    /** The bell: its rows, its read state and this device's alerts. */
+    bell: BellApi;
+  }
+}
+
 export const FEED_EVENTS = [
   "surface:inbox",
   "surface:live",

@@ -32,12 +32,19 @@ import { provide } from "@/bridge/provided";
 import { setupOverride } from "@/surfaces/setup/override";
 import { setSurfaceValue } from "../../surface-values";
 
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** Billing's verbs and words, which the line under the top bar reads. */
+    billing: BillingApi;
+  }
+}
+
 export interface BillingSurface {
   dto: BillingDto;
   fetchedAt: number;
 }
 
-export interface BillingApi {
+interface BillingApi {
   vm(dto: BillingDto, nowMs?: number): BillingVM;
   /**
    * The way to Stripe Checkout: the browser leaves the app and comes back to Billing, or to the first run when it

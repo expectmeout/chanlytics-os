@@ -187,7 +187,7 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   // People keeps a list of these people already, so the door lands on that list and not on the page of everyone, and
   // it wears the list's name: the list counts its own month, this card counts the period above.
   assert.equal(textOf(byTestId(ok, "booked-rest-door")), "Asked, never booked");
-  // People's lists, read: the door lands on the list (frame-verbs.ts listRoute, People's rule over what People holds).
+  // People's lists, read: the door lands on the list (people/words.ts plListRoute, People's rule over what People holds).
   bridgeHolds({ values: { people: { lists: [{ id: "asked_never_booked" }], saved: [], archived: [] } } });
   try {
     press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));

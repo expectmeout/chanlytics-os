@@ -37,6 +37,13 @@ import { calendarRunsOverride, paintHeldRuns, runsWanted } from "./runs-surface"
 import { windowsToWarm } from "./warm";
 import { provide } from "@/bridge/provided";
 
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** The Calendar's verbs the Business tab's calendar row presses. */
+    calendar: CalendarVerbs;
+  }
+}
+
 /**
  * Load `days` days starting on `from` (a day key); a null `from` is the window around today. `runs`: whether the
  * campaigns over the same days are read too, which they are while the board draws them.
@@ -147,7 +154,7 @@ export const calendar = {
 };
 
 /** The Calendar's verbs, as the Business tab's calendar row reaches them without carrying this module (provided.ts). */
-export type CalendarVerbs = typeof calendar;
+type CalendarVerbs = typeof calendar;
 
 /**
  * The Calendar's verbs as the Business tab's calendar row reaches them: it asks for a read (`calendar.refresh`) and checks a

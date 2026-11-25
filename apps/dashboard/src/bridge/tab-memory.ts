@@ -19,6 +19,13 @@ import { pathWorkspace } from "./workspace";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { provide } from "./provided";
 
+declare module "./provided" {
+  interface BridgeParts {
+    /** The tab's memory of a page's place and its work half-done. */
+    tabMemory: TabMemory;
+  }
+}
+
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
 /** Every slot this store writes, and the two Leads kept before it: all of them go at sign-out. */
