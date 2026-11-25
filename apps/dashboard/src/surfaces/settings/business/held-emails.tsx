@@ -48,7 +48,7 @@ export function HeldBookingEmails({ notices, head = true }: { notices: Notices; 
         return (
           <div key={h.id} className="bt-bookings-notice" data-testid="bto-bookings-held-row">
             {/* The sender waits under a pointer: who it came from matters only when the subject is not enough. */}
-            <span className="bt-fold-note" title={h.from ?? undefined}>
+            <span className="bt-fold-note" data-tip={h.from ?? undefined}>
               <b>{h.subject ?? "(no subject)"}</b>
               {meta ? ` · ${meta}` : ""}
             </span>
