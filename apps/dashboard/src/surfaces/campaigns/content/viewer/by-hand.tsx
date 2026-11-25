@@ -1,7 +1,7 @@
 /**
- * "I posted it" (Ruben, 12 Nov 2026), on a video Ask made: nothing posts a video from here yet (decision 0121), so it is saved
- * and posted from the phone, and the app never heard that it went up; it said "Ready to save" for good, and nothing could
- * ever be learned from it. One press says so. It is the owner's word, kept as theirs ("Posted by you"), never as a post the
+ * "I posted it" (Ruben, 12 Nov 2026), on a video AI made: a video goes from here to Instagram alone, as a reel (00681), so
+ * for any other place it is saved and posted from the phone, and the app never heard that it went up; it said "Ready to
+ * save" for good, and nothing could ever be learned from it. One press says so. It is the owner's word, kept as theirs ("Posted by you"), never as a post the
  * app sent. Its link is theirs to add after, pasted into one line: the link says where it is ("On TikTok, by you"), and is
  * the door to it. No list of places to pick from: a link names its own.
  *
@@ -148,7 +148,7 @@ export function PostedByHand(props: {
   if (adding) return <LinkLine press={press} onDone={() => setAdding(false)} />;
   // The tile's own sentence for it (contracts contentPieceMarkOf), so the open piece and its tile say one fact one way:
   // "Posted by you · Monday", or "On TikTok, by you · Monday" where its link says where.
-  const mark = contentPieceMarkOf({ file: { kind: "video" }, posts: [], by_hand: kept }, Date.now());
+  const mark = contentPieceMarkOf({ file: { kind: "video" }, posts: [], by_hand: kept }, Date.now(), false);
   const stands = contentMarkSaid(mark, clock.day);
   return (
     <div className="cnv-byhand" data-said="" data-testid="cnv-byhand">

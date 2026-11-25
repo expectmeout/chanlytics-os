@@ -71,7 +71,7 @@ export interface ViewerHands {
   standing: PieceStanding;
 }
 
-/** Whether "I posted it" is offered: a video Ask made, which nothing posts from here (decision 0121). */
+/** Whether "I posted it" is offered: a video AI made, which goes from here to Instagram alone, and by hand anywhere else. */
 export const byHandOffered = (file: Pick<ContentMadeDto["file"], "kind" | "source">): boolean =>
   file.source === "made" && file.kind === "video";
 

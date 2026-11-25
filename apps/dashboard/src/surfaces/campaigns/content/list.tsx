@@ -12,10 +12,12 @@
 import { useMemo } from "react";
 import {
   CONTENT_WORDS as W,
+  TAKE_DOWN_WORDS,
   contentMakingSaid,
   contentPieceMarkOf,
   contentMarkToneOf,
   fileSaidOf,
+  videoIsSavedOnly,
   type ContentMadeDto,
   type ContentMakingDto,
   type ContentMark,
@@ -75,27 +77,44 @@ function standsWordOf(mark: ContentMark): string {
   if (mark.is === "going") return W.piece.stands.going;
   if (mark.is === "timed") return W.views.name.scheduled;
   if (mark.is === "stuck") return W.piece.stands.stuck;
+  if (mark.is === "unsure") return W.piece.stands.unsure;
+  if (mark.is === "ended") return W.mark.ended(null);
+  if (mark.is === "down") return TAKE_DOWN_WORDS.cameDown(null);
   if (mark.is === "by_hand") return W.piece.byHand.stands;
   if (mark.is === "save") return W.mark.save;
   return W.mark.ready;
 }
 
-/** What a cell draws from besides its row: the time now, and the business's clock. */
+/** What a cell draws from besides its row: the time now, the business's clock, and whether Instagram takes a reel. */
 interface ListCtx {
   now: number;
   stamp: (atMs: number) => string;
   when: (atMs: number) => string;
+  reels: boolean;
+}
+
+/** A place's cell in words: when it went up, when it goes, or, where it is no longer there, when that was. */
+function placeTopOf(stands: PieceStandsAt, x: ListCtx): string {
+  const words = W.piece.stands;
+  const stamp = (at: string | null) => (at ? x.stamp(Date.parse(at)) : null);
+  if (stands.is === "up") return words.up(stamp(stands.at));
+  if (stands.is === "timed") return x.when(Date.parse(stands.at));
+  if (stands.is === "ended") return words.ended(stamp(stands.at));
+  if (stands.is === "down") return words.down(stamp(stands.at));
+  return words[stands.is];
 }
 
 /**
- * Where it stands at a place, and what is still to come there under it. A video that went nowhere says nothing at a place:
- * nothing posts a video from here (decision 0121), so "Not yet" would promise what no press keeps; its row says Ready to save.
+ * Where it stands at a place, and what is still to come there under it. A video with no road from here says nothing at a
+ * place (contracts videoIsSavedOnly): "Not yet" would promise what no press keeps, and its row says Ready to save. Where
+ * Instagram takes a reel, its Instagram cell says Not yet, as a picture's does; Google takes no video.
  */
 function PlaceCell({ row, place, x }: { row: PieceRow; place: PostPlace; x: ListCtx }) {
   // Nothing is at a place while it is being made.
   if (!row.made) return <td key={place} className="cnv-cell" data-stands="none" />;
   const stands: PieceStandsAt = pieceStandsAt(row.made.posts, place, x.now);
-  if (row.made.file.kind === "video" && stands.is === "none")
+  const noRoad = place !== "instagram" || videoIsSavedOnly(row.made.file, row.made.posts, x.reels);
+  if (row.made.file.kind === "video" && stands.is === "none" && noRoad)
     return <td key={place} className="cnv-cell" data-stands="none" />;
   const timed =
     stands.is === "timed"
@@ -104,12 +123,7 @@ function PlaceCell({ row, place, x }: { row: PieceRow; place: PostPlace; x: List
           row.made.posts.filter((p) => p.place === place),
           x.now,
         );
-  const top =
-    stands.is === "up"
-      ? W.piece.stands.up(stands.at ? x.stamp(Date.parse(stands.at)) : null)
-      : stands.is === "timed"
-        ? x.when(Date.parse(stands.at))
-        : W.piece.stands[stands.is];
+  const top = placeTopOf(stands, x);
   return (
     <td key={place} className="cnv-cell" data-stands={stands.is}>
       <span className="cnv-cell-top">{top}</span>
@@ -156,7 +170,7 @@ const COLUMNS: DataColumn<PieceRow, ListCtx>[] = [
             <MakingStands making={r.making} />
           </td>
         );
-      const mark = contentPieceMarkOf(r.made, at.now);
+      const mark = contentPieceMarkOf(r.made, at.now, at.reels);
       return (
         <td key="stands" className="cnv-cell">
           <span className="cnv-said" data-tone={contentMarkToneOf(mark)}>
@@ -206,10 +220,13 @@ const LIST_SORTED_FIRST = { by: "piece", dir: "desc" } as const;
 export function ContentList({
   groups,
   flat = false,
+  reels,
   openId,
   onOpen,
   onFix,
 }: {
+  /** Whether Instagram takes a reel from here now (the page's read): what a made video that never went out says. */
+  reels: boolean;
   /**
    * The pieces under their headings (model/groups.ts): Needs you, Being made, This week, Earlier. Each is the table's own
    * group, as the Pipeline's stages are; a video being made or not made is a line too, and opens nothing: it is no piece yet.
@@ -260,7 +277,7 @@ export function ContentList({
   };
   const model = useDataTable({ state, columns: COLUMNS, data });
   const clock = pageClock();
-  const ctx: ListCtx = { now: Date.now(), stamp: clock.stamp, when: clock.when };
+  const ctx: ListCtx = { now: Date.now(), stamp: clock.stamp, when: clock.when, reels };
   const shown = state.chosen;
   return (
     <DataTable

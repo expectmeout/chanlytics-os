@@ -9,7 +9,13 @@
  * verb, and each one that changes something reads the page again, so the tile says what the pane says.
  */
 import { useEffect, useRef } from "react";
-import { FILE_WORDS, MAKE_POST_ASK, type ContentMadeDto } from "@chanlytics/contracts";
+import {
+  FILE_WORDS,
+  MAKE_POST_ASK,
+  placementStandingOf,
+  standingIsOut,
+  type ContentMadeDto,
+} from "@chanlytics/contracts";
 import { askAbout, canDo, navigate, type FrameFlash } from "../../frame-verbs";
 import { PostOnGoogle } from "../../files/places/post-google";
 import { PostOnInstagram } from "../../files/places/post-instagram";
@@ -89,9 +95,12 @@ function postedDoorsOf(hands: PieceHands): PlaceDoors {
   const { made, record, reread, flash } = hands;
   const { file } = made;
   const may = canDo("settings");
-  // Files' own line for the newest post that is up on Instagram, for its door to the post: a story set for later since keeps
-  // it (Ruben, 12 Nov 2026: See it went missing once one was).
-  const upOnInstagram = record.instagram?.posts.find((p) => p.status === "published") ?? null;
+  // Files' own line for the newest post that is out on Instagram, for its door to the post: a story set for later since keeps
+  // it (Ruben, 12 Nov 2026: See it went missing once one was). Out by the one standing: a story that ran its day has no door.
+  const now = Date.now();
+  const upOnInstagram =
+    record.instagram?.posts.find((p) => p.status === "published" && standingIsOut(placementStandingOf(p, null, now))) ??
+    null;
   return {
     google: record.posted ? (
       <PostOnGoogle

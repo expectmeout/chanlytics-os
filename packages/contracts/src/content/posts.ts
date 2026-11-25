@@ -249,16 +249,6 @@ export const ON_INSTAGRAM = {
   },
 } as const;
 
-/**
- * Where a post stands, in the sheet's words: still posting for one Instagram took and the account has not been read
- * holding yet, "On Instagram" once it was seen there, with no word between the two (the content loop PRD's 8.2 as the
- * journey canvas's call 7 took it, 22 Nov 2026); every other standing as it is.
- */
-export const postStandsSaid = (post: Pick<PostDto, "status" | "place" | "verified_at">): string =>
-  post.status === "published" && post.place === "instagram" && !post.verified_at
-    ? ON_INSTAGRAM.status.publishing
-    : ON_INSTAGRAM.status[post.status];
-
 /** Why a caption cannot go to Instagram as written, in words; null when it can. */
 export function postCaptionProblem(caption: string): string | null {
   if (caption.length > POST_CAPTION_MAX) return "Instagram takes up to 2,200 characters.";

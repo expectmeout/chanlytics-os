@@ -4,17 +4,20 @@
  */
 import {
   instagramKindsFor,
-  POST_ON_ITS_WAY,
+  leadOf,
+  pieceStandingOf,
+  placementIsOut,
+  standingOnItsWay,
   POST_PLACES,
   POST_PULLABLE,
-  newestAtEachPlace,
   postPhotoWont,
   postPlaceTakenOf,
-  postStoppedWhyOf,
   postWaitsForItsTime,
+  videoIsSavedOnly,
   type ContentMadeDto,
   type FileDto,
   type InstagramPostKind,
+  type PieceLead,
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
@@ -81,8 +84,11 @@ function libraryNextOf(file: PieceFile): PieceNext {
 }
 
 /**
- * What needs the owner, then what is going up now, then the next place it can go. A post that waits for its time leads with
- * nothing (pieceTimedOf says it, with its Don't post). Before the record is read it never guesses a place.
+ * What needs the owner, then what is going up now, then the next place it can go, each read from the piece's one
+ * standing (contracts pieceStandingOf), as its tile and its status are. A post that waits for its time leads with
+ * nothing (pieceTimedOf says it, with its Don't post). Where nothing of it is up any more (its story ran its day, its
+ * post came down), the step is to post it again; plain Post is for a piece that never went out. Before the record is
+ * read it never guesses a place.
  */
 export function pieceNextOf(
   file: PieceFile,
@@ -91,27 +97,33 @@ export function pieceNextOf(
   nowMs: number,
 ): PieceNext {
   if (file.source !== "made") return libraryNextOf(file);
-  // A video goes to Instagram as a reel (00681), where Instagram is offered and takes one now, or it has a post there
-  // already. Anywhere else nothing posts one from here, and it is saved, as before (decision 0121).
-  if (file.kind === "video" && !(takes?.instagram || posts.some((p) => p.place === "instagram"))) return { is: "save" };
+  // A video goes to Instagram as a reel (00681), where Instagram takes one now, or it has a post there already. With no
+  // such road it is saved, and posted from the phone (contracts videoIsSavedOnly, the rule its tile reads too).
+  if (videoIsSavedOnly(file, posts, !!takes?.instagram)) return { is: "save" };
   // Set aside is the owner's "not this one" (Ruben, 16 Nov 2026: it still led with Post): Put back leads, before a post of it
   // or one tried again. What waited went with it (server files/file.ts), and one that stopped needs nobody while it is aside.
   if (file.status === "set_aside") return { is: "put_back" };
-  const newest = newestAtEachPlace(posts);
-  const stuck = newest.find((p) => p.status === "held" || p.status === "failed");
+  const { placements, lead } = pieceStandingOf(posts, null, nowMs);
+  const stuck = placements.find((at) => at.standing.is === "stopped");
   if (stuck) return { is: "again", place: stuck.place };
   // One on its way at a place is the one there (00611 posts_one_on_its_way), whatever went up since it was asked for.
-  const going = posts.find((p) => POST_ON_ITS_WAY.includes(p.status) && !postWaitsForItsTime(p, nowMs));
-  if (going) return { is: "going", place: going.place, pull: POST_PULLABLE.includes(going.status) ? going.id : null };
-  // A place is taken where the piece is up, or where a post waits for its time there: a second would be refused.
-  const taken = new Set([
-    ...newest.filter((p) => p.status === "published").map((p) => p.place),
-    ...posts.filter((p) => POST_ON_ITS_WAY.includes(p.status)).map((p) => p.place),
-  ]);
-  if (!takes) return taken.size === 0 ? { is: "post" } : { is: "none" };
+  const going = placements.find((at) => standingOnItsWay(at.standing) && at.standing.is !== "waiting");
+  if (going)
+    return { is: "going", place: going.place, pull: POST_PULLABLE.includes(going.post.status) ? going.post.id : null };
+  // A place is taken where the piece is out, or where a post waits for its time there: a second would be refused. A
+  // story that ran its day, or a post that came down, holds nothing: the place takes the piece again.
+  const taken = new Set(
+    placements.filter((at) => placementIsOut(at) || at.standing.is === "waiting").map((at) => at.place),
+  );
+  const beenOut = lead.is === "ended" || lead.is === "came_down";
+  if (!takes) {
+    if (taken.size > 0) return { is: "none" };
+    return beenOut ? { is: "again", place: lead.at.place } : { is: "post" };
+  }
   const next = POST_PLACES.find((place) => takes[place] && !taken.has(place));
   if (!next) return { is: "none" };
-  return taken.size === 0 ? { is: "post" } : { is: "post_to", place: next };
+  if (taken.size > 0) return { is: "post_to", place: next };
+  return beenOut ? { is: "again", place: next } : { is: "post" };
 }
 
 /** The post that waits for its time, where one does: what the foot says goes up when, with its Don't post. */
@@ -125,17 +137,31 @@ export type PieceStandsAt =
   | { is: "going" }
   | { is: "timed"; at: string }
   | { is: "up"; at: string | null }
-  | { is: "stuck"; why: string | null };
+  | { is: "stuck"; why: string | null }
+  /** Sent, and the place was never seen holding it. */
+  | { is: "unsure" }
+  /** No longer there: a story that ran its day, or a post that came down, and when. */
+  | { is: "ended"; at: string | null }
+  | { is: "down"; at: string | null };
 
-/** Where a piece stands at one place, from the newest post there. */
+/** What leads among a place's placements (contracts leadOf), as a place's row and cell say it. */
+export function standsAtOf(lead: PieceLead): PieceStandsAt {
+  if (lead.is === "never") return { is: "none" };
+  if (lead.is === "stopped")
+    return { is: "stuck", why: lead.at.standing.is === "stopped" ? lead.at.standing.why : null };
+  if (lead.is === "unconfirmed") return { is: "unsure" };
+  if (lead.is === "going_up") return { is: "going" };
+  if (lead.is === "waiting") return { is: "timed", at: lead.when };
+  if (lead.is === "up") return { is: "up", at: lead.when };
+  return { is: lead.is === "ended" ? "ended" : "down", at: lead.when };
+}
+
+/**
+ * Where a piece stands at one place: what leads among its placements there (an Instagram post, an Instagram story), by
+ * the piece's one standing. A story that ran its day never hides the post that is still up beside it.
+ */
 export function pieceStandsAt(posts: readonly PostDto[], place: PostPlace, nowMs: number): PieceStandsAt {
-  const post = newestAtEachPlace(posts).find((p) => p.place === place);
-  if (!post) return { is: "none" };
-  if (post.status === "published") return { is: "up", at: post.published_at };
-  if (post.status === "held" || post.status === "failed") return { is: "stuck", why: postStoppedWhyOf(post) };
-  if (POST_ON_ITS_WAY.includes(post.status))
-    return postWaitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" };
-  return { is: "none" };
+  return standsAtOf(leadOf(pieceStandingOf(posts, null, nowMs).placements.filter((at) => at.place === place)));
 }
 
 /** Where a piece stands among the made pieces the page holds, and who is before and after it. Null where it is not among them. */

@@ -1,8 +1,8 @@
 /**
  * The viewer's foot, over the bottom of the picture (the content canvas, board PhView): the name and one line, where it stands
  * in one row, then the acts (the one coral next step, Save and Ask's three) and Details. A post that stopped says so in the
- * row, why in the row's list, and its coral act is Try again: once each (Ruben, 12 Nov 2026). A video has no row: Save video
- * is its coral act.
+ * row, why in the row's list, and its coral act is Try again: once each (Ruben, 12 Nov 2026). A video with no road from
+ * here has no row: Save video is its coral act. Where Instagram takes a reel, a video has its row and its Post, as a picture.
  *
  * Where it stands is said once (Ruben, 12 Nov 2026), where the canvas drew a chip per place, a row for a post that waits and
  * a greyed "Posting to Instagram" in the coral act's place, all for one fact: one row with the tile's own dot and sentence
@@ -47,12 +47,12 @@ interface ViewerLead {
 }
 
 /**
- * The coral act for the piece's next step. A video Ask made leads with Post, which opens what a video can do today (save it,
- * or a post from it): Instagram takes no reel from here yet (decision 0121).
+ * The coral act for the piece's next step: Post for a piece that never went out, Post again where one stopped or nothing
+ * of it is up any more, Post to Google for the next place. A video goes to Instagram as a reel the same way (00681).
  */
 function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: PieceNext): ViewerLead | null {
   const step = W.piece.step;
-  // A video: nothing posts one from here (decision 0121), so it is saved, and Save video leads (ViewerActs).
+  // A video with no road from here (model pieceNextOf) is saved, and Save video leads (ViewerActs).
   if (next.is === "save") return null;
   if (next.is === "post") return { words: step.post, glyph: null };
   if (next.is === "post_to") return { words: step.postTo(next.place), glyph: PLACE_GLYPH[next.place] };
@@ -79,16 +79,17 @@ export function statusOpensOf(at: { ready: boolean }, places: () => void): Statu
 }
 
 /**
- * Whether the piece has a status row: a post Ask made. Not a video: nothing posts one from here, so a row saying it is ready
- * to post promised what no press keeps (Ruben, 12 Nov 2026); its one act, Save video, says what it can do.
+ * Whether the piece has a status row: a piece AI made. Not a video with no road from here (its next step is to save it): a
+ * row saying it is ready to post promised what no press keeps (Ruben, 12 Nov 2026), and its one act, Save video, says what
+ * it can do. Where Instagram takes a reel, a video has its row, and says what its tile says.
  */
 export const viewerHasStatus = (file: Pick<FileDto, "kind" | "source">, next?: PieceNext): boolean =>
   file.source === "made" && (file.kind !== "video" || (next !== undefined && next.is !== "save"));
 
 /**
- * A made video's one act, coral: Save video, its caption copied as it is saved, to paste under it in Instagram, which takes
- * no video from here. The press says Caption copied for a moment as it does; a refused clipboard leaves the caption in
- * Details, where a long press copies it.
+ * A made video's one act, coral, where nothing takes a reel from here: Save video, its caption copied as it is saved, to
+ * paste under it in Instagram. The press says Caption copied for a moment as it does; a refused clipboard leaves the
+ * caption in Details, where a long press copies it.
  */
 function VideoSaveLead(props: { save: ReturnType<typeof useSave>; caption: string | null; size: "touch" | "lg" }) {
   const { save, caption, size } = props;
@@ -141,7 +142,7 @@ export function ViewerStatus(props: {
   const { opens, pill } = props;
   const status = pill
     ? { said: pill.said, tone: PILL_TONE[pill.tone] }
-    : pieceStatusOf(props.posts, props.next, props.clock, Date.now());
+    : pieceStatusOf(props.posts, props.clock, Date.now());
   const said = (
     <>
       <span className="cnv-status-dot" aria-hidden="true" />
@@ -215,7 +216,7 @@ export function ViewerActs(props: {
   const inMore = !!props.more;
   // A clip sent to the Library stays with whoever sent it: the one picture is saved, never a clip (as Files kept it).
   const saves = !(file.kind === "video" && file.source !== "made");
-  // A made video that nothing posts from here is saved, with its caption copied: Save video leads (model pieceNextOf).
+  // A made video with no road from here is saved, with its caption copied: Save video leads (model pieceNextOf).
   const madeVideo = file.kind === "video" && file.source === "made" && next.is === "save";
   const quiet = desk ? "secondary" : "glass";
   // A phone's thumb; a desk's large step, the height of where it stands over them (content.css .cnv-desk .cnv-status).

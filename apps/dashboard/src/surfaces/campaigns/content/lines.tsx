@@ -14,6 +14,7 @@ import {
   clockOf,
   fileSaidOf,
   inLocalWeek,
+  placementStandingOf,
   postStoppedWhyOf,
   type ContentLineDto,
   type ContentMadeDto,
@@ -57,6 +58,10 @@ export const placeSaid = (line: ContentLineDto): string => {
   const where = W.piece.place[line.post.place];
   return line.post.place === "instagram" ? `${where} ${W.viewer.kinds[line.post.kind].toLowerCase()}` : where;
 };
+
+/** Whether a line's post is a story that ran its day (contracts placementStandingOf: the one reading). */
+export const postLineEnded = (line: ContentLineDto, nowMs: number): boolean =>
+  placementStandingOf(line.post, null, nowMs).is === "ended";
 
 /**
  * One line: the piece's picture, its name and a line under it, and what stands at its end. A press opens the piece; the one
@@ -139,10 +144,13 @@ function NotMade({ making }: { making: ContentMakingDto }) {
 export function PieceLines({
   made,
   making,
+  reels,
   onOpen,
 }: {
   made: readonly ContentMadeDto[];
   making: readonly ContentMakingDto[];
+  /** Whether Instagram takes a reel from here now: a made video that never went out is then ready to post. */
+  reels: boolean;
   onOpen: (fileId: string) => void;
 }) {
   const clock = pageClock();
@@ -174,7 +182,7 @@ export function PieceLines({
         );
       })}
       {made.map((piece) => {
-        const mark = contentPieceMarkOf(piece, now);
+        const mark = contentPieceMarkOf(piece, now, reels);
         return (
           <div key={piece.file.id} className="cnv-line" data-testid="cnv-line">
             <Press className="cnv-line-open" onClick={() => onOpen(piece.file.id)}>
@@ -349,8 +357,11 @@ export function ContentLines({
       />
     );
   }
-  // Posted: newest first, this week's apart from earlier ones.
+  // Posted: newest first, this week's apart from earlier ones. What is up, and the stories that ran their day, each
+  // marked ended (the review of 24 Nov 2026, D2): a story that ended is never said to be up, and has no door to it.
   const up = (l: ContentLineDto) => Date.parse(l.post.published_at ?? l.post.created_at);
+  const upLineOf = (l: ContentLineDto) =>
+    W.views.upAt(W.piece.place[l.post.place], postedWhenOf(up(l), clock.zone(), now));
   return (
     <Runs
       runs={runsOf(
@@ -360,10 +371,10 @@ export function ContentLines({
           <Line
             key={line.post.id}
             line={line}
-            sub={W.views.upAt(W.piece.place[line.post.place], postedWhenOf(up(line), clock.zone(), now))}
+            sub={postLineEnded(line, now) ? W.views.upEnded(upLineOf(line)) : upLineOf(line)}
             end={null}
             door={
-              line.post.permalink ? (
+              line.post.permalink && !postLineEnded(line, now) ? (
                 <Button size="sm" variant="quiet" href={line.post.permalink} target="_blank" rel="noreferrer">
                   {W.views.open}
                   <Icon name="external" size={12} />

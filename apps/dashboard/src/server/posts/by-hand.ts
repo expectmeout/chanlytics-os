@@ -1,7 +1,7 @@
 /**
- * A piece its owner posted themselves (00620; Ruben, 12 Nov 2026: "I posted it"). Nothing posts a video from here yet (decision
- * 0121): it is saved and posted from the phone, and the app never heard that it went up. The owner says so, with its link
- * where they have one, and takes it back the same way. Kept through its door on the member's own session, which asks the
+ * A piece its owner posted themselves (00620; Ruben, 12 Nov 2026: "I posted it"). A video goes from here to Instagram alone,
+ * as a reel (00681), and only where Instagram is connected: anywhere else it is saved and posted from the phone, and the app
+ * never heard that it went up. The owner says so, with its link where they have one, and takes it back the same way. Kept through its door on the member's own session, which asks the
  * settings permission itself (post_report), and taken back through Don't post's (post_pull).
  */
 import "server-only";
