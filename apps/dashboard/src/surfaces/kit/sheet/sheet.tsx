@@ -36,6 +36,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
 import { useCallback, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../frame-verbs";
+import { Icon } from "../icon/icon";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { useRootFlag } from "../motion/root-flags";
 import { cx } from "../variants";
@@ -253,9 +254,11 @@ function jobParts(p: SheetProps & { shape: "job" }) {
           </button>
         ) : null}
         <Dialog.Title className="sheet-job-title">{p.title}</Dialog.Title>
+        {/* The one round Close every sheet has (kit.css, "One Close for every sheet"), named by the job's word: a word in its
+            place ("Cancel") was a second way to close a sheet, where every other sheet drew the × (Ruben, 25 Nov 2026). */}
         {p.close ? (
-          <Dialog.Close className="sheet-job-close" data-testid={partId(p.testid, "close")}>
-            {p.close.word}
+          <Dialog.Close className="sheet-job-close" aria-label={p.close.word} data-testid={partId(p.testid, "close")}>
+            <Icon name="x" size={13} />
           </Dialog.Close>
         ) : null}
       </header>

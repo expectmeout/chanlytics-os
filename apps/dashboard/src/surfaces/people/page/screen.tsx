@@ -289,8 +289,6 @@ function peopleDeskTools(s: PeopleState) {
 function peopleScroll(s: PeopleState) {
   const {
     scrollRef,
-    agg,
-    listId,
     setSavedId,
     setTab,
     setListId,
@@ -326,16 +324,8 @@ function peopleScroll(s: PeopleState) {
   } = s;
   return (
     <div className="cl-main-scroll pl-main" ref={scrollRef}>
-      <PeopleStanding
-        scope="people"
-        agg={agg}
-        needsShown={listId === "needs_you"}
-        onNeeds={() => {
-          setSavedId(null);
-          setTab("all");
-          setListId((l) => (l === "needs_you" ? null : "needs_you"));
-        }}
-      />
+      {/* A phone's stands under its bar, in the frame's top (phoneBar). */}
+      {phone ? null : peopleLine(s)}
 
       {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the list's own
           acts. A list's own step stays, one card. */}
@@ -421,8 +411,20 @@ function phoneBar(s: PeopleState) {
       foldSearch
       testid="people"
       trailing={phoneBarActs(s)}
+      line={peopleLine(s)}
     />
   );
+}
+
+/** The line of counts, Needs you the tap that shows them: under the bar on a phone, over the table on a desk. */
+function peopleLine(screen: PeopleState) {
+  const needs = screen.listId === "needs_you";
+  const onNeeds = () => {
+    screen.setSavedId(null);
+    screen.setTab("all");
+    screen.setListId(needs ? null : "needs_you");
+  };
+  return <PeopleStanding scope="people" agg={screen.agg} needsShown={needs} onNeeds={onNeeds} />;
 }
 
 /**

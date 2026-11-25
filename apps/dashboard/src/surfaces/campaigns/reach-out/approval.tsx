@@ -56,17 +56,23 @@ const PART_TONES: Record<RunPartVM["key"], "ok" | "rest" | "warn" | "open"> = {
 
 /**
  * The decision: how many go and of how many, the run in one bar by count with its legend (the number heavy), the skipped
- * by reason, and, for a member who may act on it, when it goes and from which mailbox.
+ * by reason, and, for a member who may act on it, when it goes and from which mailbox; then, while it waits, what was
+ * checked before it goes, each its tick, in the same card (Ruben, 25 Nov 2026: a card of its own under its own head was a
+ * second card saying the same decision, the sheet longer for it).
  */
-function RoDecision({ vm, may }: { vm: RunWords; may: boolean }) {
+function RoDecision({ vm, may, checks }: { vm: RunWords; may: boolean; checks: readonly string[] | null }) {
+  // A run all of one part (every email handed to its owner, every one ready) says its number once: its bar full in one
+  // colour, its legend and its "of" said the same number three more times (Ruben, 25 Nov 2026: "14 emails for you to
+  // send · of 14 · a full bar · 14 handed to you").
+  const whole = vm.parts.length === 1 && vm.parts[0]?.n === vm.count.n;
   return (
     <section className="ro-dec" aria-label={`${vm.count.n} ${vm.count.words}`} data-testid="ro-run-reach">
       <p className="ro-dec-n">
         <b data-testid="ro-run-will">{vm.count.n}</b>
         <span>{vm.count.words}</span>
-        <small data-testid="ro-run-of">{vm.count.of}</small>
+        {whole ? null : <small data-testid="ro-run-of">{vm.count.of}</small>}
       </p>
-      {vm.parts.length > 0 ? (
+      {vm.parts.length > 0 && !whole ? (
         <Meter
           apart
           className="ro-dec-bar"
@@ -74,13 +80,15 @@ function RoDecision({ vm, may }: { vm: RunWords; may: boolean }) {
           aria-label={vm.parts.map((p) => p.words).join(", ")}
         />
       ) : null}
-      <p className="ro-leg" data-testid="ro-run-why">
-        {vm.parts.map((p) => (
-          <span key={p.key} className="ro-leg-part" data-part={p.key}>
-            <b>{p.n}</b> {p.rest}
-          </span>
-        ))}
-      </p>
+      {whole ? null : (
+        <p className="ro-leg" data-testid="ro-run-why">
+          {vm.parts.map((p) => (
+            <span key={p.key} className="ro-leg-part" data-part={p.key}>
+              <b>{p.n}</b> {p.rest}
+            </span>
+          ))}
+        </p>
+      )}
       {vm.skipped.map((t) => (
         <p key={t} className="ro-dec-said" data-testid="ro-run-skipped">
           {t}
@@ -102,6 +110,19 @@ function RoDecision({ vm, may }: { vm: RunWords; may: boolean }) {
             </p>
           ) : null}
         </>
+      ) : null}
+      {checks && checks.length > 0 ? (
+        <div className="ro-dec-checks" data-testid="ro-run-rules">
+          <p className="ro-dec-checks-h">{vm.labels.checked}</p>
+          {checks.map((r) => (
+            <p key={r} className="ro-check">
+              <span className="ro-tick" aria-hidden="true">
+                <Icon name="check" size={10} />
+              </span>
+              <span>{r}</span>
+            </p>
+          ))}
+        </div>
       ) : null}
     </section>
   );
@@ -226,27 +247,6 @@ function RoRunMail({ vm }: { vm: RunWords }) {
           </p>
         ) : null}
       </article>
-    </>
-  );
-}
-
-/** What was checked before it goes, each its tick in a green ring: the run's rules, its mailbox said above. */
-function RoRunChecked({ vm }: { vm: RunWords }) {
-  return (
-    <>
-      <p className="ro-cap">
-        <span>{vm.labels.checked}</span>
-      </p>
-      <div className="ro-pane" data-testid="ro-run-rules">
-        {vm.rules.map((r) => (
-          <p key={r} className="ro-check">
-            <span className="ro-tick" aria-hidden="true">
-              <Icon name="check" size={10} />
-            </span>
-            <span>{r}</span>
-          </p>
-        ))}
-      </div>
     </>
   );
 }
@@ -601,7 +601,7 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null, arme
       {armed ? <div className="ro-scrim" aria-hidden="true" /> : null}
       <div className="ro-cols">
         <div className="ro-col">
-          <RoDecision vm={vm} may={may} />
+          <RoDecision vm={vm} may={may} checks={waiting ? vm.rules : null} />
           {!may && vm.held.length > 0 ? (
             <p className="ro-gate" data-testid="ro-run-role">
               <Icon name="lock" size={14} />
@@ -617,7 +617,6 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null, arme
           {waiting ? (
             <>
               <RoRunMail vm={vm} />
-              <RoRunChecked vm={vm} />
               {list}
             </>
           ) : (

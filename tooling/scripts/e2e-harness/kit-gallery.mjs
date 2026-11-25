@@ -91,7 +91,7 @@ const recFoot = ({ note = null, keys = null, saving = false } = {}) =>
   `<div class="rec-foot">` +
   `<button type="button" class="btn btn-sm btn-primary"${saving ? ' aria-disabled="true" aria-busy="true"' : ""}>` +
   `${saving ? "Saving…" : "Save"}</button>` +
-  `<button type="button" class="btn btn-sm btn-ghost"${saving ? ' aria-disabled="true"' : ""}>Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost"${saving ? ' aria-disabled="true"' : ""} data-foot-cancel="">Cancel</button>` +
   (note ? `<span class="rec-foot-note">${note}</span>` : "") +
   (keys ? `<span class="rec-foot-keys">${keys}</span>` : "") +
   `</div>`;
@@ -666,7 +666,7 @@ const footLineSheet = () =>
   `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
   `<footer class="rec-sheet-foot"><span>The receptionist reads them from the next call.</span><div class="rec-foot">` +
   `<button type="button" class="btn btn-sm btn-primary">Save</button>` +
-  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button></div></footer></section>`;
+  `<button type="button" class="btn btn-sm btn-ghost" data-foot-cancel="">Cancel</button></div></footer></section>`;
 /** A foot of acts alone (`data-foot-acts`: a step's Take away, Send me a test and Edit): one inset all round. */
 const footActsSheet = () =>
   `<div class="sheet-backdrop" aria-hidden="true"></div>` +
@@ -716,7 +716,7 @@ const jobSheet = (leaving = false) =>
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="sheet-job-head">` +
   `<button type="button" class="sheet-job-back" aria-label="Back">${icon("chevron", 18)}</button>` +
-  `<h2 class="sheet-job-title">Not a fit</h2><button type="button" class="sheet-job-close">Cancel</button></header>` +
+  `<h2 class="sheet-job-title">Not a fit</h2><button type="button" class="sheet-job-close" aria-label="Cancel">${icon("x", 13)}</button></header>` +
   `<div class="sheet-job-body">${jobBody()}</div></section>`;
 /** A toast raised while the sheet is open, which stands clear of its foot. */
 const SHEET_TOAST =
@@ -756,7 +756,7 @@ const kitSheet = () =>
   `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
   `<footer class="rec-sheet-foot"><div class="rec-foot">` +
   `<button type="button" class="btn btn-sm btn-primary">Save</button>` +
-  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost" data-foot-cancel="">Cancel</button>` +
   `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
 
@@ -881,7 +881,7 @@ const kitJobSheet = () =>
   `<header class="sheet-job-head">` +
   `<button type="button" aria-label="Back" class="sheet-job-back">${icon("chevron", 18)}</button>` +
   `<h2 class="sheet-job-title">Not a fit</h2>` +
-  `<button type="button" tabindex="0" class="sheet-job-close">Cancel</button></header>` +
+  `<button type="button" tabindex="0" class="sheet-job-close" aria-label="Cancel">${icon("x", 13)}</button></header>` +
   `<div class="sheet-job-body"><button type="button" class="btn btn-primary">Too far away</button></div></section>`;
 
 /**

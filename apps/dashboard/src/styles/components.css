@@ -3701,3 +3701,18 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   border-width: 0 !important;
   overflow: hidden !important;
 }
+
+/* A list's own rows drawn in the frame's top on a phone (kit/head/under-row.tsx: the Inbox's buckets, Conversations'
+   channels, People's, Leads' and the Pipeline's bar, a Campaigns list's top, Content's bar) stand where they stood in the
+   page: right under the strip for a list's own top, 4px under it for the Inbox's tabs (above, "The room under the strip of
+   views on a phone"). The slot's row gap is the Calendar's 14px, its own head under the strip, so the rows take it back,
+   and the Inbox's 4px moves from under them to over them (Ruben, 25 Nov 2026: the space they had gained under the strip). */
+@media (max-width: 900px) {
+  .pg-under-slot > .under-row {
+    margin-top: -14px;
+  }
+  .pg-slot[data-strip="inbox"] > .pg-under-slot > .under-row {
+    margin-top: -10px;
+    margin-bottom: -4px;
+  }
+}

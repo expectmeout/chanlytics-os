@@ -4988,3 +4988,17 @@ td .pl-unread-said {
 .cl-prof-words .cl-tl-ask {
   display: none;
 }
+
+/* People's, Leads' and the Pipeline's bar in the frame's top on a phone (kit/head/under-row.tsx): the list, its words, the
+   search and the line under them hold still as the window scrolls the rows, as the Inbox's buckets do (Ruben, 25 Nov
+   2026). The frame's slot gives the page's gutter, so the bar's own sides are none: the list's name stands on the name's
+   edge, and Export on the coral act's. */
+@media (max-width: 900px) {
+  .pp-under .pp-bar,
+  .pp-under .pp-lookup,
+  .pp-under .pl-standing,
+  .pp-under .pipe-summary {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

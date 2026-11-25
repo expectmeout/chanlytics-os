@@ -419,3 +419,15 @@
     background: var(--hover-fill);
   }
 }
+
+/* Conversations' channels and search in the frame's top on a phone (kit/head/under-row.tsx): the channels first, as the
+   Inbox's buckets are, then the search, held still as the window scrolls the rows (Ruben, 25 Nov 2026). The frame's slot
+   gives the page's gutter. */
+@media (max-width: 900px) {
+  .cv-under > .cv-list-head {
+    padding: 6px 0 2px;
+  }
+  .cv-under > .cv-list-head > .ix-checkall {
+    display: none;
+  }
+}

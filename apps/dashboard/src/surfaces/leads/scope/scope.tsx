@@ -129,6 +129,7 @@ const selectedTitle = (p: P) => {
 const phoneBarOf = (p: P) => (
   <LeadsPhoneBar
     title={selectedTitle(p)}
+    line={phoneStandingOf(p, true)}
     mapOn={!!p.mapOpen}
     onMap={p.onMap}
     canMap={!!p.canMap}
@@ -495,7 +496,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       {rowsLandOf(p)}
       <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
-        {phoneStandingOf(p, phone)}
+        {/* A phone's line of counts stands under its bar, in the frame's top (phoneBarOf). */}
         {p.newSearch ? (
           newSearchOf(p, phone)
         ) : (

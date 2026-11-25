@@ -19,6 +19,7 @@ import type { ReactNode, RefObject } from "react";
 import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
+import { UnderRow } from "../../kit/head/under-row";
 
 type SearchRef = RefObject<HTMLInputElement | null> | null;
 
@@ -55,6 +56,8 @@ export function PeoplePhoneBar({
   trailing = null,
   title = null,
   testid,
+  away = false,
+  line = null,
 }: {
   listLabel?: ReactNode;
   listCount?: number | string | null;
@@ -68,54 +71,62 @@ export function PeoplePhoneBar({
   trailing?: ReactNode;
   title?: ReactNode;
   testid: string;
+  /** A page over the list takes the screen (a person, a lead, a deal): the bar stays in the list, held under it. */
+  away?: boolean;
+  /** The line under the search: People's counts, the Pipeline's filters. It holds still with the bar. */
+  line?: ReactNode;
 }) {
   const id = (part: string) => `${testid}-phone-${part}`;
   const folded = foldSearch && !q;
-  // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the list, search) finds them.
+  // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the list, search) finds them. It stands
+  // in the frame's top, still as the window scrolls the rows under it, as the Inbox's buckets do (kit/head/under-row.tsx).
   return (
-    <div className="pp-top" data-testid={id("bar")}>
-      {onLists || trailing || folded ? (
-        <div className="pp-bar">
-          {title != null ? (
-            <span className="pp-bar-title" aria-live="polite" data-testid={id("title")}>
-              {title}
-            </span>
-          ) : onLists ? (
-            <button
-              type="button"
-              className="pp-bar-pick"
-              aria-haspopup="dialog"
-              aria-expanded={!!listsOpen}
-              onClick={onLists}
-              data-testid={id("lists")}
-            >
-              <span className="pp-bar-pick-words">{listLabel}</span>
-              {listCount != null ? (
-                <span className="pp-bar-pick-count" data-testid={id("lists-count")}>
-                  {Number(listCount).toLocaleString()}
-                </span>
-              ) : null}
-              <Icon name="chevron-down" size={11} />
-            </button>
-          ) : null}
-          {trailing || folded ? (
-            <div className="pp-bar-push">
-              {folded ? (
-                <ListFind label={searchLabel} onFind={() => searchRef?.current?.focus()} testid={id("find")} />
-              ) : null}
-              {trailing}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      <Search
-        className={foldedLookup("pp-lookup", folded)}
-        label={searchLabel}
-        value={q}
-        onChange={onQ}
-        inputRef={searchRef}
-        testid={id("search")}
-      />
-    </div>
+    <UnderRow className="pp-under" away={away}>
+      <div className="pp-top" data-testid={id("bar")}>
+        {onLists || trailing || folded ? (
+          <div className="pp-bar">
+            {title != null ? (
+              <span className="pp-bar-title" aria-live="polite" data-testid={id("title")}>
+                {title}
+              </span>
+            ) : onLists ? (
+              <button
+                type="button"
+                className="pp-bar-pick"
+                aria-haspopup="dialog"
+                aria-expanded={!!listsOpen}
+                onClick={onLists}
+                data-testid={id("lists")}
+              >
+                <span className="pp-bar-pick-words">{listLabel}</span>
+                {listCount != null ? (
+                  <span className="pp-bar-pick-count" data-testid={id("lists-count")}>
+                    {Number(listCount).toLocaleString()}
+                  </span>
+                ) : null}
+                <Icon name="chevron-down" size={11} />
+              </button>
+            ) : null}
+            {trailing || folded ? (
+              <div className="pp-bar-push">
+                {folded ? (
+                  <ListFind label={searchLabel} onFind={() => searchRef?.current?.focus()} testid={id("find")} />
+                ) : null}
+                {trailing}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <Search
+          className={foldedLookup("pp-lookup", folded)}
+          label={searchLabel}
+          value={q}
+          onChange={onQ}
+          inputRef={searchRef}
+          testid={id("search")}
+        />
+        {line}
+      </div>
+    </UnderRow>
   );
 }
