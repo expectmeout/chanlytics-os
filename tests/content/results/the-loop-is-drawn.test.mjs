@@ -23,7 +23,6 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  __refreshSurface: async () => {},
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -33,6 +32,7 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, querySe
 const out = await build({
   stdin: {
     contents:
+      'export { provide } from "../../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { PieceResults, ResultLine } from "../../../apps/dashboard/src/surfaces/campaigns/content/viewer/results.tsx";\n' +
       'export { PieceAdLines } from "../../../apps/dashboard/src/surfaces/campaigns/content/viewer/ads-on-piece.tsx";\n' +
       'export { sinceSaid } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/from-post.tsx";\n' +
@@ -62,6 +62,8 @@ const out = await build({
 const file = path.join(os.tmpdir(), `the-loop-${process.pid}-${Date.now()}.cjs`);
 fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
+// The bundle holds its own store (bridge/provided.ts): a page's Retry, as the frame installs it.
+S.provide("refreshSurface", async () => {});
 fs.rmSync(file, { force: true });
 
 const draw = (component, props) => S.renderToStaticMarkup(S.createElement(component, props));

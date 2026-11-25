@@ -1,5 +1,5 @@
 /**
- * Broadcasts, the verbs: `window.__broadcasts.send(body)`, `.cancel(id)`,
+ * Broadcasts, the verbs: `broadcasts.send(body)`, `.cancel(id)`,
  * `.approve(id)`, and `.detail(id)`, a read -- with `.report(detail)`, what
  * that read says about the run, in the contracts' words.
  *
@@ -25,10 +25,18 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
+import { provide, provided } from "@/bridge/provided";
 import { visitWordHere } from "../../workspace-word";
 import type { Output } from "@/client/api";
 import { surfaceValue } from "../../surface-values";
 import { peekRunDetail, runDetail } from "./detail-read";
+
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** Sent's verbs: a run stopped, one approved. */
+    broadcasts: BroadcastVerbs;
+  }
+}
 
 export interface SendBody {
   template_id: string;
@@ -79,7 +87,8 @@ export const broadcasts = {
       nowMs: Date.now(),
       clock: (iso) => {
         const ms = iso ? Date.parse(iso) : NaN;
-        return Number.isNaN(ms) || !window.__clock ? null : window.__clock.stamp(ms);
+        const clock = provided("clock");
+        return Number.isNaN(ms) || !clock ? null : clock.stamp(ms);
       },
     }),
   /**
@@ -94,7 +103,7 @@ export const broadcasts = {
     /** Whether the workspace is paused, from the page's own readiness (ChannelsReady.paused); null where it was not read. */
     paused: boolean | null,
   ) => {
-    const clock = window.__clock;
+    const clock = provided("clock");
     const now = Date.now();
     const open = clock ? clock.nextOpen(now) : { at: now, moved: false };
     return toApprovalVM(d, {
@@ -120,12 +129,9 @@ export const broadcasts = {
   },
 };
 
-declare global {
-  interface Window {
-    __broadcasts?: typeof broadcasts;
-  }
-}
+/** Sent's verbs, as a page reaches them without carrying this module (provided.ts). */
+type BroadcastVerbs = typeof broadcasts;
 
 export function installBroadcasts(): void {
-  window.__broadcasts = broadcasts;
+  provide("broadcasts", broadcasts);
 }

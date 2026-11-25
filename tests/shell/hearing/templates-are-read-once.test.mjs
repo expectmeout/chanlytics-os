@@ -18,6 +18,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { campaignMessagesOf, templateOffered } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/a", hash: "#/today" };
@@ -32,9 +33,11 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 
 const json = (status, body) =>
@@ -247,7 +250,7 @@ test("a surface made of the settings read is not unmade by its withdrawal: a val
 });
 
 test("none of the three pages reads GET templates: each is read over a wire that serves no such route, and each takes the settings read as it stands", async () => {
-  const workspace = { workspaces: globalThis.__WORKSPACES, activeWorkspaceId: "t1" };
+  const workspace = { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" };
   answers = {
     workspaces: workspace,
     conversations: { conversations: [] },
@@ -311,7 +314,7 @@ test("the settings read is the one read of them: it lands every template with it
     row("call_text"),
   ];
   answers = {
-    workspaces: { workspaces: globalThis.__WORKSPACES, activeWorkspaceId: "t1" },
+    workspaces: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" },
     settings: { config: { brain: {} }, version: 1, role: "owner", facts: {}, conflicts: [] },
     team: { members: [], invites: [] },
     policies: { policies: [], role: "owner" },
@@ -369,22 +372,22 @@ test("a template written, hidden, removed, synced or added from a starter re-rea
     );
   assert.equal(Object.hasOwn(refreshMap, "HOOKS"), false, "the table of window hooks is gone");
   // `__refreshBroadcasts` went with it: its only caller was that table. `__refreshPlaybooks` stays for Today's approve of a run.
-  const had = { b: globalThis.__refreshBroadcasts, p: globalThis.__refreshPlaybooks };
+  const had = { b: globalThis.__refreshBroadcasts, p: provided("refreshPlaybooks") };
   delete globalThis.__refreshBroadcasts;
-  delete globalThis.__refreshPlaybooks;
+  bridgeHolds({ parts: { refreshPlaybooks: undefined } });
   try {
     installBroadcasts();
     installPlaybooks();
     assert.equal(Object.hasOwn(globalThis, "__refreshBroadcasts"), false, "Sent publishes no hook to read it again");
     assert.equal(
-      typeof globalThis.__refreshPlaybooks,
+      typeof provided("refreshPlaybooks"),
       "function",
       "Today's approve still re-reads the cards behind a run",
     );
-    assert.equal(typeof globalThis.__broadcasts?.send, "function", "and Sent's verbs are published as ever");
+    assert.equal(typeof provided("broadcasts")?.send, "function", "and Sent's verbs are published as ever");
   } finally {
     if (had.b) globalThis.__refreshBroadcasts = had.b;
-    if (had.p) globalThis.__refreshPlaybooks = had.p;
+    if (had.p) bridgeHolds({ parts: { refreshPlaybooks: had.p } });
   }
 });
 

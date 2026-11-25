@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -26,7 +27,7 @@ installStubReact();
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-globalThis.__ACTIVE_WORKSPACE = "t-salon";
+bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
@@ -38,23 +39,21 @@ const { reachOutsOverride } = await import(`${S}/surfaces/campaigns/reach-out/ov
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
 const { settingsOverride } = await import(`${S}/bridge/surfaces/settings.ts`);
 
-test("each surface's value is held under its key, and mirrored under its old name only where a page still reads it", () => {
-  // [key, its old name, a value, whether a page still reads the old name]
+test("each surface's value is held under its key, and under no window name: the pages read it there (decision 0151)", () => {
+  // [key, its old window name, a value]
   const rows = [
-    ["playbooks", "__PLAYBOOKS", { rows: [], fetchedAt: 1 }, false],
-    ["broadcasts", "__BROADCASTS", { rows: [], fetchedAt: 1 }, true],
-    ["reach_outs", "__REACH_OUTS", [{ root_id: "r1" }], false],
-    ["live", "__LIVE", { now: [], recent: [], fetchedAtMs: 1 }, true],
+    ["playbooks", "__PLAYBOOKS", { rows: [], fetchedAt: 1 }],
+    ["broadcasts", "__BROADCASTS", { rows: [], fetchedAt: 1 }],
+    ["reach_outs", "__REACH_OUTS", [{ root_id: "r1" }]],
+    ["live", "__LIVE", { now: [], recent: [], fetchedAtMs: 1 }],
   ];
-  for (const [key, mirror, value, mirrored] of rows) {
+  for (const [key, mirror, value] of rows) {
     assert.equal(values.surfaceValue(key), undefined, `${key}: before the first read there is nothing`);
     values.setSurfaceValue(key, value);
     assert.equal(values.surfaceValue(key), value, `${key}: held as it was published, by identity`);
-    if (mirrored) assert.equal(globalThis[mirror], value, `${key}: mirrored under ${mirror}, the one object`);
-    else assert.equal(mirror in globalThis, false, `${key}: no mirror, as no page reads ${mirror}`);
+    assert.equal(mirror in globalThis, false, `${key}: no mirror under ${mirror}`);
     values.setSurfaceValue(key, undefined);
     assert.equal(values.surfaceValue(key), undefined);
-    if (mirrored) assert.equal(globalThis[mirror], undefined, `${key}: the mirror goes with the value`);
   }
 });
 
@@ -73,16 +72,16 @@ test("the overrides publish their typed value for the cache (the key it is publi
   assert.equal(settingsOverride.value, "settings", "Settings' slice is what Templates reads");
   // Deliberately not cached (surfaces/live/surface.ts): a reload must never paint a call that ended while the tab was closed.
   assert.equal(liveOverride.value, undefined);
-  assert.deepEqual(liveOverride.globals, []);
+  assert.equal("globals" in liveOverride, false, "nor anything of the window's (decision 0151)");
 });
 
-test("the tab's cache keeps each value beside the globals a surface owns, and gives it back before React draws", () => {
+test("the tab's cache keeps each value with its surface's snapshot, and gives it back before React draws", () => {
   const PLAYBOOKS = { rows: [{ id: "pb-1" }], fetchedAt: 5 };
   const CHAINS = [{ root_id: "r1", name: "Trainers" }];
   values.setSurfaceValue("playbooks", PLAYBOOKS);
   values.setSurfaceValue("reach_outs", CHAINS);
-  cache.snapshotSurface("playbooks", playbooksOverride.globals ?? [], "t-salon", undefined, playbooksOverride.value);
-  cache.snapshotSurface("reach_outs", reachOutsOverride.globals ?? [], "t-salon", undefined, reachOutsOverride.value);
+  cache.snapshotSurface("playbooks", "t-salon", undefined, playbooksOverride.value);
+  cache.snapshotSurface("reach_outs", "t-salon", undefined, reachOutsOverride.value);
   cache.flushSurfaceCache();
   const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
   // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
@@ -99,10 +98,10 @@ test("the tab's cache keeps each value beside the globals a surface owns, and gi
   values.setSurfaceValue("reach_outs", undefined);
 });
 
-test("Live is never kept: the runner snapshots nothing of a surface with no global and no value", () => {
+test("Live is never kept: the runner snapshots nothing of a surface with no value and no read the bridge holds", () => {
   const before = globalThis.localStorage.peek(CACHE);
   values.setSurfaceValue("live", { now: [{ callId: "c1" }], recent: [], fetchedAtMs: 1 });
-  cache.snapshotSurface("live", liveOverride.globals ?? [], "t-salon", undefined, liveOverride.value);
+  cache.snapshotSurface("live", "t-salon", undefined, liveOverride.value);
   cache.flushSurfaceCache();
   assert.equal(globalThis.localStorage.peek(CACHE), before, "nothing to keep, nothing written");
   values.setSurfaceValue("live", undefined);

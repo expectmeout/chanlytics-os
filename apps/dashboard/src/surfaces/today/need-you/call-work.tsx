@@ -10,8 +10,9 @@ import { NEED_YOU_OLD_MS, NEED_YOU_WORDS as W, callDays, type TodayQueueRowVM } 
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { Button, Segmented } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
-import type { PeopleSurface } from "../../people/surface";
-import { appNavigate, borrowed, gate } from "../shell";
+import { appNavigate, gate } from "../shell";
+import { surfaceValue } from "../../surface-values";
+import { provided } from "@/bridge/provided";
 import { useDraft } from "./drafts";
 import { Acts, Done, Note, NotNow, State, Words, startKind, type WorkProps } from "./parts";
 import { useMarkDone, useNotNow, type Snoozed } from "./row-verbs";
@@ -27,7 +28,7 @@ type Went = "reached" | "no_answer" | "didnt";
 /** What the record holds of a caller, in a line: when they were last here and when they are next, or that this is their first. */
 function recordOf(personId: string | null): string | null {
   if (!personId) return W.call.firstTime;
-  const person = borrowed<PeopleSurface>("__PEOPLE")?.rows.find((r) => r.id === personId);
+  const person = surfaceValue("people")?.rows.find((r) => r.id === personId);
   if (!person) return null;
   const parts = [
     person.lastVisit ? W.call.lastHere(person.lastVisit) : "",
@@ -53,7 +54,7 @@ function CallRow({
   useEffect(() => () => audio.current?.pause(), []);
   const play = () => {
     if (!audio.current) {
-      const href = window.__href ? window.__href("GET calls/[id]/recording", { id: call.id }) : null;
+      const href = provided("href")?.("GET calls/[id]/recording", { id: call.id }) ?? null;
       if (!href) return;
       audio.current = new Audio(href);
       audio.current.onended = () => setPlaying(false);

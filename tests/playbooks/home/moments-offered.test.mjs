@@ -28,6 +28,7 @@ import {
 import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -149,11 +150,15 @@ test("a trigger says its label and hint in the workspace's word, and so do the w
 
 /* ------------------------------ the surface and the home ------------------------------ */
 
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+    me: { role: "owner" },
+  },
+  parts: { chrome: { state: stateOf } },
+});
 installStubReact({
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,

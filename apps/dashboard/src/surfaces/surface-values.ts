@@ -1,16 +1,13 @@
 /**
  * What a surface that has left the shell reads from the seam, typed (decision 0015, step 3).
  *
- * A shell page reads its rows off `window` (`window.__PEOPLE`), which is the only place a script the frame loads can
- * find them. A TSX surface imports: it asks for its surface by key (`useSurface("reports")`, src/surfaces/use-surface.ts)
- * and is handed the value the override published, of the type the key says. This is the store behind that: one value
- * for each key, written by the override that owns the surface (`setSurfaceValue`), and the surface cache's (it keeps
- * the value beside the window's globals, and gives it back before React draws, `restoreSurfaceValue`).
+ * A surface asks for its surface by key (`useSurface("reports")`, src/surfaces/use-surface.ts) and is handed the value the
+ * override published, of the type the key says; code that is not drawing asks `surfaceValue(key)`. This is the store
+ * behind that: one value for each key, written by the override that owns the surface (`setSurfaceValue`), and the surface
+ * cache's (it keeps the value with the surface's snapshot, and gives it back before React draws, `restoreSurfaceValue`).
  *
- * A key may also name a **mirror**, the window global the pages that have not moved still read (Today's own day is read as
- * `TODAY_DATA`). The mirror is written whenever the value is, so the two never say different things, and it is a line
- * to delete on the day its last reader moves: `declareSurfaceValue("people", "__PEOPLE")` is the whole of it. Reports'
- * went on 6 October 2026, when Today and Ask, its last readers, moved to the seam.
+ * A key once also named a **mirror**, the window global the pages that had not moved read (`__PEOPLE`, `__LIVE`,
+ * `TODAY_DATA`): the last went on 25 November 2026, with its readers (decision 0151).
  *
  * A value is a surface's whole answer, an object the override replaces and never changes in place, so a component that
  * holds it sees it change by identity (React's `useSyncExternalStore` asks for exactly that).
@@ -108,19 +105,6 @@ export interface SurfaceValues {
 export type SurfaceKey = keyof SurfaceValues;
 
 const values = new Map<SurfaceKey, SurfaceValues[SurfaceKey]>();
-const mirrors = new Map<SurfaceKey, string>();
-
-/** Name the window global the pages still on the shell read this surface under, and publish what is held under it. */
-export function declareSurfaceValue(key: SurfaceKey, mirror: string): void {
-  mirrors.set(key, mirror);
-  const have = values.get(key);
-  if (have !== undefined) mirrorTo(key, have);
-}
-
-function mirrorTo(key: SurfaceKey, value: SurfaceValues[SurfaceKey] | undefined): void {
-  const name = mirrors.get(key);
-  if (name && typeof window !== "undefined") Reflect.set(window, name, value);
-}
 
 /**
  * Where a read that follows the period Reports shows stands against it (reports/period-surface.ts): "current" when what is
@@ -158,11 +142,10 @@ export function onSurfaceValue(key: SurfaceKey, fn: () => void): () => void {
   return () => void heard.delete(fn);
 }
 
-/** The override's answer, published: held here, and mirrored where the pages that have not moved look. */
+/** The override's answer, published: held here. */
 export function setSurfaceValue<K extends SurfaceKey>(key: K, value: SurfaceValues[K] | undefined): void {
   if (value === undefined) values.delete(key);
   else values.set(key, value);
-  mirrorTo(key, value);
   for (const fn of [...(valueWatchers.get(key) ?? [])]) fn();
 }
 

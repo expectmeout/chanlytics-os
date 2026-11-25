@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { templateSends, templateSentWords } from "@chanlytics/contracts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const run = (id, template_name) => ({ id, template_name });
 const person = (broadcast_id, state, sent_at = null) => ({ broadcast_id, state, sent_at });
@@ -172,6 +173,15 @@ const storage = () => {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: WS, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
+      activeWorkspaceId: WS,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -188,8 +198,6 @@ globalThis.window = {
   dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
-  __WORKSPACES: [{ id: WS, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: WS,
 };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

@@ -13,8 +13,9 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // New exports are read at run time, so a missing one fails its own test and not the file.
 const contracts = await import("@chanlytics/contracts");
@@ -121,6 +122,13 @@ const saveEs = tpl("save_our_number", {
 const welcome = tpl("welcome_new", { variables: valued("Dani", "Luna Studio", "https://booksy.com/luna-studio") });
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
+});
 installStubReact({
   location: {
     pathname: "/w/marisas",
@@ -130,12 +138,7 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

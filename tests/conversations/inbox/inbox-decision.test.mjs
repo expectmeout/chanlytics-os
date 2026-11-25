@@ -15,8 +15,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -150,7 +151,8 @@ test("the customer's own words ride with the decision: what they last wrote, quo
 
 /* ------------------------------ the pages, drawn ------------------------------ */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
@@ -180,9 +182,8 @@ const rosterIs = (team) =>
       : undefined,
   );
 
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis, {
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},

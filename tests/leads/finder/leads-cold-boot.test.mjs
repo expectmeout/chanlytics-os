@@ -8,6 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const SEARCH_ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
 const PEEK = "1a2b3c4d-0000-4000-8000-000000000001";
@@ -29,6 +30,10 @@ globalThis.CustomEvent = class CustomEvent {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" } },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/harbor",
@@ -37,8 +42,6 @@ globalThis.window = {
     assign() {},
     replace() {},
   },
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},

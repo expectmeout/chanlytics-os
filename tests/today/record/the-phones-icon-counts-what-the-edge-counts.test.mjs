@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { keptUnreadOf, unreadFor } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -116,26 +117,30 @@ const bell = (dto) => {
   );
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  bridgeHolds({
+    values: {
+      inbox: {
+        THREADS: [
+          { id: "th-a", real: true, needsYou: true, who: "Ana", escalatedAtMs: Date.now() - 60_000 },
+          { id: "th-b", real: true, needsYou: true, who: "Ben", escalatedAtMs: Date.now() - 120_000 },
+          {
+            id: "th-c",
+            real: true,
+            needsYou: false,
+            who: "Cy",
+            veto: { window: 600, endsAtMs: Date.now() + 300_000, messageId: "m-c", draft: "Friday works." },
+          },
+        ],
+      },
+      live: { now: [], recent: [] },
+    },
+    reads: { notifications: { dto } },
+  });
   const win = {
     addEventListener() {},
     document: { visibilityState: "visible" },
     focus() {},
     location: { hash: "" },
-    INBOX_DATA: {
-      THREADS: [
-        { id: "th-a", real: true, needsYou: true, who: "Ana", escalatedAtMs: Date.now() - 60_000 },
-        { id: "th-b", real: true, needsYou: true, who: "Ben", escalatedAtMs: Date.now() - 120_000 },
-        {
-          id: "th-c",
-          real: true,
-          needsYou: false,
-          who: "Cy",
-          veto: { window: 600, endsAtMs: Date.now() + 300_000, messageId: "m-c", draft: "Friday works." },
-        },
-      ],
-    },
-    __LIVE: { now: [], recent: [] },
-    __NOTIFICATIONS: { dto },
   };
   return { api: bridge.installNotifications(win, storage), win };
 };
@@ -156,13 +161,19 @@ test("the bell's whole count is the page's own; the icon is the kept rows' alone
 
 test("Mark all read moves the icon at once, and reading a kept row moves it when the server's mark is back", () => {
   const dto = { notifications: [row("n1", 5), row("n2", 15)], seen_at: null };
-  const { api, win } = bell(dto);
+  const { api } = bell(dto);
   assert.equal(api.keptUnread(), 2);
   api.seenAll();
   assert.equal(api.keptUnread(), 0, "this device's seen moment counts before the re-read");
   // The re-read lands with the server's marks: a row read there is not counted, here or on any device.
-  win.__NOTIFICATIONS = { dto: { notifications: [row("n1", 5, { read: true }), row("n2", 15)], seen_at: iso(0) } };
+  bridgeHolds({
+    reads: {
+      notifications: { dto: { notifications: [row("n1", 5, { read: true }), row("n2", 15)], seen_at: iso(0) } },
+    },
+  });
   assert.equal(api.keptUnread(), 0);
-  win.__NOTIFICATIONS = { dto: { notifications: [row("n1", 5, { read: true }), row("n2", 15)], seen_at: null } };
+  bridgeHolds({
+    reads: { notifications: { dto: { notifications: [row("n1", 5, { read: true }), row("n2", 15)], seen_at: null } } },
+  });
   assert.equal(api.keptUnread(), 0, "the device's own moment still stands over a copy that is older");
 });

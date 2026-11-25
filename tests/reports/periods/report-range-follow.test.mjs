@@ -17,13 +17,26 @@ import { reportDaysCount, reportRangeOfKey, shiftKey } from "@chanlytics/contrac
 import { again, classes, find, fresh, installStubReact, settle, textOf } from "../../_stub-react.mjs";
 import { CALENDAR, quiet, rday, reportDto, surface } from "../_report-world.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const moves = [];
-installStubReact({ __surfaceState: () => "live" });
-globalThis.__WORKSPACES = [
-  { id: "w1", slug: "harbor", name: "Harbor Studio", status: "active", timezone: "America/New_York", role: "owner" },
-];
-globalThis.__ACTIVE_WORKSPACE = "w1";
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [
+      {
+        id: "w1",
+        slug: "harbor",
+        name: "Harbor Studio",
+        status: "active",
+        timezone: "America/New_York",
+        role: "owner",
+      },
+    ],
+  },
+});
+bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const S = "../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);

@@ -37,6 +37,7 @@ import {
   without,
 } from "../../../_business-tab-harness.mjs";
 import { disputed, drawCreateCard, google, holding, useOn } from "./_page.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 test("two saves close together go one after the other, the second on the first's answer, and neither is refused", () => {
   // The reviewer's case: each row saved on the version the page last drew, so the second press sent version 7 again
@@ -70,12 +71,16 @@ test("two saves close together go one after the other, the second on the first's
 test("a save made while another is out waits its turn, and its row says it is saving meanwhile", () => {
   const sent = [];
   const held = [];
-  W.__saveSettings = (config, v, accepted) => {
-    sent.push({ config: structuredClone(config), version: v });
-    return new Promise(() => {
-      held.push(() => accepted({ config: structuredClone(config), version: v + 1 }));
-    });
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, v, accepted) => {
+        sent.push({ config: structuredClone(config), version: v });
+        return new Promise(() => {
+          held.push(() => accepted({ config: structuredClone(config), version: v + 1 }));
+        });
+      },
+    },
+  });
   let tree = drawTab(disputed());
   useOn(tree, "address");
   tree = redrawTab();
@@ -178,12 +183,16 @@ test("a page drawn again finds the tab's one saver: the answer to the last save,
 
   // A save waiting its turn when the page goes is the new page's too: its row says so, and it goes when its turn comes.
   const held = [];
-  W.__saveSettings = (config, v, accepted) => {
-    sent.push({ config: structuredClone(config), version: v });
-    return new Promise(() => {
-      held.push(() => accepted({ config: structuredClone(config), version: v + 1 }));
-    });
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, v, accepted) => {
+        sent.push({ config: structuredClone(config), version: v });
+        return new Promise(() => {
+          held.push(() => accepted({ config: structuredClone(config), version: v + 1 }));
+        });
+      },
+    },
+  });
   tree = drawTab(disputed());
   sent.length = 0;
   useOn(tree, "address");
@@ -402,11 +411,15 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   // The server's answer to the save, with what the save did to the workspace's name (settings-save.ts renamedWith).
   const answering = (renamed) => {
     let version = settingsHeld().version;
-    W.__saveSettings = (config, _v, accepted) => {
-      version += 1;
-      accepted({ config: structuredClone(config), version, ...(renamed ? { renamed } : {}) });
-      return new Promise(() => {});
-    };
+    bridgeHolds({
+      parts: {
+        saveSettings: (config, _v, accepted) => {
+          version += 1;
+          accepted({ config: structuredClone(config), version, ...(renamed ? { renamed } : {}) });
+          return new Promise(() => {});
+        },
+      },
+    });
   };
   const rename = (to) => {
     let tree = drawTab({ flash });
@@ -468,10 +481,14 @@ test("a save the server refuses is said in its words, and the editor stays open 
   const flashes = [];
   const flash = (f) => flashes.push(f);
   const refusal = "Someone else saved settings after you loaded them — reload and reapply.";
-  W.__saveSettings = (config, version) => {
-    sent.push({ config, version });
-    return Promise.resolve({ ok: false, code: "conflict", message: refusal });
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version) => {
+        sent.push({ config, version });
+        return Promise.resolve({ ok: false, code: "conflict", message: refusal });
+      },
+    },
+  });
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
@@ -494,7 +511,7 @@ test("a save the server refuses is said in its words, and the editor stays open 
 test("a save whose promise fails before the server takes it says so, and leaves the row ready to try again", async () => {
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  W.__saveSettings = () => Promise.reject(new Error("The network went away."));
+  bridgeHolds({ parts: { saveSettings: () => Promise.reject(new Error("The network went away.")) } });
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
@@ -1000,10 +1017,14 @@ test("a fold whose own part of the settings moved after it was typed in is refus
   // foldJob's refusal, drawn through a fold: a colleague's Tuesday is read back after Monday was typed over, and the
   // save would have put their Tuesday back as it was.
   const sent = [];
-  W.__saveSettings = (config) => {
-    sent.push(config);
-    return new Promise(() => {});
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config) => {
+        sent.push(config);
+        return new Promise(() => {});
+      },
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
@@ -1045,10 +1066,14 @@ test("a fold whose own part of the settings moved after it was typed in is refus
 
 test("a fold's save the server refuses while another row's ask waits: the question is drawn then, once, and is true again", async () => {
   let refuse = null;
-  W.__saveSettings = () =>
-    new Promise((resolve) => {
-      refuse = () => resolve({ ok: false, code: "internal", message: "The server said no." });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: () =>
+        new Promise((resolve) => {
+          refuse = () => resolve({ ok: false, code: "internal", message: "The server said no." });
+        }),
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });

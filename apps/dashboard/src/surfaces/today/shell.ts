@@ -13,10 +13,11 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { AskProposal, AskProposalOutcome, SpeechPurpose } from "@chanlytics/contracts";
 import type { BellApi } from "@/bridge/notifications";
 import type { PageClock } from "@/bridge/zone";
+import { provided } from "@/bridge/provided";
 import { surfaceHook } from "@/bridge/surface-status";
 import type { SurfaceNames } from "@/bridge/surface-status";
 import { askAbout, askCalls, canDo, mayAtLeast } from "../frame-verbs";
-import { fn, object, type Flash } from "../shell-doors";
+import { fn, type Flash } from "../shell-doors";
 
 export { askAbout, canDo, mayAtLeast };
 
@@ -99,17 +100,9 @@ export function askCards(): AskCardDoor | undefined {
 
 /* ------------------------------ the surfaces ------------------------------ */
 
-/**
- * A surface the bridge published, by its global's name (`__PEOPLE`, `__BROADCASTS`, ...): what the page
- * borrowed through `todaySurface(name)`. Nothing before its first read.
- */
-export function borrowed<T extends object>(name: string): T | undefined {
-  return object<T>(name);
-}
-
-/** Whether a surface's last read failed (`window.__surfaceFailed`): the borrowed read that says so where its rows would be. */
+/** Whether a surface's last read failed (the route gate's, provided.ts): the borrowed read that says so where its rows would be. */
 export function surfaceFailed(key: string): boolean {
-  return !!fn<[string], boolean>("__surfaceFailed")?.(key);
+  return !!provided("surfaceFailed")?.(key);
 }
 
 /**
@@ -122,25 +115,25 @@ export const useMoved: (names: SurfaceNames) => number = surfaceHook({ useCallba
 /* ---------------------------------- a step done ---------------------------------- */
 
 /**
- * A person's notes' courier (people-detail.ts `window.__personNotes`), when it is published: the verb that marks a step done,
- * the one the Inbox's thread header presses. Nothing in a stand-in window.
+ * A person's notes' courier (people-detail.ts, provided as `personNotes`), when it is installed: the verb that marks a step
+ * done, the one the Inbox's thread header presses. Nothing where it is not (a test that draws the page alone).
  */
 export function personNotes() {
-  const notes = window.__personNotes;
+  const notes = provided("personNotes");
   return notes && typeof notes.done === "function" ? notes : null;
 }
 
 /* ---------------------------- what Today borrows ---------------------------- */
 
-/** The workspace's clock as the pages read it (`window.__clock`): the zone, and a day or a time said in it. */
+/** The workspace's clock as the pages read it (provided.ts `clock`): the zone, and a day or a time said in it. */
 export function workspaceClock(): PageClock | undefined {
-  return object<PageClock>("__clock");
+  return provided("clock");
 }
 
-/** The bell as the top bar holds it (`window.__notifs`): its feed, and the verbs on a row. */
+/** The bell as the top bar holds it (provided.ts `bell`): its feed, and the verbs on a row. */
 export function bell(): BellApi | undefined {
-  return object<BellApi>("__notifs");
+  return provided("bell");
 }
 
-/* A run's verbs (`window.__broadcasts`) and the playbooks' re-read are the runs' rows' (surfaces/waits/run-acts.tsx), which
+/* A run's verbs (provided.ts `broadcasts`) and the playbooks' re-read are the runs' rows' (surfaces/waits/run-acts.tsx), which
    Today's queue and Going today draw through, as the Inbox's Needs you does. */

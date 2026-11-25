@@ -16,6 +16,7 @@ import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
 import { authErrorInHash, OAUTH_CANCELLED } from "@/auth/hash-error";
 import { pathAfterSignIn } from "@/auth/second-factor";
+import { pageReport } from "@/client/page-report";
 
 // The words for each failure and the resend wait live in contracts
 // (requestCodeWords, verifyCodeWords, resendLeft), where they are executed;
@@ -135,7 +136,7 @@ function signInArrival(setEmail: (email: string) => void, setError: (error: stri
   if (refused) {
     // Pressing Cancel is not a failure to apologise for.
     if (refused.error !== OAUTH_CANCELLED) setError(SIGNUP_WORDS.googleFailed);
-    console.warn("oauth_provider_refused", JSON.stringify(refused));
+    pageReport.warn("oauth_provider_refused", JSON.stringify(refused));
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }
   const q = new URLSearchParams(window.location.search);

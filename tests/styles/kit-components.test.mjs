@@ -48,6 +48,7 @@ import { useTableState } from "../../apps/dashboard/src/surfaces/kit/table/state
 import { useDataTable } from "../../apps/dashboard/src/surfaces/kit/table/use-data-table.ts";
 import { cx } from "../../apps/dashboard/src/surfaces/kit/variants.ts";
 import { HELD, drawn, drawnSkeleton, keysOf, markupSkeleton, parting, settle, spell } from "./kit/_skeleton.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 installStubReact();
 
@@ -703,11 +704,11 @@ const EMPTY_STATES = {
 
 test("EmptyState and FailedRead draw the gallery's Empty state and failed read family: a pane's, a card's, a line's, and a read that failed with its Retry", () => {
   // A Retry is drawn only where the runner can read the surface again: published by the shell, as the app's has it.
-  globalThis.__refreshSurface = async () => undefined;
+  bridgeHolds({ parts: { refreshSurface: async () => undefined } });
   try {
     assert.deepEqual(parting(FAMILIES, "Empty state and failed read", EMPTY_STATES), HELD);
   } finally {
-    delete globalThis.__refreshSurface;
+    bridgeHolds({ parts: { refreshSurface: undefined } });
   }
   const failed = drawn(h(FailedRead, { what: "your team" }));
   assert.equal(failed.props.role, "status", "a failed read is announced");

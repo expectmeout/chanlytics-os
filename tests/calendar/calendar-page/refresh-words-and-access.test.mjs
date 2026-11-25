@@ -45,6 +45,7 @@ import {
   went,
   withNext,
 } from "./_calendar-page.mjs";
+import { bridgeHolds, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------- C2: refresh, loading, and a calendar that can't be read ------------------- */
 
@@ -93,7 +94,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   fresh();
   const asked = [];
   let release = null;
-  globalThis.window.__calendar.refresh = (opts) => {
+  provided("calendar").refresh = (opts) => {
     asked.push(opts);
     return new Promise((r) => {
       release = r;
@@ -115,7 +116,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.equal(textOf(button()), "Refresh");
   assert.match(textOf(toasts.at(-1).msg), /Read your calendar just now/);
   // It landed, and the calendar still couldn't be reached: the last good read stays, and the toast says so.
-  globalThis.window.__calendar.refresh = async () => {
+  provided("calendar").refresh = async () => {
     setSurfaceValue("calendar", {
       vm: toCalendarVM(
         dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }),
@@ -130,7 +131,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar · showing the last good read/);
   assert.match(textOf(toasts.at(-1).msg), /The calendar answered 503\./, "with why");
   // Nothing landed at all.
-  globalThis.window.__calendar.refresh = async () => false;
+  provided("calendar").refresh = async () => false;
   await byTestId(page(), "cal-refresh").props.onClick();
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Couldn't reach Chanlytics/);
@@ -151,7 +152,7 @@ test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, 
     }),
   );
   const asked = [];
-  globalThis.window.__calendar.refresh = async (opts) => {
+  provided("calendar").refresh = async (opts) => {
     asked.push(opts);
     return true;
   };
@@ -162,7 +163,7 @@ test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, 
   assert.equal(toasts.at(-1).tone, "warn");
   assert.match(textOf(toasts.at(-1).msg), /Still couldn't read your calendar/);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
-  globalThis.window.__calendar.refresh = async (opts) => {
+  provided("calendar").refresh = async (opts) => {
     asked.push(opts);
     return true;
   };
@@ -174,7 +175,7 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   const later = dto({ from: "2026-09-14", to: "2026-09-20" });
   later.days = later.days.map((d, i) => ({ key: shiftKey("2026-09-14", i), items: [], windows: [] }));
   fresh(later);
-  globalThis.window.__calendar.ensure = () => new Promise(() => {});
+  provided("calendar").ensure = () => new Promise(() => {});
   page();
   let tree = page();
   const reading = byTestId(tree, "cal-reading");
@@ -202,13 +203,12 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
   };
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com" },
-    __WORKSPACES: [{ id: "t1", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const runs = runsRead(url);
       if (runs) return runs;
@@ -227,11 +227,10 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
     assert.match(seen[0], /[?&]fresh=1(&|$)/, "the first read asks for a fresh one");
     assert.ok(!/fresh=/.test(seen[1]), "and only that one");
   } finally {
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -245,14 +244,13 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
-    __WORKSPACES: [{ id: "t1", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const runs = runsRead(url);
       if (runs) return runs;
@@ -290,11 +288,10 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
   } finally {
     setSurfaceValue("calendar", was.cal);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -312,14 +309,13 @@ test("a window the board has read paints at once on the way back, and is read ag
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
-    __WORKSPACES: [{ id: "t1", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const runs = runsRead(url);
       if (runs) return runs;
@@ -376,11 +372,10 @@ test("a window the board has read paints at once on the way back, and is read ag
     stop();
     await release();
     setSurfaceValue("calendar", was.cal);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -396,14 +391,13 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
-    __WORKSPACES: [{ id: "t1", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const runs = runsRead(url);
       if (runs) return runs;
@@ -446,11 +440,10 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
     await release();
     setCalendarSpan(null);
     setSurfaceValue("calendar", was.cal);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -515,14 +508,13 @@ test("a window read ahead is held and paints at once when the board gets there; 
   const was = {
     location: globalThis.window.location,
     fetch: globalThis.window.fetch,
-    ws: globalThis.window.__WORKSPACES,
-    active: globalThis.window.__ACTIVE_WORKSPACE,
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
     cal: surfaceValue("calendar"),
   };
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: TZ }], activeWorkspaceId: "t1" } });
   Object.assign(globalThis.window, {
     location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
-    __WORKSPACES: [{ id: "t1", timezone: TZ }],
-    __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const runs = runsRead(url);
       if (runs) return runs;
@@ -591,11 +583,10 @@ test("a window read ahead is held and paints at once when the board gets there; 
     stop();
     await release();
     setSurfaceValue("calendar", was.cal);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -640,13 +631,17 @@ test("the board reads the weeks beside it once it has stood still for a second: 
 test("the view the member chose is the one the board opens on again in this tab; a link's day and the phone's agenda are only defaults", () => {
   const kept = [];
   const store = {};
-  globalThis.window.__tabMemory = {
-    place: (p, v) => store[`${p}|${v}`] ?? null,
-    keepPlace: (p, v, place) => {
-      kept.push([p, v, place]);
-      store[`${p}|${v}`] = place;
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: (p, v) => store[`${p}|${v}`] ?? null,
+        keepPlace: (p, v, place) => {
+          kept.push([p, v, place]);
+          store[`${p}|${v}`] = place;
+        },
+      },
     },
-  };
+  });
   // The view kept follows the address's word as it changes, as React runs an effect whose dependency moved.
   setHonourDeps(true);
   try {
@@ -674,7 +669,7 @@ test("the view the member chose is the one the board opens on again in this tab;
     assert.equal(shownView(page()), "week", "a view the board does not draw is not opened on");
   } finally {
     setHonourDeps(false);
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -844,7 +839,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
       },
     }),
   );
-  globalThis.window.__calendar.refresh = () => new Promise(() => {});
+  provided("calendar").refresh = () => new Promise(() => {});
   let tree = page();
   assert.equal(textOf(byTestId(tree, "cal-feed-retry")), "Retry", "REGRESSION: 'Try again', beside FailedRead's Retry");
   byTestId(tree, "cal-feed-retry").props.onClick();

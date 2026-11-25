@@ -50,6 +50,7 @@ import { SayItLine } from "../deal-sheet/say-it";
 import { appendPersonNotesMany, peekPerson, personDetail, writePersonNote } from "../people-detail";
 import { hear, saidBy, announce, usePersonToast } from "../person-verbs";
 import type { FlashFn } from "../person-verbs";
+import { pageReport } from "@/client/page-report";
 
 const STEP_SHEET_ID = "step-sheet";
 
@@ -170,7 +171,7 @@ function worked<T>(fn: () => T): T | null {
   try {
     return fn();
   } catch (err) {
-    console.error("The step sheet could not work this out.", err);
+    pageReport.error("The step sheet could not work this out.", err);
     return null;
   }
 }

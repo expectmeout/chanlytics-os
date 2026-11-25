@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -25,9 +26,11 @@ globalThis.window.removeEventListener = (type, fn) => windowListeners.get(type)?
 const tellWindow = (type) => {
   for (const fn of [...(windowListeners.get(type) ?? [])]) fn({ type });
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 const listeners = new Map();
 const doc = {
@@ -221,12 +224,12 @@ test("the day the clocks go back is twenty-five hours long: the timer is armed a
 });
 
 test("a zone saved moves the next midnight: the timer is armed again by the new zone, and the old one does not fire", async (t) => {
-  const zones = globalThis.__WORKSPACES;
+  const zones = whoIsLooking().workspaces;
   const r = await running(t, [{ key: "today", readAtMidnight: true }], NY_MIDNIGHT - 10 * 60 * SECOND);
   try {
     // The owner moves the business to Chicago (five hours behind UTC then): its next midnight is an hour after New York's. The
     // identity courier publishes the zone and then tells the window (identity.ts patch).
-    globalThis.__WORKSPACES = [{ ...zones[0], timezone: "America/Chicago" }];
+    bridgeHolds({ who: { workspaces: [{ ...zones[0], timezone: "America/Chicago" }] } });
     tellWindow("workspace:changed");
     await flush();
     await r.advance(10 * 60 * SECOND + SECOND);
@@ -246,7 +249,7 @@ test("a zone saved moves the next midnight: the timer is armed again by the new 
     await r.advance(24 * 60 * 60 * SECOND);
     assert.equal(r.reads.length, 1, "one read for the next midnight");
   } finally {
-    globalThis.__WORKSPACES = zones;
+    bridgeHolds({ who: { workspaces: zones } });
     t.mock.timers.reset();
     r.stop();
   }

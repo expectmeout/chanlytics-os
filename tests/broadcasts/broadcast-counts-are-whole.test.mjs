@@ -24,6 +24,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-salon";
 
@@ -430,6 +431,15 @@ const storage = () => {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -446,9 +456,6 @@ globalThis.window = {
   dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
-  // The workspace, as its own surface publishes it: the rows say their times by its clock (bridge/zone.ts).
-  __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
 };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

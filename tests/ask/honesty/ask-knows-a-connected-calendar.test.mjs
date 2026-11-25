@@ -8,18 +8,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 /** A tab with nothing waiting, on a workspace with a zone: what the suggestions read beside the settings. */
-const tab = () => ({
-  location: { pathname: "/w/studio", hash: "", assign() {} },
-  __WORKSPACES: [{ id: "w1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "w1",
-  __ME: { role: "owner" },
-});
+const tab = () => {
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "w1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "w1",
+      me: { role: "owner" },
+    },
+  });
+  return { location: { pathname: "/w/studio", hash: "", assign() {} } };
+};
 /** The settings read, landed whole (what follows it reads every part), with this config. */
 const settingsAre = (config) =>
   setSurfaceValue("settings", {

@@ -15,8 +15,10 @@ import { toPersonRowVM } from "@chanlytics/contracts";
 import { NEW_SINCE_WORDS, newSinceOf } from "../../../apps/dashboard/src/surfaces/people/person/model/new-since.ts";
 import { installStubReact, fresh, all, find, byTestId, classes } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { PersonTimeline } = await import(`${S}/surfaces/people/person/timeline.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);

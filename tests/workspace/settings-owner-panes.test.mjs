@@ -15,7 +15,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ROLE_PERMS,
-  roleGate,
   stateOf,
   clockStamp,
   clockTime,
@@ -30,6 +29,7 @@ import {
   alertGrid,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -55,6 +55,17 @@ globalThis.document = {
   getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [
+        { id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -83,11 +94,8 @@ globalThis.window = {
   // The open log's minute (activity/newer.ts): a pane the stub React never unmounts holds no run open.
   setInterval: (fn, ms) => setInterval(fn, ms).unref(),
   clearInterval: (h) => clearInterval(h),
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
   // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
-  __roleGate: roleGate,
 };
 
 /* ------------------------------ a stub React ------------------------------ */
@@ -180,44 +188,37 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
-globalThis.window.__tip = { show: (el) => tipped.push(el) };
+bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 const saved = [];
+bridgeHolds({
+  parts: {
+    chrome: { state: stateOf },
+    clock: (() => {
+      const TZ = "America/New_York";
+      const NOW = Date.parse("2026-09-17T18:00:00Z");
+      return {
+        zone: () => TZ,
+        stamp: (ms) => clockStamp(ms, TZ, NOW),
+        time: (ms) => clockTime(ms, TZ),
+        dayKey: (ms) => zoneDayKey(ms, TZ),
+        dateYear: (ms) => clockDateYear(ms, TZ),
+        dayLabel: (ms) => clockDayLabel(ms, TZ, NOW),
+      };
+    })(),
+    href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
+    saveSettings: (config, version, accepted) => {
+      saved.push({ config, version });
+      accepted();
+      return Promise.resolve({ ok: true });
+    },
+  },
+});
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  __chrome: { state: stateOf },
-  // The real clock (contracts clock.ts), pinned to a zone and a now, rather
-  // than lookalikes: hand-written ones answered three of its methods and the
-  // page threw the first time it asked for a fourth.
-  __clock: (() => {
-    const TZ = "America/New_York";
-    const NOW = Date.parse("2026-09-17T18:00:00Z");
-    return {
-      zone: () => TZ,
-      stamp: (ms) => clockStamp(ms, TZ, NOW),
-      time: (ms) => clockTime(ms, TZ),
-      dayKey: (ms) => zoneDayKey(ms, TZ),
-      dateYear: (ms) => clockDateYear(ms, TZ),
-      dayLabel: (ms) => clockDayLabel(ms, TZ, NOW),
-    };
-  })(),
-  __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
-  __saveSettings: (config, version, accepted) => {
-    saved.push({ config, version });
-    accepted();
-    return Promise.resolve({ ok: true });
-  },
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) =>
-      String(name || email)
-        .slice(0, 2)
-        .toUpperCase(),
-    words: (me) => ({ name: me.display_name || me.email, email: me.email }),
-  },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
 await import("../receptionist/business-tab/_business-parts.mjs");
@@ -375,8 +376,8 @@ const workspace = (
     ...over
   } = {},
 ) => {
+  bridgeHolds({ who: { me: { email: "dana@northside.example", role, display_name: "Dana" } } });
   Object.assign(globalThis.window, {
-    __ME: { email: "dana@northside.example", role, display_name: "Dana" },
     ...over,
   });
   // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.

@@ -43,6 +43,7 @@ import {
   onSurfaceStatusChange,
 } from "./surface-status";
 import { routeOnScreen } from "./workspace";
+import { provide } from "./provided";
 import { hearMoves } from "./hearing/after-the-move";
 import { PAGE_HEARS, type PageCell } from "./hearing/page-hears";
 import { PERSON_ROUTE, ROUTE_DRAWS, ROUTE_WAITS, ROUTE_WAIT_MS } from "./hearing/route-draws";
@@ -657,12 +658,10 @@ export function surfaceRetiredTo(page: string, at?: string | null): string | und
   return moved ?? SURFACE_RETIRED[page];
 }
 
+/** The registry's word for a page and where a retired one lands, held for the frame (provided.ts). */
 export function installSurfaceRegistry(): void {
-  const w = window as Window & {
-    __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
-  };
-  w.__surfaceState = surfaceStateFor;
-  w.__surfaceRetired = surfaceRetiredTo;
+  provide("surfaceState", surfaceStateFor);
+  provide("surfaceRetired", surfaceRetiredTo);
 }
 
 /**
@@ -707,18 +706,12 @@ function routeWaitsFor(page: string, at?: string | null): readonly string[] {
  * its module scope; the e2e harness's fixture calls it over its own record.
  */
 export function installRouteGate(): void {
-  const w = window as Window & {
-    __surfaceGate?: (page: string, param?: string | null, own?: boolean) => boolean;
-    __surfaceFailed?: (page: string, param?: string | null) => boolean;
-    __onSurfaceReady?: (fn: () => void) => () => void;
-    __routeWaitMs?: number;
-  };
-  w.__routeWaitMs = ROUTE_WAIT_MS;
+  provide("routeWaitMs", ROUTE_WAIT_MS);
   // `own`: the route's own surface alone, without what its first draw waits for beside it (ROUTE_WAITS).
-  w.__surfaceGate = routeGateOpen;
-  w.__surfaceFailed = (page, param) => {
+  provide("surfaceGate", routeGateOpen);
+  provide("surfaceFailed", (page, param) => {
     const key = routeSurfaceFor(page, param);
     return key ? isSurfaceFailed(key) : false;
-  };
-  w.__onSurfaceReady = onSurfaceStatusChange;
+  });
+  provide("onSurfaceReady", onSurfaceStatusChange);
 }

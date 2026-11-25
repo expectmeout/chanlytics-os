@@ -9,12 +9,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { provided } from "../_bridge-holds.mjs";
 
 globalThis.window = { location: { pathname: "/w/harbor", hash: "#/today" } };
 const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 reg.installRouteGate();
-const gate = globalThis.window.__surfaceGate;
+const gate = provided("surfaceGate");
 
 test("a Setup that failed is done waiting, and never holds a page that waits for nothing", () => {
   status.setStatus("conversations", "live");
@@ -70,7 +71,7 @@ test("Today waits beside its own surface for everything that stands above its qu
     status.setStatus(k, i === above.length - 1 ? "seeded" : "live");
   }
   assert.equal(gate("today"), true, "the bands, the rows and the queue draw together");
-  assert.equal(globalThis.window.__routeWaitMs, reg.ROUTE_WAIT_MS, "the shell is told how long a wait may hold it");
+  assert.equal(provided("routeWaitMs"), reg.ROUTE_WAIT_MS, "the shell is told how long a wait may hold it");
 });
 
 test("what Today waits for is what the boot reads first among what it draws, in that order: one behind the stream's second tier held the page for it", () => {

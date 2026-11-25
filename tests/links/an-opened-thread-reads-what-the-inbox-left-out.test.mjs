@@ -14,10 +14,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { LIST_MESSAGES_EACH, memberWords, stateOf, toInboxThreadVM } from "@chanlytics/contracts";
+import { LIST_MESSAGES_EACH, stateOf, toInboxThreadVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again as drawAgain } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -192,7 +193,15 @@ test("Conversations' box: the threads whose messages say the words, past each th
 
 /* ---------------------------------------------------------------- the page */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor/today",
@@ -202,10 +211,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   canDo: () => true,
   gate: () => ({}),
@@ -272,7 +277,7 @@ globalThis.window.fetch = async (url) => {
   if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
   if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 const threadOf = (id) => surfaceValue("inbox").THREADS.find((t) => t.conversationId === id);

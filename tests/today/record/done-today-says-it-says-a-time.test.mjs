@@ -13,16 +13,21 @@ import { NEED_YOU_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/co
 import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
 import { timesSaid } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, waiting } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  },
+});
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate() {},
   usePPToast: () => [null, () => {}],
   canDo: () => true,
   gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 

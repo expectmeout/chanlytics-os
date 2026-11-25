@@ -7,7 +7,8 @@
  */
 import type { ReactNode } from "react";
 import { backToPeople } from "../frame-doors";
-import { useFrameToast, windowValue } from "../frame-verbs";
+import { useFrameToast } from "../frame-verbs";
+import { currentWorkspace } from "@/bridge/who";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
 export interface PersonFlash {
@@ -64,18 +65,9 @@ export function clientSegRoute(id: string): string {
   return `clients/seg:${id}`;
 }
 
-/** What the shell's workspace list names of one workspace: its id and its words. */
-interface WorkspaceRow {
-  id?: unknown;
-  name?: unknown;
-}
-
-/** The name of the workspace being looked at (the workspace surface's rows, `__WORKSPACES`, at `__ACTIVE_WORKSPACE`); nothing where the shell has none. */
+/** The name of the workspace being looked at (who.ts); nothing before the workspace read. */
 export function workspaceName(): string {
-  const list = windowValue("__WORKSPACES");
-  const active = windowValue("__ACTIVE_WORKSPACE");
-  const found = (Array.isArray(list) ? (list as WorkspaceRow[]) : []).find((w) => w.id === active);
-  return typeof found?.name === "string" ? found.name : "";
+  return currentWorkspace()?.name ?? "";
 }
 
 /** Whether the Inbox's reply courier is drawn in this shell. */

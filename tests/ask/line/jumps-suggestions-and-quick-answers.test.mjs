@@ -57,6 +57,7 @@ import {
   systemBlocks,
   where,
 } from "./_line.mjs";
+import { bridgeHolds, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("grounding: a citation must name a row a tool returned this turn; pages are always allowed", () => {
   const read = emptyReadSet();
@@ -232,10 +233,12 @@ test("the Pipeline is every workspace's jump, after Leads; the back office for C
 });
 
 test("the bridge's jump index reads the bit the back office's door is drawn by, and a few words reach each new page", () => {
-  const index = (w) => jumpIndexFrom({ ...w });
+  // Each world is who is looking and what People holds, as the bridge holds them (decision 0151).
+  const world = (me, people) => () => bridgeHolds({ who: { me }, values: { people } });
+  const index = (w) => (w(), jumpIndexFrom());
   const first = (words, w) => askJump(words, index(w))[0]?.to ?? null;
-  const staff = { __PEOPLE: { rows: [] }, __ME: { role: "owner", platform_admin: true } };
-  const owner = { __PEOPLE: { rows: [] }, __ME: { role: "owner" } };
+  const staff = world({ role: "owner", platform_admin: true }, { rows: [] });
+  const owner = world({ role: "owner" }, { rows: [] });
   assert.equal(first("pipe", staff), "clients/pipeline");
   assert.ok(
     askJump("deals", index(staff)).some((j) => j.to === "clients/pipeline"),
@@ -244,7 +247,11 @@ test("the bridge's jump index reads the bit the back office's door is drawn by, 
   assert.equal(first("back office", staff), "admin/platform");
   assert.equal(first("pipe", owner), "clients/pipeline", "every workspace's Pipeline");
   assert.equal(first("back office", owner), null, "not staff: no back office");
-  assert.equal(first("pipe", {}), "clients/pipeline", "and before People is read: the page is there whatever it holds");
+  assert.equal(
+    first("pipe", world(null, undefined)),
+    "clients/pipeline",
+    "and before People is read: the page is there whatever it holds",
+  );
   for (const w of [staff, owner]) {
     assert.equal(first("memory", w), "admin/receptionist", "Memory lands on How it answers");
     assert.equal(first("ai memory", w), "admin/receptionist", "and so does the pane's own name");
@@ -252,7 +259,7 @@ test("the bridge's jump index reads the bit the back office's door is drawn by, 
     assert.equal(first("setting up", w), "start", "the first run is a jump away");
   }
   // The rest of the index is the browser's own rows, after the pages.
-  const people = index({ ...staff, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }] } });
+  const people = index(world({ role: "owner", platform_admin: true }, { rows: [{ id: "p-1", name: "Pip Adams" }] }));
   assert.deepEqual(
     askJump("pip", people).map((j) => j.label),
     ["Pipeline", "Reports › Pipeline", "Pip Adams"],
@@ -805,88 +812,93 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     team: [],
     invites: [],
   });
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "w1",
+    },
+    values: {
+      inbox: {
+        THREADS: [
+          { id: "th-1", real: true, who: "Dani", needsYou: true, escalatedAtMs: NOW - 60_000, preview: "hi" },
+          { id: "seed", real: false, who: "Aisha Khan", needsYou: true },
+        ],
+      },
+      live: {
+        now: [],
+        recent: [
+          {
+            callId: "k1",
+            cvId: "cv-k1",
+            who: "+1 917 555 0100",
+            missed: true,
+            live: false,
+            // Just now: a minute back fell into yesterday when the suite ran in New York's first minute (17 Oct 2026).
+            startedAtMs: Date.now(),
+          },
+        ],
+      },
+      people: { rows: [{ id: ID, name: "Rosa Pérez" }] },
+      today: {
+        queue: {
+          rows: [
+            {
+              id: "q1",
+              kind: "handoff",
+              conversationId: "c1",
+              callId: null,
+              who: "Nora",
+              channel: "WhatsApp",
+              when: "waited 2h",
+              sentence: "Can I come at 3?",
+              quoted: true,
+              cta: { label: "Reply", to: "inbox/th-c1" },
+            },
+            {
+              id: "q2",
+              kind: "call",
+              conversationId: null,
+              callId: "k9",
+              who: "Lee",
+              channel: "Phone",
+              when: "2:14 PM · 1:35",
+              sentence: "Asked about a gift card.",
+              quoted: false,
+              cta: { label: "Listen", to: "conversations/cv-k9" },
+            },
+          ],
+        },
+      },
+      broadcasts: {
+        rows: [
+          {
+            id: "r1",
+            name: "Win-back",
+            playbook_id: "pb-win",
+            state: "pending_approval",
+            recipient_count: 1,
+            when: "now",
+            counts: { sent: 0, replied: 0 },
+            audience: { label: "Win-back · quiet 30 days" },
+          },
+          {
+            id: "r2",
+            state: "sent",
+            recipient_count: 4,
+            when: "Sep 20",
+            counts: { sent: 4, replied: 1 },
+            audience: { label: "Welcome" },
+          },
+        ],
+      },
+    },
+  });
   const win = {
     fetch: async (url, init) => {
       fetched.push({ url, init });
       return { ok: true, status: 200, body };
     },
     location: { assign: () => {} },
-    INBOX_DATA: {
-      THREADS: [
-        { id: "th-1", real: true, who: "Dani", needsYou: true, escalatedAtMs: NOW - 60_000, preview: "hi" },
-        { id: "seed", real: false, who: "Aisha Khan", needsYou: true },
-      ],
-    },
-    __LIVE: {
-      now: [],
-      recent: [
-        {
-          callId: "k1",
-          cvId: "cv-k1",
-          who: "+1 917 555 0100",
-          missed: true,
-          live: false,
-          // Just now: a minute back fell into yesterday when the suite ran in New York's first minute (17 Oct 2026).
-          startedAtMs: Date.now(),
-        },
-      ],
-    },
-    __PEOPLE: { rows: [{ id: ID, name: "Rosa Pérez" }] },
-    __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "w1",
-    // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
-    TODAY_DATA: {
-      queue: {
-        rows: [
-          {
-            id: "q1",
-            kind: "handoff",
-            conversationId: "c1",
-            callId: null,
-            who: "Nora",
-            channel: "WhatsApp",
-            when: "waited 2h",
-            sentence: "Can I come at 3?",
-            quoted: true,
-            cta: { label: "Reply", to: "inbox/th-c1" },
-          },
-          {
-            id: "q2",
-            kind: "call",
-            conversationId: null,
-            callId: "k9",
-            who: "Lee",
-            channel: "Phone",
-            when: "2:14 PM · 1:35",
-            sentence: "Asked about a gift card.",
-            quoted: false,
-            cta: { label: "Listen", to: "conversations/cv-k9" },
-          },
-        ],
-      },
-    },
-    __BROADCASTS: {
-      rows: [
-        {
-          id: "r1",
-          name: "Win-back",
-          playbook_id: "pb-win",
-          state: "pending_approval",
-          recipient_count: 1,
-          when: "now",
-          counts: { sent: 0, replied: 0 },
-          audience: { label: "Win-back · quiet 30 days" },
-        },
-        {
-          id: "r2",
-          state: "sent",
-          recipient_count: 4,
-          when: "Sep 20",
-          counts: { sent: 4, replied: 1 },
-          audience: { label: "Welcome" },
-        },
-      ],
-    },
   };
   const api = mod.installAsk(win, storage);
   // The object it publishes carries every one of the palette's own: the parts composed, not re-implemented.
@@ -898,6 +910,9 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(!idx.some((j) => /Aisha/.test(j.label)), "a seeded thread never reaches the jump list");
   assert.ok(idx.some((j) => j.to === `clients/${ID}`));
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
+  // Right now from Today's queue and its one count, as before the Inbox's threads are counted (needs-you.ts needsYouParts
+  // answers nothing until the Inbox is read): the threads above were for the jump list alone.
+  bridgeHolds({ values: { inbox: undefined } });
   assert.equal(
     api.rightNow("en"),
     "Nora needs you. A send is waiting for your approval.",
@@ -920,15 +935,20 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     "REGRESSION: a run is called by its own name less its day, as Today's queue and the Inbox say it; by its audience's label a one-off sent to a list was the list (18 Oct 2026)",
   );
   // A run whose audience has no name (a reach-out's carries its ids alone) is called the same way (contracts runTitleOf).
-  const named = win.__BROADCASTS.rows[0].audience;
-  win.__BROADCASTS.rows[0].audience = null;
+  const named = surfaceValue("broadcasts").rows[0].audience;
+  surfaceValue("broadcasts").rows[0].audience = null;
   assert.equal(api.waiting().runs[0].label, "Win-back");
-  win.__BROADCASTS.rows[0].audience = named;
+  surfaceValue("broadcasts").rows[0].audience = named;
   // How many more wait past the rows is the one count's threads (Today's own copy until the Inbox is read), not a sum of rows.
-  const counted = win.TODAY_DATA.needsYou;
-  win.TODAY_DATA.needsYou = { ...(counted ?? { hint: "", rows: [], empty: null }), count: 9, holds: 9, sends: 0 };
+  const counted = surfaceValue("today").needsYou;
+  surfaceValue("today").needsYou = {
+    ...(counted ?? { hint: "", rows: [], empty: null }),
+    count: 9,
+    holds: 9,
+    sends: 0,
+  };
   assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (the one count's threads)");
-  win.TODAY_DATA.needsYou = counted;
+  surfaceValue("today").needsYou = counted;
   assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
   const needs = await api.quick("who needs me?");
   assert.deepEqual(
@@ -952,7 +972,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   const proposals = (lang) =>
     api.suggestions("people", null, lang).some((s) => /proposal out|propuesta pendiente/.test(s.q));
   assert.equal(proposals("en"), false, "People's surface has not said a deal is on file");
-  win.__PEOPLE.hasDeals = true;
+  surfaceValue("people").hasDeals = true;
   assert.equal(proposals("en"), true, "it has: the question about proposals is offered, read from the surface");
   assert.equal(proposals("es"), true);
   assert.equal(api.timezone(), "America/New_York");

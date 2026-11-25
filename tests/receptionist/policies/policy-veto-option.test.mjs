@@ -26,6 +26,7 @@ import {
   policyModeOffered,
   policyModeRefusal,
 } from "@chanlytics/contracts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -187,9 +188,9 @@ test("the Autonomy pane draws a dot exactly where the rule offers the mode, and 
     );
 
   const writes = [];
+  bridgeHolds({ parts: { setPolicy: async (cls, mode) => writes.push([cls, mode]) } });
   const win = {
     POLICY: undefined,
-    __setPolicy: async (cls, mode) => writes.push([cls, mode]),
   };
   // The rows the settings read holds: read, and none set yet.
   installPolicyStore(win, () => ({ rows: [], role: "owner" }));

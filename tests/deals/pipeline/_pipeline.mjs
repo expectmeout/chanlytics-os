@@ -29,6 +29,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
 
@@ -243,6 +244,15 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -275,9 +285,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  // The workspace, as its own surface publishes it: every day on People is said by its clock (bridge/zone.ts).
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
 };
 
 export const json = (status, body) =>
@@ -540,14 +547,12 @@ globalThis.ChannelGlyph = () => null;
 
 globalThis.useHotkey = () => {};
 
+bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   AttnRow: () => null,
   CHANLY: { nav: (to) => went.push(to), address: await legacyAddress(), R: { thread: (id) => `inbox/${id}` } },
-  // The chrome bridge's state map (shell.ts): a chip's tone is the pill's, and nothing else.
-  __chrome: { state: stateOf },
   __csvCell: csvCell,
-  __ME: { role: "owner" },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,

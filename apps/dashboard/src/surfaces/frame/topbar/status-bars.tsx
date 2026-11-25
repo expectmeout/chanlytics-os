@@ -19,7 +19,8 @@ import { askCalls, routeDoor } from "../../frame-verbs";
 import { hearAskHeld } from "../../frame-doors";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
-import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
+import { provided } from "@/bridge/provided";
+import { frameChrome, frameGlyph, frameShell, frameSurfaceHook } from "../frame-window";
 
 const CLOCK_SECOND_MS = 1000;
 
@@ -49,7 +50,7 @@ export function LiveCallBar() {
   // a row that changed on the live feed, and nothing else announces it.
   useLiveRead();
   const chrome = frameChrome();
-  const bar = chrome && chrome.liveBar ? chrome.liveBar(window.__LIVE, Date.now()) : null;
+  const bar = chrome && chrome.liveBar ? chrome.liveBar(surfaceValue("live"), Date.now()) : null;
   // A second, so the clocks read like clocks, and only while a call is up.
   const up = !!bar;
   useEffect(() => {
@@ -136,7 +137,7 @@ export function BriefPlaying() {
   useLiveRead();
   const state = useSyncExternalStore(watchBrief, briefNow, NOT_BRIEFING);
   const chrome = frameChrome();
-  const callUp = !!(chrome && chrome.liveBar && chrome.liveBar(window.__LIVE, Date.now()));
+  const callUp = !!(chrome && chrome.liveBar && chrome.liveBar(surfaceValue("live"), Date.now()));
   const going = state !== "idle";
   useEffect(() => {
     if (callUp && going) askCalls()?.stopSpeaking?.();
@@ -273,13 +274,14 @@ function useStatusRedraws() {
 const statusLineNow = () => {
   // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
   const B = surfaceValue("billing");
-  const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
+  const billing = provided("billing");
+  const paused = !!(B && billing && billing.vm(B.dto).paused);
   const modelStanding = B?.dto.model_standing ?? null;
   const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
   const chrome = frameChrome();
   return chrome
     ? chrome.statusLine({
-        ...(window.__SHELL_STATUS || { stale: false, degraded: [] }),
+        ...(frameShell()?.status() || { stale: false, degraded: [] }),
         paused,
         modelStanding,
         previewing,
@@ -305,9 +307,10 @@ const pressOf = (line: StatusLine | null, busy: boolean, setBusy: (b: boolean) =
     return;
   }
   // Busy, not disabled: the focus stays on the button, and a second press waits for the first read.
-  if (line.action === "retry" && window.__shell && !busy) {
+  const shell = frameShell();
+  if (line.action === "retry" && shell && !busy) {
     setBusy(true);
-    void Promise.resolve(window.__shell.retry())
+    void Promise.resolve(shell.retry())
       .catch(() => {})
       .then(() => setBusy(false));
   }

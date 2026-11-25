@@ -18,6 +18,7 @@ import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../../_log-lines.mjs";
 import { installStubReact, installRoleStore, fresh, again } from "../../_stub-react.mjs";
+import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -53,7 +54,7 @@ export async function peopleHarness() {
   const went = moved;
   Object.assign(globalThis.window, {
     mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
-    canDo: (action) => !!ROLE_PERMS[globalThis.window.__ME.role]?.[action],
+    canDo: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action],
     gate: () => ({}),
     usePPToast: () => [null, () => {}],
     CHANLY: { nav: (route) => went.push(route) },
@@ -63,7 +64,7 @@ export async function peopleHarness() {
   const { peopleSample } = await src("people/sample.ts");
   const { PeopleReal } = await src("people/page/people-real.tsx");
   const drawn = (props = {}, { role = "owner" } = {}) => {
-    globalThis.window.__ME = { role };
+    bridgeHolds({ who: { me: { role } } });
     setSurfaceValue("people", peopleSample(new Date(NOW)));
     fresh();
     const draw = (over = {}) => again(() => PeopleReal({ onNavigate() {}, onOpenProfile() {}, ...props, ...over }));
@@ -72,7 +73,7 @@ export async function peopleHarness() {
   const { PeopleRoute } = await src("people/people-route.tsx");
   // The frame's route for an address of People's: the page it draws for the params the address names.
   const routed = (pathname) => {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     setSurfaceValue("people", peopleSample(new Date(NOW)));
     fresh();
     return again(() => globalThis.React.createElement(PeopleRoute, { pathname }));
@@ -391,11 +392,16 @@ export let profileWorld = null;
 export async function profileUi() {
   if (profileWorld) return profileWorld;
   const LR = await import("../../_stub-react.mjs");
-  LR.installStubReact({ __chrome: { state: stateOf } });
+  bridgeHolds({ parts: { chrome: { state: stateOf } } });
+  LR.installStubReact({});
   const went = moved;
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
+      activeWorkspaceId: HARBOR,
+    },
+  });
   Object.assign(globalThis, {
-    __WORKSPACES: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
-    __ACTIVE_WORKSPACE: HARBOR,
     CHANLY: { nav: (to) => went.push(to) },
   });
   const P = "apps/dashboard/src/surfaces/people";

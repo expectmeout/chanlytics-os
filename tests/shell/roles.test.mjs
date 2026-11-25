@@ -6,13 +6,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 const { roleOf, installRoles } = await importSrc("apps/dashboard/src/bridge/identity.ts");
 
 /** A window with the store settings.jsx makes. */
 const windowWith = ({ me, viewAs = null } = {}) => {
   const store = { viewAsRole: viewAs, myRole: () => "owner" };
-  const win = { ST_STORE: store, ...(me === undefined ? {} : { __ME: me }) };
+  bridgeHolds({ who: { me: me } });
+  const win = { ST_STORE: store, ...(me === undefined ? {} : {}) };
   installRoles(win);
   return { win, store };
 };
@@ -32,7 +34,7 @@ test("View-as previews a lower role on top of the real one", () => {
 });
 
 test("the store answers who is acting at each ask: a change of role or of preview moves every gate together", () => {
-  const { win, store } = windowWith({ me: { role: "owner" } });
+  const { store } = windowWith({ me: { role: "owner" } });
   assert.equal(store.myRole(), "owner");
   assert.equal(store.mayAtLeast("owner"), true);
   store.viewAsRole = "viewer";
@@ -44,7 +46,7 @@ test("the store answers who is acting at each ask: a change of role or of previe
   );
   assert.equal(store.mayAtLeast("owner"), false);
   store.viewAsRole = null;
-  win.__ME = { role: "operator" };
+  bridgeHolds({ who: { me: { role: "operator" } } });
   assert.equal(store.mayAtLeast("operator"), true);
   assert.equal(store.mayAtLeast("owner"), false);
 });
@@ -68,5 +70,6 @@ test("with no workspace read the gates fail closed, and a window with no store i
   assert.equal(closed.store.myRole(), "viewer", "never the owner a demo made up, which went with demo mode");
   assert.equal(closed.store.mayAtLeast("operator"), false);
   // No store, as in a window the bridge does not serve: nothing to complete, nothing thrown.
-  assert.doesNotThrow(() => installRoles({ __ME: { role: "owner" } }));
+  bridgeHolds({ who: { me: { role: "owner" } } });
+  assert.doesNotThrow(() => installRoles({}));
 });

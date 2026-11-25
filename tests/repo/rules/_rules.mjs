@@ -268,16 +268,18 @@ export function consoleCallsIn(sf) {
 }
 
 /**
- * The two places a line is written with `console` on purpose, each with why: the logger's own transport, and db's stand-in
- * for it before an app hands its logger in. Every other server and package line goes through the logger (the lint refuses
- * `console` in those trees); the browser's and the phone app's are counted, and fall as lane 7 brings them behind one
- * report seam.
+ * The three places a line is written with `console` on purpose, each with why: the logger's own transport, db's stand-in
+ * for it before an app hands its logger in, and the browser's one report seam (decision 0151). Every other server and
+ * package line goes through the logger (the lint refuses `console` in those trees), every page's through the seam; the
+ * phone app's are counted, and wait for the phone app.
  */
 export const CONSOLE_SINKS = {
   "packages/log/src/logger.ts":
     "the logger's transport: Vercel keeps stdout per invocation, and the level rides the method",
   "packages/db/src/shared/observe.ts":
     "db's lines before an app hands it the logger (a script, a test of db alone): db leans on contracts alone, so it writes the logger's envelope itself",
+  "apps/dashboard/src/client/page-report.ts":
+    "the browser's report seam: a page's lines stay in the browser's console, and leave from here alone (decision 0151)",
 };
 
 /** The patterns a syntax tree writes that are some rule's, as `{ rule, written }`. */
@@ -338,6 +340,6 @@ export const RULE_RATCHETS = [
           .filter(([, n]) => n > 0),
       ),
     advice:
-      "A line is the logger's: log.info|warn|error(name, fields) on the server and in the packages (one JSON object, a name of the closed set). A page's report goes through the browser's report seam as lane 7 builds it.",
+      "A line is the logger's: log.info|warn|error(name, fields) on the server and in the packages (one JSON object, a name of the closed set). A page's goes through the browser's report seam (apps/dashboard/src/client/page-report.ts pageReport).",
   },
 ];

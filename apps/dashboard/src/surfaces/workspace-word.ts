@@ -5,9 +5,9 @@
  * nothing. A module of its own, so a page that says the word takes none of the visit line's parts with it.
  */
 import { appointmentWordOf, type AppointmentWord } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/bridge/surface-data";
+import { currentWorkspace } from "@/bridge/who";
 
 export function visitWordHere(): AppointmentWord {
-  const ws = workspaceOverride.current();
+  const ws = currentWorkspace();
   return appointmentWordOf(ws?.appointment_word ?? null);
 }
