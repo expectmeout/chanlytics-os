@@ -2,7 +2,7 @@
 import { AppError, type AskLanguage, type AskScope, type PageContext, VOICE_IS_OFF } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
 import { edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/shared/edge";
-import { contextAsked, scopeAsked, SURFACES } from "./turn-request";
+import { contextAsked, SCOPE_KINDS, SURFACES } from "./turn-request";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -39,6 +39,21 @@ export interface Asked {
   surface: string | null;
 }
 
+/** The scope the conversation opens on, in the palette's shape, else none. */
+export function scopeAsked(raw: unknown): AskScope | null {
+  if (!raw || typeof raw !== "object") return null;
+  const askScope = raw as Partial<AskScope>;
+  if (
+    typeof askScope.kind !== "string" ||
+    !SCOPE_KINDS.has(askScope.kind) ||
+    typeof askScope.id !== "string" ||
+    !askScope.id ||
+    typeof askScope.label !== "string"
+  )
+    return null;
+  return { kind: askScope.kind, id: askScope.id.slice(0, 120), label: askScope.label.slice(0, 80) };
+}
+
 export function asked(body: Record<string, unknown> | null, tenantId: TenantId): Asked {
   const threadId =
     typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
@@ -47,7 +62,7 @@ export function asked(body: Record<string, unknown> | null, tenantId: TenantId):
     typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : (context?.surface ?? null);
   return {
     threadId,
-    scope: scopeAsked(body?.scope) ?? null,
+    scope: scopeAsked(body?.scope),
     language: body?.language === "es" ? "es" : "en",
     context,
     surface,
