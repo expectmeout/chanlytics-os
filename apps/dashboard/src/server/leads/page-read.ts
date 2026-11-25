@@ -170,7 +170,7 @@ const SEEN_CHECKS = new Set<string>(["on_maps", "in_area", "phone_two_sources", 
  * (Reach out Part 4, PR 9). The words are the plan's (contracts leadCheckWord).
  * Nothing here names whoever fetched the listing.
  */
-function leadChecksOf(leadPage: LeadPageRow): LeadCheck[] {
+function checksOf(leadPage: LeadPageRow): LeadCheck[] {
   const out: LeadCheck[] = [];
   const where = [leadPage.city, leadPage.region].filter(Boolean).join(", ");
   // A company the people card found (00430) is no listing on Maps and stands in no area: a business directory named it,
@@ -298,7 +298,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
       excluded_by: leadPage.excluded_by,
       distance_m: leadPage.distance_m,
       counted: leadPage.counted,
-      checks: leadChecksOf(leadPage),
+      checks: checksOf(leadPage),
       // The class rule's own reason tokens (email:unknown, unknown:<key>, inferred:<key>, out_of_area ...): what the
       // Needs review queue groups by (D3, contracts leadReviewGroups). Never words; the page spells them.
       reasons: reasonsOf(leadPage.judgment, leadPage.email_state),

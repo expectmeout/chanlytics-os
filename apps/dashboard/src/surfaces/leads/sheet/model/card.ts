@@ -70,7 +70,7 @@ export interface LeadSheetCheckVM {
   reason: string | null;
 }
 
-const checksOf = (vm: Pick<LeadPeekVM, "groups">): LeadSheetCheckVM[] =>
+const sheetChecksOf = (vm: Pick<LeadPeekVM, "groups">): LeadSheetCheckVM[] =>
   vm.groups.flatMap((g) =>
     g.checks.map((c) => ({
       key: c.key,
@@ -116,7 +116,7 @@ function exceptionOf(checks: LeadSheetCheckVM[]): string | null {
 
 export function leadSheetChecksLineOf(vm: Pick<LeadPeekVM, "groups" | "checkDots">): LeadSheetChecksLineVM | null {
   if (!vm.checkDots.length) return null;
-  const checks = checksOf(vm);
+  const checks = sheetChecksOf(vm);
   const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
   return {
     dots: vm.checkDots.map((d) =>
@@ -176,7 +176,7 @@ function legendOf(checks: ReadonlyArray<{ how: string; source: string }>): strin
 }
 
 export function leadSheetWhyOf(vm: Pick<LeadPeekVM, "groups">): LeadSheetWhyVM | null {
-  const checks = checksOf(vm);
+  const checks = sheetChecksOf(vm);
   if (!checks.length) return null;
   const passed = checks.filter((c) => c.answer === "yes");
   return {

@@ -243,15 +243,11 @@ export interface InboxState extends Omit<InboxAddress, "ownRouteRef"> {
  * The page's state, in the order the page always declared it, and the effects that keep it true: the address
  * followed, a re-read landing (ixFollowReads), the mockup's scripted concurrent change, and the sidebar's count.
  */
-export const useInboxState = (
-  threadsGiven: Thread[],
-  initialThreadId: string | null,
-  toSendOpen = false,
-): InboxState => {
+export const useInboxState = (allThreads: Thread[], initialThreadId: string | null, toSendOpen = false): InboxState => {
   // The rows of the one count (needs-you.ts): Needs you lists them, and says how many, as the badge does.
   const counted = useNeedsYouRows();
   const [threads, setThreads] = useState<Thread[]>(() =>
-    threadsGiven.map((t) => {
+    allThreads.map((t) => {
       // Overlay session decisions (made here or from Tasks) so state survives navigation
       const d = IX_STORE.get(t.id);
       return d ? withDecision(t, d) : { ...t };
@@ -259,7 +255,7 @@ export const useInboxState = (
   );
   const needsYou = ixNeedsYouOf(threads, counted);
   const [activeBucket, setActiveBucket] = useState<string>(() =>
-    ixOpeningBucket(threadsGiven, initialThreadId, {
+    ixOpeningBucket(allThreads, initialThreadId, {
       toSendOpen,
       had: ixPlace().bucket,
       waiting: needsYouWaitsNow(),
@@ -271,7 +267,7 @@ export const useInboxState = (
   }, [toSendOpen]);
   // The bucket's first row opens first, never one folded at Needs you's foot (needs-you-list.ts ixFirstOpen).
   const [activeThreadId, setActiveThreadId] = useState<string | null>(
-    () => initialThreadId || ixFirstOpen(threadsGiven, needsYou.older),
+    () => initialThreadId || ixFirstOpen(allThreads, needsYou.older),
   );
   const [selected, setSelected] = useState<string[]>([]);
   // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.

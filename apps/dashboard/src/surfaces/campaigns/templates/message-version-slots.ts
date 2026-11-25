@@ -57,15 +57,15 @@ export interface SlotEdit {
   caret: number;
 }
 
-const indexWithin = (text: string, at: number): number => Math.max(0, Math.min(text.length, Math.trunc(at)));
+const caretWithin = (text: string, at: number): number => Math.max(0, Math.min(text.length, Math.trunc(at)));
 
 /**
  * A slot put in place of what is selected (`start` to `end`, equal for a caret), the caret after it. Places past
  * either end are the end; a selection given the wrong way round is read the right way.
  */
 export function insertSlot(text: string, slot: SlotKey | number, start: number, end: number): SlotEdit {
-  const from = indexWithin(text, Math.min(start, end));
-  const to = indexWithin(text, Math.max(start, end));
+  const from = caretWithin(text, Math.min(start, end));
+  const to = caretWithin(text, Math.max(start, end));
   const written = slotWritten(slot);
   return { text: `${text.slice(0, from)}${written}${text.slice(to)}`, caret: from + written.length };
 }
@@ -82,7 +82,7 @@ export function clampWords(
   max: number,
   set: Pick<SlotSet, "kind"> = { kind: "numbered" },
 ): SlotEdit {
-  const at = indexWithin(text, caret);
+  const at = caretWithin(text, caret);
   const over = text.length - Math.max(0, max);
   if (over <= 0) return { text, caret: at };
   const held = new Array<boolean>(text.length).fill(false);

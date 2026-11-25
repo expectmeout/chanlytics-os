@@ -227,8 +227,8 @@ function unenvelopedOf(status: number, write: boolean | undefined): [string, str
 }
 
 /** A forbidden press's title: the role it needs, where the refusal names one. */
-function forbiddenTitleOf(details: unknown): string {
-  const needs = details && typeof details === "object" ? (details as { needs?: unknown }).needs : undefined;
+function forbiddenTitleOf(given: unknown): string {
+  const needs = given && typeof given === "object" ? (given as { needs?: unknown }).needs : undefined;
   return needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed";
 }
 
