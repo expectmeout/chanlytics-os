@@ -184,6 +184,22 @@ test("the people come first, you at the top: the joined day and the alerts mark 
   assert.equal(textOf(find(tree, (n) => n.props?.className === "rec-card-sub")), "3 people · 2 waiting");
 });
 
+test("each person is the name they gave, else their address: never a name made from the address", () => {
+  // The roster reads the same words as the sidebar chip (contracts memberWords): Alex gave a name; S gave none, so S is
+  // the address, never "s" dressed as a name (identity.test.mjs pinned the card's text for it until 25 Nov 2026).
+  reset();
+  fresh();
+  workspace({ team: [OWNER, ALEX, OTHER_OWNER] });
+  const tree = draw();
+  const nameOf = (id) => textOf(find(byTestId(tree, id), (n) => n.props?.className === "set-team-who"));
+  assert.equal(nameOf("team-row-m-alex"), "Alex Rivera");
+  assert.equal(
+    nameOf("team-row-m-s"),
+    "s@example.com",
+    "REGRESSION: the address, never its local part dressed as a name",
+  );
+});
+
 test("Owner is asked for on the row before it is given; any other role is given on the press", async () => {
   reset();
   fresh();
