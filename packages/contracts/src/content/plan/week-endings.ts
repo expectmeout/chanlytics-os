@@ -54,7 +54,7 @@ function goingSaid(going: number, reels: number): string {
 const ENDING = W.ending;
 
 /** A week AI did not approve that waits on its owner: the one line, on the Week's head and under Today's point. */
-const waiting = (head: string, today: string, bell: WeekEndingSaid["bell"]): WeekEndingSaid => ({
+const waitsOnOwner = (head: string, today: string, bell: WeekEndingSaid["bell"]): WeekEndingSaid => ({
   head: `${head} ${W.untilApproved}`,
   today: { name: ENDING.todayWaits, said: today },
   bell,
@@ -101,19 +101,19 @@ export function weekEndingSaid(ending: WeekEnding, when: string): WeekEndingSaid
     case "stopped":
       return { head: `${ENDING.youStopped} ${W.untilApproved}`, today: null, bell: null };
     case "changed":
-      return waiting(ENDING.aiDidnt, ENDING.aiDidntThem, {
+      return waitsOnOwner(ENDING.aiDidnt, ENDING.aiDidntThem, {
         subject: ENDING.notApproved,
         body: `The week changed while AI was approving it${at}, so nothing went up. ${ENDING.look}`,
       });
     case "unapproved":
-      return waiting(ENDING.aiDidnt, ENDING.aiDidntThem, null);
+      return waitsOnOwner(ENDING.aiDidnt, ENDING.aiDidntThem, null);
   }
 }
 
 type SlotStands = Pick<PlanSlotDto, "state" | "blocked_why" | "at">;
 
 /** A slot an approval left out of a week, which says why on its row: its time passed, or it is held with its reason. */
-const leftOutOf = (slot: SlotStands, nowMs: number): boolean =>
+const slotLeftOutOf = (slot: SlotStands, nowMs: number): boolean =>
   slot.state === "proposed"
     ? slotTimePassed(slot.at, nowMs)
     : slot.state === "blocked" && slot.blocked_why !== "unmade";
@@ -124,7 +124,7 @@ export const weekApprovedByAI = (plan: Pick<NonNullable<WeekPlanDto["plan"]>, "s
 
 /** How many of a week's slots an approval left out: each says why on its row. */
 export const weekLeftOut = (slots: readonly SlotStands[], nowMs: number): number =>
-  slots.filter((slot) => leftOutOf(slot, nowMs)).length;
+  slots.filter((slot) => slotLeftOutOf(slot, nowMs)).length;
 
 /**
  * The ending that stands for a week now, read from the week itself: approved by AI, or ready with no time to go up at

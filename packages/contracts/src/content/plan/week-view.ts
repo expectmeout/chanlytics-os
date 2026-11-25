@@ -285,6 +285,23 @@ function sizeHead(page: WeekPageDto, rows: readonly WeekRow[]): Pick<WeekView, "
   return { title: `${size}, ${days}`, line: W.goingUp(live.length, placesSaid(live)) };
 }
 
+/** A ready week's head that is not held to a time: why AI did not approve it, where it did not; else how often it goes. */
+function readyHead(page: WeekPageDto, head: Pick<WeekView, "title" | "line">, nowMs: number) {
+  const ending = weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs });
+  const ended = ending ? weekEndingSaid(ending, "").head : null;
+  return { ...head, line: ended ?? head.line, act: ending?.is === "nothing" ? null : ("approve" as const) };
+}
+
+/** An approved week's line: who approved it (AI, where nobody's press did), when, and whether anything was left out. */
+function approvedLine(page: WeekPageDto, when: string, nowMs: number): string {
+  const plan = page.week.plan;
+  const ending =
+    plan && weekApprovedByAI(plan) ? weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs }) : null;
+  if (ending) return weekEndingSaid(ending, when).head ?? "";
+  const left = weekLeftOut(page.week.slots, nowMs);
+  return `${W.approvedBy.owner(when)} ${left > 0 ? W.leftOut(left) : W.eachGoes}`;
+}
+
 /** The Week as its page draws it. */
 export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
   const rows = weekRowsOf(page, nowMs);
@@ -316,21 +333,8 @@ export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
   // A week AI may approve, held to its time (00714, board B5): the head says when, and its one press stops it.
   if (state === "ready" && plan?.goes_at)
     return { ...base, title: head.title, line: W.held(clockTime(Date.parse(plan.goes_at), page.zone)), act: "stop" };
-  if (state === "ready") {
-    // A week with no time to go up at says why where AI did not approve it (week-endings.ts); else how often it goes.
-    const ending = weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs });
-    const ended = ending ? weekEndingSaid(ending, "").head : null;
-    return { ...base, ...head, line: ended ?? head.line, act: ending?.is === "nothing" ? null : "approve" };
-  }
-  // Approved: who did it (AI, where nobody's press did), when, and whether anything was left out of it.
-  const when = at(plan?.approved_at);
-  const ending =
-    plan && weekApprovedByAI(plan) ? weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs }) : null;
-  const left = weekLeftOut(page.week.slots, nowMs);
-  const line = ending
-    ? weekEndingSaid(ending, when).head
-    : `${W.approvedBy.owner(when)} ${left > 0 ? W.leftOut(left) : W.eachGoes}`;
-  return { ...base, title: W.approvedTitle(head.title), line: line ?? "" };
+  if (state === "ready") return { ...base, ...readyHead(page, head, nowMs) };
+  return { ...base, title: W.approvedTitle(head.title), line: approvedLine(page, at(plan?.approved_at), nowMs) };
 }
 
 /** Whether the Week moves: drafting, or something approved being made. The page asks again while it does. */

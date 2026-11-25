@@ -24,24 +24,20 @@ import {
 import { evaluate, verdictWords } from "../policy/evaluate";
 
 /** What the business says of itself now, as a slot's reason is asked of it: a line each, its services, the owner's facts. */
-export interface WeekBusiness {
+interface WeekBusiness {
   says: readonly string[];
   services: readonly string[];
   facts: readonly OwnersFact[];
 }
 
 /** A business nothing was read of: enough for a week none of whose slots leans on an offer or a service. */
-export const NO_BUSINESS: WeekBusiness = { says: [], services: [], facts: [] };
-
-/** Whether any ready slot leans on what the business says: an offer or a service its reason names. Read it only then. */
-export const weekLeansOnBusiness = (slots: readonly PlanSlotDto[]): boolean =>
-  slots.some((slot) => slot.state === "proposed" && (!!slot.intent?.offer || !!slot.intent?.service));
+const NO_BUSINESS: WeekBusiness = { says: [], services: [], facts: [] };
 
 /**
  * What the business says now, from its configuration as stored and the claims its owner keeps: its notes in force and
  * its services with what they cost, the offers that run today, and the facts the owner stated that still stand.
  */
-export function weekBusinessOf(
+function businessSaysNow(
   config: unknown,
   claims: readonly OwnerClaim[],
   at: { zone: string; nowMs: number },
@@ -87,35 +83,46 @@ function slotRefusal(
 /** What the approval holds of each slot, as the door holds it: by id, where, as what, when, from which footage, and why. */
 type SlotApproved = Pick<PlanSlotDto, "id" | "place" | "kind" | "at" | "file_id" | "title" | "intent">;
 
-/**
- * A slot an approval leaves out, with why in the owner's words. `held` is what holds it where its reason no longer
- * stands, to be kept on its row; null where only its time has passed, which its row says by itself until another is
- * picked.
- */
-export interface SlotLeftOut {
+/** A slot an approval leaves out, with why in the owner's words. */
+interface SlotLeftOut {
   id: string;
   why: string;
-  held: PostHeldWhy | null;
 }
 
-/** A week's approval as it would be taken now: the slots that go, those left out with why, and the snapshot. */
+/**
+ * A week's approval as it would be taken now: the slots that go, those left out with why, the snapshot, and of those
+ * left out the ones whose reason no longer stands, with the hold to keep on their rows. A slot whose time has passed is
+ * left out and not held: its row says so by itself until another time is picked.
+ */
 export interface WeekApproval {
   going: PlanSlotDto[];
   leftOut: SlotLeftOut[];
+  holds: (SlotLeftOut & { held: PostHeldWhy })[];
   snapshot: { slots: SlotApproved[] };
 }
 
-/** The week's approval from its slots, in the business's zone, at a moment, by what the business says then. */
-export function weekApprovalOf(
+/** What the business says of itself, read for a week: its settings as stored, and the claims its owner keeps. */
+type BusinessRead = () => Promise<{ config: unknown; claims: readonly OwnerClaim[] }>;
+
+/**
+ * The week's approval from its slots, in the business's zone, at a moment, by what the business says now: `read` is
+ * asked only where a ready slot's reason leans on it (an offer, a service), so a week that leans on none reads nothing.
+ */
+export async function judgeWeekApproval(
   slots: readonly PlanSlotDto[],
   at: { zone: string; nowMs: number },
-  business: WeekBusiness,
-): WeekApproval {
+  read: BusinessRead,
+): Promise<WeekApproval> {
   const ready = slots.filter((slot) => slot.state === "proposed");
+  const leans = ready.some((slot) => !!slot.intent?.offer || !!slot.intent?.service);
+  const kept = leans ? await read() : null;
+  const business = kept ? businessSaysNow(kept.config, kept.claims, at) : NO_BUSINESS;
+  const holds: WeekApproval["holds"] = [];
   const leftOut = ready.flatMap((slot): SlotLeftOut[] => {
-    if (slotTimePassed(slot.at, at.nowMs)) return [{ id: slot.id, why: WEEK_WORDS.timePassed, held: null }];
+    if (slotTimePassed(slot.at, at.nowMs)) return [{ id: slot.id, why: WEEK_WORDS.timePassed }];
     const refusal = slotRefusal(slot, at, business);
-    return refusal ? [{ id: slot.id, ...refusal }] : [];
+    if (refusal) holds.push({ id: slot.id, ...refusal });
+    return refusal ? [{ id: slot.id, why: refusal.why }] : [];
   });
   const going = ready.filter((slot) => !leftOut.some((left) => left.id === slot.id));
   const snapshot = {
@@ -129,5 +136,5 @@ export function weekApprovalOf(
       intent,
     })),
   };
-  return { going, leftOut, snapshot };
+  return { going, leftOut, holds, snapshot };
 }

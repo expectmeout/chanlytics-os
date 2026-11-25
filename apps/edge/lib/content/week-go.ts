@@ -39,14 +39,7 @@ import {
   type WeekEnding,
   type WeekMadeBody,
 } from "@chanlytics/contracts";
-import {
-  NO_BUSINESS,
-  weekApprovalOf,
-  weekBusinessOf,
-  weekLeansOnBusiness,
-  type SlotLeftOut,
-  type WeekBusiness,
-} from "@chanlytics/core";
+import { judgeWeekApproval } from "@chanlytics/core";
 import { callDashboard } from "@chanlytics/channels/tokens";
 import {
   approveWeek,
@@ -138,20 +131,11 @@ async function letTheWeekGo(db: Db, week: WeekAtItsTime, ending: WeekEnding): Pr
   return { skipped: ending.is };
 }
 
-/** What the business says now, read only where a ready slot's reason leans on it (an offer, a service). */
-async function readWeekBusiness(
-  db: Db,
-  tenantId: TenantId,
-  week: { slots: readonly PlanSlotDto[]; zone: string; nowMs: number },
-): Promise<WeekBusiness> {
-  if (!weekLeansOnBusiness(week.slots)) return NO_BUSINESS;
-  const [config, claims] = await Promise.all([getTenantConfig(db, tenantId), listClaims(db, tenantId)]);
-  return weekBusinessOf(config?.config ?? null, claims, week);
-}
-
-/** The slots an approval left out because their reason no longer stands, held on their rows with why. */
-const heldOut = (leftOut: readonly SlotLeftOut[]) =>
-  leftOut.flatMap((left) => (left.held ? [{ id: left.id, held: left.held, why: left.why }] : []));
+/** What the business says of itself, as the week's approval asks it: its settings as stored, and its owner's claims. */
+const businessReader = (db: Db, tenantId: TenantId) => async () => {
+  const [row, claims] = await Promise.all([getTenantConfig(db, tenantId), listClaims(db, tenantId)]);
+  return { config: row?.config ?? null, claims };
+};
 
 /** A week AI approved as its notice counts it: the posts that go up, the reels made for the owner's look, what was left out. */
 function approvedEnding(going: readonly PlanSlotDto[], leftOut: number): WeekEnding {
@@ -217,9 +201,9 @@ export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { sk
   if (await isSendingStopped(db, tenantId)) return letTheWeekGo(db, week, { is: "paused" });
   const nowMs = Date.now();
   const read = await readContentWeek(db, tenantId, plan.week_of);
-  const business = await readWeekBusiness(db, tenantId, { slots: read.slots, zone, nowMs });
-  const { going, leftOut, snapshot } = weekApprovalOf(read.slots, { zone, nowMs }, business);
-  const left = { planId: plan.id, slots: heldOut(leftOut) };
+  const approval = await judgeWeekApproval(read.slots, { zone, nowMs }, businessReader(db, tenantId));
+  const { going, leftOut, snapshot } = approval;
+  const left = { planId: plan.id, slots: approval.holds };
   if (going.length === 0) {
     await holdSlotsLeftOut(db, tenantId, left);
     return letTheWeekGo(db, week, { is: "nothing", leftOut: leftOut.length });

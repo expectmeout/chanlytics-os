@@ -2,7 +2,7 @@
  * A week once it is ready, however its approval ends (the Week review of 25 Nov 2026: C1, C2, C6 and the start of C7).
  *
  * One rule for a post whose time has passed, the same for the owner's press and for AI: no approval puts it up. The rule
- * itself (core weekApprovalOf), the owner's press over a week planned on Sunday and approved on Wednesday (the dashboard's
+ * itself (core judgeWeekApproval), the owner's press over a week planned on Sunday and approved on Wednesday (the dashboard's
  * approveWeekFor over tests/_fake-db.mjs), and what its rows then say. Then every way AI's approval at a held week's time
  * can end (the edge's putTheWeekUp): approved, AI paused, the setting asks again, nothing left to approve, stopped by the
  * owner, changed on every try. For each: what the job answers, the one notice on the bell, and what the Week's head and
@@ -25,7 +25,7 @@ import {
   weekEndingSaid,
   weekViewOf,
 } from "@chanlytics/contracts";
-import { NO_BUSINESS, weekApprovalOf, weekBusinessOf, weekLeansOnBusiness } from "@chanlytics/core";
+import { judgeWeekApproval } from "@chanlytics/core";
 import { MAX_ATTEMPTS } from "@chanlytics/jobs";
 import { fakeDb } from "../../_fake-db.mjs";
 
@@ -117,23 +117,36 @@ test("a slot's time has passed once it is nearer than the margin AI's making kee
   assert.equal(slotTimePassed(new Date(NOW + 6 * 60_000).toISOString(), NOW), false);
 });
 
-test("an approval leaves out every slot whose time has passed, dated or not, and says so in the owner's words", () => {
+/** A business's settings and claims as the approval reads them, counting each read: none where nothing leans on it. */
+function readerOf(config, claims = []) {
+  const reader = async () => {
+    reader.reads += 1;
+    return { config, claims };
+  };
+  reader.reads = 0;
+  return reader;
+}
+
+test("an approval leaves out every slot whose time has passed, dated or not, and says so in the owner's words", async () => {
   const monday = slot("Monday's", -2 * DAY);
   const near = slot("In three minutes", 3 * 60_000);
   const thursday = slot("Thursday's", DAY);
-  const { going, leftOut, snapshot } = weekApprovalOf(
+  const read = readerOf(null);
+  const { going, leftOut, holds, snapshot } = await judgeWeekApproval(
     [monday, near, thursday].map(dtoOf),
     { zone: ZONE, nowMs: NOW },
-    NO_BUSINESS,
+    read,
   );
   assert.deepEqual(
     going.map((s) => s.title),
     ["Thursday's"],
   );
   assert.deepEqual(leftOut, [
-    { id: monday.id, why: TIME_PASSED, held: null },
-    { id: near.id, why: TIME_PASSED, held: null },
+    { id: monday.id, why: TIME_PASSED },
+    { id: near.id, why: TIME_PASSED },
   ]);
+  assert.deepEqual(holds, [], "a passed time is said by its row, never written on it");
+  assert.equal(read.reads, 0, "nothing is read of a business a week leans on nowhere");
   assert.deepEqual(
     snapshot.slots.map((s) => s.id),
     [thursday.id],
@@ -142,19 +155,13 @@ test("an approval leaves out every slot whose time has passed, dated or not, and
   assert.equal(WEEK_WORDS.timePassed, TIME_PASSED);
 });
 
-test("a slot planned for a service or an offer goes while the business says it, and is held with why once it does not", () => {
+test("a slot planned for a service or an offer goes while the business says it, and is held with why once it does not", async () => {
   const colour = slot("Colour", DAY, { intent: intent({ service: "Balayage" }) });
   const offer = slot("First colour", DAY, {
     intent: intent({ offer: { says: "20% off a first colour", until: null } }),
   });
   const gone = slot("Perms", DAY, { intent: intent({ service: "Perms" }) });
   const slots = [colour, offer, gone].map(dtoOf);
-  assert.equal(weekLeansOnBusiness(slots), true);
-  assert.equal(
-    weekLeansOnBusiness([dtoOf(slot("Plain", DAY))]),
-    false,
-    "nothing is read for a week that leans on none",
-  );
   const claims = [
     {
       id: "c1",
@@ -166,12 +173,9 @@ test("a slot planned for a service or an offer goes while the business says it, 
       created_at: new Date(NOW).toISOString(),
     },
   ];
-  const business = weekBusinessOf(configWith([{ name: "Balayage", price_note: "from $120" }]), claims, {
-    zone: ZONE,
-    nowMs: NOW,
-  });
-  assert.deepEqual(business.services, ["Balayage"]);
-  const { going, leftOut } = weekApprovalOf(slots, { zone: ZONE, nowMs: NOW }, business);
+  const read = readerOf(configWith([{ name: "Balayage", price_note: "from $120" }]), claims);
+  const { going, leftOut, holds } = await judgeWeekApproval(slots, { zone: ZONE, nowMs: NOW }, read);
+  assert.equal(read.reads, 1, "read once, for the week");
   assert.deepEqual(
     going.map((s) => s.title),
     ["Colour", "First colour"],
@@ -179,8 +183,8 @@ test("a slot planned for a service or an offer goes while the business says it, 
   );
   assert.equal(leftOut.length, 1);
   assert.equal(leftOut[0].id, gone.id);
-  assert.equal(leftOut[0].held, "reason_passed");
   assert.match(leftOut[0].why, /Perms.*isn't one of your services/);
+  assert.deepEqual(holds, [{ id: gone.id, held: "reason_passed", why: leftOut[0].why }], "held on its row with why");
 });
 
 /* ------------------------------------------------------------------------------------------ what a screen says -- */

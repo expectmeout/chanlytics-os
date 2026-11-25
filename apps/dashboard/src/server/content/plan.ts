@@ -10,14 +10,7 @@
  */
 import "server-only";
 import { AppError, planWeekOf, type WeekPlanDto, type TenantId } from "@chanlytics/contracts";
-import {
-  NO_BUSINESS,
-  weekApprovalOf,
-  weekBusinessOf,
-  weekLeansOnBusiness,
-  type SlotLeftOut,
-  type WeekBusiness,
-} from "@chanlytics/core";
+import { judgeWeekApproval, type WeekApproval } from "@chanlytics/core";
 import {
   approveWeek,
   askForPlan,
@@ -71,27 +64,21 @@ async function readWeekOf(ctx: RouteContext, tenantId: TenantId, weekOf: string)
   return readContentWeek(ctx.supabase, tenantId, weekOf);
 }
 
-/** What the business says now, read only where a ready slot's reason leans on it (an offer, a service). */
-async function readWeekBusiness(
-  ctx: RouteContext,
-  member: Member,
-  week: { slots: WeekPlanDto["slots"]; zone: string; nowMs: number },
-): Promise<WeekBusiness> {
-  if (!weekLeansOnBusiness(week.slots)) return NO_BUSINESS;
+/** What the business says of itself, as the week's approval asks it, on the member's session. */
+const businessOn = (ctx: RouteContext, member: Member) => async () => {
   const [config, claims] = await Promise.all([
     getStoredConfig(ctx.supabase, member.tenantId),
     listClaims(ctx.supabase, member.tenantId),
   ]);
-  return weekBusinessOf(config, claims, week);
-}
+  return { config, claims };
+};
 
 /**
  * The slots the press left out because their reason no longer stands, held on their rows with why, so "it says why" is
  * true of each. Written as the service once the member's own press has been taken (a member's session writes no slot but
  * through its doors, and none of those holds a slot not yet approved); a slot whose time passed says so by itself.
  */
-async function holdLeftOut(tenantId: TenantId, planId: string, leftOut: readonly SlotLeftOut[]): Promise<void> {
-  const slots = leftOut.flatMap((left) => (left.held ? [{ id: left.id, held: left.held, why: left.why }] : []));
+async function holdLeftOut(tenantId: TenantId, planId: string, slots: WeekApproval["holds"]): Promise<void> {
   // The press has been taken either way: a row that could not be held keeps its time, and is not the press's failure.
   if (slots.length > 0)
     await holdSlotsLeftOut(serviceDb(), tenantId, { planId, slots }).catch(
@@ -118,10 +105,9 @@ export async function approveWeekFor(
   if (week.plan.status === "drafting") throw new AppError("conflict", PLAN_REFUSED.drafting, 409);
   // The rule a held week's job asks too (core weekApprovalOf): each ready slot held to the checks before it goes.
   const at = { zone: memberZoneOf(member), nowMs: Date.now() };
-  const business = await readWeekBusiness(ctx, member, { slots: week.slots, ...at });
-  const { going, leftOut, snapshot } = weekApprovalOf(week.slots, at, business);
+  const { going, leftOut, holds, snapshot } = await judgeWeekApproval(week.slots, at, businessOn(ctx, member));
   if (going.length === 0) {
-    await holdLeftOut(member.tenantId, week.plan.id, leftOut);
+    await holdLeftOut(member.tenantId, week.plan.id, holds);
     throw new AppError("validation", leftOut[0]?.why ?? PLAN_REFUSED.nothing);
   }
   const answer = await approveWeek(ctx.supabase, member.tenantId, {
@@ -131,9 +117,9 @@ export async function approveWeekFor(
   if (answer.fate === "changed") throw new AppError("conflict", PLAN_REFUSED.changed, 409);
   if (answer.fate === "gone") throw new AppError("not_found", PLAN_REFUSED.gone, 404);
   if (answer.fate !== "approved") throw new AppError("conflict", PLAN_REFUSED.approved, 409);
-  await holdLeftOut(member.tenantId, week.plan.id, leftOut);
+  await holdLeftOut(member.tenantId, week.plan.id, holds);
   makeWeekAfter(ctx, member, { tenantId: member.tenantId, weekOf: input.week_of }, later);
-  return { approved: answer.slots, left_out: leftOut.map(({ id, why }) => ({ id, why })) };
+  return { approved: answer.slots, left_out: leftOut };
 }
 
 /**
