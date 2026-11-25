@@ -299,7 +299,8 @@ export function answerOfThrow(
     return {
       status: error.status,
       body: err(error.code, error.message, error.details),
-      headers: refusalHeaders(error),
+      // A fault a route said in its own words (a read the database could not make) says when to ask again too.
+      headers: { ...refusalHeaders(error), ...(isFaultCode(error.code) ? waitWhileFailing() : {}) },
     };
   }
   if (error instanceof ReadCutShort) return answerOfThrow(readCutShortRefusal(error), at);

@@ -16,18 +16,21 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * production's database down: one load was 150 to 550 database calls, a tab left open kept reading, and a read that failed
  * was asked again at once on every part of the page. Nothing held any of it to a number.
  *
- * This counts, on the run's own stack and never on production: the database calls behind one cold load of each main page,
- * behind a minute of a tab left open in front and hidden, and how many requests a tab sends in a minute while every read
- * fails. The server says each request's calls itself: in `Server-Timing` (`db;desc="<calls>"`, server-timing.ts) and, for the
+ * This counts, on the run's own stack and never on production: the database calls behind one cold load of each main page
+ * and behind the same page loaded again in the same browser, behind a minute of a tab left open in front and hidden, and
+ * how many requests a tab sends in a minute while every read fails. The server says each request's calls itself: in `Server-Timing` (`db;desc="<calls>"`, server-timing.ts) and, for the
  * two streamed reads (GET open, GET open/rest), in their last line (`o.db_n`, page-open.ts). Each is held to its line in
  * tests/baselines/database-calls.json, which may only fall.
  *
- * A fresh context is a first load: nothing cached, nothing kept on the device, as after a sign-in on a new browser.
+ * A fresh context is a first load: nothing cached, nothing kept on the device, as after a sign-in on a new browser. The
+ * load after it, in the same browser, is the usual one: the device holds the workspace's rows from the load before.
  */
 interface Lines {
   note: string;
   /** A cold load of a page: the database calls behind it, and the requests it sent. */
   load: Record<string, { calls: number; requests: number }>;
+  /** The same page loaded again in the same browser, which holds the workspace's rows by then. */
+  again: Record<string, { calls: number; requests: number }>;
   /** A minute of a tab left open once its load is in: the database calls behind it. */
   idle: Record<string, number>;
   /** A minute in which every read fails: the requests a tab sends. */
@@ -154,20 +157,38 @@ async function whereToLook(browser: Browser): Promise<{ slug: string; person: st
   return { slug, person: people.data?.people?.[0]?.id ?? "" };
 }
 
-/** A cold load of an address: every request it sent, once the load and the reads it begins for the other pages are in. */
-async function coldLoad(
-  browser: Browser,
-  address: string,
-): Promise<{ asked: Asked[]; context: BrowserContext; page: Page }> {
-  const { context, page } = await freshPage(browser);
-  const heard = hearApi(page);
-  await page.goto(address);
-  // The rest of a load's reads leave once the page on screen is drawn (GET open/rest): quiet after it, or after a while.
+/** A load on its way is in once the reads it begins for the other pages are (GET open/rest), and the page is quiet. */
+async function loadIn(page: Page, heard: ReturnType<typeof hearApi>): Promise<void> {
+  // The rest of a load's reads leave once the page on screen is drawn: quiet after it, or after a while.
   await page
     .waitForResponse((r) => new URL(r.url()).pathname === `${API}open/rest`, { timeout: 20_000 })
     .catch(() => null);
   await heard.quiet(4_000, 60_000);
-  return { asked: heard.asked, context, page };
+}
+
+/** A cold load of an address: every request it sent, once the load and the reads it begins for the other pages are in. */
+async function coldLoad(
+  browser: Browser,
+  address: string,
+): Promise<{ asked: Asked[]; context: BrowserContext; page: Page; heard: ReturnType<typeof hearApi> }> {
+  const { context, page } = await freshPage(browser);
+  const heard = hearApi(page);
+  await page.goto(address);
+  await loadIn(page, heard);
+  return { asked: heard.asked, context, page, heard };
+}
+
+/** What a load came to, as its line says it: its calls, its requests and where they went. */
+function loadWords(asked: readonly Asked[]): string {
+  const open = asked.filter((a) => a.path === "open");
+  const rest = asked.filter((a) => a.path === "open/rest");
+  const alone = asked.filter((a) => !STREAMED.has(a.path));
+  return (
+    `${sumCalls(asked)} calls in ${asked.length} requests ` +
+    `(the page's one read ${sumCalls(open)} for ${open.flatMap((a) => a.reads).length} reads, ` +
+    `the rest ${sumCalls(rest)} for ${rest.flatMap((a) => a.reads).length} reads, ` +
+    `${alone.length} alone ${sumCalls(alone)}; ${unsaid(asked).length} did not say)`
+  );
 }
 
 /** The main pages, by the name their line is kept under, each with its path after the workspace's. */
@@ -199,25 +220,30 @@ test.describe("what a page costs the database", () => {
     test(`${name}, a cold load: within its database calls`, async ({ browser }) => {
       test.setTimeout(150_000);
       expect(where.slug, "the run's workspace has an address").not.toBe("");
-      const { asked, context } = await coldLoad(browser, `/w/${where.slug}/${pathOf(where)}`);
-      await context.close();
-      const open = asked.filter((a) => a.path === "open");
-      const rest = asked.filter((a) => a.path === "open/rest");
-      const alone = asked.filter((a) => !STREAMED.has(a.path));
-      const calls = sumCalls(asked);
-      said(
-        "load",
-        name,
-        `${calls} calls in ${asked.length} requests ` +
-          `(the page's one read ${sumCalls(open)} for ${open.flatMap((a) => a.reads).length} reads, ` +
-          `the rest ${sumCalls(rest)} for ${rest.flatMap((a) => a.reads).length} reads, ` +
-          `${alone.length} alone ${sumCalls(alone)}; ${unsaid(asked).length} did not say)`,
-      );
-      for (const a of alone) console.log(`database-calls   ${name} alone ${a.path} ${a.status}: ${a.calls ?? "?"}`);
+      const cold = await coldLoad(browser, `/w/${where.slug}/${pathOf(where)}`);
+      const asked = [...cold.asked];
+      said("load", name, loadWords(asked));
+      for (const a of asked.filter((x) => !STREAMED.has(x.path)))
+        console.log(`database-calls   ${name} alone ${a.path} ${a.status}: ${a.calls ?? "?"}`);
+      // The same page loaded again in the same browser: the device holds the workspace's rows, as on every load but a
+      // sign-in's first. The page writes what it holds as it is put away, which a reload does.
+      await cold.page.reload();
+      await loadIn(cold.page, cold.heard);
+      const again = cold.asked.slice(asked.length);
+      await cold.context.close();
+      said("again", name, loadWords(again));
+      for (const a of again.filter((x) => !STREAMED.has(x.path)))
+        console.log(`database-calls   ${name} again alone ${a.path} ${a.status}: ${a.calls ?? "?"}`);
       const line = LINES.load[name];
-      if (!line) return;
-      expect(calls, `${name}: ${calls} database calls behind a cold load`).toBeLessThanOrEqual(line.calls);
-      expect(asked.length, `${name}: ${asked.length} requests on a cold load`).toBeLessThanOrEqual(line.requests);
+      if (line) {
+        expect(sumCalls(asked), `${name}: database calls behind a cold load`).toBeLessThanOrEqual(line.calls);
+        expect(asked.length, `${name}: requests on a cold load`).toBeLessThanOrEqual(line.requests);
+      }
+      const second = LINES.again[name];
+      if (second) {
+        expect(sumCalls(again), `${name}: database calls behind the load after`).toBeLessThanOrEqual(second.calls);
+        expect(again.length, `${name}: requests on the load after`).toBeLessThanOrEqual(second.requests);
+      }
     });
   }
 

@@ -1302,6 +1302,33 @@ reading` and `too long to keep` are why the screen last left kept none (contract
 7. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## See what a page costs the database
+
+A page load is many requests, and each request many calls to the database. On the evening of 24 Nov 2026 a few browsers'
+worth of loads took production's database down: nothing held a load, a tab left open or a failing read to a number.
+Never count by walking production: a local dashboard server reads production's database, and a walk of it is a crowd.
+
+1. **Read a route's cost from production's own log.** Every `route_answered` line says `db_n` (the calls to the database
+   behind that answer) and `db_ms`; the two streamed reads say theirs once their last read is in (`page_opened`,
+   `page_rest_opened`: `db_n`, and each read's own ms). One request in twenty also says which tables (`tables`).
+2. **Read a request's cost in a browser.** Its `Server-Timing` header says `db;dur=<ms>;desc="<calls>"`; GET open's and
+   GET open/rest's last line says `{"o":{"ms","db_ms","db_n"}}`.
+3. **Read a whole load's cost, a tab left open and a failing minute**: the nightly's whole suite counts them on its own
+   stack (`e2e/shell/database-calls.spec.ts`), one line each in its log: `database-calls load people: 264 calls in 13
+requests (...)`, `database-calls idle today: ...`, `database-calls failing load: ...`, and each read asked alone
+   (`database-calls read contacts 200: 11`). Each is held to its line in `tests/baselines/database-calls.json`, which may
+   only fall. To count a branch before it merges, run that one spec on the nightly's stack by hand (Actions, Nightly
+   e2e, `specs: e2e/shell/database-calls.spec.ts`, on the branch): no secret is read and production is out of reach.
+4. **Read what the database's own gateway saw**, where a count is needed of what already happened: Supabase's log
+   (`edge_logs`), grouped by `request.path` for the tables and by
+   `request.sb.jwt.authorization.payload.session_id` for the sign-in. A dashboard server's calls say
+   `supabase-ssr createServerClient` in `request.headers.x_client_info`.
+5. **When the database is failing**, three things hold the load down by themselves. The server asks a failed read once
+   more and then not at all (`packages/db/src/shared/read-again.ts`: three failed calls in half a minute on an
+   instance); a fault then tells the tab to wait fifteen seconds; and a tab whose reads fail on two addresses stops
+   asking, looks once after five seconds, then ten, twenty and on to five minutes, and comes back by itself
+   (`apps/dashboard/src/client/trouble.ts`). A page's Retry looks at once.
+
 ## When calls fail
 
 The phone receptionist's troubles, each with where it shows and what to do (decision 0092; `docs/voice.md` is the whole
@@ -1394,7 +1421,8 @@ minute or a day later; and the ledger's rows say it (`select * from events where
 
 Other lines to know:
 
-- `route_answered`: every answer of the dashboard's routes, with the path (`route`), who asked and how long it took. One
+- `route_answered`: every answer of the dashboard's routes, with the path (`route`), who asked, how long it took and what it
+  asked of the database (`db_n` calls, `db_ms`; "See what a page costs the database"). One
   request in twenty, chosen by its name, adds what its database calls touched and the page it was asked from (decision
   0058, lane R7): `method`, `tables` (each table and how, `contacts:INSERT+read`, and each SQL function called,
   `rpc:merge_contacts:call`) and `page` (the page's first two words after the workspace, an id as `:id`; never the

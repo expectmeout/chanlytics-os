@@ -41,6 +41,7 @@ test("what stays under baselines/ is a decision or a reviewed list, and the regi
   assert.deepEqual(KEPT, [
     "bundle-ceiling.json",
     "coverage.json",
+    "database-calls.json",
     "hearing/",
     "on-demand-reads.json",
     "page-speed-budgets.json",
