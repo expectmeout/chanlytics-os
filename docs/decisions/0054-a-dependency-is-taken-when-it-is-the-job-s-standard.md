@@ -41,7 +41,8 @@ A dependency is taken when it does a job the product needs better than the code 
 2. **One per job.** A second library for a job is refused, and the code it replaces leaves in the change that takes it
    (one predicate per rule).
 3. **Pinned exactly**, no caret, in the package that imports it (`shipping/package-dependencies.test.mjs`); Dependabot
-   raises it. No install script runs: pnpm 10 runs none it is not told to, and one that needs it is argued.
+   raises it. One that a second project names has its version written once, in pnpm-workspace.yaml's catalog, and each
+   package.json names it `catalog:` (25 Nov 2026, `repo/settings/dependencies-declared-once.test.mjs`). No install script runs: pnpm 10 runs none it is not told to, and one that needs it is argued.
 4. **Behind a seam of ours** wherever more than one module would call it: `useSurface` for the cache, `normalizePhone`
    for numbers, `parseIcs` for feeds. The rest of the tree never imports the library, so it can be changed in one place.
 5. **On the server where it can be.** In the browser, its gzipped bytes are argued in the pull request (`Bundle:
