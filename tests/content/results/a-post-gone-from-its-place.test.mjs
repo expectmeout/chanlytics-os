@@ -89,6 +89,7 @@ function world({
   insights = true,
   bell = [],
   seen = true,
+  ads = null,
 } = {}) {
   const now = new Date().toISOString();
   const up = new Date(Date.now() - upFor).toISOString();
@@ -179,6 +180,8 @@ function world({
     jobs: [],
     // What post_observations_keep was handed, each read as one call.
     kept: [],
+    // The ads made here, where a test has any: a world without the table reads as no ad known.
+    ...(ads ? { ads } : {}),
   };
   const post = () => tables.posts[0];
   const db = fakeDb(
@@ -239,6 +242,46 @@ test("removed on Instagram: the account reads without it, so it is down here and
   assert.deepEqual(await w.run(), { skipped: "taken_down" });
   assert.deepEqual(calls, []);
   assert.equal(w.bell().length, 1);
+});
+
+test("removed on Instagram while an ad made from the piece is on: the bell says the ad still runs, and nothing pauses it", async () => {
+  // The review of 24 Nov 2026, B5 and D3.
+  meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
+  meta[`GET /${MEDIA}`] = BY_ID_GONE;
+  meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
+  const adOf = (id, over = {}) => ({
+    id,
+    tenant_id: T,
+    origin: "chanlytics",
+    status: "made",
+    intent: "on",
+    approved: { picture: FILE },
+    ends_at: null,
+    ...over,
+  });
+  const w = world({ ads: [adOf("ad-1")] });
+  await w.run();
+  assert.equal(w.post().status, "taken_down");
+  assert.deepEqual(w.bell(), [
+    [
+      "post_down",
+      "Removed on Instagram · The finish",
+      "Chanlytics didn't take it down. It was deleted on Instagram itself. Its ad is still running: open the piece to pause it.",
+      false,
+    ],
+  ]);
+  assert.equal(w.tables.ads[0].intent, "on", "the ad is the owner's to pause");
+  // An ad already paused, one that ended, one of another piece, and one made in Meta's own tools are not "still running".
+  const others = [
+    adOf("ad-2", { intent: "paused" }),
+    adOf("ad-3", { ends_at: new Date(Date.now() - DAY_MS).toISOString() }),
+    adOf("ad-4", { approved: { picture: "ffffffff-0000-4000-8000-000000000099" } }),
+    adOf("ad-5", { origin: "platform" }),
+    adOf("ad-6", { status: "sending" }),
+  ];
+  const quiet = world({ ads: others });
+  await quiet.run();
+  assert.equal(quiet.bell()[0][2], "Chanlytics didn't take it down. It was deleted on Instagram itself.");
 });
 
 test("never seen on Instagram, and not held there: it never went up, so it did not post, and no take-down is told", async () => {

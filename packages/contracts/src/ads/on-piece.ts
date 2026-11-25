@@ -21,6 +21,8 @@ export interface PieceAdDto {
   currency: string | null;
   ends_at: string | null;
   paused_by: AdPausedBy | null;
+  /** The version a press on it carries, so one drawn from an old read is refused (decision 0050). */
+  version: number;
   /** People who first wrote from it, and those of them who booked since (Ads' own counts). */
   people: number;
   booked: number;
@@ -35,7 +37,22 @@ export interface PieceAdLine {
   said: string;
   tone: PieceAdTone;
   opens: boolean;
+  /** A second, quieter sentence, where its post was removed at its place while it runs; null otherwise. */
+  note: string | null;
+  /** Whether the line offers the one press that pauses the ad. */
+  pause: boolean;
 }
+
+/**
+ * A post removed at its place while its ad runs (the content status review of 24 Nov 2026, B5 and D3). A take-down
+ * from here pauses the piece's ads; a removal on the place itself does not, and nothing said so. It is said, with the
+ * one press that pauses the ad, and never paused by itself: the removal was not the owner's press here.
+ */
+export const PIECE_AD_WORDS = {
+  /** Under the running ad's line: what happened to its post, by the place's own name, and that the ad goes on. */
+  postRemoved: (placeNamed: string) => `Its post was removed on ${placeNamed}. The ad is still running.`,
+  pause: "Pause the ad",
+} as const;
 
 const adDayOf = (iso: string, tz: string): string =>
   new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(iso));
@@ -50,8 +67,18 @@ const shownTitleOf = (shown: readonly string[] | null): string =>
 
 const adMoneyOf = (ad: PieceAdDto, minor: number): string => exactMoney(minor, ad.currency ?? "USD");
 
+/**
+ * The ad's line under Where it goes. `removedOn`: the place a post of the piece was removed at itself, by its name
+ * ("Instagram"), or null: while the ad is on, the line needs its owner, says so, and offers the press that pauses it.
+ */
+export function pieceAdLineOf(ad: PieceAdDto, tz: string, removedOn: string | null): PieceAdLine {
+  const line = adLineSaid(ad, tz);
+  if (removedOn === null || ad.state !== "on") return { ...line, note: null, pause: false };
+  return { ...line, tone: "needs", note: PIECE_AD_WORDS.postRemoved(removedOn), pause: true };
+}
+
 /** The ad's line, in the canvas's four states and Ads' others. */
-export function pieceAdLineOf(ad: PieceAdDto, tz: string): PieceAdLine {
+function adLineSaid(ad: PieceAdDto, tz: string): Omit<PieceAdLine, "note" | "pause"> {
   const title = shownTitleOf(ad.shown_on);
   if (ad.state === "setting-up" || ad.state === "review" || ad.state === "unconfirmed" || ad.state === "draft")
     return { title, said: "Meta is checking it · usually within a day", tone: "moving", opens: false };

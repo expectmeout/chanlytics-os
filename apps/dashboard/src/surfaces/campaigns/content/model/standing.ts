@@ -35,4 +35,13 @@ export interface PieceStanding {
   version: VersionStanding & { instead: (fileId: string) => void };
   /** What its results are read by (00699): the piece's file, and a post of it that went up, null before one did. */
   results: { fileId: string; upPostId: string | null; made: boolean };
+  /**
+   * What an ad made from the piece is drawn by (viewer/ads-on-piece.tsx): the place a post of the piece was removed at
+   * itself, by its name, or null; and the press that pauses an ad, for someone who may, null for a reader.
+   */
+  ad: {
+    removedOn: string | null;
+    busy: boolean;
+    pause: ((ad: { id: string; version: number }) => Promise<void>) | null;
+  };
 }
