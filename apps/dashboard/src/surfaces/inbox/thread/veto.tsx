@@ -138,7 +138,7 @@ export const VetoBar = ({
     </span>
     {thread.veto.policyClass && <PolicyChip cls={thread.veto.policyClass} />}
     {thread.veto.why && (
-      <span className="ix-veto-why" title={thread.veto.why.reason || ""}>
+      <span className="ix-veto-why" data-tip={thread.veto.why.reason || ""}>
         {thread.veto.why.heldFor === "low_confidence" ? "Not sure enough to send alone · " : ""}
         {thread.veto.why.summary}
         {thread.veto.why.facts.length ? ` · used: ${thread.veto.why.facts.join(", ")}` : ""}
@@ -208,7 +208,7 @@ export function HeldDraft({ thread, text, remaining, paused = false, onAct = () 
       data-paused={paused || undefined}
       data-testid="ix-held-draft"
     >
-      <div className="ix-held-says" role="timer" title={W.heldTip} data-testid="ix-held-says">
+      <div className="ix-held-says" role="timer" data-tip={W.heldTip} data-testid="ix-held-says">
         <Icon name="spark" size={11} />
         {heldSays(remaining, paused)}
       </div>

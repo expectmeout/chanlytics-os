@@ -100,7 +100,12 @@ function rowTime(t: Thread, sending: number | null) {
     // The figure for the eye, and the whole of it for a screen reader, which read "2h" alone as nothing.
     return (
       <>
-        <span className="ix-thread-time ix-thread-wait tabular" title={waited.said} aria-hidden="true" {...SAYS_WHEN}>
+        <span
+          className="ix-thread-time ix-thread-wait tabular"
+          data-tip={waited.said}
+          aria-hidden="true"
+          {...SAYS_WHEN}
+        >
           {waited.figure}
         </span>
         <span className="ix-wait-said" {...SAYS_WHEN}>

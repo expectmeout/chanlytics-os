@@ -42,7 +42,8 @@
  * What they cannot see, so a pull request does not claim it: a declaration another kit rule outranks on every element
  * it would draw is never planted; the presses are forced all at once, so a selector that needs one element pressed and
  * its neighbour not is judged only unpressed; a token a kit rule declares on a pseudo-element cannot be planted from
- * the element, so its reader is named as unchanged.
+ * the element, so its reader is named as unchanged; and a placeholder's own style is none the browser answers, so a
+ * `::placeholder` rule's tokens are not planted.
  */
 
 /** Why the spec skips anywhere but on the harness's kit record. skip-ceiling.test.mjs holds it among the deliberate. */
@@ -548,6 +549,10 @@ export function kitChecks(ask: KitAsk): KitAnswer {
         const byPseudo = new Map<string | null, Hit[]>();
         for (const h of hits.get(el) ?? []) byPseudo.set(h.sel.pseudo, [...(byPseudo.get(h.sel.pseudo) ?? []), h]);
         for (const [pseudo, list] of byPseudo) {
+          // A placeholder's style is none the browser answers: Chromium's getComputedStyle(el, "::placeholder") is the
+          // element's own, so a token it reads moves nothing a read can see, and every plant there was named unchanged
+          // (the line field's ink, then the record kit's box's). It is not planted (the header's "cannot see").
+          if (pseudo === "::placeholder") continue;
           const at = `${pathOf(el, stageOf(f))}${pseudo ?? ""}`;
           const here = getComputedStyle(el, pseudo);
           if (!here.length) {

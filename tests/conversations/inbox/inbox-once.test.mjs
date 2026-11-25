@@ -521,7 +521,7 @@ test("an email in the thread is drawn as one: its subject said once over the fir
   // Counted on a fold of its own under the words, its name and why on a pointer (the thread canvas, 1 Nov 2026).
   const leftOut = find(withFile, byTestId("tl-msg-left-out"));
   assert.equal(textOf(leftOut).trim(), "1 file not kept");
-  assert.match(leftOut.props.title, /1 attachment was not kept: floorplan\.pdf\./);
+  assert.match(leftOut.props["data-tip"], /1 attachment was not kept: floorplan\.pdf\./);
   // They wrote last by email, so that is where a reply goes, and the reply box says so: no window, no templates.
   const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
   assert.equal(
