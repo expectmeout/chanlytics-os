@@ -43,17 +43,7 @@ import {
 import { warmLibrary } from "./warm";
 
 /** Where a list stands apart from All (what was set aside, what waits): the way back, and what it is, with how many. */
-export function BackHead({
-  said,
-  back,
-  onBack,
-  testid,
-}: {
-  said: string;
-  back: string;
-  onBack: () => void;
-  testid: string;
-}) {
+function BackHead({ said, back, onBack, testid }: { said: string; back: string; onBack: () => void; testid: string }) {
   return (
     <div className="files-shelf-head" data-testid={testid}>
       <Button size="sm" variant="quiet" onClick={onBack} data-testid={`${testid}-back`}>
@@ -93,7 +83,7 @@ export function WhileLibraryHolds({ children }: { children: ReactNode }) {
 }
 
 /** Whether the Library holds anything, as its own read says: not until it is read. */
-export function useLibraryHolds(): boolean {
+function useLibraryHolds(): boolean {
   const held = useLibraryView();
   return !!held && held.dto.tally.total > 0;
 }
@@ -105,7 +95,7 @@ interface FindDrawn {
 }
 
 /** The find line of the list shown: the words it holds, what it is called, and what finding does. */
-export interface ContentFindLine {
+interface ContentFindLine {
   about: string | null;
   label: string;
   testid: string;
@@ -143,7 +133,7 @@ export function useContentFind(library: boolean, page: ContentPageDto | null | u
 }
 
 /** The one search line under the bar, the list's own (useContentFind); nothing where the list draws none. */
-export function ContentFind({ find, drawn = {} }: { find: ContentFindLine | null; drawn?: FindDrawn }) {
+function ContentFind({ find, drawn = {} }: { find: ContentFindLine | null; drawn?: FindDrawn }) {
   if (!find) return null;
   return <FindWords about={find.about} onFind={find.onFind} placeholder={find.label} testid={find.testid} {...drawn} />;
 }
