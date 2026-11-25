@@ -93,7 +93,10 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
-  playbook: ["campaign is ready", "campaigns are ready"],
+  // A run held for the owner's word, in its amber (notifications/feed.ts SERVER_LOOK): it says it waits, as the
+  // topic does ("A campaign waits for your approval"), where "14 campaigns are ready" read as news in a needing colour
+  // (the phone change list's C3, 25 Nov 2026).
+  playbook: ["campaign waits for you", "campaigns wait for you"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["message approved by WhatsApp", "messages approved by WhatsApp"],
