@@ -1,8 +1,10 @@
 /**
  * Source-scan assertions pin text, not behaviour; two release blockers passed thirteen of them in one evening. Their
  * count per file is a measure (_measures.mjs SOURCE_SCAN, the register's "source-text reads in tests") that may only
- * fall, held change by change by check:debt (decision 0074), except in the files whose whole purpose is a repo-wide
- * lint (every write names a workspace, env vars are declared where read): SOURCE_SCAN_EXEMPT.
+ * fall, held change by change by check:debt (decision 0074). A rule test, whose whole purpose is a rule of the
+ * repository (every write names a workspace, env vars are declared where read, the words a screen may say), lives in
+ * tests/repo/ or is one of a handful named beside its domain (RULE_TESTS_ELSEWHERE); its reads are counted apart
+ * (RULE_SCAN), and held as well.
  *
  * WHY THIS EXISTS AT ALL, in one measurement: on 2026-09-09 three PRs added THIRTY-SIX of these assertions and removed
  * one, against a standing rule in the refactor program that says never to add one. Every addition was locally
@@ -17,30 +19,47 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { SOURCE_SCAN, SOURCE_SCAN_EXEMPT, TESTS_DIR, sourceScan } from "../_measures.mjs";
+import {
+  RULE_SCAN,
+  RULE_TESTS_DIR,
+  RULE_TESTS_ELSEWHERE,
+  SOURCE_SCAN,
+  TESTS_DIR,
+  isRuleTest,
+  sourceScan,
+} from "../_measures.mjs";
 
-test("the exemption list names files that are repo-wide lints, and stays small", () => {
-  // The escape hatch is the part that rots. A file belongs in the list only if it asserts a policy ACROSS the repo --
-  // "every write names a workspace", "every env var is declared where it is read" -- never because pinning one module's
-  // text was convenient. Six was the considered number; nine since 29 September 2026: ai/flag-registry.test.mjs holds
-  // that every switch the edge reads is listed with an owner and a day, which is env-manifest.test.mjs's kind of lint
-  // (a declaration where it is read) and cannot be run, only read. Growth is a line of _measures.mjs in review.
-  assert.ok(
-    SOURCE_SCAN_EXEMPT.length <= 9,
-    `the exemption list is ${SOURCE_SCAN_EXEMPT.length}; it is meant to be a handful`,
-  );
-  for (const f of SOURCE_SCAN_EXEMPT)
+test("the rule tests outside tests/repo/ are a handful of repo-wide lints, each one there", () => {
+  // The list is the part that rots. A file belongs in it only if it asserts a policy ACROSS the repo -- "every write
+  // names a workspace", "every switch the edge reads is listed with an owner and a day" -- and lives beside the domain
+  // it holds; never because pinning one module's text was convenient. Four since 25 Nov 2026, when the rest of the
+  // rules were found where they live, under tests/repo/. Growth is a line of _measures.mjs in review.
+  assert.ok(RULE_TESTS_ELSEWHERE.length <= 4, `${RULE_TESTS_ELSEWHERE.length} rule tests outside tests/repo/`);
+  for (const f of RULE_TESTS_ELSEWHERE) {
     assert.ok(
       fs.existsSync(path.join(ROOT, TESTS_DIR, f)),
-      `${f} is exempted but does not exist: take it out of the list`,
+      `${f} is named but does not exist: take it out of the list`,
     );
-  assert.deepEqual([...SOURCE_SCAN_EXEMPT].sort(), SOURCE_SCAN_EXEMPT, "in order");
+    assert.ok(!f.startsWith(RULE_TESTS_DIR), `${f} is under tests/repo/, a rule test already`);
+  }
+  assert.deepEqual([...RULE_TESTS_ELSEWHERE].sort(), RULE_TESTS_ELSEWHERE, "in order");
 });
 
-test("the measure counts every test file that reads source, the exempt lints left out", () => {
+test("every test file that reads source is counted once: a behaviour test's reads in one measure, a rule test's in the other", () => {
   const { counts } = sourceScan();
-  const held = SOURCE_SCAN.measure();
+  const behaviour = SOURCE_SCAN.measure();
+  const rules = RULE_SCAN.measure();
   assert.ok(Object.keys(counts).length > 50, "the suite's files that read source are found");
-  for (const f of SOURCE_SCAN_EXEMPT) assert.ok(!(f in held), `${f} is exempt`);
-  for (const [f, n] of Object.entries(held)) assert.equal(counts[f], n, f);
+  assert.ok(Object.keys(rules).length > 5, "and the rule tests among them");
+  for (const [f, n] of Object.entries(counts)) {
+    const held = isRuleTest(f) ? rules : behaviour;
+    const other = isRuleTest(f) ? behaviour : rules;
+    assert.equal(held[f], n, f);
+    assert.ok(!(f in other), `${f} is counted twice`);
+  }
+  assert.ok(
+    isRuleTest("repo/hygiene.test.mjs") && isRuleTest("repo/words/screen-words.test.mjs"),
+    "tests/repo/ holds rules",
+  );
+  assert.ok(!isRuleTest("ask/ask.test.mjs"), "a domain's test is a behaviour test");
 });

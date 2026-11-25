@@ -117,3 +117,14 @@ for (const m of MANIFESTS) {
     assert.deepEqual(stale, [], `declared in ${m.name} but never read`);
   });
 }
+
+test("the dashboard holds no model key: Ask's model is reached through the edge's door, which alone reads one", () => {
+  // Moved here from ask.test.mjs on 25 Nov 2026, where it read Ask's loop for the name: a rule of the repository,
+  // held over everything the dashboard reads from its environment. What its call to the door names and binds runs in
+  // edge/dashboard-names-its-callers.test.mjs.
+  const dashboard = MANIFESTS.find((m) => m.name === "apps/dashboard/.env.example");
+  const keys = [...usedBy(dashboard), ...declared(dashboard.file)].filter((k) => /^(ANTHROPIC|OPENAI|CLAUDE)_/.test(k));
+  assert.deepEqual(keys, [], "a model key read or declared on the dashboard");
+  const edge = MANIFESTS.find((m) => m.name === "apps/edge/.env.example");
+  assert.ok(usedBy(edge).has("ANTHROPIC_API_KEY"), "the edge is where the key is read");
+});

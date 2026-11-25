@@ -98,3 +98,23 @@ test("without a bearer the cookie's path is taken: a cross-site POST is refused 
     setBearerVerifier(prev);
   }
 });
+
+test("a card's press is marked as Ask's from its x-via header, and only Ask's own word is taken", async () => {
+  // The mark on the ledger is recordDecision's, run in ask/ask-commit.test.mjs ("the card's mark stays"); where it comes
+  // from was pinned as with-route.ts's text until 25 Nov 2026.
+  const marked = withRoute(async (_req, ctx) => ({ via: ctx.via ?? null }));
+  const prev = setBearerVerifier(async () => verdict({ sub: "u-1", email: "ada@example.com" }));
+  try {
+    const viaOf = async (headers) =>
+      (
+        await (
+          await marked(req({ authorization: `Bearer ${JWT}`, ...headers }, "POST"), { params: Promise.resolve({}) })
+        ).json()
+      ).data.via;
+    assert.equal(await viaOf({ "x-via": "ask" }), "ask", "a card's commit");
+    assert.equal(await viaOf({}), null, "a person's own press");
+    assert.equal(await viaOf({ "x-via": "someone" }), null, "no other word is a mark");
+  } finally {
+    setBearerVerifier(prev);
+  }
+});

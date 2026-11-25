@@ -46,12 +46,13 @@ import {
   isUngrounded,
   scopeFromRoute,
   DATA_NOT_INSTRUCTIONS,
+  POLICY_CLASS_WORDS,
   REPORT_LENSES,
   lensRoute,
 } from "@chanlytics/contracts";
 import { ASK_PAGES, askJump, askPages } from "../../apps/dashboard/src/bridge/ask/jump.ts";
 import { ASK_GUIDE_PAGES } from "../../apps/dashboard/src/server/ask/proposals/guide.ts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../tooling/scripts/eval-ask-context.mjs";
 import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 
@@ -995,6 +996,9 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
   };
   const api = mod.installAsk(win, storage);
+  // The object it publishes carries every one of the palette's own: the parts composed, not re-implemented.
+  const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
+  for (const k of Object.keys(askPalette({}, null))) assert.ok(k in api, `the palette's ${k}, composed`);
   assert.equal(win.__ask, api, "published for the palette");
   const idx = api.jumpIndex();
   assert.ok(idx.some((j) => j.to === "inbox/th-1" && j.kind === "thread"));
@@ -1101,41 +1105,22 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.equal(store.get("chanlytics:ask:lang"), "en", "the person's language is remembered for the suggestions");
 });
 
-test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a ceiling past the turn's two minutes (the operator: eight rounds)", () => {
-  // The route, the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0) and the turn itself
-  // (server/ask/turn.ts, moved out of it for the voice door, spec 2026-10-03 §3.4): read in the one scan.
-  const [r, memory, turn] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts", "src/server/ask/turn.ts"].map((f) =>
-    readCode(`apps/dashboard/${f}`),
-  );
-  assert.ok(r.includes("export const maxDuration = 150;"));
-  assert.ok(r.includes('rate: "ask",'));
-  assert.ok(
-    turn.includes('await appendMessage(ctx, thread.id, tenantId, "user", {'),
-    "the question is saved before the answer is attempted",
-  );
-  assert.ok(
-    r.includes("const prepared = await prepareAskTurn(ctx, member, {") &&
-      r.includes("new Response(turnStream(prepared, "),
-    "the route keeps the thread before its stream opens, and streams the turn's second half",
-  );
-  assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
-  assert.ok(r.includes('"cache-control": "private, no-store"'));
-  assert.ok(turn.includes("const ran = await runAskTurn({"));
-  assert.ok(
-    ![r, memory, turn].some((code) => code.includes("service")),
-    "the turn and the thread it keeps run on the session client, never the service role",
-  );
-  const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
-  assert.ok(rate.includes('ask: { limit: 20, windowMs: 60_000, noun: "questions" },'));
+test("the turn route: a ceiling past the turn's two minutes (the operator: eight rounds), and twenty questions a minute", async () => {
+  // Run, not read (25 Nov 2026): the route's policy -- every member's, counted in the `ask` bucket -- is
+  // route-policy.json's, held to the declarations by routes/route-policy.test.mjs. The thread kept before the model is
+  // asked, the question and the answer its two turns, the JSON lines and their headers, all on the session client, run
+  // through the route in ask-routes.test.mjs ("a question answered"); a service-role read added to the turn is a new
+  // offender of check:debt's `service-role` measure.
+  const route = await importSrc("apps/dashboard/app/api/v1/ask/route.ts");
+  assert.equal(route.maxDuration, 150, "the platform lets the turn run past its own two minutes");
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.deepEqual(RATE.ask, { limit: 20, windowMs: 60_000, noun: "questions" });
 });
 
 test("the loop and its reads: several at once, the stable block cached, through the pages' own view models, capped, each recording what an answer may name", () => {
   // How a turn ends -- the answer's format, auto then none, strict and the format retried without, sources grounded,
-  // a proposal counted as a read -- runs against scripted rounds in ask-turn.test.mjs.
-  const l = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
+  // a proposal counted as a read -- runs against scripted rounds in ask/turn/; that a round's reads run at once, there
+  // too ("a round's reads run at once").
   // The stable block and the workspace's shape are each a cache breakpoint, and no shape is one block (prompt.ts).
   assert.deepEqual(
     systemBlocks("rules", "shape").map((b) => [b.text, b.cache_control]),
@@ -1211,33 +1196,26 @@ test("REGRESSION: the rules say what stays on a page and where, from the guide's
   assert.ok(!/reaches only the people who said yes[;,]/.test(ASK_RULES.join("\n")), "never which yes left unsaid");
 });
 
-test("the gateway: the key stays on the edge, AI's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", () => {
+test("the gateway: the key stays on the edge, AI's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", async () => {
   // The door itself -- the knock, purpose 'ask', the budget refused at the
   // cap, the request streamed, the stream forwarded and metered -- runs in
-  // llm-door.test.mjs.
-  const lib = readCode("apps/edge/lib/ai/ask-gateway.ts");
-  assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
-  // With the read it pages, packages/db's (decision 0111).
-  const budget = readCode("apps/edge/lib/ai/budget.ts") + readCode("packages/db/src/repositories/ai/usage.ts");
-  assert.ok(
-    budget.includes('.eq("kind", "usage.llm_tokens")') && !/usage\.ask_tokens/.test(budget),
-    "AI's budget never counts Ask",
-  );
+  // llm-door.test.mjs. That the receptionist's day never counts Ask's tokens is proved on the database
+  // (receptionist/policies/the-day-s-budget-is-one-sum.db.test.mjs, an Ask row of seven million left out), and that
+  // the dashboard reads no model key is a rule of the repository (repo/env-manifest.test.mjs).
+  const gateway = await importSrc("apps/edge/lib/ai/ask-gateway.ts");
+  assert.equal(gateway.ASK_USAGE_KIND, "usage.ask_tokens", "Ask's tokens have their own event kind");
   assert.equal(
     ASK_TOKENS_DAY,
     3_000_000,
     "sized for a workspace's day with its cache writes counted (1.5M before they were); 400k was spent by one day of eval runs",
   );
   // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
-  assert.ok(
-    !["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-      .map((p) => readCode(p))
-      .join("\n")
-      .includes("ANTHROPIC_API_KEY"),
-    "no model key on the dashboard",
+  const { default: vercel } = await import("../../apps/edge/vercel.json", { with: { type: "json" } });
+  assert.equal(
+    vercel.builds[0].config.functions["api/admin/llm.ts"]?.maxDuration,
+    60,
+    "the gateway has the minute the turn may need, as the platform reads its config",
   );
-  const vercel = readRaw("apps/edge/vercel.json");
-  assert.ok(vercel.includes('"api/admin/llm.ts"'), "the gateway has the minute the turn may need");
 });
 
 test("the gateway's usage tee reads the counts out of a passing stream and reports once at the end", async () => {
@@ -1425,17 +1403,15 @@ test("the dashboard's stream parser: blocks, deltas, thinking and its signature,
 // The tables' own rows, column grants and ninety-day purge are proved on the database (database/tenancy.db,
 // database/privileges.db, ops/sweep-registry.db), the scrub by running it (people/erasure/erasure-ask-scrub.db), and
 // the erasure's calls of it by running the route (people/people-routes).
-test("the store never scopes by hand: RLS is the door", () => {
-  const store = readCode("apps/dashboard/src/server/ask/store.ts");
-  assert.ok(!store.includes('.eq("user_id"'), "the store never scopes by hand; RLS is the door");
-});
+// The store never scopes by hand, RLS is the door: run through the thread routes in ask-routes.test.mjs ("the openings
+// and the threads"), every read and delete asked of the database without a filter on who asks.
 
-test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, and the Line is the only palette", () => {
-  const tb = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
-  assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
-  const shell = readCode("apps/dashboard/src/surfaces/frame/app-shell.tsx");
-  assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
-  assert.ok(!shell.includes("Ask stubbed outside demo"));
+test("the entry points are real everywhere: the button opens AI, and the Line is the only palette", () => {
+  // Run, not read (25 Nov 2026). The top bar's button is a real door, never a Soon tag, and pressed opens AI:
+  // shell/surfaces/shell-status.test.mjs draws the bar and presses it. The frame publishes the door the pages open AI
+  // by (appAsk, openAsk): doors/doors.test.mjs. A card's press is marked as Ask's from its header
+  // (auth/bearer.test.mjs, through withRoute) and the ledger keeps the mark (ask-commit.test.mjs, "the card's mark
+  // stays"). The frame installs the bridge at its load: the nightly's e2e/ask.spec.ts opens the Line on every page.
   // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (surfaces/ask/) everywhere, and
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
   assert.equal(existsSync("apps/dashboard/mockup/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
@@ -1443,11 +1419,6 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask-palette.test.mjs ("the Line
   // is its own dialog"). A quick answer never spends a model turn: there too ("the Line at rest").
   // The Line is a chunk of its own, fetched by the frame's ask/line.tsx: the imports are walked in ask-line-chunk.test.mjs.
-  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installAsk();"));
-  assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./ask";'));
-  const wr = readCode("apps/dashboard/src/server/shared/with-route.ts");
-  assert.ok(wr.includes('req.headers.get("x-via") === "ask"'), "a card's commit is marked in the ledger");
-  assert.ok(readCode("apps/dashboard/src/server/shared/verbs.ts").includes("via: ctx.via"));
 });
 
 test("cards: an act tool never acts, a proposal names its door and its undo, the outcome is the one update a turn takes", () => {
@@ -1523,45 +1494,18 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["remember", []],
     ],
   );
-  // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
-  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    loop.includes(
-      "const result = notAgain(await ports.propose(tc, roundBlock.name, args), [...(input.waiting ?? []), ...proposals]);",
-    ),
-    "an act tool becomes a proposal, never an action",
-  );
-  assert.ok(
-    loop.includes("if (!args) return cutOff(roundBlock, input.tenantId);"),
-    "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
-  );
+  // A viewer is never offered an act tool: ask/turn/, on the request itself. An act tool becomes a proposal, never an
+  // action, and a call whose arguments did not arrive whole is told so: run there too (25 Nov 2026, pinned as the
+  // loop's text before).
   const prompt = ASK_RULES.join("\n");
   assert.ok(
     prompt.includes("Every change is a card a person presses") &&
       prompt.includes("Never say it was sent, changed or done"),
   );
-  const store = readCode("apps/dashboard/src/server/ask/store.ts");
-  assert.ok(
-    store.includes('throw new AppError("conflict", "That card was already approved.", 409);'),
-    "a card approved once cannot be approved again",
-  );
-  assert.ok(
-    // The write is packages/db's (decision 0111): the turn's content, and nothing else.
-    /saveAskTurnContent\([\s\w.,]*jsonCopyOf\(\{ \.\.\.content, proposals: next \}\)/.test(store) &&
-      readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
-    "the one column the grant allows",
-  );
-  const m = readRaw("supabase/migrations/00041_ask_proposal_outcomes.sql");
-  assert.ok(m.includes("grant update (content) on public.ask_messages to authenticated;"));
-  assert.ok(m.includes("create policy ask_messages_own_update on public.ask_messages"));
-  const route = readCode("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
-  assert.ok(route.includes("AskProposalOutcomeSchema.safeParse(body)"));
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/ask/api.ts").includes('via: "ask"'),
-    "a card's commit is marked in the ledger: the client sends x-via (typed-client.test.mjs)",
-  );
+  // Run, not read (25 Nov 2026): a card approved once cannot be approved again, its outcome in its shape and the turn's
+  // content the one thing written, through the outcome route in ask-routes.test.mjs ("a card's outcome is the person's
+  // own turn"); the column grant and the policy that let a person write only that, on the database
+  // (database/privileges.db, database/tenancy.db). The client sends x-via: typed-client.test.mjs.
   // The route each card commits and undoes through -- the reply, the steer, the thread verbs, a person's mode, a
   // policy, the settings (applied to the loaded config, with its version), a whisper, an invite, and a sent reply's
   // undo through the cancel window -- was pinned here as commit.ts's text. It is each kind's spec now, and it runs:
@@ -1572,34 +1516,17 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask-palette.test.mjs, "a card
   // approved records what its commit made with its outcome" and, through the real route, "REGRESSION (ruling 3)".
   // A thread reads back with the card's outcome: executed in ask-palette.test.mjs ("a card drawn again reads back").
-  const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
-  assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
+  // Edit in the composer lands the words in the composer of its own thread: conversations/inbox/inbox-place.test.mjs.
 });
 
-test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens AI above the tab bar", () => {
+test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens AI above the tab bar", async () => {
   // The one recogniser is the kit's (surfaces/kit/talk), which Ask's hook delegates to. Press to start, release to
   // stop, what was heard sent on its own, and the language it listens in: executed in ask-palette.test.mjs ("on a
   // phone the mic keeps the finger", "the Line's recogniser listens in the Line's language").
-  const cfg = readCode("apps/dashboard/next.config.ts");
-  assert.ok(cfg.includes("microphone=(self)"), "the page may ask for the microphone");
-  assert.ok(
-    cfg.includes("camera=()") && cfg.includes("geolocation=()") && cfg.includes("payment=()"),
-    "everything else stays denied",
-  );
-  assert.ok(
-    cfg.includes("frame-ancestors 'none'"),
-    "and the page can never be framed, so (self) is only ever this app",
-  );
-  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-chrome.tsx");
-  assert.ok(
-    shell.includes('className="phone-ask"') &&
-      shell.includes("onClick={s.openAsk}") &&
-      shell.includes('data-testid="phone-ask"'),
-  );
-  // Open on the web's bar the circle holds AI's own press, its three kept unseen (Today, calm, D8, D9); in the native app,
-  // whose AI has a screen of its own, it goes while the Line is open. The drawer leaves it with the bar (shell-status).
-  assert.ok(shell.includes("if (s.askOpen && window.__IN_APP) return false;"), "gone under the native app's own Line");
-  assert.ok(shell.includes("askDockRef.press"), "on the bar, the circle is where AI's one press is drawn");
+  // Run, not read (25 Nov 2026). The page may ask for the microphone and for nothing else, and can never be framed, so
+  // (self) is only ever this app: the headers Next serves, in auth/auth-gate.test.mjs ("the headers Next serves"). The
+  // phone's ✦ opens AI, stays in the bar's row, and goes under the native app's own AI: pressed in
+  // shell/surfaces/shell-status.test.mjs ("the phone's drawer is a dialog").
   const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),
@@ -1627,7 +1554,8 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
       !readRaw("apps/dashboard/src/styles/dashboard-a-v2.css").includes(".ask-card"),
     "the palette's rules live in ask.css alone",
   );
-  const sheetAt = (name) => JSON.parse(readRaw("apps/dashboard/src/styles/sheets.json")).sheets.indexOf(name);
+  const { default: sheets } = await import("../../apps/dashboard/src/styles/sheets.json", { with: { type: "json" } });
+  const sheetAt = (name) => sheets.sheets.indexOf(name);
   assert.ok(
     sheetAt("styles/mobile.css") >= 0 && sheetAt("surfaces/ask/ask.css") > sheetAt("styles/mobile.css"),
     "listed after mobile.css, so its phone rules win",
@@ -1698,14 +1626,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
 });
 
 test("context first: the page rides into every turn (ask-turn.test.mjs runs it), loaders are memoised and lighter, and the rounds run at low effort", () => {
-  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  // Every round asks at low effort: the request itself, in ask-turn.test.mjs.
-  assert.ok(
-    loop.includes("effort: model.effort") && !loop.includes("const EFFORT"),
-    "the effort is the profile's, identical on every round (spec 5.11)",
-  );
+  // Every round asks at the profile's effort, the same on every round (spec 5.11): the request itself, in ask/turn/
+  // ("a read, then the answer": every round may answer at the profile's effort).
   assert.ok(
     ASK_RULES.join("\n").includes(
       "The business's hours, closures, services, notes, guardrails, booking notes and autonomy modes",
@@ -1725,7 +1647,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
 });
 
-test("the cards to finish: an operator is offered cards to finish, a viewer none", () => {
+test("the cards to finish: an operator is offered cards to finish, a viewer none", async () => {
   // A thread keeps its first question as its title (D9): executed through the route in ask-routes.test.mjs.
   const withActs = buildAskSuggestions({
     surface: "settings",
@@ -1771,16 +1693,20 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   });
   assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
   // A compose row lands in the input for the person to finish: executed in ask-palette.test.mjs ("a compose row").
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/ask/palette.ts").includes(
-      "canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,",
-    ),
-  );
+  // Whoever may approve in the workspace is offered cards, as the pages' canDo("approve"), and a viewer none: the
+  // palette's own suggestions, by the role signed in (pinned as palette.ts's text until 25 Nov 2026).
+  const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
+  const cards = (role) =>
+    askPalette({ __ME: { role } }, null)
+      .suggestions("settings", { kind: "person", id: ID, label: "Rosa" }, "en")
+      .filter((x) => x.kind === "act").length;
+  for (const role of ["owner", "operator"]) assert.ok(cards(role) >= 3, `${role}: cards to finish`);
+  assert.equal(cards("viewer"), 0, "a viewer is offered none");
 });
 
-test("the hours and the definitions come from the prompt: the eval expects no read for them", () => {
+test("the hours and the definitions come from the prompt: the eval expects no read for them", async () => {
   // An act beside the answer stands and a read beside it sets it aside: executed in ask-turn.test.mjs.
-  const cases = JSON.parse(readRaw("tooling/evals/ask-cases.json"));
+  const { default: cases } = await import("../../tooling/evals/ask-cases.json", { with: { type: "json" } });
   assert.ok(!cases.find((c) => c.id === "hours").expect.tools_any, "hours come from the prompt, no read expected");
   assert.ok(
     !cases.find((c) => c.id === "definition").expect.tools_any,
@@ -1788,7 +1714,7 @@ test("the hours and the definitions come from the prompt: the eval expects no re
   );
 });
 
-test("the Open button says where it goes, a repeated question is the same thread, and the bridge is four modules composed", () => {
+test("the Open button says where it goes, a repeated question is the same thread, and the bridge is four modules composed", async () => {
   // What an answer shows is decided once, a place offered once and a next question that echoes one dropped: oneDoor,
   // executed in ask-answer.test.mjs.
   const nav = { to: `conversations/cv-${ID}`, label: "Call transcript" };
@@ -1806,22 +1732,10 @@ test("the Open button says where it goes, a repeated question is the same thread
   // A repeated question resumes its thread instead of opening a twin, even before the list has landed: executed in
   // ask-palette.test.mjs ("a question asked again").
   // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
-  // The bridge is four modules composed into one object; the shell reaches nothing else.
-  for (const f of ["api", "commit", "speech", "palette"])
-    assert.ok(readCode(`apps/dashboard/src/bridge/ask/${f}.ts`).length > 200, f);
-  const bridge = readCode("apps/dashboard/src/bridge/ask.ts");
-  assert.ok(
-    bridge.includes("...palette,") && bridge.includes("...api,") && bridge.includes("...speech,"),
-    "composed, not re-implemented",
-  );
-  assert.ok(!bridge.includes("fetch("), "the composer holds no fetch of its own");
-  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    loop.includes("await ports.round(") && !loop.includes("for await (const ev of"),
-    "the loop delegates the stream to round.ts, through the ports a test can replace",
-  );
+  // The bridge is its parts composed into one object, the shell reaching nothing else: installAsk runs above ("the
+  // palette reads the workspace"), and here the object it publishes carries every one of the palette's own (pinned as
+  // ask.ts's text until 25 Nov 2026). A fetch of its own is a new offender of check:debt's fetches-outside-a-client.
+  // The loop asks for each round through its ports, which ask/turn/ scripts in every test there.
   // The history a turn is asked with is memory.ts's to decide (the Phase 5 plan, PR 5.4): the words fold beside the
   // live replay, and loop.ts takes both from there.
   assert.equal(
@@ -1829,11 +1743,10 @@ test("the Open button says where it goes, a repeated question is the same thread
     "function",
     "the history fold is a named rule, not a loop in the middle of a function",
   );
-  assert.ok(!loop.includes("function foldHistory("), "memory.ts's, and loop.ts takes it from there");
 });
 
-test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one tool too many refused every turn on production", () => {
-  const cap = Number(/GATEWAY_MAX_TOOLS = (\d+);/.exec(readCode("apps/edge/lib/ai/ask-gateway.ts"))[1]);
+test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one tool too many refused every turn on production", async () => {
+  const { GATEWAY_MAX_TOOLS: cap } = await importSrc("apps/edge/lib/ai/ask-gateway.ts");
   const reads = READ_TOOLS.length;
   const acts = ACT_TOOLS.length;
   const total = reads + acts;
@@ -1846,25 +1759,11 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   );
 });
 
-test("the speed pass: a fast model for a short answer, the autonomy modes in the prompt", () => {
-  const l = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    l.includes('import { askModel } from "../model";') &&
-      !l.includes("export { ASK_MODEL }") &&
-      !l.includes("const EFFORT"),
-    "the loop asks the deployment's profile for the model and the effort, and names neither itself (spec 5.11)",
-  );
-  // The turn's own text moved to server/ask/turn.ts (the voice door's half-and-half, spec 2026-10-03 §3.4).
-  const route = ["apps/dashboard/app/api/v1/ask/route.ts", "apps/dashboard/src/server/ask/doors/turn-request.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
+test("the speed pass: a fast model for a short answer, the autonomy modes in the prompt", async () => {
+  // Run, not read (25 Nov 2026). The loop asks the deployment's profile for the model and the effort and names neither
+  // itself (spec 5.11): every request ask/turn/ scripts carries ASK_MODEL and ASK_EFFORT. The saved turn names the model
+  // that ran: ask-routes.test.mjs ("a question answered", the stored row's model).
   const turn = readCode("apps/dashboard/src/server/ask/turn.ts");
-  assert.ok(
-    turn.includes("model: result.model,") && !turn.includes('model: "claude-') && !route.includes('model: "claude-'),
-    "the saved turn names the model that ran",
-  );
   assert.ok(
     // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
     /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(turn) &&
@@ -1872,17 +1771,20 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
       turn.includes("cfg?.config ?? null, rc.now, offered)"),
     "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
-  const prompt = [
-    "apps/dashboard/src/server/ask/prompt/stable-system.ts",
-    "apps/dashboard/src/server/ask/prompt/prompt.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    prompt.includes("autonomy: POLICY_CLASSES.flatMap(") &&
-      prompt.includes("Autonomy, class by class (auto: on its own"),
-    "the modes are facts in the stable block",
-  );
+  // The modes are facts in the stable block, each class in its own word, and only those the workspace set.
+  const { workspaceFacts, factsBlock } = await importSrc("apps/dashboard/src/server/ask/prompt/stable-system.ts");
+  const facts = workspaceFacts("Harbor", "America/New_York", null, new Date(NOW), [
+    { class: "reply", mode: "ask" },
+    { class: "booking", mode: "veto" },
+  ]);
+  assert.deepEqual(facts.autonomy, [
+    `${POLICY_CLASS_WORDS.reply.short}: ask`,
+    `${POLICY_CLASS_WORDS.booking.short}: veto`,
+  ]);
+  const said = factsBlock(facts);
+  assert.ok(said.includes("Autonomy, class by class (auto: on its own"), "said in the stable block");
+  for (const line of facts.autonomy) assert.ok(said.includes(line), line);
+  assert.equal(workspaceFacts("Harbor", "America/New_York", null, new Date(NOW), []).autonomy.length, 0);
   assert.ok(ASK_RULES.join("\n").includes("booking notes and autonomy modes"), "and the rules say so");
   // The budget read once a minute -- kept per workspace, believed within the
   // minute over the table -- runs in llm-door.test.mjs.

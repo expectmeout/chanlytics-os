@@ -359,7 +359,12 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ...wordRows(by),
     ["wire names not in snake_case", wire.names, `in ${wire.routes} routes`],
     ["dead exports, types and modules", total(record.parts.knip), ""],
-    ["source-text reads in tests", total(by["source-scan"]), ""],
+    ["source-text reads in tests", total(by["source-scan"]), `in ${keys(by["source-scan"])} files`],
+    [
+      "source-text reads in rule tests",
+      total(by["rule-scan"]),
+      `in ${keys(by["rule-scan"])} files, tests/repo/ and four lints`,
+    ],
     ["lint warnings", total(lint), `in ${files(lint)} files, ${effects} of them exhaustive-deps`],
     // Not a debt: what a workspace may load, which only a decision moves; what it does load is CI's summary.
     ["route JS ceiling, KB gzipped", Math.round((ceiling.js ?? 0) / 1024), "the shell included"],
