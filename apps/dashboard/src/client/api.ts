@@ -449,16 +449,16 @@ async function answerTo(
       return { refusal: unanswered(e, true) };
     }
   }
-  const standing = (): Standing | Promise<Standing> => trouble.before();
+  const standing = (): Standing | Promise<Standing> => trouble.before(leaving.key);
   let entry = standing();
   let gate = entry instanceof Promise ? await entry : entry;
   if (leaving.ahead) {
     try {
       const res = await leaving.ahead;
-      if (gate.held === null) gate.settled(verdictOf(res), leaving.key, waitNamed(res));
+      if (gate.held === null) gate.settled(verdictOf(res), waitNamed(res));
       return { res };
     } catch (e) {
-      if (gate.held === null) gate.settled(aheadVerdictOf(e), leaving.key);
+      if (gate.held === null) gate.settled(aheadVerdictOf(e));
       entry = standing();
       gate = entry instanceof Promise ? await entry : entry;
     }
@@ -466,10 +466,10 @@ async function answerTo(
   if (gate.held !== null) return { refusal: heldHere(gate.held, now()) };
   try {
     const res = await leaving.own();
-    gate.settled(verdictOf(res), leaving.key, waitNamed(res));
+    gate.settled(verdictOf(res), waitNamed(res));
     return { res };
   } catch (e) {
-    gate.settled(leaving.signal?.aborted ? "called_off" : "fault", leaving.key);
+    gate.settled(leaving.signal?.aborted ? "called_off" : "fault");
     return { refusal: unanswered(e, false) };
   }
 }
