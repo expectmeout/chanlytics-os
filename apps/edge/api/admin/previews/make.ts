@@ -14,5 +14,7 @@ import { PREVIEW_MAKE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/previews/make");
   if (!auth.ok) return auth.response;
-  return makePreviewFor(auth, await readBody(request, PREVIEW_MAKE_DOOR));
+  const read = await readBody(request, PREVIEW_MAKE_DOOR);
+  if (!read.ok) return read.response;
+  return makePreviewFor(auth, read.body);
 });

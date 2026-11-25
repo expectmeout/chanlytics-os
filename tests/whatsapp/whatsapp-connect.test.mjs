@@ -114,7 +114,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
     svc.includes('"/api/admin/whatsapp/connect"') && svc.includes('callEdge("/api/admin/whatsapp/signup-config"'),
   );
   const sr = readCode("apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts");
-  assert.ok(sr.includes("canConnect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready"));
+  assert.ok(sr.includes("can_connect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready"));
 });
 
 test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.com, a cancel is a cancel, the code goes to the app's own route", async () => {
@@ -529,7 +529,7 @@ const DOOR = {
   graph_version: "v25.0",
   ready: true,
   reason: null,
-  canConnect: true,
+  can_connect: true,
 };
 const SIGNUP_MARK = "chanlytics.whatsapp.signup";
 const turn = () => new Promise((resolve) => setImmediate(resolve));

@@ -250,8 +250,8 @@ export function whatsappRow(setupInputs: SetupInputs, ctx: SetupRowContext): Set
         : templates.pending
           ? `${plural(templates.pending, "message")} with Meta for approval`
           : "No approved messages yet",
-      templates.startersApproved < 5 ? "Add the starter messages: the reminder, how did it go, the win-back" : "",
-      wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
+      templates.starters_approved < 5 ? "Add the starter messages: the reminder, how did it go, the win-back" : "",
+      wa.last_inbound_at ? `Last message ${agoWords(Date.parse(wa.last_inbound_at), nowMs)}` : "",
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
     return {
@@ -268,7 +268,7 @@ export function whatsappRow(setupInputs: SetupInputs, ctx: SetupRowContext): Set
       verb:
         cap.tested && !cap.live && !metaWaits
           ? { label: "Turn on", to: "verb:activate:whatsapp" }
-          : templates.startersApproved < 5 && !metaWaits
+          : templates.starters_approved < 5 && !metaWaits
             ? { label: "Add the starters", to: SEQUENCES_ROUTE }
             : { label: "Open the Inbox", to: "inbox" },
       undo: cap.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null,

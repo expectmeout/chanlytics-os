@@ -15,5 +15,7 @@ import { PLAYBOOK_RUN_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
-  return runPlaybookNow(auth, await readBody(request, PLAYBOOK_RUN_DOOR));
+  const read = await readBody(request, PLAYBOOK_RUN_DOOR);
+  if (!read.ok) return read.response;
+  return runPlaybookNow(auth, read.body);
 });

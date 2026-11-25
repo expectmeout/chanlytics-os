@@ -234,7 +234,7 @@ test("metrics: the numbers behind Today as GET metrics answers them, for the day
     },
   };
   const r = await kernel.load(turnIn(dayCtx({}, { rpcs })), metrics, { days: 1 });
-  assert.deepEqual(r.data, { metrics: { conversations: 3 }, workspaceId: A });
+  assert.deepEqual(r.data, { metrics: { conversations: 3 }, workspace_id: A });
   assert.deepEqual(r.rows, [], "a count is not a row a citation names");
   await kernel.load(turnIn(dayCtx({}, { rpcs })), metrics, { days: 90 });
   assert.deepEqual(

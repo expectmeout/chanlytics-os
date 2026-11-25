@@ -14,5 +14,7 @@ import { REHEARSAL_AGENT_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/rehearsal/agent");
   if (!auth.ok) return auth.response;
-  return makeRehearsalAgent(auth, await readBody(request, REHEARSAL_AGENT_DOOR));
+  const read = await readBody(request, REHEARSAL_AGENT_DOOR);
+  if (!read.ok) return read.response;
+  return makeRehearsalAgent(auth, read.body);
 });

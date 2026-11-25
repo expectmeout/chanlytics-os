@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, TEMPLATE_CATEGORIES, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
+import { AppError, isOneOf, TEMPLATE_CATEGORIES, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { draftTemplate } from "@/server/drafts/template/draft";
 import { translateTemplate, getTranslationSource, type SourceRef } from "@/server/drafts/template/translate";
@@ -34,7 +34,7 @@ const Body = z
         ctx.addIssue({
           code: "custom",
           path: ["translate"],
-          message: "Say which template to write in another language.",
+          message: "Say which saved message to write in another language.",
         });
       if (second.language === undefined)
         ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
@@ -46,7 +46,7 @@ const Body = z
         path: ["brief"],
         message: "Say what you want to tell customers — one line is enough.",
       });
-    if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(second.category))
+    if (!isOneOf(TEMPLATE_CATEGORIES, second.category))
       ctx.addIssue({ code: "custom", path: ["category"], message: "Pick marketing or utility." });
   });
 

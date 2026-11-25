@@ -217,7 +217,7 @@ test("Go live with no line provider here (canvas 5A·d): a person sets the line 
       ...noLines,
       channels: {
         ...noLines.channels,
-        whatsapp: { present: true, active: true, number: "+13055550142", quality: "GREEN", lastInboundAt: null },
+        whatsapp: { present: true, active: true, number: "+13055550142", quality: "GREEN", last_inbound_at: null },
       },
       email: {
         ready: true,
@@ -594,7 +594,7 @@ test("a step that waits looks again at its own pace: the number on its way asks 
     const provisioning = answeringLine();
     provisioning.channels = {
       ...provisioning.channels,
-      voice: { present: false, active: false, number: null, lastInboundAt: null },
+      voice: { present: false, active: false, number: null, last_inbound_at: null },
     };
     provisioning.lines = {
       ...provisioning.lines,
@@ -624,7 +624,7 @@ test("a step that waits looks again at its own pace: the number on its way asks 
 const VOICE_OWN = "+13055550123";
 const untried = {
   ...withFacts,
-  channels: { ...withFacts.channels, voice: { present: true, active: true, number: VOICE_OWN, lastInboundAt: null } },
+  channels: { ...withFacts.channels, voice: { present: true, active: true, number: VOICE_OWN, last_inbound_at: null } },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
 };
 const OWN = { way: "new", number: VOICE_OWN };
@@ -721,7 +721,7 @@ test("Check my line stays on screen when Setup hears of the call mid-call: the w
   // The call reached the receptionist: Setup reads it, and every step is done.
   const heard = {
     ...untried,
-    channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
+    channels: { ...untried.channels, voice: { ...untried.channels.voice, last_inbound_at: new Date().toISOString() } },
   };
   setSetup(atLive(heard, { want: OWN }));
   setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
@@ -741,7 +741,7 @@ const proved = (over = {}) => ({
   ...answeringLine([forwardedRow("tmobile", "verified")]),
   channels: {
     ...answeringLine().channels,
-    voice: { present: true, active: true, number: "+13055550142", lastInboundAt: "2026-09-07T14:00:00Z" },
+    voice: { present: true, active: true, number: "+13055550142", last_inbound_at: "2026-09-07T14:00:00Z" },
   },
   ...over,
 });
@@ -751,7 +751,7 @@ const metaWorld = (t, answer = { ok: true, number: "+13055550100", verifiedName:
   const was = { ...waConnect };
   t.after(() => Object.assign(waConnect, was));
   Object.assign(waConnect, {
-    config: async () => ({ ready: true, canConnect: true, app_id: "1", config_id: "2", graph_version: "v23.0" }),
+    config: async () => ({ ready: true, can_connect: true, app_id: "1", config_id: "2", graph_version: "v23.0" }),
     prepare: () => {
       asked.prepared += 1;
     },
@@ -838,7 +838,7 @@ test("Switch it on (canvas 5B·i): what came in, a line a source, the kept app's
         imports: [history],
         channels: {
           ...connecting().channels,
-          whatsapp: { present: true, active: false, number: "+13055550100", quality: null, lastInboundAt: null },
+          whatsapp: { present: true, active: false, number: "+13055550100", quality: null, last_inbound_at: null },
         },
       }),
       { choices: { whatsapp: "same" } },
@@ -929,7 +929,7 @@ test("You're live (canvas 5C): what answers now, AI's three moves each waiting f
 
 test("You're live: a refused Open Today stays and says why, and again goes on; a teammate's promises no email", async (t) => {
   t.after(restoreSetupVerbs);
-  let answer = { ok: false, message: "Not ready to activate: the line is switched off." };
+  let answer = { ok: false, message: "Not ready to turn on: the line is switched off." };
   const asked = [];
   setupVerbs.activate = async (kind, opts) => {
     asked.push([kind, opts]);

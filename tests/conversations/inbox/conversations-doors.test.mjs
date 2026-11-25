@@ -461,11 +461,11 @@ test("D1-hold-words: Conversations' pill for a thread a teammate has names them 
   const pill = (row) =>
     textOf(OutcomePill({ outcome: row.outcome, standing: row.standing, holderId: row.holderId, channel: row.channel }));
   // The roster Settings reads (rosterIs): the name is the workspace's, never invented.
-  rosterIs([{ userId: "u-ruben", email: "ruben@example.com", displayName: "Ruben" }]);
+  rosterIs([{ user_id: "u-ruben", email: "ruben@example.com", display_name: "Ruben" }]);
   try {
     assert.equal(pill(theirs), "Ruben has it");
     assert.equal(pill(mine), "You have it");
-    rosterIs([{ userId: "u-other", email: "ana@example.com", displayName: "Ana" }]);
+    rosterIs([{ user_id: "u-other", email: "ana@example.com", display_name: "Ana" }]);
     assert.equal(pill(theirs), "A teammate has it", "a teammate the roster does not know");
     rosterIs(null);
     assert.equal(pill(theirs), "A teammate has it", "the roster unread");

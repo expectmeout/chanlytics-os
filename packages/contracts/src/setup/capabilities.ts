@@ -98,7 +98,7 @@ export function capabilityStatus(
     } else {
       blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
     }
-    if (voice.lastInboundAt) tested = { at: voice.lastInboundAt, what: "a call was answered" };
+    if (voice.last_inbound_at) tested = { at: voice.last_inbound_at, what: "a call was answered" };
   } else if (kind === "whatsapp") {
     const whatsapp = capabilityInputs.channels.whatsapp;
     if (whatsapp.present && whatsapp.active) {
@@ -112,7 +112,7 @@ export function capabilityStatus(
     } else {
       blockers.push({ code: "not_connected", words: "Connect the WhatsApp number customers write to." });
     }
-    if (whatsapp.lastInboundAt) tested = { at: whatsapp.lastInboundAt, what: "a message was answered" };
+    if (whatsapp.last_inbound_at) tested = { at: whatsapp.last_inbound_at, what: "a message was answered" };
   } else {
     const line = capabilityInputs.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
     if (!line)

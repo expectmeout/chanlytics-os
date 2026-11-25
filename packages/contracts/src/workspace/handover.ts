@@ -13,22 +13,22 @@ export const HANDOVER_WAITING_MAX = 10;
 
 /** A handover waiting for the signed-in person, as `GET workspaces` carries it on the person. */
 export interface OpenHandoverDto {
-  tenantId: string;
+  workspace_id: string;
   workspace: string;
-  partnerCode: string;
-  expiresAt: string;
+  partner_code: string;
+  expires_at: string;
 }
 
 /** A workspace the partner set up, and where its handover stands, as `GET partner/workspaces` carries it. */
 export interface PartnerHandoverDto {
-  tenantId: string;
+  workspace_id: string;
   /** The workspace's name, while the partner can still read it (they sit on its team); null once they cannot. */
   name: string | null;
   email: string;
-  sentAt: string;
-  expiresAt: string;
-  acceptedAt: string | null;
-  declinedAt: string | null;
+  sent_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  declined_at: string | null;
 }
 
 export const HANDOVER_WORDS = {
@@ -88,28 +88,28 @@ export interface PartnerHandoverVM {
 export function partnerHandoverVM(partnerHandover: PartnerHandoverDto, nowMs: number = Date.now()): PartnerHandoverVM {
   const to = maskedEmail(partnerHandover.email);
   const of = (state: HandoverState, sentence: string): PartnerHandoverVM => ({
-    tenantId: partnerHandover.tenantId,
+    tenantId: partnerHandover.workspace_id,
     name: partnerHandover.name && partnerHandover.name.trim() ? partnerHandover.name.trim() : HANDOVER_WORDS.unnamed,
     email: partnerHandover.email,
     state,
     sentence,
     canResend: state !== "accepted",
   });
-  if (partnerHandover.acceptedAt)
-    return of("accepted", `Its owner accepted it on ${partnerDayWords(partnerHandover.acceptedAt)}.`);
-  if (partnerHandover.declinedAt)
+  if (partnerHandover.accepted_at)
+    return of("accepted", `Its owner accepted it on ${partnerDayWords(partnerHandover.accepted_at)}.`);
+  if (partnerHandover.declined_at)
     return of(
       "declined",
-      `Declined by ${to} on ${partnerDayWords(partnerHandover.declinedAt)}. Send it again, or to someone else.`,
+      `Declined by ${to} on ${partnerDayWords(partnerHandover.declined_at)}. Send it again, or to someone else.`,
     );
-  if (Date.parse(partnerHandover.expiresAt) <= nowMs)
+  if (Date.parse(partnerHandover.expires_at) <= nowMs)
     return of(
       "expired",
-      `The invitation to ${to} expired on ${partnerDayWords(partnerHandover.expiresAt)}. Send it again.`,
+      `The invitation to ${to} expired on ${partnerDayWords(partnerHandover.expires_at)}. Send it again.`,
     );
   return of(
     "waiting",
-    `Waiting for its owner: sent to ${to}, open until ${partnerDayWords(partnerHandover.expiresAt)}.`,
+    `Waiting for its owner: sent to ${to}, open until ${partnerDayWords(partnerHandover.expires_at)}.`,
   );
 }
 
@@ -119,7 +119,7 @@ export function handoverRoom(rows: readonly PartnerHandoverDto[]): {
   full: boolean;
   words: string | null;
 } {
-  const waiting = rows.filter((r) => !r.acceptedAt).length;
+  const waiting = rows.filter((r) => !r.accepted_at).length;
   const full = waiting >= HANDOVER_WAITING_MAX;
   return {
     waiting,

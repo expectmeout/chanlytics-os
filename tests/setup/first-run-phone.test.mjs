@@ -30,13 +30,13 @@ const dtoOf = (over = {}) => ({
     receptionist: "set",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: false, active: false, number: null, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   google: { ready: true, places: true, listing: null, phone: LISTED },
@@ -278,7 +278,7 @@ test("everything this step does not draw is Setup's rows, which already say it",
     rowsFor({
       channels: {
         ...dtoOf().channels,
-        voice: { present: true, active: true, number: "+13055550142", lastInboundAt: null },
+        voice: { present: true, active: true, number: "+13055550142", last_inbound_at: null },
       },
     }),
     "rows",
@@ -302,7 +302,7 @@ const VOICE = "+13055550142";
 const answeringDto = (over = {}) =>
   dtoOf({
     billing: paying,
-    channels: { ...dtoOf().channels, voice: { present: true, active: true, number: VOICE, lastInboundAt: null } },
+    channels: { ...dtoOf().channels, voice: { present: true, active: true, number: VOICE, last_inbound_at: null } },
     lines: { ...dtoOf().lines, rows: [lineOf({ voice_state: "answering" })] },
     ...over,
   });

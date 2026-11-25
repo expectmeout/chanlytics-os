@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, valueAt } from "@chanlytics/contracts";
 import { read } from "@/server/shared/route";
 import { callScope } from "@/server/shared/verbs";
 import { recordOpeningOfRecording, findSignedMediaUrl } from "@/server/conversations/media";
@@ -22,12 +22,12 @@ import { recordOpeningOfRecording, findSignedMediaUrl } from "@/server/conversat
 export const GET = read({
   scope: callScope,
   handle: async ({ ctx, row: call }) => {
-    const rec = call.recording as { storage_path?: string; fetch_state?: string } | null;
-    if (!rec?.storage_path || rec.fetch_state !== "stored") {
+    const storagePath = valueAt(call.recording, "storage_path");
+    if (typeof storagePath !== "string" || !storagePath || valueAt(call.recording, "fetch_state") !== "stored") {
       throw new AppError("not_found", "No recording stored for this call yet.");
     }
-    const url = await findSignedMediaUrl(call.tenant_id, rec.storage_path, 300);
-    if (!url) throw new AppError("internal", "Could not prepare the recording.");
+    const url = await findSignedMediaUrl(call.tenant_id, storagePath, 300);
+    if (!url) throw new AppError("internal", "Couldn't prepare the recording.");
     await recordOpeningOfRecording(ctx.supabase, call.id);
     return new Response(null, { status: 302, headers: { location: url } });
   },

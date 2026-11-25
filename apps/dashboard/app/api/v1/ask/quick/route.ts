@@ -1,4 +1,4 @@
-import { AppError, ASK_MAX_CHARS, askIntent, quickAnswerOf } from "@chanlytics/contracts";
+import { AppError, ASK_MAX_CHARS, askIntent, quickAnswerOf, recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { keepQuickTurn } from "@/server/ask/store";
@@ -23,11 +23,7 @@ export const POST = write({
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
     // A body that is not JSON is none: what reads it next refuses.
-    const body = (await req.json().catch(() => null)) as {
-      text?: unknown;
-      answer?: unknown;
-      thread_id?: unknown;
-    } | null;
+    const body = recordOrNull(await req.json().catch(() => null));
     const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text) throw new AppError("validation", "Ask something.");
     if (text.length > ASK_MAX_CHARS)
@@ -38,7 +34,7 @@ export const POST = write({
     const answer = quickAnswerOf(body?.answer);
     if (!answer) throw new AppError("validation", "That answer is not one the Line draws.");
     const threadId =
-      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
     const thread = await keepQuickTurn(ctx, member.tenantId, { text, threadId, answer, quick: intent.kind });
     return { thread };
   },

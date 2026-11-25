@@ -274,7 +274,11 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     const bad = [400, { ok: false, error: "bad_request", detail: "tenant_id and a known `what` are required" }];
     assert.deepEqual(await answer(await knock(SETUP, {})), bad, "no `what`");
     assert.deepEqual(await answer(await knock(SETUP, { what: "fax machine" })), bad, "a `what` nobody offers");
-    assert.deepEqual(await answer(await knock(SETUP, { what: ["line"] })), bad, "not a string");
+    assert.deepEqual(
+      await answer(await knock(SETUP, { what: ["line"] })),
+      [400, { ok: false, error: "bad_request" }],
+      "not a string",
+    );
     assert.deepEqual(await answer(await knock(SETUP, "not json")), bad);
     await keyed(async () => {
       assert.deepEqual(
@@ -284,8 +288,8 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
       );
       assert.deepEqual(
         await answer(await knock(SETUP, { what: "line", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })),
-        bad,
-        "and name it by id",
+        [400, { ok: false, error: "bad_request" }],
+        "and name it by id: refused at the door's schema",
       );
     });
     assert.equal(db.seen.length, 0, "refused before the workspace is read");

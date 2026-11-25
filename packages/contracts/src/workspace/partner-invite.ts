@@ -29,15 +29,15 @@ export function partnerCodeFrom(raw: string): string {
 export interface WorkspacePartnerDto {
   /** `seated`: whether they are still on the team; the credit stays when an owner removes them (0012). */
   partner: { code: string; origin: string; since: string; seated: boolean } | null;
-  invitation: { code: string; sentAt: string; expiresAt: string; declinedAt: string | null } | null;
+  invitation: { code: string; sent_at: string; expires_at: string; declined_at: string | null } | null;
 }
 
 /** A workspace asking the partner to join it, as `GET partner/invitations` carries it. */
 export interface PartnerInvitationDto {
-  workspaceId: string;
+  workspace_id: string;
   workspace: string;
-  sentAt: string;
-  expiresAt: string;
+  sent_at: string;
+  expires_at: string;
 }
 
 export const PARTNER_INVITE_WORDS = {
@@ -98,25 +98,25 @@ export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Dat
     };
   const invitation = dto.invitation;
   if (!invitation) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
-  if (invitation.declinedAt)
+  if (invitation.declined_at)
     return {
       state: "declined",
-      sentence: `${invitation.code} declined on ${partnerDayWords(invitation.declinedAt)}.`,
+      sentence: `${invitation.code} declined on ${partnerDayWords(invitation.declined_at)}.`,
       canInvite: true,
       canWithdraw: false,
       seated: false,
     };
-  if (Date.parse(invitation.expiresAt) <= nowMs)
+  if (Date.parse(invitation.expires_at) <= nowMs)
     return {
       state: "expired",
-      sentence: `Your invitation to ${invitation.code} expired on ${partnerDayWords(invitation.expiresAt)}.`,
+      sentence: `Your invitation to ${invitation.code} expired on ${partnerDayWords(invitation.expires_at)}.`,
       canInvite: true,
       canWithdraw: false,
       seated: false,
     };
   return {
     state: "waiting",
-    sentence: `Waiting for ${invitation.code} to accept: asked on ${partnerDayWords(invitation.sentAt)}, open until ${partnerDayWords(invitation.expiresAt)}.`,
+    sentence: `Waiting for ${invitation.code} to accept: asked on ${partnerDayWords(invitation.sent_at)}, open until ${partnerDayWords(invitation.expires_at)}.`,
     canInvite: false,
     canWithdraw: true,
     seated: false,
@@ -125,7 +125,7 @@ export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Dat
 
 /** A workspace asking the partner, as its row on their pane says it. */
 export const partnerInvitationWords = (partnerInvitation: PartnerInvitationDto): string =>
-  `${partnerInvitation.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${partnerDayWords(partnerInvitation.expiresAt)}.`;
+  `${partnerInvitation.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${partnerDayWords(partnerInvitation.expires_at)}.`;
 
 /** What joining did, in the partner's flash: whether its plan earns them a share. */
 export function partnerJoinedWords(workspace: string, earns: boolean): string {

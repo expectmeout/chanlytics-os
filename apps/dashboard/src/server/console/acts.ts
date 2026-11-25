@@ -128,7 +128,7 @@ export async function listConsoleActs(
     ...(input.before ? { before: input.before } : {}),
     limit: input.csv ? LOG_CSV : ACT_LOG_PAGE,
   });
-  if (error) throw new AppError("unavailable", "The log could not be read just now. Try again in a moment.");
+  if (error) throw new AppError("unavailable", "Couldn't load the log just now. Try again in a moment.");
   return (data ?? []).map((row) => ({
     id: row.id,
     at: row.at,

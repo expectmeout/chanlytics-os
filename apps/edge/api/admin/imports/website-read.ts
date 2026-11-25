@@ -14,5 +14,7 @@ import { WEBSITE_READ_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/imports/website-read");
   if (!auth.ok) return auth.response;
-  return askWebsiteRead(auth, await readBody(request, WEBSITE_READ_DOOR));
+  const read = await readBody(request, WEBSITE_READ_DOOR);
+  if (!read.ok) return read.response;
+  return askWebsiteRead(auth, read.body);
 });

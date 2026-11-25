@@ -14,6 +14,20 @@ function blankAsUnset(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/**
+ * The project a client is made for, from the two values as the caller reads them (the browser from `publicEnv`, the
+ * server from its checked `env`): both set, or a thrown error naming the one that is not. Production never starts without
+ * them (REQUIRED_IN_PRODUCTION), and a client made with neither could only fail at its first call.
+ */
+export function supabaseProject(
+  url: string | undefined,
+  anonKey: string | undefined,
+): { url: string; anonKey: string } {
+  if (!url) throw new Error("env_invalid: NEXT_PUBLIC_SUPABASE_URL is required");
+  if (!anonKey) throw new Error("env_invalid: NEXT_PUBLIC_SUPABASE_ANON_KEY is required");
+  return { url, anonKey };
+}
+
 export const publicEnv = {
   /** The Supabase project: auth, storage and Realtime. Public by design; RLS is the boundary. */
   get NEXT_PUBLIC_SUPABASE_URL(): string | undefined {

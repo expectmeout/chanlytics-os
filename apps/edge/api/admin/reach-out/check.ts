@@ -14,5 +14,7 @@ import { REACH_OUT_CHECK_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/reach-out/check");
   if (!auth.ok) return auth.response;
-  return checkPressedSends(auth, await readBody(request, REACH_OUT_CHECK_DOOR));
+  const read = await readBody(request, REACH_OUT_CHECK_DOOR);
+  if (!read.ok) return read.response;
+  return checkPressedSends(auth, read.body);
 });

@@ -6,7 +6,7 @@ import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { getPublicPageNamesNothing } from "@/server/public/page-gate";
 import { writeAuthCookies } from "@/server/auth/cookies";
 import { env, isProduction, servedOverHttps } from "@/server/shared/env";
-import { publicEnv } from "@/lib/public-env";
+import { publicEnv, supabaseProject } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 import { returnFragmentOf } from "@/auth/sign-in-return";
 import { returnQueryOf } from "@/auth/workspace-return";
@@ -204,7 +204,8 @@ export async function proxy(request: NextRequest) {
   }
   let response = nextWithPolicy();
 
-  const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const project = supabaseProject(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const supabase = createServerClient(project.url, project.anonKey, {
     cookieOptions: sessionCookieOptions(servedOverHttps()),
     cookies: {
       getAll() {
@@ -251,12 +252,12 @@ export async function proxy(request: NextRequest) {
   if (!user && !isPublic && !bearer && isRetryableAuthError(authErr)) {
     if (path.startsWith("/api/")) {
       return NextResponse.json(
-        { ok: false, error: { code: "upstream_auth", message: "Could not verify your session just now — try again." } },
+        { ok: false, error: { code: "upstream_auth", message: "Couldn't check your sign-in just now. Try again." } },
         { status: 503, headers: { "cache-control": "private, no-store", "retry-after": "5" } },
       );
     }
     return noStore(
-      new NextResponse("Could not verify your session just now. Please try again in a moment.", {
+      new NextResponse("Couldn't check your sign-in just now. Try again in a moment.", {
         status: 503,
         headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "5" },
       }),

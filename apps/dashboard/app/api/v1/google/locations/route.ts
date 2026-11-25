@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, write, workspace } from "@/server/shared/route";
-import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
+import { AppError, recordOrEmpty, type GoogleLocationDto } from "@chanlytics/contracts";
 import { callEdgeGoogle, readOutcome } from "@/server/connections/google";
 import { edgeRefusalWords } from "@/server/shared/edge";
 
@@ -26,7 +26,7 @@ const REASON_WORDS: typeof REASONS & Record<string, string> = REASONS;
 function locations(raw: unknown): GoogleLocationDto[] {
   return (Array.isArray(raw) ? raw : [])
     .map((line) => {
-      const value = (line && typeof line === "object" ? line : {}) as Record<string, unknown>;
+      const value = recordOrEmpty(line);
       const s = (k: string) => (typeof value[k] === "string" ? value[k] : null);
       return {
         account_name: s("account_name") ?? "",
@@ -53,8 +53,8 @@ export const GET = read({
       throw new AppError(
         "upstream_provider",
         typeof body.error === "string"
-          ? (REASON_WORDS[body.error] ?? `Google could not be read: ${edgeRefusalWords(body)}`)
-          : "Google could not be read. Try again in a moment.",
+          ? (REASON_WORDS[body.error] ?? `Couldn't load from Google: ${edgeRefusalWords(body)}`)
+          : "Couldn't load from Google. Try again in a moment.",
       );
     return { locations: locations(body.locations) };
   },
@@ -85,7 +85,7 @@ export const POST = write({
       const reason = typeof result.error === "string" ? result.error : "failed";
       throw new AppError(
         answer.status === 404 ? "not_found" : "upstream_provider",
-        REASON_WORDS[reason] ?? `The location could not be chosen (${edgeRefusalWords(result) ?? reason}).`,
+        REASON_WORDS[reason] ?? `Couldn't choose the location (${edgeRefusalWords(result) ?? reason}).`,
         answer.status === 404 ? 404 : 502,
       );
     }

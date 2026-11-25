@@ -965,13 +965,13 @@ test("Setup's yes row counts offers by email as their own arm, only where they c
       receptionist: "set",
     },
     channels: {
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: false, active: false, number: null, lastInboundAt: null },
+      whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+      voice: { present: false, active: false, number: null, last_inbound_at: null },
     },
-    templates: { approved: 0, pending: 0, startersApproved: 0 },
+    templates: { approved: 0, pending: 0, starters_approved: 0 },
     calendar: { state: "none" },
-    team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-    consent: { yes: 0, offers: 0, offersSaidYes: 0, ...consent },
+    team: { members: 1, invites_open: 0, alert_emails: 1 },
+    consent: { yes: 0, offers: 0, offers_said_yes: 0, ...consent },
     requests: { line: null },
     google: { ready: false, places: false, listing: null, connected: false, unsure: [], type: null },
     later: [],
@@ -979,15 +979,15 @@ test("Setup's yes row counts offers by email as their own arm, only where they c
   const yesRow = (consent) => setupSteps(dto(consent), ROW_NOW).rows.find((r) => r.id === "yes");
   // No arm: as it always read.
   assert.equal(yesRow({}).state, "not_started");
-  assert.equal(yesRow({ offers: 3, offersSaidYes: 3 }).sentence, "3 people said yes to offers.");
-  assert.deepEqual(yesRow({ offers: 3, offersSaidYes: 3 }).details, [], "an absent arm adds nothing");
+  assert.equal(yesRow({ offers: 3, offers_said_yes: 3 }).sentence, "3 people said yes to offers.");
+  assert.deepEqual(yesRow({ offers: 3, offers_said_yes: 3 }).details, [], "an absent arm adds nothing");
   // Only email: nobody said yes, and an offer by email reaches people the rule allows. It says so, and not that they said yes.
   const emailOnly = yesRow({ offers_by_email: 12 });
   assert.equal(emailOnly.state, "ready");
   assert.equal(emailOnly.sentence, "12 people can be sent an offer by email.");
   assert.equal(yesRow({ offers_by_email: 1 }).sentence, "1 person can be sent an offer by email.");
   // Both: the yes first, the email arm beside it.
-  const both = yesRow({ offers: 2, offersSaidYes: 2, offers_by_email: 12 });
+  const both = yesRow({ offers: 2, offers_said_yes: 2, offers_by_email: 12 });
   assert.equal(both.sentence, "2 people said yes to offers.");
   assert.deepEqual(both.details, ["12 people can be sent an offer by email"]);
   // An arm counted as none (the rule leaves everyone out) is none: the row falls back to what it says without it.

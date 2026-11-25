@@ -206,7 +206,7 @@ export function doors({ version = 7, hold = {}, stall = {}, beforePut = [], afte
     const held = state.hold[key]?.shift();
     if (held) return answer(held.status, held.message);
     if (key === "GET /api/v1/settings")
-      return answer(200, { config: state.config, version: state.version, configBroken: false });
+      return answer(200, { config: state.config, version: state.version, config_broken: false });
     if (key === "PUT /api/v1/settings") {
       beforePut.shift()?.(state);
       if (body.version !== state.version) return answer(409, "Someone else saved settings after you loaded them.");

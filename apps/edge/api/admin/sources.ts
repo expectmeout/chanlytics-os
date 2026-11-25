@@ -16,5 +16,7 @@ import { runSourcesOp } from "../../lib/files/sources/ops.js";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/sources");
   if (!auth.ok) return auth.response;
-  return runSourcesOp(auth, await readBody(request, SOURCES_DOOR));
+  const read = await readBody(request, SOURCES_DOOR);
+  if (!read.ok) return read.response;
+  return runSourcesOp(auth, read.body);
 });

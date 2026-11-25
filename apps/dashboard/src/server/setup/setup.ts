@@ -124,7 +124,7 @@ function whatsappSection(wa: ChannelRow | null, lastMsg: SetupReads["lastMsg"]):
     active: wa?.status === "active",
     number: wa?.number_e164 ?? null,
     quality: typeof waCfg.quality_rating === "string" ? waCfg.quality_rating : null,
-    lastInboundAt: lastMsg?.channel_ts ?? lastMsg?.created_at ?? null,
+    last_inbound_at: lastMsg?.channel_ts ?? lastMsg?.created_at ?? null,
   };
 }
 
@@ -133,7 +133,7 @@ function voiceSection(voice: ChannelRow | null, lastCall: SetupReads["lastCall"]
     present: !!voice,
     active: voice?.status === "active",
     number: voice?.number_e164 ?? null,
-    lastInboundAt: lastCall?.started_at ?? null,
+    last_inbound_at: lastCall?.started_at ?? null,
   };
 }
 
@@ -143,7 +143,7 @@ function templatesSection(templates: SetupReads["templates"]): SetupDto["templat
   return {
     approved: approved.length,
     pending: pending.length,
-    startersApproved: approved.filter((t) => starterByName(t.name) !== null).length,
+    starters_approved: approved.filter((t) => starterByName(t.name) !== null).length,
   };
 }
 
@@ -184,15 +184,15 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
       "members" in team && Array.isArray(team.members)
         ? team.members.filter((m) => m.role !== "partner").length
         : (team as { members: number }).members,
-    invitesOpen: "invites" in team ? team.invites.length : team.invitesOpen,
-    alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
+    invites_open: "invites" in team ? team.invites.length : team.invites_open,
+    alert_emails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
     // read only. The back office reads counts, never the roster, so its team stays three numbers.
     ...("members" in team && Array.isArray(team.members)
       ? {
           partner: (() => {
             const p = team.members.find((m) => m.role === "partner");
-            return p ? memberWords({ email: p.email, display_name: p.displayName }).name : null;
+            return p ? memberWords({ email: p.email, display_name: p.display_name }).name : null;
           })(),
         }
       : {}),
@@ -203,7 +203,7 @@ function consentSection({ yes, offersReach, offersSaid, offersByEmail }: SetupRe
   return {
     yes,
     offers: offersReach,
-    offersSaidYes: offersSaid,
+    offers_said_yes: offersSaid,
     // The address arm, only where offers by email can go and the database counted it.
     ...(offersByEmail === null ? {} : { offers_by_email: offersByEmail }),
   };

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
-import { answerAsItCame, edgeConfigured, edgeReasonOf, streamEdge, type EdgeAnswer } from "@/server/shared/edge";
+import { edgeConfigured, edgeReasonOf, readEdgeAnswer, streamEdge, type EdgeAnswer } from "@/server/shared/edge";
 import { DOOR, refusalOf, SPEECH_TIMEOUT_MS, SPEECH_UNREACHED } from "@/server/ask/doors/speech-request";
 
 /**
@@ -55,7 +55,7 @@ export const POST = write({
     }
     if (!answer.body) {
       // An answer that is not JSON is none: its status says the rest.
-      const edgeAnswer: EdgeAnswer = { status: answer.status, body: answerAsItCame(DOOR, answer.status, answer.json) };
+      const edgeAnswer: EdgeAnswer = readEdgeAnswer(DOOR, answer.status, answer.json);
       log.warn("ask_speech_refused", {
         tenant_id: tenantId,
         reason: edgeReasonOf(edgeAnswer),

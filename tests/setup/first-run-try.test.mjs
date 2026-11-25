@@ -31,13 +31,13 @@ const dtoOf = (over = {}) => ({
     receptionist: "set",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: true, active: true, number: VOICE, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   ...over,
@@ -234,7 +234,7 @@ test("after the call (canvas R8, P7): the call said, and the phone it came from 
 test("a call that came in before: shown again, once one has reached AI", () => {
   const before = callOf({ live: false, startedAtMs: SINCE - 3_600_000 });
   const tried = dtoOf({
-    channels: { ...dtoOf().channels, voice: { ...dtoOf().channels.voice, lastInboundAt: "2026-09-24T14:00:00Z" } },
+    channels: { ...dtoOf().channels, voice: { ...dtoOf().channels.voice, last_inbound_at: "2026-09-24T14:00:00Z" } },
   });
   const shown = tryOf(tried, [before]);
   assert.equal(shown.stage, "done");
@@ -253,7 +253,7 @@ test("a call that came in before: shown again, once one has reached AI", () => {
 
 test("no line that answers: Setup's rows", () => {
   const off = dtoOf({
-    channels: { ...dtoOf().channels, voice: { present: false, active: false, number: null, lastInboundAt: null } },
+    channels: { ...dtoOf().channels, voice: { present: false, active: false, number: null, last_inbound_at: null } },
   });
   assert.equal(tryOf(off).stage, "rows");
 });

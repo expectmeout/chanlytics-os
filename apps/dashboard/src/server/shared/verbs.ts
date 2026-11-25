@@ -433,7 +433,7 @@ async function loadTemplate(ctx: RouteContext, id: string) {
   const templateId = requireUuid(id, "template");
   const { data, error } = await findTemplateScope(ctx.supabase, templateId);
   if (error) throw new DbFailure(error);
-  if (!data) throw new AppError("not_found", "Template not found.", 404);
+  if (!data) throw new AppError("not_found", "Saved message not found.", 404);
   return data;
 }
 export const templateScope = row((ctx, params) => loadTemplate(ctx, String(params.id ?? "")));

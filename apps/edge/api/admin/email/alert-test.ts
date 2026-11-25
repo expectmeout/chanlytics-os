@@ -14,5 +14,7 @@ import { ALERT_TEST_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/alert-test");
   if (!auth.ok) return auth.response;
-  return sendAlertTest(auth, await readBody(request, ALERT_TEST_DOOR));
+  const read = await readBody(request, ALERT_TEST_DOOR);
+  if (!read.ok) return read.response;
+  return sendAlertTest(auth, read.body);
 });

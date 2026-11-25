@@ -204,7 +204,7 @@ export function teeUsage(
 }
 
 /** What a gateway request may ask for. Everything else is refused before the key is spent. */
-interface GatewayRequest {
+export interface GatewayRequest {
   model: string;
   max_tokens: number;
   system: unknown;

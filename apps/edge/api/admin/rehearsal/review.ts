@@ -13,5 +13,7 @@ import { REHEARSAL_REVIEW_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/rehearsal/review");
   if (!auth.ok) return auth.response;
-  return reviewConversation(auth, await readBody(request, REHEARSAL_REVIEW_DOOR));
+  const read = await readBody(request, REHEARSAL_REVIEW_DOOR);
+  if (!read.ok) return read.response;
+  return reviewConversation(auth, read.body);
 });

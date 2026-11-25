@@ -14,5 +14,7 @@ import { VOICE_CANARY_DOOR } from "@chanlytics/contracts";
 
 export const POST = door(async function POST(request: Request): Promise<Response> {
   if (!canaryKeyMatches(request)) return refuse(401, "unauthorized");
-  return runVoiceCanary(await readBody(request, VOICE_CANARY_DOOR));
+  const read = await readBody(request, VOICE_CANARY_DOOR);
+  if (!read.ok) return read.response;
+  return runVoiceCanary(read.body);
 });

@@ -25,7 +25,7 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
   const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const token = typeof record.token === "string" ? record.token.trim() : "";
-  if (!token) return { ok: false, reason: "A device needs its push token." };
+  if (!token) return { ok: false, reason: "A phone needs its notification address." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
   const platform = isOneOf(PUSH_PLATFORMS, record.platform) ? record.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };

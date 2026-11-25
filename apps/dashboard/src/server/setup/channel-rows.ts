@@ -118,7 +118,7 @@ function calendarStands(
 /** The team as Setup reads it: the roster, or the back office's two counts. */
 type SetupTeam =
   | { members: ReturnType<typeof rosterOf>; invites: SetupRows["invitations"] }
-  | { members: number; invitesOpen: number };
+  | { members: number; invites_open: number };
 
 /**
  * The member's view reads the roster; the back office, which has no session, its count. The partner who brought the
@@ -127,7 +127,7 @@ type SetupTeam =
 function teamOf(rows: SetupRows, member: boolean): SetupTeam {
   return member
     ? { members: rosterOf(rows.roster ?? []), invites: rows.invitations }
-    : { members: rows.members ?? 0, invitesOpen: rows.invitations.length };
+    : { members: rows.members ?? 0, invites_open: rows.invitations.length };
 }
 
 /**

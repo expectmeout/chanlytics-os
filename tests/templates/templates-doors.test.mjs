@@ -462,7 +462,7 @@ test("sync, the door: the knock, the workspace rule, no database, a bad workspac
     await withEnv({ EDGE_CALL_SECRET: undefined, DIAG_KEY: "diag-key-for-this-file" }, async () => {
       assert.deepEqual(
         await answer(await knockSync({ tenant_id: "nope" }, { "x-diag-key": "diag-key-for-this-file" })),
-        [400, { ok: false, error: "bad_tenant" }],
+        [400, { ok: false, error: "bad_request" }],
       );
     });
     use({}, { "tenant_channels.select": { message: "connection reset" } });

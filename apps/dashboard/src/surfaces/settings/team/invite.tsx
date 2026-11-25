@@ -53,9 +53,9 @@ function addressesIn(typed: string, finished: boolean): { found: string[]; rest:
 /** What the server's answer to one invitation says happened. */
 function saidOf(email: string, role: InviteRole, d: Record<string, unknown>): Said {
   const as = roleSays(role).label;
-  if (d.alreadyMember) return { email, done: false, words: "is already on the team" };
+  if (d.already_member) return { email, done: false, words: "is already on the team" };
   if (d.added) return { email, done: true, words: `already had an account and joined as ${as}` };
-  if (d.alreadyInvited) return { email, done: false, words: "already has an invitation waiting" };
+  if (d.already_invited) return { email, done: false, words: "already has an invitation waiting" };
   return { email, done: true, words: `invitation emailed, open for ${TEAM_INVITE_DAYS} days, as ${as}` };
 }
 

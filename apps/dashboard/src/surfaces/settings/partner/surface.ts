@@ -199,7 +199,7 @@ export const partnerVerbs: PartnerApi = {
     return {
       ok: true,
       vm: partnerWorkspacesVM(r.data.overview, r.data.money, now, status ?? "active"),
-      handovers: Object.fromEntries(lines.map((h) => [h.tenantId, partnerHandoverVM(h, now)])),
+      handovers: Object.fromEntries(lines.map((h) => [h.workspace_id, partnerHandoverVM(h, now)])),
       full: handoverRoom(lines).words,
     };
   },
@@ -226,7 +226,7 @@ export const partnerVerbs: PartnerApi = {
     if (!r.ok) return { ok: false, message: r.message };
     return {
       ok: true,
-      rows: r.data.invitations.map((i) => ({ workspaceId: i.workspaceId, sentence: partnerInvitationWords(i) })),
+      rows: r.data.invitations.map((i) => ({ workspaceId: i.workspace_id, sentence: partnerInvitationWords(i) })),
     };
   },
   async answer(workspaceId, join) {

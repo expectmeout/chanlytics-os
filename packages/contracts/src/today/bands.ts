@@ -85,14 +85,14 @@ export function todayStanding(
   const noun = wires.length === 1 ? "line" : "lines";
   const lines = {
     text:
-      metrics.linesRead === false
+      metrics.lines_read === false
         ? "couldn't count email"
         : wires.length
           ? `${up} of ${wires.length} ${noun} connected`
           : "nothing connected yet",
     // The same count in the sidebar's two words (the canvases' "3 lines on"), where the sentence would wrap.
     short:
-      metrics.linesRead === false ? "not counted" : wires.length ? `${up} of ${wires.length} ${noun} on` : "none yet",
+      metrics.lines_read === false ? "not counted" : wires.length ? `${up} of ${wires.length} ${noun} on` : "none yet",
     down: down.length > 0,
   };
   const paused = metrics.workspace.status === "paused";

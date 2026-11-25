@@ -10,7 +10,7 @@ import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import { surfaceValue } from "../surfaces/surface-values";
 import type { TEAM_ROLES } from "@chanlytics/contracts";
-import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
+import type { ApiOptions, ApiResult, Input, Output, Params, RouteKey } from "../client/api";
 import type { Api } from "../client/api";
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
@@ -95,7 +95,7 @@ async function teamSetRole(membershipId: string, role: (typeof TEAM_ROLES)[numbe
 }
 
 /** Removes a member, or revokes an invitation that has not been accepted. */
-async function teamRemove(id: string): Promise<VerbResult> {
+async function teamRemove(id: string): Promise<ApiResult<Output<"DELETE team/[id]">>> {
   return api()("DELETE team/[id]", { params: { id } });
 }
 

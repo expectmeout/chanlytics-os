@@ -9,7 +9,7 @@ import { readerStamp, type Reader } from "../shared/reader";
  * is the 404 here rather than in the route, so a tool that reads it fails as
  * the page does, never on a silent zero.
  */
-export const metrics: Reader<{ days: number }, { metrics: MetricsSummaryDto; workspaceId: string }> = {
+export const metrics: Reader<{ days: number }, { metrics: MetricsSummaryDto; workspace_id: string }> = {
   name: "metrics",
   async read(rc, { days }) {
     const tenantId = rc.tenantId;
@@ -17,6 +17,6 @@ export const metrics: Reader<{ days: number }, { metrics: MetricsSummaryDto; wor
     // added beside them (server/metrics/metrics.ts), so Today counts every wire.
     const metrics = await findMetricsSummary(rc.ctx.supabase, tenantId, days);
     if (!metrics) throw new AppError("not_found", "Workspace metrics unavailable.", 404);
-    return { data: { metrics, workspaceId: tenantId }, rows: [], stamp: readerStamp() };
+    return { data: { metrics, workspace_id: tenantId }, rows: [], stamp: readerStamp() };
   },
 };

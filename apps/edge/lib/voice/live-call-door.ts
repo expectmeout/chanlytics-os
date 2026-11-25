@@ -34,7 +34,7 @@ export async function findRefusedCall(auth: Admitted, aud: string, callId: strin
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const mine = await isWorkspaceCall(db, workspace, callId);
-  if (mine === null) return refuse(503, "read_failed", "the call could not be read");
+  if (mine === null) return refuse(503, "read_failed", "couldn't load the call");
   if (!mine) return refuse(404, "not_found", "no such call in this workspace");
   return null;
 }

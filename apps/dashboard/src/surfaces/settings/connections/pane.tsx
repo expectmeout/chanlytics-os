@@ -482,8 +482,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   // undefined while it is read, null where it failed (the wiring's second audit, W-channel-team-plus-1, S3-1). Each says when a
   // customer last came in by the later of that read's time and Setup's, which hears the first call and the first message, so
   // a row never says nothing has arrived while Start ticks the test call (X3-3).
-  const voiceHeard = S?.dto?.channels?.voice?.lastInboundAt ?? null;
-  const waHeard = S?.dto?.channels?.whatsapp?.lastInboundAt ?? null;
+  const voiceHeard = S?.dto?.channels?.voice?.last_inbound_at ?? null;
+  const waHeard = S?.dto?.channels?.whatsapp?.last_inbound_at ?? null;
   const channels = useMemo(
     () => channelVMs(C, new Date(), { voice: voiceHeard, whatsapp: waHeard }),
     [C, voiceHeard, waHeard],

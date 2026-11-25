@@ -203,7 +203,7 @@ test("a replies read that fails costs the clause and nothing else: Today draws, 
     const m = await findMetricsSummary(db, A, 1);
     assert.equal(m.reply_hold, undefined);
     assert.equal(m.period.median_reply_seconds_ai, 62);
-    assert.equal(m.linesRead, undefined, "the lines were all read: only the replies were not");
+    assert.equal(m.lines_read, undefined, "the lines were all read: only the replies were not");
   } finally {
     console.error = was;
   }

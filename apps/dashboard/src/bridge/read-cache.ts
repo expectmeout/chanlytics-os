@@ -106,22 +106,23 @@ function readTab(name: string): Array<[string, unknown]> {
 function writeTab(name: string, keys: Iterable<string>, words: Map<string, string>): void {
   const s = tabStorage();
   if (!s) return;
-  const entries: string[] = [];
+  const entries: { text: string; size: number }[] = [];
   let total = 0;
-  const sizes: number[] = [];
   for (const k of keys) {
     const w = words.get(k);
     if (w === undefined || w.length > TAB_ENTRY_CHARS) continue;
-    entries.push(`[${JSON.stringify(k)},${w}]`);
-    sizes.push(w.length);
+    entries.push({ text: `[${JSON.stringify(k)},${w}]`, size: w.length });
     total += w.length;
   }
-  while (entries.length && total > TAB_TOTAL_CHARS) {
+  for (let first = entries[0]; first && total > TAB_TOTAL_CHARS; first = entries[0]) {
     entries.shift();
-    total -= sizes.shift()!;
+    total -= first.size;
   }
   try {
-    s.setItem(TAB_SLOT + name, `{"build":${JSON.stringify(BUILD)},"entries":[${entries.join(",")}]}`);
+    s.setItem(
+      TAB_SLOT + name,
+      `{"build":${JSON.stringify(BUILD)},"entries":[${entries.map((entry) => entry.text).join(",")}]}`,
+    );
   } catch {
     // Quota: the tab's copy is an optimisation, never a requirement. An older copy left behind would be painted as
     // current on the next reload, so none is better than that.

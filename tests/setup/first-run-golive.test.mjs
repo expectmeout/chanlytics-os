@@ -56,13 +56,13 @@ const dtoOf = (over = {}) => ({
     receptionist: "set",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: false, active: false, number: null, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   google: { ready: true, places: true, listing: null, connected: false, phone: "+13055550100" },
@@ -98,8 +98,8 @@ function goLive(dto, { want = KEEP, whatsapp = null, choice = null, complete = f
 const answeringDto = (extra = [], over = {}) =>
   dtoOf({
     channels: {
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13055550142", lastInboundAt: null },
+      whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+      voice: { present: true, active: true, number: "+13055550142", last_inbound_at: null },
     },
     lines: { rows: [line(), ...extra], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
     billing: { ...dtoOf().billing, status: "active" },
@@ -155,7 +155,7 @@ test("the stages: confirming with the bank once back from Stripe, a person for t
   // What goes live now without the line is what is connected, and nothing else.
   const noLines = (over = {}) => goLive(dtoOf({ lines: { ...dtoOf().lines, ready: false }, ...over })).noProvider.now;
   const wa = {
-    whatsapp: { present: true, active: true, number: "+13055550142", quality: "GREEN", lastInboundAt: null },
+    whatsapp: { present: true, active: true, number: "+13055550142", quality: "GREEN", last_inbound_at: null },
   };
   const box = {
     ready: true,
@@ -233,7 +233,7 @@ test("Switch it on: the number bought, the code proved by a call, the owner's ow
   const tested = answeringDto([], {
     channels: {
       ...answeringDto().channels,
-      voice: { present: true, active: true, number: "+13055550142", lastInboundAt: "2026-09-07T14:30:00Z" },
+      voice: { present: true, active: true, number: "+13055550142", last_inbound_at: "2026-09-07T14:30:00Z" },
     },
   });
   assert.deepEqual(
@@ -318,11 +318,11 @@ test("Switch it on: what came in, a line a source, the kept app's chats with Met
 test("You're live (5C): what answers now and since when, Ask's three moves -- the yes first -- and what is still connecting", () => {
   const live = answeringDto([], {
     channels: {
-      whatsapp: { present: true, active: false, number: "+13055550100", quality: null, lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13055550142", lastInboundAt: "2026-09-07T14:30:00Z" },
+      whatsapp: { present: true, active: false, number: "+13055550100", quality: null, last_inbound_at: null },
+      voice: { present: true, active: true, number: "+13055550142", last_inbound_at: "2026-09-07T14:30:00Z" },
     },
     calendar: { state: "ok" },
-    consent: { yes: 3, offers: 0, offersSaidYes: 0 },
+    consent: { yes: 3, offers: 0, offers_said_yes: 0 },
     activations: [{ capability: "voice", activated_at: "2026-09-07T14:12:00Z", deactivated_at: null }],
   });
   const gl = goLive(live, { want: { way: "new", number: "+13055550142" }, whatsapp: "same", complete: true });
@@ -350,7 +350,7 @@ test("You're live never waited on WhatsApp: chosen and not connected, its steps 
   const live = answeringDto([], {
     channels: {
       ...answeringDto().channels,
-      voice: { present: true, active: true, number: "+13055550142", lastInboundAt: "2026-09-07T14:30:00Z" },
+      voice: { present: true, active: true, number: "+13055550142", last_inbound_at: "2026-09-07T14:30:00Z" },
     },
   });
   const want = { way: "new", number: "+13055550142" };

@@ -174,7 +174,7 @@ test("inside the window, empty text is refused; a reply longer than its wire tak
 test("outside the window: only an approved template goes, a promotion needs a yes to offers, and the params are the workspace's facts, never the client's", async () => {
   const closed = conv({ last_wa_inbound_at: iso(NOW - 25 * HOUR) });
   const noTemplate = fakes();
-  await refused(replyToConversation(noTemplate.ports, cmd({ conv: closed })), "window_closed", /24-hour/);
+  await refused(replyToConversation(noTemplate.ports, cmd({ conv: closed })), "window_closed", /24 hours/);
   assert.deepEqual(noTemplate.ops(), []);
   const pending = fakes({ template: { ...approved, meta_status: "pending" } });
   await refused(
@@ -236,7 +236,7 @@ test("outside the window: only an approved template goes, a promotion needs a ye
       cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US", params: ["A", "B"] } } }),
     ),
     "validation",
-    /no template facts/,
+    /need the business name/,
   );
   assert.deepEqual(
     bare.ops(),
@@ -314,7 +314,7 @@ test("outside the window: only an approved template goes, a promotion needs a ye
       cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } }),
     ),
     "validation",
-    /no template facts/,
+    /need the business name/,
   );
   assert.deepEqual(none.ops(), []);
 });

@@ -71,7 +71,7 @@ function refreshRefusal(log: Logger, providerReply: ProviderReply): EdgeRefusal 
     return {
       ok: false,
       error: "provider_unauthorized",
-      detail: `the provider refused the platform's credentials (HTTP ${providerReply.status})`,
+      detail: `the texting provider said no to Chanlytics' sign-in (HTTP ${providerReply.status})`,
     };
   }
   if (providerReply.outcome === "refused") {
@@ -79,7 +79,7 @@ function refreshRefusal(log: Logger, providerReply: ProviderReply): EdgeRefusal 
     return {
       ok: false,
       error: "provider_refused",
-      detail: `the provider would not give this line's subaccount token (HTTP ${providerReply.status})`,
+      detail: `the texting provider would not give this number's sign-in (HTTP ${providerReply.status})`,
     };
   }
   // Nothing says the platform's key is wrong: the read got no answer, or a gateway's. The next check asks again.
@@ -92,7 +92,7 @@ function refreshRefusal(log: Logger, providerReply: ProviderReply): EdgeRefusal 
   return {
     ok: false,
     error: "unavailable",
-    detail: `the provider could not be asked just now (${heard}); the next check asks again`,
+    detail: `the texting provider couldn't be asked just now (${heard}); the next check asks again`,
   };
 }
 
@@ -133,8 +133,7 @@ export async function refreshLineToken(
   if (result.outcome !== "ok") return refreshRefusal(log, result);
   const body = answerObject(result);
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
-  if (!token)
-    return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
+  if (!token) return { ok: false, error: "no_token", detail: "the texting provider gave no sign-in for this number" };
   const { error } = await putLineCredentials(db, line.id, asJson({ auth_token: token }));
   if (error) return { ok: false, error: "write_failed", detail: logFailure("write", error) };
   log.info("line_token_refreshed", { subaccount: line.subaccount_sid });
