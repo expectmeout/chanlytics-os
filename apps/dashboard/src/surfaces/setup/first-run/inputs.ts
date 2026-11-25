@@ -3,12 +3,13 @@
  * holds (its name and its clock), and the settings read's brain and resolved numbers.
  */
 import { DEFAULT_TIMEZONE, type ReceptionistCardInputs } from "@chanlytics/contracts";
-import { workspaceOverride, type Workspace } from "@/bridge/surface-data";
+import type { Workspace } from "@/bridge/surface-data";
+import { currentWorkspace } from "@/bridge/who";
 import type { SettingsSurface, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import type { SetupSurface } from "../surface";
 
 /** The workspace this tab holds, from the list the shell already has: its name and clock. */
-export const workspaceNow = (): Workspace | null => workspaceOverride.current();
+export const workspaceNow = (): Workspace | null => currentWorkspace();
 
 /** The receptionist's brain as the settings read holds it, in the words the receptionist card reads. */
 export type CardBrain = NonNullable<ReceptionistCardInputs["brain"]>;

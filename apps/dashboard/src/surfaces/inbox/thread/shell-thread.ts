@@ -4,12 +4,14 @@
  * moves: People's rows and its courier with People, the reach-out readings with the reach-out surface, the route
  * builder with the client, the role store's absence with the role store.
  *
- * Nothing here is new behaviour: each reads the window name the JSX read, and says what the JSX said where it is not there.
+ * Nothing here is new behaviour: each reads what the bridge installed (provided.ts) where the JSX read the window, and says
+ * what the JSX said where it is not there.
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/bridge/surface-status";
 import type { replies } from "@/bridge/reach-out/replies";
+import { provided } from "@/bridge/provided";
 import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
 
@@ -36,23 +38,23 @@ export function usePeopleMoved(): void {
   useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
-/** A person's notes' courier (people-detail.ts `__personNotes`), when it is published and can say when a step is due. */
+/** A person's notes' courier (people-detail.ts, provided as `personNotes`), when it is installed and can say when a step is due. */
 export function personNotes() {
-  const notes = window.__personNotes;
+  const notes = provided("personNotes");
   return notes && typeof notes.dueDay === "function" ? notes : null;
 }
 
-/** The deal's rules as the thread's Actions use them (people-detail.ts `__deal`), when the courier is published. */
+/** The deal's rules as the thread's Actions use them (people-detail.ts, provided as `deal`), when the courier is installed. */
 export function dealKit() {
-  const deal = window.__deal;
+  const deal = provided("deal");
   return deal && typeof deal.menu === "function" ? deal : null;
 }
 
 /* ------------------------------- the address ------------------------------- */
 
-/** Whether the client's link builder is there at all (`__href`). */
+/** Whether the client's link builder is there at all (provided as `href`). */
 export function hasHref(): boolean {
-  return !!window.__href;
+  return !!provided("href");
 }
 
 /**
@@ -60,7 +62,8 @@ export function hasHref(): boolean {
  * for the workspace as every read is. Nothing without the builder.
  */
 export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string | null {
-  return window.__href ? window.__href(key, params) : null;
+  const href = provided("href");
+  return href ? href(key, params) : null;
 }
 
 /* ---------------------------- the reach-out readings ---------------------------- */
@@ -68,9 +71,9 @@ export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string |
 /** What the bridge's strip reads of a thread: its id and its timeline's bubbles (`replies.stripFor`). */
 export type StripThread = Parameters<typeof replies.stripFor>[0];
 
-/** The replies to a reach-out and the words they are drawn in (reach-out/replies.ts `__replies`), or nothing where they are not published. */
+/** The replies to a reach-out and the words they are drawn in (reach-out/replies.ts, provided as `replies`), or nothing where they are not installed. */
 export function repliesDoor() {
-  return window.__replies;
+  return provided("replies");
 }
 
 /* ---------------------------------- roles ---------------------------------- */

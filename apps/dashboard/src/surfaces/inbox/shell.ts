@@ -12,6 +12,8 @@
 import type { HTMLAttributes } from "react";
 import { canDo, navigate } from "../frame-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
+import { provided } from "@/bridge/provided";
+import type { TabMemory } from "@/bridge/tab-memory";
 
 /* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
 export { canDo, navigate };
@@ -83,25 +85,16 @@ export function refusalToast(r: unknown, what?: string | null): Flash {
 
 type Place = Record<string, unknown>;
 
-/** The tab's memory (tab-memory.ts), or nothing where the shell has none: the standalone harness. */
-export function tabMemory():
-  | {
-      place: (page: string, view: string) => Place | null;
-      keepPlace: (page: string, view: string, place: Place) => void;
-      draft: <T = unknown>(kind: string, key?: string) => T | null;
-      keepDraft: (kind: string, value: unknown, key?: string) => void;
-      dropDraft: (kind: string, key?: string) => void;
-    }
-  | undefined {
-  return window.__tabMemory;
+/** The tab's memory (tab-memory.ts, provided as `tabMemory`), or nothing where the shell has none: the standalone harness. */
+export function tabMemory(): TabMemory | undefined {
+  return provided("tabMemory");
 }
 
 /* -------------------------------- the session -------------------------------- */
 
-/** What the registry says of a surface: real, demo, seeded (`__surfaceState`); nothing without it. */
+/** What the registry says of a surface: real, demo, seeded (provided as `surfaceState`); nothing without it. */
 export function surfaceState(page: string): string | undefined {
-  const state = fn<[string], string | undefined>("__surfaceState");
-  return state ? state(page) : undefined;
+  return provided("surfaceState")?.(page);
 }
 
 /** Whether the member is Away, which freezes every countdown and forces the holding line (inbox/store.ts `PR_STORE`). */
@@ -112,7 +105,7 @@ export function presenceAway(): boolean {
 
 /** The business's zone, as the page clock holds it. */
 export function clockZone(): string {
-  return window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  return provided("clock")?.zone() ?? "UTC";
 }
 
 /* --------------------------------- people --------------------------------- */

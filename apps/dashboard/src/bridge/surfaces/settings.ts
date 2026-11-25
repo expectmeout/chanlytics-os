@@ -32,6 +32,7 @@ import type { StoredProfile } from "@/surfaces/settings/business/save";
 import { setSurfaceValue } from "../../surfaces/surface-values";
 import { getActiveWorkspace, routeOnScreen } from "../workspace";
 import { readAdsOpening } from "./ads-first-reads";
+import { pageReport } from "@/client/page-report";
 
 /**
  * Settings · Workspace — the business's own facts, and who is on the team.
@@ -220,7 +221,6 @@ export const settingsOverride: SurfaceOverride = {
   key: "settings",
   value: "settings",
   // Nothing on the window: every reader takes the settings surface (`value`), which the cache keeps whole.
-  globals: [],
   events: ["surface:settings"],
   // What it draws that no other surface owns (0047): the business's facts and the version the next save sends
   // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
@@ -312,7 +312,7 @@ export const settingsOverride: SurfaceOverride = {
     // WhatsApp's rows alone, as the Inbox, Setup and the phone read them: null where the templates read failed.
     let templatesAll: TemplateDto[] | null = null;
     if (tpl instanceof Error) {
-      console.error("settings_templates_fetch_failed", tpl.message);
+      pageReport.error("settings_templates_fetch_failed", tpl.message);
     } else {
       const whatsapp = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
       templatesAll = whatsapp;
@@ -357,14 +357,14 @@ export const settingsOverride: SurfaceOverride = {
         : null;
     }
     // The Autonomy matrix and every policy chip (settings/business/shell.ts policiesNow): null where the read failed.
-    if (pol instanceof Error) console.error("settings_policies_fetch_failed", pol.message);
+    if (pol instanceof Error) pageReport.error("settings_policies_fetch_failed", pol.message);
     const policies: PoliciesSurface | null = pol instanceof Error ? null : policiesOf(pol);
     // null, not [] — "we could not read the team" and "there is nobody" are
     // different facts, and only one of them should render as an empty list.
     // The API has always returned open invitations and nothing rendered
     // them, so an invitation that was sent, accepted or revoked was
     // invisible on the one card whose job is saying who has access.
-    if (team instanceof Error) console.error("settings_team_fetch_failed", team.message);
+    if (team instanceof Error) pageReport.error("settings_team_fetch_failed", team.message);
     const members: TeamMember[] | null = team instanceof Error ? null : (team.members ?? []);
     const invites: TeamInvite[] | null = team instanceof Error ? null : (team.invites ?? []);
     // Everything the settings read holds, in the one place every page reads it: nothing of it is on the window.

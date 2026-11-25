@@ -12,6 +12,7 @@ import { surfaceValue } from "../surfaces/surface-values";
 import type { TEAM_ROLES } from "@chanlytics/contracts";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
 import type { Api } from "../client/api";
+import { provide } from "./provided";
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 type VerbResult = ApiResult<unknown>;
@@ -124,14 +125,6 @@ export async function refreshLive(): Promise<void> {
   await refreshSurfaces([liveOverride]);
 }
 
-declare global {
-  interface Window {
-    __setPolicy?: (cls: string, mode: string | undefined, limits?: PolicyDials) => Promise<VerbResult>;
-    __href: typeof href;
-    __saveSettings: typeof saveSettings;
-  }
-}
-
 /**
  * The reply row's dials: the hold window, the confidence dial, the day's budget, the reply cap, the pause (S6) and how
  * long people may wait on the team before Today says it in the amber.
@@ -164,7 +157,7 @@ function dialsOnTheWire(d: PolicyDials): PolicyDialsBody {
 }
 
 /**
- * Settings → Autonomy: `window.__setPolicy(class, mode, dials?)`.
+ * Settings → Autonomy: `setPolicy(class, mode, dials?)`, provided as `setPolicy` (provided.ts).
  *
  * PUT /api/v1/policies, operator or owner; viewers get the server's refusal.
  * On success the refresh map re-reads the settings surface through the runner
@@ -189,14 +182,21 @@ export async function setPolicy(cls: string, mode: string | undefined, limits: P
 const href = <K extends RouteKey>(key: K, params?: Params<K>, query?: ApiOptions<K>["query"]) =>
   api().url(key, { params, query });
 
+/** The three verbs a page reaches without carrying this module (provided.ts). */
+export interface InboxVerbs {
+  href: typeof href;
+  setPolicy: typeof setPolicy;
+  saveSettings: typeof saveSettings;
+}
+
 export function installInboxVerbs(): void {
   // A download is a plain link to a route, and the route needs the workspace
   // named like every other request; the page builds the href with this.
-  window.__href = href;
-  window.__setPolicy = setPolicy;
-  // A call's recording is no verb: the thread's <audio> points at the route (window.__href), which redirects to a
+  provide("href", href);
+  provide("setPolicy", setPolicy);
+  // A call's recording is no verb: the thread's <audio> points at the route (`href`), which redirects to a
   // link signed for each request. (Live's verbs are imported by its page: whisperCall, endCall, handOverCall, refreshLive.)
-  window.__saveSettings = saveSettings;
+  provide("saveSettings", saveSettings);
 }
 
 /**

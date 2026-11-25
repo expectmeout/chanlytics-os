@@ -28,6 +28,9 @@ import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
 import { setPageBehind } from "./hearing/front";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
+import { provided } from "./provided";
+import { whoIsLooking } from "./who";
+import { surfaceValue } from "../surfaces/surface-values";
 import type { AddressParts } from "@chanlytics/contracts";
 
 interface BridgeWindow {
@@ -47,16 +50,8 @@ interface BridgeWindow {
     pushState(data: unknown, unused: string, url?: string | null): void;
     replaceState(data: unknown, unused: string, url?: string | null): void;
   };
-  /** The workspace this page is about, by id, once the page has read its workspaces (surface-data.ts). */
-  __ACTIVE_WORKSPACE?: string;
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
-  /** The bell (notifications.ts), when it is installed: its number is the icon's. */
-  __notifs?: { keptUnread(): number; onChange(cb: () => void): () => void };
-  /** Today's view model, as the surface seam publishes it (surface-data.ts): what the widget shows. */
-  TODAY_DATA?: TodayVM;
-  /** The Live page's view model: how many calls are still up ends, or keeps, the phone's call activity. */
-  __LIVE?: Pick<LiveVM, "now" | "heartbeatMs">;
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   dispatchEvent(e: Event): boolean;
@@ -119,7 +114,8 @@ export function installAppBridge(
   // the one count, which the widget says), and at install when it is already there; never the same twice in a row.
   let todaySaid: string | null = null;
   const today = () => {
-    const vm = win.TODAY_DATA;
+    // Today's view model, as the seam holds it: what the widget shows.
+    const vm = surfaceValue("today");
     if (!vm || typeof vm !== "object" || !vm.standing || !vm.queue) return;
     const snapshot = todayWidgetSnapshot(vm, new Date(), source.parts(vm), source.now());
     const key = JSON.stringify({ ...snapshot, at: "" });
@@ -137,7 +133,8 @@ export function installAppBridge(
   // The calls still up, for the Lock Screen's activity: none means the phone may end what it shows. A call marked live
   // that the provider has gone quiet on is not up (liveStillUp, the rule every count of them asks).
   const calls = () => {
-    const read = win.__LIVE;
+    // Live's view model: how many calls are still up ends, or keeps, the phone's call activity.
+    const read = surfaceValue("live");
     if (read && Array.isArray(read.now)) post({ t: "calls", live: callsStillUp(read, Date.now()).length });
   };
   win.addEventListener("surface:live", calls);
@@ -166,10 +163,10 @@ export function installAppBridge(
   // count also counts the rows the page derives itself, which the edge cannot, so the icon read 2 with the app closed and 5
   // once it was open (D1-phone-badge).
   const badge = () => {
-    const n = win.__notifs?.keptUnread();
+    const n = provided("bell")?.keptUnread();
     if (typeof n === "number") post({ t: "badge", n: Math.max(0, Math.floor(n)) });
   };
-  const offBell = win.__notifs?.onChange(badge) ?? (() => {});
+  const offBell = provided("bell")?.onChange(badge) ?? (() => {});
   post({ t: "session", state: "in" });
   const stopTheme = watchTheme(win, post);
   workspace();
@@ -244,12 +241,13 @@ interface Pushes {
 
 /**
  * Whether a push's workspace (always its id, contracts parseShellMessage) is the one this page is about: by the id its
- * workspaces read resolved (`__ACTIVE_WORKSPACE`), and before that by its address, which names it by id where a push
+ * workspaces read resolved (who.ts), and before that by its address, which names it by id where a push
  * opened it (workspaceHref) and by slug everywhere else. A slug says nothing of an id, so a page at one cannot tell
  * yet (null); off a workspace page (the home, which sends the tab on), no workspace is this page's.
  */
 function isThisWorkspace(win: BridgeWindow, id: string): boolean | null {
-  if (win.__ACTIVE_WORKSPACE) return win.__ACTIVE_WORKSPACE === id;
+  const resolved = whoIsLooking().activeWorkspaceId;
+  if (resolved) return resolved === id;
   const named = pathWorkspace(win.location.pathname ?? "");
   if (!named) return false;
   return isUuid(named) ? named.toLowerCase() === id.toLowerCase() : null;

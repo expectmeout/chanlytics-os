@@ -33,6 +33,7 @@ import {
   arScopeLabel,
   arStill,
 } from "./place";
+import { provided } from "@/bridge/provided";
 
 /** How long the three take from the phone's circle to AI's home (Today, calm, D9: one arc, under half a second). */
 const AR_FLY_MS = 440;
@@ -149,7 +150,7 @@ const arNoticeWait = (read: Promise<void>, held: boolean, setWaits: (on: boolean
   if (held) return () => {};
   setWaits(true);
   const done = () => setWaits(false);
-  const cap = setTimeout(done, window.__routeWaitMs ?? ROUTE_WAIT_MS);
+  const cap = setTimeout(done, provided("routeWaitMs") ?? ROUTE_WAIT_MS);
   void read.finally(() => {
     clearTimeout(cap);
     done();

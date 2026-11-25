@@ -34,10 +34,12 @@ import { todayLeaks, type PeopleListsLike } from "./leaks";
 import { keptTodayPeople } from "./people-read";
 import { todayPeriodLine } from "./period";
 import { withReplies, withoutWrongPerson } from "@/surfaces/campaigns/reach-out/reply-today";
-import { borrowed, workspaceClock } from "./shell";
+import { workspaceClock } from "./shell";
+import { surfaceValue } from "../surface-values";
+import { heldRead } from "@/bridge/held-reads";
 
 /** The readings of reach-out replies as the Inbox's surface holds them (reach-out/replies.ts); none when unread. */
-const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
+const readings = () => heldRead("reach_out_replies")?.replies ?? [];
 
 export const TODAY_HELPERS = {
   day: todayDay,
@@ -110,7 +112,7 @@ const rowsOfRead = new WeakMap<TodayPeopleDto, TodayPeople | null>();
  * book is what moves afterwards (a step done, a teammate's note): People is read again, and this answers it.
  */
 export function peopleForToday(): TodayPeople | PeopleSurface | null {
-  const book = borrowed<PeopleSurface>("__PEOPLE");
+  const book = surfaceValue("people");
   if (book) return book;
   const dto = keptTodayPeople();
   const zone = workspaceClock()?.zone;

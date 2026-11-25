@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import type { FrameFlash } from "../../frame-verbs";
 import { warmSettingsPane } from "../../settings/frame/pane-reads";
-import { frameBell, frameChrome, frameGlyph, framePortal } from "../frame-window";
+import { frameBell, frameChrome, frameGlyph, framePortal, frameShell } from "../frame-window";
 import {
   SbWorkspaceFace,
   sbWho,
@@ -201,7 +201,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
             data-testid="sb-ws-item"
             onClick={() => {
               close();
-              if (!current && window.__shell) window.__shell.switchWorkspace(w.id);
+              if (!current) frameShell()?.switchWorkspace(w.id);
             }}
           >
             <SbWorkspaceFace ws={w} className="sb-ws-mark" />
@@ -214,13 +214,13 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
         );
       })}
       <div className="more-divider" />
-      {window.__shell && (
+      {frameShell() && (
         <button
           className="more-item"
           role="menuitem"
           onClick={() => {
             close();
-            window.__shell?.createWorkspace();
+            frameShell()?.createWorkspace();
           }}
           data-testid="sb-ws-new"
         >
@@ -375,8 +375,7 @@ export function UserMenu(props: UserMenuProps) {
   const Glyph = frameGlyph();
   const signOut = () => {
     close();
-    if (!window.__shell) return;
-    window.__shell.signOut();
+    frameShell()?.signOut();
   };
   const go = (to: string) => () => {
     close();

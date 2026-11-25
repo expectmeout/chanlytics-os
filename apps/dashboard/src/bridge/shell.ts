@@ -33,6 +33,7 @@ import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
 import { crumbsShown } from "@/surfaces/kit/head/standing";
+import { provide } from "./provided";
 
 export interface ShellApi {
   /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
@@ -52,6 +53,8 @@ export interface ShellApi {
   go(route: string, opts?: GoOptions): void;
   /** Follow the address: runs when the route changes, by a push, a replace or Back. Returns the stop. */
   hear(fn: () => void): () => void;
+  /** What the line under the top bar says now, as last published (`shell:status` tells it moved); none before the first. */
+  status(): ShellStatus | null;
 }
 
 export interface ChromeWords {
@@ -87,16 +90,16 @@ export interface ChromeWords {
 
 declare global {
   interface Window {
-    __shell?: ShellApi;
+    /** The chrome's words, which the record kit still reads off the window (kit/record/shell-verbs.ts) until it imports them. */
     __chrome?: ChromeWords;
-    __SHELL_STATUS?: ShellStatus;
     /** Inside the native app (app-bridge.ts): the phone this page registered, forgotten before a sign-out. */
     __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   }
 }
 
+/** The shell's verbs and the chrome's words, provided for the frame and the pages (provided.ts). */
 export function installShell(win: Window = window): void {
-  win.__shell = {
+  provide("shell", {
     ...addressApi(win),
     signOut() {
       // Cleared and closed: the form posts after the phone is forgotten, up to two seconds in the app, and a read
@@ -141,6 +144,7 @@ export function installShell(win: Window = window): void {
     retry() {
       return refreshAllSurfaces();
     },
+    status: () => shellStatus,
     keepTitle(title) {
       // The layout's own <title> can land after the shell has named the tab: on a page loaded cold it
       // put "Chanlytics OS" back, and only a count that changed later (the Inbox's) wrote the name
@@ -157,8 +161,8 @@ export function installShell(win: Window = window): void {
       watch.observe(head, { childList: true, subtree: true, characterData: true });
       return () => watch.disconnect();
     },
-  };
-  win.__chrome = {
+  });
+  const chrome: ChromeWords = {
     themes: THEME_OPTIONS,
     nextTheme: nextThemePref,
     themeButton: themeButtonWords,
@@ -181,6 +185,10 @@ export function installShell(win: Window = window): void {
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);
     },
   };
+  provide("chrome", chrome);
+  // The record kit reads the words off the window still (kit/record/shell-verbs.ts, the kit lane's file): a line to delete
+  // the day it reads them here.
+  win.__chrome = chrome;
 }
 
 /**
@@ -245,11 +253,13 @@ export function shellStatusOf(
   return { stale, degraded, offline: connection.offline, disconnected: connection.realtimeDown };
 }
 
+/** What the line under the top bar says, as last published; none before the first. */
+let shellStatus: ShellStatus | null = null;
+
 /** What the line under the top bar reads; dispatched whenever any part of it changes. */
 export function publishShellStatus(status: ShellStatus, win: Window = window): void {
   const said = (s: ShellStatus) => JSON.stringify([s.stale, s.degraded, !!s.offline, !!s.disconnected, !!s.paused]);
-  const prev = win.__SHELL_STATUS;
-  if (prev && said(prev) === said(status)) return;
-  win.__SHELL_STATUS = status;
+  if (shellStatus && said(shellStatus) === said(status)) return;
+  shellStatus = status;
   win.dispatchEvent(new CustomEvent("shell:status"));
 }

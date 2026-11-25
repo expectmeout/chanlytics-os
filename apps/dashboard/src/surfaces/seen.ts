@@ -27,11 +27,12 @@ import type { BellApi } from "@/bridge/notifications";
 import { resnapshotHere } from "@/bridge/surface-cache";
 import { carryMark, keepsCarried } from "./seen-carry";
 import { object } from "./shell-doors";
+import { provided } from "@/bridge/provided";
 
 // A surface a mark changed is kept in the tab's cache as a saved view is (surface-cache.ts resnapshotHere), under the
 // workspace the server resolved, which the cache keys its rows by (surface-runner.ts viewedWorkspace). Installed here, not
 // in seen-carry.ts, which imports nothing that could reach a surface (its header says why).
-keepsCarried((of) => resnapshotHere(of.key, of.globals ?? [], of.value));
+keepsCarried((of) => resnapshotHere(of.key, of.value));
 
 /** Whose row it is: the person, and their conversation where the row knows it. */
 interface RowOf {
@@ -141,7 +142,7 @@ let notes: Notes | null = null;
 /** The bell this tab listens to: the top bar's, once it is there. */
 let heardBell: BellApi | null = null;
 
-const bell = (): BellApi | undefined => (typeof window === "undefined" ? undefined : object<BellApi>("__notifs"));
+const bell = (): BellApi | undefined => provided("bell");
 
 const NO_NOTES: Notes = { byPerson: new Map(), byConversation: new Map(), says: "" };
 

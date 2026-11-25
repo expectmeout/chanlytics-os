@@ -6,12 +6,12 @@
  */
 import type { ReplyDraftDto, TodayQueueRowVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "../../people/surface";
-import { borrowed } from "../shell";
+import { surfaceValue } from "../../surface-values";
 import { stepNoteNow, type DraftWant } from "./drafts";
 
 /** The thread of the person a step is on, as People's row holds it; null where People's rows do not hold them. */
 export function stepThreadOf(row: Pick<TodayQueueRowVM, "person_id">): string | null {
-  const person = borrowed<PeopleSurface>("__PEOPLE")?.rows.find((r) => r.id === row.person_id);
+  const person = surfaceValue("people")?.rows.find((r) => r.id === row.person_id);
   return person?.threadId?.replace(/^th-/, "") ?? null;
 }
 

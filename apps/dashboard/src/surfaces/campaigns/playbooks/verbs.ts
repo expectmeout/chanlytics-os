@@ -6,6 +6,7 @@
 import { api } from "@/bridge/api";
 import { playbooksOverride } from "./surface";
 import { refreshSurfaces } from "@/bridge/surface-runner";
+import { provide } from "@/bridge/provided";
 
 /** Re-read the surface: for Today's approve and anything else that changes a run elsewhere. */
 async function refreshPlaybooks(): Promise<void> {
@@ -13,13 +14,7 @@ async function refreshPlaybooks(): Promise<void> {
   await refreshSurfaces([playbooksOverride]);
 }
 
-declare global {
-  interface Window {
-    /** The one hook a page that has not moved still calls: Today's approve re-reads the cards behind it (today/shell.ts refreshPlaybooks). */
-    __refreshPlaybooks?: () => Promise<void>;
-  }
-}
-
+/** The one hook a page reaches without carrying this module: Today's approve re-reads the cards behind it (provided.ts). */
 export function installPlaybooks(): void {
-  window.__refreshPlaybooks = refreshPlaybooks;
+  provide("refreshPlaybooks", refreshPlaybooks);
 }

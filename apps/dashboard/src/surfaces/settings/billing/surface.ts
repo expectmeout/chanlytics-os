@@ -5,8 +5,8 @@
  * once, and after they land the refresh map re-reads this surface and Setup's, since the Setup row reads the same facts.
  *
  * The value is the seam's (`useSurface("billing")`): undefined until read, null when the read failed, so the pane shows
- * a retry rather than "Reading your billing…" for ever. `__billing` is the verbs, for
- * the frame's top bar, which says a paused workspace from them (frame/topbar/topbar.tsx): lines to delete when the frame moves (step 13).
+ * a retry rather than "Reading your billing…" for ever. The verbs are provided too (bridge/provided.ts `billing`), for the
+ * line under the top bar, which says a paused workspace from them (frame/topbar/status-bars.tsx).
  */
 import {
   toBillingVM,
@@ -28,6 +28,7 @@ import { api, read } from "@/bridge/api";
 import { declareReads } from "@/bridge/surface-registry";
 import { pageClock } from "@/bridge/zone";
 import { refreshSurfaces } from "@/bridge/surface-runner";
+import { provide } from "@/bridge/provided";
 import { setupOverride } from "@/surfaces/setup/override";
 import { setSurfaceValue } from "../../surface-values";
 
@@ -36,7 +37,7 @@ export interface BillingSurface {
   fetchedAt: number;
 }
 
-interface BillingApi {
+export interface BillingApi {
   vm(dto: BillingDto, nowMs?: number): BillingVM;
   /**
    * The way to Stripe Checkout: the browser leaves the app and comes back to Billing, or to the first run when it
@@ -77,12 +78,6 @@ interface BillingApi {
   };
   /** What a state means for the receptionist, for the pill beside the headline. */
   pill: typeof billingPill;
-}
-
-declare global {
-  interface Window {
-    __billing?: BillingApi;
-  }
 }
 
 export const billingOverride: SurfaceOverride = {
@@ -183,7 +178,7 @@ export const billingVerbs: BillingApi = {
   },
 };
 
-/** The verbs for the frame's top bar, which still reads them off the window (frame/topbar/topbar.tsx): a line to delete at step 13. */
-export function installBilling(win: Window = window): void {
-  win.__billing = billingVerbs;
+/** The verbs for the line under the top bar, which reaches them without carrying Billing's code (bridge/provided.ts). */
+export function installBilling(): void {
+  provide("billing", billingVerbs);
 }

@@ -9,6 +9,7 @@
  */
 import { calendarParamParts, type CalendarView } from "@chanlytics/contracts";
 import { crPhone } from "./board-dom";
+import { provided } from "@/bridge/provided";
 
 /** The address's param: what follows `calendar/` in the route the path holds, or nothing for the route alone. */
 export function calendarParam(route: string | null): string | null {
@@ -44,7 +45,7 @@ export function calendarViewNamed(param: string | null): CalendarView | null {
 
 /** The view last picked on this board, kept in the tab (tab-memory.ts, the loading standard's place), or null. */
 function rememberedView(): CalendarView | null {
-  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
+  const mem = provided("tabMemory");
   const was = mem?.place("calendar", "board")?.view;
   return calendarParamParts(typeof was === "string" ? was : null).view;
 }
@@ -54,7 +55,7 @@ function rememberedView(): CalendarView | null {
  * or Back to one); a day opened from the month, or from a link, is a place the board went to, not a choice, and is not.
  */
 export function keepCalendarView(view: CalendarView): void {
-  if (typeof window !== "undefined") window.__tabMemory?.keepPlace("calendar", "board", { view });
+  provided("tabMemory")?.keepPlace("calendar", "board", { view });
 }
 
 /**

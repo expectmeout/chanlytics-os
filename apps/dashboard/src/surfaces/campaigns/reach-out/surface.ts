@@ -93,6 +93,8 @@ import { api, read } from "@/bridge/api";
 import { readCache } from "@/bridge/read-cache";
 import { broadcasts } from "../broadcasts/verbs";
 import { peekSources, readSources } from "./sources";
+import { provided } from "@/bridge/provided";
+import { pageReport } from "@/client/page-report";
 
 /** The reaches read in this tab, by search, in memory: the first paint of a door or a sheet, read again behind it. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
@@ -149,7 +151,7 @@ export const pileAsk = {
 };
 
 /** The business's zone, as the shell's clock holds it. */
-const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
+const businessZone = (): string => provided("clock")?.zone() ?? "UTC";
 
 export const reachOuts = {
   /** The business's clock: what a lead's day and time are said in, off the page that read it. */
@@ -195,7 +197,7 @@ export const reachOuts = {
     try {
       return await reaches.through(searchId, () => read("GET reach-outs/reach", { query: { search: searchId } }));
     } catch (e) {
-      console.error("reach_out_reach_failed", e instanceof Error ? e.message : e);
+      pageReport.error("reach_out_reach_failed", e instanceof Error ? e.message : e);
       return null;
     }
   },
@@ -236,7 +238,7 @@ export const reachOuts = {
    */
   run: (d: BroadcastDetailDto) => {
     if (!d.reach_out) return null;
-    const clock = window.__clock;
+    const clock = provided("clock");
     const now = Date.now();
     return reachOutRunWordsOf(d.reach_out, {
       state: d.broadcast.state,

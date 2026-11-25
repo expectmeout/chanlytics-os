@@ -12,13 +12,15 @@
 import type { PageClock } from "@/bridge/zone";
 import type { HeadFirst } from "../kit/head/standing";
 import { windowObject } from "../frame-verbs";
+import { provided } from "@/bridge/provided";
+import { whoIsLooking } from "@/bridge/who";
 
 /**
  * Who is signed in (`window.__ME`, the workspace's read), for the greeting, and the business's clock (`window.__clock`, as
  * shell.ts reads it).
  */
-const signedInMember = () => windowObject<{ display_name?: string | null }>("__ME");
-const businessClock = () => windowObject<PageClock>("__clock");
+const signedInMember = () => whoIsLooking().me ?? undefined;
+const businessClock = () => provided("clock");
 
 /** "Good morning, Marisa": by the hour in the business's zone, to the first name; without a name, the greeting alone. */
 export function todayGreeting(nowMs: number, zone: string, displayName: string | null | undefined): string {

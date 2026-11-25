@@ -29,11 +29,8 @@ import {
 } from "@chanlytics/contracts";
 import { read } from "./api";
 import { pathWorkspace } from "./workspace";
-
-interface ZoneGlobals {
-  __WORKSPACES?: Array<{ id: string; timezone?: string | null }>;
-  __ACTIVE_WORKSPACE?: string;
-}
+import { provide } from "./provided";
+import { currentWorkspace } from "./who";
 
 /** The zone the workspace read answered here, for whatever paints before the workspace surface publishes it. */
 let lastRead: string | null = null;
@@ -91,8 +88,7 @@ const slugOf = (win: Window): string | null => (win.location ? pathWorkspace(win
  * browser remembers for the workspace in its address; null before any of them.
  */
 export function knownZone(win: Window = window): string | null {
-  const w = win as Window & ZoneGlobals;
-  const fresh = w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.timezone || lastRead;
+  const fresh = currentWorkspace()?.timezone || lastRead;
   const slug = slugOf(win);
   if (fresh) {
     remember(win, slug, fresh);
@@ -123,7 +119,7 @@ export function msUntilTheDayTurns(zone: string, nowMs: number): number {
   return tomorrowAtIn(zone, nowMs, 0) - nowMs + PAST_MIDNIGHT_MS;
 }
 
-/** The clock the classic pages read: `window.__clock`. Every method says the workspace's time. */
+/** The clock the pages read (provided.ts `clock`). Every method says the workspace's time. */
 export interface PageClock {
   /** The zone in use: the workspace's; before any workspace is known (the demo), the browser's. */
   zone: () => string;
@@ -187,12 +183,6 @@ export function pageClock(win: Window = window): PageClock {
   };
 }
 
-declare global {
-  interface Window {
-    __clock?: PageClock;
-  }
-}
-
 export function installClock(win: Window = window): void {
-  win.__clock = pageClock(win);
+  provide("clock", pageClock(win));
 }

@@ -3,9 +3,9 @@
  * and for a member (contracts/identity.ts), the writes a person may make
  * about themselves — their name, their account (`meVerbs`, which Settings › Profile
  * imports) — and the ones their workspace owns, its
- * timezone and its word for a booking (00458). The workspace surface publishes
- * __ME and __WORKSPACES at boot, each workspace with its `appointment_word`; this keeps
- * both current after a change and tells the chrome. And who is acting: the one role every gate reads (`roleOf`).
+ * timezone and its word for a booking (00458). The workspace read holds who is
+ * looking and their workspaces (who.ts), each workspace with its `appointment_word`; this keeps
+ * the list current after a change and tells the chrome. And who is acting: the one role every gate reads (`roleOf`).
  */
 import {
   identityWords,
@@ -25,6 +25,8 @@ import {
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
 import type { Workspace } from "./surface-data";
+import { provide } from "./provided";
+import { holdWhoIsLooking, whoIsLooking } from "./who";
 
 export interface IdentityApi {
   words: typeof identityWords;
@@ -63,26 +65,18 @@ export interface WorkspaceApi {
   setTimezone(tz: string): Promise<{ ok: boolean; tz: string; message: string }>;
 }
 
-declare global {
-  interface Window {
-    __identity?: IdentityApi;
-    __workspace?: WorkspaceApi;
-    __tz?: TzApi;
-  }
-}
-
 /* ------------------------------ who is acting: the role every gate reads ------------------------------ */
 
 /*
  * A control offered to a role that may not press it is a lie the server corrects at the press. The shell's gates read
  * the role in three ways: the role store (`ST_STORE.myRole()`, which `gate()` chips read and which an owner's View-as
- * preview lowers), the raw membership (`__ME.role`, read by the person page, People and the Pipeline, blind to View-as),
+ * preview lowers), the raw membership (`me.role`, who.ts, read by the person page, People and the Pipeline, blind to View-as),
  * and Ask's card. So an owner previewing a viewer still saw the owner's Erase and the operator's Record a yes on a
  * person's page, while the Settings pane they were previewing hid its own. Now the store's `myRole` and `mayAtLeast`
  * are made here (installIdentity) and every gate asks them, so View-as moves them all together.
  *
  * The ladder is contracts' (`roleAtLeast`, one reading of it); what this adds is who is looking: the member's role
- * from the workspace's read, lowered by View-as, and failing closed. `__ME` is absent during boot and whenever the
+ * from the workspace's read, lowered by View-as, and failing closed. Who is looking is unknown during boot and whenever the
  * workspace read fails, and a role nobody can read is a viewer's, never an owner's.
  */
 /** What the role store holds, as settings.jsx makes it and this completes. */
@@ -107,9 +101,6 @@ declare global {
   }
 }
 
-/** What the reading needs of the window besides the store: who the workspace's read said is looking. */
-export type RolesWindow = Window & { __ME?: { role?: string | null } | null };
-
 /**
  * The role the person is acting as. A workspace read that gave a member is the real role, and View-as previews a lower
  * one on top of it (owner-only, client-side, harmless: the server checks again with requireRole). Without one, anyone is a
@@ -124,16 +115,16 @@ export function roleOf(input: {
 }
 
 /**
- * Give the role store its reading: `myRole` and `mayAtLeast`, over this window's `__ME` and the store's own View-as.
- * After the manifest (which makes the store), before React draws. Answers nothing where there is no store (a test's
- * window); the standalone mockup has no bridge, and keeps settings.jsx's own reading.
+ * Give the role store its reading: `myRole` and `mayAtLeast`, over who the workspace's read said is looking (who.ts) and
+ * the store's own View-as. After the manifest (which makes the store), before React draws. Answers nothing where there is
+ * no store (a test's window); the standalone mockup has no bridge, and keeps settings.jsx's own reading.
  */
-export function installRoles(win: RolesWindow = window): void {
+export function installRoles(win: Window = window): void {
   const store = win.ST_STORE;
   if (!store) return;
   store.myRole = () =>
     roleOf({
-      me: win.__ME,
+      me: whoIsLooking().me,
       viewAs: store.viewAsRole,
     });
   store.mayAtLeast = (least) => roleAtLeast(store.myRole(), least);
@@ -164,19 +155,6 @@ export const meVerbs: MeApi = {
 
 export function installIdentity(win: Window = window): void {
   installRoles(win);
-  win.__identity = {
-    words: identityWords,
-    member: memberWords,
-    initials: personInitials,
-    workspace: workspaceInitials,
-  };
-  win.__tz = {
-    words: timezoneWords,
-    city: timezoneCity,
-    known: knownTimezones,
-    device: usableDeviceTimezone,
-    also: zoneSearchWords,
-  };
   const patch: WorkspaceApi["patch"] = async (fields) => {
     const r = await api()("PATCH workspaces", { body: fields });
     if (!r.ok) return { ok: false, workspace: {}, message: r.message };
@@ -188,16 +166,16 @@ export function installIdentity(win: Window = window): void {
         ? { appointment_word: back.appointment_word ?? fields.appointment_word }
         : {}),
     };
-    // Keep the published list current, or every date on the page keeps being
+    // Keep the list held current, or every date on the page keeps being
     // read in the old zone, and every page says the old word, until a reload.
-    const w = win as Window & { __ACTIVE_WORKSPACE?: string };
-    if (Array.isArray(w.__WORKSPACES)) {
-      w.__WORKSPACES = w.__WORKSPACES.map((t) => (t.id === w.__ACTIVE_WORKSPACE ? { ...t, ...saved } : t));
+    const { workspaces, activeWorkspaceId } = whoIsLooking();
+    if (workspaces) {
+      holdWhoIsLooking({ workspaces: workspaces.map((t) => (t.id === activeWorkspaceId ? { ...t, ...saved } : t)) });
     }
     win.dispatchEvent(new CustomEvent("workspace:changed"));
     return { ok: true, workspace: saved, message: "" };
   };
-  win.__workspace = {
+  provide("workspace", {
     patch,
     async setTimezone(tz) {
       const r = await patch({ timezone: tz });
@@ -205,7 +183,7 @@ export function installIdentity(win: Window = window): void {
         ? { ok: true, tz: r.workspace.timezone ?? tz, message: "" }
         : { ok: false, tz: "", message: r.message };
     },
-  };
+  });
 }
 
 export type { IdentityInput };
@@ -235,8 +213,8 @@ interface SessionStore extends RoleStore {
 const permsOf = (role: string): Record<string, boolean> =>
   (ROLE_PERMS as Record<string, Record<string, boolean>>)[role] ?? {};
 
-/** Who is signed in and how the session started, read when a gate asks. */
-const signedIn = (): { role?: string | null } | null | undefined => Reflect.get(window, "__ME");
+/** Who is signed in, read when a gate asks. */
+const signedIn = (): { role?: string | null } | null => whoIsLooking().me;
 
 function makeRoleStore(): SessionStore {
   return {
@@ -254,7 +232,7 @@ function makeRoleStore(): SessionStore {
       // Real membership role when the bridge has it (E1) -- every gate() chip in the app starts telling the truth
       // through this one line. View-as still previews a LOWER role on top of the real one (owner-only, client-side,
       // harmless: the server re-checks with requireRole anyway).
-      // Fail CLOSED. __ME is absent during boot and whenever the workspace fetch fails (the seam swallows that), and
+      // Fail CLOSED. Who is looking is unknown during boot and whenever the workspace fetch fails (the seam swallows that), and
       // defaulting to owner rendered every gated control as available to a viewer.
       const me = signedIn();
       if (me) return this.viewAsRole || me.role || "viewer";

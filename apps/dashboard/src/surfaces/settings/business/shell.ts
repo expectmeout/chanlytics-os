@@ -1,23 +1,23 @@
 /**
  * What the Business tab still asks of the shell (decision 0015, step 11).
  *
- * A TSX surface reads nothing off `window`, so each thing the tab reads that a page of the shell, the bridge or the seam
- * publishes reaches it through one function here, read when it is called: a test's stand-in, set on the window, is the
- * one read. Each is a line to delete on the day its owner gives the tab an import or a seam value instead; nothing here
- * is new behaviour.
+ * A TSX surface reads nothing off `window`, so each thing the tab reads that the bridge or the seam holds reaches it through
+ * one function here, read when it is called: the seam's value, who.ts, or the bridge's store (provided.ts), where a test's
+ * stand-in is the one read. Each is a line to delete on the day the tab imports what it reads; nothing here is new
+ * behaviour.
  */
+import {
+  knownTimezones,
+  timezoneCity,
+  timezoneWords,
+  usableDeviceTimezone,
+  zoneSearchWords,
+} from "@chanlytics/contracts";
 import type { PoliciesSurface } from "@/bridge/policy-store";
-import type { calendar } from "../../calendar/verbs";
+import type { TzApi } from "@/bridge/identity";
+import { provided } from "@/bridge/provided";
+import { whoIsLooking } from "@/bridge/who";
 import { surfaceValue } from "../../surface-values";
-
-declare global {
-  interface Window {
-    /** Whether a page's read failed (surface-registry.ts installRouteGate). */
-    __surfaceFailed?: (page: string, param?: string | null) => boolean;
-    /** The calendar's verbs, as calendar/verbs.ts installCalendar publishes them. */
-    __calendar?: typeof calendar;
-  }
-}
 
 /* ------------------------------------------------------------- the settings read ------------------------------------------------------------- */
 
@@ -44,27 +44,30 @@ export const setupNow = () => surfaceValue("setup");
 
 /* --------------------------------------------------------------- the workspace --------------------------------------------------------------- */
 
-export const workspacesNow = () => window.__WORKSPACES;
-export const activeWorkspaceNow = () => window.__ACTIVE_WORKSPACE;
-export const workspaceApi = () => window.__workspace;
-export const tzApi = () => window.__tz;
+export const workspacesNow = () => whoIsLooking().workspaces;
+export const activeWorkspaceNow = () => whoIsLooking().activeWorkspaceId;
+export const workspaceApi = () => provided("workspace");
+/** A zone's words, contracts': the tab's hours and its zone picker. */
+const TZ_WORDS: TzApi = {
+  words: timezoneWords,
+  city: timezoneCity,
+  known: knownTimezones,
+  device: usableDeviceTimezone,
+  also: zoneSearchWords,
+};
+export const tzApi = () => TZ_WORDS;
 
 /* ---------------------------------------------------------------- the calendar --------------------------------------------------------------- */
 
 /** The Calendar's read, from its surface: undefined before it (a window mirror, `__CALENDAR`, until 12 Nov 2026). */
 export const calendarNow = () => surfaceValue("calendar");
-export const calendarApi = () => window.__calendar;
+export const calendarApi = () => provided("calendar");
 
 /* -------------------------------------------------------- the frame's status and words -------------------------------------------------------- */
 
-export const surfaceFailedFn = () => window.__surfaceFailed;
-export const chromeWords = () => window.__chrome;
+export const surfaceFailedFn = () => provided("surfaceFailed");
+export const chromeWords = () => provided("chrome");
 
-/* ------------------------------------------- the save the bridge publishes ------------------------------------------- */
+/* -------------------------------------------- the save the bridge provides -------------------------------------------- */
 
-export const saveSettingsFn = () => window.__saveSettings;
-
-/* ------------------------------------------------------------------ the log ------------------------------------------------------------------ */
-
-/** The page's console, as the JSX reached it (`window.console`): a stand-in window may have none. */
-export const pageConsole = () => window.console;
+export const saveSettingsFn = () => provided("saveSettings");

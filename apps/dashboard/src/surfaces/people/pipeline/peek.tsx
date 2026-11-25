@@ -38,6 +38,7 @@ import { dealBody, type Compose, type DealSheetCtx } from "./peek-parts";
 import { P } from "./pipe";
 import { useRowAboveSheet } from "./row-above-sheet";
 import type { Flash } from "../types";
+import { pageReport } from "@/client/page-report";
 
 /** The record sheets a press here opens (deal-sheet.tsx, step-sheet.tsx): while one is up, a phone's sheet stands aside. */
 const TAKES_OVER = new Set<unknown>(["deal-sheet", "step-sheet"]);
@@ -89,7 +90,7 @@ function sheetOf(row: PipelineRowVM | null, person: PersonVM | null): PipelineSh
     const p = person ? dealPersonOf(person, row.person) : null;
     return P.sheet(row, p, Date.now(), pageClock().zone());
   } catch (err) {
-    console.error("The deal sheet could not say this deal.", err);
+    pageReport.error("The deal sheet could not say this deal.", err);
     return null;
   }
 }

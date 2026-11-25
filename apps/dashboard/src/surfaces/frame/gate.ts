@@ -3,14 +3,15 @@
  * onto a committing control's opening tag AFTER its handlers. Allowed -> {}. Denied -> the control stays on the page and
  * in the tab order, says why on hover, on focus and when pressed, and does nothing. It used to return `disabled` and a
  * `title`: a disabled button takes no focus and fires no hover, so the reason reached no keyboard, no finger and most
- * pointers (A7). The words are contracts' (refusal.ts roleGate, through the bridge): the same no the server's refusal
+ * pointers (A7). The words are contracts' (refusal.ts roleGate, imported): the same no the server's refusal
  * gives after a press. `doing` names what this control does where the permission's own words would mislead -- snoozing
  * is an `approve` act. Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
  *
- * Each reads the role store (identity.ts), the gate's words and the tip off the window when it is asked, as the JSX did: a
- * test stands in for any of them there, until the gates are imported everywhere (the one-system plan, step 9).
+ * Each reads the role store (identity.ts) off the window and the tip from the bridge's store (provided.ts) when it is
+ * asked, as the JSX did: a test stands in for either, until the gates are imported everywhere (the one-system plan, step 9).
  */
-import type { Role } from "@chanlytics/contracts";
+import { roleGate, type Role } from "@chanlytics/contracts";
+import { provided } from "@/bridge/provided";
 import type { GateProps } from "../frame-verbs";
 
 /** Whether the role acting may do a permission's act: with no role store, it may. */
@@ -27,13 +28,11 @@ export const mayAtLeast = (rung: string): boolean => {
 
 /** Why the role acting may not do it, in contracts' words. */
 export const gateTitle = (a: string, doing?: string): string => {
-  const said = window.__roleGate
-    ? window.__roleGate(
-        window.ST_STORE ? window.ST_STORE.myRole() : "viewer",
-        a as Parameters<typeof window.__roleGate>[1],
-        doing,
-      )
-    : null;
+  const said = roleGate(
+    window.ST_STORE ? window.ST_STORE.myRole() : "viewer",
+    a as Parameters<typeof roleGate>[1],
+    doing,
+  );
   return said ? said.reason : "Your role can't do this.";
 };
 
@@ -46,7 +45,7 @@ export const gatedProps = (reason: string): GateProps => {
   const refuse = (e: { preventDefault: () => void; stopPropagation: () => void; currentTarget: Element }) => {
     e.preventDefault();
     e.stopPropagation();
-    if (window.__tip) window.__tip.show(e.currentTarget);
+    provided("tip")?.show(e.currentTarget);
   };
   return {
     disabled: false,

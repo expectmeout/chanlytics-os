@@ -3,7 +3,7 @@
  *
  * Leads kept both in two slots of its own, and every other page kept nothing: a refresh, or a trip to another page,
  * lost the Inbox's search, a list's scroll, a reply half-written. This is the one store for any page with a place or
- * a draft worth keeping (the loading standard's F and G), published as `window.__tabMemory` before the pages mount.
+ * a draft worth keeping (the loading standard's F and G), provided as `tabMemory` (provided.ts) before the pages mount.
  *
  * - The TAB's storage (sessionStorage), never the device's: a front desk's computer is shared, and the next person
  *   on it must not inherit the last one's words. A refresh and a trip to another page keep it; closing the tab and
@@ -17,6 +17,7 @@
  */
 import { pathWorkspace } from "./workspace";
 import { HOUR_MS } from "@chanlytics/contracts";
+import { provide } from "./provided";
 
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
@@ -111,9 +112,13 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
   };
 }
 
-/** The pages' one store, on the window they read it from. */
+/** The pages' one store, provided for them (provided.ts); and on the window, for the record kit, which reads it there still. */
 export function installTabMemory(win: WindowLike = window, opts: { now?: () => number } = {}): void {
-  win.__tabMemory = tabMemoryFor(win, opts);
+  const memory = tabMemoryFor(win, opts);
+  provide("tabMemory", memory);
+  // The record kit's one read off the window (kit/record/shell-verbs.ts `tabMemory`, the kit lane's file): a line to delete
+  // the day it reads the store.
+  win.__tabMemory = memory;
 }
 
 /** Everything the tab kept for its pages: at sign-out, with the surface cache (surface-cache.ts clearSurfaceCache). */
@@ -129,6 +134,7 @@ export function clearTabMemory(
 
 declare global {
   interface Window {
+    /** The record kit's read of the tab's memory (kit/record/shell-verbs.ts), until it reads the store. */
     __tabMemory?: TabMemory;
   }
 }

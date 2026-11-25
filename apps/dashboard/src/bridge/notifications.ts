@@ -30,7 +30,7 @@
  *   - this browser's alerts are one switch (Settings › Notifications, decision 0137), this browser's by definition:
  *     surfaces/browser-alerts.ts, which this keeps the page's own alert's answer for.
  *
- * Published to the mockup's top bar as window.__notifs.
+ * Provided to the frame's top bar as `bell` (provided.ts).
  */
 import {
   ALERT_KINDS,
@@ -48,7 +48,6 @@ import {
   type NotificationReadState,
   type NotificationRow,
   type NotificationsDto,
-  type ReachOutRepliesDto,
   SERVER_KEY_PREFIX,
   type WhatWaits,
   keptUnreadOf,
@@ -64,6 +63,9 @@ import {
 import { bellActionOf } from "@/surfaces/campaigns/reach-out/reply-today";
 import { bellFeed, holdMarksOf, bellOlderOf } from "@/bridge/surfaces/hold-rows";
 import { surfaceValue } from "../surfaces/surface-values";
+import { heldRead } from "./held-reads";
+import { provide } from "./provided";
+import { whoIsLooking } from "./who";
 import { approvalDaysNow } from "../surfaces/campaigns/broadcasts/when-words";
 import { api as client, serversClockOf } from "./api";
 import { webPushCan, webPushOn, webPushTurnOff, webPushTurnOn } from "./ask/web-push";
@@ -110,14 +112,12 @@ interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-interface Globals {
-  INBOX_DATA?: { THREADS?: FeedThread[] };
-  __LIVE?: FeedLive;
-  /** The kept rows, from the notifications surface. */
-  __NOTIFICATIONS?: { dto: NotificationsDto } | null;
-  /** The workspace's id, as the server decided it. The marks are keyed by it: the slug is an address, and addresses change. */
-  __ACTIVE_WORKSPACE?: string;
-}
+/** The Inbox's threads, as its read holds them (surfaces/inbox/surface.ts); none before that read. */
+const threadsHeld = (): readonly FeedThread[] | undefined => surfaceValue("inbox")?.THREADS;
+/** The calls going on and the last few, as Live's read holds them (surfaces/live/surface.ts); none before that read. */
+const callsHeld = (): FeedLive | undefined => surfaceValue("live");
+/** The kept rows, as the notifications read holds them (held-reads.ts); none before it. */
+const noticesHeld = (): NotificationsDto | undefined => heldRead("notifications")?.dto;
 
 /**
  * The open invitations, as the settings read holds them (the settings surface's `invites`, bridge/surfaces/settings.ts):
@@ -135,12 +135,12 @@ const sourceOfKey = (key: string): FeedSource =>
   key.startsWith("call:") ? "calls" : key.startsWith("invite:") ? "invites" : "threads";
 
 /**
- * Which sources the browser has read. The Inbox's threads are its read's alone, published under INBOX_DATA as it lands: a real
+ * Which sources the browser has read. The Inbox's threads are its read's alone, held by the seam as it lands: a real
  * session holds no seeded thread there before it (the wiring's second audit, X6-1), so a thread list there is a read.
  */
-const loadedSources = (g: Globals): Record<FeedSource, boolean> => ({
-  threads: Array.isArray(g.INBOX_DATA?.THREADS),
-  calls: !!g.__LIVE,
+const loadedSources = (): Record<FeedSource, boolean> => ({
+  threads: Array.isArray(threadsHeld()),
+  calls: !!callsHeld(),
   invites: Array.isArray(invitesHeld()),
 });
 
@@ -338,11 +338,11 @@ export function writeState(
   }
 }
 
-/** The feed from the globals, before this device's read state. */
-export function feedFromGlobals(g: Globals, now: number) {
+/** The feed the browser derives from the reads it holds, before this device's read state. */
+export function derivedFeedNow(now: number) {
   return buildNotificationFeed({
-    threads: g.INBOX_DATA?.THREADS ?? null,
-    calls: bellCalls(g.__LIVE),
+    threads: threadsHeld() ?? null,
+    calls: bellCalls(callsHeld()),
     invites: invitesHeld() ?? null,
     now,
   });
@@ -350,7 +350,7 @@ export function feedFromGlobals(g: Globals, now: number) {
 
 export function toRows(rows: Array<NotificationRow & { in_need_you?: boolean }>, now: number): BellRow[] {
   // A reply to a reach-out whose draft waits says so on its row's door (Reach out Part 5, PR 8; contracts bellActionOf).
-  const readings = (globalThis as { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
+  const readings = heldRead("reach_out_replies")?.replies ?? [];
   return rows.map((r) => ({
     id: r.key,
     kind: r.kind,
@@ -435,8 +435,8 @@ function readGroup(
 }
 
 /** The phone app's icon: the kept rows' unread, less the ones the surfaces settle now (contracts settledNoticeIds). */
-const keptUnreadIn = (win: Window & Globals, seenMs: number): number =>
-  keptUnreadOf(win.__NOTIFICATIONS?.dto, seenMs, settledNoticeIds(win.__NOTIFICATIONS?.dto, whatWaits()));
+const keptUnreadIn = (seenMs: number): number =>
+  keptUnreadOf(noticesHeld(), seenMs, settledNoticeIds(noticesHeld(), whatWaits()));
 
 /**
  * Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
@@ -445,14 +445,14 @@ const keptUnreadIn = (win: Window & Globals, seenMs: number): number =>
  * already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
  * Hears each of the feed's events, says the bell changed (`emit`) and wakes the device for what is new.
  */
-function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => void): void {
+function hearFeed(win: Window, alertsOn: () => boolean, emit: () => void): void {
   const known = new Map<FeedSource, ReadonlySet<string>>();
   // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
   // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
   // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
   let knownKept: Set<string> | null = null;
   const freshKept = (): NotificationItem[] => {
-    const dto = win.__NOTIFICATIONS?.dto;
+    const dto = noticesHeld();
     if (!dto) return [];
     const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
     const keys = new Set(rows.map((r) => r.key));
@@ -461,8 +461,8 @@ function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => vo
     return out;
   };
   const tell = () => {
-    const items = feedFromGlobals(win, Date.now());
-    const loaded = loadedSources(win);
+    const items = derivedFeedNow(Date.now());
+    const loaded = loadedSources();
     const fresh: NotificationItem[] = [];
     for (const source of FEED_SOURCES) {
       if (!loaded[source]) continue;
@@ -483,7 +483,7 @@ function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => vo
  * executed in a test without a browser, and `retryMs` so a failed write's second try does not hold a test two seconds.
  */
 export function installNotifications(
-  win: Window & Globals = window,
+  win: Window = window,
   storage: StorageLike | null = safeStorage(),
   retryMs: number = MARK_RETRY_MS,
 ): BellApi {
@@ -491,7 +491,7 @@ export function installNotifications(
   const emit = () => listeners.forEach((cb) => cb());
   // The workspace's id when the server has said which; the address's slug
   // only before it has. A store keyed by the slug was orphaned by a rename.
-  const ws = () => win.__ACTIVE_WORKSPACE ?? getActiveWorkspace();
+  const ws = () => whoIsLooking().activeWorkspaceId ?? getActiveWorkspace();
   const state = () => readState(storage, ws());
   /**
    * The "seen everything" moment as the server has it, or this device's own
@@ -499,11 +499,11 @@ export function installNotifications(
    * not landed. Two devices read the same server value, so after Mark all
    * read on one the badge is the same number on both.
    */
-  const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
+  const seenAt = () => Math.max(state().seenAt, Date.parse(noticesHeld()?.seen_at ?? "") || 0);
   // How far the member has read: the server's, or a press this tab just made (surfaces/read-through.ts).
   const through = readThroughOf(win);
   // The unread kept rows the bell does not list, less the holds it draws itself (contracts bellOlderOf; S6-10).
-  const older = () => bellOlderOf(win.__NOTIFICATIONS?.dto, seenAt(), rows());
+  const older = () => bellOlderOf(noticesHeld(), seenAt(), rows());
   const deviceState = (): NotificationReadState => ({ ...state(), seenAt: seenAt() });
   /**
    * Marks for rows that have left the feed go, once the source that would
@@ -512,8 +512,8 @@ export function installNotifications(
    * hundred on read, oldest first, which is a mark lost at random.
    */
   const prune = (s: NotificationReadState): NotificationReadState => {
-    const live = new Set(feedFromGlobals(win, Date.now()).map((i) => i.key));
-    const loaded = loadedSources(win);
+    const live = new Set(derivedFeedNow(Date.now()).map((i) => i.key));
+    const loaded = loadedSources();
     const keep = (k: string) => live.has(k) || !loaded[sourceOfKey(k)];
     return { ...s, read: s.read.filter(keep), dismissed: s.dismissed.filter(keep) };
   };
@@ -526,7 +526,7 @@ export function installNotifications(
   // newest first.
   // A kept row that names its customer by number takes their name when the Inbox or the calls here know it.
   const named = <T extends NotificationRow>(list: T[]): T[] =>
-    nameKnownCustomers(list, win.INBOX_DATA?.THREADS, bellCalls(win.__LIVE));
+    nameKnownCustomers(list, threadsHeld(), bellCalls(callsHeld()));
   // One row for one hold (contracts bellFeed): the row the browser derives carries the marks of the notice the edge kept.
   // A kept row whose subject no longer waits (a run approved, a booking email dismissed, a review answered) reads as read, from what
   // the surfaces hold (whatWaits).
@@ -534,7 +534,7 @@ export function installNotifications(
   const rows = () => {
     const waits = whatWaits();
     const feed = bellFeed({
-      derived: feedFromGlobals(win, Date.now()),
+      derived: derivedFeedNow(Date.now()),
       device: deviceState(),
       kept: through.kept(),
       waits,
@@ -553,7 +553,7 @@ export function installNotifications(
   // A mark on a row the server keeps -- a kept row, or the derived row of a hold the edge has kept -- goes there; false for
   // any other, whose marks are this device's.
   const markOnServer = (key: string, patch: { read: true } | { dismissed: boolean }): boolean => {
-    const ids = serverIdsOf(key, win.__NOTIFICATIONS?.dto);
+    const ids = serverIdsOf(key, noticesHeld());
     for (const id of ids) void mark({ id, ...patch });
     return ids.length > 0;
   };
@@ -583,7 +583,7 @@ export function installNotifications(
       readAllOf({
         rows: rows(),
         older: older(),
-        dto: win.__NOTIFICATIONS?.dto,
+        dto: noticesHeld(),
         lookedAt: state().seenAt,
         through,
         attempt,
@@ -591,14 +591,14 @@ export function installNotifications(
         seenAll: () => api.seenAll(),
         emit,
       }),
-    keptUnread: () => keptUnreadIn(win, seenAt()),
+    keptUnread: () => keptUnreadIn(seenAt()),
     read: (key) => {
       if (!markOnServer(key, { read: true })) save({ read: [...new Set([...state().read, key])] });
     },
     readMany: (keys) =>
       readGroup(
         keys,
-        win.__NOTIFICATIONS?.dto,
+        noticesHeld(),
         (ids) => void mark({ ids, read: true }),
         (here) => save({ read: [...new Set([...state().read, ...here])] }),
       ),
@@ -611,7 +611,7 @@ export function installNotifications(
     alerts: device.alerts,
     setAlerts: device.setAlerts,
     readWhere: (match) => {
-      for (const n of win.__NOTIFICATIONS?.dto?.notifications ?? []) {
+      for (const n of noticesHeld()?.notifications ?? []) {
         if (n.read || n.dismissed || !n.subject_type || !n.subject_id) continue;
         if (match({ kind: n.kind, about: { type: n.subject_type, id: n.subject_id } }))
           void mark({ id: n.id, read: true });
@@ -623,14 +623,9 @@ export function installNotifications(
     },
     sections: (list) => bellSections(list, older()),
   };
-  (win as Window & { __notifs?: BellApi }).__notifs = api;
-  installed = api;
+  provide("bell", api);
   return api;
 }
-
-/** The bell this tab installed, for a module that marks its rows (google.ts, a review answered); null before it is installed. */
-let installed: BellApi | null = null;
-export const bellNow = (): BellApi | null => installed;
 
 function safeStorage(): StorageLike | null {
   try {

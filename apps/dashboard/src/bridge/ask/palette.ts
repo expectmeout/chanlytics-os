@@ -54,7 +54,8 @@ import { needsYouParts } from "@/surfaces/needs-you";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { pageClock } from "@/bridge/zone";
 import { focusAsDrawn } from "@/surfaces/frame-verbs";
-import { feedFromGlobals } from "../notifications";
+import { derivedFeedNow } from "../notifications";
+import { currentWorkspace, whoIsLooking } from "../who";
 import { pageSpecs } from "../verbs/commit";
 import type { Workspace } from "../surface-data";
 
@@ -73,31 +74,6 @@ interface Run {
   name: string;
   /** The sequence it is a day of, which its home is under (contracts runRoute). */
   sequence_id?: string | null;
-}
-
-export interface PaletteGlobals {
-  INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; move?: { list: string } }> };
-  /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
-  __LIVE?: FeedLive;
-  __PEOPLE?: { rows?: Array<{ id: string; name: string }>; hasDeals?: boolean } | null;
-  __WORKSPACES?: Workspace[];
-  __ACTIVE_WORKSPACE?: string | null;
-  /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
-  __ME?: { role?: string | null; platform_admin?: boolean } | null;
-  /** Today's view model: its queue is who is waiting on you (every surface starts at boot, FrameApp.tsx). */
-  TODAY_DATA?: {
-    queue?: {
-      rows?: Array<
-        Pick<
-          TodayQueueRowVM,
-          "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
-        >
-      >;
-    };
-    /** The threads' part of what waits on you: the holds, and the replies counting down (which have no row). */
-    needsYou?: { count: number; holds?: number; sends?: number } | null;
-  } | null;
-  __BROADCASTS?: { rows?: Run[] } | null;
 }
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
@@ -144,13 +120,12 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
  * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline and Forms everywhere; Ads
  * where it is drawn; the back office for staff, the bit Settings' rail draws by), then the threads, people and calls the browser holds.
  */
-export function jumpIndexFrom(win: Window): JumpEntry[] {
-  const w = win as Window & PaletteGlobals;
+export function jumpIndexFrom(): JumpEntry[] {
   const out: JumpEntry[] = askPages({
-    platformAdmin: !!w.__ME?.platform_admin,
+    platformAdmin: !!whoIsLooking().me?.platform_admin,
     ads: adsShownIn(surfaceValue("settings")),
   });
-  for (const t of w.INBOX_DATA?.THREADS ?? []) {
+  for (const t of surfaceValue("inbox")?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({
       label: `${t.who} — thread`,
@@ -159,8 +134,9 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
       sub: t.move?.list === "escalated" ? "needs you" : undefined,
     });
   }
-  for (const p of w.__PEOPLE?.rows ?? []) out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
-  for (const c of bellCalls(w.__LIVE)) {
+  for (const p of surfaceValue("people")?.rows ?? [])
+    out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
+  for (const c of bellCalls(surfaceValue("live"))) {
     out.push({ label: `${c.who} — call`, to: `conversations/cv-${c.callId}`, kind: "call", sub: callJumpSub(c) });
   }
   return out;
@@ -190,8 +166,8 @@ const askRowOf = (
  * Null until Today's queue has been read: nobody is claimed to be waiting.
  */
 export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()): AskWaiting | null {
-  const w = win as Window & PaletteGlobals;
-  const queue = w.TODAY_DATA?.queue;
+  const today = surfaceValue("today");
+  const queue = today?.queue;
   if (!queue) return null;
   const rows = queue.rows ?? [];
   const people = rows.filter(isHoldRow).map(askRowOf);
@@ -199,9 +175,9 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
   const searches = rows
     .filter((r) => r.kind === "search")
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
-  const threadsWaiting = parts ? parts.holds + parts.sends : (w.TODAY_DATA?.needsYou?.count ?? people.length);
+  const threadsWaiting = parts ? parts.holds + parts.sends : (today?.needsYou?.count ?? people.length);
   // A run waiting for approval, or a going one whose emails the check holds (the count's own rule, runWaitsOnYou).
-  const pending = (w.__BROADCASTS?.rows ?? []).filter(
+  const pending = (surfaceValue("broadcasts")?.rows ?? []).filter(
     (r) => r.state === "pending_approval" || runHeldEmails(r) > 0 || runDraftedEmails(r) > 0,
   );
   // The business's days, by this window's clock, asked only over runs to judge.
@@ -242,7 +218,6 @@ function campaignsRead() {
 }
 
 export function askPalette(win: Window, storage: Storage | null) {
-  const w = win as Window & PaletteGlobals;
   const rememberLanguage = (l: AskLanguage) => {
     if (l === "other") return;
     try {
@@ -258,13 +233,9 @@ export function askPalette(win: Window, storage: Storage | null) {
       return "en";
     }
   };
-  const activeWorkspace = (): Workspace | null => {
-    const id = w.__ACTIVE_WORKSPACE ?? null;
-    return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? null;
-  };
   // Every call Live holds, each once: the page's recent few are not all of today's (Live's missedCalls is uncapped).
-  const calls = () => bellCalls(w.__LIVE);
-  const timezone = () => activeWorkspace()?.timezone ?? null;
+  const calls = () => bellCalls(surfaceValue("live"));
+  const timezone = () => currentWorkspace()?.timezone ?? null;
   const language = (text?: string): AskLanguage => {
     if (!text) return lastLanguage();
     const l = detectLanguage(text);
@@ -272,8 +243,8 @@ export function askPalette(win: Window, storage: Storage | null) {
   };
   const waiting = () => waitingFrom(win);
   return {
-    jumpIndex: () => jumpIndexFrom(win),
-    jump: (query: string) => askJump(query, jumpIndexFrom(win)),
+    jumpIndex: () => jumpIndexFrom(),
+    jump: (query: string) => askJump(query, jumpIndexFrom()),
     waiting,
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
@@ -285,7 +256,7 @@ export function askPalette(win: Window, storage: Storage | null) {
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
-      const feed = feedFromGlobals(w, Date.now());
+      const feed = derivedFeedNow(Date.now());
       const who = waiting();
       // The business's today: a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
       const tz = timezone();
@@ -302,9 +273,9 @@ export function askPalette(win: Window, storage: Storage | null) {
         hasCalendar: calendarFeedKeyOf(surfaceValue("settings")?.settings?.config) !== null,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
-        canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,
+        canAct: !!ROLE_PERMS[whoIsLooking().me?.role as keyof typeof ROLE_PERMS]?.approve,
         // People's surface says whether a deal was ever recorded here; until it does, the question is not offered.
-        hasDeals: !!w.__PEOPLE?.hasDeals,
+        hasDeals: !!surfaceValue("people")?.hasDeals,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (surfaceValue("leads")?.suggestions?.items ?? []).map((i) => i.ask || i.words),
         leadSearches: (surfaceValue("leads")?.searches ?? []).map((s) => s.asked),
@@ -313,9 +284,9 @@ export function askPalette(win: Window, storage: Storage | null) {
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),
         // On Campaigns' Ads page, as the page says it: its chips are about ads.
-        onAds: askOnScreenOf(w)?.key === "ads",
+        onAds: askOnScreenOf(win)?.key === "ads",
         // On Campaigns › Content: Ask's three ideas of what it can make, the video only where the workspace takes videos.
-        onContent: askOnScreenOf(w)?.key === "content",
+        onContent: askOnScreenOf(win)?.key === "content",
         videos: videoPreviewOf(surfaceValue("settings")?.settings?.config),
       });
     },

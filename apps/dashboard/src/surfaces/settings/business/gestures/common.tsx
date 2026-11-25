@@ -27,7 +27,7 @@ import type { useRecordFold } from "../../../kit/record/hooks";
 import type { GateProps, FrameFlash } from "../../../frame-verbs";
 import { businessTabSave } from "../saver";
 import type { BusinessTabSave } from "../saver";
-import { pageConsole } from "../shell";
+import { pageReport } from "@/client/page-report";
 
 /** A toast, as the tab's cards hand it down (usePPToast's). */
 export type Flash = (flash: FrameFlash) => void;
@@ -68,8 +68,7 @@ export const btWorkedOut = <T,>(what: string, fn: () => T, otherwise: T | null =
   try {
     return fn();
   } catch (err) {
-    const log = pageConsole();
-    if (log) log.error(`Settings › Business could not work out ${what}.`, err);
+    pageReport.error(`Settings › Business could not work out ${what}.`, err);
     return otherwise;
   }
 };

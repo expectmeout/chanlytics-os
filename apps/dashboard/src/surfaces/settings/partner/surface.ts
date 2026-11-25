@@ -40,6 +40,8 @@ import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@
 import { windowObject, windowValue } from "../../frame-verbs";
 import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
+import { provided } from "@/bridge/provided";
+import { whoIsLooking } from "@/bridge/who";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;
@@ -136,10 +138,9 @@ function publish(value: PartnerSurface): void {
   window.dispatchEvent(new Event("surface:partner"));
 }
 
-/** The workspaces on the switcher (the workspace surface's rows); none where the shell has none. */
-function workspaceRows(): Workspace[] {
-  const list = windowValue("__WORKSPACES");
-  return Array.isArray(list) ? (list as Workspace[]) : [];
+/** The workspaces on the switcher (who.ts); none before the workspace read. */
+function workspaceRows(): readonly Workspace[] {
+  return whoIsLooking().workspaces ?? [];
 }
 
 const brought = (): number => workspaceRows().filter((w) => w.role === "partner").length;
@@ -218,7 +219,7 @@ export const partnerVerbs: PartnerApi = {
     return { ok: true, sent: r.data.sent };
   },
   open(tenantId) {
-    windowObject<{ switchWorkspace?: (id: string) => void }>("__shell")?.switchWorkspace?.(tenantId);
+    provided("shell")?.switchWorkspace(tenantId);
   },
   inviteWords: PARTNER_INVITE_WORDS,
   async invitations() {

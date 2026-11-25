@@ -24,14 +24,7 @@ import {
 } from "react";
 import { frameDrawn, hearPartReady, installPageSpeed, type SpeedShell } from "@/client/page-speed";
 import { askOwnRoute } from "@/client/own-route";
-import {
-  FIRST_RUN_ROUTE,
-  LIFECYCLE_WORDS,
-  MIN_MS,
-  type PendingWorkspace,
-  type Theme,
-  type LookPref,
-} from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, LIFECYCLE_WORDS, MIN_MS, type Theme, type LookPref } from "@chanlytics/contracts";
 // The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
 import { authErrorInHash } from "@/auth/hash-error";
 import { paintThemeColor } from "./theme-color";
@@ -125,7 +118,9 @@ import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
-import { type OpenHandoverDto, PRIMARY_PART, valueAt, vitalsPageOf } from "@chanlytics/contracts";
+import { PRIMARY_PART, valueAt, vitalsPageOf } from "@chanlytics/contracts";
+import { whoIsLooking } from "./who";
+import { provide } from "./provided";
 import { publicEnv } from "@/lib/public-env";
 
 /**
@@ -394,6 +389,7 @@ import {
 import { drawComing, pageDrawn } from "./hearing/page-waits";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 import { SeeOverMount } from "@/surfaces/see/see-mount";
+import { pageReport } from "@/client/page-report";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -410,11 +406,10 @@ installRouteGate();
  * FailedRead presses this; a whole-page reload was the Team card's way.
  */
 function installSurfaceRefresh(): void {
-  const w = window as Window & { __refreshSurface?: (key: string) => Promise<void> };
-  w.__refreshSurface = async (key) => {
+  provide("refreshSurface", async (key) => {
     const o = SURFACES.find((s) => s.key === key);
     if (o) await refreshSurfaces([o]);
-  };
+  });
 }
 installSurfaceRefresh();
 /**
@@ -437,7 +432,7 @@ installSurfaceRefresh();
 function installAuthHashScrub(): void {
   const refused = authErrorInHash(window.location.hash);
   if (!refused) return;
-  console.warn("oauth_provider_refused", JSON.stringify(refused));
+  pageReport.warn("oauth_provider_refused", JSON.stringify(refused));
   window.history.replaceState(null, "", window.location.pathname + window.location.search);
 }
 installAuthHashScrub();
@@ -516,7 +511,7 @@ function SpeedFrame({ route }: { route: string | null }) {
 }
 
 /** The workspaces this account may open, as the workspace's read last said. */
-const listedWorkspaces = (): Workspace[] => (window as Window & { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
+const listedWorkspaces = (): readonly Workspace[] => whoIsLooking().workspaces ?? [];
 
 /**
  * The shell as an element kept until one of its props changes, its callbacks made once: FrameApp draws again when the
@@ -596,7 +591,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   // no other surface's (the pages hear their own).
   useSurface("workspace");
   const allWorkspaces = listedWorkspaces();
-  const me = (window as Window & { __ME?: { email?: string | null; handovers?: OpenHandoverDto[] } }).__ME;
+  const { me } = whoIsLooking();
   const handover = useHandoverAsk(isSurfaceReady("workspace"), me?.handovers);
   // What the shell alone knows — the connection, the live feed, a newer
   // build, surfaces that stopped refreshing — goes to the line under the top
@@ -694,11 +689,9 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   if (isSurfaceReady("workspace") && allWorkspaces.length === 0) {
     // What sign-up kept: the name and clock they typed before the code, so
     // the first workspace is one press rather than the same form twice.
-    const pending = (window as Window & { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
-    // The door this first workspace meets -- the invite code, or the list --
+    // And the door this first workspace meets -- the invite code, or the list --
     // for an account that arrived through Google and never saw the sign-up form.
-    const posture =
-      (window as Window & { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
+    const { pending, posture } = whoIsLooking();
     return (
       <CreateWorkspace
         email={email}
@@ -706,7 +699,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
         posture={posture}
         onCreated={(w) => {
           // switchWorkspace persists the choice and re-runs every surface, so the new workspace is the one the app
-          // opens on, on its first run (#/start). By its slug: it is not in __WORKSPACES yet, and by id it boots twice.
+          // opens on, on its first run (#/start). By its slug: it is not in the list yet, and by id it boots twice.
           switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`);
         }}
       />

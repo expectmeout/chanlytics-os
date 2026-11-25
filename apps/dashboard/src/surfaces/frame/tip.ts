@@ -1,10 +1,19 @@
 /**
  * The tip (moved from legacy/components/data-bits.jsx, the one-system plan's step 2): one styled tooltip for every
  * [data-tip] element, on hover and on keyboard focus. A pressed gate shows its reason at once, at the control (a tap has no
- * hover): `window.__tip.show(el)`. Under a finger a tip goes after a plain toast's 3 s, and focus shows one to a keyboard
- * alone: a tapped tip stood until the next tap (Ruben, 18 Oct 2026). Installed once, where the page loads (frame-globals.ts),
- * and published as `__tip`, which a gate's press and the record kit's marks ask for there.
+ * hover): the provided `tip`'s `show(el)`. Under a finger a tip goes after a plain toast's 3 s, and focus shows one to a
+ * keyboard alone: a tapped tip stood until the next tap (Ruben, 18 Oct 2026). Installed once, where the page loads
+ * (frame-globals.ts), and provided as `tip` (bridge/provided.ts), which a gate's press asks for; the record kit's marks ask
+ * for it on the window still (kit/record/shell-verbs.ts), until they read the store.
  */
+import { provide, provided } from "@/bridge/provided";
+
+declare global {
+  interface Window {
+    /** The tip, as the record kit's marks still read it (kit/record/shell-verbs.ts), until they read the store. */
+    __tip?: { show: (el: Element) => void };
+  }
+}
 
 const TIP_TOUCH_MS = 3000;
 const SHOW_MS = 280;
@@ -16,7 +25,7 @@ const GAP = 8;
 
 /** Put the one tip on the page, once; a tip already there (a test's) is kept. */
 export function installTip(): void {
-  if (window.__tip) return;
+  if (provided("tip")) return;
   let node: HTMLDivElement | null = null;
   let showT: ReturnType<typeof setTimeout> | undefined;
   let hideT: ReturnType<typeof setTimeout> | undefined;
@@ -106,7 +115,7 @@ export function installTip(): void {
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hide();
   });
-  window.__tip = {
+  const tip = {
     show: (t: Element) => {
       if (!t || !t.getAttribute || !t.getAttribute("data-tip")) return;
       cur = t;
@@ -115,4 +124,8 @@ export function installTip(): void {
       place(t);
     },
   };
+  provide("tip", tip);
+  // The record kit's marks read it off the window (kit/record/shell-verbs.ts, the kit lane's file): a line to delete the
+  // day they read the store.
+  window.__tip = tip;
 }

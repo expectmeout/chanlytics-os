@@ -1,14 +1,15 @@
 /**
  * Who is signed in and which workspace is on screen, as the sidebar says them (moved from legacy/components/sidebar.jsx,
- * the one-system plan's step 7b). Every word about a person comes from contracts' identity rules through the bridge
- * (`__identity`); the workspace is the one being viewed (`__ACTIVE_WORKSPACE`), never the first on the list. Signed in
- * with no identity yet, the sidebar says so rather than borrow someone else's name.
+ * the one-system plan's step 7b). Every word about a person comes from contracts' identity rules, imported; the workspace is the one being viewed (who.ts), never the first on the list. Signed in with no identity
+ * yet, the sidebar says so rather than borrow someone else's name.
  */
 import type { SyntheticEvent } from "react";
-import { identityWords } from "@chanlytics/contracts";
+import { identityWords, workspaceInitials } from "@chanlytics/contracts";
+import type { Workspace } from "@/bridge/surface-data";
+import { currentWorkspace, whoIsLooking } from "@/bridge/who";
 
 /** A workspace as the switcher draws it: the workspace read's row (bridge/surface-data.ts). */
-type SbWorkspace = NonNullable<Window["__WORKSPACES"]>[number] & {
+type SbWorkspace = Workspace & {
   name?: string;
   logo_url?: string | null;
   role?: string | null;
@@ -24,27 +25,25 @@ export interface SbWho {
 }
 
 /** The workspaces this account belongs to, as the workspace read wrote them. */
-export const sbWorkspaces = (): SbWorkspace[] => window.__WORKSPACES || [];
+export const sbWorkspaces = (): readonly SbWorkspace[] => whoIsLooking().workspaces ?? [];
 /** Whether the workspace read has written them yet (an empty list is a list). */
-export const sbWorkspacesRead = (): boolean => !!window.__WORKSPACES;
+export const sbWorkspacesRead = (): boolean => !!whoIsLooking().workspaces;
 
-// The workspace being VIEWED, not the first one alphabetically: every data surface and Settings resolve by
-// __ACTIVE_WORKSPACE, and a boot that has not resolved it yet shows "Workspace" until it has.
-export const sbWorkspace = (): SbWorkspace | null =>
-  sbWorkspaces().find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
+// The workspace being VIEWED, not the first one alphabetically: every data surface and Settings resolve by the
+// workspace the read resolved (who.ts), and a boot that has not resolved it yet shows "Workspace" until it has.
+export const sbWorkspace = (): SbWorkspace | null => currentWorkspace();
 
 export const sbWorkspaceName = (): string => {
   const ws = sbWorkspace();
   return ws && ws.name ? ws.name : "Workspace";
 };
 
-/** A workspace's initials: contracts' one rule (workspaceInitials), which the bridge publishes as __identity.workspace. */
-const sbMarkOf = (n: string | undefined) =>
-  window.__identity && window.__identity.workspace ? window.__identity.workspace(n) : "—";
+/** A workspace's initials: contracts' one rule (workspaceInitials). */
+const sbMarkOf = (n: string | undefined) => workspaceInitials(n);
 
 /** Each workspace's own role beside it (0012): a partner's list says which are theirs and which they brought. */
 export const sbWorkspaceRole = (w: { role?: string | null }, current: boolean, role: string) =>
-  w.role && window.__identity ? window.__identity.words({ email: null, role: w.role }).role : current ? role : null;
+  w.role ? identityWords({ email: null, role: w.role }).role : current ? role : null;
 
 /** A picture that does not load stands aside, and the initials under it show again (the kit Face's rule). */
 const sbLogoGone = (e: SyntheticEvent<HTMLImageElement>) => {
@@ -88,8 +87,8 @@ const SB_NOBODY: SbWho = { name: "Your account", email: "Signed in", initials: "
 // The person, in the words contracts' identity rules give: the name they gave, else "Your account", never a name invented
 // from the email. Signed in with no identity yet, we say so.
 export const sbWho = (): SbWho => {
-  const me = window.__ME || null;
+  const { me } = whoIsLooking();
   if (!me) return SB_NOBODY;
-  const w = window.__identity ? window.__identity.words(me) : identityWords(me);
+  const w = identityWords(me);
   return { name: w.name, email: w.email, initials: w.initials, role: w.role, named: w.named };
 };

@@ -16,13 +16,11 @@ import { routeOnScreen } from "@/bridge/workspace";
 import { toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
 import { toConversationVM } from "./model/thread-vm";
 import { carriedReading, carriesMark } from "../seen-carry";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
 import type { ConversationLine } from "./types";
-
-// The pages that have not moved (a person's profile, Ask) still read this under its old name.
-declareSurfaceValue("conversations", "CONVERSATIONS_DATA");
+import { pageReport } from "@/client/page-report";
 
 /**
  * The written wires a conversation can be on, in the words the page already
@@ -129,7 +127,7 @@ export const conversationsOverride: SurfaceOverride = {
         allThreads,
       );
     } catch (e) {
-      console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
+      pageReport.error("calls_fetch_failed", e instanceof Error ? e.message : e);
     }
     // A customer who has only ever phoned is fully represented by their call
     // rows; a chat row for them would preview a call that is already on screen.

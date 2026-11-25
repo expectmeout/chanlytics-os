@@ -1,19 +1,14 @@
 /**
  * The bell's override: the month's kept notifications and this person's seen
- * moment. Part of the SurfaceData seam (../surface-data.ts).
+ * moment, held with the bridge's reads (../held-reads.ts). Part of the SurfaceData seam (../surface-data.ts).
  */
 
 import { read } from "../api";
-import type { NotificationsDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "../surface-data";
 import { declareReads } from "../surface-registry";
+import { holdRead } from "../held-reads";
 
 /* ---------------------------- Notifications ------------------------------ */
-
-export interface NotificationsSurface {
-  dto: NotificationsDto;
-  fetchedAt: number;
-}
 
 /**
  * Notifications: the month's kept rows and this person's seen moment. The
@@ -25,11 +20,10 @@ export interface NotificationsSurface {
  */
 export const notificationsOverride: SurfaceOverride = {
   key: "notifications",
-  globals: ["__NOTIFICATIONS"],
   events: ["surface:notifications"],
   ...declareReads("notifications", { reads: ["notification"], fresh: "live" }),
   apply: async () => {
     const dto = await read("GET notifications");
-    (window as Window & { __NOTIFICATIONS?: NotificationsSurface }).__NOTIFICATIONS = { dto, fetchedAt: Date.now() };
+    holdRead("notifications", { dto, fetchedAt: Date.now() });
   },
 };

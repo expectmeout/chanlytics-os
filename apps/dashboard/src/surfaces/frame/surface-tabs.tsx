@@ -13,6 +13,7 @@ import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { holdMoves } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
+import { surfaceValue } from "../surface-values";
 import { frameChrome } from "./frame-window";
 
 interface StTab {
@@ -28,7 +29,7 @@ interface StTab {
 
 /** A call still up between refreshes, by the heartbeat rule the Live page applies (contracts liveStillUp). */
 const liveNow = (): boolean => {
-  const live = window.__LIVE;
+  const live = surfaceValue("live");
   const chrome = frameChrome();
   if (!live) return false;
   return !!chrome && live.now.some((c) => chrome.liveStillUp(c, live.heartbeatMs, Date.now()));

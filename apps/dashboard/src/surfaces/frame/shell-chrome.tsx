@@ -11,7 +11,7 @@ import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
 import { askDockRef } from "@/bridge/ask/dock";
 import { AskLine } from "@/bridge/ask/line";
 import { AskDisc } from "../kit/face/ask-face";
-import { REPORT_WORDS } from "@chanlytics/contracts";
+import { IN_APP_CLASS, REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";
 import { reportDoor } from "../kit/empty/report-door";
@@ -404,9 +404,15 @@ const closeAsk = (s: ChromeAt) => {
   s.setAskOpen(false);
 };
 
-/** The phone's tab bar, unless the native app's own stands here (`__IN_APP`, stamped before paint). */
+/**
+ * Inside the native app: the class contracts' boot script puts on the root before paint (IN_APP_CLASS), where the app's
+ * own rules hang from too. A test's stand-in document may have no class list: not in the app.
+ */
+const inApp = (): boolean => !!document.documentElement.classList?.contains(IN_APP_CLASS);
+
+/** The phone's tab bar, unless the native app's own stands here. */
 const phoneTabs = (s: ChromeAt) =>
-  !window.__IN_APP && (
+  !inApp() && (
     <PhoneTabs
       page={s.page}
       param={s.param}
@@ -426,7 +432,7 @@ const phoneTabs = (s: ChromeAt) =>
  */
 const phoneAsk = (s: ChromeAt) => {
   // Inside the native app AI keeps a screen of its own over the circle, which goes while it is open, as ever.
-  if (s.askOpen && window.__IN_APP) return false;
+  if (s.askOpen && inApp()) return false;
   const docked = askDocked(s);
   const Glyph = frameGlyph();
   // The circle is one element, open or closed: closed, the three on it are the press that opens AI; open on a phone,
@@ -463,7 +469,7 @@ const phoneAsk = (s: ChromeAt) => {
  * and goes by its own transition (ask.css `.ask-ground`); not inside the native app, where AI keeps its own screen.
  */
 const phoneGround = (s: ChromeAt) =>
-  !window.__IN_APP && <div className="ask-ground" aria-hidden="true" {...(askDocked(s) ? { "data-on": "" } : null)} />;
+  !inApp() && <div className="ask-ground" aria-hidden="true" {...(askDocked(s) ? { "data-on": "" } : null)} />;
 
 /** Ask's Line over the page. */
 const askLine = (s: ChromeAt) => {

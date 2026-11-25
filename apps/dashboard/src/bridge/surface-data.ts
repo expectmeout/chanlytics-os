@@ -17,6 +17,7 @@
  */
 
 import { sealSurfaceCache } from "./surface-cache";
+import { holdWhoIsLooking, whoIsLooking } from "./who";
 import { noteReadFailed } from "./hearing/freshness";
 import { declareReads } from "./surface-registry";
 import { ApiError } from "../client/api";
@@ -28,23 +29,17 @@ import {
   MIN_MS,
   type MembershipRole,
   type MessageStatus,
-  type PendingWorkspace,
+  type OpenHandoverDto,
   type RecordKind,
 } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
+import { pageReport } from "@/client/page-report";
 export { getActiveWorkspace } from "./workspace";
 
 export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
   key: string;
-  /**
-   * The window globals this override owns. The runner snapshots them after a
-   * successful apply so the next boot can paint real data before first render
-   * instead of flashing the mockup's seeds. Declaring them here (rather than
-   * hardcoding a list in the cache) keeps flipping a surface a one-file change.
-   */
-  globals?: string[];
   /**
    * The key its typed value is published under (surface-values.ts), for a surface a TSX page reads through
    * `useSurface`: the cache keeps that value with the surface's snapshot and gives it back before React draws.
@@ -53,7 +48,7 @@ export interface SurfaceOverride {
   /** What of its globals the cache holds, when not all of them: given the snapshot, answers the one to keep. */
   trimSnapshot?: (snap: Record<string, unknown>) => Record<string, unknown>;
   /**
-   * Fetch real data and write it into the surface's window globals. `heard` is what the live feed told the read of, where it was
+   * Fetch real data and publish it (the seam's value, or what the surface holds itself). `heard` is what the live feed told the read of, where it was
    * a notice's and nothing else asked: a surface may read only what those can have changed (a delivery tick re-reads the threads,
    * not the calls; the wiring's second audit, S10-2). None where a write, a pass, the boot or another read asked: everything.
    * Answers "partial" where some of what it reads could not be read and it published the rest: the runner says the surface is
@@ -240,7 +235,7 @@ async function readAndPublish(o: SurfaceOverride, heard?: readonly RealtimeChang
     else toldToWait.delete(o.key);
     // A failed override NEVER breaks the surface — it just stays seeded. Counted for the tab's report (hearing/freshness.ts),
     // with why it failed (the refusal's code, or that the read's own code threw) and whether the tab was hidden then.
-    console.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
+    pageReport.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
     const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
     noteReadFailed(o.key, err instanceof ApiError ? err.code : "threw", hidden);
     return false;
@@ -275,14 +270,15 @@ export interface Me {
   platform_admin?: boolean;
   /** Whether this person is a partner (0012), and their code. */
   partner?: { code: string; status: string } | null;
+  /** The hand-overs open to this person, which the frame offers once they are in (invitations/handover.ts). */
+  handovers?: OpenHandoverDto[];
 }
 
 /** Whether the list has been read again for the seat the boot's accept made (invitations/accept.ts): once, not at every read after it. */
 let seatedRead = false;
 
-export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
+export const workspaceOverride: SurfaceOverride = {
   key: "workspace",
-  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE", "__SIGNUP_POSTURE"],
   events: ["surface:workspace"], // the sidebar, the arrival line and the bell listen for the list read again
   // The seats and the workspaces' own status (0047): a seat taken, changed or left (the role this person acts under, the
   // switcher's list, and the end of their own seat in the workspace on screen) and the workspace paused or resumed (the
@@ -297,43 +293,33 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       },
     ],
   }),
-  // The workspace actually being VIEWED, as resolved by the server — not `[0]`, which was whichever tenant happened
-  // to sort first and could differ from the one the data below it came from.
-  current: () => {
-    const w = window as Window & { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
-    return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
-  },
   apply: async () => {
     const data = await readWorkspaceList();
-    const w = window as Window & {
-      __WORKSPACES?: Workspace[];
-      __ME?: Me;
-      __ACTIVE_WORKSPACE?: string;
-      __PENDING_WORKSPACE?: PendingWorkspace | null;
-      __SIGNUP_POSTURE?: "open" | "waitlist" | "invite";
-    };
+    const was = whoIsLooking();
     // The workspace on screen was this person's and is not any more (their seat was removed, in another tab or by a
     // teammate): the tab leaves it for one of their others, else the front door, which shows them none. Said only of a list
     // that held it: the first read of a tab has no list, and its address is corrected below. Sealed, as every leaving is: a
     // read landing before the page unloads is of the workspace being left (surface-cache.ts).
-    const viewing = w.__ACTIVE_WORKSPACE;
-    if (viewing && w.__WORKSPACES?.some((t) => t.id === viewing) && !data.workspaces.some((t) => t.id === viewing)) {
+    const viewing = was.activeWorkspaceId;
+    if (viewing && was.workspaces?.some((t) => t.id === viewing) && !data.workspaces.some((t) => t.id === viewing)) {
       const next = data.workspaces.find((t) => t.id === data.activeWorkspaceId) ?? data.workspaces[0];
       sealSurfaceCache();
       rememberWorkspace(next?.slug ?? null);
       window.location.replace(next ? workspaceHref(next.slug) : "/");
       return;
     }
-    w.__WORKSPACES = data.workspaces;
-    w.__PENDING_WORKSPACE = "pending" in data ? (data.pending ?? null) : null;
-    // The door a first workspace meets (the invite code, or the list), from the
-    // same read: the create screen asks nothing of its own.
-    w.__SIGNUP_POSTURE = "posture" in data ? (data.posture ?? "open") : "open";
+    holdWhoIsLooking({
+      workspaces: data.workspaces,
+      pending: "pending" in data ? (data.pending ?? null) : null,
+      // The door a first workspace meets (the invite code, or the list), from the
+      // same read: the create screen asks nothing of its own.
+      posture: "posture" in data ? (data.posture ?? "open") : "open",
+    });
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.
     if (data.activeWorkspaceId) {
-      w.__ACTIVE_WORKSPACE = data.activeWorkspaceId;
+      holdWhoIsLooking({ activeWorkspaceId: data.activeWorkspaceId });
       const active = data.workspaces.find((t) => t.id === data.activeWorkspaceId);
       const slug = active?.slug ?? data.activeWorkspaceId;
       rememberWorkspace(slug);
@@ -350,7 +336,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
         return;
       }
     }
-    noteWhoIsLooking(w, data.user);
+    noteWhoIsLooking(data.user);
   },
 };
 
@@ -383,10 +369,10 @@ async function readWorkspaceList() {
  * was a fabricated person shown as "you". People read before who is looking was known is read again for them (decision
  * 0009): a teammate's thread is theirs, and a list about "me" can be counted.
  */
-function noteWhoIsLooking(w: Window & { __ME?: Me }, user: Me | null | undefined): void {
+function noteWhoIsLooking(user: Me | null | undefined): void {
   if (!user) return;
-  const was = w.__ME?.id ?? null;
-  w.__ME = user;
+  const was = whoIsLooking().me?.id ?? null;
+  holdWhoIsLooking({ me: user });
   if (peopleLoaded && was !== (user.id ?? null)) {
     publishPeople();
     window.dispatchEvent(new CustomEvent("surface:clients"));
@@ -405,7 +391,7 @@ function noteWhoIsLooking(w: Window & { __ME?: Me }, user: Me | null | undefined
  * tab under the workspace being left (surface-cache.ts sealSurfaceCache).
  *
  * `knownSlug` when the caller has it and the page's own list may not. A
- * workspace created a moment ago is not in __WORKSPACES yet; addressed by its
+ * workspace created a moment ago is not in the list yet; addressed by its
  * id, the app booted twice -- under the id, then again when the workspaces
  * read corrected the address -- and Setup's once-a-session landing could fire
  * on the first boot and be lost with it (the nightly's workspace-create spec,
@@ -415,7 +401,7 @@ function noteWhoIsLooking(w: Window & { __ME?: Me }, user: Me | null | undefined
  * run, `#/start`, which is written as its path); nothing, and a switch opens on Today.
  */
 export function switchWorkspace(id: string, knownSlug?: string, after = ""): void {
-  const target = (window as Window & { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
+  const target = whoIsLooking().workspaces?.find((t) => t.id === id);
   const slug = target?.slug ?? knownSlug ?? id;
   const here = getActiveWorkspace();
   if (here === slug || here === id) return;
