@@ -22,14 +22,14 @@ import {
 } from "@chanlytics/contracts";
 import type { LiveCallVM } from "@chanlytics/contracts";
 
-export type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
+type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
 
 /** How long the step listens before it asks what may have gone wrong (V7). */
 export const TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 /** A call is the test call if it started no earlier than this before the screen opened: phone clocks disagree. */
 const TRY_SLACK_MS = MIN_MS;
 
-export type TryTransferKey = "caller" | "current" | "message";
+type TryTransferKey = "caller" | "current" | "message";
 
 export interface FirstRunTryVM {
   stage: FirstRunTryStage;
@@ -156,7 +156,7 @@ export const FIRST_RUN_TRY_WORDS = {
   anyway: "Skip anyway",
 } as const;
 
-export interface FirstRunTryInput {
+interface FirstRunTryInput {
   dto: SetupDto;
   /** The Live page's calls (now and recent); empty before that read lands. */
   calls: readonly LiveCallVM[];

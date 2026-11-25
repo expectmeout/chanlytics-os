@@ -83,7 +83,7 @@ type Hold = (reason: string) => Promise<void>;
  * each with its slot in one write, and a reel it begins is keyed by its slot: its making asked again, or twice at once,
  * places no slot twice and begins no second video.
  */
-export type WeekMadeBy = "press" | "rung";
+type WeekMadeBy = "press" | "rung";
 
 /** A picture or a story drawn from its photo, or its clip's best moment, with the words the Week showed: its made file. */
 async function drawPicture(

@@ -26,7 +26,7 @@ import { saveAccent } from "@/server/workspace/look";
 import { keepAimsFor } from "./claims";
 
 /** The lines a sentence is read for; the offers and "before anything posts" have their own ways. */
-export const CONTENT_LINES = ["goals", "cadence", "quiet_days", "languages", "look"] as const;
+const CONTENT_LINES = ["goals", "cadence", "quiet_days", "languages", "look"] as const;
 type ContentLine = (typeof CONTENT_LINES)[number];
 
 export const lineInput = z.strictObject({

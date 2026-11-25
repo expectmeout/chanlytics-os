@@ -71,7 +71,7 @@ function ReelRun({ seconds }: { seconds: number | null }) {
 }
 
 /** A new version being made over the one standing (the version board, cell 1): what plays dims under AI's three at work. */
-export interface PictureMaking {
+interface PictureMaking {
   title: string;
   stage: string;
   share: number;

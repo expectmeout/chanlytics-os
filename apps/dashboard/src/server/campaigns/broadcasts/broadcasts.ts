@@ -319,7 +319,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
 }
 
 /** How many of a person's runs their page lists: the newest. */
-export const PERSON_RUNS = 20;
+const PERSON_RUNS = 20;
 
 /**
  * The runs that named one person, newest first, the newest PERSON_RUNS of them: a playbook's run named for its

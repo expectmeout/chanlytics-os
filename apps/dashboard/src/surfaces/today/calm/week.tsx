@@ -57,7 +57,7 @@ function mondays(): { began: string; next: string } {
 }
 
 /** What the week's card says: its sentence, and the quieter line under it (null where it has none). */
-export interface WeekWords {
+interface WeekWords {
   sentence: string;
   sub: string | null;
 }

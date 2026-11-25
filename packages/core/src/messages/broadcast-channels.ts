@@ -208,7 +208,7 @@ export function rowHold(
  * them (contracts IN_CHAT_FACT) and their chat is still open now, by their thread's own clock; "closed" where its day has
  * passed since, and nothing goes in it; null for anyone else, who goes as everybody does.
  */
-export function chatReplyOf(
+function chatReplyOf(
   work: Pick<Work, "inChat" | "ports">,
   recipient: Pick<RecipientRow, "facts">,
   waInboundAt: string | null,

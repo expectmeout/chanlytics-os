@@ -24,7 +24,7 @@ import { NEW_DAYS, seeAll, type Seen } from "./seen";
  * notices make; a read that fails leaves its signal out, said in `unread`, never as nothing to notice.
  */
 
-export interface Signal {
+interface Signal {
   key: string;
   /** Its numbers, which the home's sentence is written from (contracts noticeOf). */
   facts?: AskNoticeFacts;

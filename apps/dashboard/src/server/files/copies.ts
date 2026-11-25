@@ -21,7 +21,7 @@ export interface FileCopy {
 }
 
 /** A picture made for this turn, as the edge takes it. */
-export interface PictureMade {
+interface PictureMade {
   bytes: Uint8Array;
   mime: FileMime;
   name: string;

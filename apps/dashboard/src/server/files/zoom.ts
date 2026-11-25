@@ -25,7 +25,7 @@ import { bucket } from "./file";
 const ORIGINAL_MOST_BYTES = 12_000_000;
 const STORAGE_LARGEST = 2500;
 
-export interface Zoomed {
+interface Zoomed {
   bytes: Buffer;
   /** The box as it was cut, in the pixels of the size the picture was shown at: clamped to its edges, and widened where it was too small. */
   box: ZoomBox;

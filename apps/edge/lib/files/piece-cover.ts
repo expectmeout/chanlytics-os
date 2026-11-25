@@ -16,7 +16,7 @@ export interface ClipMoment {
 }
 
 /** The cover: the second of the video it is, and where it came from. */
-export interface PieceCover {
+interface PieceCover {
   at: number;
   from: "moment" | "first";
 }

@@ -46,8 +46,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { cardMoved, UNCHECKED } from "./recheck";
 
 /** How a card came to be acted on: a finger, a spoken or typed yes, a row that allowed it, the lock screen, a mail link. */
-export const ACT_BY = ["press", "yes", "row", "lock_screen", "mail"] as const;
-export type ActBy = (typeof ACT_BY)[number];
+type ActBy = "press" | "yes" | "row" | "lock_screen" | "mail";
 
 /**
  * How long a verb's own route may take, inside this route's own limit: an act is not started with less time than this

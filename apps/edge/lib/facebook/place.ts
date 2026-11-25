@@ -68,7 +68,7 @@ type PageRequest = Parameters<typeof callFacebook>[0];
 type MetaNextPage = NonNullable<Parameters<typeof pagePostsSinceRequest>[1]["next"]>;
 
 /** The longest one call to a Page waits (KIND_POLICY longestCallMs is 20 s). */
-export const FACEBOOK_CALL_MS = 15_000;
+const FACEBOOK_CALL_MS = 15_000;
 
 /** What the adapter is handed besides the poster: the network, and which of the Page's posts another placement keeps. */
 export interface FacebookPlaceDeps extends FacebookDeps {

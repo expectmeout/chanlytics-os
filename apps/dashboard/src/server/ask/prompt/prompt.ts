@@ -51,7 +51,7 @@ const DID: Record<AskProposalOutcome["state"], string> = {
   undone: "was undone",
 };
 
-export interface TurnFacts {
+interface TurnFacts {
   role: MembershipRole;
   personLabel: string;
   scope: AskScope | null;

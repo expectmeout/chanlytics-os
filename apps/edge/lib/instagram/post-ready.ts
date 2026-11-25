@@ -106,7 +106,7 @@ export function instagramKindOf(post: PostRow): InstagramPostKind {
 }
 
 /** Who posts: the workspace's account connected through Meta, its token, and the app's secret; else why it may not now. */
-export async function findPoster(db: Db, tenantId: TenantId): Promise<{ poster: MetaPoster } | SendHold> {
+async function findPoster(db: Db, tenantId: TenantId): Promise<{ poster: MetaPoster } | SendHold> {
   const appSecret = env.META_APP_SECRET;
   if (!appSecret) throw new Error("post: META_APP_SECRET is not set on this deployment");
   const row = await findMetaInstagramRow(db, tenantId);

@@ -76,7 +76,7 @@ interface FindDrawn {
 }
 
 /** The find line of the list shown: the words it holds, what it is called, and what finding does. */
-export interface ContentFindLine {
+interface ContentFindLine {
   about: string | null;
   label: string;
   testid: string;

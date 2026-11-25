@@ -15,7 +15,7 @@
 import { senderLanguage, type SenderLanguage } from "@chanlytics/contracts";
 
 /** One button the page draws: a form that posts `name=value`. A quiet one is the second act, not the page's main one. */
-export interface OfferPageButton {
+interface OfferPageButton {
   label: string;
   name: "unsubscribe" | "stop_all";
   value: "yes" | "ask";
@@ -29,7 +29,7 @@ export type OfferUnsubscribeView =
   | { kind: "stop_ask"; business: string | null }
   | { kind: "stopped"; business: string | null };
 
-export interface OfferPageWords {
+interface OfferPageWords {
   title: string;
   lead: string;
   body: string;

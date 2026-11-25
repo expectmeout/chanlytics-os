@@ -66,7 +66,7 @@ const PUT_OFF_MS = 10 * MIN_MS;
 const OUT_OF_TIME: ReadonlySet<string> = new Set(["visit_begun", "too_late"]);
 
 /** Tells a workspace's owner once (shared/alerts/notify.ts notifyOnce): the tests give their own mail and database. */
-export type BehindNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
+type BehindNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
 
 const sendBehindNotice: BehindNoticeSend = async (db, tenantId, msg) => {
   const target = await loadTenantNotifications(db, tenantId);
@@ -116,7 +116,7 @@ type OccasionCounts = Record<"due" | "sent" | "held" | "left" | "put_off" | "fai
 const noCounts = (): OccasionCounts => ({ due: 0, sent: 0, held: 0, left: 0, put_off: 0, failed: 0, remaining: 0 });
 
 /** One workspace's job: its database, its moment, its log, and when it stops starting anything. */
-export interface OccasionsTurn {
+interface OccasionsTurn {
   db: Db;
   tenantId: TenantId;
   now: Date;

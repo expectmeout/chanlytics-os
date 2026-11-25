@@ -194,7 +194,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
 } as const;
 
 /** What starts at Go live, a row each (canvas 5A): what it is, and what it asks of the owner after. */
-export interface GoLiveStartVM {
+interface GoLiveStartVM {
   key: "calls" | "whatsapp" | "bookings" | "email";
   label: string;
   after: string;
@@ -262,7 +262,7 @@ export interface FirstRunGoLiveVM {
   rows: string[];
 }
 
-export interface GoLiveInput {
+interface GoLiveInput {
   dto: SetupDto;
   vm: SetupVM;
   /** Go live's phone, as first-run-phone.ts says it at `live`. */

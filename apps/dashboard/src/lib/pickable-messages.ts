@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 
 /** A message a picker lists, as the picker reads it. */
-export interface PickableMessage<Row> {
+interface PickableMessage<Row> {
   message: CampaignMessage;
   /** The channels it goes by: those it can be sent on now, and WhatsApp while WhatsApp is still checking its words. */
   channels: ConsentChannel[];

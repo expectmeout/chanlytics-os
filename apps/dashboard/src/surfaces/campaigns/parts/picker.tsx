@@ -21,7 +21,7 @@ import { cmGroups, cmSearch } from "./picks";
  * dashed ring for a language the message does not exist in. The colour is the
  * vocabulary's (tone.ts); `status` null is absence.
  */
-export const CmLangGlyph = ({ status = null, size = 12 }: { status?: string | null; size?: number }) => {
+const CmLangGlyph = ({ status = null, size = 12 }: { status?: string | null; size?: number }) => {
   const said = status ? stateOf("template", status) : null;
   const tone = said ? said.tone : "none";
   return (

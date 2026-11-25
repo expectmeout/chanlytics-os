@@ -33,7 +33,7 @@ import { CALL_TIMEOUT_MS, runAct } from "./run";
 type TurnWorld = Omit<FreedomWorld, "may" | "takesBack" | "newWords" | "count" | "moved">;
 
 /** The part of the world a turn reads once: its rows, its switch, its hours and today's count. */
-export async function turnWorld(ctx: RouteContext, member: Member, now: Date): Promise<TurnWorld> {
+async function turnWorld(ctx: RouteContext, member: Member, now: Date): Promise<TurnWorld> {
   const rc = readerContext(ctx, member);
   const [row, policies, facts, counts] = await Promise.all([
     load(rc, configReader, undefined).then((r) => r.data, logAndGoOn("alone config", null)),

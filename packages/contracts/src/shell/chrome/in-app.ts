@@ -70,7 +70,7 @@ const OUTLINE_SEARCH_ATTR = "data-outline-search";
  * line says no label, so an outline that knew neither stood a row's words narrower than the frame's and drew Ask's label
  * where the frame draws none (the nightly of 2 Nov 2026).
  */
-export interface OutlineRoutes {
+interface OutlineRoutes {
   lit: Readonly<Record<string, string>>;
   search: string;
 }

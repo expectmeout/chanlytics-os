@@ -23,7 +23,7 @@ const LATELY_SHOWN = 3;
 const TITLE_TOLD = 90;
 
 /** One morning as the server read it: its day, whether it is this member's, and the cards its answer holds. */
-export interface AskMorningRead {
+interface AskMorningRead {
   day: string;
   mine: boolean;
   proposals: unknown;

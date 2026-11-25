@@ -124,7 +124,7 @@ export async function findInvoiceOfPayment(
   return stripeIdOf(list.data[0]?.invoice);
 }
 
-export type ReversalKind = "refund" | "dispute" | "dispute_won";
+type ReversalKind = "refund" | "dispute" | "dispute_won";
 
 /** charge.refunded, charge.dispute.created, charge.dispute.closed (won): what it does to the invoice's share. */
 export async function reverseForInvoice(

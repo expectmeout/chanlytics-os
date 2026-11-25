@@ -24,7 +24,7 @@ import type { VersionCheck, VersionWords, SlotKey, SlotSet } from "@chanlytics/c
  * One piece of a version's words: words as they are written, or a slot by its key. A slot written in any way but its key
  * between plain braces (`{{01}}`, `{{ Your Name }}`) says how, in `written`; the usual way says nothing.
  */
-export type SlotPart = { kind: "text"; text: string } | { kind: "slot"; slot: SlotKey; written?: string };
+type SlotPart = { kind: "text"; text: string } | { kind: "slot"; slot: SlotKey; written?: string };
 
 /** A slot part as it is written in the stored words. */
 export const partWritten = (part: Extract<SlotPart, { kind: "slot" }>): string =>

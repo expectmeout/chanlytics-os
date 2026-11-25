@@ -56,7 +56,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 
-export interface AskUsage {
+interface AskUsage {
   input_tokens: number;
   output_tokens: number;
   cache_read_input_tokens: number;
@@ -204,7 +204,7 @@ export function teeUsage(
 }
 
 /** What a gateway request may ask for. Everything else is refused before the key is spent. */
-export interface GatewayRequest {
+interface GatewayRequest {
   model: string;
   max_tokens: number;
   system: unknown;

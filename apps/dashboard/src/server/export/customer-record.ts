@@ -60,7 +60,7 @@ export function customerRecord(
 }
 
 /** Where a message's file is kept, once the store holds it; none for one still fetching or never fetched. */
-export function storedPathOf(media: unknown): string | null {
+function storedPathOf(media: unknown): string | null {
   const m = recordOrEmpty(media);
   return m.fetch_state === "stored" && typeof m.storage_path === "string" ? m.storage_path : null;
 }

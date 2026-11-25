@@ -25,7 +25,7 @@ type DraftResult =
   | { ok: false; error: "no_model_key" | "model_failed" | "empty_draft" | "payment_required"; detail?: string };
 
 /** Who the draft is for: the workspace the ledger writes it to, and the review it answers. */
-export interface ReviewDraftFor {
+interface ReviewDraftFor {
   tenantId: TenantId;
   reviewId?: string | null;
 }

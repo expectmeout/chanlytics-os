@@ -79,7 +79,7 @@ export async function listTemplates(
 }
 
 /** What WhatsApp says of one template now (getTemplate): its status word, its kind and its reason as Meta spells them. */
-export interface MetaTemplateNow {
+interface MetaTemplateNow {
   id: string;
   status: string;
   category: string | null;

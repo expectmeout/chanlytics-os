@@ -41,7 +41,7 @@ export const COMBINE_WORDS = {
   failed: "Couldn't combine these records.",
 } as const;
 
-export interface CombineVM {
+interface CombineVM {
   /** The record the door keeps (the person who answered) and the one it folds in (the record we wrote to). */
   keepId: string;
   dropId: string;

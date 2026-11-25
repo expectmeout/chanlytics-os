@@ -412,7 +412,7 @@ export function unsureHoursWords(days: readonly string[]): string | null {
   return `Google's hours for ${list} couldn't be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
 }
 
-export type FirstRunStepState = "done" | "current" | "ahead";
+type FirstRunStepState = "done" | "current" | "ahead";
 
 /**
  * Check (canvas 2, 2·a–2·d): Your receptionist once the settings can be read, and Your business's one press while there
@@ -436,7 +436,7 @@ export interface FirstRunCheckVM {
   bookingPage: string | null;
 }
 
-export interface FirstRunStepVM {
+interface FirstRunStepVM {
   key: FirstRunStepKey;
   name: string;
   /** 1 to 5. */

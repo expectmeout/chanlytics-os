@@ -21,7 +21,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /** Why a card should not go as it is, in the person's words; null where it still holds. */
-export interface CardMoved {
+interface CardMoved {
   says: string;
   /** Whether asking again would make a better card, which the door offers. */
   redraft: boolean;

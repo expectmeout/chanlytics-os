@@ -75,7 +75,7 @@ interface CustomGroup {
 export type TemplateGroup = StarterGroup | CustomGroup;
 
 /** Everything the page lists and counts, worked out from the templates read, the messages and the library. */
-export interface TemplateListing {
+interface TemplateListing {
   langs: readonly TplLang[];
   list: TemplateDto[];
   starters: StarterGroup[];
@@ -92,7 +92,7 @@ export interface TemplateListing {
 }
 
 /** The key a message the workspace wrote is listed under, and opened by: its name. */
-export const customKey = (name: string): string => `c:${name}`;
+const customKey = (name: string): string => `c:${name}`;
 
 /** The message by its name in the Library's listing: a starter by its own name, a message the workspace wrote by its key. */
 export function groupNamed(groups: readonly TemplateGroup[], name: string): TemplateGroup | null {
