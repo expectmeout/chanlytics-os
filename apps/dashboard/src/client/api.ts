@@ -13,6 +13,7 @@
 import {
   FAILED_WHOLE,
   refusalOf,
+  SECOND_MS,
   SERVED_AT_HEADER,
   sessionEnded,
   textOrEmpty,
@@ -180,9 +181,27 @@ interface ApiDeps {
   /**
    * Whether a person has just pressed something, by the browser's own word where it has one (bridge/api.ts): a read
    * asked then is theirs, a page's Retry or a pick among them, and it reaches the server at once whatever the tab holds
-   * (trouble.ts lookNow). Absent, no read is known to be a press.
+   * (trouble.ts lookNow). Once a press (pressLooksOf). Absent, no read is known to be a press.
    */
   pressed?: () => boolean;
+}
+
+/** How long the browser goes on saying a person has just pressed (its transient activation): about five seconds. */
+const PRESS_LASTS_MS = 5 * SECOND_MS;
+
+/**
+ * Whether a read asked now is a person's press looking past a tab that holds its reads: the first read asked after a
+ * press, and no other for as long as the browser still says "just pressed". Every read asked in those seconds looked
+ * before, a page's worth for each press, and a browser a tool drives says so for every script it runs (counted on CI's
+ * stack, 25 Nov 2026: twenty requests in the first four seconds of an outage, each of a page's reads once more).
+ */
+function pressLooksOf(deps: ApiDeps, trouble: Trouble, now: () => number): () => boolean {
+  let lookedAt = Number.NEGATIVE_INFINITY;
+  return () => {
+    if (!trouble.waiting() || !deps.pressed?.() || now() - lookedAt < PRESS_LASTS_MS) return false;
+    lookedAt = now();
+    return true;
+  };
 }
 
 /**
@@ -497,6 +516,7 @@ export function createApi(deps: ApiDeps) {
   const lead = leadMeter(now);
   const { gathered, gather } = readsGathered(deps.together);
   const trouble = deps.trouble ?? troubleOf({ now });
+  const pressLooks = pressLooksOf(deps, trouble, now);
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -521,8 +541,8 @@ export function createApi(deps: ApiDeps) {
       const hit = inFlight.get(url);
       if (hit && sharedAt(hit, now())) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
-    // A person's press is never answered here: the wait ends, and this read looks (trouble.ts).
-    if (isRead && deps.pressed?.()) trouble.lookNow();
+    // A person's press is never answered here: the wait ends, and this read looks (trouble.ts). Once a press.
+    if (isRead && pressLooks()) trouble.lookNow();
     // The head's answer, else the gathered reads', else its own fetch; one that failed or was not carried, asked alone.
     // A read asked for while the server is not answering this tab joins no gathered request: it is answered here.
     const { early, before } = answeredAhead(deps, gathered, url, isRead && !trouble.waiting());
