@@ -277,15 +277,15 @@ function reviewList(reviews: ReadonlyArray<GoogleReviewVM | ReviewWaitingVM>, ro
 }
 
 /** Ratings gained, day by day: the count is the tiles'; the card draws its days, with their table. */
-function gainedCard(V: ReviewsReportVM) {
-  const vm = V.google;
+function gainedCard(report: ReviewsReportVM) {
+  const vm = report.google;
   return (
     <ChartCard
       className="rpt-span-12"
       title="Ratings gained, day by day"
       testid="chart-google-gained"
       config={RPT_GAINED}
-      takeaway={V.lines.gained}
+      takeaway={report.lines.gained}
       twin={{ data: vm.gained.points, keys: ["gained"], first: "Day" }}
     >
       {vm.gained.points.length && vm.gained.total !== null ? (
@@ -295,47 +295,47 @@ function gainedCard(V: ReviewsReportVM) {
           config={RPT_GAINED}
           height={150}
           yTicks={2}
-          animKey={V.days}
+          animKey={report.days}
           ariaLabel="Ratings gained per day, by Google's count. The arrow keys read each day."
           describe={(d) => `${d.label}: ${d.gained} ${d.gained === 1 ? "rating" : "ratings"} gained`}
         />
       ) : (
-        <EmptyState kind="line" title={V.lines.gainedEmpty} />
+        <EmptyState kind="line" title={report.lines.gainedEmpty} />
       )}
     </ChartCard>
   );
 }
 
 /** The mix of the period's stars, a row to each, over the reviews that carry one; where there is none to count, the words that say why. */
-function starsCard(V: ReviewsReportVM) {
-  const stars = V.stars;
+function starsCard(report: ReviewsReportVM) {
+  const stars = report.stars;
   return (
     <ChartCard
       className="rpt-span-5"
       title="The mix of stars"
       testid="chart-reviews-stars"
-      takeaway={stars ? V.lines.mix : null}
+      takeaway={stars ? report.lines.mix : null}
       table={stars ? stars.table : null}
     >
       {stars ? (
         <BarList max={stars.rated} rows={stars.rows} />
       ) : (
-        <EmptyState kind="line" title={V.lines.mix ?? V.lines.historyTitle} />
+        <EmptyState kind="line" title={report.lines.mix ?? report.lines.historyTitle} />
       )}
     </ChartCard>
   );
 }
 
 /** The reviews written week by week, over the weeks the history on record covers, with their table. */
-function weeklyCard(V: ReviewsReportVM) {
-  const weekly = V.weekly;
+function weeklyCard(report: ReviewsReportVM) {
+  const weekly = report.weekly;
   return (
     <ChartCard
       className="rpt-span-7"
       title="Written, week by week"
       testid="chart-reviews-weekly"
       config={RPT_WRITTEN}
-      takeaway={weekly ? V.lines.weekly : null}
+      takeaway={weekly ? report.lines.weekly : null}
       twin={weekly ? { data: weekly.points, keys: ["written"], first: "Week of" } : null}
     >
       {weekly ? (
@@ -345,12 +345,12 @@ function weeklyCard(V: ReviewsReportVM) {
           config={RPT_WRITTEN}
           height={150}
           yTicks={2}
-          animKey={V.days}
+          animKey={report.days}
           ariaLabel="Reviews written per week. The arrow keys read each week."
           describe={(d) => `${d.label}: ${d.written} ${d.written === 1 ? "review" : "reviews"} written`}
         />
       ) : (
-        <EmptyState kind="line" title={V.lines.weekly ?? V.lines.historyTitle} />
+        <EmptyState kind="line" title={report.lines.weekly ?? report.lines.historyTitle} />
       )}
     </ChartCard>
   );
@@ -360,29 +360,29 @@ function weeklyCard(V: ReviewsReportVM) {
  * The reviews that wait for a reply, the oldest first, each with the reply the receptionist held back where it did, and the door to
  * answer. Its heading takes focus (`heading`) when a reply has landed, since the row that had it is gone.
  */
-function waitingCard(V: ReviewsReportVM, shared: Shared, heading: RefObject<HTMLHeadingElement | null>) {
-  const { total, rows } = V.waiting;
+function waitingCard(report: ReviewsReportVM, shared: Shared, heading: RefObject<HTMLHeadingElement | null>) {
+  const { total, rows } = report.waiting;
   return (
     <ChartCard
       className="rpt-span-12"
       title={`Waiting for a reply (${total})`}
       testid="reviews-waiting"
-      takeaway={V.lines.waiting}
+      takeaway={report.lines.waiting}
       titleRef={heading}
     >
       {rows.length ? (
-        reviewList(rows, { vm: V.google, sent: () => heading.current?.focus(), ...shared })
+        reviewList(rows, { vm: report.google, sent: () => heading.current?.focus(), ...shared })
       ) : (
-        <EmptyState kind="line" title={V.lines.waitingEmpty} />
+        <EmptyState kind="line" title={report.lines.waitingEmpty} />
       )}
     </ChartCard>
   );
 }
 
 /** From the five Google shows first: what the Business Profile would add, or the location still to choose, and, for a person who may connect it, the door to Connections. */
-function connectCard(V: ReviewsReportVM, may: boolean) {
-  const c = V.google.connection;
-  const words = V.lines.connect ?? (c?.pending ? c.words : null);
+function connectCard(report: ReviewsReportVM, may: boolean) {
+  const c = report.google.connection;
+  const words = report.lines.connect ?? (c?.pending ? c.words : null);
   if (!words) return null;
   return (
     <ChartCard className="rpt-span-12" title="Every review, from your Business Profile" testid="reviews-connect">
@@ -396,20 +396,20 @@ function connectCard(V: ReviewsReportVM, may: boolean) {
 }
 
 /** The latest reviews with their words, and the listing's own address for the rest. A review that waits for a reply is drawn once, above. */
-function latestCard(V: ReviewsReportVM, mapsUri: string | null, shared: Shared) {
-  const G = V.google;
+function latestCard(report: ReviewsReportVM, mapsUri: string | null, shared: Shared) {
+  const G = report.google;
   return (
     <ChartCard
       className="rpt-span-12"
       title="Latest reviews"
       testid="chart-google-latest"
-      table={V.latestTable}
-      takeaway={V.latest.length ? (G.reply.words ? `${G.source} · ${G.reply.words}` : G.source) : null}
+      table={report.latestTable}
+      takeaway={report.latest.length ? (G.reply.words ? `${G.source} · ${G.reply.words}` : G.source) : null}
     >
-      {V.latest.length ? (
-        reviewList(V.latest, { vm: G, sent: null, ...shared })
+      {report.latest.length ? (
+        reviewList(report.latest, { vm: G, sent: null, ...shared })
       ) : (
-        <EmptyState kind="line" title={V.lines.latestEmpty} />
+        <EmptyState kind="line" title={report.lines.latestEmpty} />
       )}
       {/* The card shows what Google hands back, which is never the whole listing: the rest are on Google, and the
           listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
@@ -426,9 +426,9 @@ function latestCard(V: ReviewsReportVM, mapsUri: string | null, shared: Shared) 
 }
 
 /** What the section says of where its figures come from: the listing and when Google was read, the Business Profile's own words, and where the history on record starts. */
-function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): string {
-  const checked = `${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`;
-  return [`${L.name} · ${checked}`, V.google.connection?.words ?? null, V.lines.history]
+function sectionMeta(report: ReviewsReportVM, googleListing: NonNullable<GoogleVM["listing"]>): string {
+  const checked = `${googleListing.checked.charAt(0).toLowerCase()}${googleListing.checked.slice(1)}`;
+  return [`${googleListing.name} · ${checked}`, report.google.connection?.words ?? null, report.lines.history]
     .filter((part): part is string => !!part)
     .join(" · ");
 }
@@ -437,9 +437,9 @@ function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): s
  * Nothing is linked: the fold's words for why, and the registry's for what the lens would show, with the door to find the listing for
  * a person who may. A deployment that can neither look a listing up nor connect a profile (`unavailable`) has nothing to open.
  */
-function notLinked(V: ReviewsReportVM, range: LensRange, may: boolean) {
+function notLinked(report: ReviewsReportVM, range: LensRange, may: boolean) {
   const found = lensEmpty("reviews", range);
-  const unlinked = V.state === "unlinked";
+  const unlinked = report.state === "unlinked";
   const door = unlinked && may ? found.door : null;
   return (
     <RptSection title="Google reviews">
@@ -447,7 +447,7 @@ function notLinked(V: ReviewsReportVM, range: LensRange, may: boolean) {
         <ChartCard className="rpt-span-12" title="Your listing on Google" testid="google-none">
           <EmptyState
             kind="line"
-            title={V.lines.empty}
+            title={report.lines.empty}
             body={unlinked ? found.body : null}
             action={door ? { label: door.label, to: door.to } : null}
           />

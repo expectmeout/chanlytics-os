@@ -190,6 +190,121 @@ async function searchesWhere(
   return rows.filter((row) => asks(row.plan)).map((row) => row.id);
 }
 
+/** The round's runs, made where none is yet: the id is the round's, the phase's and the term's (core runIdFor). */
+async function ensureRuns(db: Db, rows: Parameters<LeadDb["runsEnsure"]>[0]): ReturnType<LeadDb["runsEnsure"]> {
+  if (!rows[0]) return [];
+  // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
+  const ins = await insertLeadRuns(
+    db,
+    rows.map((row) => ({
+      ...row,
+      state: "claimed",
+      apify_run_id: null,
+      dataset_id: null,
+      claimed_by: null,
+      claimed_at: null,
+      lease_owner: null,
+      lease_gen: 0,
+      lease_until: null,
+      read_offset: 0,
+      items_seen: 0,
+      usage_usd: 0,
+      finished_at: null,
+    })),
+  );
+  must("lead_runs insert", ins);
+  const back = await listRunsOfRound(db, rows[0].round_id);
+  return must<RunRow[]>("lead_runs read back", back).map(runOf);
+}
+
+/** A round, its columns read as their shapes. */
+async function readRound(db: Db, id: string): ReturnType<LeadDb["round"]> {
+  const round = await findLeadRound(db, id);
+  const row = must<Database["public"]["Tables"]["lead_rounds"]["Row"] | null>("lead_rounds read", round);
+  if (!row) return null;
+  return {
+    id: row.id,
+    tenant_id: asTenantId(row.tenant_id),
+    search_id: row.search_id,
+    seq: row.seq,
+    purpose: row.purpose,
+    plan: readColumn("lead_rounds.plan", shaped<LeadSearchPlan>(), row.plan),
+    plan_version: row.plan_version,
+    target: row.target,
+    state: row.state,
+    ending: row.ending,
+    ending_pending: row.ending_pending,
+    question: readColumn(
+      "lead_rounds.question",
+      shaped<NonNullable<LeadRoundRow["question"]>>().nullable(),
+      row.question,
+    ),
+    answered: row.answered,
+    waiting_since: row.waiting_since,
+    allowance_reserved: row.allowance_reserved,
+    allowance_used: row.allowance_used,
+    cost_reserved_usd: Number(row.cost_reserved_usd),
+    cost_usd: Number(row.cost_usd),
+    judge_tokens: row.judge_tokens,
+    month: row.month,
+    day: row.day,
+    platform_day: row.platform_day,
+  };
+}
+
+/** The leads already at these places, by place: a lead's own place first, then the places a lead was merged from. */
+async function readPlacesHeld(
+  db: Db,
+  tenantId: TenantId,
+  placeIds: Parameters<LeadDb["placeIdsHeld"]>[1],
+): ReturnType<LeadDb["placeIdsHeld"]> {
+  const out = new Map<string, string>();
+  if (!placeIds.length) return out;
+  const leads = must<{ id: string; place_id: string | null }[]>(
+    "leads by place",
+    await listLeadsAtPlaces(db, tenantId, placeIds),
+  );
+  for (const l of leads) if (l.place_id) out.set(l.place_id, l.id);
+  const places = must<{ lead_id: string; place_id: string }[]>(
+    "lead_places by place",
+    await listLeadPlacesAt(db, tenantId, placeIds),
+  );
+  for (const x of places) if (!out.has(x.place_id)) out.set(x.place_id, x.lead_id);
+  return out;
+}
+
+/** The leads and the people who already have one of these phones, emails or website hosts. */
+async function readShares(
+  db: Db,
+  tenantId: TenantId,
+  keys: Parameters<LeadDb["sharesOf"]>[1],
+): ReturnType<LeadDb["sharesOf"]> {
+  const out: { key: string; share: LeadShare }[] = [];
+  const lead = async (col: "phone_e164" | "email" | "website_host", kind: LeadShare["kind"], values: string[]) => {
+    if (!values.length) return;
+    const rows = must<Record<string, string | null>[]>(
+      `leads by ${col}`,
+      await listLeadsSharing(db, tenantId, col, values),
+    );
+    for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
+  };
+  await lead("phone_e164", "phone", keys.phones);
+  await lead("email", "email", keys.emails);
+  await lead("website_host", "host", keys.hosts);
+  const person = async (col: "phone_e164" | "email", kind: LeadShare["kind"], values: string[]) => {
+    if (!values.length) return;
+    const rows = must<Record<string, string | null>[]>(
+      `contacts by ${col}`,
+      await listPeopleSharing(db, tenantId, col, values),
+    );
+    for (const r of rows)
+      if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
+  };
+  await person("phone_e164", "phone", keys.phones);
+  await person("email", "email", keys.emails);
+  return out;
+}
+
 export function leadDb(db: Db): LeadDb {
   const { bool, json } = callsOn(db);
   return {
@@ -242,64 +357,8 @@ export function leadDb(db: Db): LeadDb {
         p_places: places,
         p_judgment: judgment ?? null,
       }),
-    async runsEnsure(rows) {
-      if (!rows[0]) return [];
-      // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
-      const ins = await insertLeadRuns(
-        db,
-        rows.map((row) => ({
-          ...row,
-          state: "claimed",
-          apify_run_id: null,
-          dataset_id: null,
-          claimed_by: null,
-          claimed_at: null,
-          lease_owner: null,
-          lease_gen: 0,
-          lease_until: null,
-          read_offset: 0,
-          items_seen: 0,
-          usage_usd: 0,
-          finished_at: null,
-        })),
-      );
-      must("lead_runs insert", ins);
-      const back = await listRunsOfRound(db, rows[0].round_id);
-      return must<RunRow[]>("lead_runs read back", back).map(runOf);
-    },
-    async round(id) {
-      const round = await findLeadRound(db, id);
-      const row = must<Database["public"]["Tables"]["lead_rounds"]["Row"] | null>("lead_rounds read", round);
-      if (!row) return null;
-      return {
-        id: row.id,
-        tenant_id: asTenantId(row.tenant_id),
-        search_id: row.search_id,
-        seq: row.seq,
-        purpose: row.purpose,
-        plan: readColumn("lead_rounds.plan", shaped<LeadSearchPlan>(), row.plan),
-        plan_version: row.plan_version,
-        target: row.target,
-        state: row.state,
-        ending: row.ending,
-        ending_pending: row.ending_pending,
-        question: readColumn(
-          "lead_rounds.question",
-          shaped<NonNullable<LeadRoundRow["question"]>>().nullable(),
-          row.question,
-        ),
-        answered: row.answered,
-        waiting_since: row.waiting_since,
-        allowance_reserved: row.allowance_reserved,
-        allowance_used: row.allowance_used,
-        cost_reserved_usd: Number(row.cost_reserved_usd),
-        cost_usd: Number(row.cost_usd),
-        judge_tokens: row.judge_tokens,
-        month: row.month,
-        day: row.day,
-        platform_day: row.platform_day,
-      };
-    },
+    runsEnsure: (rows) => ensureRuns(db, rows),
+    round: (id) => readRound(db, id),
     async run(id) {
       const r = await findLeadRun(db, id);
       const row = must<RunRow | null>("lead_runs read", r);
@@ -326,47 +385,8 @@ export function leadDb(db: Db): LeadDb {
     async roundNearby(roundId, nearby) {
       must("lead_rounds nearby", await recordRoundNearby(db, roundId, asJson(nearby)));
     },
-    async placeIdsHeld(tenantId, placeIds) {
-      const out = new Map<string, string>();
-      if (!placeIds.length) return out;
-      const leads = must<{ id: string; place_id: string | null }[]>(
-        "leads by place",
-        await listLeadsAtPlaces(db, tenantId, placeIds),
-      );
-      for (const l of leads) if (l.place_id) out.set(l.place_id, l.id);
-      const places = must<{ lead_id: string; place_id: string }[]>(
-        "lead_places by place",
-        await listLeadPlacesAt(db, tenantId, placeIds),
-      );
-      for (const x of places) if (!out.has(x.place_id)) out.set(x.place_id, x.lead_id);
-      return out;
-    },
-    async sharesOf(tenantId, keys) {
-      const out: { key: string; share: LeadShare }[] = [];
-      const lead = async (col: "phone_e164" | "email" | "website_host", kind: LeadShare["kind"], values: string[]) => {
-        if (!values.length) return;
-        const rows = must<Record<string, string | null>[]>(
-          `leads by ${col}`,
-          await listLeadsSharing(db, tenantId, col, values),
-        );
-        for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
-      };
-      await lead("phone_e164", "phone", keys.phones);
-      await lead("email", "email", keys.emails);
-      await lead("website_host", "host", keys.hosts);
-      const person = async (col: "phone_e164" | "email", kind: LeadShare["kind"], values: string[]) => {
-        if (!values.length) return;
-        const rows = must<Record<string, string | null>[]>(
-          `contacts by ${col}`,
-          await listPeopleSharing(db, tenantId, col, values),
-        );
-        for (const r of rows)
-          if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
-      };
-      await person("phone_e164", "phone", keys.phones);
-      await person("email", "email", keys.emails);
-      return out;
-    },
+    placeIdsHeld: (tenantId, placeIds) => readPlacesHeld(db, tenantId, placeIds),
+    sharesOf: (tenantId, keys) => readShares(db, tenantId, keys),
     async suppressed(tenantId, keys) {
       // An address asks the one predicate (00220: its own row, or its business's domain after a no), which answers the
       // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the erasure

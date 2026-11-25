@@ -239,8 +239,7 @@ export function PaneWorkspace({
   // `unconfigured` and offered a form whose save would have replaced the broken row with its few fields.
   if (settings && settings.broken) return <BrokenConfig issues={settings.broken.issues} flash={flash} />;
   /**
-   * The record: every fact is a row, and a row is edited where it is stated (business/tab.tsx, the spec
-   * docs/superpowers/specs/2026-09-20-business-tab-design.md). What stood here was two surfaces that disagreed about
+   * The record: every fact is a row, and a row is edited where it is stated (business/tab.tsx). What stood here was two surfaces that disagreed about
    * what exists -- a card showing nine facts, and a form editing about twenty-five behind one Save -- and one of them had
    * to be opened before the other could be corrected. Each of the business's pages draws its part of the record, its
    * rows and their editors, and says why once to a role that may not change it. What the receptionist is told is How it

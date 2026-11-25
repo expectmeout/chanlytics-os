@@ -42,7 +42,7 @@ export interface LeadCardBrief {
   examples: string[];
   /**
    * Where its data comes from and what we may do with it, in a line the plan card shows: the source-rights note each
-   * card is approved with (docs/plans/2026-09-18-lead-finder-source-rights.md holds the record, not a gate).
+   * card is approved with.
    */
   rights: string;
   approved: true;

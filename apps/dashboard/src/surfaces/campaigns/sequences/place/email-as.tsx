@@ -41,7 +41,7 @@ export const EmailParts = ({ parts, plain = false }: { parts: readonly LeadCardP
 );
 
 /** The words cut where the email breaks its lines: a paragraph each, the opening a line of its own. */
-export const emailParagraphs = (parts: readonly LeadCardPart[]): LeadCardPart[][] => {
+const emailParagraphs = (parts: readonly LeadCardPart[]): LeadCardPart[][] => {
   const out: LeadCardPart[][] = [];
   let para: LeadCardPart[] = [];
   const next = () => {

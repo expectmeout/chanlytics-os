@@ -7,7 +7,7 @@
 import { agoWords, DAY_MS, pageWords, reportCode, type SupportReportDto } from "@chanlytics/contracts";
 import type { ClientErrorDto } from "@chanlytics/contracts";
 
-export interface ErrorGroupVM {
+interface ErrorGroupVM {
   fingerprint: string;
   name: string;
   message: string;
@@ -29,7 +29,7 @@ export interface ErrorGroupVM {
   reports: string[];
 }
 
-export interface ErrorGroupsVM {
+interface ErrorGroupsVM {
   groups: ErrorGroupVM[];
   events: number;
   people: number;

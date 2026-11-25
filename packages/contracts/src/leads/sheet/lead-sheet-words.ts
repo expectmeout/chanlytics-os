@@ -84,13 +84,13 @@ export const LEAD_WORDS_BOX = {
   wordsUnread: "These are the campaign's words. Any you wrote for them couldn't be read just now.",
 } as const;
 
-const W = LEAD_WORDS_BOX;
+const BOX_WORDS = LEAD_WORDS_BOX;
 
 /** What the words call a slot, lower-cased for a sentence ("their title"). */
 const labelOf = (key: string): string => (SLOTS.labels[SLOTS.keys.indexOf(key)] || key).toLowerCase();
 
 /** What stands in the box for a slot with no value yet. */
-const markOf = (key: string): string => (key === "opening" ? W.line : `[${capitalize(labelOf(key))}]`);
+const markOf = (key: string): string => (key === "opening" ? BOX_WORDS.line : `[${capitalize(labelOf(key))}]`);
 
 /** Words with each slot's value in, or its mark. */
 function inBox(text: string, values: ReadonlyArray<string | undefined>): string {
@@ -204,5 +204,5 @@ export function leadWordsProblem(wordsFor: WordsFor & { words: LeadEmailText; fi
   const link = wordsFor.first ? firstEmailLinkProblem(wordsFor.words) : null;
   if (link) return chainIssueWords({ step: 0, field: "body", problem: link });
   const { holes } = reachOutCardEmailOf(wordsFor.words, wordsFor.lead, wordsFor.workspace);
-  return holes.length ? W.fill(holes.map(labelOf)) : null;
+  return holes.length ? BOX_WORDS.fill(holes.map(labelOf)) : null;
 }

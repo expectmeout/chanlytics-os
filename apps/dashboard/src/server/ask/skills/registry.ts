@@ -21,7 +21,7 @@ const ASK_SKILLS = {
   // Asked for a form, its guide hands the sentence to Forms on one card (propose_form).
   form: FORM_SKILL,
 } as const satisfies Record<string, GuidedSkill>;
-export type AskSkillId = keyof typeof ASK_SKILLS;
+type AskSkillId = keyof typeof ASK_SKILLS;
 export const ASK_SKILL_IDS = keysOf(ASK_SKILLS);
 
 /**

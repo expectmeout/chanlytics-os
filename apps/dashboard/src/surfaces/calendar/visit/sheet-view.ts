@@ -96,7 +96,7 @@ export const CALENDAR_VISIT_SHEET_WORDS = {
 const SHEET_WORDS = CALENDAR_VISIT_SHEET_WORDS;
 
 /** How the visit stands, as the sheet's one pill says it. */
-export interface VisitSheetState {
+interface VisitSheetState {
   word: string;
   tone: "ok" | "warn" | "plain" | "accent";
   /** Requested: a dashed ring; not marked yet: a plain ring. */
@@ -104,13 +104,13 @@ export interface VisitSheetState {
 }
 
 /** The one act the foot leads with, by how the visit stands. */
-export type VisitPrimaryAct = "message" | "link" | "new_time" | "proposal" | "add" | "booked";
+type VisitPrimaryAct = "message" | "link" | "new_time" | "proposal" | "add" | "booked";
 
 /** An act in More. */
 export type VisitMoreAct = "step" | "note" | "copy" | "deal" | "kept" | "missed" | "cancel" | "cant" | "page";
 
 /** Who the visit is for, as the sheet's person line draws them. */
-export type VisitSheetPerson =
+type VisitSheetPerson =
   | {
       known: true;
       id: string;
@@ -176,7 +176,7 @@ export interface VisitSheetOutcome {
 }
 
 /** What the sheet is made from: the block, its day, the board's facts beside it, and the clock. */
-export interface VisitSheetInput {
+interface VisitSheetInput {
   block: CalendarBlockVM;
   day: { key: string; today: boolean; date: string; dow: string; long: string };
   /** "Today", "Tomorrow", "Yesterday", or null (words.ts crWhen). */

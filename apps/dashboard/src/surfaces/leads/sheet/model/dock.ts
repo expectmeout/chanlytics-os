@@ -86,7 +86,7 @@ export const LEAD_LEAVE_WORDS = {
 } as const;
 
 /** What Take out asks: the question, what follows, the way to stop every sequence (none once you wrote), and its answers. */
-export interface LeadLeaveAskVM {
+interface LeadLeaveAskVM {
   question: string;
   detail: string;
   never: string | null;
@@ -108,7 +108,7 @@ export function leadLeaveAskOf(params: { name: string; place: SequencePlaceDto; 
 }
 
 /** What the dock is read from, beside the state and the place. */
-export interface LeadSheetDockFacts {
+interface LeadSheetDockFacts {
   state: LeadSheetState;
   place: SequencePlaceDto | null;
   /** Where Add goes: the search's pick; null where nothing is picked yet. */

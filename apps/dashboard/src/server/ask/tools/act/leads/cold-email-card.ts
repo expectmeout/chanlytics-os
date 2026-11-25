@@ -41,7 +41,7 @@ const inALine = (email: ColdEmailShown): string => {
 };
 
 /** An email whole, as its row shows it: its subject, then its words as they will be sent. */
-const whole = (email: ColdEmailShown): string => {
+const wholeEmail = (email: ColdEmailShown): string => {
   const head = email.subject ? `Subject: ${email.subject}` : "A reply in the same conversation";
   return `${email.after ? `${email.after}. ` : ""}${head}\n\n${email.body.trim()}`;
 };
@@ -54,7 +54,7 @@ export function coldEmailCard(coldEmailSaid: ColdEmailSaid): { summary: string; 
     { label: "To", value: coldEmailSaid.to },
     ...coldEmailSaid.emails.map((email, i) => ({
       label: i === 0 ? "First email" : `Email ${i + 1}`,
-      value: whole(email),
+      value: wholeEmail(email),
     })),
     { label: "Pace", value: pace },
     { label: "From", value: FROM_MAILBOXES },

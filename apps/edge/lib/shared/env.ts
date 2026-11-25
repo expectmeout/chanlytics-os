@@ -310,7 +310,7 @@ export const env = {
     return trimmedEnv(process.env.ANTHROPIC_API_KEY);
   },
 
-  // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): the voice agent's key and id,
+  // Ask spoken: the voice agent's key and id,
   // which mint a conversation's token for a member, and the secret its post-call webhook is signed with.
   /** The ElevenLabs API key: mints the voice agent's conversation tokens and deletes its conversations; never logged. */
   get ELEVENLABS_API_KEY() {

@@ -113,16 +113,16 @@ export const CHECK_PER_WORKSPACE_PER_TICK = 20;
  * How near its time a send is due soon: taken before those further off, and the only kind a model's bad hour holds. A run
  * waiting for its owner is due soon whatever its day, since they may be reading it now. No send waits for this (decision 0098).
  */
-export const CHECK_AHEAD_MS = 2 * HOUR_MS;
+const CHECK_AHEAD_MS = 2 * HOUR_MS;
 /** Sends asked about at once. */
 const CHECK_AT_ONCE = 4;
 
 /** How long a send's tries may fail before it is held check_unavailable for its owner (R4). */
 export const CHECK_GIVE_UP_MS = HOUR_MS;
 /** A failed try waits this long before the next, by the try it was: 1, 2, 4, 8, then 15 minutes (R4). */
-export const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
+const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
 /** A workspace that may not spend, or has no room, is asked again this much later (R2). */
-export const CHECK_GATE_WAIT_MS = HOUR_MS;
+const CHECK_GATE_WAIT_MS = HOUR_MS;
 /** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
 const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
@@ -154,7 +154,7 @@ export function backoffMs(tries: number): number {
   return minutes * MIN_MS;
 }
 
-export interface CheckCounts {
+interface CheckCounts {
   /** Sends leased this tick. */
   read: number;
   checked: number;

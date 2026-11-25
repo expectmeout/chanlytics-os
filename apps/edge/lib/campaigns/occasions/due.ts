@@ -66,7 +66,7 @@ const PUT_OFF_MS = 10 * MIN_MS;
 const OUT_OF_TIME: ReadonlySet<string> = new Set(["visit_begun", "too_late"]);
 
 /** Tells a workspace's owner once (shared/alerts/notify.ts notifyOnce): the tests give their own mail and database. */
-export type BehindNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
+type BehindNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
 
 const sendBehindNotice: BehindNoticeSend = async (db, tenantId, msg) => {
   const target = await loadTenantNotifications(db, tenantId);
@@ -116,7 +116,7 @@ type OccasionCounts = Record<"due" | "sent" | "held" | "left" | "put_off" | "fai
 const noCounts = (): OccasionCounts => ({ due: 0, sent: 0, held: 0, left: 0, put_off: 0, failed: 0, remaining: 0 });
 
 /** One workspace's job: its database, its moment, its log, and when it stops starting anything. */
-export interface OccasionsTurn {
+interface OccasionsTurn {
   db: Db;
   tenantId: TenantId;
   now: Date;
@@ -138,7 +138,7 @@ type Settled = "sent" | "held" | "left" | "put_off";
  * A due occasion as a run can take it, or why it is left before anything is read for it: its step does not run now,
  * it was found more than a day past its time, or its step is gone or holds no message.
  */
-function liveOf(row: DueOccasion, nowMs: number): Live | { why: string } {
+function occasionLiveOf(row: DueOccasion, nowMs: number): Live | { why: string } {
   if (!row.runs) return { why: "off" };
   if (nowMs - Date.parse(row.dueAt) > OCCASION_LATE_MS) return { why: "too_late" };
   const step = row.step;
@@ -150,7 +150,7 @@ function liveOf(row: DueOccasion, nowMs: number): Live | { why: string } {
 }
 
 /** The visit an occasion's run is about, as the record holds it; none for an occasion that names no visit. */
-function runOf(row: DueOccasion, appointment: OccasionAppointment | null): OccasionRun {
+function occasionRunOf(row: DueOccasion, appointment: OccasionAppointment | null): OccasionRun {
   return {
     contactId: row.contactId,
     occasion: row.occasion,
@@ -170,7 +170,7 @@ function runOf(row: DueOccasion, appointment: OccasionAppointment | null): Occas
  * Why an occasion is no longer owed, read off the record now (contracts occasionGone), with the appointment it names.
  * A visit that is another person's since (its row was linked to someone else) is gone for this one.
  */
-async function standingOf(
+async function readOccasionStanding(
   { db, tenantId, now }: OccasionsTurn,
   { row, trigger }: Live,
 ): Promise<{ gone: string | null; appointment: OccasionAppointment | null }> {
@@ -233,7 +233,7 @@ export async function runDueOccasions(
   // What can no longer run is settled before anything is read for it.
   const live: Live[] = [];
   for (const row of rows) {
-    const read = liveOf(row, now.getTime());
+    const read = occasionLiveOf(row, now.getTime());
     if ("why" in read) await leave(row, read.why);
     else live.push(read);
   }
@@ -272,7 +272,7 @@ export async function runDueOccasions(
 
   const settle = async (item: Live): Promise<Settled> => {
     const { row, step } = item;
-    const { gone, appointment } = await standingOf(turn, item);
+    const { gone, appointment } = await readOccasionStanding(turn, item);
     if (gone) {
       await leave(row, gone);
       return "left";
@@ -281,7 +281,7 @@ export async function runDueOccasions(
       await putOff(row);
       return "put_off";
     }
-    const result = await runPlaybook(ctx, step, { by: { kind: "system" }, occasion: runOf(row, appointment) });
+    const result = await runPlaybook(ctx, step, { by: { kind: "system" }, occasion: occasionRunOf(row, appointment) });
     switch (result.outcome) {
       case "sent":
       case "held":

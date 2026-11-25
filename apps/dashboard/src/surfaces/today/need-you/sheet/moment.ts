@@ -77,7 +77,7 @@ const clockWords = (hour: number, minute: number): string => {
 };
 
 /** The instant of a wall-clock time some days from today, in the zone. */
-function at(when: { tz: string; nowMs: number }, days: number, hour: number, minute: number): string {
+function momentAt(when: { tz: string; nowMs: number }, days: number, hour: number, minute: number): string {
   const d = dayPlusInZone(when.tz, when.nowMs, days);
   return new Date(localToUtcMs(when.tz, d.y, d.m, d.d, hour, minute)).toISOString();
 }
@@ -101,7 +101,7 @@ export function callMomentOf(
     if (hour < 24 && (hour > hh || (hour === hh && minute > mm)))
       return {
         lead: "wait",
-        until: at(when, 0, hour, minute),
+        until: momentAt(when, 0, hour, minute),
         back: `Back at ${clockWords(hour, minute)}`,
       };
   }
@@ -113,7 +113,7 @@ export function callMomentOf(
   const back = day
     ? `Back ${day.charAt(0).toUpperCase()}${day.slice(1)} at ${clockWords(open.start, 0)}`
     : `Back at ${clockWords(open.start, 0)}`;
-  return { lead: "wait", until: at(when, days, open.start, 0), back };
+  return { lead: "wait", until: momentAt(when, days, open.start, 0), back };
 }
 
 /** Who to call, as the press says it: a first name, or "them" for a number. */

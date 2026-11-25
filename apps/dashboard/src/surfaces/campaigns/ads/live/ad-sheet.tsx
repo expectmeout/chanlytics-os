@@ -24,10 +24,8 @@ import { FIX } from "./change-words";
 import type { FigureVM, SheetVM } from "./model";
 import type { AdChangeActs } from "./use-change";
 import { useAdPeople } from "./use-live";
-import { ADS_MANAGER, SHEET } from "./words";
+import { ADS_MANAGER, META_TAB, SHEET } from "./words";
 import { WorthLine } from "./worth-line";
-
-const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 function Figures(props: { label: string; figures: FigureVM[]; note?: string; after?: ReactNode }) {
   const { label, figures, note, after } = props;

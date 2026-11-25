@@ -1,5 +1,5 @@
 /**
- * An appointment row as the board draws it (docs/plans/2026-10-07-bookings-arrive-by-email.md, step 4): the row a
+ * An appointment row as the board draws it: the row a
  * booking notice became, beside the feed's events. The feed stays what it is; a row adds the visit the feed does not
  * carry, or says more about one it does (the client, the service, the staff). A visit both name is drawn once, from
  * the row, since the notice states what the event's title only hints at.

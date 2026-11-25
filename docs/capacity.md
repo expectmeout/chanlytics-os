@@ -21,7 +21,7 @@ A limit is read as what it is. A count a tick takes gives the hour a count. A ti
 | jobs_canary | `* * * * *` | One job in our own workspace. | No ceiling | Does not grow with workspaces. |
 | leads | `*/5 * * * *` | `RECONCILE_PER_TICK` = 10; beside it `RUNS_IN_CHUNK` = 100, `SWEEP_DEADLINE_MS` = 50,000, `RECHECKS_AT_ONCE` = 200 | 120 | Only runs whose start or lease was lost, and the addresses that did not answer a day ago, at most 200 a tick, each queued as a check job inside its workspace's searching budget (decision 0131). Holds. |
 | lines | `8,23,38,53 * * * *` | `LINES_PER_TICK` = 2 | 8 | Only lines being set up and stuck. Holds, unless a thousand sign up in one day. |
-| mailboxes | `2-59/5 * * * *` | `MAX_DUE` = 200; beside it `AT_ONCE` = 4, `READS_UNTIL_MS` = 25,000 | 2,400 | A thousand mailboxes are each looked at within twenty-five minutes. Holds: a push does the live work. |
+| mailboxes | `2-59/5 * * * *` | `MAX_DUE` = 200; beside it `MAILBOXES_AT_ONCE` = 4, `READS_UNTIL_MS` = 25,000 | 2,400 | A thousand mailboxes are each looked at within twenty-five minutes. Holds: a push does the live work. |
 | notes | `*/30 * * * *` | Time: it stops at its ceiling inside the function's minute. | No ceiling | Grows with quiet conversations. The first to read if Health says it runs long. |
 | pauses | `10 seconds` | None: one statement in the database, over rows whose time has come. | No ceiling | Holds on its index. |
 | playbooks | `5 * * * *` | None: it hands each workspace with a moment or step due one job, each running up to a hundred. | No ceiling | Two jobs a workspace at its hour, spread over five minutes. The ledger's row is the limit. |

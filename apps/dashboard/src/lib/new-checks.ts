@@ -85,7 +85,7 @@ export function twinOf(who: DraftWho | null, running: readonly NewRunning[]): { 
 type Reading = NonNullable<ReturnType<typeof readingFor>>;
 
 /** Who of those a pool names it leaves out, the most said once: a stop, no yes, no number. */
-function leftOf(r: Reading): string | null {
+function readingLeftOf(r: Reading): string | null {
   const R = NEW_WORDS.reach;
   const why = [
     { n: r.stopped, say: R.saidStop },
@@ -139,7 +139,7 @@ export function newReachOf(who: DraftWho | null, counts: NewCounts, how: ReachHo
   return {
     can: r.candidates,
     of: r.pool > r.candidates ? r.pool : null,
-    left: leftOf(r),
+    left: readingLeftOf(r),
     ...(r.held > 0 ? { held: r.held } : {}),
     ...(r.by_channel ? { by: r.by_channel } : {}),
     ...(r.candidates === 0 ? nobodyOf(r) : {}),

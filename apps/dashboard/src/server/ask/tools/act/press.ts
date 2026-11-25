@@ -10,7 +10,7 @@ import "server-only";
  * passes the same check a card does: the person's own words are a clear yes to resuming, or nothing is resumed.
  */
 import { z } from "zod";
-import { askTraitsOf, MIN_MS, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { askTraitsOf, MIN_MS, type AskProposal } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { askForJson } from "../../../shared/model-json";
 import { stopEverything, resumeEverything, type StopAnswer } from "../../act/stop";
@@ -88,8 +88,7 @@ async function pressCard(t: ToolContext, input: { card_id: string }): Promise<Pr
   if (!(await saidYes(t, action)))
     return refuse("what they said is not a clear yes to that card: ask which they mean, or say it is one press above");
   const run = await pressOnTurn(t.ctx, t.request, t.member, { messageId, card, cards }, "yes");
-  for (const r of run.results)
-    t.onPressed?.({ messageId, proposalId: r.proposalId, outcome: r.outcome as AskProposalOutcome });
+  for (const r of run.results) t.onPressed?.({ messageId, proposalId: r.proposalId, outcome: r.outcome });
   const receipt = run.results.at(-1)?.outcome.receipt ?? "";
   // Part of it went (a step of a plan, or a call of several): what went stands, and Ask never says nothing went out.
   const partDone = run.landed > 0 || run.results.some((r) => r.outcome.state === "done");

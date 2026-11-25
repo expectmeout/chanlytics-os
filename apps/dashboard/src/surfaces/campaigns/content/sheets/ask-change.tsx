@@ -16,7 +16,7 @@ import { askAbout } from "../../../frame-verbs";
 import { Icon } from "../../../kit/icon/icon";
 import { LineField, LinePress } from "../../../kit/line/line";
 
-const SAYS = CONTENT_SHEET_WORDS.ask;
+const ASK_CHANGE_SAYS = CONTENT_SHEET_WORDS.ask;
 
 /** What Ask is asked about: the piece, by its file. */
 export interface ChangeAbout extends AskScope {
@@ -76,13 +76,19 @@ export function AskLine({
         value={words}
         onChange={(event) => setWords(event.currentTarget.value)}
         onKeyDown={onKey}
-        placeholder={placeholder ?? (alone ? SAYS.alone : SAYS.more)}
-        aria-label={SAYS.label}
+        placeholder={placeholder ?? (alone ? ASK_CHANGE_SAYS.alone : ASK_CHANGE_SAYS.more)}
+        aria-label={ASK_CHANGE_SAYS.label}
         enterKeyHint="send"
         maxLength={1000}
         data-testid="cnv-ask-words"
       />
-      <LinePress kind="send" onClick={ask} disabled={!said} aria-label={SAYS.send} data-testid="cnv-ask-send">
+      <LinePress
+        kind="send"
+        onClick={ask}
+        disabled={!said}
+        aria-label={ASK_CHANGE_SAYS.send}
+        data-testid="cnv-ask-send"
+      >
         <Icon name="arrow-up" size={15} />
       </LinePress>
     </div>

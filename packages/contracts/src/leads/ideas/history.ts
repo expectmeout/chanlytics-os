@@ -89,7 +89,7 @@ export const fieldCount = (v: unknown): number => {
 };
 
 /** A moment, as an ISO string, or null where there is none. */
-const whenOf = (v: unknown): string | null => {
+const ideaWhenOf = (v: unknown): string | null => {
   const t = typeof v === "string" ? Date.parse(v) : NaN;
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 };
@@ -166,7 +166,7 @@ function searchOf(value: unknown): IdeaSearch | null {
       not_a_fit: fieldCount(leads.not_a_fit),
       with_email: fieldCount(leads.with_email),
       with_phone: fieldCount(leads.with_phone),
-      lastContactedAt: whenOf(leads.last_contacted_at),
+      lastContactedAt: ideaWhenOf(leads.last_contacted_at),
     },
     notAFit: fieldCounts(result.not_a_fit_why),
     reach: {
@@ -174,7 +174,7 @@ function searchOf(value: unknown): IdeaSearch | null {
       replied: fieldCount(reach.replied),
       interested: fieldCount(reach.interested),
       declined: fieldCount(reach.declined),
-      lastSentAt: whenOf(reach.last_sent_at),
+      lastSentAt: ideaWhenOf(reach.last_sent_at),
     },
     won: { deals: fieldCount(won.deals), cents: fieldCount(won.cents) },
   };

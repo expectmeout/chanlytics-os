@@ -241,7 +241,7 @@ export function partnerLetter(
 
 const sharesOf = (news: PartnerLetterNews) => news.written.filter((w) => w.kind === "share");
 
-const countOf = (rows: readonly { count: number }[]): number => rows.reduce((k, w) => k + w.count, 0);
+const countsTotal = (rows: readonly { count: number }[]): number => rows.reduce((k, w) => k + w.count, 0);
 
 const nonZero = <T extends { cents: number }>(rows: readonly T[]): T[] => rows.filter((r) => r.cents !== 0);
 
@@ -253,14 +253,14 @@ function letterLines(news: PartnerLetterNews): string[] {
     lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${partnerDayWords(p.sent_at)}, reference ${p.reference}.`);
   const shares = sharesOf(news);
   if (shares.length) {
-    const n = countOf(shares);
+    const n = countsTotal(shares);
     lines.push(
       `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`,
     );
   }
   for (const kind of PARTNER_REVERSAL_KINDS) {
     const of = news.written.filter((w) => w.kind === kind);
-    if (of.length) lines.push(REVERSAL_LINES[kind]?.(countOf(of), money(of)) ?? "");
+    if (of.length) lines.push(REVERSAL_LINES[kind]?.(countsTotal(of), money(of)) ?? "");
   }
   const matured = nonZero(news.matured);
   if (matured.length) lines.push(`${money(matured)} became payable.`);

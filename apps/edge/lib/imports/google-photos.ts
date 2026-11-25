@@ -55,7 +55,7 @@ function photosPlaceOf(cursor: unknown): Place {
   };
 }
 
-async function stopped(db: Db, part: Part, error: string, photos = 0): Promise<PartOutcome> {
+async function photosStopped(db: Db, part: Part, error: string, photos = 0): Promise<PartOutcome> {
   await noteImport(db, {
     tenantId: part.tenantId,
     source: "google_photos",
@@ -69,9 +69,9 @@ async function stopped(db: Db, part: Part, error: string, photos = 0): Promise<P
 
 export async function getGooglePhotosPart(db: Db, part: Part): Promise<PartOutcome> {
   const conn = await connectionOf(db, part.tenantId);
-  if (!conn?.account_name || !conn.location_name) return stopped(db, part, IMPORT_STOPPED_WORDS.googleGone);
+  if (!conn?.account_name || !conn.location_name) return photosStopped(db, part, IMPORT_STOPPED_WORDS.googleGone);
   const token = await tokenFor(db, part.tenantId, Date.now());
-  if (!token.ok) return stopped(db, part, IMPORT_STOPPED_WORDS.googleSignedOut);
+  if (!token.ok) return photosStopped(db, part, IMPORT_STOPPED_WORDS.googleSignedOut);
   await noteImport(db, {
     tenantId: part.tenantId,
     source: "google_photos",
@@ -106,7 +106,7 @@ export async function getGooglePhotosPart(db: Db, part: Part): Promise<PartOutco
       full = fates.includes("full");
     }
     // No room: what came is kept, and it stops in words, not on a count that says more came than did.
-    if (full) return stopped(db, part, IMPORT_STOPPED_WORDS.filesFull, brought + onPage);
+    if (full) return photosStopped(db, part, IMPORT_STOPPED_WORDS.filesFull, brought + onPage);
     if (at < result.photos.length) break;
     brought += onPage;
     place = { page: result.next_page_token, read: place.read + result.photos.length };

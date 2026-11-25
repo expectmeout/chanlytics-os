@@ -6,7 +6,7 @@
  */
 import { AD_STATE_WORDS, type AdOpens, type AdPartLeft, type AdStopped } from "@chanlytics/contracts";
 
-const people = (n: number): string => (n === 1 ? "1 person" : `${n} people`);
+const peopleCount = (n: number): string => (n === 1 ? "1 person" : `${n} people`);
 
 /** Meta's own names for the places an ad shows, as a drawer says them. */
 const META_PLACE_WORDS: Readonly<Record<string, string>> = {
@@ -124,11 +124,11 @@ export const LIVE = {
   notCountedNote: (what: string) =>
     `An ad that opens ${what} shows what Meta spent. Its people are counted only when they write to AI.`,
   unnamed: (came: number, booked: number) =>
-    `${people(came)} came from an ad you run in Meta that Chanlytics can't name yet` +
+    `${peopleCount(came)} came from an ad you run in Meta that Chanlytics can't name yet` +
     (booked > 0 ? `, and ${booked} of them ${booked === 1 ? "has" : "have"} booked.` : "."),
   /** The people of an ad in an ad account this workspace connected before this one: counted, on a line of their own. */
   elsewhere: (came: number, booked: number) =>
-    `${people(came)} came from an ad in an ad account you connected before this one` +
+    `${peopleCount(came)} came from an ad in an ad account you connected before this one` +
     (booked > 0 ? `, and ${booked} of them ${booked === 1 ? "has" : "have"} booked.` : "."),
   /** Meta signed Chanlytics out (the plan's 4.8). */
   signedOut: {
@@ -169,7 +169,7 @@ export const AI_LINE = {
   wayIn: (name: string) => `${name} is on, and AI can't answer the people it brings. Pause it?`,
   /** An ad made in Meta that brought people and ends within days: keep it going, in Meta, where it is changed. */
   extend: (ending: { name: string; people: number; day: string }) =>
-    `${ending.name} brought ${people(ending.people)} and ends ${ending.day}. Keep it going in Meta?`,
+    `${ending.name} brought ${peopleCount(ending.people)} and ends ${ending.day}. Keep it going in Meta?`,
 } as const;
 
 /**
@@ -388,6 +388,9 @@ export const STOPPED_ADS = {
 
 /** Meta Ads Manager, where an ad made in Meta is changed. */
 export const ADS_MANAGER = "https://adsmanager.facebook.com/adsmanager/manage/ads";
+
+/** A page of Meta's opens in a tab of its own: the owner comes back to this one, and the page looks again. */
+export const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /** Reports › Ads, in its first form: the page's numbers as figures and a table. */
 export const LENS = {

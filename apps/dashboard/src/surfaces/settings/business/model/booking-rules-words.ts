@@ -11,7 +11,7 @@ import {
 } from "@chanlytics/contracts";
 
 /** The booking rules the row states (contracts BookingRulesSchema), read defensively: the page is untyped. */
-export interface BookingRulesWordsInput {
+interface BookingRulesWordsInput {
   lead_hours?: number | null;
   slot_min?: number | null;
   buffer_min?: number | null;
@@ -21,7 +21,7 @@ export interface BookingRulesWordsInput {
   notes?: readonly string[] | null;
 }
 
-export interface BookingRulesWordsVM {
+interface BookingRulesWordsVM {
   /**
    * "At least 2 hours' notice · 30-minute slots · up to 14 days ahead · up to 4 people · asks for an email when sending
    * the booking link": the rules that are set; null with none.

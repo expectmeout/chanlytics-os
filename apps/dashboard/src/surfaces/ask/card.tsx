@@ -37,7 +37,7 @@ import type { LineWords } from "./words";
 
 /** Whether a card's undo is still true (contracts askUndoOpen): a reply until its cancel window closes, settings while nobody has saved since, anything else for ten minutes. */
 const atUndoOpen = (
-  A: AskApi | undefined,
+  askApi: AskApi | undefined,
   p: AskProposal,
   { state, undoData, doneAt }: { state: string; undoData: AskProposalOutcome["undo"]; doneAt: number },
 ) => {
@@ -46,7 +46,7 @@ const atUndoOpen = (
     state === "done" &&
     !!undoData &&
     !!p.undo &&
-    !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), version))
+    !!(askApi && askApi.undoOpen && askApi.undoOpen(p.kind, undoData, doneAt, Date.now(), version))
   );
 };
 

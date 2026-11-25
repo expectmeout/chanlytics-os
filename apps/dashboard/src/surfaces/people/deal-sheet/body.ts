@@ -33,7 +33,7 @@ const STAGE_OF: Record<DealSheetMode, DealStage> = {
 };
 
 /** The route's body for a move (the deal route and window.__recordDeal's DealBody). */
-export interface DealSheetBody {
+interface DealSheetBody {
   stage: DealStage;
   deal_id?: string;
   version?: number;
@@ -56,7 +56,7 @@ export interface DealSheetProblem {
   words: string;
 }
 
-export type DealSheetOutcome = { body: DealSheetBody; send: { text: string } | null } | { problem: DealSheetProblem };
+type DealSheetOutcome = { body: DealSheetBody; send: { text: string } | null } | { problem: DealSheetProblem };
 
 /**
  * The body the deal route takes for what the sheet holds (0008), or what is wrong with it, under the field it names,

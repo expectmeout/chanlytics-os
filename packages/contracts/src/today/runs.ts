@@ -42,7 +42,7 @@ export interface RunLike {
  * What a batch to leads waiting for an OK can say for itself, off the runs the page holds: when its first email goes, and
  * what the sequence's last batch earned. Either is null where the page has no true word for it.
  */
-export interface BatchFacts {
+interface BatchFacts {
   /** "today 10:40 AM": null once that time has passed, since the clock plans its sends again after an OK. */
   firstGoes: string | null;
   /** Null before its first batch has sent, or where that batch is older than the runs the page holds. */

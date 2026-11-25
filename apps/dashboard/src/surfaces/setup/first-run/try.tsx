@@ -223,13 +223,16 @@ function doneStage(o: {
  */
 function useTestWindow(tr: FirstRunTryVM, flash: (f: FrameFlash) => void) {
   const opened = useRef(0);
+  // The test's refusal is said by the screen as it stands when the answer comes.
+  const say = useRef(flash);
+  say.current = flash;
   useEffect(() => {
     const listening = tr.stage === "listen" || tr.stage === "quiet";
     if (!tr.openTest || !listening || Date.now() - opened.current < TRY_WINDOW_MS) return;
     if (!canDo("disconnect")) return;
     opened.current = Date.now();
     void setupVerbs.forwarding.test(tr.openTest).then((r) => {
-      if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
+      if (!r.ok) say.current({ tone: "danger", msg: <>{r.message}</> });
     });
   }, [tr.openTest, tr.stage]);
 }
@@ -242,9 +245,13 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel, onShowCode }: 
   const [picked, setPicked] = useState<string | null>(null);
   const settled = useSettled(useRef<SettledEntry | null>(null));
   const t0 = tr.transfer;
-  useEffect(() => {
-    if (picked && t0 && t0.value === picked) setPicked(null);
-  }, [t0 && t0.value]);
+  // Setup's read moving to the choice pressed lets go of it: the read says it now.
+  const readValue = t0?.value;
+  const [readSeen, setReadSeen] = useState(readValue);
+  if (readValue !== readSeen) {
+    setReadSeen(readValue);
+    if (picked && readValue === picked) setPicked(null);
+  }
   useTestWindow(tr, flash);
   const skip = async () => {
     if (!nudged) {

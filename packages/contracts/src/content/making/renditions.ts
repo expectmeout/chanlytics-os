@@ -11,7 +11,7 @@
  * Loudness is the house's own (a video with sound is levelled to about -14 LUFS, where the phone apps play it), read only
  * where the machine measured it: a missing number is never a refusal.
  */
-import type { PostKind, PostPlace } from "../posts";
+import { POST_KIND_SAID, POST_PLACE_SAID, type PostKind, type PostPlace } from "../posts";
 
 /** A file's bytes as measured: what it is, how large, how long, and its sound. Null where the file does not say. */
 export interface MediaMeasured {
@@ -96,9 +96,6 @@ export interface RenditionRefusal {
   words: string;
 }
 
-const PLACE_SAID: Record<PostPlace, string> = { instagram: "Instagram", google: "Google", facebook: "Facebook" };
-const RULE_KIND_SAID: Record<PostKind, string> = { picture: "post", story: "story", reel: "reel" };
-
 /** "2 seconds", "1 minute 30 seconds", "15 minutes". */
 function lengthSaid(seconds: number): string {
   const whole = Math.round(seconds);
@@ -144,12 +141,12 @@ function videoRefusalOf(measured: MediaMeasured, rule: RenditionRule, placeKind:
  * words. The bytes' own size and shape first, then what a video holds.
  */
 export function renditionRefusalOf(place: PostPlace, kind: PostKind, measured: MediaMeasured): RenditionRefusal | null {
-  const placeKind = `${PLACE_SAID[place]}'s ${RULE_KIND_SAID[kind]}`;
+  const placeKind = `${POST_PLACE_SAID[place]}'s ${POST_KIND_SAID[kind]}`;
   const rule = RENDITION_RULES[place][kind]?.[measured.media];
   if (!rule)
     return {
       why: "medium",
-      words: `${PLACE_SAID[place]} can't take a ${measured.media} as a ${RULE_KIND_SAID[kind]}.`,
+      words: `${POST_PLACE_SAID[place]} can't take a ${measured.media} as a ${POST_KIND_SAID[kind]}.`,
     };
   if (!rule.formats.includes(measured.format))
     return { why: "format", words: `${placeKind} takes ${rule.formats.map((f) => f.toUpperCase()).join(" or ")}.` };

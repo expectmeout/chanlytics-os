@@ -48,7 +48,7 @@ interface Said {
   word?: AppointmentWord;
 }
 
-const dayOf = (iso: string | null, said: Said): string | null => {
+const adDayOf = (iso: string | null, said: Said): string | null => {
   const day = iso === null ? "" : dayOfIso(iso, said.timezone);
   return day === "" ? null : dayWord(day);
 };
@@ -141,18 +141,18 @@ function eachOf(ads: readonly AdLiveDto[], dto: AdsLiveDto, currency: string): {
 function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
   const checking = ad.state === "review";
   if (dto.account.status === "disconnected") {
-    const day = dayOf(dto.account.disconnected_at, said) ?? "";
+    const day = adDayOf(dto.account.disconnected_at, said) ?? "";
     const phrase = ad.state === "on" ? LIVE.leftWasOn(day).trim() : LIVE.leftWasPaused;
     return `${LIVE.leftInMeta} · ${checking ? LIVE.wasChecking : phrase}`;
   }
-  const updated = dayOf(dto.account.read_at, said);
+  const updated = adDayOf(dto.account.read_at, said);
   const phrase = ad.state === "on" ? LIVE.wasOn : LIVE.wasPaused;
   return [checking ? LIVE.wasChecking : phrase, updated ? LIVE.updated(updated) : null].filter(Boolean).join(" · ");
 }
 
 /** The line a row says: where the ad stands, then what the owner needs to know of it. */
 function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
-  const ends = dayOf(ad.ends_at, said);
+  const ends = adDayOf(ad.ends_at, said);
   if (dto.account.status !== "connected") return stoppedLineOf(ad, dto, said);
   if (ad.state === "setting-up") return ad.launch?.cancelling ? LIVE.cancelling : LIVE.settingUp;
   if (ad.state === "couldnt-finish") return LIVE.couldntFinish(LIVE.stoppedWhy[ad.launch?.stopped ?? "unanswered"]);
@@ -173,7 +173,7 @@ function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): s
   return [LIVE.state[ad.state], ...parts].filter(Boolean).join(" · ");
 }
 
-function rowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): LiveRowVM {
+function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): LiveRowVM {
   const each = ad.booked > 0 ? eachOf([ad], dto, currency) : null;
   const stopped = dto.account.status !== "connected";
   return {
@@ -198,10 +198,10 @@ const namesOf = (ads: readonly AdLiveDto[]): string => {
 };
 
 /** The notice at the top, where the account is no longer connected. */
-function noticeOf(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
+function liveNoticeOf(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
   const on = dto.ads.filter((ad) => ad.state === "on");
   if (dto.account.status === "revoked") {
-    const day = dayOf(dto.account.revoked_at, said) ?? "";
+    const day = adDayOf(dto.account.revoked_at, said) ?? "";
     const names = namesOf(on);
     return {
       title: LIVE.signedOut.title(day),
@@ -224,7 +224,7 @@ function leftOnNotice(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
   const checking = dto.ads.filter((ad) => ad.state === "review");
   const left = [...on, ...checking];
   if (left.length === 0) return null;
-  const day = dayOf(dto.account.disconnected_at, said) ?? "";
+  const day = adDayOf(dto.account.disconnected_at, said) ?? "";
   const door = LIVE.disconnected.openMeta;
   const words = LIVE.disconnected;
   if (checking.length === 0)
@@ -353,7 +353,7 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
   const spent = dto.ads.reduce((sum, ad) => sum + ad.spend_minor, 0);
   const each = eachOf(dto.ads, dto, currency);
   const connected = dto.account.status === "connected";
-  const updatedDay = dayOf(dto.account.read_at, said);
+  const updatedDay = adDayOf(dto.account.read_at, said);
   const spentWords = LIVE.spent(moneyOf(spent, currency));
   const line =
     came === 0 && spent === 0
@@ -368,12 +368,12 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
     line,
     ai: aiLineOf(dto, said),
     needsYou: needsYouLineOf(dto, said),
-    notice: noticeOf(dto, said),
+    notice: liveNoticeOf(dto, said),
     stale:
       connected && dto.account.read_failed && dto.account.read_at
         ? LIVE.couldntUpdate(timeOf(dto.account.read_at, said.timezone))
         : null,
-    rows: ads.map((ad) => rowOf(ad, dto, said, currency)),
+    rows: ads.map((ad) => liveRowOf(ad, dto, said, currency)),
     notes: notesOf(dto, ads),
     again: dto.account.status === "disconnected" ? LIVE.disconnected.again : null,
     empty: connected && firstReadOf(dto.account) === null && dto.ads.length === 0 ? LIVE.noAds.rest : null,
@@ -441,7 +441,7 @@ export interface SheetVM {
 function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
   if (dto.account.status !== "connected" || ad.pending !== null || over(ad) || LINE_ALONE.includes(ad.state))
     return lineOf(ad, dto, said, currency);
-  const ends = dayOf(ad.ends_at, said);
+  const ends = adDayOf(ad.ends_at, said);
   const budget = ad.budget;
   const money =
     budget === null
@@ -498,7 +498,7 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
   // While AI is stopped no ad is turned on from here (the Ads plan's G17).
   if (dto.stopped_at) return { kind: "none", line: SHEET.stopped };
   const left = moneyOf(ad.resume.left_minor, currency);
-  const day = dayOf(ad.resume.ends_at, said) ?? "";
+  const day = adDayOf(ad.resume.ends_at, said) ?? "";
   return {
     kind: "resume",
     ask: SHEET.resumeAsk(ad.name),

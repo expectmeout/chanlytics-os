@@ -81,8 +81,12 @@ export const ASK_ALONE_DAY_MAX = 50;
 /** Undos in a week past which it stops running alone until someone looks: it is getting things wrong. */
 export const ASK_ALONE_UNDOS_MAX = 2;
 
-const answer = (a: FreedomAnswer, why: FreedomReason, row: PolicyClass | null = null) => ({ answer: a, why, row });
-export type FreedomVerdict = ReturnType<typeof answer>;
+const freedomAnswer = (a: FreedomAnswer, why: FreedomReason, row: PolicyClass | null = null) => ({
+  answer: a,
+  why,
+  row,
+});
+export type FreedomVerdict = ReturnType<typeof freedomAnswer>;
 
 /** The Autonomy row a card follows: its kind's, or the class its payload names. */
 export function rowOf(p: Pick<AskProposal, "kind" | "payload">): PolicyClass | null {
@@ -105,38 +109,38 @@ const ideaMayRun = (origin: AskCardOrigin | undefined): FreedomReason | null => 
 export function freedomOf(p: Pick<AskProposal, "kind" | "payload" | "origin">, world: FreedomWorld): FreedomVerdict {
   const traits = askTraitsOf(p.kind);
   // Who's asking.
-  if (!world.may) return answer("no", "role");
+  if (!world.may) return freedomAnswer("no", "role");
   // A stop, and a live call: that moment, whatever else is true.
-  if (traits.alone === "at_once") return answer("run", "at_once");
-  if (world.stopped) return answer("ask", "stopped");
+  if (traits.alone === "at_once") return freedomAnswer("run", "at_once");
+  if (world.stopped) return freedomAnswer("ask", "stopped");
   // Is it locked.
-  if (traits.alone === "press") return answer("ask", "locked");
+  if (traits.alone === "press") return freedomAnswer("ask", "locked");
   // Whose idea, and is anything new.
   const idea = ideaMayRun(p.origin);
-  if (idea) return answer("ask", idea);
-  if (p.origin?.strangers && traits.alone !== "keep") return answer("ask", "strangers");
-  if (world.newWords) return answer("ask", "new_words");
+  if (idea) return freedomAnswer("ask", idea);
+  if (p.origin?.strangers && traits.alone !== "keep") return freedomAnswer("ask", "strangers");
+  if (world.newWords) return freedomAnswer("ask", "new_words");
   // How far it reaches.
-  if (traits.many && (world.count === null || world.count > ASK_ALONE_MANY_MAX)) return answer("ask", "many");
+  if (traits.many && (world.count === null || world.count > ASK_ALONE_MANY_MAX)) return freedomAnswer("ask", "many");
   // What the row says.
-  if (!world.alone) return answer("ask", "switch_off");
+  if (!world.alone) return freedomAnswer("ask", "switch_off");
   const row = rowOf(p);
   let said: FreedomVerdict;
-  if (traits.alone === "keep") said = answer("run", "keep");
-  else if (row === null) return answer("ask", "no_row");
+  if (traits.alone === "keep") said = freedomAnswer("run", "keep");
+  else if (row === null) return freedomAnswer("ask", "no_row");
   else {
     const mode = world.rows[row];
-    if (mode === "never") return answer("no", "row_never", row);
-    if (mode === "auto") said = answer("run", "row_auto", row);
-    else if (mode === "veto") said = answer("hold", "row_veto", row);
-    else return answer("ask", "row_ask", row);
+    if (mode === "never") return freedomAnswer("no", "row_never", row);
+    if (mode === "auto") said = freedomAnswer("run", "row_auto", row);
+    else if (mode === "veto") said = freedomAnswer("hold", "row_veto", row);
+    else return freedomAnswer("ask", "row_ask", row);
   }
   // Is now a good time.
-  if (traits.reach !== "keeps" && !world.open) return answer("ask", "closed", row);
-  if (world.aloneToday >= ASK_ALONE_DAY_MAX) return answer("ask", "day_limit", row);
-  if (world.undosThisWeek >= ASK_ALONE_UNDOS_MAX) return answer("ask", "undos", row);
-  if (world.moved) return answer("ask", "moved", row);
+  if (traits.reach !== "keeps" && !world.open) return freedomAnswer("ask", "closed", row);
+  if (world.aloneToday >= ASK_ALONE_DAY_MAX) return freedomAnswer("ask", "day_limit", row);
+  if (world.undosThisWeek >= ASK_ALONE_UNDOS_MAX) return freedomAnswer("ask", "undos", row);
+  if (world.moved) return freedomAnswer("ask", "moved", row);
   // Can it be taken back.
-  if (!world.takesBack) return answer("ask", "no_way_back", row);
+  if (!world.takesBack) return freedomAnswer("ask", "no_way_back", row);
   return said;
 }

@@ -93,7 +93,7 @@ function ideaPeopleAsk(plan: LeadPeoplePlan): string {
 }
 
 /** A size this month allows: the one asked, else the middle one. */
-const sizeOf = (amount: number, p: IdeaPacket): number =>
+const ideaSizeOf = (amount: number, p: IdeaPacket): number =>
   p.sizes.includes(amount) ? amount : (p.sizes[1] ?? p.sizes[0] ?? IDEA_SIZES[0]);
 
 /** One places idea's plan: through the planner Ask's tool uses, in the listed place's own area or the US place it names. */
@@ -108,7 +108,7 @@ function placesPlanOf(idea: IdeaAnswer, key: string, ideaPacket: IdeaPacket): Le
   const input = ProposeLeadSearchSchema.safeParse({
     looking_for: "local_businesses",
     country: "US",
-    count: sizeOf(idea.count, ideaPacket),
+    count: ideaSizeOf(idea.count, ideaPacket),
     who: idea.who,
     who_one: idea.who_one,
     category_key: key,
@@ -142,7 +142,7 @@ function peoplePlanOf(idea: IdeaAnswer, ideaPacket: IdeaPacket): LeadPeoplePlan 
   const input = ProposePeopleSearchSchema.safeParse({
     looking_for: "people_at_companies",
     country: "US",
-    count: sizeOf(idea.count, ideaPacket),
+    count: ideaSizeOf(idea.count, ideaPacket),
     who: idea.who,
     terms: (titles.length ? titles : [idea.who_one || idea.who]).slice(0, 5),
     region: states.length ? states.join(", ") : "US",

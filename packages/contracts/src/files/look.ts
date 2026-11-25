@@ -196,7 +196,7 @@ function lookPeopleOf(v: unknown): FilePeople | null {
 }
 
 /** A pixel box as shares of the picture, or null for anything that is not a box on it. */
-function subjectOf(box: unknown, width: number, height: number): FileLook["subject"] {
+function lookSubjectOf(box: unknown, width: number, height: number): FileLook["subject"] {
   if (!Array.isArray(box) || box.length !== 4 || !box.every((n) => typeof n === "number" && Number.isFinite(n)))
     return null;
   if (!(width > 0) || !(height > 0)) return null;
@@ -360,7 +360,7 @@ export function fileLookOf(answer: unknown, size: { width: number; height: numbe
         sharp: closedWordOf(quality.sharp, FILE_QUALITIES),
         light: closedWordOf(quality.light, FILE_QUALITIES),
       },
-      subject: subjectOf(answer.subject_box, size.width, size.height),
+      subject: lookSubjectOf(answer.subject_box, size.width, size.height),
       colors: wordsHeld(answer.colors, 3).filter((c) => /^#[0-9a-f]{6}$/i.test(c)),
       issues: wordsHeld(answer.issues, 8),
       // A video's answer still says the one word (its own edition); a picture's says which kind, and stock is one of them.

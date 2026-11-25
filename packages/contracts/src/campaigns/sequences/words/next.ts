@@ -132,7 +132,7 @@ export interface SequenceNotice {
   off?: { reason: RunOffReason; mends: "door" | "end" | null; to: string | null };
 }
 
-const noticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<SequenceNotice>): SequenceNotice => ({
+const sequenceNoticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<SequenceNotice>): SequenceNotice => ({
   batchId: null,
   stepId: null,
   ...n,
@@ -154,7 +154,7 @@ function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDt
   const until = batchWaitsUntilTonight(batch) ? ` · ${SEQUENCE_WORDS.untilTonight}` : "";
   const fact = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" · ");
   // A batch that names nobody yet (its people are counted as it is planned) is said as the batch, never as "0 people".
-  return noticeOf({
+  return sequenceNoticeOf({
     kind: "waiting",
     words:
       people > 0
@@ -189,7 +189,7 @@ export function sequenceNotice(
   // On, and its last run did nothing: said with the door that mends it, until a run goes again (sequences/run-off.ts).
   const off = lastRun ? sequenceRunOff(row, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
   if (off)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "off",
       words: off.words,
       line: off.line,
@@ -198,7 +198,7 @@ export function sequenceNotice(
       off: { reason: off.reason, mends: off.mends, to: off.to },
     });
   if (twin)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "twin",
       words: `${twinLineOf(row)}: “${twin.name}” sends one too`,
       line: twinLineOf(row),
@@ -206,7 +206,7 @@ export function sequenceNotice(
       act: SEQUENCE_WORDS.turnOff,
     });
   if (needs.held > 0)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "held",
       words: heldByCheckWords(needs.held),
       line: `${needs.held} held by the check`,
@@ -214,7 +214,7 @@ export function sequenceNotice(
       act: SEQUENCE_WORDS.review,
     });
   if (needs.to_send > 0)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "to_send",
       words: `${plural(needs.to_send, "email waits", "emails wait")} for you to send`,
       line: `${needs.to_send} for you to send`,
@@ -222,7 +222,7 @@ export function sequenceNotice(
       act: SEQUENCE_WORDS.review,
     });
   if (needs.replies > 0)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "replies",
       words: `${plural(needs.replies, "lead wrote back", "leads wrote back")} · answer them`,
       line: `${needs.replies} wrote back`,
@@ -231,7 +231,7 @@ export function sequenceNotice(
     });
   const refused = steps.find((s) => s.next_words?.status === "rejected");
   if (refused)
-    return noticeOf({
+    return sequenceNoticeOf({
       kind: "words",
       words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
       line: `Step ${refused.place}’s new words turned down`,

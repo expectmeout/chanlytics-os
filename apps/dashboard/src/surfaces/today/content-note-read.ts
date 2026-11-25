@@ -8,7 +8,7 @@ import type { ContentTodayDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { firstDrawRead } from "./first-draw-read";
 
-const today = firstDrawRead<ContentTodayDto>(
+const contentToday = firstDrawRead<ContentTodayDto>(
   "content_note",
   "content/note",
   async () => (await read("GET content/note")).today,
@@ -16,10 +16,10 @@ const today = firstDrawRead<ContentTodayDto>(
 );
 
 /** What this tab last read for the workspace on screen, or null where it holds nothing. */
-export const keptContentToday = (): ContentTodayDto | null => today.kept()?.value ?? null;
+export const keptContentToday = (): ContentTodayDto | null => contentToday.kept()?.value ?? null;
 
 /** Hold Today's first draw for the card, where the tab opens on Today holding none (first-draw-read.ts). */
-export const holdTodayForContent = (): void => today.hold();
+export const holdTodayForContent = (): void => contentToday.hold();
 
 /** The card's read now, as the card asks for it: the load's own read first, so a load never asks twice. */
-export const readContentToday = (): Promise<ContentTodayDto | null> => today.read();
+export const readContentToday = (): Promise<ContentTodayDto | null> => contentToday.read();

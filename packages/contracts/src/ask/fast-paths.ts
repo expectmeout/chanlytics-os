@@ -37,9 +37,9 @@ const DAY_FORM =
   "(?:today|tomorrow|hoy|mañana|(?:(?:on|this|el|este) )?(?:mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thursday|fri|friday|sat|saturday|sun|sunday|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo))";
 /** A service the openings route may read the length of: "for a balayage", "para un corte". */
 const FOR_SERVICE = "(?:for|para) (?:an? |un |una )?[a-zà-ÿ'-]+(?: [a-zà-ÿ'-]+){0,2}";
-const whole = (forms: string[], tail: string) => new RegExp(`^${FILLER}(?:${forms.join("|")})${tail}$`);
+const wholeLine = (forms: string[], tail: string) => new RegExp(`^${FILLER}(?:${forms.join("|")})${tail}$`);
 
-const NEEDS_RE = whole(
+const NEEDS_RE = wholeLine(
   [
     "who needs (?:me|my (?:attention|answer|reply|help))",
     "what needs (?:me|my (?:attention|answer|reply))",
@@ -55,7 +55,7 @@ const NEEDS_RE = whole(
   ],
   NOW,
 );
-const CALLS_RE = whole(
+const CALLS_RE = wholeLine(
   [
     "(?:did|has|have) (?:anyone|someone|anybody|somebody) (?:call|called|rang|rung|phoned)(?: me| us)?",
     "(?:any|were there any) (?:missed )?calls?",
@@ -74,7 +74,7 @@ const CALLS_RE = whole(
   ],
   CALLED_WHEN,
 );
-const OPEN_RE = whole(
+const OPEN_RE = wholeLine(
   [
     "what(?:'s|s| is) (?:open|free|available)",
     "(?:is there )?anything (?:open|free|available)",

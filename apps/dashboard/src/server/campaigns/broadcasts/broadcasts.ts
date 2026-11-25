@@ -235,7 +235,7 @@ async function consentAfter(
 }
 
 /** What a person on a run is called: their name, else the number or the address the run went to. */
-function nameOf(r: RecipientRow): string {
+function recipientNameOf(r: RecipientRow): string {
   return personName({
     display_name: r.contacts?.display_name ?? null,
     wa_profile_name: r.contacts?.wa_profile_name ?? null,
@@ -290,7 +290,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
 
   const people: BroadcastRecipientDto[] = rows.map((row) => ({
     contact_id: row.contact_id,
-    name: nameOf(row),
+    name: recipientNameOf(row),
     channel: row.channel,
     first_name: firstNameOfRecipient(row),
     phone: row.contacts?.phone_e164 ?? null,
@@ -319,7 +319,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
 }
 
 /** How many of a person's runs their page lists: the newest. */
-export const PERSON_RUNS = 20;
+const PERSON_RUNS = 20;
 
 /**
  * The runs that named one person, newest first, the newest PERSON_RUNS of them: a playbook's run named for its

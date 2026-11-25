@@ -4,7 +4,7 @@
  * no model, asked by the drawer that draws a press, the route that takes it and the edge before Meta is told, so the
  * three cannot differ.
  *
- * What Meta's own pages say (read 21 November 2026; docs/plans/2026-11-18-ads-meta-checks.md): a total can be changed,
+ * What Meta's own pages say (read 21 November 2026): a total can be changed,
  * never to less than a tenth over what it has spent; an ad set's amount is changed at most four times an hour; one
  * change to a thing every thirty seconds; and an archived ad is never turned on again, its numbers kept.
  *

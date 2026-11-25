@@ -39,7 +39,7 @@ function customerMark(name: string | undefined, initials: string): ReactNode {
 }
 
 /** What a mark is drawn with: the customer's (`customer`), or a glyph for the kind. A teammate's reply is the team's glyph, never "You". */
-function markOf(e: Item, customer: ReactNode): ReactNode {
+function timelineMarkOf(e: Item, customer: ReactNode): ReactNode {
   if (e.kind === "customer") return customer;
   if (e.kind === "receptionist") return <Icon name="sparkle" size={12} />;
   if (e.kind === "team") return <Icon name="chat" size={12} />;
@@ -88,7 +88,7 @@ function askLine(e: Item) {
 function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = false) {
   return (
     <>
-      <div className={`cl-tl-mark ${markClassOf(e)}`}>{markOf(e, customer)}</div>
+      <div className={`cl-tl-mark ${markClassOf(e)}`}>{timelineMarkOf(e, customer)}</div>
       <div className="cl-tl-body">
         <div className="cl-tl-head">
           <span className="cl-tl-who">{e.who}</span>

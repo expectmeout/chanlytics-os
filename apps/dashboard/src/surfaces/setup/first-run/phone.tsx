@@ -400,26 +400,32 @@ function useAutoForward(k: PhoneActs, on: boolean) {
 const RECHECK_AFTER_MS = 50;
 
 /** The buy that goes on by itself once the plan lets it, once; and the choice let go of once the line is here. */
-function usePhoneBuy(k: PhoneActs, fresh: boolean, sentAge: number | null, on: boolean) {
-  const { ph, c } = k;
+function usePhoneBuy(k: PhoneActs, fresh: boolean, on: boolean) {
+  const stage = k.ph.stage;
+  const sentAt = k.c.sent || null;
   // Draws the step again once a buy's mark goes stale, so a buy that never landed is sent again (PHONE_SENT_MS).
   const [, recheck] = useReducer((n: number) => n + 1, 0);
+  // The acts as they stand at the draw the step moved on, as useAutoForward reads them.
+  const acts = useRef(k);
+  acts.current = k;
   useEffect(() => {
     if (!on) return undefined;
-    if (ph.stage === "buying" && !k.sent.current && !fresh) {
-      k.sent.current = true;
-      k.setChoice({ ...c, sent: Date.now() });
-      void buy(k);
+    const now = acts.current;
+    const { c } = now;
+    if (stage === "buying" && !now.sent.current && !fresh) {
+      now.sent.current = true;
+      now.setChoice({ ...c, sent: Date.now() });
+      void buy(now);
     }
     // The line is here: what is left of the choice is the way, for the steps after.
-    if (ph.stage === "getting" && c.pending) k.setChoice({ ...c, pending: false, sent: false, returnedAt: null });
+    if (stage === "getting" && c.pending) now.setChoice({ ...c, pending: false, sent: false, returnedAt: null });
     // Sent from another draw and not landed yet: look again when its mark goes stale.
-    if (ph.stage === "buying" && fresh && !k.sent.current && sentAge !== null) {
-      const t = setTimeout(recheck, PHONE_SENT_MS - sentAge + RECHECK_AFTER_MS);
+    if (stage === "buying" && fresh && !now.sent.current && sentAt !== null) {
+      const t = setTimeout(recheck, sentAt + PHONE_SENT_MS + RECHECK_AFTER_MS - Date.now());
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [ph.stage, fresh, on]);
+  }, [stage, fresh, on, sentAt]);
 }
 
 export const FrPhone = ({ ph, choice, setChoice, W, flash, go, part }: PhoneProps) => {
@@ -449,7 +455,7 @@ export const FrPhone = ({ ph, choice, setChoice, W, flash, go, part }: PhoneProp
   };
   const sentAge = c.sent ? Date.now() - c.sent : null;
   const fresh = sentAge !== null && sentAge < PHONE_SENT_MS;
-  usePhoneBuy(k, fresh, sentAge, part === "number");
+  usePhoneBuy(k, fresh, part === "number");
   useAutoForward(k, part === "forward");
   if (part === "number") return statusStage(ph);
   const foot = phoneFoot(ph, k);

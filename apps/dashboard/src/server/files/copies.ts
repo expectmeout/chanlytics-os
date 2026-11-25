@@ -21,7 +21,7 @@ export interface FileCopy {
 }
 
 /** A picture made for this turn, as the edge takes it. */
-export interface PictureMade {
+interface PictureMade {
   bytes: Uint8Array;
   mime: FileMime;
   name: string;
@@ -56,7 +56,7 @@ async function copiesDoor(
   return answerBody;
 }
 
-const sizeOf = (row: Record<string, unknown>) => ({
+const copySizeOf = (row: Record<string, unknown>) => ({
   width: typeof row.width === "number" ? row.width : null,
   height: typeof row.height === "number" ? row.height : null,
 });
@@ -75,7 +75,7 @@ export async function listFileCopiesOf(
   for (const c of copies) {
     const row = recordOrNull(c);
     if (typeof row?.id === "string" && typeof row.file_id === "string")
-      out.set(row.id, { fileId: row.file_id, ...sizeOf(row) });
+      out.set(row.id, { fileId: row.file_id, ...copySizeOf(row) });
   }
   return out;
 }
@@ -126,7 +126,7 @@ export async function drawVideoMoment(
     return { wont: typeof row.wont === "string" ? row.wont : "it could not be drawn just now" };
   return {
     fileId: row.file_id,
-    ...sizeOf(row),
+    ...copySizeOf(row),
     box: boxOr(row.box),
     of: pairOr(row.of),
     from: numberOr(row.from),
@@ -148,7 +148,7 @@ export async function keepVideoFrame(
   const reply = await copiesDoor(member, { frames: [{ key: "one", ...frame }] }, leftMs);
   const row = Array.isArray(reply?.frames) ? recordOrNull(reply.frames[0]) : null;
   if (row?.kept !== true) return { wont: typeof row?.wont === "string" ? row.wont : "it could not be cut just now" };
-  return sizeOf(row);
+  return copySizeOf(row);
 }
 
 /**
@@ -179,5 +179,5 @@ export async function findPictureCopy(
   );
   const row = Array.isArray(answer?.pictures) ? recordOrNull(answer.pictures[0]) : null;
   if (typeof row?.file_id !== "string") return null;
-  return { fileId: row.file_id, ...sizeOf(row) };
+  return { fileId: row.file_id, ...copySizeOf(row) };
 }

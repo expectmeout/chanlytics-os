@@ -22,7 +22,7 @@ const BODY_MAX_BYTES = 4096;
 type Ctx = { params: Promise<{ token: string }> };
 
 /** A body read as an object of fields, or an empty one: a field of the wrong kind is each door's to refuse. */
-async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
+async function readFieldsOf(req: Request): Promise<Record<string, unknown>> {
   const text = await req.text().catch(() => "");
   if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.");
   try {
@@ -51,7 +51,7 @@ export function previewRoute<T>(
       if (!isSameOrigin(req)) throw new AppError("forbidden", "This page's own buttons ask here.", 403);
       await takeRate(`ip:${hashKey(ipOf(req))}`, door.bucket, undefined, door.spends);
       const { token } = await ctx.params;
-      return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
+      return NextResponse.json(ok(await run(token, await readFieldsOf(req))), { headers: PRIVATE });
     } catch (error) {
       // A limit says when it lifts, as every route's does (with-route.ts): in the envelope and in Retry-After, so the
       // page waits out a pace of seconds rather than refusing a person who wrote twice in quick succession.

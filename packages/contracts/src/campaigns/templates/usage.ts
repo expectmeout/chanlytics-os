@@ -4,6 +4,7 @@ import { clockDate } from "../../shared/clock";
 import { RUN_WAITING_WORDS } from "../../shell/campaign-rooms";
 import { agoWords } from "../../shared/time";
 import { isCount, recordOrNull } from "../../shared/unknown";
+import { capitalize } from "../../shared/words";
 
 /* ------------------------------ what sends it ----------------------------- */
 
@@ -145,8 +146,6 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
 const sayList = (parts: string[]): string =>
   parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 
-const capital = (s: string): string => (s ? (s[0] ?? "").toUpperCase() + s.slice(1) : s);
-
 /** A step as the owner knows it: its sequence's name, and its place where the sequence has more than one step. */
 const sequenceStepWords = (p: TemplateUse["playbooks"][number]): string =>
   p.sequence ? (p.sequence.step ? `${p.sequence.name} · step ${p.sequence.step}` : p.sequence.name) : p.name;
@@ -178,7 +177,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   }
   if (url.booking) parts.push("the Inbox");
   if (parts.length === 0) return TEMPLATE_UNUSED_WORDS;
-  return capital(sayList(parts));
+  return capitalize(sayList(parts));
 }
 
 /**

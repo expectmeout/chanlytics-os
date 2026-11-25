@@ -12,8 +12,7 @@ import {
   type InboxThreadVM,
   threadWaitsOf,
 } from "@chanlytics/contracts";
-import { load, type ReaderContext } from "../../shared/reader";
-import * as facts from "../../readers/facts";
+import { load } from "../../shared/reader";
 import { today as todayReader } from "../../readers/today";
 import { inbox as inboxReader } from "../../readers/inbox";
 import { conversations as conversationsReader } from "../../readers/conversations";
@@ -29,6 +28,7 @@ import {
   sourceOf,
   type ContextRow,
   type Provider,
+  readZone,
 } from "./rows";
 import { threadState } from "../thread-state";
 
@@ -62,8 +62,6 @@ const callRow = (v: CallVM): ContextRow => {
 /** The open escalation each thread shows, as the Inbox picks it: the last one keyed wins, so a thread shows its oldest. */
 const escalationsBy = <E extends { conversation_id: string }>(open: E[]): Map<string, E> =>
   new Map(open.map((e) => [e.conversation_id, e]));
-
-const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
 /** Today: the queue's rows the page drew, each as the queue says it, and the day's standing and figures. */
 export const readToday: Provider = async (rc, ctx) => {
@@ -136,7 +134,7 @@ export const readToday: Provider = async (rc, ctx) => {
 export const readInbox: Provider = async (rc, ctx) => {
   const [{ conversations, escalations }, tz] = await Promise.all([
     load(rc, inboxReader, undefined).then((r) => r.data),
-    zone(rc),
+    readZone(rc),
   ]);
   const byConv = escalationsBy(escalations);
   const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz, rc.now));
@@ -188,7 +186,7 @@ export const readConversations: Provider = async (rc, ctx) => {
       ? load(rc, escalationsReader, { state: "open" }).then((r) => r.data.escalations)
       : Promise.resolve([]),
     wantsCalls ? load(rc, callsReader, {}).then((r) => r.data.calls) : Promise.resolve([]),
-    zone(rc),
+    readZone(rc),
   ]);
   const byConv = escalationsBy(open);
   const threads = new Map(convs.map((c) => [c.id, toInboxThreadVM(c, byConv.get(c.id) ?? null, tz, rc.now)]));
@@ -223,7 +221,7 @@ export const readConversations: Provider = async (rc, ctx) => {
 
 /** Live: the calls the page drew, and how many are live now among the newest hundred. */
 export const readLive: Provider = async (rc, ctx) => {
-  const [calls, tz] = await Promise.all([load(rc, callsReader, {}).then((r) => r.data.calls), zone(rc)]);
+  const [calls, tz] = await Promise.all([load(rc, callsReader, {}).then((r) => r.data.calls), readZone(rc)]);
   const vms = new Map(calls.map((c) => [c.id, toCallVM(c, tz, rc.now)]));
   const rows = idsOf(ctx, "call").flatMap((r) => {
     const v = vms.get(r.id);

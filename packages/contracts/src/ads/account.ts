@@ -70,7 +70,7 @@ export interface MetaAdConfig {
   user_id: string | null;
 }
 
-const text = (value: unknown, max = 500): string | null =>
+const cappedText = (value: unknown, max = 500): string | null =>
   typeof value === "string" && value.trim() !== "" && value.length <= max ? value : null;
 const whole = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -88,10 +88,10 @@ export function adStandingOf(json: unknown): AdStanding {
 
 function choiceOf(json: unknown): AdAccountChoice[] {
   const kept = recordOrEmpty(json);
-  const externalId = text(kept.external_id, 200);
-  const name = text(kept.name);
-  const currency = text(kept.currency, 3);
-  const timezone = text(kept.timezone, 100);
+  const externalId = cappedText(kept.external_id, 200);
+  const name = cappedText(kept.name);
+  const currency = cappedText(kept.currency, 3);
+  const timezone = cappedText(kept.timezone, 100);
   return externalId && name && currency && timezone
     ? [{ external_id: externalId, name, currency, timezone, runs_page: kept.runs_page === true }]
     : [];
@@ -101,16 +101,16 @@ function choiceOf(json: unknown): AdAccountChoice[] {
 export function metaAdConfigOf(json: unknown): MetaAdConfig {
   const kept = recordOrEmpty(json);
   return {
-    business_id: text(kept.business_id, 200),
-    page_id: text(kept.page_id, 200),
-    page_name: text(kept.page_name),
-    page_whatsapp: text(kept.page_whatsapp, 32)?.replace(/\D/g, "") || null,
-    instagram_handle: text(kept.instagram_handle, 200),
+    business_id: cappedText(kept.business_id, 200),
+    page_id: cappedText(kept.page_id, 200),
+    page_name: cappedText(kept.page_name),
+    page_whatsapp: cappedText(kept.page_whatsapp, 32)?.replace(/\D/g, "") || null,
+    instagram_handle: cappedText(kept.instagram_handle, 200),
     spend_limit_minor: whole(kept.spend_limit_minor),
     min_daily_minor: whole(kept.min_daily_minor),
     choices: Array.isArray(kept.choices) ? kept.choices.flatMap(choiceOf) : [],
-    scopes: Array.isArray(kept.scopes) ? kept.scopes.flatMap((scope) => text(scope, 100) ?? []) : [],
-    user_id: text(kept.user_id, 200),
+    scopes: Array.isArray(kept.scopes) ? kept.scopes.flatMap((scope) => cappedText(scope, 100) ?? []) : [],
+    user_id: cappedText(kept.user_id, 200),
   };
 }
 

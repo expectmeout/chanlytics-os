@@ -49,8 +49,6 @@ export const QUESTION_WAIT_MS = 24 * HOUR_MS;
  * stopped (29 Oct 2026, a judge call too big for its time); with it, the round ends source_failed and its notice says so.
  */
 export const GIVE_UP_FAILED_COLLECTS = 3;
-/** The run states that mean a round still has work at the provider. */
-const LIVE_RUN_STATES: ReadonlySet<string> = new Set(["claimed", "starting", "running", "unknown"]);
 
 export interface SweepRunRow {
   id: string;
@@ -209,5 +207,3 @@ export function planLeadSweep(
   }
   return out;
 }
-
-export { LIVE_RUN_STATES };

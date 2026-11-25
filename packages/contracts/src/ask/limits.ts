@@ -90,7 +90,7 @@ export const ASK_SELECTION_MAX = 2_000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
  * quiet for 15 s (its ceiling) and asks again, so while the model is quiet the door sends the vendor's own buffer words
- * every ten (docs/superpowers/specs/2026-10-03-ask-spoken-spike.md, runs B5 to B9).
+ * every ten.
  */
 export const ASK_VOICE_PULSE_MS = 10_000;
 

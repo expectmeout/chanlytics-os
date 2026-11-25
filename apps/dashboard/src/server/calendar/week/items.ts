@@ -190,7 +190,7 @@ export type CalendarSources = {
   numbers: ReadonlyMap<string, number>;
   /**
    * The appointments the record holds over the span (00345): the bookings that arrived by email, drawn beside the
-   * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
+   * feed's events. Empty for a workspace none have reached.
    */
   rows: AppointmentLike[];
   /** The record's row for each feed event the hourly sync keeps, by its key, with how it stands (feedMarksOf). */
@@ -226,7 +226,7 @@ export function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFee
 
 /**
  * The record's rows over the span and the notices' health line, read beside the feed: the bookings that arrived by
- * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). Asked for in one order (ask/readers.test.mjs pins
+ * email (00345). Asked for in one order (ask/readers.test.mjs pins
  * it) and waited for together: none needs another's answer, and one after the other they were four round trips the
  * board stood behind (9 Oct 2026). A failed read is an empty board side and a logged line, never a board that fails to
  * draw the feed.

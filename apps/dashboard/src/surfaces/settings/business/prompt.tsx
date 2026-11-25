@@ -1,7 +1,6 @@
 // Chanlytics — Settings › Business: what your receptionist is told.
 //
-// The last piece of the old page, rebuilt (docs/superpowers/specs/2026-09-20-business-tab-design.md §5; the plan's
-// Phase 5; the canvas's Prompt board). It was PromptPreview in settings.jsx: a 4,345-character <pre> behind a Show
+// The last piece of the old page, rebuilt (the canvas's Prompt board). It was PromptPreview in settings.jsx: a 4,345-character <pre> behind a Show
 // toggle, with the count as the first thing under its heading. Every block in that text was written by one row of this
 // page, so here the prompt is a table of contents: each block named for the row that wrote it, with its share of
 // everything the receptionist reads, and a door back to that row. Which is also the only way an owner sees that the

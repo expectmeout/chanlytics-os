@@ -76,7 +76,7 @@ async function callOwn(req: Request, call: ProposalCall): Promise<boolean> {
 async function readStopped(ctx: RouteContext, tenantId: TenantId): Promise<AskStopped | null> {
   const { data: row } = await findConfigRow(ctx.supabase, tenantId);
   const parsed = parseTenantConfigResult(row?.config ?? null);
-  return parsed.ok ? ((parsed.config.ask as { stopped?: AskStopped } | undefined)?.stopped ?? null) : null;
+  return parsed.ok ? (parsed.config.ask?.stopped ?? null) : null;
 }
 
 /** An ad the stop paused that stands so: what the owner's own press turns back on, with the version it was drawn from. */
@@ -187,7 +187,7 @@ async function holdReplies(
  * sends is paused and joins the record, replies are held if they are not.
  */
 export async function stopEverything(ctx: RouteContext, req: Request, member: Member): Promise<StopAnswer> {
-  const tenantId = member.tenantId as TenantId;
+  const tenantId = member.tenantId;
   const already = await readStopped(ctx, tenantId);
   const at = already?.at ?? new Date().toISOString();
   // The stop itself first. A write that fails is logged, and the stop is what the pauses below make it.
@@ -227,7 +227,7 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
  * next Resume puts the same back and lifts it then.
  */
 export async function resumeEverything(ctx: RouteContext, req: Request, member: Member): Promise<StopAnswer> {
-  const tenantId = member.tenantId as TenantId;
+  const tenantId = member.tenantId;
   const was = await readStopped(ctx, tenantId);
   if (!was) {
     // A stop whose record was never kept (its press failed after the stop was written) is lifted all the same.
@@ -261,6 +261,6 @@ const adsAfterResume = (ctx: RouteContext, tenantId: TenantId): Promise<StopAds>
 
 /** The switch (D10): Ask may act on its own, following the rows. Off by default, and an owner's or a partner's to turn on. */
 export async function setAskAlone(ctx: RouteContext, member: Member, on: boolean): Promise<{ alone: boolean }> {
-  await writeAskKey(member.tenantId as TenantId, ctx.userId, "alone", on ? true : null);
+  await writeAskKey(member.tenantId, ctx.userId, "alone", on ? true : null);
   return { alone: on };
 }

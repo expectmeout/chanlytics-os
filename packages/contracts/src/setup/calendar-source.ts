@@ -1,7 +1,7 @@
 /**
  * What the calendar is fed by, said once.
  *
- * A workspace's calendar has two ways in (docs/plans/2026-10-07-bookings-arrive-by-email.md): the calendar link the
+ * A workspace's calendar has two ways in: the calendar link the
  * receptionist reads open times from, and the booking emails its tool sends, each of which becomes an appointment. A
  * business may have either, both, or neither, and may say it books by hand. Setup, Connections, the Calendar page, Ask,
  * Reports and People each worked the answer out for themselves, most from the link alone: a business whose bookings
@@ -320,7 +320,7 @@ export function calendarSourceFacts(context: {
 
 /**
  * What Reports says where there is no calendar link to count bookings from. It reads the link alone until the readers
- * move onto the record (docs/plans/2026-10-07-bookings-arrive-by-email.md, G), so it asks for a link by that name: a
+ * move onto the record, so it asks for a link by that name: a
  * business whose bookings arrive by email has a calendar, and "Connect your calendar" told it otherwise.
  */
 export const BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings › Hours & booking to see who booked.";

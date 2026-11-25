@@ -70,7 +70,7 @@ function classified(replies: readonly HoldReply[] | undefined): { hold: number; 
   return all.some((x) => x.c.kind !== "unheld") ? all : null;
 }
 
-const countOf = (all: readonly { c: HoldClass }[], kind: HoldClass["kind"]): number =>
+const holdCountOf = (all: readonly { c: HoldClass }[], kind: HoldClass["kind"]): number =>
   all.filter((x) => x.c.kind === kind).length;
 
 /** How far past its hold each reply that went out later than it did. */
@@ -92,8 +92,8 @@ export function holdOf(replies: readonly HoldReply[] | undefined): ReportHoldVM 
   return {
     seconds,
     label: holdWords(seconds),
-    atEnd: countOf(all, "atEnd"),
-    unheld: countOf(all, "unheld"),
+    atEnd: holdCountOf(all, "atEnd"),
+    unheld: holdCountOf(all, "unheld"),
     later: past.length,
     laterMost: past.length ? Math.max(...past) : null,
   };
@@ -120,8 +120,8 @@ export function holdBuckets(replies: readonly HoldReply[] | undefined): [string,
   const all = classified(replies);
   if (!all) return null;
   return [
-    ["unheld", "with no hold", countOf(all, "unheld")],
-    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
+    ["unheld", "with no hold", holdCountOf(all, "unheld")],
+    ["atEnd", "as the hold ended", holdCountOf(all, "atEnd")],
     ...spanCounts(LATER_BUCKETS, pastOf(all)),
   ];
 }

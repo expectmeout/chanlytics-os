@@ -21,7 +21,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /** Why a card should not go as it is, in the person's words; null where it still holds. */
-export interface CardMoved {
+interface CardMoved {
   says: string;
   /** Whether asking again would make a better card, which the door offers. */
   redraft: boolean;
@@ -33,7 +33,7 @@ export const UNCHECKED = "unchecked" as const;
 /** The kinds whose words answer a thread as it stood. */
 const ANSWERS_A_THREAD = new Set<AskProposal["kind"]>(["reply", "steer"]);
 
-const whoOf = (p: AskProposal): string => {
+const proposalWhoOf = (p: AskProposal): string => {
   const who = p.payload?.who;
   return typeof who === "string" && who ? who : "They";
 };
@@ -68,9 +68,9 @@ export async function cardMoved(
   const since = await findThreadSince(ctx.supabase, tenantId, id, madeAt).catch(logAndGoOn("cardMoved since", null));
   if (!since) return UNCHECKED;
   // They wrote again: the words answer what they said before.
-  if (since.inbound > 0) return { says: CARD_MOVED_WORDS.wroteAgain(whoOf(p)), redraft: true };
+  if (since.inbound > 0) return { says: CARD_MOVED_WORDS.wroteAgain(proposalWhoOf(p)), redraft: true };
   // Somebody answered first: the receptionist, or a teammate.
-  if (since.outbound > 0) return { says: CARD_MOVED_WORDS.answered(whoOf(p)), redraft: false };
+  if (since.outbound > 0) return { says: CARD_MOVED_WORDS.answered(proposalWhoOf(p)), redraft: false };
   return null;
 }
 

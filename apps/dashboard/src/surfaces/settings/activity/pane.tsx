@@ -71,7 +71,7 @@ const NOTHING_READ: LogState = {
  * A page read, as the log's state: after the lines shown (the next page), or in their place. The names it says are kept with
  * those already read. A page this tab kept from before the log said its subjects, doors and members reads as one without them.
  */
-function stateOf(d: ActivityPageDto, prev: LogState | null, append = false): LogState {
+function logStateOf(d: ActivityPageDto, prev: LogState | null, append = false): LogState {
   return {
     loading: false,
     error: null,
@@ -97,7 +97,7 @@ const failedWhy = (r: { message?: string }): string => r.message || "Couldn't be
 function firstPaint(): LogState {
   const seed = activity.peek({});
   if (!seed) return NOTHING_READ;
-  return seed.ok ? { ...stateOf(seed.data, null), loading: true } : { ...NOTHING_READ, error: failedWhy(seed) };
+  return seed.ok ? { ...logStateOf(seed.data, null), loading: true } : { ...NOTHING_READ, error: failedWhy(seed) };
 }
 
 /** Where the log opens: the whole of it, or the part of the product an address names (`activity/team`: Team's door). */
@@ -134,7 +134,7 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
         setSt((c) => ({ ...c, loading: false, error: failedWhy(r) }));
         return;
       }
-      setSt((c) => stateOf(r.data, c, append));
+      setSt((c) => logStateOf(r.data, c, append));
     },
     [n],
   );
@@ -151,7 +151,7 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
   // Shown in place of the lines, from the top: a read still out (a next page asked for) lands nowhere after it.
   const showNewer = (page: ActivityPageDto) => {
     asked.current += 1;
-    setSt((c) => stateOf(page, c));
+    setSt((c) => logStateOf(page, c));
   };
 
   if (!may) {

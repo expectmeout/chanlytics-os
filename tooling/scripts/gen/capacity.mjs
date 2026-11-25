@@ -219,7 +219,7 @@ export const CAPACITY = {
     job: "mailboxes-sweep",
     kind: "each_tick",
     cap: ["apps/edge/lib/email/mailbox/sweep.ts", "MAX_DUE"],
-    also: ["AT_ONCE", "READS_UNTIL_MS"],
+    also: ["MAILBOXES_AT_ONCE", "READS_UNTIL_MS"],
     atFull: "A thousand mailboxes are each looked at within twenty-five minutes. Holds: a push does the live work.",
   },
   notes: {

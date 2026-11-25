@@ -44,7 +44,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One turn of the assistant, kept in one place for its two doors: POST /api/v1/ask (the typed Line) and the voice
- * door ElevenLabs calls (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.4). Moved verbatim from the
+ * door ElevenLabs calls. Moved verbatim from the
  * route, in two halves, because the route refuses a thread that cannot be kept BEFORE its stream opens (a thrown
  * AppError is a JSON refusal there) and only then streams the turn: `prepareAskTurn` is the first half (the thread
  * kept, the question saved, the workspace's facts read), `finishAskTurn` the second (the turn run and stored, the

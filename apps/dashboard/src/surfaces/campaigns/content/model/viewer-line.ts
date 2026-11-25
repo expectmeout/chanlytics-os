@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import type { PieceStandsAt } from "./piece-open";
 
-const W = CONTENT_WORDS.viewer;
+const VIEWER_WORDS = CONTENT_WORDS.viewer;
 
 /** How many days either side of today a day is said by its weekday, past which its date. */
 const WEEKDAY_SPAN = 6;
@@ -48,17 +48,17 @@ export function viewerDayOf(atMs: number, zone: string, nowMs: number): string {
 
 /** "Sat, 9:00 AM", "tomorrow, 9:00 AM": when a post that waits for its time goes up. */
 export function viewerAheadOf(atMs: number, zone: string, nowMs: number): string {
-  return W.at(clockNear(atMs, zone, nowMs), clockTime(atMs, zone));
+  return VIEWER_WORDS.at(clockNear(atMs, zone, nowMs), clockTime(atMs, zone));
 }
 
 /** "Today at 9:41", "Monday at 9:41": when a piece was made, for Details. */
 function viewerMadeAtOf(atMs: number, zone: string, nowMs: number): string {
-  return W.dayAt(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
+  return VIEWER_WORDS.dayAt(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
 }
 
 /** "today, 9:41", "Monday, 9:41": the same, inside a line ("Made today, 9:41"), where a capital read as a stray. */
 function viewerMadeInLineOf(atMs: number, zone: string, nowMs: number): string {
-  return W.at(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
+  return VIEWER_WORDS.at(viewerDayOf(atMs, zone, nowMs), clockTime(atMs, zone));
 }
 
 /** How the viewer says a day and a time ahead, by the business's own clock (viewerDayOf, viewerAheadOf). */
@@ -80,12 +80,12 @@ function viewerFromOf(record: { video: PiecePlan | null; made: FileMade | null }
   if (record.video) {
     const count = pieceCountOf(record.video);
     if (count.clips + count.photos === 0) return null;
-    return { said: W.from(count.clips, count.photos), ids: pieceFileIdsOf(record.video) };
+    return { said: VIEWER_WORDS.from(count.clips, count.photos), ids: pieceFileIdsOf(record.video) };
   }
   const from = record.made?.from;
   if (!from || !record.made) return null;
   // A post drawn from a moment of a video came from a clip; any other from a photo.
-  return { said: record.made.plan.at === null ? W.from(0, 1) : W.fromClip, ids: [from.id] };
+  return { said: record.made.plan.at === null ? VIEWER_WORDS.from(0, 1) : VIEWER_WORDS.fromClip, ids: [from.id] };
 }
 
 /** What it is: "Video · 0:10", "Picture post", "Photo", "Clip · 0:12". */
@@ -106,7 +106,9 @@ function viewerLineOf(
 ): string {
   const kind = viewerKindOf(file);
   if (file.source !== "made") return kind;
-  const when = origin.from ? `${W.made(origin.day)} ${W.madeFrom(origin.from.said)}` : W.made(origin.day);
+  const when = origin.from
+    ? `${VIEWER_WORDS.made(origin.day)} ${VIEWER_WORDS.madeFrom(origin.from.said)}`
+    : VIEWER_WORDS.made(origin.day);
   return `${kind} · ${when}`;
 }
 
@@ -173,7 +175,7 @@ function viewerWordsOf(file: FileDto, posts: readonly PostDto[], record: ViewerR
  * list's alone (model/places.ts), said once.
  */
 function viewerRowsOf(file: FileDto, clock: { madeAt: string; madeInLine: string }): ViewerFact[] {
-  const facts = W.facts;
+  const facts = VIEWER_WORDS.facts;
   if (file.source !== "made")
     return [{ label: facts.added, said: `${clock.madeAt} · ${FILE_WORDS.sources[file.source]}` }];
   // When, alone: every piece here is Ask's, so "by Ask" said nothing.
@@ -202,7 +204,7 @@ export function viewerSaidOf(
   // What it is: why a post stopped is the status row's list's to say, beside its place (Ruben, 12 Nov 2026: said once).
   const line = viewerLineOf(file, { day: clock.day(file.created_at), from });
   const kind = viewerKindOf(file);
-  const size = file.width && file.height ? ` · ${W.size(file.width, file.height)}` : "";
+  const size = file.width && file.height ? ` · ${VIEWER_WORDS.size(file.width, file.height)}` : "";
   return {
     line,
     words,
