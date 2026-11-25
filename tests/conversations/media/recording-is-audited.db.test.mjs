@@ -12,7 +12,7 @@
  * The verb is one the ledger accepts (decisions_verb_check, appended to what the database held, not written over it),
  * and one contracts names (DECISION_VERBS), so the activity feed says something for it.
  *
- * Runs the way tenancy.db.test.mjs does: its own workspaces, users and rows, made with the service key and removed
+ * Runs the way database/tenancy/ does: its own workspaces, users and rows, made with the service key and removed
  * after, against the database `supabase start` builds on this machine, never production; the sessions are real.
  */
 import { test, before, after } from "node:test";

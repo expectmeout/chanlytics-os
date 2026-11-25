@@ -1,7 +1,7 @@
 /**
  * GET /api/v1/reports/headline (readers/report.ts `reportHeadline`): the same report_series the page's route calls, summed on
  * the server by contracts' headlineOf, with the booking line counted by the one function the report counts it with. Executed over
- * the database in memory, in the worlds Reports' reader tests draw (tests/ask/readers.test.mjs).
+ * the database in memory, in the worlds Reports' reader tests draw (tests/ask/readers/).
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

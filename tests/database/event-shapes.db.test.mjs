@@ -25,7 +25,7 @@
  * is run; a function that inserts an event without naming its kind would hide from that question, so there is none.
  * The shapes still refuse a row with no `source`, no `consent`, no `action`.
  *
- * Runs the way tenancy.db.test.mjs does: its own workspaces, users and rows, made with the service key and removed
+ * Runs the way database/tenancy/ does: its own workspaces, users and rows, made with the service key and removed
  * after, against the database `supabase start` builds on this machine, never production. The sessions are real. The
  * catalog is read through the CLI (SUPABASE_CLI names the binary when `supabase` is not on PATH; SUPABASE_DB_URL aims it).
  */

@@ -9,7 +9,7 @@
  * on this machine, never production.
  *
  * purge_leads has no workspace argument: each call also sets aside, and after 180 days blanks, any other workspace's
- * qualifying lead on this stack, so these cases run only on the throwaway stack, as lead-engine.db.test.mjs does. Every
+ * qualifying lead on this stack, so these cases run only on the throwaway stack, as leads/engine/engine/ does. Every
  * assertion is scoped to this suite's workspace: by its own lead ids, and its events by its tenant. A lead that must stay
  * ready is never given an old found_at, and the one that is aged is aged just before its own purge, so another run's purge
  * cannot sweep it first. The database's clock is never compared with this machine's: a stamp is read against another

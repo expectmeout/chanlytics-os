@@ -4,7 +4,7 @@
  * events/an-event-is-delivered-to-its-subscriber.test.mjs), and the ledger written, once per message.
  *
  * The verb is core's raiseLateFailure, run over fakes that log their calls. The doors that call it (WhatsApp's receipts,
- * Twilio's status callback) are proved over a database in memory in whatsapp/whatsapp-door.test.mjs and
+ * Twilio's status callback) are proved over a database in memory in whatsapp/door/ and
  * sms/sms-status-door.test.mjs; what is proved here is the rule: whose failure it is, that it says it once, that it flags
  * the thread as the send does, and that a flag that cannot be written writes nothing and throws.
  */

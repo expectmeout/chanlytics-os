@@ -628,7 +628,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   );
 });
 
-/* People › Lists folded into People (#563): the Offers-column test lives in people-honest.test.mjs, on the People table. */
+/* People › Lists folded into People (#563): the Offers-column test lives in people/people-page/, on the People table. */
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 

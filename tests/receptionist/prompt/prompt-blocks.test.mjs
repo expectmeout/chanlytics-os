@@ -919,7 +919,7 @@ test("the box and the prompt view agree on the baseline a save before S4 left in
   // the live form did. They agree now: the box opens empty, because no owner wrote them. What
   // made that unsafe before was the save, which deleted the field an empty box was saved over --
   // the fold that replaced it sends nothing at all when the box is left as it opened
-  // (business-tab-folds.test.mjs, "the own-words fold opens the baseline ... empty").
+  // (receptionist/business-tab/folds/, "the own-words fold opens the baseline ... empty").
   const b = { ...brain, system_prompt: OLD, profile: { hours: profile.hours, extra_instructions: BASELINE } };
   assert.deepEqual(instructionsDraft(b), { text: "", carried: false }, "the box opens empty: words no owner wrote");
   assert.equal(whoseWords(b).kind, "baseline", "the view, accurate");

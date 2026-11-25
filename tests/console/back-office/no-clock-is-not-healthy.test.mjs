@@ -1,6 +1,6 @@
 /**
  * No clock at all is not healthy (contracts platformHealthOf, the judgement the Console's card and the edge's
- * /api/health share). Until 13 Nov 2026 a read with no clock and nothing waiting was `ok`, held in back-office.test.mjs as
+ * /api/health share). Until 13 Nov 2026 a read with no clock and nothing waiting was `ok`, held in console/back-office/office/ as
  * "genuinely quiet". Every clock is registered by a migration, so a read with none is a registry that came back empty,
  * or a read that failed and was handed on as no rows, which the Console's own getPlatformHealth does so that neither of
  * its reads is fatal to the page: nothing is known to be running, and that is not all clear.

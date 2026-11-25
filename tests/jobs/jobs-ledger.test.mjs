@@ -363,7 +363,7 @@ const ranAndDied = (payload) => ({ id: "j", kind: "broadcast_send", tenant_id: T
 test("a broadcast still in flight is handed to a fresh run, with what it reached and what is left; only in its own workspace", async () => {
   // It used to be marked failed with the rest still queued for ever. The rest
   // go to a fresh run; the batch reads the message a dying run left rather
-  // than sending twice (core-broadcast.test.mjs), which is what makes this safe.
+  // than sending twice (broadcasts/core-broadcast/), which is what makes this safe.
   const broadcasts = [
     sending(),
     sending({ id: "b2", tenant_id: "22222222-2222-2222-2222-222222222222" }),

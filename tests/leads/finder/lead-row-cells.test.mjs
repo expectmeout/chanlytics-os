@@ -2,7 +2,7 @@
  * What a lead's row offers and how its saved view is read (the table review of 5 Nov 2026), drawn from the real cells
  * on the stub React: the row's one act in words, through the page's own doors and its role gate; A on the keyboard's
  * cursor; and a view saved before the cells said two lines, opened in the new layout once. The page's own journey is
- * leads-honest.test.mjs's; this draws the acts' cell by itself, over rows as small as the rule reads.
+ * leads/finder/page/'s; this draws the acts' cell by itself, over rows as small as the rule reads.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

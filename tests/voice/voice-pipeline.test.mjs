@@ -238,7 +238,7 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
 
 test("Settings collects the website and the notes; the transfer line is edited in its own row and normalised in one place", () => {
   // Task 3.7 deleted the form: the website is a row of the Business page, the notes and the rules are folds of it, and
-  // each patches only its own keys (surfaces/settings/business/folds.ts and fold-shapes.ts; business-tab-folds.test.mjs runs every one of them).
+  // each patches only its own keys (surfaces/settings/business/folds.ts and fold-shapes.ts; receptionist/business-tab/folds/ runs every one of them).
   const B = "apps/dashboard/src/surfaces/settings/business/";
   const pane = readCode(B + "folds.ts", B + "fold-shapes.ts", B + "fold-says.ts");
   assert.ok(pane.includes('btPutProfile(next, "notes", notes.length ? notes : undefined);'));
@@ -247,7 +247,7 @@ test("Settings collects the website and the notes; the transfer line is edited i
   // patches what it owns, and not touching a key is what preserves it.
   assert.ok(!pane.includes('"handoff_number"') && !pane.includes('"website"'), "no fold owns a row's key");
   // The website row writes only its own key, and the transfer row normalises through the one rule in contracts:
-  // both are pressed in business-tab-page.test.mjs, which reads what the save was sent.
+  // both are pressed in receptionist/business-tab/page/, which reads what the save was sent.
   // Its two refusals moved with it, and are now shared rather than retyped.
   const phone = readCode("packages/contracts/src/shared/phone.ts");
   assert.ok(phone.includes("export function whyNotAHandoff("));

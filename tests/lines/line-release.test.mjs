@@ -2,7 +2,7 @@
  * When a number whose subscription ended goes back (contracts line-release.ts), run: the grace a deployment may set,
  * the moment a subscription stopped paying as each of Stripe's words records it, and a line's steps from paying to
  * released -- wait, warn once, a week, release -- including a grace set late and a workspace that resumed. The sweep
- * that acts on it runs in cron-doors-b.test.mjs. And a release whose credentials read fails, or that finds no token on
+ * that acts on it runs in cron/doors-b/. And a release whose credentials read fails, or that finds no token on
  * file, run over a database in memory (apps/edge/lib/lines/line-release.ts): each skipped the carrier and forgot a number
  * still billed. And one holding a token the carrier refuses, which never finished. And what a release leaves behind: its
  * subaccount closed last, and its token out of Vault before the row goes.

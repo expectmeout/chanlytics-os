@@ -17,7 +17,7 @@ const PEOPLE_HEADER =
 
 /**
  * The workspace's file's sections, in its order, and one person's: contracts' own lists, which the node suite holds the
- * export to (tests/workspace/exports.test.mjs). Restated here, each section a new kind of record added (a form's entries, #2511)
+ * export to (tests/workspace/exports/). Restated here, each section a new kind of record added (a form's entries, #2511)
  * turned the nightly red with nothing wrong; what this proves is that the file the route writes holds them in that order.
  */
 const WORKSPACE_SECTIONS: readonly string[] = EXPORT_SECTIONS;

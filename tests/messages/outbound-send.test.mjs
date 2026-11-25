@@ -9,7 +9,7 @@
  * appointments and no to offers. And a draft the receptionist held for review
  * fired underneath the owner's own reply from the WhatsApp Business app, which
  * only paused the thread. Both are rules about what may reach a person; the
- * door (packages/core, deliver.test.mjs) holds them, and this proves the job
+ * door (packages/core, messages/deliver/) holds them, and this proves the job
  * walks through it -- against a fake database and a fake Graph API.
  */
 import { test, before, after } from "node:test";

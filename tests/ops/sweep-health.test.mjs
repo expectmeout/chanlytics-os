@@ -141,21 +141,6 @@ test("the health check is never scheduled onto the grid it is judging", () => {
   assert.doesNotMatch(sql, /cron\.schedule\('sweep-health', '\*\/(5|10|15|30)/);
 });
 
-test("the idle call-reconcile path clears a stale note before returning", () => {
-  // Without this, one transient Vault failure sets the note, the v_pending = 0
-  // early return steps over the row on every subsequent tick — and with zero
-  // ongoing calls that is EVERY tick — so the platform mailbox gets four mails
-  // a day forever, curable only by hand-editing production.
-  const sql = readRaw("supabase/migrations/00026_sweep_health.sql");
-  const calls = sql.slice(
-    sql.indexOf("function public.trigger_call_reconcile"),
-    sql.indexOf("function public.trigger_sweep_health"),
-  );
-  const guard = calls.indexOf("if v_pending = 0 then");
-  const clear = calls.indexOf("update public.sweep_status set note = null where sweep = 'calls'");
-  assert.ok(guard > -1, "the idle guard must still exist");
-  assert.ok(
-    clear > guard && clear < calls.indexOf("return null;", guard),
-    "the idle path must clear a stale note before it returns",
-  );
-});
+// The idle call-reconcile path clears a stale note before returning: trigger_call_reconcile, redefined since 00026
+// through 00530, is run on the stack (ops/retention.db.test.mjs, ops/sweep-registry.db.test.mjs). Pinned as 00026's
+// text until 25 Nov 2026, which no longer said what the database does.

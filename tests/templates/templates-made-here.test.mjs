@@ -290,9 +290,9 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
   const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
-  // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
+  // The slots per person and the hold on an unfillable one are run: broadcasts/core-broadcast/.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
-  // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
+  // The specs and the booking-link refusal are run: broadcasts/core-campaigns/.
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
   assert.ok(s.includes('"data-testid": "template-delete"'));

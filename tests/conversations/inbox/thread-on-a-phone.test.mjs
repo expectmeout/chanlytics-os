@@ -320,7 +320,7 @@ test("a reply of ours says who sent it and what became of it in its corner, and 
 
 /* ---------------------------- back to the list ---------------------------- */
 
-test("a thread swiped back to its list lets go of the list under it, though it has left the page by then: the next thread opens alone", async () => {
+test("a thread swiped back to its list lets go of the list under it, though it has left the page by then: the next thread opens alone", async (t) => {
   // The gesture's own timers and a phone's width, for this test alone: the page tests stub both.
   const stubbed = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
   const media = globalThis.window.matchMedia;
@@ -369,14 +369,18 @@ test("a thread swiped back to its list lets go of the list under it, though it h
     );
     assert.deepEqual(back, [1], "past a third it goes back to its list");
 
-    // Let go short of a third, it settles back where it stood, and the list under it goes with the mark.
+    // Let go short of a third, it settles back where it stood, and the list under it goes with the mark. The gesture
+    // reads the finger's speed off the clock, so the test moves the clock (Date alone: the gesture's timers stay real):
+    // 60 px in a frame is a flick's pace, and a finger that then stands still before it lifts lets go at rest.
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     const kept = threadOn();
     h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: kept, target: kept });
+    t.mock.timers.tick(16);
     h.onTouchMove({ touches: [{ clientX: 120, clientY: 301 }], currentTarget: kept });
     assert.ok(page.marks.has("data-going"));
-    // Slowly, so it is no flick.
-    await new Promise((r) => setTimeout(r, 200));
+    t.mock.timers.tick(200);
     h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 301 }], currentTarget: kept });
+    t.mock.timers.reset();
     await until(
       () => !page.marks.has("data-going") && kept.style.transform === "",
       "it settles back, its own rules have it again, and the list under it goes with the mark",

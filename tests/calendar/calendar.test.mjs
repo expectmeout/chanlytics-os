@@ -324,7 +324,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   );
   // The busy time is the feed's, and beside it the record's taken time over the days on offer (00345): a booking a
   // tool emailed took its slot too. That the hour is left out, here and for the receptionist, is executed in
-  // ask/readers.test.mjs and availability-tool.test.mjs.
+  // ask/readers/ and availability-tool.test.mjs.
   assert.ok(
     svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy, rules, now })") &&
       svc.includes("const busy = parsed ? [...parsed.busy, ...taken] : [];"),
@@ -342,7 +342,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   );
   // The route as it declares itself: counted with the aggregate reads. Its one read and an owner's adding the people it
   // sees are run over the route: calendar-feed.test.mjs ("the route: ... a viewer's read adds nobody") and
-  // readers.test.mjs ("GET calendar through its reader asks what it asked at origin/main ...").
+  // ask/readers/ ("GET calendar through its reader asks what it asked at origin/main ...").
   const route = await importSrc("apps/dashboard/app/api/v1/calendar/route.ts");
   assert.deepEqual(
     route.GET.policy,
@@ -353,12 +353,12 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
   assert.ok(reg.includes('calendar: "real"') && reg.includes('calendar: "calendar"'));
-  // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar-honest.test.mjs.
+  // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar/calendar-page/.
   const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
   // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
   // and its count, and says a read that failed with its Retry (the spec's "When you're open"), executed in
-  // business-tab-open.test.mjs. So a save no longer previews the feed first.
+  // receptionist/business-tab/open/. So a save no longer previews the feed first.
 });
 
 test("the words from Settings on the board: hours as runs, closures ahead, services with their length and consult-first; a month's label and span", async () => {
@@ -410,7 +410,7 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
 });
 
 test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
-  // Executed in calendar-honest.test.mjs: the four views, one tab each, and every testid the page is known by; the date picker
+  // Executed in calendar/calendar-page/: the four views, one tab each, and every testid the page is known by; the date picker
   // following the anchor; the open times a service leaves (the assistant's rule); the steps (crStep, the-pages-say-only-what-is-true.test.mjs).
   const svc = ["apps/dashboard/src/server/calendar/week/items.ts", "apps/dashboard/src/server/calendar/week/week.ts"]
     .map((p) => readCode(p))
@@ -437,7 +437,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
       !dayModule.includes('data-testid="today-day"'),
     "Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a feed that is not ok is no day",
   );
-  // calendar.week is the registry's, and runs in ask-turn.test.mjs ("calendar.week reads the people it names"), where
+  // calendar.week is the registry's, and runs in ask/turn/ ("calendar.week reads the people it names"), where
   // its result says that nothing is booked from here.
   assert.ok(
     /"?calendar"?:\s*"The owner's calendar as AI reads it/.test(
@@ -482,7 +482,7 @@ test("instant views: the span a view needs, the window loaded around a day, whet
 });
 
 test("the page keeps a view and a day, derives the rest, and reads only when the window does not cover the view", () => {
-  // The page's own half is executed in calendar-honest.test.mjs: a read only when the window lacks the view, the shape from dates
+  // The page's own half is executed in calendar/calendar-page/: a read only when the window lacks the view, the shape from dates
   // and the content from data, the arrows unless the person is typing or something is open, Today always there.
   const bridge = readCode("apps/dashboard/src/surfaces/calendar/verbs.ts");
   assert.ok(

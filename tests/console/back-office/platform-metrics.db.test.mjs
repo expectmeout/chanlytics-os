@@ -18,7 +18,7 @@
  *   - the clock: a cron job `platform-metrics-roll` at 00:17 UTC, registered in sweep_status as judged on its runs
  *     within 26 hours, and reported by sweep_health().
  *
- * Runs the way tenancy.db.test.mjs does: its own workspaces, users and rows, made with the service key and removed
+ * Runs the way database/tenancy/ does: its own workspaces, users and rows, made with the service key and removed
  * after, against the database `supabase start` builds on this machine, never production. Two blocks go through the
  * CLI (SUPABASE_CLI names the binary when `supabase` is not on PATH; SUPABASE_DB_URL aims it), in a transaction that
  * never commits.
