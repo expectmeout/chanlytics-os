@@ -77,21 +77,10 @@ const person = (over = {}) => ({
 });
 
 test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
-  const m = readRaw("supabase/migrations/00046_broadcasts.sql");
-  assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
-  assert.ok(m.includes("check (state in ('scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
-  assert.ok(m.includes("check (state in ('queued', 'sent', 'skipped', 'failed'))"));
-  assert.ok(
-    m.includes("grant update (state) on public.broadcasts to authenticated;"),
-    "a session client cancels and changes nothing else",
-  );
-  assert.ok(!/grant delete|for delete/.test(m), "a sent broadcast is a record");
-  assert.ok(
-    m.includes(
-      "and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = broadcast_recipients.tenant_id and c.erased_at is null)",
-    ),
-  );
-  assert.ok(m.includes("'send_broadcast', 'cancel_broadcast'") && m.includes("'channel', 'broadcast'"));
+  // The tables' states, redefined since 00046 (00080, 00334), and their grants and policies are the database's: a
+  // session may move a broadcast's state and nothing else, and nobody deletes (database/privileges.db.test.mjs, "a column
+  // UPDATE grant is a fence"; database/tenancy/, who reads which workspace's rows). Pinned as 00046's text until 25 Nov
+  // 2026, which no longer said what the database does. The ledger knows the verbs:
   assert.ok(
     DECISION_VERBS.includes("send_broadcast") &&
       DECISION_VERBS.includes("cancel_broadcast") &&
@@ -745,11 +734,8 @@ test("the routes: a message, values its slots take, an audience crossed with who
     l.includes('if (status === "delivered" || status === "read") count.delivered += 1;'),
     "delivered comes from the receipts, never from the send",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" }',
-    ),
-  );
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.deepEqual(RATE.broadcast, { limit: 10, windowMs: 60_000, noun: "broadcasts" });
 });
 
 /* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
@@ -904,7 +890,7 @@ test("the surface and the page: Broadcasts is real, and fed by the same rules", 
     [],
     "nor one it approved in a shape this product cannot send whole, which the Messages list does not show",
   );
-  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installBroadcasts();"));
+  // The frame installs the broadcasts' verbs at its load: the nightly's campaign specs press them (e2e/campaigns/).
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
 
@@ -974,17 +960,9 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
   // broadcasts-honest and runs-honest draw them.
-  const vm = readCode("packages/contracts/src/conversations/message-author.ts");
-  assert.ok(
-    vm.includes('{ kind: "broadcast", name: textOrEmpty(message.meta.broadcast_name ?? "broadcast") }') &&
-      vm.includes('{ kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }'),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
-      "`a one-off send (${entry.via.name})`",
-    ) && readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
-    "the thread says which one-off send, or which campaign",
-  );
+  // The thread says which one-off send, or which campaign ("a one-off send (Spring offer)", "the Win-back campaign"):
+  // drawn from a message's meta in conversations/inbox/conversations-doors.test.mjs. Pinned as message-author.ts's and
+  // timeline.tsx's text until 25 Nov 2026.
   // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
   // settings read's): the verbs publish themselves and no function to read the surface again.
   const verbs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");

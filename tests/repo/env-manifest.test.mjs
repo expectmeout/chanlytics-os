@@ -118,13 +118,17 @@ for (const m of MANIFESTS) {
   });
 }
 
-test("the dashboard holds no model key: Ask's model is reached through the edge's door, which alone reads one", () => {
-  // Moved here from ask.test.mjs on 25 Nov 2026, where it read Ask's loop for the name: a rule of the repository,
-  // held over everything the dashboard reads from its environment. What its call to the door names and binds runs in
-  // edge/dashboard-names-its-callers.test.mjs.
+test("the dashboard holds no model or provider key: Ask's model and every provider are reached through the edge's doors, which alone read them", () => {
+  // Moved here on 25 Nov 2026 from the behaviour tests that read one module each for the name (ask.test.mjs for the
+  // model's key, google.test.mjs for the Places key, billing.test.mjs for Stripe's): a rule of the repository, held over
+  // everything the dashboard reads from its environment and everything its manifest declares. What its calls to the
+  // doors name and bind runs in edge/dashboard-names-its-callers.test.mjs.
   const dashboard = MANIFESTS.find((m) => m.name === "apps/dashboard/.env.example");
-  const keys = [...usedBy(dashboard), ...declared(dashboard.file)].filter((k) => /^(ANTHROPIC|OPENAI|CLAUDE)_/.test(k));
-  assert.deepEqual(keys, [], "a model key read or declared on the dashboard");
   const edge = MANIFESTS.find((m) => m.name === "apps/edge/.env.example");
-  assert.ok(usedBy(edge).has("ANTHROPIC_API_KEY"), "the edge is where the key is read");
+  const providerKey = (k) =>
+    /(_API_KEY|_SECRET_KEY|_AUTH_TOKEN|_ACCOUNT_SID)$/.test(k) || /^(ANTHROPIC|OPENAI|CLAUDE)_/.test(k);
+  const edgeKeys = [...declared(edge.file)].filter(providerKey);
+  assert.ok(edgeKeys.includes("ANTHROPIC_API_KEY") && edgeKeys.includes("STRIPE_SECRET_KEY"), "the edge holds them");
+  const held = [...new Set([...usedBy(dashboard), ...declared(dashboard.file)])].filter(providerKey);
+  assert.deepEqual(held, [], "a model or provider key read or declared on the dashboard");
 });

@@ -898,35 +898,9 @@ test("a review on the bell is good news that opens the Reviews lens, and its rou
 
 /* ------------------------------------------------------------- the wiring */
 
-test("the migration: three tables that hang off the listing, members read, realtime on two, the bell's kind, the sweep at :37", () => {
-  const sql = readRaw("supabase/migrations/00069_google_listings.sql");
-  assert.ok(
-    sql.includes("create table public.google_listings (") &&
-      sql.includes("tenant_id        uuid primary key references public.tenants (id) on delete cascade"),
-  );
-  assert.ok(
-    sql.includes("uuid not null references public.google_listings (tenant_id) on delete cascade"),
-    "reviews and days go with the listing",
-  );
-  for (const t of ["google_listings", "google_reviews", "google_listing_days"]) {
-    assert.ok(sql.includes(`alter table public.${t} enable row level security;`), t);
-    assert.ok(sql.includes(`create policy ${t}_member_select on public.${t}`), t);
-    assert.ok(
-      !sql.includes(`on public.${t}\n  for insert`) && !sql.includes(`on public.${t}\n  for update`),
-      `${t}: the edge alone writes`,
-    );
-  }
-  assert.ok(
-    sql.includes("alter publication supabase_realtime add table public.google_listings, public.google_reviews;"),
-  );
-  assert.ok(sql.includes("'calendar_people','alert','review'"), "the bell's kind");
-  assert.ok(sql.includes("unique (tenant_id, review_id)"));
-  assert.ok(sql.includes("check (origin in ('places', 'profile'))"));
-  assert.ok(sql.includes("url     := v_url || '/api/cron/google'"));
-  const m = sql.match(/cron\.schedule\('google-listings-sweep', '(\d+) \* \* \* \*'/);
-  assert.ok(m, "hourly");
-  assert.ok(Number(m[1]) % 5 !== 0 && ![13, 23, 43].includes(Number(m[1])), "a minute no other sweep uses");
-});
+// The migration's three tables hang off the listing and members read them (database/tenancy/, who reads which
+// workspace's rows; google/google-reviews-ledger.db.test.mjs), and the listings' sweep is registered, scheduled and
+// watched (ops/sweep-registry.db.test.mjs). Pinned as 00069's text until 25 Nov 2026.
 
 test("the edge library: the key alone on the edge, one check routine, a failed read that moves no stamp, the manifests", () => {
   // The door -- the knock, status, search, link (a read before a row, the
@@ -968,11 +942,10 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("isOneOf(SERVER_NOTIFICATION_KINDS, kind)") &&
-      ["calendar_people", "review"].every((k) => SERVER_NOTIFICATION_KINDS.includes(k)),
-    "the kind is kept, not folded into alert",
+    ["calendar_people", "review"].every((k) => SERVER_NOTIFICATION_KINDS.includes(k)),
+    "the bell's kinds",
   );
-  assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
+  // The key is read on the edge alone: repo/env-manifest.test.mjs ("the dashboard holds no model or provider key").
 });
 
 test("the dashboard: owners and the partner link and search, operators read, members look; the pages read one surface", async () => {
@@ -985,20 +958,10 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"),
     "the facts on record are the default query",
   );
-  const link = readCode("apps/dashboard/app/api/v1/google/link/route.ts");
-  assert.ok(link.includes("export const POST") && link.includes("export const DELETE"));
-  assert.equal((link.match(/role: "partner",/g) ?? []).length, 2);
-  assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
-  const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
-  assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
-  // The route answers the Google reader's read with what this deployment can do beside it, which the Reviews report's reader
-  // holds too (once a turn): google-routes.test.mjs runs GET google over a database in memory, and ask/readers.test.mjs holds
-  // the report's Google to its bytes.
-  const server = readCode("apps/dashboard/src/server/connections/google.ts");
-  assert.ok(
-    server.includes('callEdge("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),
-  );
-  assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
+  // Linking, unlinking and refreshing are the owner's, the partner's and an operator's, each stopping at the edge's
+  // credential, and GET google answers what the deployment can do beside the listing: run through the routes in
+  // google/google-routes.test.mjs; the Places key is never the dashboard's (repo/env-manifest.test.mjs). Pinned as the
+  // routes' and google.ts's text until 25 Nov 2026.
   const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
     .map((p) => readCode(p))
     .join("\n");
@@ -1045,6 +1008,6 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     settings.includes('"verb:google-connect": "google-connect"') && settings.includes('testid="google-disconnect"'),
     "the second door keeps its verbs' names",
   );
-  const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
-  for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(RATE[b], b);
 });

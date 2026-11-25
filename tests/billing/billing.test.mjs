@@ -449,11 +449,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.equal(edgeFunctions()["api/stripe-webhook.ts"].maxDuration, 30);
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
-  assert.ok(
-    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("isOneOf(SERVER_NOTIFICATION_KINDS, kind)") &&
-      SERVER_NOTIFICATION_KINDS.includes("billing"),
-    "the kind is kept, not folded into alert",
-  );
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("billing"), "the bell's kind");
 
   // GET billing answers the row as a member may read it, with whether this deployment can charge, and never a
   // customer or subscription id; each door declares who may press it and spends its own bucket, the invoices a read's:
