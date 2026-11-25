@@ -23,7 +23,7 @@ import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Face } from "../../kit/face/face";
 import { refreshSurface, routeDoor } from "../../frame-verbs";
-import { ROUTES } from "../constants";
+import { HUMAN_BEFORE, ROUTES } from "../constants";
 import { clockZone, gate, hasDealSheet, navigate, openDealSheet, seededLeads, useToast, type Flash } from "../shell";
 import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-thread";
 import type { Thread } from "../types";
@@ -268,7 +268,7 @@ function alsoInLeads(thread: Thread) {
   };
   const label = ld ? words[ld.stage] || ld.stage : null;
   return (
-    <button className="ix-xlink" title="This also waits in Leads" onClick={() => navigate(ROUTES.lead())}>
+    <button className="ix-xlink" data-tip="This also waits in Leads" onClick={() => navigate(ROUTES.lead())}>
       <Icon name="bolt" size={9} /> Also in Leads{label ? ` · ${label}` : ""}
     </button>
   );
@@ -410,7 +410,7 @@ function headerName(thread: Thread, personTo: string | null) {
       {thread.real && thread.optedOut && <StoppedMark testid="ix-th-stopped" />}
       {thread.pinned && <Icon name="pin" size={11} className="ix-th-pin" />}
       {thread.hasHumanContact && (
-        <span className="ix-th-relation" title="Has spoken with a human before">
+        <span className="ix-th-relation" role="img" aria-label={HUMAN_BEFORE} data-tip={HUMAN_BEFORE}>
           <Icon name="users" size={10} />
         </span>
       )}
@@ -456,7 +456,7 @@ function visitDoor(facts: HeaderFacts) {
     <a
       className={`ix-th-visit ix-th-visit-door${visit.ahead ? " ahead" : ""}`}
       {...routeDoor(visit.line.to)}
-      title={`Open their ${visit.ahead ? "" : "last "}${appointmentWords(visitWordHere()).one}`}
+      data-tip={`Open their ${visit.ahead ? "" : "last "}${appointmentWords(visitWordHere()).one}`}
       data-testid="ix-th-visit-door"
     >
       {visitWords(visit)}
@@ -586,7 +586,7 @@ function deskActs(thread: Thread, onSnooze: (threadId: string) => void, onArchiv
           className="ix-th-desk-act"
           onClick={() => onSnooze(thread.id)}
           aria-label={THREAD_PANE_WORDS.snooze}
-          title={THREAD_PANE_WORDS.snoozeMeta}
+          data-tip={THREAD_PANE_WORDS.snoozeMeta}
           data-testid="ix-th-snooze"
           {...gate("approve", "snooze a conversation")}
         >
@@ -601,7 +601,7 @@ function deskActs(thread: Thread, onSnooze: (threadId: string) => void, onArchiv
           className="ix-th-desk-act"
           onClick={onArchive}
           aria-label={THREAD_PANE_WORDS.archive}
-          title={THREAD_PANE_WORDS.archiveMeta}
+          data-tip={THREAD_PANE_WORDS.archiveMeta}
           data-testid="ix-th-archive"
           {...gate("approve", "archive a conversation")}
         >
@@ -673,7 +673,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               size="touch"
               iconOnly
               className="ix-th-more"
-              title={THREAD_PANE_WORDS.more}
+              data-tip={THREAD_PANE_WORDS.more}
               aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
               data-testid="ix-th-more"
             >
