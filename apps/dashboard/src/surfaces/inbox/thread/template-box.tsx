@@ -275,7 +275,7 @@ function templatePick(shown: string, more: MenuGroup[], first: string) {
           size="sm"
           className="ix-tpl-name"
           aria-label={`Message to send: ${shown}. Choose another`}
-          title="Choose another message"
+          data-tip="Choose another message"
         >
           {name}
         </Button>
@@ -455,7 +455,7 @@ export const TemplateComposer = ({
       className="ix-composer-send"
       onClick={fire}
       disabled={sending || (!!blank && !said)}
-      title={
+      data-tip={
         chosen
           ? `Sends your approved message "${chosenTitle || chosen.name}", which WhatsApp delivers after a day without a reply`
           : "Sends your approved booking-link message, which WhatsApp delivers after a day without a reply"

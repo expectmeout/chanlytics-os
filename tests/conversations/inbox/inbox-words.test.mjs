@@ -796,7 +796,11 @@ test("an email from the box says what it is signed with once it has words, and C
     textOf(find(line, byTestId("ix-composer-signed-words"))),
     "Signed Sam Reyes · Founder · Harbor Studio · www.harbor.example",
   );
-  assert.equal(find(line, byTestId("ix-composer-signed-words")).props.title, signature, "the whole of it on hover");
+  assert.equal(
+    find(line, byTestId("ix-composer-signed-words")).props["data-tip"],
+    signature,
+    "the whole of it on hover",
+  );
   assert.ok(
     find(line, (n) => n.props?.onClick && textOf(n).trim() === "Change"),
     "Change, to Settings › Connections",

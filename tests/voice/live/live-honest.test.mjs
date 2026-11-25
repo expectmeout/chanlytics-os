@@ -318,12 +318,12 @@ test("REGRESSION (A20): before Settings has been read, Pass the call to me stays
     withFacts(undefined);
     const unread = byTestId(mount(), "live-hand-over");
     assert.equal(unread.props.disabled, false, "REGRESSION: it said to add a line the workspace may well have");
-    assert.ok(!String(unread.props.title).includes("Add the business's own line"));
+    assert.ok(!String(unread.props["data-tip"]).includes("Add the business's own line"));
     withFacts({});
     fresh();
     const none = byTestId(mount(), "live-hand-over");
     assert.equal(none.props.disabled, true, "a line known to be missing still disables it");
-    assert.ok(String(none.props.title).includes("Settings"));
+    assert.ok(String(none.props["data-tip"]).includes("Settings"));
   } finally {
     withFacts({ handoff_number: { value: LINE } });
   }

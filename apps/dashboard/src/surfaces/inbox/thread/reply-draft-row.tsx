@@ -74,7 +74,7 @@ function DraftPill({ c }: { c: ComposerDraw }) {
       size="sm"
       className="ix-press"
       aria-label={W.useDraftLabel}
-      title={c.drafted?.split("\n").filter(Boolean).slice(0, 2).join("\n")}
+      data-tip={c.drafted?.split("\n").filter(Boolean).slice(0, 2).join("\n")}
       onClick={c.putDraft}
       data-testid="ix-draft-pill"
     >
