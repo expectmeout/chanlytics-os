@@ -123,13 +123,19 @@ export const contentOverride: SurfaceOverride = {
     // Its files, and the reviews its "newest review" idea is offered from (server readers/content.ts ideaFilesOf): a first
     // review landing offers the idea without a press. And, while nothing is kept, where Ask looked for photos and videos
     // (readers/content-sources.ts): the website's read and the ledger's run (brought), the website its settings name
-    // (facts) and the linked listing (review), so "Looking" turns into what came the moment it lands.
-    reads: ["file", "review", "brought", "facts"],
+    // (facts) and the linked listing (review), so "Looking" turns into what came the moment it lands. And the Meta link
+    // (channel): whether Instagram takes a reel decides what a made video that never went out says (Ready to post, or
+    // Ready to save), so connecting it, or its connection lapsing, is said on the tile without a press.
+    reads: ["file", "review", "brought", "facts", "channel"],
     fresh: "its-page",
     omit: [
       {
         tables: ["google_connections"],
         why: "an idea is offered where a review says something; the profile's connection is Settings' and the open piece's own read",
+      },
+      {
+        tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],
+        why: "of the channels the page reads the Meta link alone, for whether Instagram takes a reel; a number, a mailbox, an activation and the carriers' record are none of a post's",
       },
     ],
   }),

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, postStandsSaid } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, placementStandingOf } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const k of ["RESEND_API_KEY", "SUPABASE_URL", "META_APP_ID"]) delete process.env[k];
@@ -334,7 +334,7 @@ test("a post that went up unseen is still posting, never on Instagram, and Insta
   await postJobs(w.db, quick).publish(job("post_publish"));
   assert.equal(w.post().status, "published");
   assert.equal(w.post().verified_at, null);
-  assert.equal(postStandsSaid(w.post()), "Posting on Instagram");
+  assert.deepEqual(placementStandingOf(w.post(), null, Date.now()), { is: "going_up", sent: true }, "still posting");
   const asking = w.tables.jobs.find((j) => j.kind === "post_reconcile");
   assert.deepEqual(asking?.payload, { post_id: POST, attempt: "seen", seen: "ask" }, "asked for again, two minutes on");
   const again = { id: "job-2", tenant_id: T, kind: "post_reconcile", payload: asking.payload, attempts: 1 };
@@ -349,7 +349,7 @@ test("a post that went up unseen is still posting, never on Instagram, and Insta
   await postJobs(w.db, quick).reconcile(again);
   assert.ok(w.post().verified_at);
   assert.equal(w.post().permalink, "https://www.instagram.com/p/seen/");
-  assert.equal(postStandsSaid(w.post()), "On Instagram");
+  assert.equal(placementStandingOf(w.post(), null, Date.now()).is, "up", "on Instagram once it was seen there");
   assert.equal(calls.filter((c) => c.route === `POST /${ACCOUNT}/media_publish`).length, 1, "one send, ever");
   // Gone from the account (its owner deleted it there): left as posted, never called seen.
   meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];

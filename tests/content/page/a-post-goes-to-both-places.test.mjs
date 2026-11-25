@@ -59,6 +59,8 @@ const post = (place, status, over = {}) => ({
   permalink: null,
   scheduled_for: "2026-11-11T15:00:00.000Z",
   published_at: status === "published" ? "2026-11-09T15:02:00.000Z" : null,
+  // Seen at its place, as a post that is up is.
+  verified_at: status === "published" ? "2026-11-09T15:04:00.000Z" : null,
   error: null,
   created_at: "2026-11-11T15:00:00.000Z",
   ...over,
@@ -70,8 +72,8 @@ const BOTH = { instagram: true, google: true };
 const PICTURE = { kind: "image", source: "made" };
 /** The business's clock, as the open piece hands it: a day and a time ahead, in words. */
 const CLOCK = { day: () => "Monday", ahead: () => "Sat, 9:00 AM" };
-/** The status row of a made post with these posts, its next step read from them as the open piece reads it. */
-const statusOf = (posts, takes = BOTH) => pieceStatusOf(posts, pieceNextOf(PICTURE, posts, takes, NOW), CLOCK, NOW);
+/** The status row of a made post with these posts, read from the piece's one standing as its tile is. */
+const statusOf = (posts) => pieceStatusOf(posts, CLOCK, NOW);
 
 test("the status row says one sentence: ready, going up, set for its time, or where it is up", () => {
   assert.deepEqual(statusOf([]), { tone: "ready", said: "Ready to post", pull: null });
@@ -179,23 +181,35 @@ test("a post and a story that both wait on Instagram are two lines, each with it
   const [at] = placesOf([story, picture], CAN, NOW);
   assert.deepEqual(
     [at.kind, at.stands, at.pull, at.movable],
-    ["story", { is: "timed", at: "2026-11-15T14:00:00.000Z" }, "story-later", "story-later"],
-    "the row is the newest there",
+    ["picture", { is: "timed", at: "2026-11-14T14:00:00.000Z" }, "instagram-later", "instagram-later"],
+    "the row is the soonest there, the one its tile and its status say",
   );
   assert.deepEqual(at.waitsToo, {
-    kind: "picture",
-    stands: { is: "timed", at: "2026-11-14T14:00:00.000Z" },
-    pull: "instagram-later",
-    movable: "instagram-later",
+    kind: "story",
+    stands: { is: "timed", at: "2026-11-15T14:00:00.000Z" },
+    pull: "story-later",
+    movable: "story-later",
     making: false,
   });
-  // One Instagram is making ready beside it holds its words, and its time; it can still be stopped.
-  const making = placesOf([story, { ...picture, status: "preparing" }], CAN, NOW)[0].waitsToo;
+  // One Instagram is making ready holds its words, and its time; it can still be stopped.
+  const [making] = placesOf([story, { ...picture, status: "preparing" }], CAN, NOW);
   assert.deepEqual([making.pull, making.movable, making.making], ["instagram-later", null, true]);
-  // A post that waits under one that went up since is said on its own line too, where the row says the newer one is up.
-  const up = post("instagram", "published", { id: "story-up", kind: "story", created_at: "2026-11-11T16:00:00.000Z" });
+  assert.equal(making.waitsToo?.pull, "story-later");
+  // A post that waits beside one that went up since: the row says what is still to come, and the one up has its own line.
+  const up = post("instagram", "published", {
+    id: "story-up",
+    kind: "story",
+    published_at: "2026-11-11T14:00:00.000Z",
+    created_at: "2026-11-11T14:00:00.000Z",
+  });
   const [under] = placesOf([up, picture], CAN, NOW);
-  assert.deepEqual([under.stands.is, under.pull, under.waitsToo?.pull], ["up", null, "instagram-later"]);
+  assert.deepEqual(
+    [under.stands.is, under.pull, under.upToo, under.waitsToo],
+    ["timed", "instagram-later", { at: "2026-11-11T14:00:00.000Z" }, null],
+  );
+  // The same story two days on has run its day: it is no longer up, and the row no longer says so.
+  const ended = { ...up, published_at: "2026-11-09T15:02:00.000Z" };
+  assert.equal(placesOf([ended, picture], CAN, NOW)[0].upToo, null);
   // One alone is the row's own, with no second line.
   assert.equal(placesOf([picture], CAN, NOW)[0].waitsToo, null);
   // A place nobody is offered is still listed while a post waits there.

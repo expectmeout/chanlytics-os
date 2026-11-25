@@ -49,9 +49,14 @@ test("a post is a mark at its time: up where it went, waiting for its time hollo
   );
 });
 
-test("a stop is old news once a newer post of its piece came after it at its place: sent again, or let go (16 Nov 2026)", () => {
-  const stop = { file_id: FILE, place: "instagram", created_at: "2026-09-08T12:00:00.000Z" };
-  const again = { file_id: FILE, place: "instagram", created_at: "2026-09-08T14:00:00.000Z" };
+test("a stop is old news once a newer post of its piece came after it in its placement: sent again, or let go (16 Nov 2026)", () => {
+  const stop = { file_id: FILE, place: "instagram", kind: "picture", created_at: "2026-09-08T12:00:00.000Z" };
+  const again = { file_id: FILE, place: "instagram", kind: "picture", created_at: "2026-09-08T14:00:00.000Z" };
+  assert.equal(
+    stopSuperseded(stop, [{ ...again, kind: "story" }]),
+    false,
+    "a story that went up since says nothing of the post that stopped: a placement is a place and a kind",
+  );
   assert.equal(
     stopSuperseded(stop, [stop, again]),
     true,

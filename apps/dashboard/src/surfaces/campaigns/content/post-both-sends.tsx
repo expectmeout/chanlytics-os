@@ -7,7 +7,7 @@ import { useState } from "react";
 import {
   CONTENT_SHEET_WORDS,
   POST_PLACES,
-  newestAtEachPlace,
+  pieceStandingOf,
   postPlaceTakenOf,
   type InstagramPostKind,
   type PostDto,
@@ -112,12 +112,17 @@ export function postBothOpening(
   const begun = postBothBegins(open);
   const stands = (place: PostPlace) => pieceStandsAt(posts, place, nowMs).is;
   const stopped = POST_PLACES.filter((place) => stands(place) === "stuck");
-  const fresh = (place: PostPlace) => stands(place) !== "up" && !postPlaceTakenOf(posts, place);
+  // A place holds nothing of the piece where none of it is there or on its way: one where its story ran its day, or its
+  // post came down, takes it again (Post again).
+  const fresh = (place: PostPlace) =>
+    ["none", "ended", "down"].includes(stands(place)) && !postPlaceTakenOf(posts, place);
   const on = (place: PostPlace) =>
     stopped.length > 0 ? begun[place] && stopped.includes(place) : begun[place] && fresh(place);
   // A story that stopped is tried again as a story; else the kind Instagram can take now, a post before a story.
-  const last = newestAtEachPlace(posts).find((p) => p.place === "instagram");
-  const again = stopped.includes("instagram") && last?.kind === "story" ? "story" : begun.as;
+  const stoppedStory = pieceStandingOf(posts, null, nowMs).placements.some(
+    (at) => at.place === "instagram" && at.kind === "story" && at.standing.is === "stopped",
+  );
+  const again = stoppedStory && stands("instagram") === "stuck" ? "story" : begun.as;
   return {
     as: instagramAsOf(instagramKindsFree(posts, fileKind), again),
     instagram: on("instagram"),

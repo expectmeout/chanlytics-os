@@ -7,20 +7,21 @@
  */
 import {
   CONTENT_WORDS,
-  POST_ON_ITS_WAY,
   POST_PLACES,
   POST_PULLABLE,
   contentMarkOf,
   contentMarkSaid,
   contentMarkToneOf,
-  newestAtEachPlace,
-  postWaitsForItsTime,
+  leadOf,
+  pieceStandingOf,
+  standingOnItsWay,
   type ContentMarkTone,
+  type PlacementStands,
   type PostDto,
   type PostKind,
   type PostPlace,
 } from "@chanlytics/contracts";
-import { pieceStandsAt, pieceTimedOf, type PieceNext, type PieceStandsAt, type PieceTakes } from "./piece-open";
+import { standsAtOf, type PieceStandsAt, type PieceTakes } from "./piece-open";
 import type { ViewerClock } from "./viewer-line";
 
 /** Why a place can take no post at all, in words (not connected, posting not allowed); null where it can. */
@@ -39,34 +40,29 @@ interface PieceStatus {
   pull: string | null;
 }
 
+/** The post Don't post would stop, while it still can be. */
+const pullOf = (post: PostDto): string | null => (POST_PULLABLE.includes(post.status) ? post.id : null);
+
 /**
- * Where it stands, in one sentence, what needs the owner first as the one act that leads is chosen (pieceNextOf): a post that
- * stopped ("Didn't post · Try again", as its tile says it), then one going up now ("Posting to Instagram"), then one that
+ * Where it stands, in one sentence, from the piece's one standing (contracts pieceStandingOf), what needs the owner first:
+ * a post that stopped ("Didn't post", as its tile says it), then one going up now ("Posting to Instagram"), then one that
  * waits for its time ("Story goes up Sat, 9:00 AM"), else what its tile says (contracts contentMarkSaid: "Ready to post", "On
- * Instagram · Monday"), so the open piece and its tile never say one fact two ways. A post that waits at one place while
- * another stopped is said, with its Don't post, in the list of places.
+ * Instagram · Monday", "Story ended · Sunday"), so the open piece and its tile never say one fact two ways. A post that waits
+ * at one place while another stopped is said, with its Don't post, in the list of places.
  */
-export function pieceStatusOf(
-  posts: readonly PostDto[],
-  next: PieceNext,
-  clock: ViewerClock,
-  nowMs: number,
-): PieceStatus {
-  // The tile's own words for a post going up (contracts CONTENT_WORDS.mark), at the place the next step names.
-  if (next.is === "going") return { tone: "going", said: CONTENT_WORDS.mark.going(next.place), pull: next.pull };
+export function pieceStatusOf(posts: readonly PostDto[], clock: ViewerClock, nowMs: number): PieceStatus {
+  const { lead } = pieceStandingOf(posts, null, nowMs);
   const mark = contentMarkOf(posts, nowMs);
+  const sentence = contentMarkSaid(mark, clock.day);
+  if (lead.is === "going_up") return { tone: "going", said: sentence, pull: pullOf(lead.at.post) };
   // The tile says the day; the open piece says what goes up, and the hour: of the same post, the soonest, as the tile chose it.
-  const timed =
-    mark.is === "timed"
-      ? (posts.find((p) => p.place === mark.place && p.scheduled_for === mark.at) ?? pieceTimedOf(posts, nowMs))
-      : null;
-  if (timed)
+  if (lead.is === "waiting")
     return {
       tone: "timed",
-      said: CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[timed.kind], clock.ahead(timed.scheduled_for)),
-      pull: POST_PULLABLE.includes(timed.status) ? timed.id : null,
+      said: CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[lead.at.kind], clock.ahead(lead.when)),
+      pull: pullOf(lead.at.post),
     };
-  return { tone: contentMarkToneOf(mark), said: contentMarkSaid(mark, clock.day), pull: null };
+  return { tone: contentMarkToneOf(mark), said: sentence, pull: null };
 }
 
 /**
@@ -88,11 +84,11 @@ const waitingActsOf = (post: PostDto | null): Pick<PlaceWaitsToo, "pull" | "mova
   making: post?.status === "preparing" && post.kind !== "story",
 });
 
-/** A post on its way beside the newest there, as its own line reads it. */
-const waitsTooOf = (post: PostDto, nowMs: number): PlaceWaitsToo => ({
-  kind: post.kind,
-  stands: postWaitsForItsTime(post, nowMs) ? { is: "timed", at: post.scheduled_for } : { is: "going" },
-  ...waitingActsOf(post),
+/** A post on its way beside the one that leads there, as its own line reads it. */
+const waitsTooOf = (at: PlacementStands): PlaceWaitsToo => ({
+  kind: at.kind,
+  stands: at.standing.is === "waiting" ? { is: "timed", at: at.standing.at } : { is: "going" },
+  ...waitingActsOf(at.post),
 });
 
 /** One place in the list: where the piece stands there, and what can be done there now. */
@@ -103,22 +99,22 @@ export interface PlaceStanding {
   takes: boolean;
   /** Why none can, where the place itself is not ready. */
   wont: string | null;
-  /** The newest post there, where it is on its way and Don't post would stop it, while it still can be. */
+  /** The post that leads there, where it is on its way and Don't post would stop it, while it still can be. */
   pull: string | null;
   /** The post that stopped there, which Dismiss lets go: not tried again, and no longer waiting for the owner (00619). */
   letGo: string | null;
-  /** What the newest post there is (a picture, a story), where there is one. */
+  /** What the post that leads there is (a picture, a story), where there is one. */
   kind: PostKind | null;
   /** The post set for its time there that Change time can move: one still queued, which no run has taken (00621). */
   movable: string | null;
   /** Instagram is making the post there ready, and holds its words (a picture's; a story has none). */
   making: boolean;
   /**
-   * A post up there before the newest, which waits, goes up or stopped (a story set for tomorrow over a post up since Monday):
-   * said with its door beside the newer one, so neither hides the other. Null where the newest is the one up, or none is.
+   * A post up there beside the one that leads, which waits, goes up or stopped (a story set for tomorrow over a post up since
+   * Monday): said with its door beside the other, so neither hides the other. Null where the one that leads is up, or none is.
    */
   upToo: { at: string | null } | null;
-  /** A post on its way there beside the newest (a story set for Sunday beside a post set for Saturday); null where none is. */
+  /** A post on its way there beside the one that leads (a story set for Sunday beside a post set for Saturday); null where none is. */
   waitsToo: PlaceWaitsToo | null;
 }
 
@@ -132,26 +128,28 @@ export function placesOf(
   can: { takes: PieceTakes; wont: PieceWont; offers: PieceOffers },
   nowMs: number,
 ): PlaceStanding[] {
-  const newest = newestAtEachPlace(posts);
-  // The one rule for the newest at a place, read over the posts that are up: the post up under a newer one.
-  const newestUp = newestAtEachPlace(posts.filter((p) => p.status === "published"));
+  const { placements } = pieceStandingOf(posts, null, nowMs);
   return POST_PLACES.map((place) => {
-    const last = newest.find((p) => p.place === place);
-    // Each post on its way there has its own line: the newest is the row's, and one beside it (of the other kind) its own.
-    const onItsWay = posts.filter((p) => p.place === place && POST_ON_ITS_WAY.includes(p.status));
-    const beside = onItsWay.find((p) => p.id !== last?.id) ?? null;
-    const stands = pieceStandsAt(posts, place, nowMs);
-    const up = stands.is === "up" ? null : newestUp.find((p) => p.place === place);
+    // The place's placements (a post, a story), and the one that leads there: the row is its, as the piece's status is
+    // the piece's lead's.
+    const here = placements.filter((at) => at.place === place);
+    const lead = leadOf(here);
+    const stands = standsAtOf(lead);
+    const last = lead.is === "never" ? null : lead.at;
+    // Each post on its way there has its own line: the one that leads is the row's, and one beside it (of the other kind) its own.
+    const beside = here.find((at) => standingOnItsWay(at.standing) && at !== last) ?? null;
+    // A post still up there while another leads: under a newer one of its own placement, or of the other kind.
+    const up = here.flatMap((at) => [at, ...(at.under ? [at.under] : [])]).find((at) => at.standing.is === "up");
     return {
       place,
       stands,
       takes: can.takes[place],
       wont: can.wont[place],
-      ...waitingActsOf(onItsWay.find((p) => p.id === last?.id) ?? null),
-      letGo: last && (last.status === "held" || last.status === "failed") ? last.id : null,
+      ...waitingActsOf(last && standingOnItsWay(last.standing) ? last.post : null),
+      letGo: last?.standing.is === "stopped" ? last.post.id : null,
       kind: last?.kind ?? null,
-      upToo: up ? { at: up.published_at } : null,
-      waitsToo: beside ? waitsTooOf(beside, nowMs) : null,
+      upToo: stands.is !== "up" && up ? { at: up.post.published_at } : null,
+      waitsToo: beside ? waitsTooOf(beside) : null,
     };
   }).filter((at) => can.offers[at.place] || at.stands.is !== "none" || at.upToo !== null || at.waitsToo !== null);
 }

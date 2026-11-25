@@ -7,6 +7,7 @@
  * schedule.
  */
 import { DAY_MS, HOUR_MS } from "../../shared/time";
+import { STORY_DAY_MS } from "../placements/story-day";
 import type { PostKind } from "../posts";
 import { TIMED_OBSERVE_STEPS, type MetricAvailability, type PostMetric, type TimedObserveStep } from "./sets";
 
@@ -20,10 +21,10 @@ const OBSERVE_STEP_MS: Readonly<Record<TimedObserveStep, number>> = {
 };
 
 /**
- * A story's day read, 22 hours after it went up: two hours before it ends, so four of the health sweep's half-hour
- * passes are left to ask for it (results-upkeep.ts).
+ * A story's day read, two hours before its day ends (placements/story-day.ts: 22 hours after it went up), so four of
+ * the health sweep's half-hour passes are left to ask for it (results-upkeep.ts).
  */
-const STORY_DAY_READ_MS = 22 * HOUR_MS;
+const STORY_DAY_READ_MS = STORY_DAY_MS - 2 * HOUR_MS;
 
 /** The clock's steps a story is read at: its hour, and its day before it ends. */
 const STORY_STEPS = ["1h", "1d"] as const satisfies readonly TimedObserveStep[];

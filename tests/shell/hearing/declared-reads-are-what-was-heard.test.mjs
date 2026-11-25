@@ -258,7 +258,15 @@ const HEARD_BEFORE = {
   // What Ask made (decision 0125): a made piece is a file, so a video landing or a name the look gives moves its tile; and a
   // review, which its "newest review" idea is offered from, so a first one landing offers it without a press. And, while
   // nothing is kept, where Ask looked (decision 0134), as the Library hears it.
-  content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
+  content: [
+    "files",
+    "google_reviews",
+    "imports",
+    "business_reads",
+    "tenant_config",
+    "google_listings",
+    "tenant_channels",
+  ],
   // The Week (00706), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
   // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page. And the look the
   // website read proposed (pass 4's brand kit), which Settings › Content's "The look" says until the owner words it. And,
@@ -366,7 +374,15 @@ const ON_ITS_PAGE_BEFORE = {
   // A business's files (decision 0099): nothing but Settings › Files draws them.
   files: ["files", "imports", "business_reads", "tenant_config", "google_listings"],
   // What Ask made (decision 0125): nothing but Campaigns › Content draws it, nor its idea from a review, nor where Ask looked.
-  content: ["files", "google_reviews", "imports", "business_reads", "tenant_config", "google_listings"],
+  content: [
+    "files",
+    "google_reviews",
+    "imports",
+    "business_reads",
+    "tenant_config",
+    "google_listings",
+    "tenant_channels",
+  ],
   // The Week (00706), where it or Settings › Content is drawn: its footage's files, whether Google and Instagram take a
   // post, the config its lines say, and whether AI is paused; the week's own rows are told to no page. And the look the
   // website read proposed (pass 4's brand kit), which Settings › Content's "The look" says until the owner words it. And,

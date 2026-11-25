@@ -175,6 +175,8 @@ const post = (place, status, over = {}) => ({
   permalink: null,
   scheduled_for: new Date().toISOString(),
   published_at: status === "published" ? agoIso(3 * DAY) : null,
+  // Seen at its place, as a post that is up is.
+  verified_at: status === "published" ? agoIso(3 * DAY) : null,
   error: null,
   created_at: "2026-11-11T15:00:00Z",
   ...over,
@@ -822,12 +824,13 @@ test("a story can go beside a post that waits: the switch offers the kind that i
   assert.doesNotMatch(tagOf(html, "cnv-as-story"), /disabled=""/);
   assert.equal(count(html, "cnv-place-too-instagram"), 0, "one that waits alone is the row's own line");
 
-  // Both wait: the newest is the row's, the other a line of its own, each with its own Change time and Don't post.
+  // Both wait: the one that leads is the row's (the soonest, a post before a story), the other a line of its own, each
+  // with its own Change time and Don't post.
   const story = post("instagram", "queued", { id: "story", kind: "story", scheduled_for: LATER });
   const two = bothOf(draft(OFF), { posts: [story, picture], takes: { instagram: false, google: true }, kinds: [] });
   const both = compose(two);
-  assert.match(placeSaid(both, "instagram"), /^Story goes up /);
-  assert.match(both, /data-testid="cnv-place-too-instagram"[^>]*><span class="cnv-dest-status">Post goes up /);
+  assert.match(placeSaid(both, "instagram"), /^Post goes up /);
+  assert.match(both, /data-testid="cnv-place-too-instagram"[^>]*><span class="cnv-dest-status">Story goes up /);
   assert.equal(saysOf(both, "cnv-move-too-instagram"), "Change time");
   assert.equal(saysOf(both, "cnv-pull-too-instagram"), marked("Don't post"));
   assert.equal(count(both, "cnv-switch-instagram"), 0, "nothing more goes there until one lands");
@@ -1094,7 +1097,7 @@ test("a pasted link is kept as an address a browser opens, with its https where 
 /** The piece's standing as the hook builds it from its lines (the model's goesLinesOf), its presses noops. */
 const standingFrom = (posts, { takeDown = null, more = {} } = {}) => {
   const lines = goesLinesOf(posts, { takeDown, when: (iso) => iso.slice(0, 10), nowMs: Date.now(), may: true });
-  return { lines, pill: goesPillOf(lines), ...more };
+  return { lines, pill: goesPillOf(lines, null), ...more };
 };
 
 test("Take down rides the acts while something is up, and only then; a take-down's lines say what each place said", () => {

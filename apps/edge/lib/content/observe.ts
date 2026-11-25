@@ -11,11 +11,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DAY_MS,
   isOneOf,
   OBSERVE_STEPS,
   POST_METRICS,
   POST_PLACES,
+  storyRanItsDay,
   type MetricAvailability,
   type Observation,
   type ObserveStep,
@@ -70,7 +70,7 @@ const noNumberCame = (rows: readonly Observation[]): boolean =>
  */
 async function askWhetherGone(place: PlaceAdapter, post: PostRow, nowMs: number): Promise<boolean> {
   if (!post.external_id || !place.status) return false;
-  if (post.kind === "story" && (!post.published_at || nowMs - Date.parse(post.published_at) >= DAY_MS)) return false;
+  if (storyRanItsDay(post, nowMs)) return false;
   const state = await place
     .status(sentPlacementOf(post))
     .catch(logAndGoOn("a post's place, asked if it holds it", null));
