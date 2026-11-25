@@ -4888,7 +4888,8 @@ a.list-row {
   background: var(--warn);
 }
 /* Where a tab's own thing stands (SubTabs `standing`: a message's channels, the message sheet's canvas of 12 Nov 2026):
-   ready a dot in the ok ink, not written yet a ring, and where it never goes no dot and the tab's words dimmed. */
+   ready a dot in the ok ink, not written yet a ring, and where it never goes no dot. Its words keep the tab's own ink,
+   the faintest words take: in --ink-faint they read 2.4:1 on the light glass, under the 4.5 every word keeps. */
 .subtab-dot[data-look="ready"] {
   background: var(--ok);
 }
@@ -4898,9 +4899,6 @@ a.list-row {
 }
 .subtab-dot[data-look="never"] {
   background: transparent;
-}
-.subtab:has(> .subtab-dot[data-look="never"]) > .subtab-label {
-  color: var(--ink-faint);
 }
 .subtab-bar {
   position: absolute;
