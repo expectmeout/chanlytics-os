@@ -521,7 +521,7 @@ export const press = (node) =>
 export const settle = () => new Promise((r) => setImmediate(r));
 
 /**
- * A window whose width answers the kit's phone query, `(max-width: 760px)`, as a browser's does, and can be resized:
+ * A window whose width answers the kit's phone query, `(max-width: 900px)`, as a browser's does, and can be resized:
  * resize() changes what the query matches and tells whoever listens, as a browser tells a MediaQueryList's listeners.
  * put() gives the window back the stub's own matchMedia (every other test's desktop). The kit's pages and the record
  * kit's tests share it (record-fold.jsx's REC_PHONE_QUERY).
@@ -533,7 +533,7 @@ export const atWidth = (phone) => {
   globalThis.matchMedia = (q) => ({
     media: q,
     get matches() {
-      return q === "(max-width: 760px)" ? now : false;
+      return q === "(max-width: 900px)" ? now : false;
     },
     addEventListener: (type, fn) => {
       if (type === "change") heard.add(fn);
@@ -545,7 +545,7 @@ export const atWidth = (phone) => {
   return {
     resize(p) {
       now = p;
-      for (const fn of [...heard]) fn({ matches: p, media: "(max-width: 760px)" });
+      for (const fn of [...heard]) fn({ matches: p, media: "(max-width: 900px)" });
     },
     listening: () => heard.size,
     put() {

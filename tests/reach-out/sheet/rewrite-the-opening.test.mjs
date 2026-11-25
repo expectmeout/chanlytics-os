@@ -126,9 +126,8 @@ test("a rewrite's decision takes what should change to the door, and asks nothin
     { p_send_id: SEND, p_decision: "skip" },
   ]);
   assert.equal(edge.calls.length, 0, "the decision writes nothing itself: the check route does");
-  assert.deepEqual(ledger.events.map((e) => [e.kind, e.subject_id, e.data]).slice(0, 1), [
-    ["reach_out.send_decided", RUN, { decision: "rewrite", by: USER }],
-  ]);
+  // The door writes the decision's event on its run (reach_out.send_decided: 00718); the route writes none of its own.
+  assert.deepEqual(ledger.events, [], "REGRESSION: the route wrote a decision's event after the door");
 });
 
 test("words go with a rewrite alone, and at most 280 characters of them", async () => {
@@ -233,10 +232,8 @@ test("Undo goes to its own door and answers the opening the email stands with no
     send_id: SEND,
     rewritten: { send_id: SEND, opening: "Old.", written: true, held: "unbacked_fact", paused: false, undo: false },
   });
-  assert.deepEqual(
-    ledger.events.map((e) => [e.kind, e.data]),
-    [["reach_out.send_decided", { decision: "rewrite_undone", by: USER }]],
-  );
+  // The door writes the undo's event (reach_out.send_decided, rewrite_undone: 00718); the route writes none of its own.
+  assert.deepEqual(ledger.events, [], "REGRESSION: the route wrote the undo's event after the door");
   const refusing = {
     ...rpcs,
     reach_out_send_rewrite_undo: () => {

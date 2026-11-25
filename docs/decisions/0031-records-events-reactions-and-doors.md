@@ -347,6 +347,18 @@ deadline; a message and the yeses it carries are kept in one transaction (00592)
 the message over one way (core `handToAPerson`); and the order a message is taken through is said once, as data (core
 `INBOUND_GATES`, written out as `docs/inbound-gates.md`).
 
+**25 November 2026**, lane 9 of the code refinement plan (`events/one-per-change`, 00718). Invariant 2 for a member's
+own acts: eleven kinds the dashboard wrote from TypeScript, on the service role, after a door had already written the
+change in another request, are written by that door, beside the change, in its transaction, with the same kind,
+category, subject and data (a line set to forward, a search renamed or removed, two records kept apart, a lead's own
+words, a place kept, left out or put back, a lead no longer written to, a held email decided, a mailbox asked for).
+A press that changed nothing writes none. The register's numbers on 25 Nov: doors writing a record with no event 207
+to 202, kinds written only from TypeScript 67 to 56; the table written twice by `packages/db` itself
+(`google_listings`) has one writer, 101 to 100. What is left is the edge's and the jobs' kinds (each against its door,
+the same way) and the doors whose change has no kind yet (a held booking notice dismissed, the slots a week's approval
+left out, the stop, a morning's line, a post's move): each of those needs its kind, its words and, where a member calls
+it, a door that does not add a second writer to its table.
+
 ## Tests
 
 The invariants' holds, each a baseline under `tests/baselines/` that may only fall, in

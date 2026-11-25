@@ -17,7 +17,7 @@ export const POST = write({
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    await recordProviderWanted(member.tenantId, ctx.userId, input.provider);
+    await recordProviderWanted(ctx, member.tenantId, input.provider);
     return { told: true };
   },
 });

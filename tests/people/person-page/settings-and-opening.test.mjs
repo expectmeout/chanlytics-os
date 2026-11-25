@@ -122,8 +122,8 @@ test("REGRESSION: on a phone a deal's row folds open as a desk's does -- its pre
 test("REGRESSION: on a phone a row stays in the card behind its sheet -- taken out, the card was a row shorter under the wash, and everything under it moved up and back down", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   const mm = globalThis.window.matchMedia;
-  // The record kit's phone (record.css, 760px and under): a fold is a sheet over the page.
-  globalThis.window.matchMedia = (q) => ({ matches: /760px/.test(q), addEventListener() {}, removeEventListener() {} });
+  // The record kit's phone (record.css, 900px and under): a fold is a sheet over the page.
+  globalThis.window.matchMedia = (q) => ({ matches: /900px/.test(q), addEventListener() {}, removeEventListener() {} });
   try {
     const draw = await profile(vm);
     press(byTestId(draw(), "rec-row-act-person-visit"));

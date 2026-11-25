@@ -86,10 +86,11 @@ function PolModeHead({ m }: { m: UiMode }) {
 }
 
 /**
- * Whether the pane is a phone's, at Settings' own breakpoint (mobile.css, 640px), kept current as the window changes
- * size, as the record kit reads its own. Read whatever the pane draws, so a pane holds the same hooks at either width.
+ * Whether the pane is a phone's, at the product's phone (tokens.css --bp-phone, 720px; Settings' own 640px until 25 Nov
+ * 2026), kept current as the window changes size, as the record kit reads its own. Read whatever the pane draws, so a
+ * pane holds the same hooks at either width.
  */
-const SET_PHONE_QUERY = "(max-width: 640px)";
+const SET_PHONE_QUERY = "(max-width: 720px)";
 const phoneQuery = () => (typeof window.matchMedia === "function" ? window.matchMedia(SET_PHONE_QUERY) : null);
 export function useSetPhone(): boolean {
   const [phone, setPhone] = useState(() => {
