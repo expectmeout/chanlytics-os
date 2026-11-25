@@ -1092,9 +1092,11 @@ async function heldByNothing(page: Page, pop: (typeof POPS)[number]): Promise<st
   if (
     !(await met(
       page,
+      // Placed, not only drawn: until Base UI has placed a positioner by its control it stands at the window's corner,
+      // transparent (its useAnchorPositioning's `opacity: 0`), and a popup measured there stood wherever that was.
       (sel) => {
-        const el = document.querySelector(sel);
-        return !!el && el.getBoundingClientRect().height > 0;
+        const el = document.querySelector<HTMLElement>(sel);
+        return !!el && el.getBoundingClientRect().height > 0 && el.style.opacity !== "0";
       },
       pop.root,
     ))
@@ -1412,11 +1414,21 @@ test("the Glass check names a popup held under a blur, and one standing away fro
     const held = await heldByNothing(page, menu);
     expect(held.some((f) => /^the menu: held by body: backdrop-filter blur\(2px\)/.test(f))).toBe(true);
     await show(page, "dark", "glass");
-    await page.addStyleTag({ content: ".pop-place { margin-top: 400px; }" });
+    // Set down past the window's height, so it stands away whichever side it opened on. A desk's click brings the
+    // control to the window's middle, where the menu's rows take about the room under it, and it may open above:
+    // 400px carried one that had back over its control, and the check rightly named nothing (run 45715044008).
+    await page.addStyleTag({ content: ".pop-place { margin-top: 150vh; }" });
     const away = await heldByNothing(page, menu);
+    const places = await page.evaluate(() =>
+      [".pop-place", '[data-testid="menu-open"]'].map((sel) => {
+        const box = document.querySelector(sel)?.getBoundingClientRect();
+        const side = document.querySelector(sel)?.getAttribute("data-side") ?? "";
+        return box ? `${sel} ${side} ${Math.round(box.top)} to ${Math.round(box.bottom)}` : `${sel}: none`;
+      }),
+    );
     expect(
       away.some((f) => /^the menu: stands \d+px from its control/.test(f)),
-      `what the check said of the menu set 400px down: ${JSON.stringify(away)}`,
+      `what the check said of the menu set down past the window: ${JSON.stringify(away)}; where: ${places.join("; ")}`,
     ).toBe(true);
   } finally {
     await context.close();
