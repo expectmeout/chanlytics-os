@@ -292,10 +292,11 @@ function boundLog(tenantId: TenantId, phoneNumberId: string, wabaId: string): Lo
   });
 }
 
-export async function connectWhatsAppNumber(auth: Admitted, body: Partial<ConnectBody>): Promise<Response> {
-  const appId = metaAppId();
-  const appSecret = env.META_APP_SECRET;
-  if (!appId || !appSecret) return refuse(503, "no_app_credentials");
+/** What the connect asks for: the workspace, the person, Meta's code and the ids its window named, each checked. */
+function connectAskOf(
+  auth: Admitted,
+  body: Partial<ConnectBody>,
+): Response | { tenantId: TenantId; userId: string; code: string; given: { phoneNumberId: string; wabaId: string } } {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -318,6 +319,16 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
       "tenant_id, user_id and code required; phone_number_id and waba_id, when given, Meta's ids",
     );
   }
+  return { tenantId, userId, code, given };
+}
+
+export async function connectWhatsAppNumber(auth: Admitted, body: Partial<ConnectBody>): Promise<Response> {
+  const appId = metaAppId();
+  const appSecret = env.META_APP_SECRET;
+  if (!appId || !appSecret) return refuse(503, "no_app_credentials");
+  const ask = connectAskOf(auth, body);
+  if (ask instanceof Response) return ask;
+  const { tenantId, userId, code, given } = ask;
   const db = pg();
   if (!db) return refuse(503, "no_database");
   let log = boundLog(tenantId, given.phoneNumberId, given.wabaId);
