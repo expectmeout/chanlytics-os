@@ -245,15 +245,38 @@ test("a look that is answered: the reads held back leave two at a time for a whi
   assert.equal(gate.held, null);
 });
 
-test("a write answered, or a read that left before the hold and is answered, ends the wait: the server answers", async () => {
+test("a read that left before the hold and is answered ends the wait; a write answered sends the next read to look", async () => {
   const s = standing();
   const early = await s.read("GET contacts");
   await s.trip();
   early("answered");
-  assert.equal(s.trouble.waiting(), false);
+  assert.equal(s.trouble.waiting(), false, "the server answers a read");
   await s.trip();
   s.trouble.answered();
-  assert.equal(s.trouble.waiting(), false, "somebody's write went through");
+  assert.equal(
+    s.trouble.waiting(),
+    true,
+    "a write answered ends no hold by itself: one that needs no database is answered right through an outage",
+  );
+  const look = await s.read("GET today");
+  assert.ok(leaves(look), "but the next read looks at once, the wait unspent");
+  assert.deepEqual(
+    await Promise.race([s.read("GET today"), Promise.resolve("waits")]),
+    "waits",
+    "and the rest wait on it",
+  );
+  look("fault");
+  assert.deepEqual(await s.read("GET calendar"), { held: 10 }, "it failed: held again, the wait doubled");
+  s.trouble.answered();
+  (await s.read("GET today"))("answered");
+  assert.equal(s.trouble.waiting(), false, "a look answered is what ends it");
+  // Standing, a write answered between two faults is an answer between them: nothing is counted across it.
+  const fresh = standing();
+  await fresh.fail("GET today");
+  await fresh.fail("GET calendar");
+  fresh.trouble.answered();
+  await fresh.fail("GET settings");
+  assert.equal(fresh.trouble.waiting(), false);
 });
 
 test("a person's press ends the wait at once, and a read its caller called off says nothing of the server", async () => {

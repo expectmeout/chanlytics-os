@@ -34,7 +34,9 @@
  * at a time; failed, the outage is plain. Each asked alone at once, as they were, one failure became twenty requests.
  *
  * A person's own press (the shell's Retry, the network coming back) ends the wait at once: the next reads look. A write
- * is never held: it is somebody's act, and its answer says the server answers.
+ * is never held: it is somebody's act. Answered, it sends the next reads to look at once, and what they say decides; it
+ * ends no hold by itself, since a write that needs no database is answered right through an outage (counted on CI's
+ * stack, 25 Nov 2026: with reads failing and writes answered, each write set every read asking again).
  *
  * One failing read is not trouble (a route with a fault of its own): it takes several routes failing with nothing
  * answered between. And what "has not failed" is judged by is the read's whole address, its query with it: a route that
@@ -84,7 +86,10 @@ export interface Trouble {
    * so a read leaves in the turn it was asked in, as it always did; a promise only while looks are out or the tab mends.
    */
   before(address: string, route?: string): ReadLeaves | ReadHeld | Promise<ReadLeaves | ReadHeld>;
-  /** A write, or any answer outside a read: the server answered, so the tab is as it was. */
+  /**
+   * A write was answered. Standing, whatever faults were counted are over; holding, the next reads look now, and what
+   * they say decides: it ends no hold by itself.
+   */
   answered(): void;
   /**
    * One request that carried many reads failed whole (contracts FAILED_WHOLE). The tab holds at once, and the next read
@@ -360,23 +365,21 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     return mending.turn().then((done) => ({ held: null, settled: settledAs(address, route, done) }));
   };
 
+  const lookNow = () => {
+    if (until === null || round) return;
+    until = now();
+    due.letGo();
+  };
+
   return {
     before,
-    answered() {
-      if (round) return; // the looks' own answers decide
-      if (until !== null) mending.begin();
-      stand();
-    },
+    answered: () => (until === null ? inARow.clear() : lookNow()),
     failedWhole() {
       if (round) return; // looks are out: what they say decides
       whole.note(until === null);
       if (until === null) hold(null);
     },
-    lookNow() {
-      if (until === null || round) return;
-      until = now();
-      due.letGo();
-    },
+    lookNow,
     standAgain() {
       // Looks still out say nothing to a page that has begun again; what waited on them leaves.
       const out = round;
