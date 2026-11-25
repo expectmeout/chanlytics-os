@@ -276,7 +276,7 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.deepEqual(await answer(await knock(SETUP, { what: "fax machine" })), bad, "a `what` nobody offers");
     assert.deepEqual(
       await answer(await knock(SETUP, { what: ["line"] })),
-      [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: what" }],
+      [400, { ok: false, error: "bad_request" }],
       "not a string",
     );
     assert.deepEqual(await answer(await knock(SETUP, "not json")), bad);
@@ -288,7 +288,7 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
       );
       assert.deepEqual(
         await answer(await knock(SETUP, { what: "line", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })),
-        [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: tenant_id" }],
+        [400, { ok: false, error: "bad_request" }],
         "and name it by id: refused at the door's schema",
       );
     });

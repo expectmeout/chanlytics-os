@@ -161,7 +161,7 @@ test("the person is the token's: a token about nobody with no person in the body
   assert.deepEqual(await answer(await knock(T(1), ask({ user_id: undefined }), nobody())), bad);
   assert.deepEqual(await answer(await knock(T(1), ask({ user_id: "ada" }), nobody())), [
     400,
-    { ok: false, error: "bad_request", detail: "Couldn't read what was sent: user_id" },
+    { ok: false, error: "bad_request" },
   ]);
   assert.equal(net.calls.length, 0);
 });

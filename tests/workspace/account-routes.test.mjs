@@ -751,7 +751,12 @@ test("a phone is registered on the account through the definer door, and forgott
     400,
     "iPhone or an Android",
   );
-  await refused(devices.DELETE.run(send("DELETE", {}), ctxFor(tables, {}, rpcs)), "validation", 400, "push token");
+  await refused(
+    devices.DELETE.run(send("DELETE", {}), ctxFor(tables, {}, rpcs)),
+    "validation",
+    400,
+    "notification address",
+  );
 });
 
 test("REGRESSION: the zone and the word for a booking are settings, and a save of either is on the ledger with who made it -- they live on the tenant's row, and left no trace", async () => {

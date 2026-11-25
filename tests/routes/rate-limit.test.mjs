@@ -108,7 +108,7 @@ test("the shared store: the function's verdict is the verdict; a store that does
     answer = () => ({ data: null, error: { message: "connection refused" } });
     await assert.rejects(
       store.take("lines_buy", "u1", RATE.lines_buy, 200_000, true),
-      (e) => e.status === 503 && /shared count could not be read/.test(e.message),
+      (e) => e.status === 503 && /Couldn't check the limit/.test(e.message),
     );
     answer = () => ({ data: { allowed: true }, error: null });
     assert.deepEqual(

@@ -52,8 +52,9 @@ dashboard's `callEdge`, a body written `satisfies EdgeBody<…>`), and the four 
 (`voice-converge`, `voice-provision`, `intake/replay`, `voice-canary`) were read against theirs by hand. So both ends
 refuse now:
 
-- **A door** answers a body its schema does not hold with 400 `bad_request`, naming the fields and never their values,
-  and the op never runs (`readBody` gives the body or the refusal, as `workspaceOf` does).
+- **A door** answers a body its schema does not hold with 400 `bad_request`, its fields named in the log and never their
+  values, and the op never runs (`readBody` gives the body or the refusal, as `workspaceOf` does). The answer names no
+  field: a page may show what a refusal says.
 - **The dashboard** does not read a field of an answer its door's schema does not hold (`readEdgeAnswer`): the
   field is left out, as one the door did not send (every declared field may be absent), and said in the log. The
   status stands: the edge's answers are not held to their declarations by the compiler, and a door may have done its

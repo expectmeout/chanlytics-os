@@ -22,14 +22,14 @@ test("a body its door holds is handed on as it was sent, and nothing is said", a
   assert.deepEqual(lineSaid(lines), []);
 });
 
-test("a body its door does not hold is refused, 400 bad_request, its fields named and their values never", async () => {
+test("a body its door does not hold is refused, 400 bad_request, its fields named in the log and their values never", async () => {
   const sent = { op: "search", area_code: true, tenant_id: "not-a-workspace" };
   const { result, lines } = await linesOf(() => readBody(JSON.stringify(sent), LINES_DOOR));
   assert.equal(result.ok, false, "the op never runs on it");
   assert.equal(result.response.status, 400);
   const answer = await result.response.json();
   assert.equal(answer.error, "bad_request");
-  assert.match(answer.detail, /area_code, tenant_id/);
+  assert.equal(answer.detail, undefined, "the fields are the log's, never the answer's");
   assert.ok(!JSON.stringify(answer).includes("not-a-workspace"), "a field's value never reaches the answer");
   const [line, ...more] = lineSaid(lines);
   assert.equal(more.length, 0);
@@ -40,7 +40,7 @@ test("a body its door does not hold is refused, 400 bad_request, its fields name
 test("a field the door needs, missing, is refused by its name", async () => {
   const { result, lines } = await linesOf(() => readBody(JSON.stringify({ kind: "reply" }), DRAFT_DOOR));
   assert.equal(result.ok, false);
-  assert.match((await result.response.json()).detail, /conversation_id/);
+  assert.equal((await result.response.json()).error, "bad_request");
   assert.deepEqual(fieldsOf(lineSaid(lines)[0]).fields, ["conversation_id"]);
 });
 

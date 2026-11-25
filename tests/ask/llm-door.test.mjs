@@ -332,7 +332,7 @@ test("what a request must be before the key is spent: a body under the cap, a pe
   );
   assert.deepEqual(
     await answer(await knock(T(1), turn({ user_id: "ada" }), nobody())),
-    bad("Couldn't read what was sent: user_id"),
+    [400, { ok: false, error: "bad_request" }],
     "an id that is not one: refused at the door's schema",
   );
   assert.deepEqual(

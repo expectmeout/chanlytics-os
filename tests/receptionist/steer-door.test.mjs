@@ -44,6 +44,7 @@ import {
   formatPhoneDisplay,
   REPLY_DELAY_DEFAULT_MS,
 } from "@chanlytics/contracts";
+import { STEER_DOOR } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 
@@ -455,7 +456,9 @@ test("the body: a draft id that is not a uuid, no words, or more than 500 of the
   ]) {
     assert.deepEqual(
       await answer(await knock(body, { workspace: w.T, brain: unasked().port })),
-      [400, { ok: false, error: "bad_request", detail: "message_id + text (1-500 chars) required" }],
+      STEER_DOOR.body.safeParse(body).success
+        ? [400, { ok: false, error: "bad_request", detail: "message_id + text (1-500 chars) required" }]
+        : [400, { ok: false, error: "bad_request" }],
       JSON.stringify(body),
     );
   }

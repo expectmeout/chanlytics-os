@@ -172,7 +172,7 @@ test("what is wrong with the asking is said, and nothing reaches Google", async 
     throw new Error("nothing may reach Google");
   });
   const cases = [
-    [{ ...asked, file_id: "nope" }, "Couldn't read what was sent: file_id"],
+    [{ ...asked, file_id: "nope" }, null],
     [{ ...asked, summary: "   " }, "summary is required, within Google's limit"],
     [{ ...asked, summary: "x".repeat(1501) }, "summary is required, within Google's limit"],
     [{ ...asked, photo_url: "http://storage.example/x.jpg" }, "photo_url must be an https address"],
@@ -181,7 +181,7 @@ test("what is wrong with the asking is said, and nothing reaches Google", async 
   for (const [body, detail] of cases)
     assert.deepEqual(await answer(await knock({ op: "post", ...body })), [
       400,
-      { ok: false, error: "bad_request", detail },
+      detail ? { ok: false, error: "bad_request", detail } : { ok: false, error: "bad_request" },
     ]);
   assert.equal(net.calls.length, 0);
 });

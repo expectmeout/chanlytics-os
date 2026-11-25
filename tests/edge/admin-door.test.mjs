@@ -118,7 +118,6 @@ for (const d of DOORS) {
     const notJson = await knock(d, "not json");
     assert.equal(notJson[0], 400, "a body that is not JSON: refused at the door's schema, before any op");
     assert.equal(notJson[1].error, "bad_request");
-    assert.match(notJson[1].detail, /: op$/, "the field it lacks, named");
     for (const raw of NOT_OBJECTS) {
       assert.deepEqual(await knock(d, raw), notJson, `${raw}: the same 400 as a body that is not JSON`);
     }

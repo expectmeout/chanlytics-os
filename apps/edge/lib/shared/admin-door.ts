@@ -42,8 +42,8 @@ type BodyRead<D extends EdgeDoor> = { ok: true; body: DoorRead<D> } | Refused;
  * body when a door has already read it as text (the model gateway measures it first).
  *
  * `door` is the door as contracts declares it, the dashboard's side of the same shape (decision 0109). A body its schema
- * does not hold is refused here, 400 `bad_request`, naming the fields and never their values, and said in the log the
- * same way: the op never runs on it. The doors logged such a body and let it through until production had sent none
+ * does not hold is refused here, 400 `bad_request`, and said in the log by its fields, never their values: the op
+ * never runs on it, and the answer carries no field's name, since a page may show what a refusal says. The doors logged such a body and let it through until production had sent none
  * (25 Nov 2026: no `door_body_unexpected` in the day the logs keep, and every sender typed by the schema).
  */
 export async function readBody<D extends EdgeDoor>(source: Request | string, door: D): Promise<BodyRead<D>> {
@@ -56,9 +56,8 @@ export async function readBody<D extends EdgeDoor>(source: Request | string, doo
   }
   const held = door.body.safeParse(body);
   if (held.success) return { ok: true, body };
-  const fields = unheldByDoor(held.error);
-  logger().warn("door_body_unexpected", { door: door.aud, fields });
-  return stop(refuse(400, "bad_request", `Couldn't read what was sent: ${fields.join(", ")}`));
+  logger().warn("door_body_unexpected", { door: door.aud, fields: unheldByDoor(held.error) });
+  return stop(refuse(400, "bad_request"));
 }
 
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */

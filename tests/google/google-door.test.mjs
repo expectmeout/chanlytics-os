@@ -647,7 +647,7 @@ test("past status and search every op needs a database and a workspace on record
     );
     assert.deepEqual(
       await answer(await knock({ op: "refresh", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: tenant_id" }],
+      [400, { ok: false, error: "bad_request" }],
       "and name it by id: refused at the door's schema",
     );
   });
@@ -660,7 +660,7 @@ test("past status and search every op needs a database and a workspace on record
   const list =
     "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft, hold, post or unpost";
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: "unknown_op", detail: list }]);
-  const noOp = [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: op" }]; // the door's schema
+  const noOp = [400, { ok: false, error: "bad_request" }]; // the door's schema
   for (const body of [{}, "not json"]) assert.deepEqual(await answer(await knock(body)), noOp);
   use(world(), new Map(), { "tenants.select": { message: "permission denied for table tenants" } });
   assert.deepEqual(await answer(await knock({ op: "refresh" })), [
