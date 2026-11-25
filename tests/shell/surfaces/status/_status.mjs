@@ -347,8 +347,8 @@ export const waitingToday = (...ids) => ({
   },
 });
 
-/** Set the world's `deep`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `deep` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setDeep = (value) => (deep = value);
 
-/** Set the world's `cells`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `cells` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setCells = (value) => (cells = value);

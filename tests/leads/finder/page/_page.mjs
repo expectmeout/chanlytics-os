@@ -1429,17 +1429,11 @@ export const running = (over = {}) => ({
   },
 });
 
-/** Set the world's `holdViewSaves`, as a test once assigned it: a module that imports it cannot. */
-export const setHoldViewSaves = (value) => {
-  holdViewSaves = value;
-};
+/** Sets the world's `holdViewSaves` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setHoldViewSaves = (value) => (holdViewSaves = value);
 
-/** Set the world's `overlayOpen`, as a test once assigned it: a module that imports it cannot. */
-export const setOverlayOpen = (value) => {
-  overlayOpen = value;
-};
+/** Sets the world's `overlayOpen` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setOverlayOpen = (value) => (overlayOpen = value);
 
-/** Set the world's `cells`, as a test once assigned it: a module that imports it cannot. */
-export const setCells = (value) => {
-  cells = value;
-};
+/** Sets the world's `cells` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setCells = (value) => (cells = value);

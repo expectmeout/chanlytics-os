@@ -1071,13 +1071,18 @@ export const TEST_LENGTH = {
  * loader off the main thread. A wait for what the next lines read (`until`, tests/shared/_until.mjs) holds on any
  * machine. Seeded on 30 Oct 2026; a wait before asserting that nothing more happened stays one, since there is nothing
  * to wait for, so the measure falls as waits are moved to conditions and never reaches nothing.
+ *
+ * The worlds the tests share are read too (TEST_WORLDS, every `_<name>.mjs` under tests/): since 25 Nov 2026, when the
+ * suite's long files were split by behaviour (layer 14), a helper that waits lives in its folder's world as often as in
+ * a test file, and a wait moved there is the same wait.
  */
+export const TEST_WORLDS = /^tests\/(.+\/)?_[^/]+\.mjs$/;
 export const COUNTED_WAITS = {
   name: "waits that count turns or time in tests",
   key: "counted-waits",
   measure: () =>
     Object.fromEntries(
-      suiteFiles()
+      [...suiteFiles(), ...repoFiles(["tests"]).filter((f) => TEST_WORLDS.test(f))]
         .map((f) => [f, fixedWaitsIn(parse(f)).length])
         .filter(([, n]) => n > 0),
     ),

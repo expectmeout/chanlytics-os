@@ -874,12 +874,8 @@ export const csvFirst = (line) => {
 
 export const exportedNames = async (blob) => (await blob.text()).split("\r\n").slice(1).map(csvFirst);
 
-/** Set the world's `cells`, as a test once assigned it: a module that imports it cannot. */
-export const setCells = (value) => {
-  cells = value;
-};
+/** Sets the world's `cells` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setCells = (value) => (cells = value);
 
-/** Set the world's `overlayOpen`, as a test once assigned it: a module that imports it cannot. */
-export const setOverlayOpen = (value) => {
-  overlayOpen = value;
-};
+/** Sets the world's `overlayOpen` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setOverlayOpen = (value) => (overlayOpen = value);

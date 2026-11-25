@@ -560,5 +560,5 @@ export const ideaStore = (over = {}) => ({
   ...over,
 });
 
-/** Set the world's `modelCalls`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `modelCalls` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setModelCalls = (value) => (modelCalls = value);

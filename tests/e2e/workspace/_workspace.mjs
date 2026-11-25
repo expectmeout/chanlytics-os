@@ -1,9 +1,9 @@
 /**
- * The world the tests of workspace/ share. Split by behaviour from e2e-workspace.test.mjs on 25 Nov 2026 (layer 14: a
- * test file over 1,600 lines is two files); its header, as it was:
+ * The world the tests of workspace/ share: the nightly's own workspace, converged over the database in memory. Split
+ * by behaviour from e2e-workspace.test.mjs on 25 Nov 2026 (layer 14: a test file over 1,600 lines is two files); its
+ * header, as it was:
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
- *
  */
 /**
  * The nightly's own workspace, converged against a database in memory.

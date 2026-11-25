@@ -1015,7 +1015,5 @@ export const stepNotes = () => [
 export const mergeConfirm = (tree) =>
   find(find(tree, (n) => n.props?.testid === "person-merge-sheet")?.props.foot, (n) => n.type === KitConfirm);
 
-/** Set the world's `cells`, as a test once assigned it: a module that imports it cannot. */
-export const setCells = (value) => {
-  cells = value;
-};
+/** Sets the world's `cells` for a test, as its assignment did: a module that imports a binding cannot assign it. */
+export const setCells = (value) => (cells = value);

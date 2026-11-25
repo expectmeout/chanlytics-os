@@ -689,11 +689,11 @@ export const runsRead = (url) => {
 export const withNext = (over = {}) =>
   dto({ next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" }, ...over });
 
-/** Set the world's `followed`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `followed` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setFollowed = (value) => (followed = value);
 
-/** Set the world's `honourDeps`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `honourDeps` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setHonourDeps = (value) => (honourDeps = value);
 
-/** Set the world's `cells`, as a test once assigned it (a module that imports it cannot), answering the value as the assignment did. */
+/** Sets the world's `cells` for a test, as its assignment did: a module that imports a binding cannot assign it. */
 export const setCells = (value) => (cells = value);

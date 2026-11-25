@@ -1,6 +1,7 @@
 /**
- * The nightly's own workspace, converged: twice is one state, drift put back and named, nothing it must not reset
- * touched, and the lead, Google and other seeds as they are made.
+ * The nightly's own workspace, converged: twice is one state, every row one the production sweeps leave alone, the
+ * yeses Today reads, what the specs leave behind put back, what it must not reset refused, a dry run, a backup, and
+ * the lead and Google seeds as they are made, verify() naming any that drifted.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
