@@ -180,7 +180,7 @@ export async function runRound(
   };
 }
 
-export function parseInput(json: string): Record<string, unknown> {
+function parseInput(json: string): Record<string, unknown> {
   try {
     return json ? (JSON.parse(json) as Record<string, unknown>) : {};
   } catch {
