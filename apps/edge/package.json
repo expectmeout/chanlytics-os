@@ -7,20 +7,19 @@
     "vercel-build": "node ../../tooling/scripts/edge-functions.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
     "@chanlytics/log": "workspace:*",
-    "@supabase/supabase-js": "^2.119.2",
-    "sharp": "0.35.5",
-    "stripe": "22.6.2",
+    "@supabase/supabase-js": "catalog:",
+    "sharp": "catalog:",
+    "stripe": "catalog:",
     "web-push": "3.6.7"
   },
   "devDependencies": {
-    "@types/node": "^24",
+    "@types/node": "catalog:",
     "@types/web-push": "3.6.4",
     "typescript": "catalog:"
   }

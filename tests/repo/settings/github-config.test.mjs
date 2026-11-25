@@ -12,6 +12,7 @@ import fs, { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { ROOT } from "../../_source.mjs";
+import { settingBlock } from "../../_pnpm-workspace.mjs";
 
 const require = createRequire(import.meta.url);
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8").replace(/\r\n/g, "\n");
@@ -100,8 +101,9 @@ test("every package the Expo SDK pins for the phone is held back from Dependabot
     );
   // The group lines every importer up to one version, and offered the phone's 19.2.x to the dashboard, the tests, the
   // scripts and the video tool, which were on 19.3: React split in two and the bundled tests could not find it (#2364,
-  // #2536). No version below the dashboard's own minor is ever offered.
-  const dashboardReact = JSON.parse(read("apps/dashboard/package.json")).dependencies.react;
+  // #2536). No version below the dashboard's own minor is ever offered: the catalog's React, which the dashboard names.
+  assert.equal(JSON.parse(read("apps/dashboard/package.json")).dependencies.react, "catalog:");
+  const dashboardReact = settingBlock("catalog").react;
   const floor = `${/(\d+\.\d+)\./.exec(dashboardReact)[1]}.0`;
   for (const name of ["react", "react-dom"])
     assert.ok(
