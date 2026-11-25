@@ -15,8 +15,8 @@ import { motionReduced, washBehind } from "./swipe";
 const STILL_ATTRIBUTES = ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"];
 /** How long a still copy may play before it is removed whatever its animation said. */
 const LEAVE_FALLBACK_MS = 420;
-/** A frame shown for less than this was never seen, and does not leave. */
-const SEEN_MS = 60;
+/** A frame shown for less than this was never seen, and does not leave (the kit's Sheet reads it too). */
+export const SEEN_MS = 60;
 
 /**
  * A picture of a node as it stands, drawn in its place by whoever asks: no id, no test id, no role, inert, hidden from a

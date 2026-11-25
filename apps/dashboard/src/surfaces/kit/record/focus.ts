@@ -199,7 +199,7 @@ export const useRecDrawn = (id: FoldId) => useEffect(() => recFolds.drawn(id), [
 // Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 760px`, read as Reports reads it
 // and kept current as the window changes size.
 const REC_PHONE_QUERY = "(max-width: 760px)";
-export const recPhoneQuery = () => mediaQuery(REC_PHONE_QUERY);
+const recPhoneQuery = () => mediaQuery(REC_PHONE_QUERY);
 export function useRecPhone() {
   const [phone, setPhone] = useState(() => {
     const q = recPhoneQuery();

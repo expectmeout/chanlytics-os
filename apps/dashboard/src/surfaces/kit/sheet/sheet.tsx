@@ -43,7 +43,7 @@ import type { FocusEvent, KeyboardEvent, ReactElement, ReactNode, Ref, RefObject
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../frame-verbs";
 import { Icon } from "../icon/icon";
-import { leaveOverlay } from "../motion/leaving";
+import { SEEN_MS, leaveOverlay } from "../motion/leaving";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { useRootFlag } from "../motion/root-flags";
 import { cx } from "../variants";
@@ -195,9 +195,6 @@ export type SheetProps = SheetShape & {
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
 const closingWord = (state: { transitionStatus: "starting" | "ending" | "idle" | undefined }) =>
   state.transitionStatus === "ending" ? "true" : undefined;
-
-/** A sheet shown for less than this was never seen (StrictMode's check in development), and does not leave. */
-const SEEN_MS = 60;
 
 /**
  * A sheet let go of while it is open (a page that draws it only while it is open, as most do) leaves the way it came all
@@ -355,32 +352,50 @@ function jobParts(p: SheetProps & { shape: "job" }) {
   );
 }
 
-/** A modal sheet, over the page's wash, drawn on the document's body. */
-export function Sheet(props: SheetProps) {
-  const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
-  const theme = props.dark ? "dark" : undefined;
-  useBackCloses(open && !!backCloses, onClose, typeof backCloses === "string" ? backCloses : null);
-  // Open, and not on its way out (data-leaving, as Base UI says it is closing): a toast clears its foot (kit.css), which
-  // asks the document's root (motion/root-flags.ts).
-  useRootFlag("sheetOpen", open);
+/**
+ * What asks the page to close it: Escape, a press on the wash, a pull, its Close. An Escape something in it took first is
+ * that one's (a list closing, as the record kit's combobox's does): Base UI hears it on the document after the page's
+ * own handlers, so the sheet stays, as the house's sheet did.
+ */
+const closeAsked =
+  (onClose: () => void) => (next: boolean, change: { reason: string; event: Event; cancel: () => void }) => {
+    if (next) return;
+    if (change.reason === "escape-key" && change.event.defaultPrevented) {
+      change.cancel();
+      return;
+    }
+    onClose();
+  };
+
+/** What its popup says of it, as kit.css draws it: its busy save and each part of its shape a rule reads. */
+const popupMarks = (shown: SheetProps) => ({
+  "aria-busy": shown.busy || undefined,
+  "data-fit": shown.fit ? "true" : undefined,
+  "data-steady": shown.steady ? "true" : undefined,
+  "data-rest": shown.rest ? shown.rest.at : undefined,
+  "data-rest-fit": shown.rest?.fit ? "true" : undefined,
+  "data-solid": shown.solid ? "true" : undefined,
+  "data-unsaid": shown.unsaid ? "true" : undefined,
+});
+
+/** A phone's pull: between its two rests where it has them, else down to close. */
+const pullOf = (shown: SheetProps, onClose: () => void) =>
+  shown.rest
+    ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
+    : touchSwipe({ onDown: onClose, when: onAPhone });
+
+/**
+ * The sheet as it is on the page (`self`), and the callback that places it: its height's glide, its first rest, a steady
+ * sheet's height read once, when it was shown (for its leaving), and the page's ref.
+ */
+function usePlaced(shown: SheetProps, open: boolean, ref: Ref<HTMLElement> | undefined) {
   const self = useRef<HTMLElement | null>(null);
-  // What it held as it was last drawn open: what it shows while it leaves.
-  const held = useRef<SheetProps>(props);
-  if (open) held.current = props;
-  const shown = open ? props : held.current;
-  // What takes focus as it opens: a field inside that took it as it was drawn, else the sheet itself.
-  const firstFocus = useCallback(() => {
-    const at = document.activeElement;
-    return self.current && at instanceof HTMLElement && self.current.contains(at) ? at : self.current;
-  }, []);
   const glide = useHeightGlide();
   const fitRest = useFitRest(!!shown.rest?.fit);
   // Whether it keeps the height it opened at, read as it is placed (a steady sheet's height is read once, there).
   const steady = useRef(false);
   steady.current = !!shown.steady;
   const shownSince = useLeavesWhenLetGo(open, self);
-  // The sheet as it is on the page, for its own focus, its height's glide, its first rest, its steady height, and the
-  // page's ref.
   const place = useCallback(
     (el: HTMLElement | null) => {
       self.current = el;
@@ -394,20 +409,29 @@ export function Sheet(props: SheetProps) {
     },
     [ref, glide, fitRest, shownSince],
   );
+  return { self, place };
+}
+
+/** A modal sheet, over the page's wash, drawn on the document's body. */
+export function Sheet(props: SheetProps) {
+  const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
+  const theme = props.dark ? "dark" : undefined;
+  useBackCloses(open && !!backCloses, onClose, typeof backCloses === "string" ? backCloses : null);
+  // Open, and not on its way out (data-leaving, as Base UI says it is closing): a toast clears its foot (kit.css), which
+  // asks the document's root (motion/root-flags.ts).
+  useRootFlag("sheetOpen", open);
+  // What it held as it was last drawn open: what it shows while it leaves.
+  const held = useRef<SheetProps>(props);
+  if (open) held.current = props;
+  const shown = open ? props : held.current;
+  const { self, place } = usePlaced(shown, open, ref);
+  // What takes focus as it opens: a field inside that took it as it was drawn, else the sheet itself.
+  const firstFocus = useCallback(() => {
+    const at = document.activeElement;
+    return self.current && at instanceof HTMLElement && self.current.contains(at) ? at : self.current;
+  }, [self]);
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next, details) => {
-        if (next) return;
-        // An Escape something in it took first is that one's (a list closing, as the record kit's combobox's does): Base
-        // UI hears it on the document after the page's own handlers, so the sheet stays, as the house's sheet did.
-        if (details.reason === "escape-key" && details.event.defaultPrevented) {
-          details.cancel();
-          return;
-        }
-        onClose();
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={closeAsked(onClose)}>
       <Dialog.Portal>
         <Dialog.Backdrop
           className="sheet-backdrop"
@@ -419,19 +443,11 @@ export function Sheet(props: SheetProps) {
           className={cx("sheet", shown.kicker && "sheet-kicker", shown.rest && "sheet-rests", className)}
           // What it is, said as Base UI says it, so a page's test finds the sheet by it as a screen reader does.
           role="dialog"
-          aria-busy={shown.busy || undefined}
-          data-fit={shown.fit ? "true" : undefined}
-          data-steady={shown.steady ? "true" : undefined}
-          data-rest={shown.rest ? shown.rest.at : undefined}
-          data-rest-fit={shown.rest?.fit ? "true" : undefined}
-          data-solid={shown.solid ? "true" : undefined}
-          data-unsaid={shown.unsaid ? "true" : undefined}
+          {...popupMarks(shown)}
           data-testid={testid}
           onKeyDown={props.onKeyDown}
           onFocus={props.onFocus}
-          {...(shown.rest
-            ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
-            : touchSwipe({ onDown: onClose, when: onAPhone }))}
+          {...pullOf(shown, onClose)}
           render={(p, state) => <section {...p} data-theme={theme} data-leaving={closingWord(state)} />}
         >
           <SheetHandle rest={shown.rest} testid={testid} />

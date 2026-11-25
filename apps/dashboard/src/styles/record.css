@@ -19,25 +19,25 @@
 html.frame-on .rec-inline-act { min-height: 0; }
 
 /* ---------- The deal sheet (components/deal-sheet.jsx, 0008): the kit's fields, in one column ---------- */
-.sheet.deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
-.sheet.deal-sheet .deal-sheet-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
-.sheet.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
+.deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
+.deal-sheet .deal-sheet-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
 /* A day is the kit's token over its month (fields.tsx DayField), its Clear beside it; who sees the amount is said on the
    label's line, a lock and its words at the line's end (the fitted sheets, 14 Oct 2026). */
 .ds-day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .ds-label-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .ds-private { display: inline-flex; align-items: center; gap: 4px; font-weight: var(--weight-regular); color: var(--ink-dim); }
 /* Six reasons in a grid of even cells, not one row that runs past the sheet. */
-.sheet.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
-.sheet.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet.deal-sheet .deal-sheet-how { display: flex; flex-direction: column; gap: 12px; }
+.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
+.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-sheet .deal-sheet-how { display: flex; flex-direction: column; gap: 12px; }
 /* Sending is its own act, after what is recorded: a hairline above it. */
-.sheet.deal-sheet .deal-sheet-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
-.sheet.deal-sheet .deal-sheet-send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sheet.deal-sheet .deal-sheet-send-label { font-size: var(--text-base); color: var(--ink); }
-.sheet.deal-sheet .deal-sheet-send .rec-field { margin-top: 6px; }
-.sheet.deal-sheet .deal-sheet-said { margin: 20px 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
-.sheet.deal-sheet .deal-sheet-reading { padding: 20px 0; }
+.deal-sheet .deal-sheet-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.deal-sheet .deal-sheet-send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.deal-sheet .deal-sheet-send-label { font-size: var(--text-base); color: var(--ink); }
+.deal-sheet .deal-sheet-send .rec-field { margin-top: 6px; }
+.deal-sheet .deal-sheet-said { margin: 20px 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+.deal-sheet .deal-sheet-reading { padding: 20px 0; }
 
 /* ---------- On a touch screen ---------- */
 /* frame.css gives every button on a touch screen 44px of height. A switch keeps its shape and takes its 44px from the
@@ -99,7 +99,7 @@ html.frame-on .rec-row-act { min-height: 0; }
   .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
-  .sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Under reduced motion nothing of the record kit moves. After the phone block, whose transitions it stops. */

@@ -53,9 +53,7 @@ const { RecordBox, RecordField, RecordSwitch, RecordTip, RecordTipCard, RecordTo
   "../surfaces/kit/record/field.tsx",
 );
 const { RecordFold } = requireFromDashboard("../surfaces/kit/record/fold.tsx");
-const { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn } = requireFromDashboard(
-  "../surfaces/kit/record/focus.ts",
-);
+const { recKeys, useRecFocusHold, useRecFocusOn } = requireFromDashboard("../surfaces/kit/record/focus.ts");
 const { useRecordFold } = requireFromDashboard("../surfaces/kit/record/hooks.ts");
 const { RecordInline } = requireFromDashboard("../surfaces/kit/record/inline.tsx");
 const { RecordChips, RecordDispute, RecordRow } = requireFromDashboard("../surfaces/kit/record/row.tsx");
@@ -94,7 +92,6 @@ export const kitParts = {
   RecordCombobox,
   RecordTip,
   RecordTipCard,
-  recPhoneQuery,
   RecordFold,
   RecordInline,
   RecordSays,

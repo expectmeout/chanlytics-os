@@ -79,13 +79,13 @@ interface RecordSheetProps {
 }
 
 /** The foot's acts while a question is asked in their place: the page's ask, and never while the save is out. */
-const askOf = (props: RecordSheetProps) => (props.onSave && !props.saving ? props.confirm || null : null);
+const footAskOf = (props: RecordSheetProps) => (props.onSave && !props.saving ? props.confirm || null : null);
 
 /** The sheet's foot, which holds still: the page's own, and where the sheet saves as a fold does, the fold's. */
 function sheetFoot(props: RecordSheetProps) {
   const { id = null, foot = null, onSave = null, onClose, saving = false, saveLabel = "Save" } = props;
   const { savingLabel = "Saving…", cancelLabel = "Cancel", gate = null, footNote = null } = props;
-  const ask = askOf(props);
+  const ask = footAskOf(props);
   if (!foot && !onSave) return undefined;
   return (
     <>
@@ -137,7 +137,7 @@ export function RecordSheet(props: RecordSheetProps) {
       tools={props.tools ?? undefined}
       toolsInLine={props.toolsInLine}
       foot={foot}
-      asking={!!(foot && askOf(props))}
+      asking={!!(foot && footAskOf(props))}
       busy={saving}
       steady={props.steady}
       fit={props.fit}

@@ -28,7 +28,7 @@
  * grid carries a label column (a week's days, each named) is `wide`: its fields take the fold's whole width, and what
  * saving writes and the foot keep the indent. record.css draws both.
  *
- * On a phone (the record kit's width, recPhoneQuery, kept current as the window changes size) an open fold is a sheet
+ * On a phone (the record kit's width, focus.ts useRecPhone, kept current as the window changes size) an open fold is a sheet
  * rising from the bottom instead: the kit's one sheet (kit/sheet/sheet.tsx `Sheet`, on Base UI's Dialog), its title the
  * fold's label, the line under it its hint, its round Close the fold's Cancel, its rows the fields and what saving writes,
  * its foot the fold's. It is modal: focus is held in it, and Escape, a press on the wash, a pull down and its Close all ask
