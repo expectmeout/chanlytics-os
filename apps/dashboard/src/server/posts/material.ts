@@ -73,8 +73,8 @@ export interface PostMaterial {
   phone: string | null;
 }
 
-const asFour = (v: unknown): readonly [number, number, number, number] | null => {
-  const four = listOrEmpty(v);
+const asFour = (value: unknown): readonly [number, number, number, number] | null => {
+  const four = listOrEmpty(value);
   const [left, top, right, bottom] = four;
   return four.length === 4 &&
     typeof left === "number" &&
