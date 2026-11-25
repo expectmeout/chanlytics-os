@@ -145,6 +145,7 @@ export {
   listPostsSilent,
   listPostsStopped,
   listPostsTimed,
+  listPostsUnseen,
   listPostsUp,
   markPostUnanswered,
   mayStillPost,

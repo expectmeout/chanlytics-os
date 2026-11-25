@@ -26,9 +26,10 @@ import {
 } from "@chanlytics/db/files";
 import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
-import { markSpoke, scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { MAX_ATTEMPTS, markSpoke, scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { findVersionDrawing } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
+import { settleNeverUp } from "../files/post-never-up.js";
 import { logger } from "../shared/log.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
 import type { Posting } from "../content/posting.js";
@@ -206,11 +207,17 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
 }
 
 /**
- * A post that went up unseen, asked for by its own id (post_reconcile, payload `seen`): seen, it says so from now; not
- * there, it is left as posted and said in the log (its owner may have deleted it in Instagram); no answer, the job comes
- * back. Nothing is ever sent from here.
+ * A post that went up unseen, asked for by its own id (post_reconcile, payload `seen`): seen, it says so from now; no
+ * answer, the job comes back. Not there, by its id and by the account's own list: a first look can be early, so the
+ * job comes back, and where its last try still finds none the post never went up: it is a post that did not go, never
+ * left as posted (files/post-never-up.ts; the content status review of 24 Nov 2026, A6). Nothing is ever sent from here.
  */
-async function verifyPublished(db: Db, post: PostRow, deps: PostDeps): Promise<void | { skipped: string }> {
+async function verifyPublished(
+  db: Db,
+  post: PostRow,
+  deps: PostDeps,
+  lastTry: boolean,
+): Promise<void | { skipped: string }> {
   if (post.verified_at || !post.external_id) return { skipped: "seen" };
   const posting = await postingOf(db, post, deps);
   if ("held" in posting) throw new Error(`post ${post.id}: ${post.place} cannot be asked (${posting.held})`);
@@ -223,7 +230,8 @@ async function verifyPublished(db: Db, post: PostRow, deps: PostDeps): Promise<v
   });
   if (!state || state.is === "unknown") throw new Error(`post ${post.id}: Instagram did not say whether it is up`);
   if (state.is === "not_up") {
-    logger({ tenant_id: post.tenant_id }).warn("post_not_seen", { post_id: post.id });
+    if (!lastTry) throw new Error(`post ${post.id}: ${post.place} does not hold it yet`);
+    await settleNeverUp(db, post, "seen");
     return { skipped: "not_seen" };
   }
   await movePost(db, {
@@ -240,7 +248,8 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
   const { postId, attempt } = postJobOf(job);
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
-  if (post.status === "published" && job.payload.seen === "ask") return verifyPublished(db, post, deps);
+  if (post.status === "published" && job.payload.seen === "ask")
+    return verifyPublished(db, post, deps, (job.attempts ?? 1) >= MAX_ATTEMPTS);
   if (post.status !== "checking" || !post.container_id) return { skipped: post.status };
   const posting = await postingOf(db, post, deps);
   // The place cannot be asked: the job comes back, and past its last try the post says to look at the account.

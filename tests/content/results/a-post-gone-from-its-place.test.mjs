@@ -82,7 +82,14 @@ beforeEach(() => {
 });
 
 /** A workspace with one post up on Instagram, three days on, and the Meta link's numbers line on. */
-function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights = true, bell = [] } = {}) {
+function world({
+  kind = "picture",
+  upFor = 3 * DAY_MS,
+  takeDown = null,
+  insights = true,
+  bell = [],
+  seen = true,
+} = {}) {
   const now = new Date().toISOString();
   const up = new Date(Date.now() - upFor).toISOString();
   const tables = {
@@ -143,7 +150,8 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
         permalink: "https://www.instagram.com/p/abc/",
         published_at: up,
         error: null,
-        verified_at: up,
+        // Seen on the account when it went up, unless a test says Instagram took it and was never read holding it.
+        verified_at: seen ? up : null,
         account_id: ACCOUNT,
         created_at: up,
         updated_at: up,
@@ -183,10 +191,13 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
         return args.p_rows.length;
       },
       // The door as 00611 writes it: moved only from where it stood, so two runs never both move it.
-      post_moved: ({ p_post_id, p_from, p_to }) => {
+      post_moved: ({ p_post_id, p_from, p_to, p_patch = {} }) => {
         const row = tables.posts.find((p) => p.id === p_post_id);
         if (!row || !p_from.includes(row.status)) return false;
         Object.assign(row, { status: p_to, held_reason: null, held_why: null, updated_at: new Date().toISOString() });
+        // What the patch names is kept, the rest stands (00681).
+        if (p_patch.verified_at) row.verified_at = p_patch.verified_at;
+        if ("error" in p_patch) row.error = p_patch.error;
         return true;
       },
     },
@@ -228,6 +239,37 @@ test("removed on Instagram: the account reads without it, so it is down here and
   assert.deepEqual(await w.run(), { skipped: "taken_down" });
   assert.deepEqual(calls, []);
   assert.equal(w.bell().length, 1);
+});
+
+test("never seen on Instagram, and not held there: it never went up, so it did not post, and no take-down is told", async () => {
+  // The review of 24 Nov 2026, A6: such a post stayed "posted" until this read, then turned into "Taken down" and rang
+  // a take-down for a post that was never up.
+  meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
+  meta[`GET /${MEDIA}`] = BY_ID_GONE;
+  meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
+  const w = world({ seen: false });
+  await w.run();
+  assert.equal(w.post().status, "failed", "a post that did not go: never taken down, since nothing was up");
+  assert.deepEqual(w.post().error, { code: null, subcode: null, words: "Instagram doesn't have it." });
+  assert.deepEqual(w.bell(), [["post_stopped", "The finish", "Didn't post · Instagram doesn't have it.", false]]);
+  // Asked again: it is no longer said to be posted, so nothing is read and nothing rings twice.
+  assert.deepEqual(await w.run(), { skipped: "failed" });
+  assert.equal(w.bell().length, 1);
+});
+
+test("never seen on Instagram, and its numbers come: it is there, says so from now, and nobody is asked", async () => {
+  meta[`GET /${MEDIA}/insights`] = NUMBERS;
+  const w = world({ seen: false });
+  await w.run();
+  assert.deepEqual(calls, [`GET /${MEDIA}/insights`], "the numbers are the proof: nothing more is asked");
+  assert.equal(w.post().status, "published");
+  assert.ok(w.post().verified_at, "seen, by the read of its numbers");
+  assert.deepEqual(w.bell(), []);
+  // One already seen is not written again.
+  const seen = world();
+  const first = seen.post().verified_at;
+  await seen.run();
+  assert.equal(seen.post().verified_at, first);
 });
 
 test("refused by its id, and the account's own list does not read: the connection failed, not the post", async () => {

@@ -43,7 +43,10 @@ export type GoesAct =
   | { is: "open_place"; says: string; href: string }
   | { is: "deleted"; postId: string }
   /** "Keep it up", of a post a place left to its owner to delete: it stays, on their word. */
-  | { is: "keep"; postId: string };
+  | { is: "keep"; postId: string }
+  /** "It's there" and "It's not there", of a post its place never confirmed: its owner looked, and says which. */
+  | { is: "there"; postId: string }
+  | { is: "not_there"; postId: string };
 
 /** One placement's line. */
 export interface GoesLine {
@@ -195,11 +198,20 @@ const goingUpSaid = (post: PostDto): Said =>
     : lineSaysOf(SAYS.going_up.line(post.place), "live", { moving: true });
 
 /**
- * A post its place took and was never seen holding, past the time that read takes: nobody can say it went up, and the
- * line says so in the words a send with no answer always had.
+ * A post its place took and was never seen holding, past the time that read takes: nobody here can say it went up. The
+ * line says so in its tile's words, and asks its owner, who can look: two presses, the first the one that leads (the
+ * content status review of 24 Nov 2026, D5). A reader is asked nothing.
  */
-const unconfirmedSaid = (post: PostDto): Said =>
-  lineSaysOf(SAYS.unconfirmed.line(post.place), "you", { acts: seeOf(post) });
+const unconfirmedSaid = (post: PostDto, known: GoesKnown): Said =>
+  lineSaysOf(SAYS.unconfirmed.line(post.place), "you", {
+    note: SAYS.unconfirmed.note(post.place),
+    acts: [
+      ...(known.may
+        ? [{ is: "there", postId: post.id } satisfies GoesAct, { is: "not_there", postId: post.id } satisfies GoesAct]
+        : []),
+      ...seeOf(post),
+    ],
+  });
 
 /** A post the recheck held: what stands in the way, and its one fix. */
 function heldSaid(post: PostDto, known: GoesKnown): Said {
@@ -262,7 +274,7 @@ function postSaid({ post, standing }: PostStands, known: GoesKnown): Said | null
   const down = standingIsOut(standing) ? comingDownSaid(post, known) : null;
   if (down) return down;
   if (standing.is === "up") return upSaid(post, known);
-  if (standing.is === "unconfirmed") return unconfirmedSaid(post);
+  if (standing.is === "unconfirmed") return unconfirmedSaid(post, known);
   if (standing.is === "stopped") return post.status === "held" ? heldSaid(post, known) : failedSaid(post, known);
   if (standing.is === "waiting") return waitingSaid(post, known);
   if (standing.is === "checking")

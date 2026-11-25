@@ -16,6 +16,7 @@ import {
   OBSERVE_STEPS,
   POST_METRICS,
   POST_PLACES,
+  postNeverSeen,
   storyRanItsDay,
   type MetricAvailability,
   type Observation,
@@ -28,6 +29,7 @@ import { findPostForWork, isPostTakeDownAsking, movePost, type PostRow } from "@
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
+import { settleNeverUp } from "../files/post-never-up.js";
 import { tellPostGone } from "../files/post-told.js";
 import { logger } from "../shared/log.js";
 import { sentPlacementOf } from "./placement.js";
@@ -81,8 +83,10 @@ export async function askWhetherGone(place: PlaceAdapter, post: PostRow, nowMs: 
 /**
  * A post its place no longer holds: taken down, as the place shows, and its owner told once, as a take-down that came
  * through is. Moved from published only, so two reads never both move it nor both ring. A take-down still asking is
- * left to settle it, and to ring once. `step` says which read found it: one of the clock's steps for a read of its
- * numbers, or `list` for the daily read of what its account holds (posts-read.ts). Answers whether this call moved it.
+ * left to settle it, and to ring once. One that was never seen at its place never went up: it is a post that did not
+ * go (files/post-never-up.ts), never a take-down. `step` says which read found it: one of the clock's steps for a read
+ * of its numbers, or `list` for the daily read of what its account holds (posts-read.ts). Answers whether this call
+ * moved it.
  */
 export async function settleGone(
   db: Db,
@@ -95,6 +99,7 @@ export async function settleGone(
     log.info("post_gone", { post_id: post.id, place: post.place, step, moved: false, take_down: "asking" });
     return false;
   }
+  if (postNeverSeen(post)) return settleNeverUp(db, post, step);
   const moved = await movePost(db, { postId: post.id, from: ["published"], to: "taken_down" });
   log.info("post_gone", { post_id: post.id, place: post.place, step, moved });
   if (moved) await tellPostGone(db, post);
@@ -125,6 +130,26 @@ export async function readPostResults(
   });
   if (place && noNumberCame(rows) && (await askWhetherGone(place, post, Date.now())))
     await settleGone(db, job.tenant_id, post, step);
+  else if (numbersCame(rows)) await markSeenByItsNumbers(db, post);
+}
+
+/** Whether the place gave a number, or kept one back for a small story: either way it holds the post. */
+const numbersCame = (rows: readonly Observation[]): boolean =>
+  rows.some((row) => row.availability === "available" || row.availability === "withheld");
+
+/**
+ * A post never seen at its place whose numbers its place gave: it is there, and says so from now, with nothing asked
+ * of its owner. The account's own read of it (instagram/post-send.ts) never answered; this one did.
+ */
+async function markSeenByItsNumbers(db: Db, post: PostRow): Promise<void> {
+  if (!postNeverSeen(post)) return;
+  const moved = await movePost(db, {
+    postId: post.id,
+    from: ["published"],
+    to: "published",
+    patch: { verified_at: new Date().toISOString() },
+  });
+  if (moved) logger({ tenant_id: post.tenant_id }).info("placement_verified", { post_id: post.id, place: post.place });
 }
 
 /**

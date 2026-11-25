@@ -27,6 +27,7 @@ import {
   contentDownOf,
   contentIdeaFilesOf,
   contentPieceMarkOf,
+  placementStandingOf,
   videoIsSavedOnly,
   type ContentDownDto,
   type ContentLineDto,
@@ -56,6 +57,7 @@ import {
   findPostWaitingOnVersion,
   listPostsStopped,
   listPostsTimed,
+  listPostsUnseen,
   listPostsUp,
   listTakeDownsOpen,
   type MemberFilePostRow,
@@ -186,7 +188,37 @@ const placementKeyOf = (post: Pick<MemberFilePostRow, "file_id" | "place" | "kin
  * read from all those files' posts, newest first.
  */
 async function postsStillStopped(db: Db, tenantId: TenantId): Promise<MemberFilePostRow[]> {
-  const stopped = await listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX);
+  return stillSpeaking(db, tenantId, await listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX));
+}
+
+/** How far back Needs you looks for a post nobody could confirm: an older one still says so on its own piece. */
+const UNSEEN_DAYS = 30;
+
+/**
+ * What Needs you lists of posts, newest first: those that stopped, and those a place took and never confirmed, whose
+ * owner is asked whether each is there (the content status review of 24 Nov 2026, D5). Which of the unseen ones are
+ * past the time the read that looks for them takes is the one standing's to say (contracts placementStandingOf): a
+ * post still going up needs nobody.
+ */
+async function postsNeedingYou(db: Db, tenantId: TenantId, now: number): Promise<MemberFilePostRow[]> {
+  const [stopped, unseen] = await Promise.all([
+    listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX),
+    listPostsUnseen(db, tenantId, {
+      since: new Date(now - UNSEEN_DAYS * DAY_MS).toISOString(),
+      limit: CONTENT_STOPPED_MAX,
+    }),
+  ]);
+  const unconfirmed = unseen.filter((row) => placementStandingOf(postDtoOf(row), null, now).is === "unconfirmed");
+  const newestFirst = [...stopped, ...unconfirmed].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return stillSpeaking(db, tenantId, newestFirst);
+}
+
+/** Of these posts, the ones still the newest at their file and placement, of pieces still there and in use. */
+async function stillSpeaking(
+  db: Db,
+  tenantId: TenantId,
+  stopped: readonly MemberFilePostRow[],
+): Promise<MemberFilePostRow[]> {
   if (stopped.length === 0) return [];
   const newest = new Map<string, string>();
   for (const post of await listPostsOfFiles(db, tenantId, [...new Set(stopped.map((p) => p.file_id))])) {
@@ -507,7 +539,7 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
     const timedAfter = new Date(now + POST_SOON_MS).toISOString();
     const [standing, stopped] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, failedSince),
-      postsStillStopped(db, rc.tenantId),
+      postsNeedingYou(db, rc.tenantId, now),
     ]);
     const about = view === "all" ? (request.about?.trim() ?? "") : "";
     // All alone is found by its words; any other view reads as it is, whatever words were sent with it.

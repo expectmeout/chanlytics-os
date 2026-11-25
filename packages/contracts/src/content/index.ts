@@ -168,6 +168,7 @@ export {
   pieceStandingOf,
   placementIsOut,
   placementStandingOf,
+  postNeverSeen,
   standingIsOut,
   standingOnItsWay,
   videoIsSavedOnly,

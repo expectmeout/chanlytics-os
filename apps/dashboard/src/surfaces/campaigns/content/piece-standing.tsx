@@ -17,7 +17,7 @@ import {
   type GoesLine,
 } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
-import { keepPostUp, markDeletedByHand, pressPieceVersion } from "@/bridge/verbs/pieces";
+import { keepPostUp, markDeletedByHand, pressPieceVersion, sayPostIsThere } from "@/bridge/verbs/pieces";
 import { versionStandingOf, type VersionStanding } from "./model/version";
 import type { PieceStanding } from "./model/standing";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
@@ -138,6 +138,8 @@ export function usePieceStanding(
     deleted: (postId) => void run(markDeletedByHand(file.id, postId)),
     // Keep it up acts at once, with no card: nothing changes at the place, and the line says who kept it (Piece 34).
     keep: (postId) => void run(keepPostUp(file.id, postId)),
+    // The owner's word on a post its place never confirmed: it moves at once, and the piece reads where it stands.
+    seen: (postId, there) => void run(sayPostIsThere(file.id, postId, there)),
   };
   // While a take-down is open nothing new is offered to go up; while a place is yet to answer, the press is not offered twice.
   const down = takeDownStandsOf(record.takeDown);
