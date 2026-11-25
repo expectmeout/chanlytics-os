@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { gate } from "../../frame-verbs";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { SheetOf } from "@/styles/sheet-links";
+import { SheetOf } from "@/styles/sheet-of";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { NearbyArea } from "../bench/types";
