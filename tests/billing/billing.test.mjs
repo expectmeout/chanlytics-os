@@ -26,7 +26,7 @@ import {
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
@@ -344,7 +344,7 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
   assert.equal(rowOf(undefined), undefined);
 });
 
-test("the wiring: the migration, the webhook's order, the ops, the routes, the bridge, the pane, the watch list, the kinds", () => {
+test("the wiring: the migration, the webhook's order, the ops, the routes, the bridge, the pane, the watch list, the kinds", async () => {
   const sql = readRaw("supabase/migrations/00073_billing.sql");
   assert.ok(
     sql.includes("create table public.billing_accounts") && sql.includes("check (mode in ('stripe', 'direct'))"),
@@ -455,34 +455,14 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "the kind is kept, not folded into alert",
   );
 
-  const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
-  assert.match(get, /findBilling\(ctx\.supabase, member\.tenantId\),\s*getBillingReadiness\(\)/);
-  for (const [file, role] of [
-    ["checkout", "owner"],
-    ["portal", "owner"],
-    ["invoices", "owner"],
-    ["resume", "owner"],
-    ["sync", "operator"],
-  ]) {
-    const r = readCode(`apps/dashboard/app/api/v1/billing/${file}/route.ts`);
-    // checkout and portal declare their policy on the export (route()); the rest still perform it by hand.
-    // invoices is a read: its own bucket, so pressing it never locks Checkout for the hour.
-    const declared =
-      r.includes(`role: "${role}",`) && r.includes(file === "invoices" ? 'rate: "billing_read",' : 'rate: "billing",');
-    const performed = r.includes(`requireRole(member, "${role}")`) && r.includes('takeRate(ctx.userId, "billing")');
-    assert.ok(declared || performed, file);
-  }
+  // GET billing answers the row as a member may read it, with whether this deployment can charge, and never a
+  // customer or subscription id; each door declares who may press it and spends its own bucket, the invoices a read's:
+  // run through the routes in billing/billing-routes.test.mjs. Pinned as the routes' and the reads' text until 25 Nov
+  // 2026.
   const server = readCode("apps/dashboard/src/server/workspace/billing.ts");
-  // The read is packages/db's (decision 0111): the page's columns, written once there.
-  assert.ok(
-    server.includes("findPlanForPage(db, tenantId)") &&
-      /export const findPlanForPage = [^;]*\.select\(\s*"mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at",?\s*\)/.test(
-        readCode("packages/db/src/repositories/billing/plan.ts"),
-      ),
-    "never a customer or subscription id",
-  );
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
-  assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("billing: {"));
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.ok(RATE.billing, "the billing bucket");
   // The assembly lives in src/server/setup/setup.ts: the back office reads another
   // workspace's through the same function, so support sees what the customer sees.
   const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]

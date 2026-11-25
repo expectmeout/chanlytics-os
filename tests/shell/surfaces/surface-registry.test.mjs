@@ -384,6 +384,8 @@ test("the Leads SCOPE of People waits for its own surface, not for People's", ()
   // registry's two halves must agree: real means an override feeds it.
   assert.equal(registry.routeSurfaceFor("leads"), "leads");
   assert.equal(registry.surfaceRetiredTo("leads"), "clients/leads");
+  // The Deal board retired into People (pinned as surface-registry.ts's text in calendar-people.test.mjs until 25 Nov 2026).
+  assert.equal(registry.surfaceRetiredTo("pipeline"), "clients");
 });
 
 test("People resolves to its override for the list; a profile deep link waits only for who is looking", () => {

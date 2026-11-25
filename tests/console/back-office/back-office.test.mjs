@@ -410,30 +410,12 @@ test("a bad timestamp never becomes a wrong answer", () => {
 /* ------------------------------- the boundary ------------------------------ */
 
 test("one door: the check is the first statement, and the inner join is not reachable", () => {
-  const one = readRaw("supabase/migrations/00091_the_back_office.sql");
-  const two = readRaw("supabase/migrations/00092_validate_the_back_office_query_at_deploy.sql");
+  // Who may look across workspaces is the database's, asked about the caller alone (is_platform_admin, redefined by
+  // 00467 as platform_staff_state): a staff member who showed a second factor, never a password alone, never an owner
+  // -- proved on the stack (console/console.db.test.mjs); the overview refused to anyone else, run through the route
+  // (console/back-office/platform-routes.test.mjs, "the back office's door"). Pinned as 00091's and 00092's text until
+  // 25 Nov 2026, which later migrations had replaced.
   const three = readRaw("supabase/migrations/00093_the_inner_join_is_not_a_door.sql");
-
-  // The predicate a session may ask about itself, and only itself.
-  assert.match(one, /create or replace function public\.is_platform_admin\(\)/);
-  assert.match(one, /a\.user_id = auth\.uid\(\)/);
-  assert.match(one, /grant\s+execute on function public\.is_platform_admin\(\) to authenticated/);
-
-  // The guard, and its position. `raise` before `return query` is the whole
-  // authorization model; a route that forgot would get 42501 from Postgres.
-  const door = two.slice(two.lastIndexOf("create or replace function public.platform_overview()"));
-  assert.ok(
-    door.indexOf("if not public.is_platform_admin() then") < door.indexOf("return query"),
-    "the check precedes the read",
-  );
-  assert.match(door, /raise exception 'Not a Chanlytics platform admin\.' using errcode = '42501'/);
-  assert.match(door, /grant\s+execute on function public\.platform_overview\(\) to authenticated/);
-
-  // The join lives in a SQL-language function so the columns are checked when
-  // the migration applies -- plpgsql bodies are not parsed until first call,
-  // and the first call is somebody in support opening the page.
-  assert.match(two, /create or replace function public\.platform_overview_rows\(\)[\s\S]*?language sql/);
-
   // And it is not a second door. 00092 revoked three roles and missed
   // service_role, which answered 200 with every workspace in it.
   assert.match(three, /revoke execute on function public\.platform_overview_rows\(\) from public;/);
@@ -505,32 +487,11 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 /** The platform's reads, and the guard they go through: the shared back office (server/shared/back-office.ts). */
 const GUARDED = ["apps/dashboard/src/server/console/platform.ts", "apps/dashboard/src/server/shared/back-office.ts"];
 
-test("the guard asks the database, and answers 404 rather than 403", () => {
-  const src = readCode(...GUARDED);
-  // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
-  assert.match(src, /await getStaffState\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
-  assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
-  assert.match(
-    src,
-    /if \(state === "needs_second_factor"\) throw new AppError\("mfa_required", SECOND_FACTOR_WORDS\.staffRequired, 403\);/,
-    "staff who have not shown their second factor are sent to show it (no grace)",
-  );
-  assert.ok(
-    !/process\.env\.[A-Z_]*ADMIN|PLATFORM_ADMIN|ALLOWLIST/.test(src),
-    "no second answer that can disagree with the first",
-  );
-  // A customer who guesses the URL learns nothing about whether there is a
-  // back office behind it.
-  assert.match(src, /AppError\("not_found", "No such page\.", 404\)/);
-  assert.ok(!/AppError\("forbidden"/.test(src), "403 would confirm the surface exists");
-  // The list read runs on the SESSION client on purpose: the RPC's check is
-  // auth.uid(), so the service-role key opens nothing.
-  // The door is packages/db's (decision 0111), asked on the staff member's own session.
-  assert.match(src, /readPlatformOverview\(office\.session\)/);
-  assert.match(readCode("packages/db/src/repositories/ops/console.ts"), /db\.rpc\("platform_overview"\)/);
-  // Nothing anywhere calls the inner join by name.
-  assert.ok(!/platform_overview_rows/.test(src));
-});
+// The guard asks the database (platform_staff_state, 00467), answers 404 rather than 403 to a customer who guessed the
+// address, sends staff without a second factor to show it, and says a database that cannot answer is not a no: run
+// through the routes in console/console-routes.test.mjs ("who may open the Console") and
+// console/back-office/platform-routes.test.mjs ("the back office's door", "behind the door: the overview is the
+// database's own list"). Pinned as the guard's text until 25 Nov 2026.
 
 test("support sees the customer's own Setup, from the customer's own function", () => {
   // The claim this surface makes is that support and the customer are looking
@@ -1020,33 +981,9 @@ test("three named operations, and no way to send a fourth", () => {
   assert.ok(!/op: (body|action|op)\b/.test(server), "the op is never taken from the caller");
 });
 
-test("no cross-tenant action happens that nobody can be held to", () => {
-  // The attribution is written BEFORE the action and the action is refused if it
-  // cannot be written. An action taken on somebody else's business that nobody
-  // can be held to is worse than an action that did not happen.
-  const server = readCode("apps/dashboard/src/server/console/platform.ts");
-  const fn = server.slice(server.indexOf("export async function runPlatformLineAct"));
-  // The Admin log's row with why comes first (act(), decision 0066), then the workspace's own event, then the edge.
-  assert.match(
-    fn,
-    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why: reason, tenantId, target: "line", targetId: lineId \}/,
-  );
-  const audit = fn.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
-  const act = fn.indexOf("await callEdgeLines(");
-  assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
-  assert.match(
-    fn,
-    /if \(auditErr\)\s+throw new AppError\("unavailable", [^;]*\);/,
-    "and refused when it cannot be recorded",
-  );
-  assert.match(
-    fn,
-    /by: office\.userId,\s*by_email: office\.email/,
-    "who, by id and by the address they signed in with",
-  );
-  assert.ok(/"platform\.acted",\s*"line",\s*lineId,/.test(fn), "the line it was done to");
-  assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
-});
+// No cross-tenant action happens that nobody can be held to: an act is written down with who, their role, where and
+// why before it runs, and an act whose log row cannot be written does not run -- run through the routes in
+// console/console-routes.test.mjs. Pinned as platform.ts's text until 25 Nov 2026.
 
 test("the back office is read on demand, not published to every browser", async () => {
   // A surface would make every customer's browser fetch a page it will never be
@@ -1710,11 +1647,9 @@ test("the ops routes have their own ceilings, sized for a support shift and name
     assert.ok(rule, `${bucket} exists`);
     assert.ok(rule.limit >= min, `${bucket}: ${rule.limit} is a support shift, not one owner's wallet`);
     assert.match(rule.noun, /workspaces|handed back/, `${bucket}: the noun says whose thing this is`);
-    const src = readCode(`apps/dashboard/app/api/v1/platform/lines/${route}/route.ts`);
-    assert.ok(src.includes(`rate: "${bucket}",`), `${route} spends its own bucket`);
-    for (const owner of ["lines_register", "lines_buy", "lines_retry"]) {
-      assert.ok(!src.includes(`"${owner}"`), `${route}: REGRESSION: back on the owner's bucket ${owner}`);
-    }
+    // Each route spends its own bucket, never an owner's: the policy the route declares (route-policy.json holds them).
+    const { POST } = await importSrc(`apps/dashboard/app/api/v1/platform/lines/${route}/route.ts`);
+    assert.equal(POST.policy.rate, bucket, `${route} spends its own bucket`);
   }
   assert.ok(RATE.platform_line_release.limit < RATE.platform_line_refile.limit, "the irreversible one is the tightest");
 });
@@ -1722,14 +1657,9 @@ test("the ops routes have their own ceilings, sized for a support shift and name
 test("the Console says every act is written down first, and the act helper does write it first", () => {
   // The claim is on screen beside every act (the reason ask), so it has to be true where it runs.
   assert.match(CONSOLE_WORDS.recorded, /Written down against you before it runs/);
-  const acts = readCode("apps/dashboard/src/server/console/acts.ts");
-  const fn = acts.slice(acts.indexOf("export async function takeAct<T>("));
-  const written = fn.indexOf("await startAct(office.db,");
-  const ran = fn.indexOf("out = await run();");
-  assert.ok(written !== -1 && ran !== -1 && written < ran, "the log's row first, then the act");
-  assert.match(fn, /if \(started\.error \|\| !started\.data\) throw new AppError\("unavailable", NOT_RECORDED\);/);
-  // The line acts write the workspace's own ledger too, before the edge is asked anything: "no cross-tenant action
-  // happens that nobody can be held to", above.
+  // And the act helper does write it first, refusing an act whose row cannot be written: run through the routes in
+  // console/console-routes.test.mjs ("an act whose log row cannot be written does not run", "an act is written down
+  // with who, their role, where and why before it runs"). Pinned as acts.ts's text until 25 Nov 2026.
 });
 
 /* -------------------------------------------------------------------------- *

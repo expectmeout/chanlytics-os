@@ -840,18 +840,38 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
-  // The board (calendar/week/week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
-  // profile (calendar/settings.ts).
-  const svc = ["settings", "week/week", "person-visits"]
-    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
-    .join("\n");
-  assert.ok(
-    svc.includes("export async function findPersonVisits(") &&
-      svc.includes("const visits = visitsIn(index, person, now.getTime());"),
-    "the profile's visits, from the same feed and match",
-  );
-  assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
-  assert.ok(!svc.includes("personInTitle"), "the old name-only match is gone");
+  // Run, not read (25 Nov 2026): the profile's visits come from the calendar's own feed, matched by the person's number
+  // as the board matches (findPersonVisits over contracts visitsIn), and say the calendar by its name, never its address.
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(String(url));
+    return new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  };
+  try {
+    const address = "https://calendar.google.com/calendar/ical/harbor/private-abc/basic.ics";
+    const { person } = await profileOf({
+      tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN, calendar: { ical_url: address } } }],
+    });
+    assert.deepEqual(asked, [address], "the feed the settings name, read once");
+    assert.equal(person.visits.source, "Google Calendar", "the calendar's name, never its address");
+    assert.equal(person.visits.state, "ok");
+    assert.ok(person.visits.next || person.visits.last, "Maria's own visits, found by her number");
+    assert.ok(!JSON.stringify(person).includes("private-abc"), "the address never leaves the server");
+    const again = await profileOf({
+      tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN, calendar: { ical_url: address } } }],
+    });
+    assert.equal(again.person.visits.source, "Google Calendar");
+    assert.deepEqual(asked, [address], "one read, kept: the next read of the same calendar asks the feed nothing");
+    const { getParsedFeed } = await importSrc("apps/dashboard/src/server/calendar/parsed-feed.ts");
+    const [one, two] = [
+      await getParsedFeed(HARBOR, address, TZ, new Date(NOW)),
+      await getParsedFeed(HARBOR, address, TZ, new Date(NOW)),
+    ];
+    assert.ok(one.parsed && one.parsed === two.parsed, "and one parse: every reader is handed the same one");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
   // Never fatal to the profile: a calendar that cannot even be looked up costs its visits, said in the log with who
   // they were for, and the profile stands. Run; their visits are read in the same round as the rest
   // (person-read-one-round.test.mjs).
@@ -862,16 +882,8 @@ test("the wiring: the board and the profile read one match; both receptionists a
     lookupDown.logged("person_visits_failed").map(([fields]) => fields),
     [{ contact: MARIA, error: "down" }],
   );
-  const edge = readCode("apps/edge/lib/calendar/availability.ts");
-  assert.ok(
-    /export async function findVisits\(\s*rt: TenantRuntime,\s*caller: \{ phone: string \| null; name: string \| null \}/.test(
-      edge,
-    ) &&
-      // The feed's events and the record's rows for the caller (00345), read by the one index.
-      /return describeVisits\(\s*visitsOf\(\s*items,\s*\{ id: "caller", name: caller\.name \?\? "", phone: caller\.phone, email: null \},\s*now\.getTime\(\),\s*own,?\s*\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
-        edge,
-      ),
-  );
+  // The receptionists' own read of a caller's visits (the edge's findVisits: the feed's events and the record's rows for
+  // the caller, by the one index) runs in calendar/appointments/the-record-joins-the-feed.test.mjs.
   const wa = readCode("packages/core/src/inbound/model-turn.ts");
   assert.ok(
     wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") &&
@@ -886,12 +898,8 @@ test("the wiring: the board and the profile read one match; both receptionists a
   for (const id of ["cal-visit-person", "cal-visit-contact", "cal-visit-rows", "cal-visit-footnote"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
-  const dto = readCode("packages/contracts/src/calendar/calendar.ts");
-  assert.ok(
-    dto.includes('source: dto.feed.source ?? "your calendar"') &&
-      dto.includes('From ${dto.feed.source ?? "your calendar"} · read'),
-    "the chip names the calendar",
-  );
+  // The board's chip names the calendar ("From your calendar · read just now"), and the address never leaves the
+  // server: run through getCalendarWeek and toCalendarVM in calendar-feed.test.mjs.
 });
 
 test("the client's name as the event gives it: a guest first, then the title's name-like part, never a service or a plain description", async () => {
@@ -1019,7 +1027,7 @@ test("an appointment with one number and one address carries the address to the 
   );
 });
 
-test("one refused number costs one person, never everyone behind them", () => {
+test("one refused number costs one person, never everyone behind them", async () => {
   // 22023 is create_person's own refusal of THIS row: a phone that is not in
   // international form, or a name over 80 characters. The read used to `break`
   // on it, so a single short code sitting on the calendar silently kept every
@@ -1042,38 +1050,50 @@ test("one refused number costs one person, never everyone behind them", () => {
 
   // The board no longer adds people (a read never writes: decision 0047, lane 6); the import door is the member's batch
   // writer that asks the rule now, rather than deciding inline (its verb since decision 0073: server/people/import-people.ts).
-  const svc = readCode("apps/dashboard/src/server/people/import-people.ts");
-  assert.ok(
-    svc.includes('if (afterPersonRefused(person.code) === "skip" || person.code === ERASED) {') &&
-      svc.includes("out.skipped.push({ line, reason: person.message });"),
-    "the batch must ASK the rule rather than deciding inline",
+  // Run, not read (25 Nov 2026): the door refuses one row's number (22023) and an erased person's (PE001), each
+  // skipped with the door's own sentence; anything else stops the batch, and no row after it is asked for.
+  const { importPeopleRows } = await importSrc("apps/dashboard/src/server/people/import-people.ts");
+  const codes = { "+13055550101": "22023", "+13055550102": "PE001", "+13055550103": "42501" };
+  const asked = [];
+  const supabase = fakeDb(
+    { decisions: [] },
+    {},
+    {
+      import_person: (a) => {
+        asked.push(a.p_phone_e164);
+        const code = codes[a.p_phone_e164];
+        if (code) throw Object.assign(new Error(`refused ${code}`), { code });
+        return { contact_id: MARIA, existed: false, email: "none" };
+      },
+    },
   );
+  const ctx = { supabase, userId: "u1", email: "owner@example.com", params: {} };
+  const phones = ["+13055550101", "+13055550102", "+13055550199", "+13055550103", "+13055550104"];
+  const out = await importPeopleRows(ctx, HARBOR, {
+    import_id: "import-1",
+    rows: phones.map((phone) => ({ name: "Someone", phone, email: null })),
+  });
+  assert.deepEqual(
+    out.skipped,
+    [
+      { line: 1, reason: "refused 22023" },
+      { line: 2, reason: "refused PE001" },
+    ],
+    "a number the door refused, and a person who asked to be forgotten: each one row, skipped in the door's words",
+  );
+  assert.equal(out.added, 1, "the row the door took");
+  assert.deepEqual(out.failed, [{ line: 4, message: "refused 42501" }]);
+  assert.equal(out.stopped, true, "any other refusal is everyone's: the batch stops");
+  assert.deepEqual(asked, phones.slice(0, 4), "and asks for no row after it");
 });
 
 test("automatically: an hourly sweep on the edge puts the feed's people in People through one extraction, a read of the board adds nobody, and a press adds one; the profile says where they came from", async () => {
-  const mig = readCode("supabase/migrations/00052_create_person.sql");
-  assert.ok(
-    mig.includes(
-      "create or replace function public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text)",
-    ),
-  );
-  assert.ok(
-    mig.includes("security definer") &&
-      mig.includes("if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then"),
-    "owner or operator",
-  );
-  assert.ok(
-    mig.includes("insert into contacts (tenant_id, phone_e164, display_name)") &&
-      !/insert into contacts \([^)]*consent|set consent/.test(mig),
-    "consent is not touched: a booking is not a yes",
-  );
-  assert.ok(mig.includes("where id = v_id and display_name is null;"), "a name fills only an empty one");
-  const sweep = readCode("supabase/migrations/00053_calendar_people_sweep.sql");
-  assert.ok(
-    sweep.includes("url     := v_url || '/api/cron/calendar',") &&
-      sweep.includes("select cron.schedule('calendar-people-sweep',"),
-    "pg_cron calls the edge every hour, like the other sweeps",
-  );
+  // The person a calendar adds is made by the database's one door (create_person since 00052, redefined by 00331 and
+  // 00342): who may call it, a name filling only an empty one and a yes never taken from a booking are proved on the
+  // stack (people/doors/resolve-person.db.test.mjs, database/event-shapes.db.test.mjs "create_person: a person added by
+  // hand, by a calendar guest and by a lead"); the hourly sweep is registered and scheduled
+  // (ops/sweep-registry.db.test.mjs) and its door run (cron/cron-calendar-door.test.mjs). Pinned as 00052's and 00053's
+  // text until 25 Nov 2026, which later migrations had already replaced.
   // The sweep's writer, run over a database in memory through the one door a person is resolved by (resolve_person,
   // decision 0034; 00344): a new person with the appointment on their added event, a known number named and given the
   // address it came with, an address another person holds left theirs, and a person who asked to be erased left erased
@@ -1171,23 +1191,10 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     false,
     "the board's own writer is gone",
   );
-  assert.ok(
-    !["apps/dashboard/src/server/calendar/week/items.ts", "apps/dashboard/src/server/calendar/week/week.ts"]
-      .map((p) => readCode(p))
-      .join("\n")
-      .includes('rpc("create_person"'),
-    "and getCalendarWeek reaches no door",
-  );
-  assert.ok(
-    sweep.includes("insert into events (tenant_id, kind, category, subject_type, subject_id, data)") &&
-      sweep.includes("'contact.added'"),
-    "the door records where a person came from; members cannot write events themselves",
-  );
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(
-    route.includes('role: "operator",') && route.includes("addPerson(ctx,"),
-    "the door's own route stays, for a hand: through addPerson, on the member's session (#1545)",
-  );
+  // getCalendarWeek reaches no door: run in calendar-feed.test.mjs and reads-never-write/. The door records where a
+  // person came from (contact.added), which members cannot write themselves: database/event-shapes.db.test.mjs. The
+  // door's own route stays, for a hand, the member's own (POST contacts, operator): people/routes/ ("a person, a list
+  // and everyone"). Pinned as the board's, 00053's and the route's text until 25 Nov 2026.
   // The profile reads where they came from: the door's contact.added row for them. Somebody else's, and another kind
   // of row about them, each older, are not it. Run.
   const cameFrom = await profileOf({
@@ -1227,12 +1234,8 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     cameFrom.seen.some((q) => selectOn(q, "events", ["kind", "contact.added"], ["subject_id", MARIA])),
     "from the events, the contact.added row of this person",
   );
-  const page = readCode("apps/dashboard/src/surfaces/calendar/visit/visit.tsx");
-  assert.ok(
-    page.includes("data-testid={`cal-visit-primary-${pa.act}`}") && /commitVerb\(\s*"person_add"/.test(page),
-    "a visit whose person the board cannot match offers a press, through the verb 'Add a person' commits (drawn in reads-never-write/)",
-  );
-  assert.ok(!page.includes("__addPerson"), "and not through a window global");
+  // A visit whose person the board cannot match offers a press, through the verb Add a person commits, never a window
+  // global: pressed in reads-never-write/a-visit-the-board-cannot-match-offers-add-to-people.test.mjs.
   // The hand's door has its screen on People now (slice D of the data program):
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
@@ -1241,13 +1244,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     ),
     "the bridge verb, through the same door",
   );
-  const edgeAv = readCode("apps/edge/lib/calendar/availability.ts");
-  assert.ok(
-    /export async function listFeedItems\(\s*tenantId: TenantId,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
-      edgeAv,
-    ),
-    "the sweep reads the feed through the same cache",
-  );
+  // The sweep reads the feed through the same cache (the edge's listFeedItems): run in calendar-counts.test.mjs.
 });
 
 test("the profile: Added from your calendar, with the appointment that named them", () => {
@@ -1437,22 +1434,10 @@ test("asked, then booked: the report's one conversion line, in words that say wh
 });
 
 test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", async () => {
-  // One parse (parsed-feed.ts); everyone's visits and the report's line (people-visits.ts).
-  const svc = ["parsed-feed", "people-visits"]
-    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
-    .join("\n");
-  assert.ok(
-    svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
-      // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
-      svc.includes("export async function getCalendar(") &&
-      svc.includes("export function visitsIn(") &&
-      // The record joins the feed there (0002's readers): the cal's `record`.
-      /peopleVisitsOf\(\s*feed\.parsed\.items,\s*rows,\s*\{ timezone, source, own, services, rules, record \},\s*now\.getTime\(\),?\s*\)/.test(
-        svc,
-      ),
-    "one parse, indexed once, for everyone",
-  );
-  assert.ok(svc.includes("export async function readBookingReport(") && svc.includes("bookedAfterAsk("));
+  // One parse, kept for everyone: run in "the wiring: the board and the profile" above (a second read asks the feed
+  // nothing). Everyone's visits off it with the record laid on (peopleVisitsOf, bookedAfterAsk):
+  // calendar/appointments/the-record-joins-the-feed.test.mjs. The report's line: GET reports, run below. Pinned as
+  // parsed-feed.ts's and people-visits.ts's text until 25 Nov 2026.
   // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
   // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
   // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
@@ -1531,17 +1516,10 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     dealLists.every((id) => listsOf({ hasDeals: true }).includes(id)),
     "a deal on file: every deal list",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/reports/surface.ts").includes("booking: toBookingReportVM(data.booking),"),
-  );
-  const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
-  // Leads came back on 18 Sep 2026 as a SCOPE of People, so the old address lands on that scope, not on the list of clients.
-  assert.ok(
-    reg.includes('leads: "clients/leads",') &&
-      reg.includes('pipeline: "clients",') &&
-      reg.includes("w.__surfaceRetired = surfaceRetiredTo;"),
-    "retired, and where to",
-  );
+  // Run, not read (25 Nov 2026): the Reports page draws the booking line from its view model
+  // (reports/page/periods-reviews-and-every-state.test.mjs, "asked, then booked"), and its Receptionist lens the chart
+  // (reports/lenses/reports-lens-page.test.mjs); Leads and the Deal board retired into People, where the old addresses
+  // land (shell/surfaces/surface-registry.test.mjs, surfaceRetiredTo).
   const shell = readCode("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
   assert.ok(
     shell.includes("if (retiredTo) shellAddress().go(retiredTo, { replace: true });"),
@@ -1560,28 +1538,15 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
       !/Booked/.test(textOf(byTestId(page, "people-standing"))),
     "REGRESSION: the rail said it and a card said it again",
   );
-  assert.ok(readCode("apps/dashboard/src/surfaces/reports/lenses/receptionist.tsx").includes('testid="chart-booking"'));
 });
 
 test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", async () => {
-  const mig = readCode("supabase/migrations/00054_person_details.sql");
-  assert.ok(
-    mig.includes("create or replace function public.set_person_name(p_contact_id uuid, p_name text)") &&
-      mig.includes("create or replace function public.set_person_notes(p_contact_id uuid, p_notes text)"),
-  );
-  assert.ok(
-    mig.includes("check (notes is null or char_length(notes) between 1 and 600)") &&
-      mig.includes("grant select (notes) on public.contacts to authenticated;"),
-  );
-  assert.ok(mig.includes("'contact.named'") && mig.includes("'contact.noted'"), "each door records who changed what");
-  assert.ok(mig.split("not public.is_acting_member(v_tenant)").length === 3, "owner or operator, both doors");
-  const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
-  assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
-  // The route is its handle's declaration (who may, how often). That the handle sends a name and notes through their
-  // two doors, and refuses an empty change in the schema's words, is driven through the route itself
-  // (people/people-routes.test.mjs, "details: an operator where the person lives"): this file read the route's source
-  // for both until #1507 moved the calls into src/server/people/person-details.ts.
-  assert.ok(route.includes("setPersonDetails"), "the route runs the one handle");
+  // The two doors (set_person_name and set_person_notes since 00054, redefined by 00131, 00157 and 00413) and who may
+  // call them, the notes' length and who changed what on the ledger: proved on the stack
+  // (notes/person-notes.db.test.mjs). The route's policy is route-policy.json's (routes/route-policy.test.mjs), and that it
+  // sends a name and notes through their doors and refuses an empty change runs through the route itself
+  // (people/routes/, "details: an operator where the person lives"). Pinned as 00054's and the route's text until 25 Nov
+  // 2026.
   // The profile reads the owner's notes and their proposal link off the person's own row: the two columns people_list
   // does not carry. None written is none. Run.
   const noted = await profileOf({
@@ -2009,16 +1974,9 @@ test("asked means they reached out: the call they placed counts, a call the owne
   assert.equal(weCalled.askedNotBooked, false);
   // Still the last contact, but nobody phoned us: the row said "Phoned" over a call we placed (the 2 Oct 2026 audit).
   assert.equal(weCalled.lastContact.label.startsWith("We called"), true, "but it is still the last contact");
-  const mig = readCode("supabase/migrations/00055_people_list_inbound_call.sql");
-  assert.ok(
-    mig.includes("drop function if exists public.people_list(uuid, uuid);") &&
-      mig.includes("max(k.started_at) filter (where k.direction = 'inbound') as last_inbound_at,") &&
-      mig.includes("last_inbound_call_at    timestamptz,"),
-  );
-  assert.ok(
-    mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"),
-    "a drop loses the grants; they are re-stated",
-  );
+  // people_list's last inbound call (00055, the function redefined since through 00680) is read on the stack by every
+  // suite that lists People there (consent/email-offers.db.test.mjs, messages/a-released-person-is-tried-again.db): pinned
+  // as 00055's text until 25 Nov 2026.
   assert.ok(
     readCode("apps/dashboard/src/server/calendar/people-visits.ts").includes(
       "const cands = [row.last_inbound_at, row.last_inbound_call_at ?? null]",

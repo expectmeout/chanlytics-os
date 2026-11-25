@@ -41,7 +41,7 @@ import {
   TRIAL_COVERS,
   TRIAL_INCLUDES,
 } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
+import { importSrc, readCode } from "../_source.mjs";
 
 test("the whole matrix: two modes by nine statuses by four kinds, stated rather than inferred", () => {
   // Written out so a change to either function shows up as a diff a reviewer
@@ -156,7 +156,7 @@ test("what a trial includes: near at four fifths of either, spent at all of eith
   assert.equal(leadAllowanceFor("active"), LEAD_MONTHLY_ALLOWANCE);
 });
 
-test("both money routes carry the second door", () => {
+test("both money routes carry the second door", async () => {
   // requireRole asks whether this PERSON may act for the workspace.
   // requireSpend asks whether the WORKSPACE may spend our money. A money route
   // needs both, and for months had only the first. The edge behind them is
@@ -169,10 +169,10 @@ test("both money routes carry the second door", () => {
     // Both doors are declared on the export; route() performs them, and its
     // pipeline refuses a workspace that may not spend BEFORE it spends a
     // rate-limit token on a request that cannot proceed.
-    const src = readCode(`apps/dashboard/app/api/v1/lines/${route}/route.ts`);
+    const { POST } = await importSrc(`apps/dashboard/app/api/v1/lines/${route}/route.ts`);
     // The partner who brought the workspace gets its number (0012); the workspace's own plan pays for it.
-    assert.ok(src.includes('role: "partner",'), `${route}: role`);
-    assert.ok(src.includes("spend: true,"), `${route}: spend`);
+    assert.equal(POST.policy.role, "partner", `${route}: role`);
+    assert.equal(POST.policy.spend, true, `${route}: spend`);
   }
 
   const guard = readCode("apps/dashboard/src/server/shared/with-route.ts");

@@ -54,34 +54,10 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
 // The edge door -- the knock, the words to the provider framed, their length
 // in the log and never them -- is run in whisper-door.test.mjs.
 
-test("the route proves visibility, then the role door, then the provider — and records the decision last", () => {
-  const route = readCode("apps/dashboard/app/api/v1/calls/[id]/whisper/route.ts");
-  const rls = route.indexOf("scope: callScope,");
-  const door = route.indexOf('role: "operator",');
-  const ongoing = route.indexOf('call.status !== "ongoing"');
-  const provider = route.indexOf("await whisperLiveCall(");
-  const ledger = route.indexOf('recordDecision(ctx, call.tenant_id, "call", call.id, "whisper"');
-  for (const [name, at] of [
-    ["rls", rls],
-    ["door", door],
-    ["ongoing", ongoing],
-    ["provider", provider],
-    ["ledger", ledger],
-  ])
-    assert.ok(at > 0, `${name} missing`);
-  assert.ok(
-    rls < door && door < ongoing && ongoing < provider && provider < ledger,
-    "REGRESSION: the order is the safety",
-  );
-  assert.ok(
-    route.includes("There is nobody on the line to whisper to") ||
-      route.includes("there is nobody on the line to whisper to"),
-  );
-  const service = readCode("apps/dashboard/src/server/conversations/live-call.ts");
-  const fn = service.slice(service.indexOf("export async function whisperLiveCall"));
-  assert.ok(fn.includes("!deployment.providersLive"), "a preview must not speak into a real customer's call");
-  assert.ok(fn.includes('"/api/admin/whisper"'));
-});
+// The route proves the call is the caller's to see, then the role door, then that the call is live, then asks the
+// provider, and records the decision last, never from a preview: run through the route in
+// conversations/inbox/inbox-routes.test.mjs ("a whisper: the call is the row, only into a call in progress, never from a
+// preview"). Pinned as the route's text until 25 Nov 2026.
 
 const ZONE = "America/New_York";
 const NOW = Date.now();

@@ -687,8 +687,8 @@ test("the job reads the stalls it carried, so a run that keeps stalling stops at
 });
 
 test("the routes: a message, values its slots take, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", async () => {
-  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
-  assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
+  // The route is an operator's, counted as a broadcast: its declared policy, held in playbooks/routes/ ("the seventeen
+  // declare their policy") and route-policy.json.
   // The message, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
   // The route's read of the message is every row of it, on any channel, whichever version's id is picked, with the category
   // (or the purpose is always marketing) and no other workspace's.

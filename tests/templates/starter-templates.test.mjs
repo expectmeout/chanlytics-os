@@ -635,18 +635,9 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
   // The composers never see a hidden template and Settings sees everything: RUN through the route in
   // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in readers.test.mjs.
-  const one = readCode(
-    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
-    "apps/dashboard/src/server/campaigns/template-row.ts",
-  );
-  // The door is packages/db's (decision 0111): the route asks it by name.
-  assert.ok(
-    one.includes("setTemplateHidden(ctx.supabase, id, input.hidden === true)") &&
-      one.includes('role: "operator",') &&
-      readCode("packages/db/src/repositories/campaigns/templates/doors.ts").includes(
-        'db.rpc("set_template_hidden", { p_template_id: templateId, p_hidden: hidden })',
-      ),
-  );
+  // Hidden through the definer door, an operator's: run through the route in playbooks/routes/
+  // ("one template: hidden or titled through the definer doors"). Pinned as the route's and doors.ts's text until 25
+  // Nov 2026.
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
   const s = ["message-row-parts"]
@@ -680,16 +671,9 @@ test("a template's title: the workspace's own words, set through its door, shown
     "owner or operator, never a viewer",
   );
   assert.ok(m.includes("grant execute on function public.set_template_title(uuid, text) to authenticated;"));
-  const one = readCode(
-    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
-    "apps/dashboard/src/server/campaigns/template-row.ts",
-  );
-  assert.ok(
-    one.includes('setTemplateTitle(ctx.supabase, id, title || "")') &&
-      readCode("packages/db/src/repositories/campaigns/templates/doors.ts").includes('db.rpc("set_template_title"'),
-    "empty is no title — the door clears it",
-  );
-  assert.ok(one.includes('"Say what changes: whether it is hidden, its title, or its words."'));
+  // Titled through its definer door, empty clearing it, and a change that names nothing refused in its words: run
+  // through the route in playbooks/routes/ ("one template: hidden or titled through the definer doors"); a title past
+  // sixty refused on the stack (templates/template-versions.db.test.mjs). Pinned as the route's text until 25 Nov 2026.
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
     b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"),
@@ -699,12 +683,8 @@ test("a template's title: the workspace's own words, set through its door, shown
   for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.
   assert.ok(s.includes('"data-testid": "template-rename"'), "template-rename");
-  // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
-  assert.ok(
-    // The read is packages/db's (decision 0111).
-    readCode("packages/db/src/repositories/campaigns/templates/page.ts").includes("source, hidden_at, title"),
-    "the composers read it",
-  );
+  // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs. The composers read
+  // it: GET templates answers its reader's payload, key for key (ask/readers/, "the templates, for the composers").
 });
 
 test("the set a workspace is offered (0006): the proposal follow-up in every workspace (0008, amended 18 Oct 2026), a utility with no figure in it", () => {
