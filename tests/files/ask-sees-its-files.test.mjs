@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { clockWhen } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -92,9 +93,9 @@ const row = (n, over = {}) => ({
   ...over,
 });
 
-function tool(files, input) {
+function tool(files, input, more = {}) {
   const ctx = {
-    supabase: fakeDb({ files, memberships: [] }, {}, {}),
+    supabase: fakeDb({ files, memberships: [], ...more }, {}, {}),
     userId: USER,
     email: "ada@example.com",
     params: {},
@@ -166,6 +167,64 @@ test("a list answers one line a file, to choose by, and only what is kept unless
   assert.deepEqual(kept.files, ["storefront-dusk · place · sharp, poorly lit · no people: A shopfront at dusk."]);
   const inbox = JSON.parse((await tool(files, { action: "list", shelf: "inbox" })).result);
   assert.match(inbox.files[0], /^from-site · inbox/);
+});
+
+test("a piece AI made says where it stands, on its line and in its note, as its page says it; a kept photo says nothing of it", async () => {
+  // The content status review of 24 Nov 2026, B4: "is my post up?" had no source in what AI reads.
+  const NOW_MS = Date.parse("2026-11-05T12:00:00Z");
+  const placed = (n, over = {}) => ({
+    id: `dddddddd-0000-4000-8000-00000000000${n}`,
+    tenant_id: A,
+    file_id: ID(3),
+    place: "instagram",
+    kind: "picture",
+    caption: "Open late on Fridays.",
+    status: "published",
+    held_reason: null,
+    held_why: null,
+    permalink: "https://example.com/p/1",
+    scheduled_for: "2026-11-03T15:00:00Z",
+    published_at: "2026-11-03T15:00:00Z",
+    verified_at: "2026-11-03T15:02:00Z",
+    good_until: null,
+    error: null,
+    external_id: `ext-${n}`,
+    created_at: "2026-11-03T15:00:00Z",
+    updated_at: "2026-11-03T15:02:00Z",
+    ...over,
+  });
+  const made = row(3, { name: "the-finish", source: "made", shows: "graphic" });
+  const never = row(4, { name: "the-chair", source: "made", shows: "graphic" });
+  const posts = [
+    placed(1),
+    // A story that went up three days ago ran its day.
+    placed(2, { kind: "story", published_at: "2026-11-02T15:00:00Z", created_at: "2026-11-02T15:00:00Z" }),
+  ];
+  const at = (iso) => clockWhen(Date.parse(iso), TZ, NOW_MS);
+  const stands = [
+    `post: up on Instagram since ${at("2026-11-03T15:00:00Z")}`,
+    `story: a story that ran its day and ended by itself ${at("2026-11-03T15:00:00Z")}`,
+  ];
+  const listed = JSON.parse((await tool([row(1), made, never], { action: "list", shelf: "made" }, { posts })).result);
+  assert.deepEqual(
+    listed.files.map((line) => line.split(" · stands: ")[1]),
+    ["never posted", stands.join("; ")],
+    "newest first, each with where it stands",
+  );
+  const got = JSON.parse((await tool([made], { action: "get", name: "the-finish" }, { posts })).result);
+  assert.deepEqual(got.stands, stands);
+  // A post removed on Instagram itself is never told to AI as taken down by its owner.
+  const removed = [placed(1, { status: "taken_down", updated_at: "2026-11-04T20:00:00Z" })];
+  const gone = JSON.parse(
+    (await tool([made], { action: "get", name: "the-finish" }, { posts: removed, remediation_actions: [] })).result,
+  );
+  assert.deepEqual(gone.stands, [
+    `post: removed on Instagram itself, not taken down from here (noticed ${at("2026-11-04T20:00:00Z")})`,
+  ]);
+  // A photo the business keeps has no standing: nothing is read for it, and nothing is said.
+  const kept = JSON.parse((await tool([row(1)], { action: "list" })).result);
+  assert.doesNotMatch(kept.files[0], /stands:/);
+  assert.equal("stands" in JSON.parse((await tool([row(1)], { action: "get", name: "photo-1" })).result), false);
 });
 
 test("a list finds by what a file shows or has written on it", async () => {

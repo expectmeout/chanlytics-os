@@ -13,8 +13,10 @@ import { createRequire } from "node:module";
 import * as configModule from "../../apps/dashboard/next.config.ts";
 
 const require = createRequire(import.meta.url);
-// The config is TypeScript loaded through tsx, which may hand its default export back wrapped once more.
-const nextConfig = configModule.default?.redirects ? configModule.default : configModule.default?.default;
+// The config is TypeScript loaded through tsx, which may hand its default export back wrapped once more. It is a
+// function of the phase it is read in: in a phase that is no build and no development server it writes nothing.
+const configOf = typeof configModule.default === "function" ? configModule.default : configModule.default?.default;
+const nextConfig = configOf("phase-test");
 const { getPathMatch } = require("next/dist/shared/lib/router/utils/path-match");
 
 /** Where a path goes: the first rule whose source matches, with its params put into the destination. */

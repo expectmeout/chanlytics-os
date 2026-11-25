@@ -144,6 +144,8 @@ export const STANDING_WORDS = {
     bell: {
       title: (place: PostPlace, piece: string) => `Removed on ${at(place)} · ${piece || "A post"}`,
       body: notFromHere,
+      /** Where an ad made from the piece is still on: said, with where its one press is. Never paused by itself. */
+      bodyWithAd: (place: PostPlace) => `${notFromHere(place)} Its ad is still running: open the piece to pause it.`,
     },
     ai: (place: PostPlace, when: string | null) =>
       spaced(`removed on ${at(place)} itself, not taken down from here`, when ? `(noticed ${when})` : null),

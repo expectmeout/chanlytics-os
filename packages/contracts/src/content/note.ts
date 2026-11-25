@@ -67,6 +67,12 @@ export interface ContentTodayDto {
      * from an older build's answer and null where nothing goes without the owner's press.
      */
     ready: { size: string; days: string; held?: string | null } | null;
+    /**
+     * How AI's approval of the week ended, where that is the week's point (the Week review of 25 Nov 2026, C2; contracts
+     * weekEndingSaid): AI approved it, or it waits on the owner and why. In place of `ready`. Absent from an older
+     * build's answer; null where the week has no such point.
+     */
+    ended?: { name: string; said: string } | null;
     film: string[];
     /** The plan's proposal to ask every client for a review (pass 6; the canvas's Loop4); absent from an older build's. */
     review_ask?: ReviewAskDto | null;

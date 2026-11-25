@@ -116,6 +116,16 @@ function PlanLines({ plan }: { plan: NonNullable<ContentTodayDto["plan"]> }) {
           testid="today-week-ready"
         />
       ) : null}
+      {/* How AI's approval of the week ended (contracts weekEndingSaid): approved, or it waits on the owner and why. */}
+      {plan.ended ? (
+        <CalmRow
+          first={{ mark: <Icon name="video" size={14} /> }}
+          name={plan.ended.name}
+          said={plan.ended.said}
+          door={routeDoor(CONTENT_WEEK_ROUTE)}
+          testid="today-week-ended"
+        />
+      ) : null}
       {plan.film.length ? (
         <CalmRow
           first={{ mark: <Icon name="video" size={14} /> }}

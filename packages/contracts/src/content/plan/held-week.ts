@@ -8,7 +8,7 @@
  * suggests one only with its record behind it, and Use it is the owner's own press. The edge's call to make the week is
  * week-made-door.ts (zod, the server's alone).
  */
-import { DAY_MS, MIN_MS } from "../../shared/time";
+import { DAY_MS } from "../../shared/time";
 import { wallClockAt, zoneDayKey } from "../../shared/clock";
 import { POLICY_MODE_WORDS, type PolicyMode } from "../../config/workspace-config/policy-classes";
 
@@ -100,9 +100,6 @@ export const WEEKS_MAKING_AT_ONCE = Math.max(
 
 /** How long a week's making holds its place in the queue before it is begun again: the dashboard's making runs 300 s at most. */
 export const WEEK_MAKING_LEASE_S = 600;
-
-/** How long before its time a slot AI makes must still be: one nearer is held with why, never posted late. */
-export const WEEK_MADE_AHEAD_MS = 5 * MIN_MS;
 
 /** The making queue as its doors take it: the cap and the lease, said once for the edge and the dashboard. */
 export const WEEK_MAKING_QUEUE = { cap: WEEKS_MAKING_AT_ONCE, leaseSeconds: WEEK_MAKING_LEASE_S } as const;

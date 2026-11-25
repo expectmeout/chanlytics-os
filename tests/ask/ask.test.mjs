@@ -1627,10 +1627,10 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
       !readRaw("apps/dashboard/src/styles/dashboard-a-v2.css").includes(".ask-card"),
     "the palette's rules live in ask.css alone",
   );
-  const legacyCss = readRaw("apps/dashboard/src/bridge/frame.css");
+  const sheetAt = (name) => JSON.parse(readRaw("apps/dashboard/src/styles/sheets.json")).sheets.indexOf(name);
   assert.ok(
-    legacyCss.indexOf('@import "../surfaces/ask/ask.css";') > legacyCss.indexOf('@import "../styles/mobile.css";'),
-    "imported after mobile.css, so its phone rules win",
+    sheetAt("styles/mobile.css") >= 0 && sheetAt("surfaces/ask/ask.css") > sheetAt("styles/mobile.css"),
+    "listed after mobile.css, so its phone rules win",
   );
 });
 

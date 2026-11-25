@@ -541,7 +541,11 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   answered from the same list of reads as the opening (`OPEN_READ_PATHS`) a few at a time and handed to their surfaces a
   task at a time (`apps/dashboard/src/client/rest-reads.ts`, gathered by `client/api.ts` `gather`); People's people ahead
   leave so too. A read it does not carry goes alone, as before, and so does what a page moved to opens on while the rest
-  is out (`bridge/api.ts`, `hurry`), lest it wait its turn among every other page's reads.
+  is out (`bridge/api.ts`, `hurry`), lest it wait its turn among every other page's reads. On a device that holds
+  those pages' rows (`surface-cache.ts`), the boot first asks what the workspace's topic told since its copies were read
+  (`GET changes`) and reads only the pages told of: the rest stand as the copy has them, dated when it was read, as a tab
+  left open stands on what it read (`apps/dashboard/src/bridge/hearing/kept.ts`, which says the four things that must
+  hold). The page on screen is read at every load.
 - _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
   (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
   as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in
@@ -573,6 +577,23 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   file, and a warm (`apps/dashboard/src/bridge/workspace.ts` `warmRoute`) is the build's segment files, which
   serve every address of the page's route. A page that read the request would be a render per request again;
   `check:static-shell` fails the build that makes one.
+- _It links its own styles, and only those._ The frame's stylesheets are a list in the cascade's order
+  (`apps/dashboard/src/styles/sheets.json`), and a page links, of each, the part its code can draw: a rule is a page's
+  where every class it needs is written by a module the page's entry reaches by `import`
+  (`apps/dashboard/src/styles/page-sheets.ts`, which also says how far that goes and where it was checked against a
+  browser). A build writes them as it reads its configuration (`apps/dashboard/src/styles/write-page-sheets.ts`, from
+  `apps/dashboard/next.config.ts`): up to three files a stylesheet, each holding the one before it, so whatever a tab has
+  collected from page to page reads in the order one file had; minified as Next minifies a stylesheet and named by
+  what they hold. They are linked by React's own stylesheet order
+  (`apps/dashboard/src/styles/sheet-links.tsx`): the frame's layout says the order once, a layout beside each
+  page links the page's files (`apps/dashboard/src/styles/sheets-layout.tsx`), in the prerendered document's
+  head and around the page in the browser, so a move waits for a file that is not there yet and never draws a page
+  bare; a page warmed has its files brought in with it (`apps/dashboard/src/bridge/FrameHost.tsx`), and a page pressed
+  while those are still arriving waits for them too, which React does not do for a file already in the document
+  (`apps/dashboard/src/styles/sheet-arrival.ts`). Until 24 November
+  2026 every page loaded every stylesheet: 183 KB gzipped, of which a page matched four to seven rules in a hundred.
+  A new page takes a `layout.tsx` beside its `page.tsx` (`tests/styles/sheets/page-layouts.test.mjs` holds each to its key), and
+  a new stylesheet a row of the list; the development server gives every page every stylesheet whole.
 - _Round trips that need nothing of each other go together._ A reader asks for them at once and waits for all
   (`apps/dashboard/src/server/readers/`): one after the other, the Calendar's read spent 180 ms on the server for a
   workspace with no calendar.
@@ -633,8 +654,8 @@ classes and its type test, named in `index.ts` (`Button`, `LinkButton`,
 `variants.ts`, so a shell page that writes the classes and a surface that
 draws the component draw the same markup. The
 shell reaches the kit through its classes, since
-`apps/dashboard/src/bridge/frame.css` imports `kit.css` right after
-the tokens. A surface in TSX cannot import the house's JSX components, so
+`apps/dashboard/src/styles/sheets.json` lists `kit.css` first, right after
+the tokens every document opens on. A surface in TSX cannot import the house's JSX components, so
 each one a surface needed moved into the kit as TSX, drawing what it drew
 (the plan's Phase 3): `StatePill` (`apps/dashboard/src/surfaces/kit/pill/`),
 `Confirm` (`apps/dashboard/src/surfaces/kit/confirm/`) and the record kit's

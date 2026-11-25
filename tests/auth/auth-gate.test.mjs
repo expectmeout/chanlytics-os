@@ -620,8 +620,11 @@ const {
 } = require("next/experimental/testing/server");
 const { proxy, config } = await importSrc("apps/dashboard/proxy.ts");
 const configModule = await importSrc("apps/dashboard/next.config.ts");
-// The config is TypeScript loaded through tsx, which may hand its default export back wrapped once more.
-const loadedConfig = configModule.default?.headers ? configModule.default : configModule.default?.default;
+// The config is TypeScript loaded through tsx, which may hand its default export back wrapped once more. It is a
+// function of the phase it is read in (a build and the development server also write each page's stylesheets, 24 Nov
+// 2026): read in any other, as here, it is the configuration alone, and nothing is written.
+const configOf = typeof configModule.default === "function" ? configModule.default : configModule.default?.default;
+const loadedConfig = configOf("phase-test");
 
 /* ------------------------------------------------------------ a project's keys -- */
 

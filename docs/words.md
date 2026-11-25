@@ -246,10 +246,47 @@ said it has this post. Look at the account, then say which.", with two presses, 
 never went up: "Didn't post · Instagram doesn't have it.", with Post again. It is never "Taken down", since nothing was
 up to take down. Where its numbers arrive, they are proof enough that it is there, and nobody is asked.
 
+**AI says what the page says.** Asked whether a post is up, or why one did not go, AI reads where each piece stands
+from the same answer its tile is drawn from, a clause for each post: "up on Instagram since Nov 21 · 5:19 PM", "set to
+go up on Instagram tomorrow 9:00 AM", "not posted on Instagram: it waits for its owner", "removed on Instagram itself,
+not taken down from here". It never guesses a standing, and never says "taken down" of a post removed on the place.
+
+**A removed post's ad is said, never paused by itself.** Take down, here, pauses the ads made from a piece. A post
+removed on Instagram itself does not: the owner did not press anything here. So where an ad made from the piece is
+still running, its line under Where it goes turns amber and says "Its post was removed on Instagram. The ad is still
+running.", with one press, "Pause the ad", and the bell's line ends "Its ad is still running: open the piece to pause
+it."
+
 **A piece's numbers say whether more are coming.** While a later read comes: "Reel: couldn't be read this time" and
 "Next at 3 days." Once none will (it came down, its story's day ended, or its last read is past), the same facts are
 said for good: "Story: its numbers couldn't be read before it ended", "Read before the story ended.", "Its numbers
 weren't read while it was up." Never "this time", and never a next read that will not come.
+
+### How a week's approval ends
+
+A week is approved by the owner's press, or by AI where the owner set it to (Settings › Autonomy, Approve the week). The
+two are one act, and each ending is said once, in one set of words (`packages/contracts/src/content/plan/week-endings.ts`):
+a line on the Week's head, Today's point, and one notice on the bell.
+
+**No approval posts late.** A post whose time has passed is left out, whoever approves: its row says "Its time passed.
+Pick another time.", in amber, and its one press is "Pick another time" (the day and the time, then "Set the time"; in a
+week already approved the press is "Approve", and it goes up then). The press's answer counts it: "2 were left out: each
+says why." A post left out because its reason no longer stands says that reason on its row instead.
+
+| How it ended                           | The Week's head                                                         | Today                                                                     | The bell                                                                                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The owner approved it                  | Approved Mon 9:14 AM. Each goes up at its time.                         | Nothing: they pressed it                                                  | None                                                                                                                                                |
+| AI approved it                         | AI approved it Mon 8:02 AM, as you set it. Each goes up at its time.    | AI approved this week's posts · that day                                  | AI approved this week's posts · 3 go up, each at its time, as you set it.                                                                           |
+| AI approved it, some left out          | AI approved it Mon 8:02 AM, as you set it. 1 was left out: it says why. | AI approved this week's posts · 1 was left out: it says why.              | The same, then "1 was left out: it says why."                                                                                                       |
+| Not approved: AI is paused             | AI is paused. Nothing will post. (with Resume)                          | This week's posts are waiting for you · AI is paused, so nothing goes up. | AI didn't approve this week's posts · AI is paused, so nothing went up at 8:00 AM. Nothing goes up until you approve them.                          |
+| Not approved: the setting asks again   | The ready week, with Approve the week                                   | This week's posts are ready                                               | This week's posts are waiting for you · You set AI to ask you first, so nothing went up at 8:00 AM. Nothing goes up until you approve them.         |
+| Not approved: nothing could go         | No post is ready to go up. Each says why.                               | This week's posts are waiting for you · the same                          | AI didn't approve this week's posts · No post was ready to go up at 8:00 AM. Each says why on the Week.                                             |
+| The owner stopped it                   | You stopped it. Nothing goes up until you approve it.                   | This week's posts are ready                                               | None: they pressed it                                                                                                                               |
+| Not approved: it changed as AI read it | AI didn't approve it. Nothing goes up until you approve it.             | This week's posts are waiting for you · AI didn't approve them.           | AI didn't approve this week's posts · The week changed while AI was approving it at 8:00 AM, so nothing went up. Look at it, then approve the week. |
+
+A reel AI's approval begins is never said to go up: "a reel is being made and waits for your approval". A week made
+while AI is paused is promised no time: its notice says "AI is paused, so nothing goes up until you
+approve them." A held week's notice names the day with the time: "They go up Mon 8:00 AM unless you stop them."
 
 ### A problem, said right
 

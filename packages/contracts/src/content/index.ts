@@ -174,6 +174,8 @@ export {
   videoIsSavedOnly,
 } from "./placements/standing";
 export type { PieceLead, PlacementStanding, PlacementStands, PostStands } from "./placements/standing";
+export { pieceStandsSaid } from "./placements/standing-said";
+export type { StandsSaidKnown } from "./placements/standing-said";
 export { STANDING_WORDS } from "./placements/standing-words";
 export { storyRanItsDay } from "./placements/story-day";
 export {
@@ -196,7 +198,6 @@ export {
   RUNG_SUGGESTION_USE,
   rungSuggestionOf,
   SECONDS_A_WEEK_MADE,
-  WEEK_MADE_AHEAD_MS,
   WEEK_MAKING_LEASE_S,
   WEEK_MAKING_QUEUE,
   weekGoesAtOf,
@@ -255,6 +256,8 @@ export type {
   SlotWords,
   WeekPlanDto,
 } from "./plan/week";
+export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekEndingOf, weekEndingSaid } from "./plan/week-endings";
+export type { WeekEnding } from "./plan/week-endings";
 export { WEEK_MADE_DOOR } from "./plan/week-made-door";
 export type { WeekMadeBody } from "./plan/week-made-door";
 export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";
@@ -265,6 +268,7 @@ export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,
   instagramKindsFor,
+  linkPlaceSaid,
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_CAPTION_MAX,

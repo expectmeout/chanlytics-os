@@ -1,9 +1,4 @@
-// The design system, hoisted out of the client-only chunk (see
-// FrameApp). Next emits it as a stylesheet <link> on this route, so first
-// paint is not waiting on the dynamic import to resolve first.
-import "@/bridge/frame.css";
-// MapLibre's own sheet (the canvas, its controls, the cooperative-gesture screen), for the lead map's streets.
-import "maplibre-gl/dist/maplibre-gl.css";
+import { SheetSlots } from "@/styles/sheet-links";
 
 /**
  * The signed-in OS's frame, the same for every person and workspace: it reads no request, so the build prerenders it
@@ -15,10 +10,15 @@ import "maplibre-gl/dist/maplibre-gl.css";
  * proxy be bypassed (CVE-2025-29927's class). What it guarded is this frame's HTML, a spinner with no one's data in
  * it, which Next's client never asked it for on a move or a prefetch; the data behind the frame is the reads', and
  * the build holds the frame to reading nothing (eslint.config.mjs, "the (os) frame reads no request").
+ *
+ * It imports no stylesheet: a page links its own (src/styles/page-sheets.ts), from the layout beside it
+ * (styles/sheets-layout.tsx sheetsLayout), and what this layout says is their order, once, for every page under it.
+ * Until 24 November 2026 it imported them all (bridge/frame.css, and the lead map's), and every page loaded every one.
  */
 export default function OsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <SheetSlots />
       {children}
       <TurnUpright />
     </>

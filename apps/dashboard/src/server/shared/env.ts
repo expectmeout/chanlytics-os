@@ -60,6 +60,8 @@ const SCHEMA = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalText,
   NEXT_PUBLIC_LEAD_MAP_BASE: optionalText,
   NEXT_PUBLIC_PAGE_FIRST: optionalText,
+  // Written by the build, never set by hand: the frame's stylesheet files, page by page (next.config.ts).
+  NEXT_PUBLIC_SHEETS: optionalText,
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: optionalText,
   SUPABASE_SERVICE_ROLE_KEY: optionalText,
 
@@ -126,6 +128,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: () => publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_LEAD_MAP_BASE: () => publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE,
   NEXT_PUBLIC_PAGE_FIRST: () => publicEnv.NEXT_PUBLIC_PAGE_FIRST,
+  NEXT_PUBLIC_SHEETS: () => publicEnv.NEXT_PUBLIC_SHEETS,
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: () => publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   SUPABASE_SERVICE_ROLE_KEY: () => process.env.SUPABASE_SERVICE_ROLE_KEY,
   DIAG_KEY: () => process.env.DIAG_KEY,

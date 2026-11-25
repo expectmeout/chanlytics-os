@@ -6100,7 +6100,60 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   .rec-sheet-foot:where(:has(.rec-foot)) {
     padding: 6px;
   }
-  .rec-sheet-foot:where(:has(.rec-foot)) > :where(:not(.rec-foot, .confirm, :has(.rec-foot))) {
+  /* A line of the foot is named by its tag, any tag a page draws (tests/styles/has-subjects.test.mjs holds the list to
+     the app's markup), inside :where() so the rule weighs what it weighed: named only as "whatever is not the pair",
+     under a :has() on the foot, it had the browser style the whole document again at every change to any page
+     (24 Nov 2026: one in six of a press's style time on a slow phone). */
+  .rec-sheet-foot:where(:has(.rec-foot))
+    > :where(
+      a,
+      article,
+      aside,
+      audio,
+      b,
+      blockquote,
+      br,
+      button,
+      canvas,
+      code,
+      details,
+      div,
+      dl,
+      em,
+      figure,
+      footer,
+      form,
+      h1,
+      h2,
+      h3,
+      h4,
+      header,
+      i,
+      iframe,
+      img,
+      input,
+      kbd,
+      label,
+      main,
+      mark,
+      nav,
+      ol,
+      p,
+      pre,
+      progress,
+      q,
+      section,
+      select,
+      small,
+      span,
+      strong,
+      svg,
+      table,
+      textarea,
+      time,
+      ul,
+      video
+    ):where(:not(.rec-foot, .confirm, :has(.rec-foot))) {
     padding: 8px 10px 0;
   }
   .rec-sheet-foot .rec-foot {

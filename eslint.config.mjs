@@ -191,6 +191,7 @@ const DASHBOARD_MARKUP = [
   "apps/dashboard/src/auth/**/*.tsx",
   "apps/dashboard/src/yes/**/*.tsx",
   "apps/dashboard/src/surfaces/**/*.tsx",
+  "apps/dashboard/src/styles/**/*.tsx",
 ];
 
 /**
@@ -355,6 +356,7 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
 export const LIMITED_TREES = [
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
+  "apps/dashboard/src/styles",
   "apps/dashboard/src/bridge/ask",
   "apps/dashboard/src/bridge/billing",
   "apps/dashboard/src/bridge/hearing",
@@ -553,6 +555,9 @@ const DASHBOARD_CODE = [
   "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
   // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
   "apps/dashboard/src/*.ts",
+  // Beside the stylesheets, what works out each page's own and writes them as a build's configuration is read
+  // (page-sheets.ts, write-page-sheets.ts).
+  "apps/dashboard/src/styles/**/*.{ts,tsx}",
   // The app's own configuration and entry points (next.config.ts, proxy.ts, instrumentation.ts), which its tsconfig compiles.
   "apps/dashboard/*.ts",
 ];

@@ -51,3 +51,6 @@ apps/dashboard/public/lead-map/
 # Cloudflare's tool: its local state, and a Worker's local secrets (apps/relay)
 .wrangler/
 .dev.vars
+
+# each page's own stylesheets, written as the build's configuration is read (apps/dashboard/src/styles/write-page-sheets.ts)
+apps/dashboard/public/sheets/

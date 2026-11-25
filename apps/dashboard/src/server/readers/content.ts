@@ -13,6 +13,7 @@ import {
   POST_KINDS,
   POST_PLACES,
   POST_SOON_MS,
+  clockWhen,
   POST_STATUSES,
   WEEK_MS,
   fileCursorOf,
@@ -27,6 +28,8 @@ import {
   contentDownOf,
   contentIdeaFilesOf,
   contentPieceMarkOf,
+  linkPlaceSaid,
+  pieceStandsSaid,
   placementStandingOf,
   videoIsSavedOnly,
   type ContentDownDto,
@@ -384,6 +387,35 @@ async function piecesOf(db: Db, tenantId: TenantId, all: readonly Parameters<typ
     };
   });
 }
+
+/**
+ * Where each of these made pieces stands, as AI is told it (the content status review of 24 Nov 2026, B4): a clause a
+ * placement, from the same posts and the same one standing Made's tiles are drawn from (piecesOf, contracts
+ * pieceStandsSaid), so what AI says of a piece is what its tile says. One read of the pieces' posts, and one more only
+ * where one of them came down.
+ */
+export const piecesStandForAsk: Reader<
+  { files: readonly string[]; zone: string },
+  { stands: Record<string, string[]> }
+> = {
+  name: "piecesStandForAsk",
+  async read(rc, request) {
+    const db = rc.ctx.supabase;
+    const posts = await withRemovedThere(db, rc.tenantId, await listPostsOfFiles(db, rc.tenantId, request.files));
+    const nowMs = rc.now.getTime();
+    // A moment as the business's own clock says it: "today 6:00 PM", "tomorrow 10:00 AM", "Nov 21 · 5:19 PM".
+    const known = { nowMs, when: (iso: string) => clockWhen(Date.parse(iso), request.zone, nowMs) };
+    const stands = Object.fromEntries(
+      request.files.map((fileId) => {
+        const rows = posts.filter((post) => post.file_id === fileId);
+        const byHand = handPostOf(rows);
+        const piece = { posts: sentPostsOf(rows), ...(byHand ? { byHandWhere: linkPlaceSaid(byHand.link) } : {}) };
+        return [fileId, pieceStandsSaid(piece, known)];
+      }),
+    );
+    return { data: { stands }, rows: [], stamp: readerStamp() };
+  },
+};
 
 /** A page of a view's lines: what waits for its time, soonest first, or what is up, newest first. */
 async function linesPage(

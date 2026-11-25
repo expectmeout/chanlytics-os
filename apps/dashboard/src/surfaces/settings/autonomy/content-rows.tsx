@@ -8,7 +8,12 @@
  * approved with no edits", contracts rungSuggestionOf), and Use it, the owner's own press. Only the owner moves a rung:
  * the suggestion goes once it is taken.
  */
-import { RUNG_SUGGESTION_USE, rungSuggestionOf, type WeekApprovedRecord } from "@chanlytics/contracts";
+import {
+  RUNG_SUGGESTION_USE,
+  rungSuggestionOf,
+  type RungSuggestion,
+  type WeekApprovedRecord,
+} from "@chanlytics/contracts";
 import { dbMode, type UiRow } from "@/bridge/policy-store";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -23,9 +28,7 @@ const CONTENT_GROUP = "Content";
 type PutMode = (r: UiRow, mode: string) => void;
 
 /** AI's suggested rung for Approve the week, with its record, and the owner's press that takes it. */
-function RungSuggestion({ row, weeks, put }: { row: UiRow; weeks: readonly WeekApprovedRecord[]; put: PutMode }) {
-  const suggestion = rungSuggestionOf(dbMode(row.mode), weeks);
-  if (!suggestion) return null;
+function SuggestedRung({ row, suggestion, put }: { row: UiRow; suggestion: RungSuggestion; put: PutMode }) {
   return (
     <RecordRow
       id="aut-rung-suggestion"
@@ -53,11 +56,13 @@ export function contentGroupOf(given: {
 }): RowGroup[] {
   if (given.rows.length === 0) return [];
   const week = given.rows.find((r) => r.cls === "plan_approve");
+  // Only a suggestion makes the group's foot: with none, no row is drawn under the four (it was an empty one).
+  const suggestion = week && given.weeks ? rungSuggestionOf(dbMode(week.mode), given.weeks) : null;
   return [
     {
       name: CONTENT_GROUP,
       rows: given.rows,
-      foot: week && given.weeks ? <RungSuggestion row={week} weeks={given.weeks} put={given.put} /> : null,
+      foot: week && suggestion ? <SuggestedRung row={week} suggestion={suggestion} put={given.put} /> : null,
     },
   ];
 }

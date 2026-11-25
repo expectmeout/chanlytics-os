@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CONTENT_POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS } from "../../packages/contracts/src/index";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 
 /**
@@ -12,7 +13,9 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * are one question each (Hours & booking's, and Limits'), money is said once on
  * Limits, every row of the matrix is one something consults (reviews
  * included), and the hard limits are the runtime's actual numbers (the
- * Settings wiring review, 18 Oct 2026).
+ * Settings wiring review, 18 Oct 2026). Content's rows are a group of the same
+ * matrix under their own heading (00714, canvas v18 board B5), counted from the
+ * contracts' list, so a row added there is a row this expects.
  *
  * Intercepts its own PUT, so the workspace's policy is never changed.
  */
@@ -44,10 +47,11 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented copy on the pane: "${s}"`).not.toContain(s);
 
-    // One row per thing asked here and nowhere else: three. What goes to many people is one row since the answers canvas's
-    // D41 (#2211, 9 Nov 2026; pane.tsx AUT_MOVES_WITH): the offers, the win-backs and the follow-ups stood as three, and a
-    // press on the one sets all three. The reach-outs' cold email and Google reviews stand beside it.
-    const rows = table.locator("tbody tr");
+    // The matrix's own rows, its first body: one per thing asked here and nowhere else, three. What goes to many people is
+    // one row since the answers canvas's D41 (#2211, 9 Nov 2026; pane.tsx AUT_MOVES_WITH): the offers, the win-backs and
+    // the follow-ups stood as three, and a press on the one sets all three. The reach-outs' cold email and Google reviews
+    // stand beside it.
+    const rows = table.locator("tbody").first().locator("tr");
     await expect(rows).toHaveCount(3);
     await expect(rows.filter({ hasText: "Sends to many people" })).toHaveCount(1);
     await expect(rows.filter({ hasText: "Cold email to businesses a search found" })).toHaveCount(1);
@@ -64,7 +68,27 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     // Price questions are Limits' one question, its answer a menu.
     await expect(page.getByTestId("price_choice-menu")).toBeVisible();
     // Every row is one the receptionist consults now: nothing says "not enforced".
-    await expect(rows.filter({ hasText: "not enforced yet" })).toHaveCount(0);
+    await expect(table.locator("tbody tr").filter({ hasText: "not enforced yet" })).toHaveCount(0);
+
+    // Content's rows (00714, board B5): a group of the same matrix under its heading, one row for each of the contracts'
+    // content classes in its own words, each offering only the modes it can honour (Approve the week three, the others
+    // Asks you alone), and a line under them only when AI has a rung to suggest, never an empty one.
+    const content = table.getByTestId("pol-group-content");
+    await expect(content.locator("tr.pol-group")).toHaveText("Content");
+    const contentRows = content.locator("tr:not(.pol-group):not(.pol-group-foot)");
+    await expect(contentRows).toHaveCount(CONTENT_POLICY_CLASSES.length);
+    for (const cls of CONTENT_POLICY_CLASSES) {
+      const row = contentRows.filter({
+        has: page.locator(".pol-label", { hasText: new RegExp(`^${POLICY_CLASS_WORDS[cls].name}`) }),
+      });
+      await expect(row, `${cls} is one row`).toHaveCount(1);
+      await expect(row.locator(".pol-dot"), `${cls} offers the modes it can honour`).toHaveCount(
+        POLICY_CLASS_MODES[cls].length,
+      );
+    }
+    await expect(content.locator("tr.pol-group-foot")).toHaveCount(
+      await content.getByTestId("aut-rung-suggestion").count(),
+    );
     // The rows that start sequences say what each mode does to how one starts -- behind the row's info mark, as every
     // note is since #620 -- and their dots are live. A sequence is approved once, then held (decision 0064): each keeps
     // its own on its page (contracts policy-classes.ts).
