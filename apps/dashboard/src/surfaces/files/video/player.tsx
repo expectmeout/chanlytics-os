@@ -8,11 +8,11 @@
  */
 import { useEffect, useState } from "react";
 import { FILE_WORDS as W, clockOf, fileViewOf, noteSaidOf, type FileDto, type FileSound } from "@chanlytics/contracts";
-import { Button } from "../kit/button/button";
-import { Notice } from "../kit/notice/notice";
-import { VideoKept, useCopyStanding } from "./footage/video-kept";
-import { Picture } from "./photo";
-import { fileVerbs } from "./verbs";
+import { Button } from "../../kit/button/button";
+import { Notice } from "../../kit/notice/notice";
+import { VideoKept, useCopyStanding } from "../footage/video-kept";
+import { Picture } from "../photo";
+import { fileVerbs } from "../verbs";
 
 /** How many stretches of what is said show before the rest is asked for. */
 const CUES_SHOWN = 4;
