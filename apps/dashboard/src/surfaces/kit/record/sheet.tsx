@@ -251,8 +251,7 @@ export function RecordSheet(props: RecordSheetProps) {
   const { onClose, focusOn = null, saving = false } = props;
   // Drawn, it is open and holds the page (aria-modal): said on the document's root, where a toast and the page's scroll
   // ask them (motion/root-flags.ts).
-  useRootFlag("recordOpen", true);
-  useRootFlag("modalOpen", true);
+  useRootFlag(["recordOpen", "modalOpen"], true);
   const phone = useRecPhone();
   const closeRef = useRef<(() => void) | null>(onClose);
   // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.

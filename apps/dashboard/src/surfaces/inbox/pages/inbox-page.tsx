@@ -618,8 +618,6 @@ export const Inbox = ({
   // Taken over, the page says so on the document's root, where the frame's rules ask it (kit/motion/root-flags.ts): the
   // Inbox is always the pane's own page, so its takeover is the pane's too.
   const takesOver = inboxTakesOver(full.phoneThreadOpen, request, here);
-  useRootFlag("takenOver", takesOver);
-  useRootFlag("threadOpen", takesOver);
-  useRootFlag("threadPane", takesOver);
+  useRootFlag(["takenOver", "threadOpen", "threadPane"], takesOver);
   return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, request, comments: here, root });
 };

@@ -379,9 +379,7 @@ export function SelectionDock(p: {
   testid: string;
   children: ReactNode;
 }) {
-  useRootFlag("dockInFrame", true);
-  useRootFlag("dockUp", true);
-  useRootFlag("bulkDocked", true);
+  useRootFlag(["dockInFrame", "dockUp", "bulkDocked"], true);
   return (
     <div
       className={p.className}

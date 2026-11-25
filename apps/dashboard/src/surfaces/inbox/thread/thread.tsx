@@ -676,10 +676,8 @@ export const InboxThread = (props: InboxThreadProps) => {
   useEffect(() => foldAsRead(scrollRef.current, setFolded), [drawn]);
   const footRef = useRef<HTMLDivElement>(null);
   useEffect(() => (ixPhone() && footRef.current ? glideHeight(footRef.current) : undefined), [drawn]);
-  // The reply box docked at a phone's foot (footDock) says so on the document's root (kit/motion/root-flags.ts).
   const docked = !!thread?.real && ixPhone();
-  useRootFlag("dockInFrame", docked);
-  useRootFlag("dockUp", docked);
+  useRootFlag(["dockInFrame", "dockUp"], docked); // the reply box docked at a phone's foot (footDock), said on the root
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;

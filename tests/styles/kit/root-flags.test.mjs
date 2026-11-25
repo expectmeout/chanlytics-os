@@ -14,7 +14,7 @@ import path from "node:path";
 import { transform } from "lightningcss";
 import { ROOT } from "../../_source.mjs";
 
-const { ROOT_FLAGS, holdRootFlag, holdPictured, holdWhileMarked } =
+const { ROOT_FLAGS, holdRootFlag, holdPictured, holdWhileMarked, takenOutLater } =
   await import("../../../apps/dashboard/src/surfaces/kit/motion/root-flags.ts");
 
 /** Every stylesheet of the dashboard's but the build's own copies. */
@@ -214,6 +214,12 @@ test("a picture holds what it pictures where it stands, until it is taken out", 
     // One taken out already holds nothing.
     holdPictured(node({ holds: [modal], connected: false }));
     assert.equal(attrs.size, 0);
+    // Its way out: it holds from the moment it is asked, and goes with what it held.
+    let removed = 0;
+    const out = takenOutLater({ ...node({ holds: [modal] }), remove: () => removed++ });
+    assert.equal(attrs.has(ROOT_FLAGS.modalOpen.attr), true);
+    out();
+    assert.deepEqual([removed, attrs.has(ROOT_FLAGS.modalOpen.attr)], [1, false]);
   });
 });
 

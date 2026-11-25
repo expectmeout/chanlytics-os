@@ -614,9 +614,7 @@ export const ConversationsPage = ({
   const [phoneOpen, setPhoneOpen] = useState(!!initialId);
   // A row open on a phone takes the screen over, and the page says so on the document's root (kit/motion/root-flags.ts):
   // Conversations is always the pane's own page, so its takeover is the pane's too.
-  useRootFlag("takenOver", phoneOpen);
-  useRootFlag("threadOpen", phoneOpen);
-  useRootFlag("threadPane", phoneOpen);
+  useRootFlag(["takenOver", "threadOpen", "threadPane"], phoneOpen);
   // A decision is drawn at once (a row's pill), before any read: a draw, and nothing it is kept on. A call's end is a row of
   // the live feed, which the read above draws again.
   const [, setTick] = useState(0);

@@ -376,8 +376,7 @@ export function RecordFold(props: RecordFoldProps) {
   const sheet = open && (frame === "sheet" || phone);
   // As a sheet it is a record's sheet and holds the page (aria-modal), and says both on the document's root, where a
   // toast and the page's scroll ask them (motion/root-flags.ts).
-  useRootFlag("recordOpen", sheet);
-  useRootFlag("modalOpen", sheet);
+  useRootFlag(["recordOpen", "modalOpen"], sheet);
   const onFocus = useRecFocus(id, open, box, {
     inner: ".rec-fold-inner",
     fallback: sheet ? ".rec-sheet-close" : ".rec-fold-close",

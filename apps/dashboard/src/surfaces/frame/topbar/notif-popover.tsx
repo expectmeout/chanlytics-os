@@ -317,8 +317,7 @@ export function NotifPopover({
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   // Drawn, the bell's list is open and holds the page (aria-modal): said on the document's root, where a toast and the
   // page's scroll ask them (kit/motion/root-flags.ts).
-  useRootFlag("bellOpen", true);
-  useRootFlag("modalOpen", true);
+  useRootFlag(["bellOpen", "modalOpen"], true);
   useTbnEscape(onClose);
   const { slotEls, going, fold } = useFold(onDismiss);
   // A note marked read where it stands (slid right, or by its check) keeps its place while the sheet is open, rather

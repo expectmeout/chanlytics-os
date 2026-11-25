@@ -73,7 +73,11 @@ export const ROOT_FLAGS = {
 
 type RootFlag = keyof typeof ROOT_FLAGS;
 
-const held = new Map<RootFlag, number>();
+/** Whether a word names a flag. */
+const isRootFlag = (word: string): word is RootFlag => Object.hasOwn(ROOT_FLAGS, word);
+
+/** How many hold each flag now. */
+const holdCounts = new Map<RootFlag, number>();
 
 /** The document's root, where there is one to stamp (none on the server, nor where a stand-in document has none). */
 const root = (): HTMLElement | null => {
@@ -85,22 +89,34 @@ const root = (): HTMLElement | null => {
 export function holdRootFlag(flag: RootFlag): () => void {
   const html = root();
   if (!html) return () => {};
-  const count = (held.get(flag) ?? 0) + 1;
-  held.set(flag, count);
+  const count = (holdCounts.get(flag) ?? 0) + 1;
+  holdCounts.set(flag, count);
   if (count === 1) html.setAttribute(ROOT_FLAGS[flag].attr, "");
   let gone = false;
   return () => {
     if (gone) return;
     gone = true;
-    const left = (held.get(flag) ?? 1) - 1;
-    held.set(flag, left);
+    const left = (holdCounts.get(flag) ?? 1) - 1;
+    holdCounts.set(flag, left);
     if (left === 0) html.removeAttribute(ROOT_FLAGS[flag].attr);
   };
 }
 
-/** Hold `flag` while `on`, from the commit that draws the part so: before any layout effect of that commit reads the page. */
-export function useRootFlag(flag: RootFlag, on: boolean): void {
-  useInsertionEffect(() => (on ? holdRootFlag(flag) : undefined), [flag, on]);
+/** Hold each of `flags` until the returned function lets go of them all. */
+const holdEach = (flags: readonly RootFlag[]): (() => void) => {
+  const lets = flags.map(holdRootFlag);
+  return () => {
+    for (const letGo of lets.splice(0)) letGo();
+  };
+};
+
+/**
+ * Hold `flags` (one, or every flag a state stands for) while `on`, from the commit that draws the part so: before any
+ * layout effect of that commit reads the page.
+ */
+export function useRootFlag(flags: RootFlag | readonly RootFlag[], on: boolean): void {
+  const named = [flags].flat().join(" ");
+  useInsertionEffect(() => (on ? holdEach(named.split(" ").filter(isRootFlag)) : undefined), [named, on]);
 }
 
 /** Whether `node`, where it stands, is inside what a flag's rule asked of (the app's root, or the document's body). */
@@ -114,17 +130,16 @@ const standsWithin = (node: Element, within: (typeof ROOT_FLAGS)[RootFlag]["with
 function holdMet(node: Element, mark: string | null): () => void {
   const readable = typeof node.matches === "function" && "querySelector" in node;
   if (!readable || typeof node.closest !== "function" || !node.isConnected) return () => {};
-  const lets: (() => void)[] = [];
-  for (const flag of Object.keys(ROOT_FLAGS) as RootFlag[]) {
-    const { picture, within } = ROOT_FLAGS[flag];
-    const met = mark
-      ? picture.includes(`[${mark}]`) && node.matches(picture)
-      : node.matches(picture) || !!node.querySelector(picture);
-    if (met && standsWithin(node, within)) lets.push(holdRootFlag(flag));
-  }
-  return () => {
-    for (const letGo of lets.splice(0)) letGo();
-  };
+  const met = Object.keys(ROOT_FLAGS)
+    .filter(isRootFlag)
+    .filter((flag) => {
+      const { picture, within } = ROOT_FLAGS[flag];
+      const meets = mark
+        ? picture.includes(`[${mark}]`) && node.matches(picture)
+        : node.matches(picture) || !!node.querySelector(picture);
+      return meets && standsWithin(node, within);
+    });
+  return holdEach(met);
 }
 
 /**
@@ -133,6 +148,15 @@ function holdMet(node: Element, mark: string | null): () => void {
  * changes. Asked once it is in the document; the returned function lets go of all of them, as it is taken out.
  */
 export const holdPictured = (node: Element): (() => void) => holdMet(node, null);
+
+/** A picture's way out: hold what it pictures now, and the returned function takes it out and lets go of all of it. */
+export const takenOutLater = (node: Element): (() => void) => {
+  const letGo = holdPictured(node);
+  return () => {
+    node.remove();
+    letGo();
+  };
+};
 
 const marked = new WeakMap<Element, () => void>();
 

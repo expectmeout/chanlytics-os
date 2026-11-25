@@ -94,8 +94,7 @@ export function CmSplit({ list, open, className, testid, view, keepPane = false 
   const opened = open !== null && open !== undefined && open !== false;
   const takesOver = opened && view?.shown !== false;
   // What it says on its root, it says on the document's too, where the frame's rules ask it (kit/motion/root-flags.ts).
-  useRootFlag("takenOver", takesOver);
-  useRootFlag("threadOpen", takesOver);
+  useRootFlag(["takenOver", "threadOpen"], takesOver);
   return (
     <div
       ref={view?.ref}
