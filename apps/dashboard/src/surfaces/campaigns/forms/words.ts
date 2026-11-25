@@ -22,11 +22,14 @@ export const FORMS_WORDS = {
   close: "Close",
   /** The list's two heads where the business's own website sends forms too (00709). */
   heads: { here: "Made here", onSite: (site: string) => `On your site · ${site}` },
-  /** The empty page's second start, and the head's way to the website connection (00709). */
+  /** The head's coral act, as Campaigns' New and Content's Make: it takes the thumb to the line to AI ("+ New" where tight). */
+  newAct: "New form",
+  /** The empty page's second start, a row under its own head, and the head's way to the website connection (00709). */
   connect: {
-    title: "Already have a form on your website?",
-    body: "Send its entries here with a key. Your site keeps its own questions.",
-    act: "Connect your website",
+    group: "On your website",
+    title: "Already have a form there?",
+    body: "Its entries come straight here.",
+    act: "Connect",
     /** What the act does, as a member who may not do it is told: "Only an owner can connect your website." */
     doing: "connect your website",
     head: "Website",
@@ -35,8 +38,7 @@ export const FORMS_WORDS = {
   viewsLabel: "Campaigns' views",
   ask: {
     first: "What would you like to collect?",
-    firstBody:
-      "AI drafts the form from a sentence, and you change it and publish it. People fill it in from a link or a printed code.",
+    firstBody: "AI drafts it from one sentence. People fill it in from a link or a printed code.",
     more: "What else to collect?",
     hint: "A consultation form",
     label: "What the form should collect",

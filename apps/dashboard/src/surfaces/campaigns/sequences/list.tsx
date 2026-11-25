@@ -43,6 +43,8 @@ import { navigate, routeDoor } from "../../frame-verbs";
 import { GroupHead } from "../../kit/head/group-head";
 import { foldedLookup } from "../../kit/head/list-find";
 import { usePageSearch } from "../../kit/head/page-search";
+import { UnderRow } from "../../kit/head/under-row";
+import { useViewShown } from "../parts/view-shown";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
 import { OtherMessages, useListMessages } from "../parts/other-messages";
 import { useRecordsAhead } from "./use-record";
@@ -152,6 +154,15 @@ function typeCounts(rows: readonly SequenceRowDto[]): Record<SequenceType, numbe
   return n;
 }
 
+/**
+ * Whether the list's head stands in the list rather than the frame's top: while a campaign is open over the list, where the
+ * head is the bar's line (a desk's), or while another of Campaigns' views is shown.
+ */
+function useHeadAway(openId: string | null, inLine: boolean): boolean {
+  const shown = useViewShown();
+  return !shown || openId !== null || inLine;
+}
+
 export function SequencesList({ page, openId }: SequencesListProps) {
   const [search, setSearch] = useState("");
   // On a desk the search is the bar's line (page-search.ts); a phone keeps its box over the list.
@@ -196,33 +207,38 @@ export function SequencesList({ page, openId }: SequencesListProps) {
   // list): the field stays drawn, so the glyph's press puts the caret in it, and it opens while it has the caret or words.
   const findRef = useRef<HTMLInputElement>(null);
   const folded = !inLine && !search && page.sequences.length > 0;
+  const away = useHeadAway(openId, inLine);
   return (
     <>
-      <div className="sq-list-head">
-        {page.sequences.length > 0 ? (
-          <ListBar
-            view={view}
-            groups={all}
-            onView={setView}
-            type={type}
-            types={types}
-            onType={setType}
-            sort={sort}
-            onSort={setSort}
-            onFind={folded ? () => findRef.current?.focus() : null}
-          />
-        ) : null}
-        {!inLine && (
-          <Search
-            className={foldedLookup("cm-lookup", folded)}
-            label={SEQUENCE_WORDS.search}
-            value={search}
-            onChange={setSearch}
-            inputRef={findRef}
-            testid="sq-search"
-          />
-        )}
-      </div>
+      {/* On a phone the view, Type, Sort and the search stand in the frame's top, still as the rows scroll under them
+          (kit/head/under-row.tsx); in the list where a campaign is open over it, or another of Campaigns' views is shown. */}
+      <UnderRow className="sq-under" away={away}>
+        <div className="sq-list-head">
+          {page.sequences.length > 0 ? (
+            <ListBar
+              view={view}
+              groups={all}
+              onView={setView}
+              type={type}
+              types={types}
+              onType={setType}
+              sort={sort}
+              onSort={setSort}
+              onFind={folded ? () => findRef.current?.focus() : null}
+            />
+          ) : null}
+          {!inLine && (
+            <Search
+              className={foldedLookup("cm-lookup", folded)}
+              label={SEQUENCE_WORDS.search}
+              value={search}
+              onChange={setSearch}
+              inputRef={findRef}
+              testid="sq-search"
+            />
+          )}
+        </div>
+      </UnderRow>
       <div className="sq-list-rows" data-testid="sq-rows">
         {groups.map(({ group, rows }) => (
           <section key={group} className="sq-group" aria-label={SEQUENCE_WORDS.groups[group]}>

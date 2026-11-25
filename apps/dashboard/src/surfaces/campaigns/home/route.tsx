@@ -57,6 +57,7 @@ import {
   adsPageNow,
   contentCode,
   contentPageNow,
+  formsCode,
   formsPageNow,
   sequencesPageNow,
 } from "./campaigns-code";
@@ -64,6 +65,16 @@ import { CampaignsToast } from "./route-toast";
 
 // Content readied ahead (content/warm.ts): its page read in, and its first screen's pictures asked for, from the page's chunk.
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
+// Forms readied ahead: its list read as a load that opens on it reads it (forms/opening.ts), which its first draw takes.
+const formsWarm = () => import("../forms/opening").then((m) => m.readFormsOpening());
+
+/**
+ * How long a view shown waits before the others are readied: the frame's idle moment where the browser has one, and at most
+ * this. Safari has none, so the frame's own wait (three seconds) was the wait on every iPhone, and a press on Content or
+ * Forms a second after landing on Campaigns found it not drawn: the page under the strip blank for 0.5 to 0.9 s, then the
+ * view (Ruben's recording, 24 Nov 2026). The views of one page are its next press, not a page somewhere else.
+ */
+const VIEWS_AHEAD_MS = 300;
 
 /**
  * What stands where a view will be while its code is out: the page's own root, with the shell's quiet words after their
@@ -105,13 +116,15 @@ const VIEW_SEAT = "campaigns-view";
  * was left on), and the side the view shown comes in from: the view before it, on the draw that
  * changes it.
  */
-function useKeptViews(view: View, route: string, ahead: { others: boolean; content: boolean }) {
+function useKeptViews(view: View, route: string, ahead: { others: boolean; content: boolean; forms: boolean }) {
   const drawn = useRef(new Set<View>());
   drawn.current.add(view);
   // Sequences, drawn hidden once the frame is idle on any view (useViewsAhead).
   if (ahead.others) drawn.current.add("sequences");
   // Content, once its code and its read are in (useViewsAhead): drawn hidden, so its press shows it whole.
   if (ahead.content) drawn.current.add("content");
+  // Forms the same way: its code and its list in, drawn hidden.
+  if (ahead.forms) drawn.current.add("forms");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
   if (view === "sequences") sequencesAt.current = route;
   const adsAt = useRef(ADS_ROUTE);
@@ -171,9 +184,10 @@ function readKeptViews(view: View): void {
  * nothing: "Reading…", then its tiles, then each picture fading in, where Sequences was simply there (Ruben, 12
  * Nov 2026); and drawn hidden only once its pictures had come, it was still that, a swipe soon after landing (17 Nov 2026).
  */
-function useViewsAhead(view: View, adsShown: boolean): { others: boolean; content: boolean } {
+function useViewsAhead(view: View, adsShown: boolean): { others: boolean; content: boolean; forms: boolean } {
   const [ahead, setAhead] = useState(false);
   const [contentReady, setContentReady] = useState(false);
+  const [formsReady, setFormsReady] = useState(false);
   useEffect(() => {
     if (ahead || typeof window === "undefined") return undefined;
     let live = true;
@@ -192,8 +206,17 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
             () => undefined,
           );
         }
+        // Forms, the strip's third view, was the one never readied: every first press on it fetched its code, then read
+        // its list, under a blank page with no coral act (Ruben's recording, 24 Nov 2026).
+        if (view !== "forms") {
+          formsCode.warm();
+          void Promise.all([formsCode(), formsWarm()]).then(
+            () => setFormsReady(true),
+            () => undefined,
+          );
+        }
         setAhead(true);
-      });
+      }, VIEWS_AHEAD_MS);
     };
     if (view === "ads") void waitForAdsFirstRead().then(start);
     else start();
@@ -202,7 +225,7 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
       stop?.();
     };
   }, [ahead, view, adsShown]);
-  return { others: ahead, content: contentReady };
+  return { others: ahead, content: contentReady, forms: formsReady };
 }
 
 /**

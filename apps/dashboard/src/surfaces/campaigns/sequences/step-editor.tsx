@@ -315,7 +315,7 @@ function EditorFoot({ reaches, note, adding, ready, onCancel, onSave }: EditorFo
   );
   const presses = (
     <>
-      <Button size="sm" className="sq-foot-act" onClick={onCancel} data-testid="sq-editor-cancel">
+      <Button size="sm" className="sq-foot-act" onClick={onCancel} data-foot-cancel="" data-testid="sq-editor-cancel">
         {E.cancel}
       </Button>
       <Button

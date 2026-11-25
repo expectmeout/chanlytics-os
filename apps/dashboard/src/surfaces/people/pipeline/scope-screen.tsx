@@ -313,6 +313,7 @@ function phoneBar(s: PipelineState) {
       searchLabel={PL_SEARCH_LABEL}
       foldSearch
       testid="pipeline"
+      line={phoneFilters(s)}
       title={pipeSelecting(s) ? (s.picked.length ? `${s.picked.length} selected` : "Select deals") : null}
       trailing={phoneBarWords(s)}
     />
@@ -448,7 +449,8 @@ export function pipelineScreen(s: PipelineState) {
       <div className={`cl-main${pk.compact ? " has-peek" : ""}${phone && pk.peekVm ? " has-deal" : ""}`}>
         {phone && phoneBar(s)}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {phone ? phoneFilters(s) : standingLine(s)}
+          {/* A phone's filters stand under its bar, in the frame's top (phoneBar). */}
+          {phone ? null : standingLine(s)}
           {!phone && listHead(s)}
           {rowsView(s)}
         </div>

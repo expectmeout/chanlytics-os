@@ -1631,3 +1631,11 @@
 .cnv-found-shot-len {
   padding-top: 3px;
 }
+
+/* Made or Library, the views and the find line in the frame's top on a phone (kit/head/under-row.tsx): still as the window
+   scrolls the pieces (Ruben, 25 Nov 2026), on the page's gutter the frame's slot gives, so Made starts on the name's edge. */
+@media (max-width: 900px) {
+  .cnv-under .cnv-bar > .cnv-lists {
+    margin-left: 0;
+  }
+}
