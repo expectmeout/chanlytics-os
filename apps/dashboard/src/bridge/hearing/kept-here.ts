@@ -3,6 +3,7 @@
  * read, judged by this browser's clock as the servers read it and by the business's own day; and what the runner is told
  * of each copy that stands.
  */
+import { SECOND_MS } from "@chanlytics/contracts";
 import { serversClockOf } from "../api";
 import type { SurfaceOverride } from "../surface-data";
 import { isSurfaceReady, readAtOf, standOnKept } from "../surface-status";
@@ -26,16 +27,35 @@ export function keptAskHere(catchUp: CatchUp | undefined, tenant: () => string, 
 }
 
 /**
+ * How long the read-ahead waits for the feed's record to answer, from when the page on screen is drawn. It was asked as
+ * the boot began and is one small read, so it is in long before; where the server is slow enough that it is not, the
+ * pages not on screen are read as they always were, no later than this.
+ */
+const KEPT_ANSWER_WAIT_MS = 1.5 * SECOND_MS;
+
+/** The copies that stand, or none where the answer is not in by the wait's end: then everything is read, as before. */
+function inTime(unchanged: Promise<KeptCopy[]>): Promise<KeptCopy[]> {
+  return new Promise((resolve) => {
+    const late = setTimeout(() => resolve([]), KEPT_ANSWER_WAIT_MS);
+    void unchanged.then((copies) => {
+      clearTimeout(late);
+      resolve(copies);
+    });
+  });
+}
+
+/**
  * Each surface whose copy stands leaves the boot's list of what it still reads, is told to the runner as read when its
  * copy was (`readAs`: the clock reads it again where it is drawn, once that is a quarter of an hour old), and stands as
- * live. One a move has since asked for, or the list no longer holds, is left to the boot.
+ * live. One a move has since asked for, or the list no longer holds, is left to the boot. Called once the page on screen
+ * is drawn; it waits for the answer no longer than KEPT_ANSWER_WAIT_MS from then.
  */
 export async function standOnKeptCopies(
   strangers: SurfaceOverride[],
   unchanged: Promise<KeptCopy[]>,
   readAs: (surface: SurfaceOverride, at: number) => void,
 ): Promise<void> {
-  for (const { surface, at } of await unchanged) {
+  for (const { surface, at } of await inTime(unchanged)) {
     const place = strangers.indexOf(surface);
     if (place < 0) continue;
     strangers.splice(place, 1);

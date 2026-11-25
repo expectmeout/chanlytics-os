@@ -66,9 +66,10 @@ async function loaded(t, { kept = {}, notices = [] } = {}) {
   markHydrated(Object.keys(kept).map(key));
   for (const [name, minutes] of Object.entries(kept)) noteReadAt(key(name), NOON - minutes * MIN);
   const asked = [];
-  const catchUp = async (since) => {
+  const catchUp = (since) => {
     asked.push(since);
-    return notices;
+    // `"never"`: a server too slow to say in time.
+    return notices === "never" ? new Promise(() => {}) : Promise.resolve(notices);
   };
   const stop = startSurfaces(overrides, () => () => {}, catchUp);
   // The page on screen draws nothing of these, and its wait for its own draw runs out by the clock.
@@ -116,6 +117,17 @@ test("only what was told of since its copy is read", async (t) => {
 test("where the feed's record cannot say every notice, everything is read as it always was", async (t) => {
   const page = await loaded(t, { kept: { inbox: 2, calendar: 40, people: 15 }, notices: null });
   assert.deepEqual([...page.reads].sort(), ["calendar", "inbox", "people", "views"]);
+  page.stop();
+});
+
+test("where the feed's record does not answer in time, the pages not on screen are read as they always were", async (t) => {
+  const page = await loaded(t, { kept: { inbox: 2, calendar: 40, people: 15 }, notices: "never" });
+  assert.deepEqual(page.asked.length, 1);
+  assert.deepEqual(
+    [...page.reads].sort(),
+    ["calendar", "inbox", "people", "views"],
+    "a second and a half past the page on screen, the read-ahead stops waiting: no page is ready later for it",
+  );
   page.stop();
 });
 
