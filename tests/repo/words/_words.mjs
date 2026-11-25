@@ -47,6 +47,12 @@ function modelPlace(node) {
   return false;
 }
 
+/**
+ * A message a customer is sent, with the places its values fill (`Hi {{1}}, it's {{2}}.`): the business's own words to
+ * its customer, which docs/words.md does not bind ("Who reads it"), however a page shows it to the owner.
+ */
+const MESSAGE_BODY = /\{\{\s*[\w.]+\s*\}\}/;
+
 /** Whether text is words: letters with a space between them, or a label that opens with a capital. */
 export function isWords(text) {
   const t = text.trim();
@@ -130,7 +136,7 @@ export function wordsReadIn(sf, { only = () => true } = {}) {
   const out = [];
   const say = (node, raw) => {
     const text = raw.replace(/\s+/g, " ").trim();
-    if (!isWords(text) || kept(node)) return;
+    if (!isWords(text) || MESSAGE_BODY.test(text) || kept(node)) return;
     out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text });
   };
   const read = (n) => !idPlace(n) && !developerPlace(n) && !modelPlace(n) && only(n);

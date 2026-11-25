@@ -173,6 +173,11 @@ test("the voice's marks: we, an apology, a click, a dash, a semicolon, a Your la
     {},
     "a list of ids is no sentence",
   );
+  assert.deepEqual(
+    said("const body = \"Hi {{1}}, it's {{2}}. We'd love to see you again; reply to book.\";"),
+    [],
+    "a message a customer is sent, with the places its values fill, is the business's own voice",
+  );
 });
 
 test("a browser's tooltip is a title on an element, never a component's own title", () => {
