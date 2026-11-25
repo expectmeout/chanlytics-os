@@ -21,6 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -45,6 +46,17 @@ globalThis.document = {
   getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [
+        { id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -69,8 +81,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
 };
 
 /* ------------------------------ a stub React ------------------------------ */
@@ -188,28 +198,24 @@ const FACTS = {
   },
   conflicts: [],
 };
+bridgeHolds({
+  who: { me: { email: "dana@northside.example", role: "owner", display_name: "Dana" } },
+  parts: {
+    chrome: { state: stateOf },
+    saveSettings: (config, version, accepted) => {
+      saved.push({ config, version });
+      accepted();
+      return Promise.resolve({ ok: true });
+    },
+  },
+});
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  __chrome: { state: stateOf },
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   canDo: () => true,
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) =>
-      String(name || email)
-        .slice(0, 2)
-        .toUpperCase(),
-    words: (me) => ({ name: me.display_name || me.email, email: me.email }),
-  },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __saveSettings: (config, version, accepted) => {
-    saved.push({ config, version });
-    accepted();
-    return Promise.resolve({ ok: true });
-  },
-  __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
 });
 await import("./_business-parts.mjs");
 // The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.

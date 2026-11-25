@@ -44,6 +44,7 @@ import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 import { installStubReact, fresh as freshTree, all, find, byTestId, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -741,12 +742,16 @@ test("the routes: a message, values its slots take, an audience crossed with who
 /* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
 
 const went = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+    me: { role: "owner" },
+  },
+});
 installStubReact({
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to) },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,

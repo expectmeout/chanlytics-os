@@ -40,6 +40,7 @@ import {
   withDeals,
   world,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */
 
@@ -80,7 +81,7 @@ test("the card's settings are one line each, and Change opens the editor under i
 
   // Someone who may only read sees the answers and no Change.
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     tree = (await profile(vm))();
     assert.deepEqual(
@@ -89,7 +90,7 @@ test("the card's settings are one line each, and Change opens the editor under i
       "nothing to press for a viewer",
     );
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 

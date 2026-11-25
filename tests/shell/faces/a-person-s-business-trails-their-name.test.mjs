@@ -30,9 +30,11 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, daysAgo, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const opened = [];
-installStubReact({ __surfaceState: () => "live", CHANLY: { nav: (to) => opened.push(to) } });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({ CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.ts`);
@@ -450,9 +452,13 @@ test("a page that names someone People does not hold yet asks for People again: 
   const { wantPerson } = await import(`${S}/surfaces/people/want-person.ts`);
   const asked = [];
   const keep = globalThis.window.__refreshSurface;
-  globalThis.window.__refreshSurface = async (key) => {
-    asked.push(key);
-  };
+  bridgeHolds({
+    parts: {
+      refreshSurface: async (key) => {
+        asked.push(key);
+      },
+    },
+  });
   // An hour past now: whatever an earlier case asked for is more than a minute behind.
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() + 3_600_000 });
   const settle = () => t.mock.timers.tick(1);
@@ -489,7 +495,7 @@ test("a page that names someone People does not hold yet asks for People again: 
     assert.deepEqual(asked, ["people", "people", "people"]);
   } finally {
     t.mock.timers.reset();
-    globalThis.window.__refreshSurface = keep;
+    bridgeHolds({ parts: { refreshSurface: keep } });
     setSurfaceValue("people", { rows: ROWS });
   }
 });

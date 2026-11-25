@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -27,10 +28,13 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 
 /** What the client asked for, by path. */
 const asked = [];

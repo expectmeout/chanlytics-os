@@ -50,6 +50,7 @@ import {
   withDeals,
   withRuns,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("a person's page names the runs that reached them and what came of each -- it said nothing of what a playbook or a broadcast had sent them", () => {
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
@@ -521,7 +522,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   assert.ok(labels(tree).includes("Start a proposal"), "a proposal is started, in the sheet");
 
   // A viewer sends nothing, and may still call them from their own phone.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     tree = (await profile(vm))();
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
@@ -530,7 +531,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
       byTestId(tree, "person-call") ?? find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "person-call");
     assert.ok(call, "the head's own Call, beside More (0052)");
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 
   // Someone who said stop: never the send.
@@ -695,14 +696,14 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(asked, [{ personId: "p1", mode: "again", dealId: "d1" }]);
 
     // A viewer reads the card and presses nothing.
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       tree = (await profile(vm))();
       assert.ok(cardOf(tree));
       assert.equal(nextActOf(tree), null);
       assert.deepEqual(movesOf(tree), []);
     } finally {
-      globalThis.window.__ME = { role: "owner" };
+      bridgeHolds({ who: { me: { role: "owner" } } });
     }
   } finally {
     delete globalThis.window.openDealSheet;

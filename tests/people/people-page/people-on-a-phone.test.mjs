@@ -53,6 +53,7 @@ import {
   went,
   wrote,
 } from "./_people-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION: on a phone People is one bar, one line and the people -- a 57px search box, three text buttons and an 'Everyone' title stood between them", () =>
   onPhone(async () => {
@@ -441,13 +442,13 @@ test("Esc ends a Select-people selection; a member who may neither edit nor expo
     assert.equal(press("Escape"), true, "the page takes the key");
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and the mode ends");
     const me = globalThis.window.__ME;
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       await freshPage({ people: [person(1)] });
       tree = draw();
       assert.equal(byTestId(tree, "people-phone-select"), null, "nothing a selection could become");
     } finally {
-      globalThis.window.__ME = me;
+      bridgeHolds({ who: { me: me } });
     }
   }));
 
@@ -615,7 +616,7 @@ test("on a phone Add to list › New list names the list in the sheet, with its 
     assert.equal(openSheet(tree, "bulk-sheet"), null, "made, the sheet shuts");
     assert.match(textOf(flashes.at(-1).msg), /1 on the new list Saturday/);
     const me = globalThis.window.__ME;
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     // No role may export and not edit (ROLE_PERMS: the file is the owner's, who may also edit), so the two answers the bar
     // asks apart are given apart here: this member may export, and may not edit.
     const restore = mayOnly((action) => action === "export");
@@ -629,7 +630,7 @@ test("on a phone Add to list › New list names the list in the sheet, with its 
         "no list, note or More for a member who may not edit: Clear and the file alone, which needs no sheet",
       );
     } finally {
-      globalThis.window.__ME = me;
+      bridgeHolds({ who: { me: me } });
       restore();
     }
   }));
@@ -1078,7 +1079,7 @@ test("export follows the list that is open, and is not offered for a list that c
       "no Import word: the owner brings a list in through Add people",
     );
     const me = globalThis.window.__ME;
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       draw();
       const denied = byTestId(headAct(), "people-export");
@@ -1089,7 +1090,7 @@ test("export follows the list that is open, and is not offered for a list that c
       denied.props.onClick({ preventDefault() {}, stopPropagation() {} });
       assert.equal(opened.length, before, "and pressing it opens nothing");
     } finally {
-      globalThis.window.__ME = me;
+      bridgeHolds({ who: { me: me } });
     }
   } finally {
     globalThis.window.open = open;

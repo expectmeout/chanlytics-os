@@ -24,11 +24,16 @@ import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 import { CAMPAIGNS, dtoWith } from "./_campaign-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
+});
 Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
   // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
 });

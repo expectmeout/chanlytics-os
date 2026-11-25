@@ -63,11 +63,12 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("a viewer's cards do not drag, and a phone keeps the list whatever was chosen", async () => {
   await fresh();
   globalThis.localStorage.setItem("pipeline.view", "board");
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     let tree = draw();
     const wes = find(byTestId(tree, "pipeline-board"), (n) => n.props?.id === "person-wes");
@@ -84,7 +85,7 @@ test("a viewer's cards do not drag, and a phone keeps the list whatever was chos
       );
     });
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     globalThis.localStorage.removeItem("pipeline.view");
   }
 });
@@ -399,13 +400,17 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
 test("a person a link names stays open where this tab kept a cursor in that view: the address's person takes the cursor", async () => {
   await fresh();
   // The tab's place for the whole Pipeline (usePlPlace): the cursor was left on Wes.
-  globalThis.window.__tabMemory = {
-    place: (page, view) => (page === "pipeline" && view === "all" ? { q: "", cursor: "wes", top: 0 } : null),
-    keepPlace() {},
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: (page, view) => (page === "pipeline" && view === "all" ? { q: "", cursor: "wes", top: 0 } : null),
+        keepPlace() {},
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   try {
     let tree;
     for (let i = 0; i < 4; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
@@ -415,7 +420,7 @@ test("a person a link names stays open where this tab kept a cursor in that view
     for (let i = 0; i < 3; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
     assert.deepEqual(replaced, ["clients/pipeline:p-cat"], "the keys walk on from the person the link opened");
   } finally {
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -589,14 +594,14 @@ test("a row's menu: the deal's own acts where the member may record one, then th
   items[0].onClick();
   assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
   // A viewer keeps the door and sees no act it may not press.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     assert.deepEqual(
       listOf(menuOf(draw(), "wes")).map((it) => it.label),
       ["Open the conversation", "Open their page"],
     );
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 
@@ -1067,14 +1072,14 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   click(byTestId(col, "pipeline-col-more"));
   assert.equal(cards().length, 27, "and all of them, asked");
   // A viewer's cards neither drag nor move by menu.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     assert.equal(
       find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === Menu),
       null,
     );
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 

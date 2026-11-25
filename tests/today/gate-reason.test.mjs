@@ -18,6 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, kitPages, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -65,12 +66,10 @@ const role = { now: "owner" };
 const asRole = (r) => {
   role.now = r;
 };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now, get: (k, fallback) => fallback },
-  __chrome: { state: stateOf },
   CHANLY: { nav() {}, R: {} },
-  __surfaceState: () => "live",
   appNavigate() {},
   setTimeout: () => 1,
   clearTimeout() {},
@@ -85,7 +84,7 @@ globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
 /** Where a pressed gate shows its reason: the tip, anchored to the control. */
 const shown = [];
-globalThis.window.__tip = { show: (el) => shown.push(el) };
+bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
 
 /** A press, with what a handler did to it. */
 const press = (over = {}) => ({
@@ -296,23 +295,29 @@ const metrics = {
 
 test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, with the reason -- it was offered and did nothing", () => {
   asRole("viewer");
+  bridgeHolds({
+    values: {
+      broadcasts: {
+        rows: [
+          {
+            id: "b1",
+            state: "pending_approval",
+            recipient_count: 3,
+            audience: { label: "Win-back" },
+            playbook_id: "p1",
+            scheduled_for: null,
+            when: "today 6:00 PM",
+            counts: { sent: 0, replied: 0 },
+          },
+        ],
+      },
+    },
+    parts: {
+      broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
+    },
+  });
   Object.assign(globalThis.window, {
     usePPToast: () => [null, () => {}],
-    __BROADCASTS: {
-      rows: [
-        {
-          id: "b1",
-          state: "pending_approval",
-          recipient_count: 3,
-          audience: { label: "Win-back" },
-          playbook_id: "p1",
-          scheduled_for: null,
-          when: "today 6:00 PM",
-          counts: { sent: 0, replied: 0 },
-        },
-      ],
-    },
-    __broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
   });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts):

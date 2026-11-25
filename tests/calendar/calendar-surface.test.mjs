@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
 import { all, fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -23,10 +24,11 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
-globalThis.__ACTIVE_WORKSPACE = "t-salon";
+bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
@@ -334,11 +336,11 @@ test("each visit opens a sheet of its own: the cancel's question asked of one is
 
 test("the Business tab's calendar row still finds the Calendar's verbs by their old name, and imports the page's two words", () => {
   const was = globalThis.__calendar;
-  delete globalThis.__calendar;
+  bridgeHolds({ parts: { calendar: undefined } });
   installCalendar();
   assert.equal(typeof globalThis.__calendar.refresh, "function", "the Business tab asks for a read");
   assert.equal(typeof globalThis.__calendar.previewFeed, "function", "and checks a pasted address");
   assert.equal(globalThis.__calendarPage, undefined, "the words are imported (words.ts), never published");
   assert.equal(CALENDAR_PAGE.refreshMs, 5 * 60 * 1000, "the row keeps a read for as long as the board does");
-  globalThis.__calendar = was;
+  bridgeHolds({ parts: { calendar: was } });
 });

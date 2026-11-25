@@ -17,8 +17,10 @@ import {
   FIRST_ROWS_SLOT,
 } from "@chanlytics/contracts";
 import { fresh, installStubReact, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", innerWidth: 393, scrollY: 0 });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({ innerWidth: 393, scrollY: 0 });
 const S = "../../../apps/dashboard/src";
 const { firstRowsMeetRoute, installFirstRows, useFirstRowsLetGo } = await import(`${S}/surfaces/frame/first-rows.ts`);
 const { hearPartReady, installPageSpeed, partReady, speedHost } = await import(`${S}/client/page-speed.ts`);

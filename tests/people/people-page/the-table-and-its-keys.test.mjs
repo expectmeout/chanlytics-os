@@ -50,6 +50,7 @@ import {
   textOf,
   wire,
 } from "./_people-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("the table's columns: Person, State, Next step and Last contact, and with a calendar Visits; every other column waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
@@ -325,7 +326,7 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
   // The shell draws the sheet before any page, so its listener hears a key before People's does; by the time People's
   // hears it, the sheet has closed. It draws in a frame of its own, its state apart from the page's.
   const chrome = globalThis.window.__chrome;
-  globalThis.window.__chrome = { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false };
+  bridgeHolds({ parts: { chrome: { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false } } });
   const sheet = () => {
     frames.begin();
     return frames.render(globalThis.window.ShortcutsSheet, {});
@@ -346,7 +347,7 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
     assert.equal(press("Escape"), true, "with the sheet closed, Esc is People's");
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and clears the selection");
   } finally {
-    globalThis.window.__chrome = chrome;
+    bridgeHolds({ parts: { chrome: chrome } });
   }
 });
 
@@ -408,7 +409,7 @@ test("Esc closes the phone's lists sheet, and a selection on takes the lists but
 test("x and Space select nobody for a member who can neither edit lists nor export", async () => {
   await freshPage({ people: [person(1), person(2)] });
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     draw();
     press("j");
@@ -418,7 +419,7 @@ test("x and Space select nobody for a member who can neither edit lists nor expo
     assert.equal(press(" "), false, "nor does Space");
     assert.equal(byTestId(draw(), "bulk-bar"), null);
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 

@@ -43,6 +43,7 @@ import {
   wire,
   wrote,
 } from "./_people-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
   const needs = (i) =>
@@ -247,14 +248,14 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   // A member who can neither edit lists nor export has no checkbox: Person is the first cell, pinned at 0.
   await freshPage({ people: [person(1), person(2)] });
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     for (const line of lines(draw())) {
       assert.ok(pinned(line[0]), "Person first");
       assert.ok(!line.some((c) => is(c, "dtable-sel")), "and no checkbox before it");
     }
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 
@@ -652,7 +653,7 @@ test("People keeps its place per view in the tab: the words in the box and the c
     clearTabMemory();
     assert.equal(TM.place("people", "list:s1"), null);
   } finally {
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -670,7 +671,7 @@ test("where a list's box cannot be watched, every row is drawn on the first draw
     assert.equal(rowsOf(draw()), 60, "a scroll to put back: every row on the first draw");
   } finally {
     clearTabMemory();
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 

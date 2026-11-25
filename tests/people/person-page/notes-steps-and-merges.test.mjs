@@ -44,6 +44,7 @@ import {
   world,
   worldFetch,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("a person's notes are a log (0007): AI's suggestion first, then newest first, each signed and dated, who it is for and whether AI reads it", () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
@@ -126,17 +127,17 @@ test("who may do what to a note: its author changes it, an owner or its author d
         const m = find(r, (n) => n.type === Menu);
         return m ? itemsIn(m).map((i) => i.label) : [];
       });
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     let draw = await notesTab(vm);
     assert.deepEqual(
       actsOf(draw()),
       [["Edit", "Delete"], ["Delete"], ["Delete"]],
       "an owner deletes any; edits only their own",
     );
-    globalThis.window.__ME = { role: "operator" };
+    bridgeHolds({ who: { me: { role: "operator" } } });
     draw = await notesTab(vm);
     assert.deepEqual(actsOf(draw()), [["Edit", "Delete"], [], []], "an operator only their own");
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     draw = await notesTab(vm);
     const tree = draw();
     assert.equal(byTestId(tree, "person-notes-input"), null, "a viewer writes nothing");
@@ -144,7 +145,7 @@ test("who may do what to a note: its author changes it, an owner or its author d
     assert.equal(byTestId(tree, "person-note-keep"), null, "nor keeps a suggestion");
     // REGRESSION: an owner previewing a viewer (View-as) is shown what a viewer is. The page read the signed-in role,
     // blind to the preview, and offered the owner's controls to the viewer they were previewing.
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     globalThis.window.ST_STORE.viewAsRole = "viewer";
     draw = await notesTab(vm);
     const previewed = draw();
@@ -152,7 +153,7 @@ test("who may do what to a note: its author changes it, an owner or its author d
     assert.deepEqual(actsOf(previewed), [[], [], []], "and deletes nothing");
   } finally {
     globalThis.window.ST_STORE.viewAsRole = null;
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 
@@ -367,7 +368,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     assert.deepEqual(asked.at(-1), { personId: "p1", dealId: "d1", lead: "edit" });
 
     // A viewer reads the step and acts on none of it.
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     tree = await openedRow(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM }), "overview");
     assert.ok(byTestId(tree, "person-deal-nextstep"));
     assert.equal(byTestId(tree, "person-deal-nextstep-done"), null);
@@ -376,7 +377,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
   } finally {
     globalThis.window.openStepSheet = keep.sheet;
-    globalThis.window.__ME = keep.me;
+    bridgeHolds({ who: { me: keep.me } });
     globalThis.window.fetch = keep.fetch;
   }
 });
@@ -397,7 +398,7 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
   );
   const saved = surfaceValue("people");
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "owner" };
+  bridgeHolds({ who: { me: { role: "owner" } } });
   // People as the tab holds it: this person and the other record. The page offers every other row.
   setSurfaceValue("people", {
     ...(saved ?? {}),
@@ -460,14 +461,14 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
     // The merge asks in the kit's sheet (canvas A), which closes; it plays its way out with what it held.
     assert.equal(find(draw(), (n) => n.props?.testid === "person-merge-sheet")?.props.open, false, "the sheet closes");
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
     setSurfaceValue("people", saved);
   }
 });
 
 test("Not a person… opens Delete's question with its switch on (00483; the live walk, 27 Oct 2026)", async () => {
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "owner" };
+  bridgeHolds({ who: { me: { role: "owner" } } });
   try {
     const draw = await profile(toPersonVM(detail({ row: row({ email: "news@shop.example" }) }), ZONE, new Date(NOW)));
     await settle();
@@ -480,7 +481,7 @@ test("Not a person… opens Delete's question with its switch on (00483; the liv
       .onSelect();
     assert.equal(byTestId(draw(), "delete-not-a-person")?.props.checked, true, "Delete's question, its switch on");
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 
@@ -526,7 +527,7 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
     globalThis.window.fetch = worldFetch;
     world.holding.clear();
     // People as the tab holds it: this person alone, so neither other record is among People's rows.
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     setSurfaceValue("people", {
       ...(saved ?? {}),
       lists: saved?.lists ?? [],
@@ -570,7 +571,7 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
     );
 
     // An operator: Not the same is theirs; the merge is the owner's.
-    globalThis.window.__ME = { role: "operator" };
+    bridgeHolds({ who: { me: { role: "operator" } } });
     draw = await profile(vm);
     await settle();
     rows = rowsIn(draw());
@@ -578,7 +579,7 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
     assert.equal(byTestId(rows[0], "doubt-merge"), null, "no merge for an operator");
     assert.ok(byTestId(rows[0], "doubt-apart"), "not the same is any acting member's");
     // A viewer: the rows say it, and settle nothing.
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     draw = await profile(vm);
     await settle();
     rows = rowsIn(draw());
@@ -586,7 +587,7 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
     assert.equal(byTestId(rows[0], "doubt-merge"), null);
     assert.equal(byTestId(rows[0], "doubt-apart"), null);
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
     setSurfaceValue("people", saved);
   }
 });
@@ -606,7 +607,7 @@ test("the merge is the owner's: an operator's menu does not offer it; the picker
     globalThis.window.fetch = worldFetch;
     world.holding.clear();
     // An operator: the act is not in their menu.
-    globalThis.window.__ME = { role: "operator" };
+    bridgeHolds({ who: { me: { role: "operator" } } });
     setSurfaceValue("people", { ...(saved ?? {}), lists: saved?.lists ?? [], rows: [at({})] });
     let draw = await profile(vm);
     await settle();
@@ -617,7 +618,7 @@ test("the merge is the owner's: an operator's menu does not offer it; the picker
     );
 
     // An owner: every other record the door could take, and none it would refuse as two people.
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
     setSurfaceValue("people", {
       ...(saved ?? {}),
       lists: saved?.lists ?? [],
@@ -649,7 +650,7 @@ test("the merge is the owner's: an operator's menu does not offer it; the picker
     );
     assert.equal(picker.props.note, MERGE_WORDS.pickReading);
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
     setSurfaceValue("people", saved);
   }
 });
@@ -664,7 +665,7 @@ test("a merge the door refuses says so in the box, in the door's sentence, and a
   );
   const saved = surfaceValue("people");
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "owner" };
+  bridgeHolds({ who: { me: { role: "owner" } } });
   setSurfaceValue("people", {
     ...(saved ?? {}),
     lists: saved?.lists ?? [],
@@ -706,7 +707,7 @@ test("a merge the door refuses says so in the box, in the door's sentence, and a
     assert.equal(confirmOf().props.error, null);
   } finally {
     delete world.answers[key];
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
     setSurfaceValue("people", saved);
   }
 });

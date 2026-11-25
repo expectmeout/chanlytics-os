@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { setupSteps, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -224,6 +225,17 @@ globalThis.document = {
   getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [
+        { id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -248,8 +260,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
 };
 // What the bridge publishes before the pages run: the phone checks, the broken-config words, the hard limits' words.
 await import("../../../apps/dashboard/src/bridge/seed-globals.ts");
@@ -345,27 +355,23 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
+bridgeHolds({
+  parts: {
+    chrome: { state: stateOf },
+    saveSettings: (config, version, accepted) => {
+      saved.push({ config, version });
+      accepted();
+      return Promise.resolve({ ok: true });
+    },
+  },
+});
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  __chrome: { state: stateOf },
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   canDo: () => true,
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) =>
-      String(name || email)
-        .slice(0, 2)
-        .toUpperCase(),
-    words: (me) => ({ name: me.display_name || me.email, email: me.email }),
-  },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __saveSettings: (config, version, accepted) => {
-    saved.push({ config, version });
-    accepted();
-    return Promise.resolve({ ok: true });
-  },
 });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
@@ -451,8 +457,8 @@ const workspace = (
 ) => {
   // Setup's read, on its surface (a window mirror, `__SETUP`, until 12 Nov 2026): undefined is not read yet.
   setSurfaceValue("setup", setup);
+  bridgeHolds({ who: { me: { email: "dana@northside.example", role: "owner", display_name: "Dana" } } });
   Object.assign(globalThis.window, {
-    __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
     ...over,
   });
   // The seam's settings value (bridge/surfaces/settings.ts), for the moved panes.

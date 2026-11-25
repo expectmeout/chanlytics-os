@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks } from "../_stub-react.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -178,8 +179,8 @@ globalThis.document = {
 };
 globalThis.innerWidth = 375;
 globalThis.innerHeight = 812;
+bridgeHolds({ parts: { chrome: { toast: toastShape } } }, { fresh: true });
 globalThis.window = {
-  __chrome: { toast: toastShape },
   CHANLY: { nav() {} },
   addEventListener() {},
   removeEventListener() {},

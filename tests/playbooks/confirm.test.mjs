@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, classes } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -25,18 +26,13 @@ const TEAM = [
   { membershipId: "m-lena", email: "lena@example.com", displayName: "Lena Park", role: "operator" },
 ];
 const INVITES = [{ id: "i-jay", email: "jay@example.com", role: "viewer", expires_at: "2026-09-20T00:00:00Z" }];
+bridgeHolds({
+  who: { me: { email: "ruben@rjcapital.example", role: "owner" } },
+  parts: { chrome: { state: stateOf } },
+});
 installStubReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
-  __chrome: { state: stateOf },
-  __ME: { email: "ruben@rjcapital.example", role: "owner" },
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) =>
-      String(name || email)
-        .slice(0, 2)
-        .toUpperCase(),
-  },
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   gate: () => ({}),
 });

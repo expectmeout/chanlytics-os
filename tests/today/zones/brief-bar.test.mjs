@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { all, textOf, unmount } from "../../_stub-react.mjs";
 import { W, draw } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { BriefPlaying } = await import("../../../apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx");
 const { holdAsk } = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts");
@@ -29,20 +30,24 @@ function voice(state, purpose = "brief") {
 /** The capsule drawn over this voice, with this many calls going on. */
 function drawn(v, calls = 0) {
   holdAsk(v);
-  W.__chrome = { liveBar };
+  bridgeHolds({ parts: { chrome: { liveBar } } });
   const nowMs = Date.now();
-  W.__LIVE = {
-    heartbeatMs: 3_600_000,
-    now: Array.from({ length: calls }, (_, i) => ({
-      callId: `c${i}`,
-      who: "Dana Ruiz",
-      whoShort: "Dana",
-      live: true,
-      heartbeatAtMs: nowMs,
-      startedAtMs: nowMs - 65_000,
-      checking: false,
-    })),
-  };
+  bridgeHolds({
+    values: {
+      live: {
+        heartbeatMs: 3_600_000,
+        now: Array.from({ length: calls }, (_, i) => ({
+          callId: `c${i}`,
+          who: "Dana Ruiz",
+          whoShort: "Dana",
+          live: true,
+          heartbeatAtMs: nowMs,
+          startedAtMs: nowMs - 65_000,
+          checking: false,
+        })),
+      },
+    },
+  });
   const tree = draw(BriefPlaying);
   return all(tree, (n) => n.props?.["data-testid"] === "brief-bar")[0] ?? null;
 }

@@ -15,6 +15,7 @@ import { stateOf, memberWords, toInboxThreadVM, toCallVM } from "@chanlytics/con
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 
@@ -23,6 +24,13 @@ const ZONE = "America/New_York";
 const went = [];
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
 const realFetch = globalThis.fetch;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
+});
 installStubReact({
   location: {
     pathname: "/w/marisas",
@@ -32,17 +40,12 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: {
     nav: (to) => went.push(to),
     R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
     IX_NOW: "12:04",
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
-  __surfaceState: () => "live",
   canDo: () => true,
   gate: () => ({}),
   setTimeout: () => 1,
@@ -459,7 +462,7 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
   releasePane();
   const vm = toInboxThreadVM(convo(), null, ZONE, NOW);
   store(vm);
-  globalThis.window.__href = (route, p) => `${route}|${p.id}`;
+  bridgeHolds({ parts: { href: (route, p) => `${route}|${p.id}` } });
   const anchors = [];
   const realCreate = globalThis.document.createElement;
   globalThis.document.createElement = (tag) => {
@@ -492,7 +495,7 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
     assert.equal(a.clicked, 1);
   } finally {
     globalThis.document.createElement = realCreate;
-    delete globalThis.window.__href;
+    bridgeHolds({ parts: { href: undefined } });
   }
 });
 

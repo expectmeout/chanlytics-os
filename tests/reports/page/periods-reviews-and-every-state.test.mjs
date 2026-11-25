@@ -186,12 +186,11 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   // People keeps a list of these people already, so the door lands on that list and not on the page of everyone, and
   // it wears the list's name: the list counts its own month, this card counts the period above.
   assert.equal(textOf(byTestId(ok, "booked-rest-door")), "Asked, never booked");
-  globalThis.__listRoute = (id) => `clients/seg:${id}`;
+
   try {
     press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));
     assert.deepEqual(went, ["clients/seg:asked_never_booked"]);
   } finally {
-    delete globalThis.__listRoute;
   }
   press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));
   assert.deepEqual(went, ["clients"], "and on People itself before the lists are known");

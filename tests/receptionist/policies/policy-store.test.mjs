@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -146,11 +147,15 @@ test("the installed store answers from real rows, and writes only through the co
     modeOf: () => "SEED",
     set: () => calls.push("seed-set"),
   };
+  bridgeHolds({
+    parts: {
+      setPolicy: async (cls, mode) => {
+        calls.push([cls, mode]);
+      },
+    },
+  });
   const win = {
     POLICY: seed,
-    __setPolicy: async (cls, mode) => {
-      calls.push([cls, mode]);
-    },
   };
   // The rows as the settings read holds them (settings/business/shell.ts policiesNow): read.
   installPolicyStore(win, () => REAL);

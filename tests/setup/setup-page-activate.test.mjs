@@ -15,6 +15,7 @@ import { FIRST_RUN_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-r
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -100,9 +101,9 @@ const calls = {
 };
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
+bridgeHolds({ parts: { billing: {} } }, { fresh: true });
 globalThis.window = {
   location: { origin: "https://app.chanlytics.com", hash: "#/admin/setup" },
-  __billing: {},
   __google: {
     find: async (words) => {
       calls.find.push(words ?? null);
@@ -322,7 +323,6 @@ test("REGRESSION (S15): an operator sees Turn on gated before the press, with th
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
   Object.assign(globalThis.window, {
     ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-    __roleGate: roleGate,
   });
   try {
     const tree = mount();
@@ -349,7 +349,6 @@ test("REGRESSION (S15): an operator sees Turn on gated before the press, with th
     assert.equal(calls.nav.length, before.nav);
   } finally {
     delete globalThis.window.ST_STORE;
-    delete globalThis.window.__roleGate;
   }
 });
 
@@ -734,7 +733,6 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   const before = calls.nav.length;
   Object.assign(globalThis.window, {
     ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-    __roleGate: roleGate,
   });
   try {
     fresh();
@@ -744,7 +742,6 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
     assert.equal(calls.nav.length, before, "reached any other way, the door goes nowhere for an operator");
   } finally {
     delete globalThis.window.ST_STORE;
-    delete globalThis.window.__roleGate;
   }
 });
 
@@ -885,7 +882,6 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
   await lineRow.cta.onClick();
   Object.assign(globalThis.window, {
     ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-    __roleGate: roleGate,
   });
   const searched = calls.search.length;
   try {
@@ -897,7 +893,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     assert.equal(calls.search.length, searched, "REGRESSION: Enter searched past the gated Find numbers");
   } finally {
     delete globalThis.window.ST_STORE;
-    delete globalThis.window.__roleGate;
+
     setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });

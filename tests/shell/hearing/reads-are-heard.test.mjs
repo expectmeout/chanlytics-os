@@ -43,6 +43,7 @@ import {
   unheardReads,
   untoldWrites,
 } from "./_reads.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/inbox" };
@@ -56,10 +57,13 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 
 const { liveTablesOf } = await importSrc("packages/contracts/src/activity/record-kinds.ts");
 const { watchedEvents, watchedTables } = await importSrc("packages/db/src/realtime.ts");

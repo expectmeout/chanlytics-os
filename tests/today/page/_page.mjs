@@ -16,6 +16,7 @@ import { toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, kitPages } from "../../_stub-react.mjs";
 import { headline as periodHeadline } from "../_headline.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -34,11 +35,10 @@ export const failed = new Set();
 
 export const refreshed = [];
 
-installStubReact({
-  __surfaceState: () => "live",
-  __surfaceFailed: (k) => failed.has(k),
-  __refreshSurface: (k) => refreshed.push(k),
+bridgeHolds({
+  parts: { surfaceState: () => "live", surfaceFailed: (k) => failed.has(k), refreshSurface: (k) => refreshed.push(k) },
 });
+installStubReact({});
 
 // The kit's parts the pages here draw by name or the tests reach (kitParts: the attention row, the record kit ...).
 Object.assign(globalThis.window, kitPages);
@@ -89,6 +89,9 @@ export const { startSurfaces } = await import("../../../apps/dashboard/src/bridg
 export const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 
 // The shell's doors and the surfaces Today borrows, which the TSX reads off the window by name when it draws (surfaces/today/shell.ts).
+bridgeHolds({
+  parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
+});
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
@@ -98,15 +101,17 @@ Object.assign(globalThis, {
   gate: () => ({}),
   useHotkey: () => {},
   refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
 // the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 
 export const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -526,21 +531,20 @@ export const set = (globals) => {
 };
 
 export const clear = () => {
+  bridgeHolds({
+    values: { people: undefined, broadcasts: undefined, live: undefined },
+    reads: { reach_out_replies: undefined },
+    parts: { bell: undefined, broadcasts: undefined },
+  });
   set({
     today: undefined,
     __TODAY_SAMPLE: undefined,
     headline: undefined,
-    __PEOPLE: undefined,
-    __BROADCASTS: undefined,
-    __REPLIES: undefined,
     calendar: undefined,
     playbooks: undefined,
     setup: undefined,
     __GOOGLE: undefined,
     __google: undefined,
-    __notifs: undefined,
-    __LIVE: undefined,
-    __broadcasts: undefined,
   });
   failed.clear();
   refreshed.length = 0;

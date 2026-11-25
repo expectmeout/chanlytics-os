@@ -12,12 +12,16 @@ import { MIN_MS, headlineOf, toHeadlineVM } from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const keepError = console.error;
 console.error = () => {};

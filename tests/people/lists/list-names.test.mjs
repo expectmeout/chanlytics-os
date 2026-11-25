@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { PEOPLE_LISTS, listNamer, listRuleParts } from "@chanlytics/contracts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -114,6 +115,15 @@ test("People's rail says a rule's lists by the one namer", async () => {
     getElementById: () => null,
     querySelector: () => null,
   };
+  bridgeHolds(
+    {
+      who: {
+        workspaces: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+        activeWorkspaceId: A,
+      },
+    },
+    { fresh: true },
+  );
   globalThis.window = {
     location: { pathname: "/w/harbor", hash: "#/clients", origin: "https://app.chanlytics.com" },
     localStorage: globalThis.localStorage,
@@ -123,8 +133,6 @@ test("People's rail says a rule's lists by the one namer", async () => {
     dispatchEvent: () => true,
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: (h) => clearTimeout(h),
-    __WORKSPACES: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: A,
     fetch: async (url) => {
       const u = new URL(String(url), "https://app.chanlytics.com");
       if (u.pathname === "/api/v1/contacts")

@@ -14,11 +14,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, press } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const W = contracts.NEW_WORDS;
 
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/studio/campaigns",
@@ -28,8 +35,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   setInterval: () => 1,
   clearInterval() {},
 });
@@ -37,12 +42,11 @@ const SRC = "../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
 Object.assign(globalThis, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   appNavigate() {},
-  __chrome: { state: contracts.stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,

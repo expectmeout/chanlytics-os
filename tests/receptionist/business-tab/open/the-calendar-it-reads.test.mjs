@@ -37,6 +37,7 @@ import {
   setSurfaceValue,
   surfaceValue,
 } from "./_open.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 test("the booking tool row says where its calendar link reads and when, and keeps the address, the count and the source in its fold", () => {
   setSurfaceValue("calendar", calendarRead(readOk()));
@@ -441,12 +442,16 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     // No read in this tab: nothing is invented. The address is still stated.
     setSurfaceValue("calendar", undefined);
     const asked = [];
-    W.__calendar = {
-      refresh: () => {
-        asked.push("refresh");
-        return Promise.resolve(true);
+    bridgeHolds({
+      parts: {
+        calendar: {
+          refresh: () => {
+            asked.push("refresh");
+            return Promise.resolve(true);
+          },
+        },
       },
-    };
+    });
     let tree = drawTab();
     row = byTestId(tree, "rec-row-calendar");
     assert.equal(byTestId(row, "rec-calendar-read"), null);
@@ -464,15 +469,15 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     assert.equal(asked.length, 1, "fresh, it is not asked for again");
     // The surface itself could not be read: said where the line would be, with the one Retry.
     setSurfaceValue("calendar", undefined);
-    W.__surfaceFailed = (key) => key === "calendar";
+    bridgeHolds({ parts: { surfaceFailed: (key) => key === "calendar" } });
     row = byTestId(drawTab(), "rec-row-calendar");
     assert.match(textOf(byTestId(row, "rec-calendar-unread")), /Couldn't read what it found when it last updated/);
   } finally {
     setSurfaceValue("calendar", undefined);
-    if (was.calendar) W.__calendar = was.calendar;
-    else delete W.__calendar;
-    if (was.failed) W.__surfaceFailed = was.failed;
-    else delete W.__surfaceFailed;
+    if (was.calendar) bridgeHolds({ parts: { calendar: was.calendar } });
+    else bridgeHolds({ parts: { calendar: undefined } });
+    if (was.failed) bridgeHolds({ parts: { surfaceFailed: was.failed } });
+    else bridgeHolds({ parts: { surfaceFailed: undefined } });
   }
 });
 
@@ -483,13 +488,17 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
     ok: true,
     data: { ok: true, events: 12, next: [{ start: "Tue, Sep 8, 2:00 PM", end: "3:30 PM", title: "Busy" }] },
   };
-  W.__calendar = {
-    refresh: () => Promise.resolve(true),
-    previewFeed: async (url) => {
-      asked.push(url);
-      return answer;
+  bridgeHolds({
+    parts: {
+      calendar: {
+        refresh: () => Promise.resolve(true),
+        previewFeed: async (url) => {
+          asked.push(url);
+          return answer;
+        },
+      },
     },
-  };
+  });
   setSurfaceValue("calendar", calendarRead(readOk()));
   try {
     let tree = drawTab({ profile: marisa });
@@ -554,8 +563,8 @@ test("(B1) an address pasted into the fold is read as it lands -- how many appoi
     assert.deepEqual(asked, []);
   } finally {
     setSurfaceValue("calendar", undefined);
-    if (was) W.__calendar = was;
-    else delete W.__calendar;
+    if (was) bridgeHolds({ parts: { calendar: was } });
+    else bridgeHolds({ parts: { calendar: undefined } });
   }
 });
 
@@ -665,7 +674,7 @@ test("each act of When you're open is gated as a change to the settings, and nam
     asked.push([perm, doing]);
     return {};
   };
-  W.__workspace = { setTimezone: async () => ({ ok: true, tz: "", message: "" }) };
+  bridgeHolds({ parts: { workspace: { setTimezone: async () => ({ ok: true, tz: "", message: "" }) } } });
   try {
     const tree = drawTab();
     const mine = asked.filter(([, doing]) => /hours|timezone|closed|book with/.test(doing));
@@ -693,7 +702,7 @@ test("each act of When you're open is gated as a change to the settings, and nam
     ]);
   } finally {
     W.gate = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -733,7 +742,7 @@ test("a refusal that is not the fold's to fix is said once in the fold, and neve
 test("under Saving…, a press that would add or remove changes nothing and toasts nothing: it refuses the way Save does", () => {
   // The spec review's probe. update refused the change while the save was out, and the body toasted anyway: "Removed the
   // Mon shift at 14:00", with an Undo, of a shift that was still there.
-  W.__saveSettings = () => new Promise(() => {});
+  bridgeHolds({ parts: { saveSettings: () => new Promise(() => {}) } });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   const held = (node) => [node.props["aria-disabled"], node.props.disabled];
@@ -937,12 +946,16 @@ test("an idle page stops stating a read when the Calendar page would have read a
   const was = { calendar: W.__calendar };
   const time = clock();
   const asked = [];
-  W.__calendar = {
-    refresh: () => {
-      asked.push("refresh");
-      return new Promise(() => {});
+  bridgeHolds({
+    parts: {
+      calendar: {
+        refresh: () => {
+          asked.push("refresh");
+          return new Promise(() => {});
+        },
+      },
     },
-  };
+  });
   try {
     const keeps = CALENDAR_PAGE.refreshMs;
     assert.equal(keeps, 5 * 60 * 1000, "the Calendar page's own window, never a second number");
@@ -1023,20 +1036,24 @@ test("an idle page stops stating a read when the Calendar page would have read a
   } finally {
     time.restore();
     setSurfaceValue("calendar", undefined);
-    if (was.calendar) W.__calendar = was.calendar;
-    else delete W.__calendar;
+    if (was.calendar) bridgeHolds({ parts: { calendar: was.calendar } });
+    else bridgeHolds({ parts: { calendar: undefined } });
   }
 });
 
 test("while a new read is on its way the last one stays where it is, dimmed; it does not vanish and move the rows under it", async () => {
   const was = { calendar: W.__calendar };
   let land = null;
-  W.__calendar = {
-    refresh: () =>
-      new Promise((resolve) => {
-        land = resolve;
-      }),
-  };
+  bridgeHolds({
+    parts: {
+      calendar: {
+        refresh: () =>
+          new Promise((resolve) => {
+            land = resolve;
+          }),
+      },
+    },
+  });
   try {
     setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     let tree = drawTab();
@@ -1067,12 +1084,16 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
     // No read is asked for from a tab nobody is looking at, as the Calendar page's own timer holds off; back in view,
     // the row looks again and asks.
     const asked = [];
-    W.__calendar = {
-      refresh: () => {
-        asked.push("refresh");
-        return new Promise(() => {});
+    bridgeHolds({
+      parts: {
+        calendar: {
+          refresh: () => {
+            asked.push("refresh");
+            return new Promise(() => {});
+          },
+        },
       },
-    };
+    });
     setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     globalThis.document.visibilityState = "hidden";
     tree = drawTab();
@@ -1083,7 +1104,7 @@ test("while a new read is on its way the last one stays where it is, dimmed; it 
   } finally {
     delete globalThis.document.visibilityState;
     setSurfaceValue("calendar", undefined);
-    if (was.calendar) W.__calendar = was.calendar;
-    else delete W.__calendar;
+    if (was.calendar) bridgeHolds({ parts: { calendar: was.calendar } });
+    else bridgeHolds({ parts: { calendar: undefined } });
   }
 });

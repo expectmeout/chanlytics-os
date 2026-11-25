@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 // The cache's slot where the address names no workspace: local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:-";
@@ -62,7 +63,7 @@ const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 
 test("REGRESSION (defect 52): a read that lands while the sign-out waits for the phone writes nothing back", async () => {
   // Someone's workspace, booted: the Inbox read and cached.
-  win.INBOX_DATA = { THREADS: [{ id: "t1", who: "A customer of theirs" }] };
+  bridgeHolds({ values: { inbox: { THREADS: [{ id: "t1", who: "A customer of theirs" }] } } });
   cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-a");
   cache.flushSurfaceCache();
   assert.ok(store.get(CACHE), "cached, as a reload would paint it");
@@ -84,7 +85,7 @@ test("REGRESSION (defect 52): a read that lands while the sign-out waits for the
   assert.deepEqual(posted, ["/auth/signout"]);
 
   // The next person to sign in on this tab: nothing of the last one's is painted before the tenant guard looks.
-  delete win.INBOX_DATA;
+  bridgeHolds({ values: { inbox: undefined } });
   assert.deepEqual([...cache.hydrateSurfaceCache()], []);
   assert.equal(win.INBOX_DATA, undefined);
 });

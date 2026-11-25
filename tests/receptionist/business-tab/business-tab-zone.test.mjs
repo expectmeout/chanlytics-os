@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const W = globalThis.window;
@@ -122,10 +123,11 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
 
   const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
   const srv = server("America/New_York");
+  bridgeHolds({
+    who: { workspaces: [{ id: "t-marisa", timezone: "America/New_York" }], activeWorkspaceId: "t-marisa" },
+  });
   Object.assign(W, {
     fetch: srv.fetch,
-    __WORKSPACES: [{ id: "t-marisa", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   // The save's own rules, which the tab asks for as it mounts: what a fold will say is judged by them.
@@ -162,10 +164,9 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   } finally {
     stop();
     landSettings(was.settings);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(W, {
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
@@ -173,13 +174,17 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
 test("what it calls a booking is saved through the workspace's own route: only what was said goes, the page's list keeps it, and the pages that say it are read again", async () => {
   const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
   const srv = server("America/New_York");
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "t-marisa", timezone: "America/New_York", appointment_word: null },
+        { id: "t-other", timezone: "Europe/London", appointment_word: null },
+      ],
+      activeWorkspaceId: "t-marisa",
+    },
+  });
   Object.assign(W, {
     fetch: srv.fetch,
-    __WORKSPACES: [
-      { id: "t-marisa", timezone: "America/New_York", appointment_word: null },
-      { id: "t-other", timezone: "Europe/London", appointment_word: null },
-    ],
-    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   const heard = [];
@@ -218,10 +223,9 @@ test("what it calls a booking is saved through the workspace's own route: only w
     stop();
     W.removeEventListener?.("workspace:changed", onChange);
     landSettings(was.settings);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(W, {
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });

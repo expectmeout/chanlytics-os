@@ -22,6 +22,7 @@ import {
 import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
@@ -156,6 +157,12 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
       return "granted";
     }
   }
+  bridgeHolds({
+    values: {
+      inbox: { THREADS: [thread({ needsYou: true, escalatedAtMs: base - 60_000 })] },
+      live: { now: [], recent: [] },
+    },
+  });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -164,8 +171,6 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
     focus: () => {},
     location: { hash: "" },
     Notification: FakeNotification,
-    INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: base - 60_000 })] },
-    __LIVE: { now: [], recent: [] },
   };
   const api = mod.installNotifications(win, storage);
   assert.equal(win.__notifs, api, "published for the top bar");
@@ -231,6 +236,9 @@ test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's rea
     }
   }
   // A real session as it boots: no thread is seeded under INBOX_DATA (X6-1), and the calls and invitations land first.
+  bridgeHolds({
+    values: { live: { now: [], recent: [call({ callId: "k1", cvId: "cv-k1", startedAtMs: base - 600_000 })] } },
+  });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -239,28 +247,35 @@ test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's rea
     focus: () => {},
     location: { hash: "" },
     Notification: FakeNotification,
-    __LIVE: { now: [], recent: [call({ callId: "k1", cvId: "cv-k1", startedAtMs: base - 600_000 })] },
   };
   const api = mod.installNotifications(win, storage);
   assert.equal(api.alerts().on, true);
   handlers["surface:live"]();
   assert.deepEqual(fired, [], "the missed call there at the first look is the calls' backlog");
   // The Inbox's read lands with two people already waiting: they waited before the tab opened, and wake no one.
-  win.INBOX_DATA = {
-    THREADS: [
-      thread({ id: "t1", needsYou: true, escalatedAtMs: base - 3_600_000 }),
-      thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 1_800_000 }),
-    ],
-  };
+  bridgeHolds({
+    values: {
+      inbox: {
+        THREADS: [
+          thread({ id: "t1", needsYou: true, escalatedAtMs: base - 3_600_000 }),
+          thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 1_800_000 }),
+        ],
+      },
+    },
+  });
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [], "REGRESSION: one first look for every source made each thread already waiting a new one");
   // What appears after each source's first look alerts, whichever source it is.
   win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 10_000 }));
   handlers["surface:inbox"]();
-  win.__LIVE = {
-    now: [],
-    recent: [...win.__LIVE.recent, call({ callId: "k2", cvId: "cv-k2", startedAtMs: base - 5_000 })],
-  };
+  bridgeHolds({
+    values: {
+      live: {
+        now: [],
+        recent: [...win.__LIVE.recent, call({ callId: "k2", cvId: "cv-k2", startedAtMs: base - 5_000 })],
+      },
+    },
+  });
   handlers["surface:live"]();
   assert.deepEqual(fired, ["needs:t3", "call:k2"]);
 });
@@ -295,6 +310,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
     read: false,
     dismissed: false,
   });
+  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -303,28 +319,30 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
     focus: () => {},
     location: { hash: "" },
     Notification: FakeNotification,
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: { now: [], recent: [] },
   };
   const api = mod.installNotifications(win, storage);
   await api.setAlerts(true);
   handlers["surface:inbox"](); // a first look before the bell's own rows have loaded
   const Q1 = "11111111-1111-4111-8111-111111111111";
   const Q2 = "22222222-2222-4222-8222-222222222222";
-  win.__NOTIFICATIONS = {
-    dto: {
-      seen_at: null,
-      notifications: [
-        kept(
-          Q1,
-          "leads_question",
-          "Your search for florists is waiting for your answer",
-          "Most of the first 25 are chains.",
-          "clients/leads:s-1:c-excluded",
-        ),
-      ],
+  bridgeHolds({
+    reads: {
+      notifications: {
+        dto: {
+          seen_at: null,
+          notifications: [
+            kept(
+              Q1,
+              "leads_question",
+              "Your search for florists is waiting for your answer",
+              "Most of the first 25 are chains.",
+              "clients/leads:s-1:c-excluded",
+            ),
+          ],
+        },
+      },
     },
-  };
+  });
   handlers["surface:notifications"]();
   assert.deepEqual(fired, [], "the rows there when the bell first loads are the backlog");
   win.__NOTIFICATIONS.dto.notifications.unshift(
@@ -365,15 +383,19 @@ test("two devices agree after a look: the seen moment is the server's, the marks
   const device = (over = {}) => {
     const store = new Map();
     const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+    bridgeHolds({
+      who: { activeWorkspaceId: WS },
+      values: {
+        inbox: { THREADS: [thread({ needsYou: true, escalatedAtMs: NOW - 60_000 })] },
+        live: { now: [], recent: [] },
+      },
+      reads: { notifications: { dto: { notifications: [], seen_at: null } } },
+    });
     const win = {
       addEventListener: () => {},
       document: { visibilityState: "visible" },
       focus: () => {},
       location: { hash: "" },
-      INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: NOW - 60_000 })] },
-      __LIVE: { now: [], recent: [] },
-      __ACTIVE_WORKSPACE: WS,
-      __NOTIFICATIONS: { dto: { notifications: [], seen_at: null } },
       ...over,
     };
     return { win, store, storage, api: mod.installNotifications(win, storage) };
@@ -386,7 +408,8 @@ test("two devices agree after a look: the seen moment is the server's, the marks
   assert.ok(a.store.has(`chanlytics:notifs:${WS}`), "keyed by the workspace's id, not its slug");
   assert.ok(!a.store.has("chanlytics:notifs:default"));
   // Device B has nothing stored, but the server's seen moment is after the row: nothing unread.
-  const b = device({ __NOTIFICATIONS: { dto: { notifications: [], seen_at: new Date(NOW).toISOString() } } });
+  bridgeHolds({ reads: { notifications: { dto: { notifications: [], seen_at: new Date(NOW).toISOString() } } } });
+  const b = device({});
   assert.equal(b.api.unread(), 0, "the badge is the same number on the second device");
   // A row newer than that moment is unread on B, until B marks it.
   b.win.INBOX_DATA.THREADS.push(thread({ id: "t7", who: "Ana", needsYou: true, escalatedAtMs: NOW + 60_000 }));
@@ -398,13 +421,13 @@ test("two devices agree after a look: the seen moment is the server's, the marks
     `chanlytics:notifs:${WS}`,
     JSON.stringify({ ...JSON.parse(b.store.get(`chanlytics:notifs:${WS}`)), dismissed: ["call:k9"] }),
   );
-  b.win.__LIVE = undefined;
+  bridgeHolds({ values: { live: undefined } });
   b.win.INBOX_DATA.THREADS = b.win.INBOX_DATA.THREADS.filter((t) => t.id !== "t7");
   b.api.read("needs:t1");
   const saved = JSON.parse(b.store.get(`chanlytics:notifs:${WS}`));
   assert.deepEqual(saved.read, ["needs:t1"], "the mark for the row that left is gone");
   assert.deepEqual(saved.dismissed, ["call:k9"], "kept: the calls are not loaded, so nothing can say the row is gone");
-  b.win.__LIVE = { now: [], recent: [] };
+  bridgeHolds({ values: { live: { now: [], recent: [] } } });
   b.api.dismiss("needs:t1");
   assert.deepEqual(
     JSON.parse(b.store.get(`chanlytics:notifs:${WS}`)).dismissed,
@@ -412,9 +435,10 @@ test("two devices agree after a look: the seen moment is the server's, the marks
     "loaded and absent: the call's mark goes",
   );
   // A device whose own copy is later than the server's (the mark just went out) uses its own.
-  const c = device({
-    __NOTIFICATIONS: { dto: { notifications: [], seen_at: new Date(NOW - 3_600_000).toISOString() } },
+  bridgeHolds({
+    reads: { notifications: { dto: { notifications: [], seen_at: new Date(NOW - 3_600_000).toISOString() } } },
   });
+  const c = device({});
   c.api.seenAll();
   assert.equal(c.api.unread(), 0, "not the stale server moment while the re-read is in flight");
 });
@@ -468,13 +492,12 @@ test("the bell raises a row for every missed call in its day, not just the newes
     ["afternoon", "nine-am"],
     "every missed call still news, newest first: a day's worth, the one from yesterday gone",
   );
+  bridgeHolds({ values: { inbox: { THREADS: [] }, live: live } });
   const win = {
     addEventListener: () => {},
     document: { visibilityState: "visible" },
     focus: () => {},
     location: { hash: "" },
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: live,
   };
   const bell = mod.installNotifications(win, { getItem: () => null, setItem: () => {} });
   assert.deepEqual(
@@ -568,6 +591,7 @@ async function bellIn(browser, { alertsKept = false, key = "BKey" } = {}) {
   else delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   // The browser's own question is asked of its global, as the page asks it (bridge/ask/web-push.ts).
   globalThis.Notification = FakeNotification;
+  bridgeHolds({ values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } } });
   const win = {
     addEventListener: (ev, fn) => {
       handlers[ev] = fn;
@@ -576,8 +600,6 @@ async function bellIn(browser, { alertsKept = false, key = "BKey" } = {}) {
     focus: () => {},
     location: { hash: "", pathname: "/w/harbor/" },
     Notification: FakeNotification,
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: { now: [], recent: [] },
     ...browser,
   };
   const api = mod.installNotifications(win, storage);

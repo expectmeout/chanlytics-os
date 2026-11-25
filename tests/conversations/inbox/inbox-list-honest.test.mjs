@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -55,7 +56,15 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -65,10 +74,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setInterval: () => 1,
   clearInterval() {},

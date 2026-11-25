@@ -9,17 +9,23 @@ import assert from "node:assert/strict";
 import { again, all, fresh, installStubReact, installRoleStore, settle, textOf, unmount } from "../../_stub-react.mjs";
 import { stateOf } from "@chanlytics/contracts";
 import { personDto } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 const W = globalThis;
 const PEOPLE = "../../../apps/dashboard/src/surfaces/people";
 const BRIDGE = "../../../apps/dashboard/src/bridge";
 const ZONE = "America/New_York";
 const toasts = [];
+bridgeHolds({
+  who: {
+    me: { role: "operator", id: "u-me" },
+    workspaces: [{ id: "t-1", slug: "harbor", name: "Harbor Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t-1",
+  },
+});
 Object.assign(W, {
-  __ME: { role: "operator", id: "u-me" },
-  __WORKSPACES: [{ id: "t-1", slug: "harbor", name: "Harbor Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t-1",
   CHANLY: { nav() {} },
   usePPToast: () => [null, (t) => toasts.push(t)],
 });
@@ -102,7 +108,7 @@ const askButton = (root) =>
   all(root, (n) => n.type === "button").find((b) => /^(Ask to confirm|Ask again)$/.test(textOf(b).trim())) ?? null;
 
 test("someone the website brought, not asked yet: Ask to confirm, one press, one request, and the page says the answer", async () => {
-  W.__ME = { role: "operator", id: "u-me" };
+  bridgeHolds({ who: { me: { role: "operator", id: "u-me" } } });
   const p = await page(ROW());
   assert.ok(p.row(), "the email offers row is drawn");
   const b = askButton(p.row());
@@ -120,7 +126,7 @@ test("someone the website brought, not asked yet: Ask to confirm, one press, one
 });
 
 test("an ask that ended offers Ask again; an open one, someone the website did not bring, and a viewer are offered nothing", async () => {
-  W.__ME = { role: "operator", id: "u-me" };
+  bridgeHolds({ who: { me: { role: "operator", id: "u-me" } } });
   const ended = await page(ROW(), [asked(9)]);
   assert.equal(textOf(askButton(ended.row())).trim(), "Ask again");
   assert.match(textOf(ended.row()), /Did not confirm/);
@@ -129,10 +135,10 @@ test("an ask that ended offers Ask again; an open one, someone the website did n
   assert.match(textOf(open.row()), /Asked to confirm/);
   const elsewhere = await page(ROW({ came_from: "whatsapp" }));
   assert.equal(askButton(elsewhere.row()), null);
-  W.__ME = { role: "viewer", id: "u-me" };
+  bridgeHolds({ who: { me: { role: "viewer", id: "u-me" } } });
   installRoleStore(W);
   const viewer = await page(ROW());
   assert.equal(askButton(viewer.row()), null, "a viewer records no answer and asks for none");
-  W.__ME = { role: "operator", id: "u-me" };
+  bridgeHolds({ who: { me: { role: "operator", id: "u-me" } } });
   installRoleStore(W);
 });

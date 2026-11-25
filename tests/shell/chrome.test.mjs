@@ -25,6 +25,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
@@ -302,7 +303,7 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
   // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
   installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
+  bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
   fresh();
   const drawn = again(() =>
     globalThis.React.createElement(globalThis.window.Sidebar, {
@@ -329,12 +330,12 @@ test("the workspace row says its name, and under it how many workspaces there ar
   // menu does is switch, so the line under the name says how many there are to switch between.
   installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
-  globalThis.window.TODAY_DATA = { standing: { lines: { short: "1 of 1 line on" } } };
+  bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
+  bridgeHolds({ values: { today: { standing: { lines: { short: "1 of 1 line on" } } } } });
   const workspace = (id, name) => ({ id, slug: id, name, status: "active", timezone: "UTC", role: "owner" });
   const row = (workspaces) => {
-    globalThis.window.__WORKSPACES = workspaces;
-    globalThis.window.__ACTIVE_WORKSPACE = workspaces[0].id;
+    bridgeHolds({ who: { workspaces: workspaces } });
+    bridgeHolds({ who: { activeWorkspaceId: workspaces[0].id } });
     fresh();
     const drawn = byTestId(
       again(() =>
@@ -362,9 +363,9 @@ test("the workspace row says its name, and under it how many workspaces there ar
       "two: how many there are to switch between",
     );
   } finally {
-    delete globalThis.window.TODAY_DATA;
-    delete globalThis.window.__WORKSPACES;
-    delete globalThis.window.__ACTIVE_WORKSPACE;
+    bridgeHolds({ values: { today: undefined } });
+    bridgeHolds({ who: { workspaces: undefined } });
+    bridgeHolds({ who: { activeWorkspaceId: undefined } });
   }
 });
 
@@ -372,23 +373,27 @@ test("the workspace's circle wears its own logo over its initials, and its initi
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
   installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
-  globalThis.window.__identity = { workspace: workspaceInitials, words: identityWords };
+  bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
+
   const LOGO = "https://proj.supabase.co/storage/v1/object/public/workspace-logos/a/b.png";
   const circleOf = (logo_url) => {
-    globalThis.window.__WORKSPACES = [
-      { id: "w1", slug: "w1", name: "Nails & Co", status: "active", timezone: "UTC", role: "owner", logo_url },
-      {
-        id: "w2",
-        slug: "w2",
-        name: "The Hair Studio",
-        status: "active",
-        timezone: "UTC",
-        role: "owner",
-        logo_url: null,
+    bridgeHolds({
+      who: {
+        workspaces: [
+          { id: "w1", slug: "w1", name: "Nails & Co", status: "active", timezone: "UTC", role: "owner", logo_url },
+          {
+            id: "w2",
+            slug: "w2",
+            name: "The Hair Studio",
+            status: "active",
+            timezone: "UTC",
+            role: "owner",
+            logo_url: null,
+          },
+        ],
       },
-    ];
-    globalThis.window.__ACTIVE_WORKSPACE = "w1";
+    });
+    bridgeHolds({ who: { activeWorkspaceId: "w1" } });
     fresh();
     const sidebar = () =>
       globalThis.React.createElement(globalThis.window.Sidebar, {
@@ -431,9 +436,8 @@ test("the workspace's circle wears its own logo over its initials, and its initi
       ],
     });
   } finally {
-    delete globalThis.window.__identity;
-    delete globalThis.window.__WORKSPACES;
-    delete globalThis.window.__ACTIVE_WORKSPACE;
+    bridgeHolds({ who: { workspaces: undefined } });
+    bridgeHolds({ who: { activeWorkspaceId: undefined } });
   }
 });
 
@@ -476,7 +480,7 @@ test("the account menu offers the look only once contracts does: none while it i
   const picked = [];
   const themed = [];
   const accountMenu = (lookOffered) => {
-    globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered };
+    bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered } } });
     fresh();
     const sidebar = () =>
       globalThis.React.createElement(globalThis.window.Sidebar, {

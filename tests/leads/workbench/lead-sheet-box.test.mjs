@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = {};
 const frames = hookFrames();
@@ -92,22 +93,27 @@ const door = {
 const kept = new Map();
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+bridgeHolds(
+  {
+    who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" },
+    parts: {
+      tabMemory: {
+        draft: (kind, key) => kept.get(`${kind}:${key}`) ?? null,
+        keepDraft: (kind, value, key) => kept.set(`${kind}:${key}`, value),
+        dropDraft: (kind, key) => kept.delete(`${kind}:${key}`),
+      },
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent: () => true,
   refusalToast: (r, what) => ({ tone: "danger", msg: r?.message ?? what }),
-  // The tab's memory, as bridge/tab-memory.ts keeps a draft: per kind and key.
-  __tabMemory: {
-    draft: (kind, key) => kept.get(`${kind}:${key}`) ?? null,
-    keepDraft: (kind, value, key) => kept.set(`${kind}:${key}`, value),
-    dropDraft: (kind, key) => kept.delete(`${kind}:${key}`),
-  },
   fetch: async (url, init = {}) => {
     const { pathname } = new URL(String(url), "https://app.chanlytics.com");
     sent.push([init.method ?? "GET", pathname, init.body ? JSON.parse(init.body) : undefined]);

@@ -38,6 +38,7 @@ import {
   went,
   without,
 } from "../../../_business-tab-harness.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 import "./_page.mjs";
 
 /* ------------------------------------ the plan's seven ------------------------------------ */
@@ -194,7 +195,7 @@ test("what the owner's corrections suggest is drawn after What it knows, where a
 test("the Workspace row is gone, whatever the workspace is called", () => {
   const same = drawTab({ profile: marisa });
   assert.equal(byTestId(same, "rec-row-workspace"), null);
-  W.__WORKSPACES = [{ id: "t-marisa", name: "Billing probe", timezone: "America/New_York" }];
+  bridgeHolds({ who: { workspaces: [{ id: "t-marisa", name: "Billing probe", timezone: "America/New_York" }] } });
   const different = redrawTab();
   assert.equal(byTestId(different, "rec-row-workspace"), null, "a second name for the business is not a row");
 });
@@ -1068,11 +1069,15 @@ test("a shift or a closed day that was just added is the row focus goes to, by t
 test("Save stays a button focus can rest on while it saves, and a press meanwhile sends nothing more", () => {
   const sent = [];
   let accept = null;
-  W.__saveSettings = (config, version, accepted) => {
-    sent.push(config);
-    accept = accepted;
-    return new Promise(() => {});
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) => {
+        sent.push(config);
+        accept = accepted;
+        return new Promise(() => {});
+      },
+    },
+  });
   let tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();
@@ -1098,14 +1103,18 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   const sent = [];
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise((answer) => {
-      sent.push({
-        config: structuredClone(config),
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-        answer,
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise((answer) => {
+          sent.push({
+            config: structuredClone(config),
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+            answer,
+          });
+        }),
+    },
+  });
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);

@@ -18,6 +18,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { campaignMessagesOf, templateOffered } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/a", hash: "#/today" };
@@ -32,10 +33,13 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 
 const json = (status, body) =>
   new Response(JSON.stringify({ ...body }), { status, headers: { "content-type": "application/json" } });
@@ -371,7 +375,7 @@ test("a template written, hidden, removed, synced or added from a starter re-rea
   // `__refreshBroadcasts` went with it: its only caller was that table. `__refreshPlaybooks` stays for Today's approve of a run.
   const had = { b: globalThis.__refreshBroadcasts, p: globalThis.__refreshPlaybooks };
   delete globalThis.__refreshBroadcasts;
-  delete globalThis.__refreshPlaybooks;
+  bridgeHolds({ parts: { refreshPlaybooks: undefined } });
   try {
     installBroadcasts();
     installPlaybooks();
@@ -384,7 +388,7 @@ test("a template written, hidden, removed, synced or added from a starter re-rea
     assert.equal(typeof globalThis.__broadcasts?.send, "function", "and Sent's verbs are published as ever");
   } finally {
     if (had.b) globalThis.__refreshBroadcasts = had.b;
-    if (had.p) globalThis.__refreshPlaybooks = had.p;
+    if (had.p) bridgeHolds({ parts: { refreshPlaybooks: had.p } });
   }
 });
 

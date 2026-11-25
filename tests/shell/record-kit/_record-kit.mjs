@@ -14,10 +14,12 @@
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find } from "../../_stub-react.mjs";
 import { KIT_GLOBALS } from "../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 
 export const SRC = "../../../apps/dashboard/src";
 

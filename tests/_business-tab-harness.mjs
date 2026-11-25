@@ -26,25 +26,16 @@ import {
   setupSteps,
 } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
+import { bridgeHolds } from "./shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 const went = [];
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   canDo: () => true,
   gate: () => ({}),
   usePPToast: () => [null, () => {}],
-  // As the bridge publishes them (seed-globals.ts): the role gate's words. The tab imports the rest of its helpers
-  // (contracts' phone checks, link normalizer and receptionist defaults), so a test draws it with the real ones.
-  __roleGate: roleGate,
-  // The zone's words (identity.ts). This device is in Chicago.
-  __tz: {
-    words: timezoneWords,
-    city: timezoneCity,
-    known: knownTimezones,
-    device: () => "America/Chicago",
-    also: zoneSearchWords,
-  },
 });
 (await import("../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
@@ -346,8 +337,10 @@ const drawTab = ({
   } else {
     landFacts(facts({ conflicts, facts: known }));
   }
-  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, appointment_word: word }];
-  W.__ACTIVE_WORKSPACE = "t-marisa";
+  bridgeHolds({
+    who: { workspaces: [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, appointment_word: word }] },
+  });
+  bridgeHolds({ who: { activeWorkspaceId: "t-marisa" } });
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
@@ -390,22 +383,26 @@ const saving = () => {
   const sent = [];
   let read = null;
   let version = null;
-  W.__saveSettings = (config, v, accepted) => {
-    if (settingsHeld() !== read) {
-      read = settingsHeld();
-      version = read.version;
-    }
-    sent.push({ config: structuredClone(config), version: v });
-    if (v !== version)
-      return Promise.resolve({
-        ok: false,
-        code: "conflict",
-        message: "Someone else saved settings after you loaded them — reload and reapply.",
-      });
-    version += 1;
-    accepted({ config: structuredClone(config), version });
-    return new Promise(() => {});
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, v, accepted) => {
+        if (settingsHeld() !== read) {
+          read = settingsHeld();
+          version = read.version;
+        }
+        sent.push({ config: structuredClone(config), version: v });
+        if (v !== version)
+          return Promise.resolve({
+            ok: false,
+            code: "conflict",
+            message: "Someone else saved settings after you loaded them — reload and reapply.",
+          });
+        version += 1;
+        accepted({ config: structuredClone(config), version });
+        return new Promise(() => {});
+      },
+    },
+  });
   return sent;
 };
 const without = (o, key) => {

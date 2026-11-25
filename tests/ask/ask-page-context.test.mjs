@@ -6,6 +6,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { PageContextSchema } from "@chanlytics/contracts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const { pageContext, focusFromWords } = await import("../../apps/dashboard/src/bridge/ask/context.ts");
 const { askPalette, surfaceFor } = await import("../../apps/dashboard/src/bridge/ask/palette.ts");
@@ -306,13 +307,17 @@ test("forty rows at most, kind and id only -- a row's name never leaves the tab 
 test("Ask is told what is on screen one way (OW6): a window name no page of the shell publishes under is not read by a provider, and the ledger has one writer and one reader", () => {
   // A provider reads the typed store, not a name off the window: values a page of the shell once published under its old
   // names are not what Today, Conversations, Live, Leads or Campaigns send.
+  bridgeHolds({
+    values: {
+      today: { queue: { rows: [{ id: "q1", kind: "handoff", conversationId: U(1), callId: null }] } },
+      conversations: { CONVERSATIONS: [{ id: U(1), who: "Rosa", channel: "whatsapp" }] },
+      live: { now: [{ callId: U(7) }], recent: [] },
+      broadcasts: { rows: [{ id: U(2), name: "Monday" }] },
+    },
+  });
   const old = {
-    TODAY_DATA: { queue: { rows: [{ id: "q1", kind: "handoff", conversationId: U(1), callId: null }] } },
-    CONVERSATIONS_DATA: { CONVERSATIONS: [{ id: U(1), who: "Rosa", channel: "whatsapp" }] },
-    __LIVE: { now: [{ callId: U(7) }], recent: [] },
     __LEADS: { rows: [{ id: U(1), name: "Iron Gym" }], view: { list: "ready", cls: null } },
     __PLAYBOOKS: { rows: [{ id: U(1), name: "Win back" }] },
-    __BROADCASTS: { rows: [{ id: U(2), name: "Monday" }] },
     __TEMPLATES_ALL: [{ id: U(3), name: "offer_1" }],
   };
   for (const hash of [

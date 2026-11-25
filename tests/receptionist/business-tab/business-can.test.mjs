@@ -31,6 +31,7 @@ import {
   redrawTab,
   went,
 } from "../../_business-tab-harness.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 after(() => unmount());
@@ -299,11 +300,11 @@ test("the connections gone is ONE failed read for the whole card, with one retry
   // And one Retry behind it: the kit draws one per failed read, through the surface it names.
   const was = W.__refreshSurface;
   try {
-    W.__refreshSurface = () => {};
+    bridgeHolds({ parts: { refreshSurface: () => {} } });
     const again = canCard(drawTab({ profile: marisa, setup: null }));
     assert.equal(all(again, (n) => /-retry$/.test(n.props?.["data-testid"] || "")).length, 1, "one retry");
   } finally {
-    W.__refreshSurface = was;
+    bridgeHolds({ parts: { refreshSurface: was } });
   }
 });
 

@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-10-20T19:00:00Z");
@@ -125,6 +126,15 @@ const marks = [];
 /** The door's clock, and what it holds of each person's mark; `answer` stands in for the door when a test sets it. */
 const wire = { stamp: NOW.getTime(), seen: {}, answer: null };
 const iso = (at) => new Date(at).toISOString();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -142,8 +152,6 @@ globalThis.window = {
   dispatchEvent() {
     return true;
   },
-  __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   fetch: async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     const mark = /^\/api\/v1\/contacts\/([^/]+)\/seen$/.exec(u.pathname);

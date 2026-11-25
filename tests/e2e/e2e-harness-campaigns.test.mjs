@@ -37,6 +37,7 @@ import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";
 import { templatesRead } from "../../tooling/scripts/e2e-harness/templates-read.mjs";
 import { NOBODY_ONCE } from "../../e2e/campaigns/nobody-once.ts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -51,6 +52,12 @@ const NOW = Date.parse("2026-09-22T09:00:00Z");
 // The page's window is the stub React's (installStubReact: window IS globalThis), with the harness's workspace in it, as
 // the bridge publishes it, and the shell's doors the TSX pages reach through the bridge's verbs.
 const toasts = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active" }],
+    activeWorkspaceId: WORKSPACE.id,
+  },
+});
 installStubReact({
   location: {
     pathname: `/w/${WORKSPACE.slug}/`,
@@ -60,8 +67,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active" }],
-  __ACTIVE_WORKSPACE: WORKSPACE.id,
   setInterval: () => 1,
   clearInterval() {},
 });
@@ -69,20 +74,20 @@ const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
+bridgeHolds({
+  who: { me: { role: "owner" } },
+  parts: { chrome: { state: contracts.stateOf }, surfaceState: () => "live" },
+});
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   appNavigate() {},
-  __chrome: { state: contracts.stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __surfaceState: () => "live",
   // The role store: who is acting (an owner), and the policies a chip reads, each at its default.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner", get: (key, def) => def, set() {} },
-  __roleGate: contracts.roleGate,
 });
 const quiet = console.error;
 console.error = () => {};

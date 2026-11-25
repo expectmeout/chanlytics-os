@@ -14,12 +14,17 @@ import assert from "node:assert/strict";
 import { MAILBOX_SENDERS_WORDS, NEED_YOU_WORDS, addressOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 /** What the row asked of the wire, by method and path; every ask answered as done. */
 const asked = [];
 globalThis.fetch = async (url, init = {}) => {

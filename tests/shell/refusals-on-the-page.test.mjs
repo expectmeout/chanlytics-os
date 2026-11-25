@@ -17,6 +17,7 @@ import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
@@ -85,11 +86,10 @@ globalThis.document = {
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 globalThis.window = {
-  __chrome: { state: stateOf },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   gate: () => ({}),
-  __surfaceState: () => "live",
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {},
@@ -244,7 +244,7 @@ const bizApi = (over = {}) => ({
 const mountBiz = async (api) => {
   const flashes = [];
   Object.assign(businessRecord, api);
-  globalThis.window.__ME = { role: "owner", email: "owner@example.com" };
+  bridgeHolds({ who: { me: { role: "owner", email: "owner@example.com" } } });
   cells = [];
   const render = () => {
     frames.begin();
@@ -381,13 +381,38 @@ const conversation = (id, name) => ({
 test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, saying what did not happen -- it wore the green check", async () => {
   const flashes = [];
   const wire = [];
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: "t1",
+    },
+    values: {
+      broadcasts: {
+        rows: [
+          {
+            id: "b1",
+            state: "pending_approval",
+            recipient_count: 3,
+            audience: { label: "Win-back" },
+            playbook_id: "p1",
+            scheduled_for: null,
+            when: "today 6:00 PM",
+            counts: { sent: 0, replied: 0 },
+          },
+        ],
+      },
+    },
+    parts: {
+      broadcasts: {
+        approve: async () => refused("That run was already approved."),
+        cancel: async () => refused("That run has already sent."),
+      },
+    },
+  });
   Object.assign(globalThis.window, {
     usePPToast: () => [null, (p) => flashes.push(p)],
-    // The zone a snooze is made in (its "until" is ten tomorrow where the business is).
-    __WORKSPACES: [
-      { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
-    ],
-    __ACTIVE_WORKSPACE: "t1",
     // The server refuses every change: the client names the refusal, as it does in the browser.
     fetch: async (url, init = {}) => {
       wire.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
@@ -402,24 +427,6 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
         }),
         { status: 429, headers: { "content-type": "application/json" } },
       );
-    },
-    __BROADCASTS: {
-      rows: [
-        {
-          id: "b1",
-          state: "pending_approval",
-          recipient_count: 3,
-          audience: { label: "Win-back" },
-          playbook_id: "p1",
-          scheduled_for: null,
-          when: "today 6:00 PM",
-          counts: { sent: 0, replied: 0 },
-        },
-      ],
-    },
-    __broadcasts: {
-      approve: async () => refused("That run was already approved."),
-      cancel: async () => refused("That run has already sent."),
     },
   });
   setSurfaceValue(
@@ -708,9 +715,8 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   const doors = {};
   for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
     doors[k] = globalThis.window[k];
+  bridgeHolds({ who: { me: { role: "owner" } }, parts: { surfaceState: () => "live" } });
   installStubReact({
-    __surfaceState: () => "live",
-    __ME: { role: "owner" },
     ...doors,
     usePPToast: () => [null, () => {}],
     CHANLY: { nav() {}, R: {} },

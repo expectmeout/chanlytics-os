@@ -53,6 +53,7 @@ import {
 } from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -326,7 +327,8 @@ test("what the narrow path gives up is said before the button, with the real num
  * anyway for top-level tests.
  * -------------------------------------------------------------------------- */
 installStubReact();
-Object.assign(globalThis.window, { __ME: { email: "ada@example.com" }, __WORKSPACES: [{ slug: "harbor" }] });
+bridgeHolds({ who: { me: { email: "ada@example.com" }, workspaces: [{ slug: "harbor" }] } });
+Object.assign(globalThis.window, {});
 // Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (surfaces/frame, which also
 // answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
@@ -460,11 +462,15 @@ test("an empty record guesses no website: left empty, the filing names this work
   // owner saved it without a glance, and the filing sent another business's
   // opt-in page to the carriers as this business's website.
   const was = { list: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE };
-  globalThis.window.__WORKSPACES = [
-    { id: "w-a", slug: "aardvark-autos" },
-    { id: "w-h", slug: "harbor" },
-  ];
-  globalThis.window.__ACTIVE_WORKSPACE = "w-h";
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "w-a", slug: "aardvark-autos" },
+        { id: "w-h", slug: "harbor" },
+      ],
+    },
+  });
+  bridgeHolds({ who: { activeWorkspaceId: "w-h" } });
   try {
     theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
     const page = mount({ line: null, flash: () => {} });
@@ -477,8 +483,8 @@ test("an empty record guesses no website: left empty, the filing names this work
     assert.ok(input, "the website is asked");
     assert.equal(input.props.value, "", "and nothing is guessed for it");
   } finally {
-    globalThis.window.__WORKSPACES = was.list;
-    globalThis.window.__ACTIVE_WORKSPACE = was.active;
+    bridgeHolds({ who: { workspaces: was.list } });
+    bridgeHolds({ who: { activeWorkspaceId: was.active } });
   }
 });
 

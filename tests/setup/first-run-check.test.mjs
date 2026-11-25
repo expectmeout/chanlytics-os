@@ -12,6 +12,7 @@ import { profileRefusal } from "../../apps/dashboard/src/surfaces/settings/busin
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -141,8 +142,8 @@ const draw = ({ setup = dto(), at = null, later = [], link = undefined, profile 
       },
     }),
   );
-  W.__WORKSPACES = [{ id: "t-harbor", name: "Harbor Moving", timezone: "America/New_York" }];
-  W.__ACTIVE_WORKSPACE = "t-harbor";
+  bridgeHolds({ who: { workspaces: [{ id: "t-harbor", name: "Harbor Moving", timezone: "America/New_York" }] } });
+  bridgeHolds({ who: { activeWorkspaceId: "t-harbor" } });
   unmount();
   recFolds.reset();
   W.__businessTabSave.saver.reset();
@@ -154,13 +155,17 @@ const redraw = () => again(page);
 /** The workspace's door (PATCH workspaces), recording what it was sent: the first run sends it nothing now. */
 const courier = () => {
   const sent = [];
-  W.__workspace = {
-    patch: async (fields) => {
-      sent.push(fields);
-      W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
-      return { ok: true, workspace: fields, message: "" };
+  bridgeHolds({
+    parts: {
+      workspace: {
+        patch: async (fields) => {
+          sent.push(fields);
+          W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
+          return { ok: true, workspace: fields, message: "" };
+        },
+      },
     },
-  };
+  });
   return sent;
 };
 
@@ -235,7 +240,7 @@ test("Check stays on screen once its last fact lands, and Rehearse it now goes o
     assert.equal(went.at(-1), "start/rehearse", "and the way on is a new entry: Rehearse");
   } finally {
     setupVerbs.later = realLater;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -251,7 +256,7 @@ test("a role that may not change the business goes on with Rehearse it now and s
     assert.equal(went.at(-1), "start/rehearse", "and the step goes on");
   } finally {
     W.canDo = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -281,7 +286,7 @@ test("(D) the step's heading takes focus when the step on screen changes -- so a
     assert.equal(focused.length, 1, "the same step at another address is no move");
   } finally {
     globalThis.document.getElementById = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -312,7 +317,7 @@ test("(D) the heading takes focus when the step changes under ONE address: Rehea
     assert.deepEqual(focused, [{ preventScroll: true }], "the step changed under one address: the heading has focus");
   } finally {
     globalThis.document.getElementById = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -361,7 +366,7 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.savingDetail.slice(0, 30)));
   } finally {
     recFolds.saving = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -373,7 +378,7 @@ test("(D) with nothing typed, a move goes at once: nothing is asked", () => {
     assert.equal(moves(), before + 1);
     assert.equal(byTestId(redraw(), "fr-leave-confirm"), null);
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -609,7 +614,7 @@ test("Rehearse it now is held with the facts row's own sentence until the facts 
     assert.deepEqual(sent, []);
     assert.equal(moves(), before, "and goes nowhere");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -626,6 +631,6 @@ test("Rehearse it now, the facts in, goes on at once and sends nothing: every ro
     assert.equal(went.length, before + 1);
     assert.equal(went.at(-1), "start/rehearse", "on to Rehearse, a new entry");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });

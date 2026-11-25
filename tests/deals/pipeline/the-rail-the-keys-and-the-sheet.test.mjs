@@ -76,6 +76,7 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("the Pipeline has its own rail under People's switch (the frame's strip), the line, and the table in sections -- every word contracts'", async () => {
   await fresh();
@@ -1031,11 +1032,11 @@ test("a proposal waiting with nothing back asks whether they said yes, a pass as
   assert.equal(byTestId(peek, "pipeline-peek-stand-word"), null);
   assert.match(textOf(byTestId(peek, "pipeline-peek-next")), /^Coming up · /);
   // A viewer reads the sheet and is offered nothing to press.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     assert.equal(byTestId(peekOf(draw()), "pipeline-peek-bar"), null);
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 

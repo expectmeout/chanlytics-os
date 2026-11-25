@@ -16,6 +16,7 @@ import { again, all, fresh, textOf, unmount } from "../../_stub-react.mjs";
 import { peopleWithSteps } from "../record/_world.mjs";
 import { headline, weekSeen } from "../_headline.mjs";
 import { NOW, W, dayWith, row } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
 const { setupCardReady } = await import("../../../apps/dashboard/src/surfaces/today/zones/setup-card.tsx");
@@ -88,18 +89,22 @@ function moment({ waiting = [], steps = false, setup = false, found = false }) {
   setSurfaceValue("setup", setup ? setupLeft() : undefined);
   setSurfaceValue("ask_morning", found ? morningWithAnIdea() : undefined);
   setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
-  W.__PEOPLE = {
-    rows: steps ? peopleWithSteps([["a", "Ana", -1]]) : peopleWithSteps([["a", "Ana", null]]),
-    lists: [],
-    aggregates: { total: 1 },
-    fetchedAt: NOW.getTime(),
-  };
+  bridgeHolds({
+    values: {
+      people: {
+        rows: steps ? peopleWithSteps([["a", "Ana", -1]]) : peopleWithSteps([["a", "Ana", null]]),
+        lists: [],
+        aggregates: { total: 1 },
+        fetchedAt: NOW.getTime(),
+      },
+    },
+  });
 }
 
 function cleared() {
   unmount();
   for (const key of ["today", "setup", "ask_morning", "reports_headline"]) setSurfaceValue(key, undefined);
-  delete W.__PEOPLE;
+  bridgeHolds({ values: { people: undefined } });
 }
 
 /** Today's first frame: drawn once, from nothing. */

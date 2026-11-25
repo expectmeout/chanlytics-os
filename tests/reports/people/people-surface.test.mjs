@@ -22,12 +22,16 @@ import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 import { dtoWith } from "./_people-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
 // rest until it is in front (shell/feed/the-runner-heals.test.mjs).
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };

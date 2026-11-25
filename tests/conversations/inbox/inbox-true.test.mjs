@@ -16,6 +16,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, standingOf, stateOf, memberWords } from "@chanlytics/contracts";
 import { installStubReact, fresh } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -90,11 +91,9 @@ const asked = (over = {}) => ({
 const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

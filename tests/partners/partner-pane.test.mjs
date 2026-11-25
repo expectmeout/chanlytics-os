@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HANDOVER_WORDS, PARTNER_WORDS, SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press, settle } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /** The code box the team card draws: the kit field's own input, which takes the event, not the field's words. */
 const teamCodeBox = (tree) =>
@@ -124,11 +125,15 @@ test("the offer: the share every new account starts with, the terms, and a press
 });
 
 test("a partner: the link on this origin, the row's share, the ledger's sums, and how many came through the link", () => {
-  globalThis.window.__WORKSPACES = [
-    { id: "a", slug: "a", name: "Mine", role: "owner" },
-    { id: "b", slug: "b", name: "Bayside", role: "partner" },
-    { id: "c", slug: "c", name: "Harbor", role: "partner" },
-  ];
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "a", slug: "a", name: "Mine", role: "owner" },
+        { id: "b", slug: "b", name: "Bayside", role: "partner" },
+        { id: "c", slug: "c", name: "Harbor", role: "partner" },
+      ],
+    },
+  });
   setAccount({
     dto: { ...ROW, share_bp: 2000 },
     balance: [

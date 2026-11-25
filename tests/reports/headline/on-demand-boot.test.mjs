@@ -12,12 +12,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { historyOf, legacyAddress } from "../../shell/address/_address.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const heard = new Map();
+bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
   // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
-  __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!heard.has(type)) heard.set(type, new Set());
@@ -50,7 +51,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 14) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
-win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
+bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");

@@ -9,8 +9,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEED_YOU_WORDS } from "@chanlytics/contracts";
 import { installStubReact, fresh, all, textOf, press } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __surfaceFailed: () => false });
+bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
+installStubReact({});
 const { Words } = await import("../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 
 const lineOf = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ny-signed")[0];

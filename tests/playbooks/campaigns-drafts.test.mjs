@@ -42,6 +42,7 @@ import {
   press,
   settle,
 } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const { stateOf, NEW_WORDS: W } = contracts;
 const TID = "t-studio";
@@ -53,6 +54,12 @@ const NOW = Date.now();
 const went = [];
 const replaced = [];
 const toasts = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/studio",
@@ -62,8 +69,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
 });
 const SRC = "../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
@@ -75,17 +80,15 @@ const TM = globalThis.__tabMemory;
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to),
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __surfaceState: () => "live",
 });
 // React's context, which the react-server condition this suite runs under has none of: Campaigns' toast is held in one at the
 // route's mount (home/route-toast.ts), and New, drawn here on its own, reads its default -- none -- and says its own toast.

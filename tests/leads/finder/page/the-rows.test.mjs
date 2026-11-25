@@ -72,6 +72,7 @@ import {
   writes,
   wrote,
 } from "./_page.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 test("Leads draws every row of a list on its first draw where its box cannot be watched", async () => {
   // The window of a long list's rows (kit/rows/shown-rows.ts) is drawn only where the browser can watch the list's box;
@@ -282,14 +283,14 @@ test("a press on a gated Export shows the reason at the button, as every gate do
   await fresh({ role: "operator" });
   const shown = [];
   const keep = globalThis.window.__tip;
-  globalThis.window.__tip = { show: (el) => shown.push(el) };
+  bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
   try {
     const exportIt = byTestId(seen(draw()), "leads-export");
     const pressed = { stopPropagation() {}, preventDefault() {}, currentTarget: { name: "the Export button" } };
     exportIt.props.onClick(pressed);
     assert.deepEqual(shown, [pressed.currentTarget], "the tip is shown at the button that was pressed");
   } finally {
-    globalThis.window.__tip = keep;
+    bridgeHolds({ parts: { tip: keep } });
   }
 });
 

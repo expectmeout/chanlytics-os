@@ -22,6 +22,7 @@ import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/mod
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -29,11 +30,11 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 /* ---------------------------------- the window ---------------------------------- */
 
 const went = [];
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  __chrome: { state: stateOf },
   appNavigate: (to, opts) => went.push(["app", to, opts || null]),
   canDo: () => true,
   gate: () => ({}),

@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -46,7 +47,7 @@ globalThis.document = {
 const role = { now: "owner" };
 const asRole = (r) => {
   role.now = r;
-  globalThis.window.__ME = { email: "dana@northside.example", role: r };
+  bridgeHolds({ who: { me: { email: "dana@northside.example", role: r } } });
 };
 /** The timers a page set with window.setInterval, held and run by a test: a tick is a call of its function. */
 const intervals = [];
@@ -77,7 +78,6 @@ globalThis.window = {
   clearInterval: (h) => {
     if (intervals[h - 1]) intervals[h - 1].live = false;
   },
-  __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
 };
 
@@ -165,14 +165,14 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
-globalThis.window.__tip = { show: (el) => tipped.push(el) };
+bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: {} },
-  __chrome: { state: stateOf },
 });
 // The billing surface as the shell installs it: the pane's verbs are the module's object, which `__billing` is.
 const { installBilling } = await import("../../apps/dashboard/src/surfaces/settings/billing/surface.ts");

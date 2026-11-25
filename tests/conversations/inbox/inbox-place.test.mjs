@@ -20,6 +20,7 @@ import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlyt
 import { installStubReact, fresh, again, find, textOf, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -69,7 +70,15 @@ const asked = (over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const address = await legacyAddress();
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -79,10 +88,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, address, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
@@ -654,7 +659,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
     );
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
     delete globalThis.window.appNavigate;
   }
 });
@@ -791,7 +796,7 @@ test("the words in the Inbox's search come back after a refresh, in this tab onl
     assert.equal(box(draw()).props.value, "", "and an emptied box stays empty");
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -860,7 +865,7 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
     assert.equal(globalThis.window.__tabMemory.draft("reply", "th-nina"), null);
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 

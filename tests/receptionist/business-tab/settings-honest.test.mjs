@@ -17,6 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -41,6 +42,17 @@ globalThis.document = {
   getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [
+        { id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -66,8 +78,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
 };
 
 /* ------------------------------ a stub React ------------------------------ */
@@ -183,28 +193,23 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
+bridgeHolds({
+  parts: {
+    chrome: { state: stateOf },
+    saveSettings: (config, version, accepted) => {
+      saved.push({ config, version });
+      accepted();
+      return Promise.resolve({ ok: true });
+    },
+  },
+});
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  __chrome: { state: stateOf },
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   canDo: () => true,
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) =>
-      String(name || email)
-        .slice(0, 2)
-        .toUpperCase(),
-    words: (me) => ({ name: me.display_name || me.email, email: me.email }),
-  },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  // The bridge's versioned save (inbox-verbs.ts). Without it every save returns before its checks run.
-  __saveSettings: (config, version, accepted) => {
-    saved.push({ config, version });
-    accepted();
-    return Promise.resolve({ ok: true });
-  },
 });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
@@ -333,8 +338,8 @@ const workspace = ({
 } = {}) => {
   read.team = team;
   read.invites = invites;
+  bridgeHolds({ who: { me: { email: "owner@northside.example", role: "owner", display_name: "Dana" } } });
   Object.assign(globalThis.window, {
-    __ME: { email: "owner@northside.example", role: "owner", display_name: "Dana" },
     ...over,
   });
   seam(record);
@@ -444,6 +449,7 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
 });
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
+  bridgeHolds({ who: { me: { email: "ana@northside.example", role: "owner", display_name: "" } } });
   workspace({
     team: ["ana", "bo", "cy", "di", "ed", "flo"].map((n, i) => ({
       membershipId: `m-${n}`,
@@ -451,7 +457,6 @@ test("a real roster is counted in people, never in seats of a plan it does not h
       displayName: "",
       role: i ? "viewer" : "owner",
     })),
-    __ME: { email: "ana@northside.example", role: "owner", display_name: "" },
   });
   const tree = settings("team");
   assert.ok(textOf(tree).includes("6 people"), "six members, more than the mockup's five seats");

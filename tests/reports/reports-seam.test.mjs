@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, redrawWanted, quiet } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -26,7 +27,7 @@ installStubReact();
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-globalThis.__ACTIVE_WORKSPACE = "t-salon";
+bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);

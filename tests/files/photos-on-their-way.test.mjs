@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { ROOT } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
@@ -27,6 +28,7 @@ const theReadLands = async () => {
     fetchedAt: reads,
   });
 };
+bridgeHolds({ parts: { refreshSurface: async () => theReadLands() } });
 const win = {
   location: { pathname: "/w/harbor/admin/files", search: "", hash: "", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -34,8 +36,6 @@ const win = {
   addEventListener: (t, fn) => (heard[t] ||= []).push(fn),
   removeEventListener() {},
   dispatchEvent: () => true,
-  // The read a run's end asks for: as a real one does, it lands in the surface's value, unless a test says otherwise.
-  __refreshSurface: async () => theReadLands(),
   fetch: async () => {
     throw new Error("nothing answers");
   },

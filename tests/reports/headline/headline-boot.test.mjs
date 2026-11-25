@@ -15,14 +15,18 @@ import { installStubReact } from "../../_stub-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 import { campaignDto, cday, reportDto, rday } from "../_report-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 installStubReact();
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 const keepError = console.error;
 console.error = () => {};
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");

@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (p) => pathToFileURL(path.join(ROOT, p)).href;
@@ -32,10 +33,8 @@ globalThis.window = tab();
 const { knownZone, workspaceZone } = await import(at("apps/dashboard/src/bridge/zone.ts"));
 
 test("the workspace's own zone, once published, is what the tab knows, and this browser remembers it by the workspace's address", () => {
-  const win = tab({
-    __WORKSPACES: [{ id: "t1", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "t1",
-  });
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: "America/New_York" }], activeWorkspaceId: "t1" } });
+  const win = tab({});
   assert.equal(knownZone(win), "America/New_York");
   assert.deepEqual(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")), { marisas: "America/New_York" });
 });
@@ -51,7 +50,8 @@ test("a cold boot answers from the zone this browser remembers, and makes no rea
 });
 
 test("the workspace's own zone wins over the remembered one, and replaces it", () => {
-  const win = tab({ __WORKSPACES: [{ id: "t1", timezone: "Europe/Madrid" }], __ACTIVE_WORKSPACE: "t1" });
+  bridgeHolds({ who: { workspaces: [{ id: "t1", timezone: "Europe/Madrid" }], activeWorkspaceId: "t1" } });
+  const win = tab({});
   win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ marisas: "America/Chicago" }));
   assert.equal(knownZone(win), "Europe/Madrid");
   assert.equal(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")).marisas, "Europe/Madrid");

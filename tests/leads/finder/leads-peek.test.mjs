@@ -26,6 +26,7 @@ import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -113,6 +114,7 @@ let recorded = null;
 const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } }, { fresh: true });
 globalThis.window = {
   document: globalThis.document,
   addEventListener: on(listeners),
@@ -158,9 +160,6 @@ globalThis.window = {
       },
     },
   },
-  __roleGate: roleGate,
-  // The one colour vocabulary, as the app publishes it: the fit's pill takes its tone from here.
-  __chrome: { state: stateOf },
 };
 // The shell's helpers the sheet still asks of the window by way of frame-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).

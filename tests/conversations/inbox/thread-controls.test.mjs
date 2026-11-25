@@ -24,12 +24,20 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live", href: (route, p) => `${route}|${p.id}` },
+});
 installStubReact({
   location: {
     pathname: "/w/marisas",
@@ -39,18 +47,12 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: {
     nav() {},
     R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
     IX_NOW: "12:04",
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
-  __surfaceState: () => "live",
-  __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
   setTimeout: () => 1,
@@ -836,23 +838,28 @@ test("a step due under the head: what, and when it was due, with Done outside th
   // The surfaces read again (frame-verbs refreshSurface, through the runner's door).
   const readAgain = [];
   const w = globalThis.window;
-  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate, __refreshSurface: w.__refreshSurface };
-  Object.assign(w, {
-    __refreshSurface: (key) => {
-      readAgain.push(key);
-      return Promise.resolve();
-    },
-    __clock: { zone: () => ZONE },
-    __personNotes: {
-      dayOf: stepDayOf,
-      dueDay: dueStepDay,
-      words: NOTE_WORDS,
-      done: async (...a) => {
-        pressed.push(a);
-        if (hold) await hold;
-        return answer;
+  bridgeHolds({ parts: { refreshSurface: w.__refreshSurface } });
+  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
+  bridgeHolds({
+    parts: {
+      refreshSurface: (key) => {
+        readAgain.push(key);
+        return Promise.resolve();
+      },
+      clock: { zone: () => ZONE },
+      personNotes: {
+        dayOf: stepDayOf,
+        dueDay: dueStepDay,
+        words: NOTE_WORDS,
+        done: async (...a) => {
+          pressed.push(a);
+          if (hold) await hold;
+          return answer;
+        },
       },
     },
+  });
+  Object.assign(w, {
     dispatchEvent: (e) => {
       events.push([e.type, e.detail]);
       return true;
@@ -966,8 +973,8 @@ test("a step due under the head: what, and when it was due, with Done outside th
   } finally {
     Object.assign(w, keep);
     peopleAre(undefined);
-    delete w.__personNotes;
-    delete w.__clock;
+    bridgeHolds({ parts: { personNotes: undefined } });
+    bridgeHolds({ parts: { clock: undefined } });
     delete w.openStepSheet;
   }
 });
@@ -981,7 +988,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   // What happens, in order: the Actions button taking focus, and the sheet asked for.
   const order = [];
   // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
-  globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
+  bridgeHolds({ parts: { deal: { menu: dealMenuActs, actWords: DEAL_ACT_WORDS } } });
   globalThis.window.openDealSheet = (ask) => {
     opened.push(ask);
     order.push("sheet");
@@ -1062,7 +1069,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   } finally {
     peopleAre(undefined);
     delete globalThis.document.querySelector;
-    globalThis.window.__deal = was.deal;
+    bridgeHolds({ parts: { deal: was.deal } });
     globalThis.window.openDealSheet = was.open;
   }
 });

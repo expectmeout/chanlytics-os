@@ -7,15 +7,16 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 import { historyOf, legacyAddress } from "../shell/address/_address.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const listening = new Map();
 /** What each read asked for, and how it answers; a test may hold an answer back by handing a promise. */
 const asked = [];
 let answerTo = () => ({});
 
+bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
   __afterTheMoveMs: 0,
-  __ACTIVE_WORKSPACE: "ws-1",
   location: {
     pathname: "/w/acme/admin/files",
     search: "",
@@ -56,7 +57,7 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
+bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { filesOverride, showFiles, showMoreFiles } = await importSrc("apps/dashboard/src/surfaces/files/surface.ts");
 /** A shelf pressed: all of its kinds, and no words found by. */

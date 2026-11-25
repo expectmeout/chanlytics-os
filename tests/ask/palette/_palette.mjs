@@ -34,6 +34,7 @@ import {
   LeadSearchPlanSchema,
   planSentence,
 } from "@chanlytics/contracts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -98,7 +99,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS.owner || {})[a], myRole: () => "owner" },
 };
 
@@ -608,7 +608,7 @@ export const phoneWindow = () => {
 /** The Line open, and how many times it was closed. */
 export const lineCounted = async () => {
   ask([]);
-  globalThis.window.__chrome = { typing: (t) => isTypingTarget(t?.tagName, !!t?.isContentEditable) };
+  bridgeHolds({ parts: { chrome: { typing: (t) => isTypingTarget(t?.tagName, !!t?.isContentEditable) } } });
   const line = { closed: 0 };
   const props = { open: true, onClose: () => (line.closed += 1) };
   render(Palette, props);

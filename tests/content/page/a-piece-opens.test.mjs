@@ -20,10 +20,12 @@ import { build } from "esbuild";
 import { ROOT } from "../../_source.mjs";
 import { piecesToReadAhead } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/piece-open.ts";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 const CONTENT = "../../apps/dashboard/src/surfaces/campaigns/content";
 
+bridgeHolds({ parts: { refreshSurface: async () => {} } }, { fresh: true });
 globalThis.window = {
   location: { pathname: "/w/harbor/campaigns/content", search: "", hash: "", href: "http://127.0.0.1/", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -32,7 +34,6 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  __refreshSurface: async () => {},
   fetch: async () => {
     throw new Error("nothing answers");
   },

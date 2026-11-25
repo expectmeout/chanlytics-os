@@ -12,9 +12,11 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { ROOT } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
+bridgeHolds({ parts: { refreshSurface: async () => {} } }, { fresh: true });
 globalThis.window = {
   location: { pathname: "/w/harbor/today", search: "", hash: "", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -23,7 +25,6 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  __refreshSurface: async () => {},
   fetch: async () => {
     throw new Error("nothing answers");
   },

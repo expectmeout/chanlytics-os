@@ -39,6 +39,7 @@ import { importSrc } from "../../../_source.mjs";
 import { ROLE_PERMS, roleGate, stateOf, toLeadRowVM } from "@chanlytics/contracts";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { lineBox } from "../../../shared/_line.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -366,14 +367,15 @@ globalThis.CustomEvent ??= class CustomEvent {
 /** Where the page sent the browser with window.open (an export's link): [href, target]. */
 export const navigated = [];
 
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-salon", timezone: TZ }], activeWorkspaceId: "ws-salon" } },
+  { fresh: true },
+);
 globalThis.window = {
   document: globalThis.document,
   // On a workspace page, so the typed client names the workspace on every request the way it does in the browser.
   location: { pathname: "/w/salon", hash: "#/clients/leads", origin: "https://app.chanlytics.com", href: "" },
   open: (href, target) => navigated.push([href, target]),
-  // The zone the surface says its times in, published the way the workspace surface publishes it: no extra read.
-  __WORKSPACES: [{ id: "ws-salon", timezone: TZ }],
-  __ACTIVE_WORKSPACE: "ws-salon",
   history: {
     replaceState: (_s, _t, hash) => {
       globalThis.window.location.hash = hash;
@@ -1084,20 +1086,22 @@ export const install = ({ role = "owner" } = {}) => {
       return { ok: false, message: "no" };
     },
   });
+  bridgeHolds({
+    who: { me: { role } },
+    parts: {
+      chrome: { state: stateOf },
+      clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM", zone: () => TZ },
+    },
+  });
   Object.assign(globalThis.window, {
-    // The chrome bridge's state map, as shell.ts publishes it: StatePill takes its tone from here and nowhere else.
-    __chrome: { state: stateOf },
     // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
     // (surfaces/frame/app-shell.tsx), the plain open ⌘K makes, which keeps what the owner left in the field. The page reaches them through
     // frame-verbs.ts (askAbout, openAsk, askCalls).
     askAbout: (detail) => asks.push(detail),
     appAsk: () => asks.push("open"),
-    __roleGate: roleGate,
-    __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
     usePPToast: () => [null, (t) => flashes.push(t)],
     CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
-    __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM", zone: () => TZ },
   });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();

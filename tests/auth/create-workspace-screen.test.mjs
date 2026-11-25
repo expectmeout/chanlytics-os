@@ -15,6 +15,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LEAD_PREVIEW_WORDS, SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SCREEN = path.join(ROOT, "apps/dashboard/src/bridge/CreateWorkspace.tsx");
@@ -128,11 +129,15 @@ const settle = async (props) => {
 const standIn = (answer) => {
   const w = { asked: [], went: [], signedOut: 0 };
   w.location = { origin: "https://app.chanlytics.com", assign: (to) => w.went.push(to) };
-  w.__shell = {
-    signOut: () => {
-      w.signedOut += 1;
+  bridgeHolds({
+    parts: {
+      shell: {
+        signOut: () => {
+          w.signedOut += 1;
+        },
+      },
     },
-  };
+  });
   w.fetch = async (url, init = {}) => {
     w.asked.push({
       url: String(url),
@@ -561,7 +566,7 @@ test("a handover (0016): asked before anything opens, in the partner's name, and
   });
   w.location.pathname = "/w/mine/";
   w.location.hash = "";
-  w.__ME = { email: "owner@luna.example", handovers: [WAITING] };
+  bridgeHolds({ who: { me: { email: "owner@luna.example", handovers: [WAITING] } } });
   globalThis.window = w;
   cells = [];
   assert.equal(ask(false), null, "nothing is asked before the workspace list is read");
@@ -583,7 +588,11 @@ test("a handover (0016): asked before anything opens, in the partner's name, and
 
 test("a handover: Decline says no through its door and the app opens; Not now asks nothing and the app opens; a refusal is said", async () => {
   const w = standIn({ status: 200, body: { ok: true, data: { declined: true } } });
-  w.__ME = { handovers: [WAITING, { ...WAITING, tenantId: "22222222-2222-4222-8222-222222222222", workspace: "Sol" }] };
+  bridgeHolds({
+    who: {
+      me: { handovers: [WAITING, { ...WAITING, tenantId: "22222222-2222-4222-8222-222222222222", workspace: "Sol" }] },
+    },
+  });
   globalThis.window = w;
   cells = [];
   let tree = ask();
@@ -605,7 +614,7 @@ test("a handover: Decline says no through its door and the app opens; Not now as
       error: { code: "conflict", message: "This invitation has expired. Ask your partner to send it again." },
     },
   });
-  refused.__ME = { handovers: [WAITING] };
+  bridgeHolds({ who: { me: { handovers: [WAITING] } } });
   globalThis.window = refused;
   cells = [];
   tree = ask();
@@ -621,7 +630,7 @@ test("a handover: Decline says no through its door and the app opens; Not now as
 
 test("no handover, or none on an older server: nothing is asked", () => {
   globalThis.window = standIn(ON_THE_LIST);
-  globalThis.window.__ME = { email: "owner@luna.example" };
+  bridgeHolds({ who: { me: { email: "owner@luna.example" } } });
   cells = [];
   assert.equal(ask(), null);
 });

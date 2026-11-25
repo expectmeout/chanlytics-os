@@ -57,6 +57,7 @@ import {
   systemBlocks,
   where,
 } from "./_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("grounding: a citation must name a row a tool returned this turn; pages are always allowed", () => {
   const read = emptyReadSet();
@@ -234,8 +235,10 @@ test("the Pipeline is every workspace's jump, after Leads; the back office for C
 test("the bridge's jump index reads the bit the back office's door is drawn by, and a few words reach each new page", () => {
   const index = (w) => jumpIndexFrom({ ...w });
   const first = (words, w) => askJump(words, index(w))[0]?.to ?? null;
-  const staff = { __PEOPLE: { rows: [] }, __ME: { role: "owner", platform_admin: true } };
-  const owner = { __PEOPLE: { rows: [] }, __ME: { role: "owner" } };
+  bridgeHolds({ who: { me: { role: "owner", platform_admin: true } }, values: { people: { rows: [] } } });
+  const staff = {};
+  bridgeHolds({ who: { me: { role: "owner" } }, values: { people: { rows: [] } } });
+  const owner = {};
   assert.equal(first("pipe", staff), "clients/pipeline");
   assert.ok(
     askJump("deals", index(staff)).some((j) => j.to === "clients/pipeline"),
@@ -252,7 +255,8 @@ test("the bridge's jump index reads the bit the back office's door is drawn by, 
     assert.equal(first("setting up", w), "start", "the first run is a jump away");
   }
   // The rest of the index is the browser's own rows, after the pages.
-  const people = index({ ...staff, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }] } });
+  bridgeHolds({ values: { people: { rows: [{ id: "p-1", name: "Pip Adams" }] } } });
+  const people = index({ ...staff });
   assert.deepEqual(
     askJump("pip", people).map((j) => j.label),
     ["Pipeline", "Reports › Pipeline", "Pip Adams"],
@@ -805,88 +809,93 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     team: [],
     invites: [],
   });
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "w1",
+    },
+    values: {
+      inbox: {
+        THREADS: [
+          { id: "th-1", real: true, who: "Dani", needsYou: true, escalatedAtMs: NOW - 60_000, preview: "hi" },
+          { id: "seed", real: false, who: "Aisha Khan", needsYou: true },
+        ],
+      },
+      live: {
+        now: [],
+        recent: [
+          {
+            callId: "k1",
+            cvId: "cv-k1",
+            who: "+1 917 555 0100",
+            missed: true,
+            live: false,
+            // Just now: a minute back fell into yesterday when the suite ran in New York's first minute (17 Oct 2026).
+            startedAtMs: Date.now(),
+          },
+        ],
+      },
+      people: { rows: [{ id: ID, name: "Rosa Pérez" }] },
+      today: {
+        queue: {
+          rows: [
+            {
+              id: "q1",
+              kind: "handoff",
+              conversationId: "c1",
+              callId: null,
+              who: "Nora",
+              channel: "WhatsApp",
+              when: "waited 2h",
+              sentence: "Can I come at 3?",
+              quoted: true,
+              cta: { label: "Reply", to: "inbox/th-c1" },
+            },
+            {
+              id: "q2",
+              kind: "call",
+              conversationId: null,
+              callId: "k9",
+              who: "Lee",
+              channel: "Phone",
+              when: "2:14 PM · 1:35",
+              sentence: "Asked about a gift card.",
+              quoted: false,
+              cta: { label: "Listen", to: "conversations/cv-k9" },
+            },
+          ],
+        },
+      },
+      broadcasts: {
+        rows: [
+          {
+            id: "r1",
+            name: "Win-back",
+            playbook_id: "pb-win",
+            state: "pending_approval",
+            recipient_count: 1,
+            when: "now",
+            counts: { sent: 0, replied: 0 },
+            audience: { label: "Win-back · quiet 30 days" },
+          },
+          {
+            id: "r2",
+            state: "sent",
+            recipient_count: 4,
+            when: "Sep 20",
+            counts: { sent: 4, replied: 1 },
+            audience: { label: "Welcome" },
+          },
+        ],
+      },
+    },
+  });
   const win = {
     fetch: async (url, init) => {
       fetched.push({ url, init });
       return { ok: true, status: 200, body };
     },
     location: { assign: () => {} },
-    INBOX_DATA: {
-      THREADS: [
-        { id: "th-1", real: true, who: "Dani", needsYou: true, escalatedAtMs: NOW - 60_000, preview: "hi" },
-        { id: "seed", real: false, who: "Aisha Khan", needsYou: true },
-      ],
-    },
-    __LIVE: {
-      now: [],
-      recent: [
-        {
-          callId: "k1",
-          cvId: "cv-k1",
-          who: "+1 917 555 0100",
-          missed: true,
-          live: false,
-          // Just now: a minute back fell into yesterday when the suite ran in New York's first minute (17 Oct 2026).
-          startedAtMs: Date.now(),
-        },
-      ],
-    },
-    __PEOPLE: { rows: [{ id: ID, name: "Rosa Pérez" }] },
-    __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "w1",
-    // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
-    TODAY_DATA: {
-      queue: {
-        rows: [
-          {
-            id: "q1",
-            kind: "handoff",
-            conversationId: "c1",
-            callId: null,
-            who: "Nora",
-            channel: "WhatsApp",
-            when: "waited 2h",
-            sentence: "Can I come at 3?",
-            quoted: true,
-            cta: { label: "Reply", to: "inbox/th-c1" },
-          },
-          {
-            id: "q2",
-            kind: "call",
-            conversationId: null,
-            callId: "k9",
-            who: "Lee",
-            channel: "Phone",
-            when: "2:14 PM · 1:35",
-            sentence: "Asked about a gift card.",
-            quoted: false,
-            cta: { label: "Listen", to: "conversations/cv-k9" },
-          },
-        ],
-      },
-    },
-    __BROADCASTS: {
-      rows: [
-        {
-          id: "r1",
-          name: "Win-back",
-          playbook_id: "pb-win",
-          state: "pending_approval",
-          recipient_count: 1,
-          when: "now",
-          counts: { sent: 0, replied: 0 },
-          audience: { label: "Win-back · quiet 30 days" },
-        },
-        {
-          id: "r2",
-          state: "sent",
-          recipient_count: 4,
-          when: "Sep 20",
-          counts: { sent: 4, replied: 1 },
-          audience: { label: "Welcome" },
-        },
-      ],
-    },
   };
   const api = mod.installAsk(win, storage);
   // The object it publishes carries every one of the palette's own: the parts composed, not re-implemented.

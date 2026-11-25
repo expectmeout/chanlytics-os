@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { leadQuestionRoute, NOTHING_WAITS_KNOWN, noticeInNeedYou, toTodayVM } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { metrics, msg, NOW, settingsRead, thread } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -143,14 +144,15 @@ const inboxThread = (id, who) => ({
 const bell = (threads) => {
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  bridgeHolds({
+    values: { inbox: { THREADS: threads }, live: { now: [], recent: [] } },
+    reads: { notifications: { dto: { notifications: [BOOKING], seen_at: null, read_through_at: null } } },
+  });
   const win = {
     addEventListener() {},
     document: { visibilityState: "visible" },
     focus() {},
     location: { hash: "" },
-    INBOX_DATA: { THREADS: threads },
-    __LIVE: { now: [], recent: [] },
-    __NOTIFICATIONS: { dto: { notifications: [BOOKING], seen_at: null, read_through_at: null } },
   };
   return bridge.installNotifications(win, storage, 5);
 };

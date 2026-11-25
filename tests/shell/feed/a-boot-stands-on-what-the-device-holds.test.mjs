@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -22,10 +23,13 @@ globalThis.window.dispatchEvent = (e) => {
   for (const fn of [...(windowListeners.get(e.type) ?? [])]) fn(e);
   return true;
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 globalThis.document = { visibilityState: "visible", addEventListener: () => {}, removeEventListener: () => {} };
 
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");

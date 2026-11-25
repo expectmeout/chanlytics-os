@@ -49,6 +49,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode } from "../../../_source.mjs";
 import { kitPages, useStubHooks } from "../../../_stub-react.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 export const clock = (sweep, healthy, detail = null) => ({
   sweep,
@@ -283,8 +284,8 @@ export const line = (over = {}) => ({
  * -------------------------------------------------------------------------- */
 globalThis.React = { Fragment: "Fragment" };
 
+bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", platform_admin: true } } }, { fresh: true });
 globalThis.window = {
-  __ME: { email: "ruben@rjcapital.example", platform_admin: true },
   canDo: () => true,
   // The shared toast, as frame-globals provides it: [node, flash].
   usePPToast: () => [null, () => {}],

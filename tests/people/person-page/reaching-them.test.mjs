@@ -35,6 +35,7 @@ import {
   way,
   withMessages,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("a person's email address is said once, in Reach them, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
@@ -108,7 +109,7 @@ test("an address that is there shows with a quiet pencil; the door's refusal is 
   }
 
   const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     const withOne = (await profile(vm))();
     assert.equal(textOf(byTestId(withOne, "person-email")), "ana@example.com");
@@ -118,7 +119,7 @@ test("an address that is there shows with a quiet pencil; the door's refusal is 
     )();
     assert.equal(byTestId(without, "person-email"), null, "and with no address there is no empty row to read");
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 
@@ -229,7 +230,7 @@ test("a person opened from a People view steps to the one before and after (‹ 
     mq: globalThis.window.matchMedia,
   };
   const steps = [];
-  globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);
+  bridgeHolds({ parts: { tabMemory: tabMemoryFor(globalThis.window) } });
   globalThis.window.CHANLY.nav = (to, opts) => steps.push([to, opts]);
   try {
     const vm = toPersonVM(detail(), ZONE, new Date(NOW));
@@ -276,7 +277,7 @@ test("a person opened from a People view steps to the one before and after (‹ 
     // The people either side are read ahead (useWalk): let those reads land here, not in the next test's count.
     await settle();
   } finally {
-    globalThis.window.__tabMemory = keep.memory;
+    bridgeHolds({ parts: { tabMemory: keep.memory } });
     globalThis.window.CHANLY.nav = keep.nav;
     globalThis.window.matchMedia = keep.mq;
   }

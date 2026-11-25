@@ -16,14 +16,19 @@ import { SHORTCUTS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
+bridgeHolds({
+  who: {
+    workspaces: [
+      { id: "w1", name: "Studio One" },
+      { id: "w2", name: "Studio Two" },
+    ],
+    activeWorkspaceId: "w1",
+  },
+});
 installStubReact({
   usePPToast: () => [null, () => {}],
-  __WORKSPACES: [
-    { id: "w1", name: "Studio One" },
-    { id: "w2", name: "Studio Two" },
-  ],
-  __ACTIVE_WORKSPACE: "w1",
 });
 const W = globalThis.window;
 const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");

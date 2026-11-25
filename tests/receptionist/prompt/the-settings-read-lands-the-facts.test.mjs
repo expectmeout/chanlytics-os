@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const WS = "t-salon";
 globalThis.document = {
@@ -29,6 +30,15 @@ const storage = () => {
 };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: WS, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: WS,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -45,8 +55,6 @@ globalThis.window = {
   dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
-  __WORKSPACES: [{ id: WS, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: WS,
 };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

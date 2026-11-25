@@ -7,6 +7,7 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -39,6 +40,15 @@ globalThis.document ??= {
   querySelector: () => null,
 };
 const heard = [];
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: "t-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "t-harbor",
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "#/clients", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
@@ -51,8 +61,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: "t-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t-harbor",
   fetch: async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     if (u.pathname === "/api/v1/contacts")

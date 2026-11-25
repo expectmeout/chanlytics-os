@@ -69,6 +69,7 @@ import {
   went,
   withNobodyAnswered,
 } from "./_page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ above the work ------------------------------------ */
 
@@ -115,7 +116,8 @@ test("above the work, nothing while every line is up; a line that is down is one
 
 test("what is not a number: never the traffic the figures say, nor a reply that failed (Need you's row) under the head; a run that went out in the day", () => {
   clear();
-  set({ today: busy(), headline: headline(), __BROADCASTS: broadcasts() });
+  bridgeHolds({ values: { broadcasts: broadcasts() } });
+  set({ today: busy(), headline: headline() });
   const warned = draw(TodayAlertBand);
   assert.ok(
     !/receptionist answered|reached the phone line|messages? in/.test(textOf(warned)),
@@ -161,7 +163,8 @@ test("the lists a member pinned are lines, each with People's count where it has
     },
   };
   try {
-    set({ today: busy(), headline: headline(), __PEOPLE: lists });
+    bridgeHolds({ values: { people: lists } });
+    set({ today: busy(), headline: headline() });
     setSurfaceValue("people", lists);
     // People's lists' code, as the pins ask for it while Today loads (foot.tsx listsCode), landed.
     await import("../../../apps/dashboard/src/surfaces/people/people-lists.ts");
@@ -182,12 +185,14 @@ test("the lists a member pinned are lines, each with People's count where it has
     assert.equal(went.at(-1), `clients/list:${S2}`, "each opens its list on People");
     // Nothing pinned: no pins.
     const none = { ...lists, views: {} };
-    set({ __PEOPLE: none });
+    bridgeHolds({ values: { people: none } });
+    set({});
     setSurfaceValue("people", none);
     assert.equal(byTestId(draw(TodayPins), "today-pins"), null);
   } finally {
     setSurfaceValue("people", undefined);
-    set({ __PEOPLE: undefined });
+    bridgeHolds({ values: { people: undefined } });
+    set({});
   }
 });
 
@@ -211,7 +216,8 @@ test("a quiet day: the head says nothing needs you and proves the lines are list
 
 test("the calls read failed: Need you says so where its calls stand, once", () => {
   clear();
-  set({ today: toTodayVM(metrics(), threads(), escalations(), null, NOW), __BROADCASTS: { rows: [] } });
+  bridgeHolds({ values: { broadcasts: { rows: [] } } });
+  set({ today: toTodayVM(metrics(), threads(), escalations(), null, NOW) });
   const tree = draw(NeedYouOnToday);
   assert.ok(byTestId(tree, "today-calls-failed"));
   assert.equal(all(tree, (n) => String(n.props?.className || "").includes("empty-failed")).length, 1);
@@ -224,13 +230,17 @@ test("the calls read failed: Need you says so where its calls stand, once", () =
 test("who waits holds the card and the page's one primary verb; the run waiting for a word is a line after them, in contracts' words; the approval toast too", async () => {
   clear();
   const approved = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
+  bridgeHolds({
+    values: { broadcasts: broadcasts() },
+    parts: {
+      broadcasts: {
+        approve: async () => ({ ok: true, data: approved }),
+        cancel: async () => ({ ok: true, data: {} }),
+      },
+    },
+  });
   set({
     today: busy(),
-    __BROADCASTS: broadcasts(),
-    __broadcasts: {
-      approve: async () => ({ ok: true, data: approved }),
-      cancel: async () => ({ ok: true, data: {} }),
-    },
   });
   const tree = draw(NeedYouOnToday);
   const queue = byTestId(tree, "today-queue");
@@ -261,7 +271,8 @@ test("who waits holds the card and the page's one primary verb; the run waiting 
   assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);
   assert.ok(!textOf(flashes.at(-1).msg).includes("sending now"));
   // The broadcasts read failed: the queue's rows are current, and it says the runs could not be read.
-  set({ today: busy(), __BROADCASTS: undefined });
+  bridgeHolds({ values: { broadcasts: undefined } });
+  set({ today: busy() });
   failed.add("broadcasts");
   const broke = draw(NeedYouOnToday);
   assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the campaign runs/);
@@ -271,15 +282,21 @@ test("who waits holds the card and the page's one primary verb; the run waiting 
 test("a reach-out's run waiting on Today is opened, never approved from the card (D6): its sheet counts and names each send first", async () => {
   clear();
   const approvals = [];
+  bridgeHolds({
+    values: {
+      broadcasts: {
+        rows: [run("b-wait", "pending_approval"), run("b-wait-2", "pending_approval")],
+      },
+    },
+    parts: {
+      broadcasts: {
+        approve: async (id) => (approvals.push(id), { ok: true, data: { recipient_count: 3 } }),
+        cancel: async () => ({ ok: true, data: {} }),
+      },
+    },
+  });
   set({
     today: quietDay(),
-    __BROADCASTS: {
-      rows: [run("b-wait", "pending_approval"), run("b-wait-2", "pending_approval")],
-    },
-    __broadcasts: {
-      approve: async (id) => (approvals.push(id), { ok: true, data: { recipient_count: 3 } }),
-      cancel: async () => ({ ok: true, data: {} }),
-    },
   });
   // Two of a customer campaign's waiting for an OK are one row (the run review's item 5, the Campaigns wiring review's
   // rule D): it opens the first, whose screen walks the rest, and approves nothing. Nobody waits: it is the card.
@@ -294,15 +311,18 @@ test("a reach-out's run waiting on Today is opened, never approved from the card
   // held for a look, say what waits in both and open the held one first. "N runs wait for your OK" says nothing of leads.
   const cold = (id, state, over = {}) =>
     run(id, state, { audience: { kind: "reach_out", label: "Movers nearby", root_id: "s-movers" }, ...over });
-  set({
-    __BROADCASTS: {
-      rows: [
-        cold("b-first", "pending_approval", { recipient_count: 12 }),
-        cold("b-nudge", "sending", { held: 2, recipient_count: 9 }),
-        run("b-wait", "pending_approval"),
-      ],
+  bridgeHolds({
+    values: {
+      broadcasts: {
+        rows: [
+          cold("b-first", "pending_approval", { recipient_count: 12 }),
+          cold("b-nudge", "sending", { held: 2, recipient_count: 9 }),
+          run("b-wait", "pending_approval"),
+        ],
+      },
     },
   });
+  set({});
   const page = draw(NeedYouOnToday);
   card = cardOf(page);
   assert.ok(byTestId(card, "brief-cold-email"), "cold email's runs are one card");
@@ -323,17 +343,21 @@ test("a reach-out's run waiting on Today is opened, never approved from the card
   press(buttons(card, "Review")[0]);
   assert.deepEqual(went, ["campaigns/sequences/b-nudge/runs/b-nudge"], "the held one first, at its home");
   // A reach-out's run alone is opened, never approved from the card (D6).
-  set({
-    __BROADCASTS: {
-      rows: [run("b-reach", "pending_approval", { audience: { kind: "reach_out", label: "Movers nearby" } })],
+  bridgeHolds({
+    values: {
+      broadcasts: {
+        rows: [run("b-reach", "pending_approval", { audience: { kind: "reach_out", label: "Movers nearby" } })],
+      },
     },
   });
+  set({});
   const reach = cardOf(draw(NeedYouOnToday));
   assert.equal(buttons(reach, "Approve").length, 0, "no one-tap send of a reach-out from Today");
   assert.equal(buttons(reach, "Review").length, 1, "the card opens the run");
   assert.equal(buttons(reach, "See who's on it").length, 0, "one door, not the same door twice");
   // A playbook's run alone keeps its Approve, in the one word every screen says for it (decision 19): with its count.
-  set({ __BROADCASTS: { rows: [run("b-wait", "pending_approval")] } });
+  bridgeHolds({ values: { broadcasts: { rows: [run("b-wait", "pending_approval")] } } });
+  set({});
   const playbook = cardOf(draw(NeedYouOnToday));
   assert.equal(buttons(playbook, "Approve").length, 1);
   assert.equal(textOf(buttons(playbook, "Approve")[0]), LIFECYCLE_WORDS.ledger.approve(3));
@@ -345,22 +369,26 @@ test("a run's Approve from the card is said the moment the server takes it, with
   clear();
   let reread = () => {};
   const accepted = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
-  set({
-    today: quietDay(),
-    __BROADCASTS: broadcasts(),
-    __broadcasts: {
-      approve: (_id, opts = {}) => {
-        if (opts.onAccepted) opts.onAccepted(accepted);
-        return new Promise((r) => {
-          reread = () => r({ ok: true, data: accepted });
-        });
-      },
-      cancel: async (id, opts = {}) => {
-        canceled.push(id);
-        if (opts.onAccepted) opts.onAccepted({ was: "scheduled" });
-        return { ok: true, data: { was: "scheduled" } };
+  bridgeHolds({
+    values: { broadcasts: broadcasts() },
+    parts: {
+      broadcasts: {
+        approve: (_id, opts = {}) => {
+          if (opts.onAccepted) opts.onAccepted(accepted);
+          return new Promise((r) => {
+            reread = () => r({ ok: true, data: accepted });
+          });
+        },
+        cancel: async (id, opts = {}) => {
+          canceled.push(id);
+          if (opts.onAccepted) opts.onAccepted({ was: "scheduled" });
+          return { ok: true, data: { was: "scheduled" } };
+        },
       },
     },
+  });
+  set({
+    today: quietDay(),
   });
   const canceled = [];
   const waiting = cardOf(draw(NeedYouOnToday));
@@ -384,18 +412,22 @@ test("REGRESSION (S9-10): a run's Approve on Today waits while it is on its way 
   clear();
   const approvals = [];
   let land = () => {};
+  bridgeHolds({
+    values: { broadcasts: broadcasts() },
+    parts: {
+      broadcasts: {
+        approve: (id) => {
+          approvals.push(id);
+          return new Promise((r) => {
+            land = () => r({ ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } });
+          });
+        },
+        cancel: async () => ({ ok: true, data: {} }),
+      },
+    },
+  });
   set({
     today: quietDay(),
-    __BROADCASTS: broadcasts(),
-    __broadcasts: {
-      approve: (id) => {
-        approvals.push(id);
-        return new Promise((r) => {
-          land = () => r({ ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } });
-        });
-      },
-      cancel: async () => ({ ok: true, data: {} }),
-    },
   });
   const row = () => cardOf(again(() => W.React.createElement(NeedYouOnToday)));
   const first = cardOf(draw(NeedYouOnToday));
@@ -419,16 +451,20 @@ test("a waiting run whose day has passed is no row of Need you: nobody is asked 
   const approvals = [];
   const stale = zoneDayKey(Date.now() - 3 * 86_400_000, ZONE);
   const rows = broadcasts().rows.map((r) => (r.id === "b-wait" ? { ...r, run_for: stale } : r));
+  bridgeHolds({
+    values: { broadcasts: { ...broadcasts(), rows } },
+    parts: {
+      broadcasts: {
+        approve: async (id) => {
+          approvals.push(id);
+          return { ok: true, data: {} };
+        },
+        cancel: async () => ({ ok: true, data: {} }),
+      },
+    },
+  });
   set({
     today: busy(),
-    __BROADCASTS: { ...broadcasts(), rows },
-    __broadcasts: {
-      approve: async (id) => {
-        approvals.push(id);
-        return { ok: true, data: {} };
-      },
-      cancel: async () => ({ ok: true, data: {} }),
-    },
   });
   const queue = byTestId(draw(NeedYouOnToday), "today-queue");
   assert.equal(byTestId(queue, "brief-run-row"), null, "REGRESSION: a row over a run the verb refuses");
@@ -459,7 +495,8 @@ test("every person is a line, the first the card, three named under it; what the
     also: null,
   }));
   vm.queue.more_people = 0;
-  set({ today: vm, __BROADCASTS: broadcasts() });
+  bridgeHolds({ values: { broadcasts: broadcasts() } });
+  set({ today: vm });
   const tree = draw(NeedYouOnToday);
   assert.match(textOf(cardOf(tree)), /Person one/, "the first to answer holds the card");
   assert.deepEqual(
@@ -520,7 +557,8 @@ test("a search waiting on you is a line of the queue like a person: its name, it
     },
   };
   const vm = toTodayVM(metrics(), threads(), escalations(), calls(), NOW, [waiting]);
-  set({ today: vm, __BROADCASTS: { rows: [] } });
+  bridgeHolds({ values: { broadcasts: { rows: [] } } });
+  set({ today: vm });
   const tree = draw(NeedYouOnToday);
   const line = linesIn(tree, "today-queue").find((l) => l.props["data-testid"] === "queue-search");
   assert.ok(line, "the search is a line as every person is");
@@ -596,7 +634,8 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
 test("AI found ranks what the workspace's own counts say first: the first its card, its head, its numbers, its door, Not today and Ask why; the next its lines, each a door; the rest said", () => {
   clear();
   const vm = withNobodyAnswered();
-  set({ today: vm, headline: headline(), __PEOPLE: people() });
+  bridgeHolds({ values: { people: people() } });
+  set({ today: vm, headline: headline() });
   const { rows: rules } = todayLeaks(headline(), people(), vm.noReply, { max: Number.POSITIVE_INFINITY });
   assert.ok(rules.length > 3, `the fixture holds more rules than AI found draws: ${rules.map((l) => l.id).join(", ")}`);
   const ranked = [...rules.filter((l) => l.tone === "warn"), ...rules.filter((l) => l.tone !== "warn")];
@@ -625,7 +664,8 @@ test("AI found ranks what the workspace's own counts say first: the first its ca
     "the rest are said, never dropped",
   );
   // Nothing read yet, nothing failed: nothing to rank draws nothing.
-  set({ today: undefined, headline: undefined, __PEOPLE: undefined });
+  bridgeHolds({ values: { people: undefined } });
+  set({ today: undefined, headline: undefined });
   const none = draw(FoundOnToday);
   assert.deepEqual([byTestId(none, "today-ask-found"), cardOf(none)], [null, null], "nothing to rank, no pane");
 });
@@ -710,7 +750,8 @@ test("REGRESSION: AI found over People's real rows -- a yes to offers with no nu
   };
   // A week that booked and answered, so the reach row is the rule that stands.
   const R = headline({ in: 23, ai: 23, you: 0, none: 0, booking: { calendar: "ok", days: 7, asked: 18, booked: 17 } });
-  set({ today: busy(), headline: R, __PEOPLE: P });
+  bridgeHolds({ values: { people: P } });
+  set({ today: busy(), headline: R });
   const want = todayLeaks(R, P).rows.find((l) => l.id === "unreachable");
   assert.ok(want, "nobody can be sent an offer: the rule stands");
   const reach = foundRowOf(draw(FoundOnToday), want.head);
@@ -792,7 +833,8 @@ test("AI found, in every workspace: the consultations with nothing after them ar
   const P = { rows, lists: [], aggregates: { total: rows.length } };
   // A week that booked and answered, so the consultations are the one rule.
   const R = headline({ in: 23, ai: 23, you: 0, none: 0, booking: { calendar: "ok", days: 7, asked: 18, booked: 17 } });
-  set({ today: busy(), headline: R, __PEOPLE: P });
+  bridgeHolds({ values: { people: P } });
+  set({ today: busy(), headline: R });
   const want = todayLeaks(R, P).rows.find((l) => l.id === "consults-waiting");
   assert.ok(want, "three consultations this week, nothing after any");
   assert.equal(want.text, "3 consultations in the last week with nothing booked or proposed since.");
@@ -820,7 +862,8 @@ test("the head says nothing under its sentence: what happened since the member l
     unread: () => unreadCount(rows),
     older: () => 0,
   };
-  set({ today: busy(), __notifs: api });
+  bridgeHolds({ parts: { bell: api } });
+  set({ today: busy() });
   const said = headSaid(true);
   assert.ok(said?.sentence, "the head's one sentence stands");
   assert.equal("after" in said, false, "REGRESSION: a line under the sentence, the bell's news said again");
@@ -843,15 +886,12 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
     unread: () => 1,
     older: () => 0,
   };
+  bridgeHolds({ values: { people: people(), broadcasts: broadcasts() }, parts: { clock: W.__clock, bell: bell } });
   set({
     today: busy(),
     __TODAY_SAMPLE: {
-      __PEOPLE: people(),
-      __BROADCASTS: broadcasts(),
       __CALENDAR: calendar([block("b9", 9, "Gloss")]),
       __PLAYBOOKS: noPlaybooks(),
-      __clock: W.__clock,
-      __notifs: bell,
     },
   });
   const drawn = draw(TodayZones);
@@ -875,22 +915,25 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
 
 test("the page is its bands and nothing seeded", () => {
   clear();
+  bridgeHolds({
+    values: { people: people(), broadcasts: broadcasts() },
+    parts: {
+      bell: {
+        feed: () => [],
+        onChange: () => () => {},
+        read() {},
+        dismiss() {},
+        seenAll() {},
+        unread: () => 0,
+        older: () => 0,
+      },
+    },
+  });
   set({
     today: busy(),
     headline: headline(),
-    __PEOPLE: people(),
-    __BROADCASTS: broadcasts(),
     calendar: calendar([block("b9", 9, "Gloss")]),
     playbooks: noPlaybooks(),
-    __notifs: {
-      feed: () => [],
-      onChange: () => () => {},
-      read() {},
-      dismiss() {},
-      seenAll() {},
-      unread: () => 0,
-      older: () => 0,
-    },
   });
   const tree = draw(TodayZones);
   const order = ["today-card", "today-queue", "today-day", "today-came-to", "today-ask-found"].map((id) =>

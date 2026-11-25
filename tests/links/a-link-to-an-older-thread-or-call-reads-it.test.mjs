@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { memberWords, stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -146,7 +147,15 @@ test("a malformed id in ?ids= is a 404, more than a hundred is refused, and the 
 
 /* ------------------------------------------------------- the surfaces, by id */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",
@@ -156,10 +165,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
 });
 globalThis.document.visibilityState = "hidden";

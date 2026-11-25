@@ -46,6 +46,7 @@ import {
   written,
 } from "../../../_business-tab-harness.mjs";
 import { NEW_YEAR, XMAS, copyTo, place, summaryOf } from "./_open.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 test("When you're open draws three rows in the spec's order, under a line contracts wrote", () => {
   const tree = drawTab();
@@ -437,7 +438,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
     ["warn", "Not put back · the editor it was in has closed. Open it again to change it."],
   );
   // And one pressed while the fold's save is out: nothing is typed into a save on its way, and that is said too.
-  W.__saveSettings = () => new Promise(() => {});
+  bridgeHolds({ parts: { saveSettings: () => new Promise(() => {}) } });
   tree = drawTab({ flash });
   openFold(tree, "hours");
   tree = redrawTab(flash);
@@ -567,13 +568,17 @@ test("the gap line's hours door opens the fold, and the fold asks before its cha
 
 test("while the week saves its boxes and switches take nothing, and what is asked of it waits for the save's answer", () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise(() => {
-      sent.push({
-        config: structuredClone(config),
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise(() => {
+          sent.push({
+            config: structuredClone(config),
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+          });
+        }),
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
@@ -637,13 +642,17 @@ test("the timezone row says the zone and the time there, and saves through the w
   const asked = [];
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  W.__workspace = {
-    setTimezone: async (tz) => {
-      asked.push(tz);
-      W.__WORKSPACES = W.__WORKSPACES.map((t) => ({ ...t, timezone: tz }));
-      return { ok: true, tz, message: "" };
+  bridgeHolds({
+    parts: {
+      workspace: {
+        setTimezone: async (tz) => {
+          asked.push(tz);
+          W.__WORKSPACES = W.__WORKSPACES.map((t) => ({ ...t, timezone: tz }));
+          return { ok: true, tz, message: "" };
+        },
+      },
     },
-  };
+  });
   try {
     let tree = drawTab({ flash });
     const row = byTestId(tree, "rec-row-timezone");
@@ -740,7 +749,7 @@ test("the timezone row says the zone and the time there, and saves through the w
     assert.equal(byTestId(tree, "rec-inline-timezone-cancel-confirm"), null);
     assert.deepEqual(openRows(tree), []);
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 

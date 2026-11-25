@@ -36,6 +36,7 @@ import {
   settle,
 } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -240,18 +241,21 @@ const metrics = {
 // reach through the bridge's verbs (surfaces/frame-verbs.ts, frame-parts.ts) and the workspace its clock reads.
 const went = [];
 const toasts = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+    me: { role: "owner" },
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
+});
 installStubReact({
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __surfaceState: () => "live",
   useHotkey: () => {},
 });
 const S = "../../apps/dashboard/src";
@@ -730,14 +734,18 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   const cancelled = [];
   const keep = { verbs: globalThis.window.__broadcasts, toast: globalThis.window.usePPToast };
-  globalThis.window.__broadcasts = {
-    cancel: async (id, opts) => {
-      cancelled.push(id);
-      opts?.onAccepted?.({ was: "scheduled" });
-      return { ok: true };
+  bridgeHolds({
+    parts: {
+      broadcasts: {
+        cancel: async (id, opts) => {
+          cancelled.push(id);
+          opts?.onAccepted?.({ was: "scheduled" });
+          return { ok: true };
+        },
+        approve: async () => ({ ok: true }),
+      },
     },
-    approve: async () => ({ ok: true }),
-  };
+  });
   toasts.length = 0;
   globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
   try {
@@ -768,7 +776,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
     assert.deepEqual(cancelled, ["b-soon"]);
     assert.equal(textOf(toasts.at(-1).msg), "Offers canceled · nothing will send");
   } finally {
-    globalThis.window.__broadcasts = keep.verbs;
+    bridgeHolds({ parts: { broadcasts: keep.verbs } });
     globalThis.window.usePPToast = keep.toast;
     setSurfaceValue("today", undefined);
   }

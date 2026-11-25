@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { youJoinedWords } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /* ---- a window, a wire and a place in the world ---- */
 globalThis.window ??= globalThis;
@@ -72,8 +73,8 @@ const { JOINED_EVENT, takeJoinedWords } = await importSrc("apps/dashboard/src/br
 const forgetPlace = () => {
   // The client shares identical reads for two seconds: a test's read must not be answered with the one before it.
   api().forget();
-  globalThis.__WORKSPACES = undefined;
-  globalThis.__ACTIVE_WORKSPACE = undefined;
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   calls.length = 0;
   replaced.length = 0;
 };

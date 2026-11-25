@@ -10,10 +10,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 const role = { real: "owner" };
+bridgeHolds({ parts: { clock: { zone: () => "America/New_York" } } });
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   ST_STORE: {
@@ -21,7 +24,6 @@ Object.assign(W, {
     can: (a) => !!(contracts.ROLE_PERMS[role.real] || {})[a],
     get: (k, fallback) => fallback,
   },
-  __clock: { zone: () => "America/New_York" },
 });
 const SRC = "../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
@@ -58,9 +60,9 @@ const reading = (over = {}) => ({
 });
 /** The readings as the surface holds them, and the bridge with its undo stubbed: each press recorded. */
 const world = (replies, undo = { ok: true, data: { undone: true } }) => {
-  W.__REPLIES = { replies, mailbox: "hello@mail.example.com" };
+  bridgeHolds({ reads: { reach_out_replies: { replies, mailbox: "hello@mail.example.com" } } });
   const pressed = [];
-  W.__replies = { ...bridge.replies, undo: async (id) => (pressed.push(id), undo) };
+  bridgeHolds({ parts: { replies: { ...bridge.replies, undo: async (id) => (pressed.push(id), undo) } } });
   return pressed;
 };
 const THREAD = (over = {}) => ({
@@ -158,7 +160,7 @@ test("nothing new: no reading, a thread not real, readings unread, or a person's
   assert.equal(byTestId(strip().tree, "ix-th-reply"), null, "no reading on this thread");
   world([reading()]);
   assert.equal(byTestId(strip(THREAD({ real: false })).tree, "ix-th-reply"), null, "the mockup's threads");
-  W.__REPLIES = null;
+  bridgeHolds({ reads: { reach_out_replies: null } });
   assert.equal(byTestId(strip().tree, "ix-th-reply"), null, "the readings could not be read");
   world([reading()]);
   const answered = THREAD({

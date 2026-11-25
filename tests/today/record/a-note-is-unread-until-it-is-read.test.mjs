@@ -24,6 +24,7 @@ import { bellFeed } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.
 import { importSrc } from "../../_source.mjs";
 import { settingsRead } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue: landRead } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -205,14 +206,15 @@ const bell = (dto) => {
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const heard = {};
+  bridgeHolds({
+    values: { inbox: { THREADS: [] }, live: { now: [], recent: [] } },
+    reads: { notifications: dto ? { dto } : null },
+  });
   const win = {
     addEventListener: (ev, fn) => (heard[ev] ??= []).push(fn),
     document: { visibilityState: "visible" },
     focus() {},
     location: { hash: "" },
-    INBOX_DATA: { THREADS: [] },
-    __LIVE: { now: [], recent: [] },
-    __NOTIFICATIONS: dto ? { dto } : null,
   };
   const hear = (ev) => (heard[ev] ?? []).forEach((fn) => fn());
   return { api: bridge.installNotifications(win, storage, RETRY_MS), win, hear };
@@ -277,7 +279,9 @@ test("Mark all read reads the notes this tab holds, up to the newest and no furt
   );
   // A note lands and the bell's rows are read again: the server says how far the press read.
   const late = rowAt("late", Date.now() + 1_000);
-  win.__NOTIFICATIONS = { dto: { ...dto, notifications: [late, ...dto.notifications], read_through_at: upTo } };
+  bridgeHolds({
+    reads: { notifications: { dto: { ...dto, notifications: [late, ...dto.notifications], read_through_at: upTo } } },
+  });
   hear("surface:notifications");
   assert.deepEqual(
     feedDots(api),
@@ -354,7 +358,7 @@ test("an Undo that does not save says so, and the notes stay read", async () => 
   const press = api.readAll();
   assert.equal(await press.saved, true);
   // The read landed, and the bell's rows as read again say so.
-  win.__NOTIFICATIONS = { dto: { ...dto, read_through_at: justPast(dto.notifications[0]) } };
+  bridgeHolds({ reads: { notifications: { dto: { ...dto, read_through_at: justPast(dto.notifications[0]) } } } });
   assert.equal(await press.undo(), false);
   assert.equal(puts().filter((p) => !p.read_all).length, 2, "tried once more");
   assert.deepEqual(feedDots(api), NONE_UNREAD, "as the server has them");

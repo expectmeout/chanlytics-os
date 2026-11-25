@@ -41,6 +41,7 @@ import {
   toPersonVM,
   went,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the words, in contracts ------------------------------- */
 
@@ -559,16 +560,20 @@ test("the timeline's linked rows are the doors themselves -- a message's door hi
   // The bridge's window.__href is the API URL builder (inbox-verbs.ts): "GET contacts/export" in, a URL out, and a
   // route string in throws on its route table. The page once built its row hrefs through it and every person's
   // page fell over in production (the error surface: can't access property "path"). Installed here as it behaves.
-  globalThis.window.__href = (key) => {
-    const routes = {};
-    return routes[key].path;
-  };
+  bridgeHolds({
+    parts: {
+      href: (key) => {
+        const routes = {};
+        return routes[key].path;
+      },
+    },
+  });
   let tree;
   try {
     const draw = await profile(vm, "history");
     tree = draw();
   } finally {
-    delete globalThis.window.__href;
+    bridgeHolds({ parts: { href: undefined } });
   }
   const doors = all(tree, (n) => n.props?.["data-testid"] === "timeline-open");
   for (const d of doors)
@@ -682,7 +687,7 @@ test("Right now says the state once: the pill wears the standing's word, the sen
 });
 
 test("a viewer reads the role once, at the top of the rail -- it was said under every locked control", async () => {
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     const vm = toPersonVM(detail(), ZONE, new Date(NOW));
     const tree = (await profile(vm))();
@@ -699,7 +704,7 @@ test("a viewer reads the role once, at the top of the rail -- it was said under 
       "and every segment is locked",
     );
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 });
 

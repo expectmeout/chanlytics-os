@@ -15,6 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ---- a window, its storage and a wire ---- */
 globalThis.window ??= globalThis;
@@ -79,8 +80,8 @@ function onHarbor(theirs) {
   api().forget();
   replaced.length = 0;
   globalThis.location.pathname = "/w/harbor/today";
-  globalThis.__WORKSPACES = theirs;
-  globalThis.__ACTIVE_WORKSPACE = "id-harbor";
+  bridgeHolds({ who: { workspaces: theirs } });
+  bridgeHolds({ who: { activeWorkspaceId: "id-harbor" } });
 }
 
 test("a person removed from the workspace on their screen leaves it for another of theirs, and nothing it kept stays on the device", async () => {

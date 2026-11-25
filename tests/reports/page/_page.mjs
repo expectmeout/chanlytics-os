@@ -38,26 +38,32 @@ import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 import { held as peopleHeld, dtoWith as peopleDto } from "../people/_people-world.mjs";
 import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/_campaign-world.mjs";
 import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const went = [];
 
 export const flashed = [];
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 
-globalThis.__WORKSPACES = [
-  {
-    id: "w1",
-    slug: "harbor",
-    name: "Harbor Studio",
-    status: "active",
-    timezone: "America/New_York",
-    appointment_word: "meeting",
-    role: "owner",
+bridgeHolds({
+  who: {
+    workspaces: [
+      {
+        id: "w1",
+        slug: "harbor",
+        name: "Harbor Studio",
+        status: "active",
+        timezone: "America/New_York",
+        appointment_word: "meeting",
+        role: "owner",
+      },
+    ],
   },
-];
+});
 
-globalThis.__ACTIVE_WORKSPACE = "w1";
+bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 
 export const S = "../../../apps/dashboard/src";
 

@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { memberWords, stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const quiet = async (fn) => {
   const e = console.error;
@@ -25,7 +26,15 @@ const quiet = async (fn) => {
   }
 };
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/studio",
@@ -35,10 +44,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
 });
 

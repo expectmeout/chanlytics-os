@@ -73,7 +73,7 @@ fs.rmSync(file, { force: true });
 /** The member acting, as the shell seeds it (bridge/seed-globals.ts): the role store and the gate's own sentence. */
 function actAs(role) {
   globalThis.window.ST_STORE = { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role };
-  globalThis.window.__roleGate = roleGate;
+
   globalThis.window.gate = S.gate;
 }
 

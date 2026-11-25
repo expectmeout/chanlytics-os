@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const { STEP_SHEET_WORDS, NOTE_REFUSALS, dealStepOf, stepSheetBody, stepSheetDirty, stepSheetFor, zoneDayKey } =
   contracts;
@@ -273,14 +274,19 @@ test("a Save sends the notes route a step -- its words, its day, for whom, the t
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+});
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   canDo: () => true,
   gate: () => ({}),
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
 });
 const SRC = "../../apps/dashboard/src";
 // The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it

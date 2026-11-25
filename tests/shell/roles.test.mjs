@@ -6,13 +6,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 const { roleOf, installRoles } = await importSrc("apps/dashboard/src/bridge/identity.ts");
 
 /** A window with the store settings.jsx makes. */
 const windowWith = ({ me, viewAs = null } = {}) => {
   const store = { viewAsRole: viewAs, myRole: () => "owner" };
-  const win = { ST_STORE: store, ...(me === undefined ? {} : { __ME: me }) };
+  bridgeHolds({ who: { me: me } });
+  const win = { ST_STORE: store, ...(me === undefined ? {} : {}) };
   installRoles(win);
   return { win, store };
 };
@@ -44,7 +46,7 @@ test("the store answers who is acting at each ask: a change of role or of previe
   );
   assert.equal(store.mayAtLeast("owner"), false);
   store.viewAsRole = null;
-  win.__ME = { role: "operator" };
+  bridgeHolds({ who: { me: { role: "operator" } } });
   assert.equal(store.mayAtLeast("operator"), true);
   assert.equal(store.mayAtLeast("owner"), false);
 });

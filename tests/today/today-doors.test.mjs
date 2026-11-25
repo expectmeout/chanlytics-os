@@ -16,6 +16,7 @@ import { toTodayVM, setupSteps } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { headline, weekSeen } from "./_headline.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
@@ -109,11 +110,15 @@ const conversation = (id, name, messages) => ({
 
 const went = [];
 const flashes = [];
+bridgeHolds({
+  parts: {
+    surfaceState: () => "live",
+    clock: { zone: () => "America/Chicago", dayKey: () => "2026-09-06", time: () => "9:00 AM" },
+  },
+});
 installStubReact({
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
-  __surfaceState: () => "live",
-  __clock: { zone: () => "America/Chicago", dayKey: () => "2026-09-06", time: () => "9:00 AM" },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -241,7 +246,7 @@ const mountQueue = (vm) => {
 /** The campaigns' read as the app holds it: on the seam (the card's arrangement) and on the window (the lines' rows). */
 const runsAre = (rows) => {
   setSurfaceValue("broadcasts", rows ? { rows } : undefined);
-  globalThis.window.__BROADCASTS = rows ? { rows } : undefined;
+  bridgeHolds({ values: { broadcasts: rows ? { rows } : undefined } });
 };
 const todayWith = (channels, over = {}) =>
   toTodayVM(metrics({ channels, now: zeroNow, period: quietPeriod, ...over }), [], [], [], NOW);
@@ -337,7 +342,7 @@ test("REGRESSION: approving a waiting run the server moved to nine says so on To
     },
   ]);
   const approved = { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" };
-  globalThis.window.__broadcasts = { approve: async () => ({ ok: true, data: approved }) };
+  bridgeHolds({ parts: { broadcasts: { approve: async () => ({ ok: true, data: approved }) } } });
   try {
     const tree = mountQueue(toTodayVM(metrics(), [], [], [], NOW));
     const row = find(tree, (n) => n.props?.["data-testid"] === "brief-run-row");
@@ -348,7 +353,7 @@ test("REGRESSION: approving a waiting run the server moved to nine says so on To
     assert.ok(said.includes(bcWhenWords(approved)) && /messages go out/.test(said), said);
   } finally {
     runsAre(null);
-    delete globalThis.window.__broadcasts;
+    bridgeHolds({ parts: { broadcasts: undefined } });
   }
 });
 
@@ -854,7 +859,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
   // What Ask found and To do's steps are drawn from is read (today/arrangement.ts `known`): a quiet week's headline, and
   // People with nobody's step due.
   setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
-  globalThis.window.__PEOPLE = { rows: [], lists: [], aggregates: { total: 0 }, fetchedAt: NOW.getTime() };
+  bridgeHolds({ values: { people: { rows: [], lists: [], aggregates: { total: 0 }, fetchedAt: NOW.getTime() } } });
   setSurfaceValue("today", todayWith([]));
   setSurfaceValue("ask_morning", morningWith(idea()));
   assert.deepEqual(work(), { card: "found", setupLine: false }, "nothing left to set up: AI's idea holds the card");
@@ -896,7 +901,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
     feedSetup(undefined);
     setSurfaceValue("today", undefined);
     setSurfaceValue("reports_headline", undefined);
-    delete globalThis.window.__PEOPLE;
+    bridgeHolds({ values: { people: undefined } });
   }
 });
 

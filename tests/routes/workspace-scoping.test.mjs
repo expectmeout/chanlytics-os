@@ -24,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The list routes run below build no service client; a module that ever does reads these, and nothing dials it.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -270,11 +271,14 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
   const assigned = [];
   globalThis.localStorage = store();
   globalThis.sessionStorage = store();
+  bridgeHolds(
+    { who: { workspaces: [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", slug: "harbor-moving" }] } },
+    { fresh: true },
+  );
   globalThis.window = {
     location: { pathname: "/w/harbor-moving", hash: "#/today", assign: (u) => assigned.push(u) },
     localStorage: globalThis.localStorage,
     sessionStorage: globalThis.sessionStorage,
-    __WORKSPACES: [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", slug: "harbor-moving" }],
     addEventListener() {},
     removeEventListener() {},
     dispatchEvent() {

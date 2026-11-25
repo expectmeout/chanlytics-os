@@ -23,6 +23,7 @@ import { MIN_MS } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { parse } from "../../_ast.mjs";
 import { registeredSurfaces } from "./_reads.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -37,10 +38,13 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
+Object.assign(globalThis, {});
 
 const { watchTheClock, HEAL_AFTER_MS } = await importSrc("apps/dashboard/src/bridge/hearing/clock.ts");
 const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
@@ -52,10 +56,14 @@ const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-stat
 /** A window the clock reads: an address, its listeners, and what it is told. */
 function standInWindow(hash) {
   const heard = new Map();
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "t1",
+    },
+  });
   return {
     location: { pathname: "/w/studio", hash },
-    __WORKSPACES: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "t1",
     localStorage: { getItem: () => null, setItem() {} },
     told: [],
     addEventListener(type, fn) {

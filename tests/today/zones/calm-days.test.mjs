@@ -26,6 +26,7 @@ import {
 import { again, all, atWidth, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, corals, dayWith, draw, metrics, row, wire } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("./_on-today.mjs");
@@ -144,7 +145,7 @@ test("AI is asked for an old row's draft only as it is opened: most are let go u
   );
   atWidth(false);
   setSurfaceValue("today", undefined);
-  delete W.__REPLIES;
+  bridgeHolds({ reads: { reach_out_replies: undefined } });
   unmount();
 });
 
