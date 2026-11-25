@@ -379,7 +379,7 @@ const popupMarks = (shown: SheetProps) => ({
 });
 
 /** A phone's pull: between its two rests where it has them, else down to close. */
-const pullOf = (shown: SheetProps, onClose: () => void) =>
+const sheetPull = (shown: SheetProps, onClose: () => void) =>
   shown.rest
     ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
     : touchSwipe({ onDown: onClose, when: onAPhone });
@@ -447,7 +447,7 @@ export function Sheet(props: SheetProps) {
           data-testid={testid}
           onKeyDown={props.onKeyDown}
           onFocus={props.onFocus}
-          {...pullOf(shown, onClose)}
+          {...sheetPull(shown, onClose)}
           render={(p, state) => <section {...p} data-theme={theme} data-leaving={closingWord(state)} />}
         >
           <SheetHandle rest={shown.rest} testid={testid} />
