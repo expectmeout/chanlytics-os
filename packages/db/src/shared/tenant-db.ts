@@ -14,8 +14,7 @@
  * other door, by name, for the sweeps that read every workspace on purpose: a reader sees which statements chose it,
  * and the ratchet counts neither.
  */
-import type { PostgrestQueryBuilder } from "@supabase/postgrest-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestQueryBuilder, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
 import type { TenantId } from "@chanlytics/contracts";
 
