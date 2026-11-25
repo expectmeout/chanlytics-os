@@ -319,8 +319,8 @@ export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
   if (state === "ready") {
     // A week with no time to go up at says why where AI did not approve it (week-endings.ts); else how often it goes.
     const ending = weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs });
-    const said = ending ? weekEndingSaid(ending, "").head : null;
-    return { ...base, ...head, line: said ?? head.line, act: ending?.is === "nothing" ? null : "approve" };
+    const ended = ending ? weekEndingSaid(ending, "").head : null;
+    return { ...base, ...head, line: ended ?? head.line, act: ending?.is === "nothing" ? null : "approve" };
   }
   // Approved: who did it (AI, where nobody's press did), when, and whether anything was left out of it.
   const when = at(plan?.approved_at);

@@ -43,12 +43,12 @@ interface WeekEndingSaid {
 /** "3 go up, each at its time", "a reel is being made and waits for your approval", or both. */
 function goingSaid(going: number, reels: number): string {
   const posts = going === 1 ? "1 goes up at its time" : `${going} go up, each at its time`;
-  const made =
+  const beingMade =
     reels === 1
       ? "a reel is being made and waits for your approval"
       : `${reels} reels are being made and wait for your approval`;
   if (reels === 0) return posts;
-  return going > 0 ? `${posts}, and ${made}` : `${made.charAt(0).toUpperCase()}${made.slice(1)}`;
+  return going > 0 ? `${posts}, and ${beingMade}` : `${beingMade.charAt(0).toUpperCase()}${beingMade.slice(1)}`;
 }
 
 const ENDING = W.ending;
