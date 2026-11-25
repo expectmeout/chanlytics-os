@@ -58,6 +58,22 @@ export function setStatus(key: string, s: SurfaceStatus): void {
   listeners.forEach((l) => l());
 }
 
+/**
+ * A surface stands on the copy the device kept of it, which the workspace's topic says nothing changed since
+ * (hearing/kept.ts): real and current, as a read made now would leave it, and still dated when the copy was read
+ * (`noteReadAt`), never now. A page whose later read fails says that age, and the clock reads the surface again where it
+ * is drawn once the copy is a quarter of an hour old.
+ */
+export function standOnKept(key: string): void {
+  const was = `${statuses.get(key)}|${ready.has(key)}|${failed.has(key)}`;
+  failed.delete(key);
+  ready.add(key);
+  statuses.set(key, "live");
+  if (was === "live|true|false") return;
+  surfaceMoved(key);
+  listeners.forEach((l) => l());
+}
+
 /** When a surface's rows the cache restored were read, by the visit that kept them; a read in this document wins. */
 export function noteReadAt(key: string, at: number): void {
   if (!readAt.has(key)) readAt.set(key, at);

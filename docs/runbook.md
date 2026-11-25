@@ -1332,8 +1332,10 @@ is about a thousand a minute by itself. So, for a person and for an agent:
   why from the logs ("See what a page costs the database", below), never by asking again.
 
 What a load costs is counted and held, so it can only fall (the next section). On 25 Nov 2026, on CI's stack: a first
-load in a browser that holds nothing asked the database 177 to 260 times, the same page loaded again 145 to 209 times,
-and a tab left open on Today 8 times a minute.
+load in a browser that holds nothing asked the database 177 to 260 times, the same page loaded again in a browser that
+holds the workspace's rows 32 to 133 times (Today and the Inbox over a hundred, a person's page about ninety, every
+other page under sixty), and a tab left
+open on Today 8 times a minute.
 
 ## See what a page costs the database
 
