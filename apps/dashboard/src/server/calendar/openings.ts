@@ -97,7 +97,7 @@ const feeds = new Map<string, FeedEntry>();
 const refreshing = new Map<string, Promise<FeedRead>>();
 
 /** What a read of the feed gave: the text (fresh, or the last good one when the latest try failed) and, when it failed, why. */
-export interface FeedRead {
+interface FeedRead {
   text: string | null;
   at: number | null;
   reason: FeedFailure | null;

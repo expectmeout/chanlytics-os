@@ -153,7 +153,7 @@ export const useAskFocus = (
 // it answers a promise of why it could not (the server's words; "" where it gave none) or null. `speakingId` and
 // `loading` name the one thing the Line reads, "line", while it is read or awaited, as the mood and the acts read them.
 /** A refusal's own words, or none. */
-const wordsOf = (e: unknown): string => (e instanceof Error && e.message) || "";
+const errorWordsOf = (e: unknown): string => (e instanceof Error && e.message) || "";
 
 export const useAskSpeech = (A: AskApi | undefined) => {
   const [, setTick] = useState(0);
@@ -172,7 +172,7 @@ export const useAskSpeech = (A: AskApi | undefined) => {
       await A.speak(text, purpose);
       return null;
     } catch (e) {
-      return wordsOf(e);
+      return errorWordsOf(e);
     }
   };
   // A held question (bridge/ask/aloud.ts): the element readied inside the press, the one line said while Ask
@@ -189,7 +189,7 @@ export const useAskSpeech = (A: AskApi | undefined) => {
       await A.answerAloud(text);
       return null;
     } catch (e) {
-      return wordsOf(e);
+      return errorWordsOf(e);
     }
   };
   return {
