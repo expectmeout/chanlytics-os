@@ -11,7 +11,10 @@
  * - a stylesheet's files hold each other in turn, and each page links the first that holds all it reaches;
  * - on the app: every page under app/(os) has files, a page's own stylesheet is its own (the Inbox's rules are not
  *   Reports'), every file a page links is one the writer wrote, in the order of the list, and nothing of the frame is
- *   left out of a page (the kit is every page's).
+ *   left out of a page (the kit is every page's);
+ * - and a tab that keeps one file of each ladder holds no rule twice: a ladder's files hold each other's rules in the
+ *   same order, and the widest of every ladder together hold no rule more often than the stylesheets themselves do; a
+ *   module of a page that imported a listed stylesheet itself (Next would ship it again) stops the writer, and this.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -29,6 +32,44 @@ import {
   writtenBy,
 } from "../../../apps/dashboard/src/styles/page-sheets.ts";
 import { writePageSheets } from "../../../apps/dashboard/src/styles/write-page-sheets.ts";
+
+/**
+ * Where a stylesheet's rules apply, each as a key: a selector of a style rule, within its media query, support or
+ * layer, and any other rule whole, where it was read from left out. Keys and not whole rules, since a file is minified
+ * as a whole and neighbouring rules are merged where they can be: two files that hold the same rule may write it apart.
+ */
+function placesOf(css) {
+  const keys = [];
+  const unplaced = (key, value) => (key === "loc" ? undefined : value);
+  const walk = (rules, within) => {
+    for (const rule of rules) {
+      const inner = rule.value?.rules;
+      if (rule.type === "style")
+        for (const selector of rule.value.selectors) keys.push(within + JSON.stringify(selector));
+      else if (Array.isArray(inner)) {
+        const { rules: _, ...the } = rule.value;
+        walk(inner, `${within}${rule.type}${JSON.stringify(the, unplaced)}/`);
+      } else keys.push(within + JSON.stringify(rule, unplaced));
+    }
+  };
+  transform({
+    filename: "t.css",
+    code: Buffer.from(css),
+    visitor: { StyleSheet: (sheet) => void walk(sheet.rules, "") },
+  });
+  return keys;
+}
+
+/** How many times each key is in the lists, together. */
+function tally(lists) {
+  const counts = new Map();
+  for (const list of lists) for (const key of list) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return counts;
+}
+
+/** The keys `some` holds more often than `all` does. */
+const beyond = (some, all) =>
+  [...some].filter(([key, count]) => count > (all.get(key) ?? 0)).map(([key]) => key.slice(0, 120));
 
 /** A stylesheet's rules as the split reads them: what each selector needs. */
 function sheetRulesIn(css) {
@@ -189,8 +230,34 @@ test("the writer gives every page of the frame its files, in the list's order, a
   assert.ok(
     manifest.apart.map >= 0 && !Object.values(manifest.pages).some((places) => places.includes(manifest.apart.map)),
   );
+  // A ladder is a stylesheet's files, the narrowest first, each holding the one before; and a tab that has come to
+  // need the widest of every ladder (and every file of one) holds no rule more often than the stylesheets do. A
+  // narrowest file that rode on the stylesheet before it was in its own wider file too: twice.
+  const laddered = new Set(manifest.ladders.flat());
+  assert.ok(manifest.ladders.length > 0, "some stylesheets have more than one file");
+  for (const ladder of manifest.ladders) {
+    assert.ok(ladder.length >= 2 && ladder.every((place, rung) => rung === 0 || place === ladder[rung - 1] + 1));
+    for (const [page, places] of Object.entries(manifest.pages))
+      assert.ok(places.filter((place) => ladder.includes(place)).length <= 1, `${page} links one file of a ladder`);
+    const rungs = ladder.map((place) => tally([placesOf(text(place))]));
+    for (let rung = 1; rung < rungs.length; rung++)
+      assert.deepEqual(
+        beyond(rungs[rung - 1], rungs[rung]),
+        [],
+        `${manifest.files[ladder[rung]][1]} holds the one before it`,
+      );
+  }
+  const widest = manifest.files
+    .map((_, place) => place)
+    .filter((place) => !laddered.has(place) || manifest.ladders.some((ladder) => ladder.at(-1) === place));
+  const warmed = tally(widest.map((place) => placesOf(text(place))));
   // And the development server's: every stylesheet whole, for every page, under names that never change.
   const whole = writePageSheets(app, "whole", written);
+  const sources = tally(
+    whole.files.map(([, href]) => placesOf(fs.readFileSync(path.join(written, path.basename(href)), "utf8"))),
+  );
+  const twice = beyond(warmed, sources);
+  assert.deepEqual(twice, [], "a rule held more often than the stylesheets hold it");
   assert.ok(
     whole.files.every(([, href]) => /^\/sheets\/[a-z0-9-]+\.css$/.test(href)),
     "no hash in a name",
