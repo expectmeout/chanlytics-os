@@ -30,8 +30,7 @@ import {
   cvWhoseRow,
   inChannel,
 } from "../cv-rules";
-import { useCvPick, type CvPick } from "./conversations-pick";
-import { CvListChannels, CvListTop } from "./conversations-top";
+import { CvListChannels, CvListTop, useCvPick, type CvPick } from "./conversations-pick";
 import { pickBox, pickKeys } from "./pick";
 import { useCvVisible } from "./calls-saying";
 import { useShownCvRows } from "./cv-shown";
@@ -389,7 +388,7 @@ function listPane(p: {
     },
     attr: "data-row-id",
   });
-  // What stands over the rows: on a phone in the frame's top, elsewhere in the list (conversations-top.tsx).
+  // What stands over the rows: on a phone in the frame's top, elsewhere in the list (conversations-pick.tsx CvListTop).
   const top = { away: p.away, inLine, channels: CV_CHANNELS, channel, counts, canPick, pick, query, setQuery };
   return (
     <aside className={`cv-list ${pick.selected.length > 0 ? "picking" : ""}`}>

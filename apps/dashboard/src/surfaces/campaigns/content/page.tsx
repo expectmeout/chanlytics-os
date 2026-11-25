@@ -63,11 +63,10 @@ import { ABOUT_CONTENT } from "./model/ask-about";
 import { ContentPiece } from "./piece";
 import { MakeSheet, askIdeaOn } from "./sheets/make";
 import { askContentView, readMoreContent } from "./surface";
-import { useContentFind, WhileLibraryHolds } from "./heads";
+import { ContentTop, barAway, barGlyphOf, useContentFind, useLibraryAhead, WhileLibraryHolds } from "./heads";
 import { useContentLayout } from "./views";
 import { pieceBesideOf } from "./model/piece-open";
 import { libraryNow } from "../parts/library-code";
-import { ContentTop, barAway, barGlyphOf, useLibraryAhead } from "./top";
 import { ContentWeek, WeekPlannedOpen } from "./week/week";
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
