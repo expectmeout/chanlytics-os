@@ -98,15 +98,15 @@ import type { TenantId } from "@chanlytics/contracts";
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
  *  provider round trip per tick. */
-const SETTLE_MS = 5 * 60 * 1000;
+const SETTLE_MS = 5 * MIN_MS;
 
 /** A call live longer than this is asked about even when it is still
  *  producing turns: the Live page tells the owner it is being checked. */
-const OVERLONG_MS = 30 * 60 * 1000;
+const OVERLONG_MS = 30 * MIN_MS;
 
 /** How long after call_ended a call without an analysis still gets a line
  *  in the customer's thread — the webhook writes it on call_analyzed. */
-const NOTE_GRACE_MS = 15 * 60 * 1000;
+const NOTE_GRACE_MS = 15 * MIN_MS;
 
 const MAX_NOTES_PER_TICK = 10;
 

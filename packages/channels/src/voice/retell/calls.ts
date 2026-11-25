@@ -2,6 +2,7 @@
 
 import type { SchemaSet } from "@chanlytics/contracts";
 import {
+  MIN_MS,
   callOutcomeWords,
   isE164,
   MISSED_CALL_LINE,
@@ -199,7 +200,7 @@ export function callSummaryLine(
   // context and the person's history all know they rang (it used to leave no line at all).
   if (normalizedCall.status === "not_connected")
     return normalizedCall.direction === "inbound" ? MISSED_CALL_LINE : UNCONNECTED_DIAL_LINE;
-  const mins = normalizedCall.durationMs ? Math.max(1, Math.round(normalizedCall.durationMs / 60000)) : null;
+  const mins = normalizedCall.durationMs ? Math.max(1, Math.round(normalizedCall.durationMs / MIN_MS)) : null;
   const head = normalizedCall.direction === "inbound" ? "Inbound call" : "Outbound call";
   const dur = mins ? ` · ${mins} min` : "";
   // What the caller wanted, in the analysis's plain words, is the note the

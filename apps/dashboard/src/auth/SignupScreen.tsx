@@ -12,6 +12,7 @@ import {
   verifyCodeWords,
 } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
+import { askOwnRoute } from "@/client/own-route";
 import { clearSurfaceCache } from "@/bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
@@ -110,14 +111,17 @@ function useSignupState(preview: SignupPreview | null) {
     // Whether an invite code is asked for is the server's to say; the field
     // appears only when it is, so an open sign-up never shows a blank the
     // person cannot fill.
-    fetch("/api/v1/signup", { method: "GET", headers: { accept: "application/json" } })
-      .then((r) => r.json())
-      .then((j: { data?: { posture?: "open" | "waitlist" | "invite"; code_required?: boolean } }) =>
-        // `posture` is what this page reads now; the boolean is the fallback for
-        // an API deployed before it, since the two ship separately.
-        setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")),
-      )
-      .catch(() => setPosture("open"));
+    // No answer, or one that is not JSON, reads as an open sign-up.
+    void askOwnRoute<{ data?: { posture?: "open" | "waitlist" | "invite"; code_required?: boolean } }>(
+      "/api/v1/signup",
+      {
+        headers: { accept: "application/json" },
+      },
+    ).then(({ json: j }) =>
+      // `posture` is what this page reads now; the boolean is the fallback for
+      // an API deployed before it, since the two ship separately.
+      setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")),
+    );
     // From a preview's link: someone signed in already is asked one press rather than the form. Someone who left for
     // Google from this screen is not asked again: back signed in, it is made theirs at once, and a claim refused
     // leaves the one press with the door's words beside it.
@@ -202,15 +206,13 @@ function submitFor(s: SignupState) {
       return;
     }
     try {
-      const res = await fetch("/api/v1/signup", {
+      const answer = await askOwnRoute<NonNullable<SignupAnswer>>("/api/v1/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: signupBody(s),
       });
-      const j = (await res.json().catch(() => null)) as SignupAnswer;
-      takeSignupAnswer(s, res, j);
-    } catch {
-      s.setError(SIGNUP_WORDS.unreachable);
+      if (answer.status === 0) s.setError(SIGNUP_WORDS.unreachable);
+      else takeSignupAnswer(s, answer, answer.json);
     } finally {
       s.setBusy(false);
     }
@@ -232,7 +234,11 @@ function signupBody({ name, email, password, code, posture, tz, preview }: Signu
 }
 
 /** Where the route's answer leaves the screen: its refusal's words, the waitlist, the code not sent, or the code step. */
-function takeSignupAnswer({ setError, setJoined, setUnsent, setStage }: SignupState, res: Response, j: SignupAnswer) {
+function takeSignupAnswer(
+  { setError, setJoined, setUnsent, setStage }: SignupState,
+  res: { ok: boolean },
+  j: SignupAnswer,
+) {
   if (!res.ok || !j?.ok) {
     setError(j?.error?.message ?? "Couldn't finish that. Try again.");
     return;

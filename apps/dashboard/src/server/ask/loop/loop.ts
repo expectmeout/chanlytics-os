@@ -1,7 +1,7 @@
 /** Loop: loop. */
 
 import "server-only";
-import { ASK_MAX_ROUNDS, answerWords, isUngrounded } from "@chanlytics/contracts";
+import { ASK_MAX_ROUNDS, SECOND_MS, answerWords, isUngrounded } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { GatewayRefused, type GatewayRefusal } from "../../shared/model/gateway";
 import { DROP_EVENTS, answerHasItsWay, dropFor, letGo, refusalSaid } from "../refusals";
@@ -36,6 +36,9 @@ import {
   type TurnResult,
   type TurnState,
 } from "./turn-head";
+
+/** What one more round of reads needs of the turn: with less left than this, the next round is its last. */
+const LAST_READ_ROOM_MS = 8 * SECOND_MS;
 
 /** Pictures came back this round: the rounds after it judge what they see, at the draft's effort (effort.ts lookHarder). */
 function lookedHarder(turn: TurnState, outcomes: readonly CallOutcome[]): void {
@@ -260,7 +263,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       const step = await roundOf(turn, { round, last, noTool: model.answerTool ? closing : last });
       if (step === "again") round--;
       else if (step === "answered") {
-        if (Date.now() - turn.t0 > turn.budgetMs - 8_000 && !last) {
+        if (Date.now() - turn.t0 > turn.budgetMs - LAST_READ_ROOM_MS && !last) {
           // Not enough time for another read: the next round is the last, and
           // answers with what there is.
           tellNext(turn.messages, "Time is up for reads. Answer now with what you have.");

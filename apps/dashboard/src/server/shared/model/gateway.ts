@@ -15,9 +15,9 @@ export { parseFrame } from "./stream";
 export type { GatewayEvent } from "./stream";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
-import { edgeConfigured, edgeHeaders, edgeUrl, type EdgeBody } from "../edge";
+import { edgeConfigured, streamEdge, type EdgeBody } from "../edge";
 import { deployment } from "../env";
-import { isEffortMessage } from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, isEffortMessage } from "@chanlytics/contracts";
 import type {
   EdgeErrorCode,
   ModelEffort,
@@ -112,21 +112,21 @@ function speedOf(header: string | null): ModelSpeed | null {
  * reached (a 429 that is not the budget, any 5xx: the model was never heard, so it never "refused"), or the API's
  * refusal of the request itself, whose words the loop reads to drop what the model would not take.
  */
-async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
+function gatewayRefusalOf(status: number, json: unknown): GatewayRefusal {
   // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
-  // is an object with a message.
-  const body = (await res.json().catch(() => ({}))) as {
+  // is an object with a message. An answer that is not JSON reads as an empty one.
+  const body = (json !== null && typeof json === "object" ? json : {}) as {
     error?: EdgeErrorCode | { message?: string };
     detail?: string;
     used?: number;
     cap?: number;
     message?: string;
   };
-  if (res.status === 429 && body.error === "ask_budget")
+  if (status === 429 && body.error === "ask_budget")
     return { kind: "budget", used: body.used ?? 0, cap: body.cap ?? 0 };
-  if (res.status === 503 && body.error === "no_model_key") return { kind: "no_key" };
-  if (res.status === 402) return { kind: "paused" };
-  if (res.status === 403 && body.error === "model_paused") return { kind: "model_paused" };
+  if (status === 503 && body.error === "no_model_key") return { kind: "no_key" };
+  if (status === 402) return { kind: "paused" };
+  if (status === 403 && body.error === "model_paused") return { kind: "model_paused" };
   const err =
     typeof body.detail === "string"
       ? body.detail
@@ -135,12 +135,19 @@ async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
         : typeof body.error === "string"
           ? body.error
           : body.message;
-  const message = `${res.status} ${err ?? "model refused"}`;
-  return res.status === 429 || res.status >= 500 ? { kind: "unreachable", message } : { kind: "bad_request", message };
+  const message = `${status} ${err ?? "model refused"}`;
+  return status === 429 || status >= 500 ? { kind: "unreachable", message } : { kind: "bad_request", message };
 }
 
 /** The breath before the one retry of a model that could not be reached: a throttled or busy one is not asked again in the same instant. */
 const RETRY_PAUSE_MS = 400;
+
+/**
+ * The longest one round waits for the edge, its stream included: the edge's model door ends at a minute (its
+ * maxDuration, apps/edge/vercel.json), so a round never outlives it, and this bound, a little past it, never ends one
+ * the platform would not have. The turn's own end is its signal.
+ */
+const ROUND_BOUND_MS = MIN_MS + 5 * SECOND_MS;
 
 /**
  * The API's refusal of an effort said in the messages (contracts ai/effort.ts), in its own words: what an edge older
@@ -161,13 +168,12 @@ function withoutEffort(call: GatewayCall, refusal: GatewayRefusal | null): Gatew
   return { ...call, request: { ...call.request, messages } };
 }
 
-const gatewayBody = (call: GatewayCall): string =>
-  JSON.stringify({
-    tenant_id: call.tenantId,
-    user_id: call.userId,
-    purpose: call.purpose ?? "ask",
-    request: call.request,
-  } satisfies EdgeBody<"/api/admin/llm">);
+const gatewayBody = (call: GatewayCall): EdgeBody<"/api/admin/llm"> => ({
+  tenant_id: call.tenantId,
+  user_id: call.userId,
+  purpose: call.purpose ?? "ask",
+  request: call.request,
+});
 
 /**
  * Open one model round and yield its events as they arrive.
@@ -186,24 +192,20 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
   if (!deployment.modelLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
   let sent = call;
-  let res: (Response & { body: ReadableStream<Uint8Array> }) | null = null;
+  let res: { body: ReadableStream<Uint8Array>; headers: Headers | null } | null = null;
   let sentAt = Date.now();
   for (let attempt = 0; !res; attempt++) {
     sentAt = Date.now();
-    const body = gatewayBody(sent);
     let refusal: GatewayRefusal | null = null;
-    try {
-      const r = await fetch(`${edgeUrl()}/api/admin/llm`, {
-        method: "POST",
-        headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId, body }),
-        body,
-        signal: call.signal,
-      });
-      if (r.ok && r.body) res = r as Response & { body: ReadableStream<Uint8Array> };
-      else refusal = await gatewayRefusalOf(r);
-    } catch (e) {
-      refusal = { kind: "unreachable", message: e instanceof Error ? e.message : String(e) };
-    }
+    const r = await streamEdge("/api/admin/llm", gatewayBody(sent), {
+      workspace: call.tenantId,
+      user: call.userId,
+      timeoutMs: ROUND_BOUND_MS,
+      ...(call.signal ? { signal: call.signal } : {}),
+    });
+    if (r.body) res = { body: r.body, headers: r.headers };
+    else if (r.status === 0) refusal = { kind: "unreachable", message: r.error ?? "no answer" };
+    else refusal = gatewayRefusalOf(r.status, r.json);
     const plain = withoutEffort(sent, refusal);
     if (plain) {
       sent = plain;
@@ -216,9 +218,9 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
   }
   yield {
     type: "timing",
-    ...serverTiming(res.headers.get("server-timing")),
+    ...serverTiming(res.headers?.get("server-timing") ?? null),
     headersMs: Date.now() - sentAt,
-    speed: speedOf(res.headers.get("x-model-speed")),
+    speed: speedOf(res.headers?.get("x-model-speed") ?? null),
   };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

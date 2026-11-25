@@ -23,9 +23,11 @@ import {
   type ReactNode,
 } from "react";
 import { frameDrawn, hearPartReady, installPageSpeed, type SpeedShell } from "@/client/page-speed";
+import { askOwnRoute } from "@/client/own-route";
 import {
   FIRST_RUN_ROUTE,
   LIFECYCLE_WORDS,
+  MIN_MS,
   type PendingWorkspace,
   type Theme,
   type LookPref,
@@ -242,6 +244,9 @@ if (getActiveWorkspace()) {
   // (surfaces/frame/first-rows.ts).
   installFirstRows();
 }
+
+/** How often a tab asks which build the site runs, beside every return to it and every return online. */
+const VERSION_CHECK_MS = 15 * MIN_MS;
 
 // The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's
 // helpers publish (surfaces/frame/frame-globals.ts). The frame itself is imported (surfaces/frame/app-shell.tsx, the
@@ -634,17 +639,13 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   useEffect(() => {
     let initial: string | null = null;
     const check = async () => {
-      try {
-        const r = await fetch("/api/version", { cache: "no-store" });
-        const j = (await r.json()) as { sha?: string };
-        if (!j.sha) return;
-        if (initial === null) initial = j.sha;
-        else if (j.sha !== initial && !staleRef.current) {
-          staleRef.current = true;
-          publishStatus();
-        }
-      } catch {
-        /* offline — ignore */
+      // Offline, or an answer that is not the version: nothing to compare.
+      const j = (await askOwnRoute<{ sha?: string }>("/api/version", { cache: "no-store" })).json;
+      if (!j?.sha) return;
+      if (initial === null) initial = j.sha;
+      else if (j.sha !== initial && !staleRef.current) {
+        staleRef.current = true;
+        publishStatus();
       }
     };
     void check();
@@ -653,7 +654,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
     const onOnline = () => void check();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
-    const t = setInterval(() => void check(), 15 * 60 * 1000);
+    const t = setInterval(() => void check(), VERSION_CHECK_MS);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onOnline);

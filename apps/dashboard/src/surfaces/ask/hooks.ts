@@ -31,6 +31,9 @@ export const useAskTalk = ({
 // listening, and letting go asks. A tap does nothing, because an empty line
 // takes no leading space; once there are words, Space is a space. The key's
 // repeats while held are swallowed. Two cells.
+/** The breath before a field takes the focus back: the frame that drew it has painted. */
+const AH_FOCUS_MS = 30;
+
 const AH_HOLD_MS = 300;
 export const useHoldSpace = ({ empty, talk }: { empty: () => boolean; talk: HoldTalk }) => {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,7 +141,7 @@ export const useAskFocus = (
     if (!when) return;
     const id = setTimeout(() => {
       if (ref.current && (!may || may())) ref.current.focus();
-    }, 30);
+    }, AH_FOCUS_MS);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller says what brings focus back: `deps` is the point of this hook, and each read is as it lands
   }, deps);
