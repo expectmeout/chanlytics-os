@@ -19,58 +19,76 @@
  * before its time is theirs: the job leaves it, and a making the queue had begun for it gives its place back at once
  * (leaveTheQueue), as one does whose week was stopped or whose rung now asks. A week changed in the instant it was
  * approved is read again by the job's next try, never left saying it goes up.
+ *
+ * Every ending is said to the owner once (the Week review of 25 Nov 2026, C2; contracts week-endings.ts): approved, with
+ * how many go up and how many were left out; or not approved because AI is paused, the setting asks again, nothing was
+ * left to approve, or the week changed on every try. The owner's own stop they pressed themselves. A slot left out
+ * because its reason no longer stands is held on its row with why (holdSlotsLeftOut); one whose time passed says so by
+ * itself. And a week made while AI is paused is not held at all: its notice promises no time (holdReadyWeek).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   asTenantId,
+  clockTime,
   WEEK_MADE_DOOR,
   WEEK_MAKING_QUEUE,
+  weekEndingOf,
   weekGoesAtOf,
+  type PlanSlotDto,
   type TenantId,
+  type WeekEnding,
   type WeekMadeBody,
 } from "@chanlytics/contracts";
-import { weekApprovalOf } from "@chanlytics/core";
+import { judgeWeekApproval } from "@chanlytics/core";
 import { callDashboard } from "@chanlytics/channels/tokens";
 import {
   approveWeek,
   findPlanForJob,
   findWeekRung,
+  holdSlotsLeftOut,
   holdWeek,
+  listClaims,
   markWeekMade,
   readContentWeek,
   startWeeksMaking,
   type WeekHold,
 } from "@chanlytics/db/files";
-import { findWorkspaceZone, isSendingStopped } from "@chanlytics/db/workspace";
+import { findWorkspaceZone, getTenantConfig, isSendingStopped } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
-import type { ClaimedJob } from "@chanlytics/jobs";
+import { MAX_ATTEMPTS, type ClaimedJob } from "@chanlytics/jobs";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { notifyWeekEnding, type WeekGoes } from "./plan-notices.js";
 
 type Db = SupabaseClient<Database>;
 
 /** How long the dashboard has to take the making (it answers at once and makes after it has answered). */
 const DASHBOARD_ANSWER_MS = 15_000;
 
-/** How a ready week goes, as its notice says it: held to 8:00 AM, sent now, or waiting for the owner's press. */
-export type WeekGoes = "held" | "sent" | "asks";
-
-/** The plan job's last step: a ready week held to its time under the rung, or let go where the rung asks. */
+/**
+ * The plan job's last step: a ready week held to its time under the rung, or let go where the rung asks. A week made
+ * while AI is paused (Stop everything) is not held: the job at its time would only let it go, after its notice had said
+ * it goes up. It waits for the owner, and its notice says why.
+ */
 export async function holdReadyWeek(
   db: Db,
   week: { tenantId: TenantId; planId: string; zone: string; nowMs: number },
 ): Promise<WeekGoes> {
   const mode = await findWeekRung(db, week.tenantId);
-  const goesAt = weekGoesAtOf(mode, week.zone, week.nowMs);
+  const time = weekGoesAtOf(mode, week.zone, week.nowMs);
+  const paused = time !== null && (await isSendingStopped(db, week.tenantId));
+  // The door is asked either way, and decides: with no time it lets go whatever the week kept from a draft before this.
+  const goesAt = paused ? null : time;
   const held: WeekHold = await holdWeek(db, week.tenantId, { planId: week.planId, goesAt });
-  if (held !== "held") return "asks";
+  if (paused) return { is: "paused" };
+  if (held !== "held" || !goesAt) return { is: "asks" };
   // Prepared ahead from now, in its turn.
   const started = await startWeeksMaking(db, WEEK_MAKING_QUEUE);
   const log = logger({ tenant_id: week.tenantId });
   log.info("week_held", { plan_id: week.planId, goes_at: goesAt, started });
-  return mode === "auto" ? "sent" : "held";
+  return mode === "auto" ? { is: "sent" } : { is: "held", goesAt };
 }
 
 /** The dashboard's answer for a week that is not AI's to make (its door's 409): not held any more, or not the rung's. */
@@ -95,16 +113,34 @@ const askDashboardToMake: WeekMaker = async (week) => {
   return "taken";
 };
 
-/** A held week let go: nothing on a screen says it goes up, and it waits for the owner's press. */
-async function letTheWeekGo(
-  db: Db,
-  at: { tenantId: TenantId; planId: string },
-  reason: string,
-): Promise<{ skipped: string }> {
-  await holdWeek(db, at.tenantId, { planId: at.planId, goesAt: null });
-  const log = logger({ tenant_id: at.tenantId });
-  log.info("week_let_go", { plan_id: at.planId, why: reason });
-  return { skipped: reason };
+/** A held week at its time, as its endings are told: whose, which, and the time it was to go ("8:00 AM"). */
+interface WeekAtItsTime {
+  tenantId: TenantId;
+  planId: string;
+  when: string;
+}
+
+/**
+ * A held week let go, and its owner told why once: nothing on a screen says it goes up, and it waits for their press.
+ */
+async function letTheWeekGo(db: Db, week: WeekAtItsTime, ending: WeekEnding): Promise<{ skipped: string }> {
+  await holdWeek(db, week.tenantId, { planId: week.planId, goesAt: null });
+  const log = logger({ tenant_id: week.tenantId });
+  log.info("week_let_go", { plan_id: week.planId, why: ending.is });
+  await notifyWeekEnding(db, week, ending);
+  return { skipped: ending.is };
+}
+
+/** What the business says of itself, as the week's approval asks it: its settings as stored, and its owner's claims. */
+const businessReader = (db: Db, tenantId: TenantId) => async () => {
+  const [row, claims] = await Promise.all([getTenantConfig(db, tenantId), listClaims(db, tenantId)]);
+  return { config: row?.config ?? null, claims };
+};
+
+/** A week AI approved as its notice counts it: the posts that go up, the reels made for the owner's look, what was left out. */
+function approvedEnding(going: readonly PlanSlotDto[], leftOut: number): WeekEnding {
+  const reels = new Set(going.filter((slot) => slot.kind === "reel").map((slot) => slot.creative)).size;
+  return { is: "approved", going: going.filter((slot) => slot.kind !== "reel").length, reels, leftOut };
 }
 
 /** The queue started: the weeks waiting begun in turn, as many as its cap lets. */
@@ -126,7 +162,27 @@ async function leaveTheQueue(db: Db, tenantId: TenantId, planId: string): Promis
   return { skipped: "not_the_rung_s" };
 }
 
-/** The job (content_week_go): a held week approved at its time, as the owner's press would, under the rung, and queued. */
+/**
+ * A week the rung approved on a try before this one: the queue started again, and its owner told, if that try ended
+ * before it could tell them (told once, whatever the tries).
+ */
+async function carryOnApproved(
+  db: Db,
+  plan: { id: string; week_of: string; goes_at: string | null },
+  week: Omit<WeekAtItsTime, "when">,
+): Promise<void> {
+  const zone = (await findWorkspaceZone(db, week.tenantId)) ?? "UTC";
+  const read = await readContentWeek(db, week.tenantId, plan.week_of);
+  const ending = weekEndingOf(read, { rung: null, paused: false, nowMs: Date.now() });
+  const when = plan.goes_at ? clockTime(Date.parse(plan.goes_at), zone) : "";
+  if (ending) await notifyWeekEnding(db, { ...week, when }, ending);
+  await startTheQueue(db, week.tenantId, plan.id);
+}
+
+/**
+ * The job (content_week_go): a held week approved at its time, as the owner's press would, under the rung, and queued.
+ * However it ends, its owner is told once.
+ */
 export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { skipped: string }> {
   const planId = typeof job.payload.plan_id === "string" ? job.payload.plan_id : "";
   const plan = await findPlanForJob(db, planId);
@@ -134,27 +190,46 @@ export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { sk
   const tenantId = asTenantId(plan.tenant_id);
   // Approved already: by the rung on a try before this one (the queue started again), or by the owner's own press.
   if (plan.status === "approved")
-    return plan.approved_by === null && plan.goes_at ? startTheQueue(db, tenantId, plan.id) : { skipped: "approved" };
+    return plan.approved_by === null && plan.goes_at
+      ? carryOnApproved(db, plan, { tenantId, planId: plan.id })
+      : { skipped: "approved" };
   if (plan.status !== "ready") return { skipped: plan.status };
+  // Stopped by its owner, who pressed it themselves: nothing more to say.
   if (plan.stopped_at || !plan.goes_at) return { skipped: "stopped" };
-  const at = { tenantId, planId: plan.id };
-  if (await isSendingStopped(db, tenantId)) return letTheWeekGo(db, at, "paused");
   const zone = (await findWorkspaceZone(db, tenantId)) ?? "UTC";
-  const week = await readContentWeek(db, tenantId, plan.week_of);
-  const { going, leftOut, snapshot } = weekApprovalOf(week.slots, zone, Date.now());
-  if (going.length === 0) return letTheWeekGo(db, at, "nothing");
+  const week: WeekAtItsTime = { tenantId, planId: plan.id, when: clockTime(Date.parse(plan.goes_at), zone) };
+  if (await isSendingStopped(db, tenantId)) return letTheWeekGo(db, week, { is: "paused" });
+  const nowMs = Date.now();
+  const read = await readContentWeek(db, tenantId, plan.week_of);
+  const approval = await judgeWeekApproval(read.slots, { zone, nowMs }, businessReader(db, tenantId));
+  const { going, leftOut, snapshot } = approval;
+  const left = { planId: plan.id, slots: approval.holds };
+  if (going.length === 0) {
+    await holdSlotsLeftOut(db, tenantId, left);
+    return letTheWeekGo(db, week, { is: "nothing", leftOut: leftOut.length });
+  }
   const answer = await approveWeek(db, tenantId, { planId: plan.id, snapshot: jsonCopyOf(snapshot) });
   // A slot moved or left out between the read and the approval: the week still says it goes up, so it is read again by
-  // the ledger's next try, never skipped for good.
-  if (answer.fate === "changed") throw new Error("content_week_go: the week changed as it was approved");
-  // The door read the rung, the stop and the time again: anything but approved leaves the week to its owner.
+  // the ledger's next try. On its last try it is let go and said, never left saying it goes up or told as a failed job.
+  if (answer.fate === "changed") {
+    if ((job.attempts ?? 1) < MAX_ATTEMPTS) throw new Error("content_week_go: the week changed as it was approved");
+    return letTheWeekGo(db, week, { is: "changed" });
+  }
+  // The door read the rung again and let the week go itself: the setting asks now, so the owner is told it waits.
+  if (answer.fate === "asks") {
+    await notifyWeekEnding(db, week, { is: "asks" });
+    return { skipped: answer.fate };
+  }
+  // Stopped by its owner meanwhile, or not yet its time: anything else but approved leaves the week as it stands.
   if (answer.fate !== "approved") return { skipped: answer.fate };
+  await holdSlotsLeftOut(db, tenantId, left);
   const log = logger({ tenant_id: tenantId });
   log.info("week_went", {
     plan_id: plan.id,
     slots: answer.slots,
     left_out: leftOut.length,
   });
+  await notifyWeekEnding(db, week, approvedEnding(going, leftOut.length));
   await startTheQueue(db, tenantId, plan.id);
 }
 
