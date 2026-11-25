@@ -541,7 +541,11 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   answered from the same list of reads as the opening (`OPEN_READ_PATHS`) a few at a time and handed to their surfaces a
   task at a time (`apps/dashboard/src/client/rest-reads.ts`, gathered by `client/api.ts` `gather`); People's people ahead
   leave so too. A read it does not carry goes alone, as before, and so does what a page moved to opens on while the rest
-  is out (`bridge/api.ts`, `hurry`), lest it wait its turn among every other page's reads.
+  is out (`bridge/api.ts`, `hurry`), lest it wait its turn among every other page's reads. On a device that holds
+  those pages' rows (`surface-cache.ts`), the boot first asks what the workspace's topic told since its copies were read
+  (`GET changes`) and reads only the pages told of: the rest stand as the copy has them, dated when it was read, as a tab
+  left open stands on what it read (`apps/dashboard/src/bridge/hearing/kept.ts`, which says the four things that must
+  hold). The page on screen is read at every load.
 - _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
   (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
   as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in
