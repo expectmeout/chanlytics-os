@@ -66,8 +66,11 @@ function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>, f
   }, [key, reader]);
   useEffect(() => {
     live.current = true;
-    if (firstHeld.current) firstHeld.current = false;
-    else void again();
+    // The answer it was first drawn from stands for this read only while it is still fresh (`first` answers it then): a
+    // view drawn hidden ahead (campaigns/home/route.tsx) may be shown minutes later, and reads its list again under it.
+    const fresh = firstHeld.current && !!first?.();
+    firstHeld.current = false;
+    if (!fresh) void again();
     const back = () => {
       if (document.visibilityState === "visible") void again();
     };
@@ -76,7 +79,7 @@ function useReadOf<T>(key: string | null, reader: (key: string) => Promise<T>, f
       live.current = false;
       document.removeEventListener("visibilitychange", back);
     };
-  }, [again]);
+  }, [again, first]);
   // What another form's read held is never drawn as this one's.
   const mine = state.key === key;
   return { dto: mine ? state.dto : null, failed: mine && state.failed, again };

@@ -582,9 +582,14 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   where every class it needs is written by a module the page's entry reaches by `import`
   (`apps/dashboard/src/styles/page-sheets.ts`, which also says how far that goes and where it was checked against a
   browser). A build writes them as it reads its configuration (`apps/dashboard/src/styles/write-page-sheets.ts`, from
-  `apps/dashboard/next.config.ts`): up to three files a stylesheet, each holding the one before it, so whatever a tab has
-  collected from page to page reads in the order one file had; minified as Next minifies a stylesheet and named by
-  what they hold. They are linked by React's own stylesheet order
+  `apps/dashboard/next.config.ts`): up to three files a stylesheet, a ladder, each holding the one before it, so any of
+  them, alone or after a narrower one, reads in the order one file had; minified as Next minifies a stylesheet and
+  named by what they hold. A tab keeps one file of each ladder, the widest it has come to need: a warm brings no file
+  a wider one in the tab holds, a page links the wider one where the tab has it, and a narrower file is taken out of
+  the document once a wider one has loaded (`apps/dashboard/src/styles/sheet-ladders.ts`), so a tab holds no rule
+  twice. Until 25 November 2026 a tab that had warmed every page held seven stylesheets as a narrow and a wide file,
+  184 KB of rules twice, and a press's styles cost 6% more than with one bundle. They are linked by React's own
+  stylesheet order
   (`apps/dashboard/src/styles/sheet-links.tsx`): the frame's layout says the order once, a layout beside each
   page links the page's files (`apps/dashboard/src/styles/sheets-layout.tsx`), in the prerendered document's
   head and around the page in the browser, so a move waits for a file that is not there yet and never draws a page

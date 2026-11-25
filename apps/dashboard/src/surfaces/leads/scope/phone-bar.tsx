@@ -37,6 +37,8 @@ interface LeadsPhoneBarProps {
   onImport?: () => void;
   /** While a selection is on, how many: it stands where the list's name does. */
   title?: ReactNode;
+  /** The line of counts under the search, which holds still with the bar (search-head.tsx phoneStandingOf). */
+  line?: ReactNode;
   /** Select's word now and what it does, or none where nobody may act on a selection or nothing is shown. */
   select?: { word: string; press: () => void } | null;
   sortItems?: readonly PeopleMenuItem[];
@@ -155,6 +157,7 @@ export const LeadsPhoneBar = ({
   statusCounts,
   onReach = () => undefined,
   title = null,
+  line = null,
 }: LeadsPhoneBarProps) => (
   <>
     <PeoplePhoneBar
@@ -171,6 +174,7 @@ export const LeadsPhoneBar = ({
       foldSearch
       testid="leads"
       title={title}
+      line={line}
       trailing={
         <>
           {barWords({

@@ -351,23 +351,24 @@ export function RoToSend({
   if (bare) return rows;
   // Other runs hand emails over too: the door to all of them, the one list (To send, in Needs you).
   const every = toSendEveryOf(surfaceValue("broadcasts")?.rows ?? []);
-  // The canvas's board 6: a caption with the count at its right, then one pane, its how on top and a row for each email.
+  // A caption, how the list is worked under it, then one pane of a row for each email. How many is the decision's number
+  // over it, so the caption says no count of its own, and the how is a line of the caption's rather than the pane's first
+  // row (Ruben, 25 Nov 2026: 14 said three times, the how boxed in with the emails).
   return (
     <section className="ro-sends" aria-label={vm.head} data-testid="ro-to-send">
       <p className="ro-cap">
         <span>{vm.title}</span>
-        <span>{vm.count}</span>
+      </p>
+      <p className="ro-sends-how">
+        {may ? vm.note : gateTitle("approve", vm.labels.gated)}
+        {every && " "}
+        {every && (
+          <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
+            {TO_SEND_ALL_WORDS.everyRun(every.count, every.from)}
+          </LinkButton>
+        )}
       </p>
       <div className="ro-pane">
-        <p className="ro-send-note">
-          {may ? vm.note : gateTitle("approve", vm.labels.gated)}
-          {every && " "}
-          {every && (
-            <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
-              {TO_SEND_ALL_WORDS.everyRun(every.count, every.from)}
-            </LinkButton>
-          )}
-        </p>
         {done && (
           <p className="ro-send-note" role="status" data-testid="ro-to-send-done">
             {done}

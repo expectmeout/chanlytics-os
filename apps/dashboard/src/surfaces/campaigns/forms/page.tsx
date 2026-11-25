@@ -12,10 +12,12 @@
 // AI's three at work are Files' own drawing (files/looking.tsx AskLooking): its rules load with the view, as Content's do.
 import "../../files/files.css";
 import "./forms.css";
+import { useRef } from "react";
 import { formsPlaceOf, formsRouteOf, type FormPart, type FormsPlace } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
-import { navigate, replaceRoute } from "../../frame-verbs";
+import { gate, navigate, replaceRoute } from "../../frame-verbs";
 import { PartShown } from "../parts/view-shown";
 import { useCampaignsToast } from "../home/route-toast";
 import { CmHead } from "../parts/head";
@@ -45,6 +47,16 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
   // Forms always has a way into the connection (websiteDoorOf): the empty page's start, the head's button, or a phone's line.
   const phone = useCmPhone();
   const door = websiteDoorOf(list.dto, phone);
+  // New, the head's coral act, as Campaigns' New and Content's Make (Ruben, 25 Nov 2026: Forms was the one tab with none).
+  // A form is made by a sentence to AI, so New takes the thumb to that line, wherever it stands on the list, and opens the
+  // keys: there is no blank form to start from.
+  const askRef = useRef<HTMLTextAreaElement>(null);
+  const newForm = () => {
+    const line = askRef.current;
+    if (!line) return;
+    line.scrollIntoView({ block: "center", behavior: "smooth" });
+    line.focus({ preventScroll: true });
+  };
   return (
     <CmSplit
       testid="forms-page"
@@ -60,11 +72,24 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
             quiet
             allowance={false}
             right={
-              door === "head" ? (
-                <Button size="sm" variant="quiet" onClick={website} data-testid="forms-website">
-                  <Icon name="globe" size={13} /> {W.connect.head}
-                </Button>
-              ) : null
+              <>
+                {door === "head" ? (
+                  <Button size="sm" variant="quiet" onClick={website} data-testid="forms-website">
+                    <Icon name="globe" size={13} /> {W.connect.head}
+                  </Button>
+                ) : null}
+                {/* Once the list is read: what could not be read has its own one act. */}
+                {list.dto ? (
+                  <Button
+                    variant="primary"
+                    onClick={newForm}
+                    data-testid="forms-new"
+                    {...gate("approve", "make a form")}
+                  >
+                    <ActWords icon={<Icon name="plus" size={14} />} words={W.newAct} />
+                  </Button>
+                ) : null}
+              </>
             }
           />
           <FormsList
@@ -76,6 +101,7 @@ export function FormsPage({ route, view }: { route: string; view: CmView }) {
             onOpenSite={(form) => go({ form, site: true })}
             onWebsite={website}
             door={door}
+            askRef={askRef}
           />
           {place.website ? <WebsiteConnection onClose={() => go({ form: null })} flash={flashOrQuiet} /> : null}
         </>
