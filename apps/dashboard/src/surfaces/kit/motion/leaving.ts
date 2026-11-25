@@ -9,6 +9,7 @@
  * motion, nor from a frame React mounted and let go of at once (StrictMode's check in development, a draw that never
  * showed). The fold's sheet has its own (the record kit's `recSheetLeaves`).
  */
+import { takenOutLater } from "./root-flags";
 import { motionReduced, washBehind } from "./swipe";
 
 const STILL_ATTRIBUTES = ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"];
@@ -50,12 +51,15 @@ const stillCopy = (node: Element): Element => {
   copy.setAttribute("data-leaving", "true");
   return copy;
 };
+// What the copy pictures (an open dialog inside it, a selection's bar) stands on the document's root until it has gone,
+// as the rules' :has() saw it there (root-flags.ts takenOutLater).
 const playOut = (copy: Element) => {
   let gone = false;
+  const takeOut = takenOutLater(copy);
   const go = () => {
     if (!gone) {
       gone = true;
-      copy.remove();
+      takeOut();
     }
   };
   copy.addEventListener("animationend", (e) => {

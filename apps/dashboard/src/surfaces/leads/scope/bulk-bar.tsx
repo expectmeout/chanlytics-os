@@ -18,10 +18,10 @@ import { LEAD_SHEET_WORDS } from "../sheet/model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { gate, leaving } from "../../frame-verbs";
+import { gate } from "../../frame-verbs";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
-import { dockAct } from "../../people/bulk/phone-bulk";
+import { SelectionDock, dockAct } from "../../people/bulk/phone-bulk";
 import type { ReviewDoors } from "../bench/types";
 import { LeadNotFitWhy } from "../peek/asks";
 import { BulkAddDesk, BulkChoose, type BulkAdd } from "./bulk-add";
@@ -295,13 +295,11 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
   const off = busy || count === 0;
   return (
     <>
-      <div
+      <SelectionDock
         className="cl-bulk ld-bulk pp-bulk capsule"
-        ref={leaving("leads-dock")}
-        data-dock
-        role="toolbar"
-        aria-label={count ? `${count.toLocaleString()} leads selected` : "Select leads"}
-        data-testid="leads-bulk-bar"
+        leaves="leads-dock"
+        label={count ? `${count.toLocaleString()} leads selected` : "Select leads"}
+        testid="leads-bulk-bar"
       >
         <div className="pp-bulk-acts">
           {dockAct({
@@ -336,7 +334,7 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             testid: "leads-bulk-more",
           })}
         </div>
-      </div>
+      </SelectionDock>
       {phoneSheets(p, f)}
     </>
   );
