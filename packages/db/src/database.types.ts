@@ -14244,6 +14244,15 @@ export type Database = {
         Returns: Json
       }
       post_shape: { Args: { p_kind: string; p_place: string }; Returns: string }
+      post_story_ended: {
+        Args: {
+          p_at?: string
+          p_kind: string
+          p_published_at: string
+          p_scheduled_for: string
+        }
+        Returns: boolean
+      }
       post_take_down_begin: {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: Json
