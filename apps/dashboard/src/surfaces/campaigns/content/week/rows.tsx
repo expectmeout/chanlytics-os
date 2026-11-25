@@ -9,7 +9,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { Picture, rowPictureOf } from "../../../files/photo";
 
 /** A place's glyph: Instagram's reel, story or post, Google's place. */
-const GLYPH: Record<WeekMark["glyph"], string> = { reel: "video", story: "clock", post: "image", pin: "pin" };
+const MARK_GLYPH: Record<WeekMark["glyph"], string> = { reel: "video", story: "clock", post: "image", pin: "pin" };
 
 /** Where a creative goes, as glyphs, each with its dot where it is not plain. */
 function Places({ marks }: { marks: readonly WeekMark[] }) {
@@ -17,7 +17,7 @@ function Places({ marks }: { marks: readonly WeekMark[] }) {
     <span className="cwk-places" aria-hidden="true">
       {marks.map((mark, at) => (
         <span key={at} className="cwk-place">
-          <Icon name={GLYPH[mark.glyph]} size={14} />
+          <Icon name={MARK_GLYPH[mark.glyph]} size={14} />
           {mark.dot ? <i className="cwk-dot" data-tone={mark.dot} /> : null}
         </span>
       ))}

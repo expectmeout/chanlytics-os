@@ -108,10 +108,12 @@ export function deleteManyMenu(b: BulkCtx, a: DeleteManyActs) {
  * none of it and a press finds it in (bundle-budget.mjs; #2076's first run had the person page's words in it, +41.8 KB).
  * What it reads of the module is named, so the dead-exports check (knip) sees the use.
  */
-const sheetCode = codeOnce(() => import("./delete-many-sheet").then(({ DeleteManySheet }) => ({ DeleteManySheet })));
+const deleteManySheetCode = codeOnce(() =>
+  import("./delete-many-sheet").then(({ DeleteManySheet }) => ({ DeleteManySheet })),
+);
 
 /** Delete…'s question where the bar may ask it: drawn, closed, once its chunk is in. */
 export function DeleteManyQuestion({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
-  const Sheet = useCode(sheetCode, true).loaded?.DeleteManySheet;
+  const Sheet = useCode(deleteManySheetCode, true).loaded?.DeleteManySheet;
   return Sheet ? <Sheet b={b} a={a} /> : null;
 }

@@ -31,10 +31,10 @@ import { LEAD_DOCK_WORDS } from "./sheet/model/dock";
 /* ------------------------------------------------------------------------------------------------ the status -- */
 
 /** A status's tone: amber needs you, green runs, blue is under way, plain is over, quiet is the default nobody marks. */
-export type LeadStatusTone = "warn" | "ok" | "info" | "plain" | "quiet";
+type LeadStatusTone = "warn" | "ok" | "info" | "plain" | "quiet";
 
 /** What a row's Stage cell says: one word, its tone, and the line under it where there is more to say. */
-export interface LeadStatusVM {
+interface LeadStatusVM {
   word: string;
   tone: LeadStatusTone;
   line: string | null;
@@ -115,7 +115,7 @@ function statusOf(
  */
 export type LeadRowActKind = "keep" | "put_back" | "add" | "pick" | "call" | "open";
 
-export interface LeadRowActVM {
+interface LeadRowActVM {
   kind: LeadRowActKind;
   label: string;
 }

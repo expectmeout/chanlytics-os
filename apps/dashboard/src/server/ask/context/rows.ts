@@ -1,7 +1,8 @@
 import "server-only";
 import { PROFILE_NAME_MAX, UUID } from "@chanlytics/contracts";
 import type { AskContextRowKind, AskSurface, PageContext, PageContextRow } from "@chanlytics/contracts";
-import type { ReaderContext, RowKind, RowRef } from "../../shared/reader";
+import { load, type ReaderContext, type RowKind, type RowRef } from "../../shared/reader";
+import * as facts from "../../readers/facts";
 
 /**
  * What every context provider shares (server/ask/context.ts builds the blocks from what they return): the row a
@@ -28,6 +29,10 @@ export interface Provided {
 }
 
 export type Provider = (rc: ReaderContext, ctx: PageContext) => Promise<Provided>;
+
+/** The workspace's time zone, as its facts say it: a provider's dates are said in it. */
+export const readZone = (rc: ReaderContext): Promise<string> =>
+  load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
 /**
  * The caps (the plan, D11): rows, a row's line, a title, the aggregate, and every block together, in characters. A

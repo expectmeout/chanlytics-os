@@ -46,7 +46,6 @@ export interface AskNoticeFacts {
   channel?: string;
 }
 
-type Lang = "en" | "es";
 type Row = {
   says: (f: AskNoticeFacts) => string;
   ask: (f: AskNoticeFacts) => string | null;
@@ -245,8 +244,6 @@ export function noticesInOrder(notices: readonly AskNotice[], rested: (key: stri
 
 /** The card id a notice is rested under, in the same store as what Ask noticed before (AskRested). */
 export const noticeRestId = (key: string): string => `notice:${key}`;
-
-export const ASK_LANGS: readonly Lang[] = ["en", "es"];
 
 /**
  * Who can hear a send (D23 of the answers canvas), one sentence for the card and the page alike: how many of how many, why the

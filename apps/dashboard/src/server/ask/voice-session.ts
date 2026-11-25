@@ -23,7 +23,7 @@ import type { Member } from "../shared/route";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
- * A voice conversation's session (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1, §3.3, §6): the row
+ * A voice conversation's session: the row
  * the voice route writes as the member, the member's access token sealed inside it, and the claim the brain door makes
  * before it runs a turn. The brain door is called by ElevenLabs with no cookie, so the token is how it runs Ask as
  * this member under RLS: sealed with a secret the database does not hold (ASK_VOICE_SECRET), good for the token's own

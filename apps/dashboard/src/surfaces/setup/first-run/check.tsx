@@ -56,7 +56,7 @@ interface CheckProps {
 }
 
 /** No brain read yet: the owner's press, who sets it up, the read on its way, or a read that failed and its retry. */
-function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making: boolean): ReactNode {
+function noBrain(check: FirstRunCheckVM, checkWords: CheckWords, make: () => void, making: boolean): ReactNode {
   if (check.make) {
     return (
       <div className="fr-make" data-testid="fr-check-make">
@@ -86,7 +86,7 @@ function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making
     return (
       <FailedRead
         kind="card"
-        what={W.failedWhat}
+        what={checkWords.failedWhat}
         surface="settings"
         testid="fr-check-failed"
         retryTestid="fr-check-retry"
@@ -95,7 +95,7 @@ function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making
   }
   return (
     <p className="fr-reading" data-testid="fr-check-reading">
-      {W.reading}
+      {checkWords.reading}
     </p>
   );
 }

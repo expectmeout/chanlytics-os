@@ -475,8 +475,8 @@ export const AskReads = ({ traces, since = null, t }: { traces: string[]; since?
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
 // answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
 // Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
-// Read aloud speaks in Ask's one voice (the one-way speech, bridge/ask/speech.ts through hooks.ts useAskSpeech;
-// docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
+// Read aloud speaks in Ask's one voice (the one-way speech, bridge/ask/speech.ts through hooks.ts useAskSpeech); the
+// figures and rows are
 // drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
 // button says why, in the server's words.

@@ -30,8 +30,7 @@ import type { PersonRowVM, DealVM, ReportHeadlineVM, TodayNoReplyVM } from "@cha
  * is counted twice, and nothing here is a trend -- a period over a period is
  * noise at these counts (reports.ts dropped tile deltas for exactly that).
  */
-export type TodayLeakId =
-  "never-booked" | "unanswered" | "consults-waiting" | "proposals-waiting" | "unreachable" | "quiet";
+type TodayLeakId = "never-booked" | "unanswered" | "consults-waiting" | "proposals-waiting" | "unreachable" | "quiet";
 
 export interface TodayLeakVM {
   id: TodayLeakId;
@@ -71,14 +70,14 @@ export interface TodayLeakVM {
 }
 
 /** The rows that made the cut, how many qualified past the cap, and the line that says so ("and 2 more"). */
-export interface TodayLeaksVM {
+interface TodayLeaksVM {
   rows: TodayLeakVM[];
   more: number;
   moreLine: string | null;
 }
 
 /** A People list as the People surface publishes it. */
-export interface JourneyListLike {
+interface JourneyListLike {
   id: string;
   label: string;
   group: string;

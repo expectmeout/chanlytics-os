@@ -10,7 +10,7 @@
 import { CONTENT_WORDS, inLocalWeek } from "@chanlytics/contracts";
 
 /** One run of the list under its heading; `count` is null while more of it may be on a page not read. */
-export interface TimeGroup<T> {
+interface TimeGroup<T> {
   key: "week" | "earlier";
   label: string;
   count: number | null;

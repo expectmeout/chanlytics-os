@@ -1,7 +1,7 @@
 /**
  * A call, in its conversation (moved from pages/inbox-thread.jsx, decision 0015).
  *
- * A call is part of the thread, not a card on it (docs/plans/2026-09-21-calls-you-can-follow.md): a quiet line where it
+ * A call is part of the thread, not a card on it: a quiet line where it
  * began, what was said as the thread's own bubbles -- the caller's on the left, the receptionist's on the right -- and a
  * quiet line where it ended. Pressing play, or a line, plays it: a slim player floats at the top of the thread while the
  * lines pass under it, and the line being said is outlined and kept in view. It was a 420px card with its transcript

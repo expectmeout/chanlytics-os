@@ -459,7 +459,7 @@ const withPlace = (row: LeadRowDto, places: ReadonlyMap<string, SequencePlaceOfD
 
 /* ------------------------------------------------------------ one lead -- */
 
-const GONE = () => new AppError("not_found", "That lead is not in your workspace.", 404);
+const LEAD_GONE = () => new AppError("not_found", "That lead is not in your workspace.", 404);
 
 /**
  * One lead, as a row of the page (Reach out Part 4, PR 9): what the peek draws for a lead the address names that is
@@ -480,7 +480,7 @@ export async function getLeadOne(
     readLeadOne(ctx.supabase, tenantId, leadId, searchId),
     searchNamesOf(ctx, tenantId),
   ]);
-  if (!one) throw GONE();
+  if (!one) throw LEAD_GONE();
   const { lead, member } = one;
   const row: LeadPageRow = {
     ...lead,

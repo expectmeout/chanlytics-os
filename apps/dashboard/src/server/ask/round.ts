@@ -32,7 +32,7 @@ export interface RoundBlock {
 }
 
 /** What the round cost, as the API said it on the stream (sse.ts GatewayUsage plus the stop's output side). */
-export interface RoundUsage {
+interface RoundUsage {
   messageId: string | null;
   /** The model that answered, in the API's own name (sse.ts GatewayUsage.model). */
   model: string | null;
@@ -46,7 +46,7 @@ export interface RoundUsage {
 }
 
 /** Where the round's time went, from the request: null when the event never came. */
-export interface RoundTiming {
+interface RoundTiming {
   firstEventMs: number | null;
   firstTextMs: number | null;
   totalMs: number;

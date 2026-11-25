@@ -410,7 +410,7 @@ function calendarFact(f: WorkspaceFacts): string {
   return `No calendar feed is connected, so ${noOpenings}`;
 }
 
-export function definitionsBlock(): string {
+function definitionsBlock(): string {
   return Object.entries(ASK_DEFINITIONS)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");

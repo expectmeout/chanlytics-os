@@ -75,7 +75,7 @@ function openingValues(rec: SequenceRecordDto): Values {
  * `sequence_mode`, the one key the change door reads it from (contracts playbookChangeSpec; a payload's `mode` is the
  * card's reading of how its runs go, which its undo's words say).
  */
-function changeOf(was: Values, now: Values): Record<string, number | string | null> {
+function settingsChangeOf(was: Values, now: Values): Record<string, number | string | null> {
   const out: Record<string, number | string | null> = {};
   if (now.mode !== was.mode) out.sequence_mode = now.mode;
   for (const k of ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const)
@@ -195,7 +195,7 @@ export function SettingsSheet({ open, rec, flash, moved, onClose }: SettingsShee
   const [was] = useState(() => openingValues(rec));
   const [v, setV] = useState(was);
   const [busy, setBusy] = useState(false);
-  const change = changeOf(was, v);
+  const change = settingsChangeOf(was, v);
   const save = async () => {
     setBusy(true);
     const ok = await pressed("playbook_change", { playbook_id: row.id, name: row.name, ...change }, flash, moved);

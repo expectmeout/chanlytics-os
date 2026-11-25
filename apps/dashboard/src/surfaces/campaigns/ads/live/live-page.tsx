@@ -23,9 +23,7 @@ import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
 import { AdsLines } from "./lines";
 import type { LiveNoticeVM, LiveRowVM, LiveVM } from "./model";
-import { ADS_MANAGER, LIVE } from "./words";
-
-const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
+import { ADS_MANAGER, LIVE, META_TAB } from "./words";
 
 function Notice({ notice }: { notice: LiveNoticeVM }) {
   return (

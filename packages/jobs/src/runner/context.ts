@@ -229,7 +229,7 @@ export interface JobContext {
     draft: ReplyReadPorts["draft"];
   };
   /**
-   * The reading of a booking tool's notice (docs/plans/2026-10-07-bookings-arrive-by-email.md), as the edge holds it.
+   * The reading of a booking tool's notice, as the edge holds it.
    * INJECTED like `replies`: the model's key, the workspace's spend and the person-making rules live on the edge.
    * Optional so a test context need not supply one; a booking_read job in a runtime without it fails loudly.
    */

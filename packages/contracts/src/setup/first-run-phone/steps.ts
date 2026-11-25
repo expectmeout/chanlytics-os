@@ -75,7 +75,7 @@ export interface PhoneStep extends FirstRunPhoneInput {
 
 export function phoneStepOf(input: FirstRunPhoneInput): PhoneStep {
   const { dto, vm, choice } = input;
-  const { way, forwarded, listed, number, area } = numbersOf(dto, choice);
+  const { way, forwarded, listed, number, area } = lineNumbersOf(dto, choice);
   const billing = dto.billing;
   const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
   const lineRow = vm.rows.find((r) => r.id === "line") ?? null;
@@ -108,7 +108,7 @@ export function phoneStepOf(input: FirstRunPhoneInput): PhoneStep {
 }
 
 /** The number the step is about: the way chosen (the first, before a choice), the listing's, the one to keep or move. */
-function numbersOf(dto: SetupDto, choice: PhoneChoice | null) {
+function lineNumbersOf(dto: SetupDto, choice: PhoneChoice | null) {
   const way: PhoneWay = choice?.way ?? "keep";
   const forwarded = way !== "new";
   const listed = normalizePhone(dto.google?.phone ?? null);

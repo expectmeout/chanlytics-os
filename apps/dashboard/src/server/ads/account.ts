@@ -21,7 +21,7 @@ import type { Member } from "../shared/route";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 
 /** The provider a state for an ad account's sign-in names: the Google, mailbox, Instagram and Meta callbacks refuse it. */
-const PROVIDER = "meta_ads";
+const ADS_PROVIDER = "meta_ads";
 
 /**
  * How long Meta's window may take. An owner with no ad account, or no Page, makes one in that window before sharing it:
@@ -34,7 +34,7 @@ export async function startAdsConnect(ctx: RouteContext, member: Member): Promis
   const ready = await readAdsReadiness(member.tenantId);
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting an ad account is not available here yet.", 409);
-  const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
+  const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: ADS_PROVIDER };
   const state = await signStateFor(secret, signIn, Date.now(), META_WINDOW_LIFE_MS);
   const url = metaDialogUrl(
     { clientId: ready.app.client_id, configId: ready.app.config_id, redirectUri: ready.app.redirect_uri },
@@ -69,7 +69,7 @@ export async function handleAdsCallback(ctx: RouteContext, req: Request): Promis
   if (returned.searchParams.get("error")) return back("closed");
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const expected = { provider: PROVIDER, userId: ctx.userId };
+  const expected = { provider: ADS_PROVIDER, userId: ctx.userId };
   const proof = await verifyStateFor(secret, returned.searchParams.get("state"), expected, Date.now());
   if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: TenantId;
@@ -103,7 +103,7 @@ interface AdAccountPressed {
 }
 
 /** The words a refusal of the edge's is said in: what happened, and the one thing to do, never a code. */
-function refusalOf(answer: EdgeAnswer<EdgeRead<"/api/admin/ads/account">>, doing: string): AppError {
+function accountRefusalOf(answer: EdgeAnswer<EdgeRead<"/api/admin/ads/account">>, doing: string): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
     return new AppError("forbidden", "Only the owner can connect an ad account.", 403);
@@ -128,7 +128,7 @@ export async function chooseAdAccount(
     { op: "choose", tenant_id: member.tenantId, user_id: ctx.userId, external_id: externalId },
     30_000,
   );
-  if (answer.status !== 200 || answer.body?.ok !== true) throw refusalOf(answer, "connect that ad account");
+  if (answer.status !== 200 || answer.body?.ok !== true) throw accountRefusalOf(answer, "connect that ad account");
   return { outcome: "connected" };
 }
 
@@ -140,7 +140,7 @@ export async function chooseAdAccount(
 export async function checkAdAccount(ctx: RouteContext, member: Member): Promise<AdAccountPressed> {
   const answer = await callAdsEdge({ op: "check", tenant_id: member.tenantId, user_id: ctx.userId });
   const body = answer.body ?? {};
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "look again");
+  if (answer.status !== 200 || body.ok !== true) throw accountRefusalOf(answer, "look again");
   return { outcome: typeof body.outcome === "string" ? body.outcome : "kept" };
 }
 
@@ -165,7 +165,7 @@ export async function disconnectAdAccountNow(
     55_000,
   );
   const body = answer.body ?? {};
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "disconnect");
+  if (answer.status !== 200 || body.ok !== true) throw accountRefusalOf(answer, "disconnect");
   forgetAdsReadiness(member.tenantId);
   return {
     outcome: body.outcome === "not_paused" ? "not_paused" : "disconnected",

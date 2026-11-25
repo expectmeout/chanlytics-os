@@ -152,7 +152,7 @@ async function waitsForVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<
 }
 
 /** post_publish: the recheck, then the one send. */
-export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promise<void | { skipped: string }> {
+async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promise<void | { skipped: string }> {
   const { postId, attempt } = postJobOf(job);
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
@@ -244,7 +244,7 @@ async function verifyPublished(
 }
 
 /** post_reconcile: what Instagram has, read before anything could be sent again. */
-export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promise<void | { skipped: string }> {
+async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promise<void | { skipped: string }> {
   const { postId, attempt } = postJobOf(job);
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };

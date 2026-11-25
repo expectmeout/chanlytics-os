@@ -35,7 +35,7 @@ const LAYOUT_LABEL = `${VIEW_SAYS.grid} or ${VIEW_SAYS.list}`;
 const Owed = ({ on }: { on: boolean }) => (on ? <span className="cnv-owed" aria-hidden="true" /> : null);
 
 /** One way of looking at a list, with how many it holds; `owed` marks one that holds something that needs the owner. */
-export interface ViewChoice<V extends string> {
+interface ViewChoice<V extends string> {
   value: V;
   label: string;
   count: number | null;
@@ -117,7 +117,7 @@ const ChoiceWords = <V extends string>({ choice }: { choice: ViewChoice<V> }) =>
  * chosen is Chanlytics' coral), and a small card under it of them all (the kit's Popover: the canvas draws a card hanging from
  * the pill, never a sheet). Made's views and the Library's kinds are this one pill.
  */
-export function ViewsPill<V extends string>({
+function ViewsPill<V extends string>({
   label,
   choices,
   value,
@@ -169,7 +169,7 @@ export function ViewsPill<V extends string>({
 }
 
 /** The views on a desk, which has the room the pill saves a phone: all of them in one row, the one picked on the soft coral. */
-export function ViewsRow<V extends string>({ label, choices, value, onChoose, testid, choiceTestid }: ViewsProps<V>) {
+function ViewsRow<V extends string>({ label, choices, value, onChoose, testid, choiceTestid }: ViewsProps<V>) {
   return (
     <div className="cnv-view-row" role="group" aria-label={label} data-testid={testid}>
       {choices.map((choice) => (

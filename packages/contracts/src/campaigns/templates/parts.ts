@@ -73,7 +73,7 @@ export interface TemplateParts {
 /** The parts of a template the send fills or leaves as they are: a heading, the body, a footer, buttons. */
 const FILLED_PARTS: readonly string[] = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
 
-const partOf = (components: unknown, type: string): Record<string, unknown> | null => {
+const componentOf = (components: unknown, type: string): Record<string, unknown> | null => {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
     if (c && typeof c === "object" && textOrEmpty(recordOrEmpty(c).type).toUpperCase() === type)
@@ -96,9 +96,9 @@ const BUTTON_KIND: Record<string, TemplateButton["kind"]> = { URL: "url", QUICK_
  * business is the whole point of the message.
  */
 export function templateParts(components: unknown): TemplateParts {
-  const header = partOf(components, "HEADER");
+  const header = componentOf(components, "HEADER");
   const buttons: TemplateButton[] = [];
-  const holder = partOf(components, "BUTTONS");
+  const holder = componentOf(components, "BUTTONS");
   const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
@@ -144,14 +144,14 @@ export function templateBlocked(target: { blocked?: string | null; components?: 
     return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
   });
   if (unfilled) return "a part Chanlytics cannot fill";
-  const header = partOf(components, "HEADER");
+  const header = componentOf(components, "HEADER");
   if (header) {
     const format = textOrEmpty(header.format ?? "TEXT").toUpperCase();
     if (format !== "TEXT")
       return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
     if (/\{\{\d+\}\}/.test(textOrEmpty(header.text))) return "a heading that takes a value";
   }
-  const holder = partOf(components, "BUTTONS");
+  const holder = componentOf(components, "BUTTONS");
   const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
@@ -229,7 +229,7 @@ export function sendableTemplates<T extends { components?: unknown }>(
 
 /** The one button that opens a link, from the components Meta holds: its words and its address. Null when there is none. */
 export function templateLinkButton(components: unknown): { text: string; url: string } | null {
-  const holder = partOf(components, "BUTTONS");
+  const holder = componentOf(components, "BUTTONS");
   const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;

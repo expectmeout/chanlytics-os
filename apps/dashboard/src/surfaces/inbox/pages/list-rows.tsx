@@ -133,8 +133,8 @@ function rowTime(t: Thread, sending: number | null) {
  * receptionist is its wire's ("WhatsApp Receptionist"), which the face's badge already says, so a real row never names
  * it: the mockup's agents differ by name, and a seeded row still says which where they do.
  */
-function rowFoot(L: ListCtx, t: Thread) {
-  const agentNamed = L.multipleAgents && !t.real;
+function rowFoot(inboxList: ListCtx, t: Thread) {
+  const agentNamed = inboxList.multipleAgents && !t.real;
   const confidence = t.confidence ?? 0;
   const value = t.value ?? 0;
   const footed = agentNamed || confidence > 0 || (t.tags || []).length > 0 || value > 0;
@@ -184,12 +184,12 @@ const ROW_NO_PILL: ReadonlySet<ThreadMoveKey> = new Set<ThreadMoveKey>([
 ]);
 
 /** A real thread's pill: whose move it is, in the tone map's word and colour, and no pill where its list has said it. */
-function rowMovePill(L: ListCtx, t: RealThread) {
+function rowMovePill(inboxList: ListCtx, t: RealThread) {
   const { move } = ixMoveOf(t);
   // Needs you only on a thread that does, and not again in the list that already says it (I2); a search spans the lists,
   // so a row there always says.
   if (move === "needs_you")
-    return L.searching || !(L.inNeedsBucket || L.activeBucket === "escalated") ? (
+    return inboxList.searching || !(inboxList.inNeedsBucket || inboxList.activeBucket === "escalated") ? (
       <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />
     ) : null;
   // A teammate has it: say whose, never Needs you.
@@ -212,8 +212,8 @@ function rowMovePill(L: ListCtx, t: RealThread) {
 }
 
 /** A row's first line: who, the pill and the one time. */
-function rowLine1(L: ListCtx, t: Thread) {
-  const { inNeedsBucket, searching, sendingIn } = L;
+function rowLine1(inboxList: ListCtx, t: Thread) {
+  const { inNeedsBucket, searching, sendingIn } = inboxList;
   // A seeded thread keeps the mockup's: a pill in the buckets that do not say it already.
   const seededPill = !t.real && (searching || !inNeedsBucket) && t.state === "escalated" && !t.claimedByOther;
   // The seconds before a reply of its own goes out: the row's one time while they run.
@@ -228,7 +228,7 @@ function rowLine1(L: ListCtx, t: Thread) {
             will not take the words (D1-stop-unseen). */}
         {t.real && t.optedOut && <StoppedMark className="ix-state-pill" testid="thread-stopped" />}
         {seededPill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
-        {t.real && rowMovePill(L, t)}
+        {t.real && rowMovePill(inboxList, t)}
         <ReplyChip thread={t} />
         {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
             when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
@@ -278,10 +278,10 @@ function rowToDo(ctx: ListCtx, t: Thread) {
 }
 
 /** A row's body: the line of who, what you chose, the words, what it asks of you and the foot. */
-function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
+function rowBody(inboxList: ListCtx, t: Thread, words: { text: string }) {
   return (
     <div className="ix-thread-body">
-      {rowLine1(L, t)}
+      {rowLine1(inboxList, t)}
       {/* A seeded thread's reason stands over its words, as the demo wrote it; a real one says what to do under them. */}
       {!t.real && t.subject && <div className="ix-thread-subject">{t.subject}</div>}
       {t.resolution && (
@@ -295,8 +295,8 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
           <span className="ix-thread-preview">{words.text}</span>
         </div>
       )}
-      {rowToDo(L, t)}
-      {rowFoot(L, t)}
+      {rowToDo(inboxList, t)}
+      {rowFoot(inboxList, t)}
     </div>
   );
 }
@@ -325,11 +325,11 @@ export function useShownThreads(
 }
 
 /** The rows `useShownThreads` says, and the room of the others. */
-export function threadRows(L: ListCtx, shown: ShownRows) {
+export function threadRows(inboxList: ListCtx, shown: ShownRows) {
   return shown.parts.map((part) => {
     if (part.kind === "gap") return <RowGap key={part.key} height={part.height} />;
-    const t = L.visible[part.index];
-    return t ? threadRow(L, t, part.index, { measure: shown.measure, of: L.visible.length }) : null;
+    const t = inboxList.visible[part.index];
+    return t ? threadRow(inboxList, t, part.index, { measure: shown.measure, of: inboxList.visible.length }) : null;
   });
 }
 
@@ -337,8 +337,13 @@ export function threadRows(L: ListCtx, shown: ShownRows) {
  * One row. `place`, where it is one of a list's (threadRows): what measures it once drawn, and how many rows the list has,
  * so it says its place in all of them to a screen reader.
  */
-function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Element | null) => void; of: number }) {
-  const { activeThreadId, selected, tabStopId, onSelectThread, onToggleSelect, onRowKey } = L;
+function threadRow(
+  inboxList: ListCtx,
+  t: Thread,
+  i: number,
+  place?: { measure: (el: Element | null) => void; of: number },
+) {
+  const { activeThreadId, selected, tabStopId, onSelectThread, onToggleSelect, onRowKey } = inboxList;
   const isActive = activeThreadId === t.id;
   const isSelected = selected.includes(t.id);
   // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
@@ -370,7 +375,7 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
         {rowWire(words.wire, t.who)}
       </span>
 
-      {rowBody(L, t, words)}
+      {rowBody(inboxList, t, words)}
     </div>
   );
 }

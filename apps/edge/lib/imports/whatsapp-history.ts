@@ -139,7 +139,7 @@ async function settleRun(db: Db, part: Part, source: WhatsappSource): Promise<Pa
  * number's, whose workspace the number says (the routing the webhook did, done again here). A delivery the intake
  * ledger no longer holds (purged after a week) is none.
  */
-async function changesOf(db: Db, part: Part, source: WhatsappSource, key: string): Promise<WaChangeValue[] | null> {
+async function readChangesOf(db: Db, part: Part, source: WhatsappSource, key: string): Promise<WaChangeValue[] | null> {
   const kept = await findProviderEvent(db, "meta", key);
   if (!kept) return null;
   let body: { entry?: Array<{ changes?: Array<{ field?: string; value?: WaChangeValue }> }> } = {};
@@ -287,7 +287,7 @@ async function bringContacts(db: Db, part: Part, values: WaChangeValue[]): Promi
 
 /** A part of a kept delivery: its slice of this source, brought. */
 async function bring(db: Db, part: Part, source: WhatsappSource, key: string): Promise<PartOutcome> {
-  const values = await changesOf(db, part, source, key);
+  const values = await readChangesOf(db, part, source, key);
   if (values === null) {
     part.log.error("wa_history_delivery_gone", { source, delivery: key });
     return { more: false };

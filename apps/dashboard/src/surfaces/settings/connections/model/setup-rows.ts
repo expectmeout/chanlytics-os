@@ -7,28 +7,38 @@
  */
 import {
   agoWords,
+  bookingToolName,
+  calendarSourceFacts,
+  calendarSourceOf,
+  checkedWords,
   clockStamp,
+  connectionWords,
   CONTENT_LIBRARY_ROUTE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   FOOTAGE_WORDS,
   footageAsidesOf,
   footageStandingOf,
+  FIRST_RUN_FIND_ROUTE,
   googleAudienceWords,
+  listingLine,
   META_LINE_OFF_WHY,
   META_LINE_WORDS,
   META_LINES,
   SETUP_STATE_WORDS,
 } from "@chanlytics/contracts";
 import type {
+  CalendarSourceState,
   ChannelVM,
   ConnectionNote,
   FootageAct,
   FootageDto,
   FootageStandingKey,
+  GoogleConnectionDto,
+  GoogleListingDto,
   MetaLines,
 } from "@chanlytics/contracts";
 
-import type { ConnectionDraft, ConnectionInputs, ConnectionVerb } from "./setup";
+import type { ConnectionDraft, ConnectionInputs, ConnectionState, ConnectionVerb } from "./setup";
 
 /**
  * Email: the workspace's address when it has one, the form that makes one when this deployment has the
@@ -378,5 +388,151 @@ export function driveRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
     ...(facts.length > 0 && account?.health !== "blocked_by_admin" ? { facts } : {}),
     ...(asides.length > 0 ? { notes: asides.map((aside): ConnectionNote => ({ text: aside.head, live: true })) } : {}),
     ...(acts.length > 0 ? { acts } : {}),
+  };
+}
+
+/** Google: the owner's Business Profile, then the public listing (googleListingRow). */
+export function googleProfileRow(
+  connectionInputs: ConnectionInputs,
+  { connection: c, nowMs }: { connection: GoogleConnectionDto | null; nowMs: number },
+): ConnectionDraft {
+  const google = connectionInputs.google;
+  const base = { kind: "google_profile" as const, icon: "shield", title: "Google Business Profile" };
+  if (c && c.location_name) {
+    return {
+      ...base,
+      detail: c.location_title,
+      state: c.sync_error ? "attention" : "connected",
+      stateWords: c.sync_error ? "Couldn't update" : "Connected",
+      sentence: connectionWords(c, nowMs),
+      verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
+    };
+  }
+  if (c) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_you",
+      stateWords: SETUP_STATE_WORDS.waiting_you,
+      sentence: `${connectionWords(c, nowMs)}.`,
+      verb: null,
+      body: "google_choose",
+    };
+  }
+  if (google?.ready.profile) {
+    const note = googleAudienceWords(google.ready.audience);
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: `Sign in to Google once · every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
+    verb: null,
+  };
+}
+
+/** Google's public listing: watched once it is found; with the Business Profile connected, a read is a sync. */
+export function googleListingRow(
+  connectionInputs: ConnectionInputs,
+  {
+    connection: c,
+    listing: l,
+    nowMs,
+  }: { connection: GoogleConnectionDto | null; listing: GoogleListingDto | null; nowMs: number },
+): ConnectionDraft {
+  const google = connectionInputs.google;
+  const base = { kind: "google_listing" as const, icon: "star", title: "Your listing on Google" };
+  if (l) {
+    return {
+      ...base,
+      detail: l.address,
+      state: l.check_error ? "attention" : "connected",
+      stateWords: l.check_error ? "Couldn't be read" : "Watched",
+      sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
+      verb: { label: c && c.location_name ? "Update now" : "Check now", to: "verb:google-check", who: "operator" },
+    };
+  }
+  if (google?.ready.places) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not watched",
+      sentence: "Find it from the name and address on record · new reviews then reach your bell and Reports.",
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Your public listing on Google Maps, read once a day for new reviews.",
+    verb: null,
+  };
+}
+
+/** The calendar: the feed the receptionist reads today. */
+export function calendarRow(connectionInputs: ConnectionInputs): ConnectionDraft {
+  const calendarSource = calendarSourceOf(calendarSourceFacts(connectionInputs.calendar ?? { state: "none" }));
+  const tool = bookingToolName(connectionInputs.calendar?.tool);
+  // What makes the row this workspace's: the tool it books with, the link it reads, or both. A business that books by
+  // hand has neither, and its own word is the row's state: said here too, the row read "Booked by hand" twice, beside
+  // its name and in its pill (seen on a real save, 8 Oct 2026).
+  // A calendar read through the mailbox (decision 0073, R20) names its provider's calendar, never "link".
+  const granted = connectionInputs.calendar?.granted
+    ? `${connectionInputs.calendar.source ?? "Your calendar"} · through your mailbox`
+    : null;
+  const DETAIL = {
+    both: `${tool} · ${granted ?? "calendar link"}`,
+    link: granted ?? "Calendar link",
+    emails: tool,
+    hand: null,
+    nothing: null,
+  };
+  const detail = DETAIL[calendarSource.by];
+  return {
+    kind: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    detail,
+    state: CONNECTION_STATE_OF[calendarSource.state],
+    stateWords: calendarSource.words,
+    sentence: calendarSource.sentence,
+    // Opening the board is anyone's who may read it; the row in Settings is the owner's to change.
+    verb: { ...calendarSource.next, who: calendarSource.next.to === "calendar" ? "operator" : "owner" },
+  };
+}
+
+/** A connection's state for each of the calendar's (calendar-source.ts). A business that books by hand has none, by its own word. */
+const CONNECTION_STATE_OF: Record<CalendarSourceState, ConnectionState> = {
+  ready: "connected",
+  attention: "attention",
+  needs_you: "waiting_you",
+  waiting: "waiting_them",
+  hand: "none",
+  none: "none",
+};
+
+/** Deposits: not built yet, so always later. */
+export function depositsRow(): ConnectionDraft {
+  return {
+    kind: "deposits",
+    icon: "money",
+    title: "Deposits",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Deposits and payments taken by AI.",
+    verb: null,
   };
 }

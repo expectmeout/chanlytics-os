@@ -92,7 +92,7 @@ export interface BundleTeamMember {
 type CustomerSection = "people" | "conversations" | "files" | "calls" | "consent_history";
 
 /** The sections read page by page, beside the ones the bundle reads its own way. */
-export type PagedSection = Exclude<ExportSection, CustomerSection | "team">;
+type PagedSection = Exclude<ExportSection, CustomerSection | "team">;
 
 /** A page of a section: up to `limit` rows from `offset`, in the section's fixed order. */
 type SectionPage = (offset: number, limit: number) => Promise<Record<string, unknown>[]>;

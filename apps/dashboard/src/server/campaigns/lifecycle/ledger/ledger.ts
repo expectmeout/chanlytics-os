@@ -86,7 +86,7 @@ function chainStepsWords(steps: ReachOutChainDto["steps"]): string {
  * run is decided on its own page. Its People cell is who is in it now, apart from what came back in 30 days.
  */
 /** Resume, as a row and its drawer ask it (decision 7). */
-export type LifecycleResume = Extract<LifecycleAct, { kind: "resume" }>;
+type LifecycleResume = Extract<LifecycleAct, { kind: "resume" }>;
 
 /**
  * A reach-out's Resume, asked in place: its name, and that its next step goes on its own day. Its row asks it, and so does
@@ -321,7 +321,7 @@ function sentOnceGroup(sources: readonly LifecycleSource[], input: LifecycleInpu
 /** The ledger's status tabs, in the order they stand: All, Needs you (the one amber, decision 13), Paused. */
 export const LEDGER_STATUSES = ["all", "needs", "paused"] as const;
 
-export type LedgerStatus = (typeof LEDGER_STATUSES)[number];
+type LedgerStatus = (typeof LEDGER_STATUSES)[number];
 
 /**
  * Whether a row stands under a status tab: the one predicate the tabs' counts and the page's filter both read. Needs you

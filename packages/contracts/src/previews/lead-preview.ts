@@ -115,7 +115,7 @@ export interface PreviewPageFacts {
 
 /** Their photo as the page may draw it: Google's own host, over https, else none (the CSP allows that host alone). */
 const GOOGLE_PHOTO = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//;
-const photoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test(url) ? url : null);
+const googlePhotoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test(url) ? url : null);
 
 const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
@@ -287,7 +287,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     state,
     business: previewPageFacts.business,
     logo_url: previewPageFacts.logo_url,
-    photo: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
+    photo: state === "ended" || state === "taken" ? null : googlePhotoOf(previewPageFacts.photo_url),
     turns,
     calls: open ? (previewPageFacts.calls ?? []) : [],
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),

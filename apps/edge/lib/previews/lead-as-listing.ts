@@ -13,7 +13,7 @@ import type { FirstReceptionistKnown, GoogleListingFacts } from "@chanlytics/con
 import { leadCalledByOf, listingPeriodsOf, zoneOfRegion, formatPhoneDisplay } from "@chanlytics/contracts";
 
 /** What a lead holds that its listing said, as the finder kept it (00140, 00144). */
-export interface LeadListingInput {
+interface LeadListingInput {
   business_name: string | null;
   category: string | null;
   street: string | null;

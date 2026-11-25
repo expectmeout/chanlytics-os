@@ -59,12 +59,12 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** A planned send this late in a run that goes ahead was left, not merely due: it is planned again. */
-export const STALE_AFTER_MS = 15 * MIN_MS;
+const STALE_AFTER_MS = 15 * MIN_MS;
 /** A claim this old never became an email: its writer died mid-send. */
-export const CLAIM_STUCK_AFTER_MS = 10 * MIN_MS;
+const CLAIM_STUCK_AFTER_MS = 10 * MIN_MS;
 /** How long an email of unknown outcome waits for its receipt before its send is failed. */
 /** When the clock stops for the tick: its door has 60 s (vercel.json), and what is left is the next minute's. */
-export const CLOCK_YIELD_AT_MS = 40_000;
+const CLOCK_YIELD_AT_MS = 40_000;
 const PAGE = 500;
 const STUCK_PAGE = 100;
 /**
@@ -81,7 +81,7 @@ interface ClockPorts {
 }
 const restFor = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
 
-export interface ClockCounts extends ReplanCounts {
+interface ClockCounts extends ReplanCounts {
   reconciled: number;
   sent: number;
   failed: number;

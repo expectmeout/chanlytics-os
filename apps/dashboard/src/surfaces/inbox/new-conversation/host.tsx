@@ -25,7 +25,9 @@ import {
  * What the act opens, loaded once for the tab; a fetch that failed is asked for again by the next warm or press. What it
  * reads of the module is named, so the dead-exports check (knip) sees the use.
  */
-const sheetCode = codeOnce(() => import("./sheet").then(({ NewConversationSheet }) => ({ NewConversationSheet })));
+const newConversationSheetCode = codeOnce(() =>
+  import("./sheet").then(({ NewConversationSheet }) => ({ NewConversationSheet })),
+);
 
 /** The Inbox's three tabs: where N is the page's key for a new conversation. */
 const ON_THE_INBOX = /^(inbox|conversations|live)(\/|$)/;
@@ -48,13 +50,13 @@ export function NewConversationHost() {
   const [toast, flash] = useToast();
   useEffect(() => {
     window.addEventListener("keydown", onNewKey);
-    const forget = onWarmAsked(sheetCode.warm);
+    const forget = onWarmAsked(newConversationSheetCode.warm);
     return () => {
       window.removeEventListener("keydown", onNewKey);
       forget();
     };
   }, []);
-  const Opened = useCode(sheetCode, ask.open).loaded?.NewConversationSheet;
+  const Opened = useCode(newConversationSheetCode, ask.open).loaded?.NewConversationSheet;
   return (
     <>
       {Opened && ask.session > 0 ? (

@@ -41,6 +41,38 @@ export function cleanListName(raw: unknown): string {
   return name;
 }
 
+type SavedListRead = { id: string; name?: string; rule?: unknown; archived_at?: string | null };
+
+/**
+ * One list a rule reads, checked: one there is, not the list itself, not one archived since (unless it read it already),
+ * and one that reads no list itself.
+ */
+function checkListRead(
+  token: string,
+  saved: readonly SavedListRead[],
+  self: string | null,
+  before: ReadonlySet<string>,
+) {
+  const ref = parseListToken(token);
+  const known =
+    ref?.kind === "builtin"
+      ? BUILTIN_LISTS.some((l) => l.id === ref.id)
+      : ref?.kind === "saved"
+        ? saved.find((l) => l.id.toLowerCase() === ref.id)
+        : null;
+  if (!known) throw new AppError("validation", "That rule reads a list there isn't. Pick one of your lists.");
+  if (ref?.kind === "saved" && ref.id === self?.toLowerCase())
+    throw new AppError("validation", "A list can't read itself.");
+  if (typeof known === "object" && known.archived_at && !before.has(token.toLowerCase()))
+    throw new AppError("validation", `${known.name ?? "That list"} is archived. Restore it on People to read it.`);
+  if (typeof known === "object" && known.rule != null) {
+    const other = asListRule(known.rule);
+    if (!other) throw new AppError("validation", "That rule reads a list this version can't read. Reload the page.");
+    if (ruleLists(other).length)
+      throw new AppError("validation", "That list reads another list itself. A list reads lists one level deep.");
+  }
+}
+
 /**
  * A smart list's rule as a person sent it, or null when none was sent: anything the vocabulary cannot read is refused
  * in words, never stored (contracts ListRuleSchema). A list it reads must be one there is: a built-in by its id, or one
@@ -49,7 +81,7 @@ export function cleanListName(raw: unknown): string {
  */
 export function cleanListRule(
   raw: unknown,
-  saved: readonly { id: string; name?: string; rule?: unknown; archived_at?: string | null }[] = [],
+  saved: readonly SavedListRead[] = [],
   self: string | null = null,
 ): ListRule | null {
   if (raw === undefined || raw === null) return null;
@@ -59,26 +91,7 @@ export function cleanListRule(
   const was = self ? saved.find((l) => l.id.toLowerCase() === self.toLowerCase())?.rule : null;
   const wasRule = was == null ? null : asListRule(was);
   const before = new Set(wasRule ? ruleLists(wasRule).map((t) => t.toLowerCase()) : []);
-  for (const token of ruleLists(rule)) {
-    const ref = parseListToken(token);
-    const known =
-      ref?.kind === "builtin"
-        ? BUILTIN_LISTS.some((l) => l.id === ref.id)
-        : ref?.kind === "saved"
-          ? saved.find((l) => l.id.toLowerCase() === ref.id)
-          : null;
-    if (!known) throw new AppError("validation", "That rule reads a list there isn't. Pick one of your lists.");
-    if (ref?.kind === "saved" && ref.id === self?.toLowerCase())
-      throw new AppError("validation", "A list can't read itself.");
-    if (typeof known === "object" && known.archived_at && !before.has(token.toLowerCase()))
-      throw new AppError("validation", `${known.name ?? "That list"} is archived. Restore it on People to read it.`);
-    if (typeof known === "object" && known.rule != null) {
-      const other = asListRule(known.rule);
-      if (!other) throw new AppError("validation", "That rule reads a list this version can't read. Reload the page.");
-      if (ruleLists(other).length)
-        throw new AppError("validation", "That list reads another list itself. A list reads lists one level deep.");
-    }
-  }
+  for (const token of ruleLists(rule)) checkListRead(token, saved, self, before);
   // Read by another list, it reads none itself: one level deep either way.
   if (self && ruleLists(rule).length) {
     const token = `list:${self.toLowerCase()}`;

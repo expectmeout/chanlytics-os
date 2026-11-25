@@ -207,7 +207,7 @@ type AnswerCalloutTone = "note" | "warn";
 const INLINE =
   /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\(([^)\s]*)\)|`([^`\n]+)`/gu;
 /** A door's target as the normaliser writes it: `ask:` and a route of the app's own, never an address elsewhere. */
-const DOOR = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
+const ASK_DOOR = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
 
 /**
  * A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown.
@@ -222,7 +222,7 @@ export function answerRuns(line: string): AnswerRun[] {
   for (const m of line.matchAll(INLINE)) {
     plain(line.slice(at, m.index));
     const [, b1, b2, i1, i2, link, target, code] = m;
-    const to = link && target && !target.includes("//") ? DOOR.exec(target)?.[1] : undefined;
+    const to = link && target && !target.includes("//") ? ASK_DOOR.exec(target)?.[1] : undefined;
     if (b1 ?? b2) out.push(...answerRuns(b1 ?? b2 ?? "").map((r): AnswerRun => ({ ...r, bold: true })));
     else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r): AnswerRun => ({ ...r, italic: true })));
     else if (link && to) out.push({ text: link, to });

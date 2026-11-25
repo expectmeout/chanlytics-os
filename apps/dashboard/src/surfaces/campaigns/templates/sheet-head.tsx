@@ -31,7 +31,7 @@ const PLACE_TONES: Record<MessagePlace, string> = {
 };
 
 /** What went out, in a few words: how many and when the last did, that none has yet, or nothing where it was not read. */
-function sentWords(sent: Facts["usage"]["sent"]): string | null {
+function usageSentWords(sent: Facts["usage"]["sent"]): string | null {
   if (!sent) return null;
   if (sent.count) return WORDS.sent(sent.count, sent.when);
   return /never/i.test(sent.when ?? "") ? WORDS.noneSent : null;
@@ -47,7 +47,7 @@ export function factsLine(g: TemplateGroup, facts: Facts, counted = true) {
   const offer = facts.marks.offer;
   const { use, sent } = facts.usage;
   const sends = use && !use.unused ? use : null;
-  const went = counted ? sentWords(sent) : null;
+  const went = counted ? usageSentWords(sent) : null;
   const purpose = !sends && g.starter ? g.purpose.charAt(0).toUpperCase() + g.purpose.slice(1) : null;
   return (
     <span className="tpl-facts-line" data-testid="template-pane-users">

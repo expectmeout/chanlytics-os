@@ -153,7 +153,7 @@ export interface CallEventPlan {
 }
 
 /** A trimmed string, or nothing: the analysis's answers are the agent's free text. */
-const said = (v: unknown): string => (typeof v === "string" && v.trim() ? v.trim() : "");
+const trimmedWords = (v: unknown): string => (typeof v === "string" && v.trim() ? v.trim() : "");
 
 /**
  * What each delivery DID, as a row: the event, the status the payload
@@ -178,7 +178,7 @@ function deliveryRow(callEvent: CallEvent, res: IngestCallResult): Record<string
 
 /** What the owner is told to do: the analysis's to-do, else what the caller wanted, else the fact itself. */
 function callbackTodo(analysis: Record<string, unknown>): string {
-  return said(analysis.follow_up) || said(analysis.caller_wanted) || "The caller needs a call back.";
+  return trimmedWords(analysis.follow_up) || trimmedWords(analysis.caller_wanted) || "The caller needs a call back.";
 }
 
 /**
@@ -538,15 +538,15 @@ export function callNotice(
   callId: string | null,
 ): NotifyMessage {
   const summary = normalizedCall.summary || "(no summary)";
-  const wanted = said(normalizedCall.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
+  const wanted = trimmedWords(normalizedCall.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
   const outcomeWords = callOutcomeWords(normalizedCall.analysis?.outcome);
-  const followUp = said(normalizedCall.analysis?.follow_up);
+  const followUp = trimmedWords(normalizedCall.analysis?.follow_up);
   const callback = normalizedCall.analysis?.outcome === "callback_needed";
   const durationS = normalizedCall.durationMs ? Math.round(normalizedCall.durationMs / 1000) : 0;
   // Then the line, as every page says it (contracts callerName): the number, or that it was withheld.
   const personName =
     saved ||
-    said(normalizedCall.analysis?.caller_name) ||
+    trimmedWords(normalizedCall.analysis?.caller_name) ||
     callerName({ from_e164: normalizedCall.fromE164, from_raw: normalizedCall.fromRaw, contact: null });
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   // How it ended in the call page's words (contracts DISCONNECTION_LABELS), never the provider's code.

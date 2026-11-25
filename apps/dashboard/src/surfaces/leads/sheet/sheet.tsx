@@ -111,7 +111,7 @@ interface SheetDraw {
 /* ---------------------------------------------------------------------------------------------------- the head -- */
 
 /** The place that stands for them, where one does: Take out asks there, and Never write to them again under it. */
-const standing = (facts: SheetFacts | null) =>
+const sheetStanding = (facts: SheetFacts | null) =>
   facts && facts.place && placeStands(facts.place.place.group) ? facts.place : null;
 
 /** The dock asks Take out itself (a sequence that runs and needs nothing of you), with Never write to them again under it. */
@@ -384,7 +384,7 @@ function sheetStepOf(d: SheetDraw) {
 
 /** What an email of your own sets off: Take out asked while their sequence stands, its Undo taking that back. */
 const wroteOf = (d: SheetDraw) => ({
-  stands: !!standing(d.facts),
+  stands: !!sheetStanding(d.facts),
   ask: () => d.sheet.put({ ask: "leave", wrote: true }),
   unask: () => d.sheet.put({ ask: null, wrote: false }),
   moved: d.moved,
@@ -431,7 +431,7 @@ function dockOf(d: SheetDraw, desk: boolean) {
   if (d.box.typing) return <SheetBoxDock box={d.box} run={d.run} flash={p.flash} moved={d.moved} />;
   if (p.mode === "draft" && p.on)
     return <SheetWriteDock vm={vm} draft={p.draft} busy={busy} on={wroteActsOf(p.on, wroteOf(d))} />;
-  const stands = standing(facts);
+  const stands = sheetStanding(facts);
   if (sheet.ui.ask === "leave" && stands)
     return (
       <SheetLeaveAsk
@@ -585,7 +585,7 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
  * The foot: the dock and the pile's line. None at all where neither has anything to say, an empty line above all: a
  * phone's foot is a capsule with or without words in it. The line then waits in the body (sayingInBody).
  */
-function footOf(d: SheetDraw, desk: boolean) {
+function leadSheetFoot(d: SheetDraw, desk: boolean) {
   const dock = dockOf(d, desk);
   const pile = d.p.pile;
   return dock || (pile && pile.pile.said) ? (
@@ -601,7 +601,7 @@ const sayingInBody = (d: SheetDraw, foot: unknown) => (foot ? null : sheetSaidOf
 
 /** On a desk: a panel beside the rows, one scroll, the dock at its foot. */
 function deskOf(d: SheetDraw) {
-  const foot = footOf(d, true);
+  const foot = leadSheetFoot(d, true);
   return (
     <aside
       className="lw lw-desk pl-peek"
@@ -635,7 +635,7 @@ function phoneOf(d: SheetDraw) {
         : {};
   // A line opened raises the sheet, as a step does and an email being written; let down to half, what was open shuts.
   const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || p.mode === "draft" || d.line.open !== null);
-  const foot = footOf(d, false);
+  const foot = leadSheetFoot(d, false);
   const onRest = (at: "half" | "full") => {
     sheet.put({ full: at === "full" });
     if (at === "half" && d.line.open) d.line.turn(d.line.open);

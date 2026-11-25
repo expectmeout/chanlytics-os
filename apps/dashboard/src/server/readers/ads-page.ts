@@ -51,7 +51,7 @@ import { getStoredConfig } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
 /** How many of an ad's people one page of the drawer's list holds. */
-const PEOPLE_PAGE = 50;
+const ADS_PEOPLE_PAGE = 50;
 
 const OPENS: readonly AdOpens[] = ["whatsapp", "instagram", "messenger", "call", "form", "website", "other"];
 const opensOf = (door: string): AdOpens => OPENS.find((one) => one === door) ?? "other";
@@ -294,7 +294,7 @@ export function aiStoppedAt(config: unknown): string | null {
   return parsed.ok ? (parsed.config.ask?.stopped?.at ?? null) : null;
 }
 
-const statusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
+const accountStatusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
   row.status === "connected" || row.status === "revoked" || row.status === "disconnected" ? row.status : null;
 
 /** Whether every check the account's card counts passes, read from its row as the card reads it (readers/ad-account.ts). */
@@ -360,7 +360,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
   async read(rc) {
     const { supabase } = rc.ctx;
     const account = await findAdAccountForPage(supabase, rc.tenantId, "meta");
-    const status = account ? statusOf(account) : null;
+    const status = account ? accountStatusOf(account) : null;
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
     // The request's own moment: every state, day and wait on the page is said by one clock.
     const nowMs = rc.now.getTime();
@@ -431,15 +431,15 @@ export const adPeople: Reader<z.infer<typeof AdPeopleQuery>, AdPeopleLiveDto> = 
     // One more than a page, to say whether there are more.
     const rows = await listAdPeople(rc.ctx.supabase, rc.tenantId, adId, {
       days: AD_PAGE_DAYS,
-      limit: PEOPLE_PAGE + 1,
+      limit: ADS_PEOPLE_PAGE + 1,
       offset: input.offset,
     });
-    const people = rows.slice(0, PEOPLE_PAGE).map((row) => ({
+    const people = rows.slice(0, ADS_PEOPLE_PAGE).map((row) => ({
       id: row.contact_id,
       name: personName(row),
       first_at: row.first_at,
       booked: row.booked,
     }));
-    return { data: { people, more: rows.length > PEOPLE_PAGE }, rows: [], stamp: readerStamp() };
+    return { data: { people, more: rows.length > ADS_PEOPLE_PAGE }, rows: [], stamp: readerStamp() };
   },
 };

@@ -10,18 +10,19 @@
     "enumMembers": "off",
     "classMembers": "off",
     "duplicates": "off",
-    "dependencies": "off",
-    "devDependencies": "off",
+    "dependencies": "error",
+    "devDependencies": "error",
     "optionalPeerDependencies": "off",
     "unlisted": "off",
     "unresolved": "off",
     "binaries": "off",
-    "catalog": "off"
+    "catalog": "error"
   },
   "workspaces": {
     ".": {
       "entry": ["eslint.config.mjs", "playwright.config.ts", "e2e/**/*.ts"],
-      "project": ["e2e/**/*.ts", "*.{ts,mjs}"]
+      "project": ["e2e/**/*.ts", "*.{ts,mjs}"],
+      "ignoreDependencies": ["esbuild", "lint-staged"]
     },
     "apps/edge": {
       "entry": ["api/**/*.ts"],
@@ -41,7 +42,8 @@
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
     },
     "apps/mobile": {
-      "entry": ["src/**/*.ios.{ts,tsx}"]
+      "entry": ["src/**/*.ios.{ts,tsx}"],
+      "ignoreDependencies": ["expo-font", "expo-symbols"]
     },
     "apps/relay": {
       "entry": ["src/index.ts", "proof/key-door.ts", "proof/relay-with-breaks.ts"],
@@ -65,10 +67,10 @@
         "gen/*.mjs",
         "ops/**/*.mjs",
         "voice/*.mjs",
-        "e2e-harness/**/*.{ts,mjs}",
+        "e2e-harness/**/*.{ts,tsx,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"
       ],
-      "project": ["**/*.{ts,mjs}"]
+      "project": ["**/*.{ts,tsx,mjs}"]
     },
     "tests": {
       "entry": ["**/*.mjs"],

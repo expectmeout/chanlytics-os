@@ -384,8 +384,11 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
   const open = fold.open && canEdit && can;
   const ed: BtEd<D> = { live: live.current, flash: a.flash, ask, out, setDraft, setProblems, setFocusOn };
   const reset = btEditorReset(ed);
+  // Closed by anything, the editor lets go of its draft: the reset of the draw it closed on.
+  const resetNow = useRef(reset);
+  resetNow.current = reset;
   useEffect(() => {
-    if (!open) reset();
+    if (!open) resetNow.current();
   }, [open]);
   const now = btEditorSync(live.current, { open, draft, busy, stored });
   const dirty = open && draft != null && !S.same(draft, btOpenedOn(live.current));

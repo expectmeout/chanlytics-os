@@ -54,7 +54,7 @@ const LAST_CHARS = 1500;
 const CUT_HERE = " [cut here for length]";
 
 /** Words to `max` characters, said to be cut where they were: the model never takes our cut for theirs. */
-const told = (words: string, max: number): string =>
+const clippedWords = (words: string, max: number): string =>
   words.length > max ? `${words.slice(0, max).trimEnd()}${CUT_HERE}` : words;
 
 /**
@@ -114,12 +114,12 @@ function personLines(person: Who, forTheMember: boolean): string {
   ];
   for (const f of person.facts.slice(0, FACTS_SHOWN)) lines.push(`${f.label}: ${f.value}`);
   const last = person.lastExchange?.customer;
-  if (last) lines.push(`The last thing they wrote (${last.at}): ${told(last.text, LAST_CHARS)}`);
+  if (last) lines.push(`The last thing they wrote (${last.at}): ${clippedWords(last.text, LAST_CHARS)}`);
   const turns = person.timeline
     // A message that never reached them (queued, failed or canceled) was not said to them: the draft does not build on it.
     .filter((t) => forTheMember || (SAID_TO_THEM.has(t.kind) && !t.unsent))
     .slice(0, TURNS_TOLD)
-    .map((t) => `${t.day} ${t.time} ${t.who}: ${told(t.text, TURN_CHARS)}`);
+    .map((t) => `${t.day} ${t.time} ${t.who}: ${clippedWords(t.text, TURN_CHARS)}`);
   if (turns.length) lines.push("What has happened, newest first:", ...turns);
   // A note for the team alone is the team's: a brief may hold it, a message to the person never does.
   const notes = person.noteList.filter((n) => !n.suggested && (forTheMember || !n.teamOnly)).map((n) => n.body);
@@ -139,7 +139,7 @@ function businessLines(business: DraftKnown["business"]): string {
     .join("\n");
 }
 
-function askedOf(known: DraftKnown, input: DraftInput): string {
+function draftAskedOf(known: DraftKnown, input: DraftInput): string {
   const answered = (input.answers ?? []).map((a) => `You asked: ${a.question}\nThe owner answered: ${a.words}`);
   const again = input.previous
     ? [
@@ -225,7 +225,7 @@ export async function draftPersonFrom(known: DraftKnown, input: DraftInput): Pro
         max_tokens: 900,
         system: [...RULES, ...shapeRules(input)].join("\n"),
         schema: PERSON_DRAFT_JSON_SCHEMA,
-        messages: [{ role: "user", content: askedOf(known, input) }],
+        messages: [{ role: "user", content: draftAskedOf(known, input) }],
       },
     },
     PersonDraftAnswerSchema,

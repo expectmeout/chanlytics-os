@@ -69,7 +69,7 @@ function phaseOf(b: CalendarBlockVM, d: CalendarFrame, now: number | null): stri
  * says only in its name for a reader (the sheet asks the question). Nothing for one ahead, or for an event that is nobody's:
  * a lunch is asked nothing (visitLineOf).
  */
-function saidOf(b: CalendarBlockVM, nowMs: number): { status: string; word: string | null } | null {
+function blockSaidOf(b: CalendarBlockVM, nowMs: number): { status: string; word: string | null } | null {
   const line = visitLineOfBlock(b, nowMs);
   const state = line.state;
   if (!state) return null;
@@ -110,7 +110,7 @@ function CrBlock(p: {
         }
       : {};
   // How it stands (0002 step 8), said quietly: a dot, the word beside the time, a cancelled one struck, a request dashed.
-  const said = saidOf(b, p.nowMs);
+  const said = blockSaidOf(b, p.nowMs);
   const word = said?.word ?? null;
   const spoken = said ? (word ?? "not marked yet") : null;
   return (
@@ -236,7 +236,7 @@ function CrMoment({ x, hours, onOpen }: { x: CrLaid; hours: Hours; onOpen: () =>
 /** The all-day events of a day's lane: on a phone a dot and the words, cut short, so the hours keep the screen. */
 function allDayOf(d: CalendarFrame, a: ViewAct) {
   return d.allDay.map((b) => {
-    const said = saidOf(b, a.nowMs);
+    const said = blockSaidOf(b, a.nowMs);
     return (
       <button
         key={b.id}
@@ -478,7 +478,7 @@ export function CrBoard(p: {
 /** How much a day holds, as the month says it: what is taken (whatever the feed's state: a booking email is taken too) and the open times. */
 function monthCounts(d: CalendarFrame, fit: Fit, nowMs: number): { taken: number; open: number } {
   // A visit said cancelled is no time taken, whatever the calendar still holds.
-  const taken = [...d.blocks, ...d.allDay].filter((b) => saidOf(b, nowMs)?.status !== "cancelled").length;
+  const taken = [...d.blocks, ...d.allDay].filter((b) => blockSaidOf(b, nowMs)?.status !== "cancelled").length;
   return { taken, open: d.windows.filter(fit).length };
 }
 
@@ -653,7 +653,7 @@ interface AgendaProps {
 
 /** One visit of the agenda, as Today's rows draw it: who, then what and how long, and how it stands. */
 function agendaRow(b: CalendarBlockVM, allDay: boolean, d: CalendarFrame, p: AgendaProps) {
-  const said = saidOf(b, p.a.nowMs);
+  const said = blockSaidOf(b, p.a.nowMs);
   return (
     <AgendaItem
       key={b.id}

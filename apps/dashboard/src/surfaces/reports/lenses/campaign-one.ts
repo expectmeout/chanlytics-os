@@ -43,7 +43,7 @@ export const CAMPAIGN_SCOPE_WORDS = {
 const SCOPE_WORDS = CAMPAIGN_SCOPE_WORDS;
 
 /** What the fold is handed: the sequence, the batches read, and the days Reports shows. */
-export interface CampaignOneInput {
+interface CampaignOneInput {
   id: string;
   name: string;
   timezone: string;
@@ -58,7 +58,7 @@ export interface CampaignOneInput {
 }
 
 /** One day's column: what it sent and what came back from it. */
-export interface CampaignOnePointVM {
+interface CampaignOnePointVM {
   day: string;
   label: string;
   short: string;
@@ -69,7 +69,7 @@ export interface CampaignOnePointVM {
 }
 
 /** What a step sent over the days, and what came of it. */
-export interface CampaignOneStepVM {
+interface CampaignOneStepVM {
   place: number;
   label: string;
   sent: number;
@@ -79,7 +79,7 @@ export interface CampaignOneStepVM {
 }
 
 /** One send of the days: when, which step, and what came of it in History's own words. */
-export interface CampaignOneSendVM {
+interface CampaignOneSendVM {
   id: string;
   /** What it is (sent, going out, failed, waiting for an OK, to come, canceled): its mark, as History's day marks it. */
   state: string;

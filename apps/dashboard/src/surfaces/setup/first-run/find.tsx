@@ -91,14 +91,14 @@ function hitsOf(o: {
  * Google is asked the pane its answer comes in stands already and says so, as tall as the answer usually is, so what is
  * under it holds still when it lands (first-run.css .fr-find-looking).
  */
-function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words: string | null) => void) {
+function findNotes(findWords: FindWords, found: Found | null, busy: boolean, ask: (words: string | null) => void) {
   const hits = found ? found.candidates : [];
   return (
     <>
       {found === null ? (
         <div className="panel fr-pane fr-find-looking" role="status" data-testid="fr-find-reading">
           <span className="fr-pulse" aria-hidden="true" />
-          <span className="fr-note">{W.reading}</span>
+          <span className="fr-note">{findWords.reading}</span>
         </div>
       ) : null}
       {found && !found.ok ? (
@@ -111,17 +111,17 @@ function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words
             disabled={busy}
             data-testid="fr-find-retry"
           >
-            {W.retry}
+            {findWords.retry}
           </button>
         </p>
       ) : null}
       {found && found.ok && hits.length === 0 ? (
         <p className="fr-note" data-testid="fr-find-none">
-          {W.none(found.query)}
+          {findWords.none(found.query)}
         </p>
       ) : null}
       {found && found.ok && hits.length > 0 && found.ownWords ? (
-        <p className="fr-note">{W.typed(found.query)}</p>
+        <p className="fr-note">{findWords.typed(found.query)}</p>
       ) : null}
     </>
   );

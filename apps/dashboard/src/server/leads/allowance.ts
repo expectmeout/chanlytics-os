@@ -12,25 +12,10 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import { getLeadAllowance, readLeadMonthUsed } from "@chanlytics/db/leads";
-import type { Database } from "@chanlytics/db/types";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { getStoredConfig } from "../workspace/config-row";
 import type { TenantId } from "@chanlytics/contracts";
-
-/**
- * One door's arguments, with null where the owner named nothing.
- *
- * `database.types.ts` spells an argument that has a SQL default as OPTIONAL
- * (`p_class?: string`) and never as nullable, because the generator cannot see
- * that the default IS null. PostgREST sends an omitted argument and an
- * explicit null the same way, and 00142's own bodies read null as "not given"
- * (`coalesce(p_class, 'qualified')`). Naming the whole list in one object is
- * what makes a route's arguments readable in one place -- and assertable in
- * one deepEqual -- so this narrows that one difference, and nothing else: the
- * door's NAME and every argument's own type stay checked.
- */
-export type DoorArgs<K extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][K]["Args"];
 
 /* ----------------------------------------------------- what the plan says */
 

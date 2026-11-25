@@ -21,7 +21,6 @@ import {
   restedOf,
   type AskNotice,
   type AskRested,
-  type TenantId,
 } from "@chanlytics/contracts";
 import { countHeldReviewReplies, listAskActions } from "@chanlytics/db/ask";
 import { logAndGoOn } from "@chanlytics/log";
@@ -76,9 +75,7 @@ async function roomAndYes(t: ToolContext, language: string, runsRead: Runs): Pro
 /** D21: what came of the newest send Ask pressed, in the numbers its page shows. "Since", never "because". */
 async function offerResult(t: ToolContext, language: string, runsRead: Runs): Promise<AskNotice | null> {
   const since = new Date(t.now.getTime() - RESULT_DAYS * DAY_MS).toISOString();
-  const acted = await listAskActions(t.ctx.supabase, t.tenantId as TenantId, since, 20).catch(
-    logAndGoOn("notice actions", []),
-  );
+  const acted = await listAskActions(t.ctx.supabase, t.tenantId, since, 20).catch(logAndGoOn("notice actions", []));
   const send = acted.find((a) => (a.kind === "broadcast" || a.kind === "playbook") && a.state === "done");
   if (!send) return null;
   const runs = await runsRead();
@@ -105,9 +102,7 @@ async function channelGap(t: ToolContext, language: string): Promise<AskNotice |
 
 /** D34: review replies already written and waiting for a word, which cost nothing more to look at. */
 async function reviewsWritten(t: ToolContext, language: string): Promise<AskNotice | null> {
-  const held = await countHeldReviewReplies(t.ctx.supabase, t.tenantId as TenantId).catch(
-    logAndGoOn("notice reviews", 0),
-  );
+  const held = await countHeldReviewReplies(t.ctx.supabase, t.tenantId).catch(logAndGoOn("notice reviews", 0));
   return held > 0 ? noticeOf("reviews_written", { replies: held }, language) : null;
 }
 
