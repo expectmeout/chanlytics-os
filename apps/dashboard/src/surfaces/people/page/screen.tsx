@@ -183,7 +183,12 @@ function peopleListHead(s: PeopleState) {
           <span className="chip" data-testid="state-filter">
             <Icon name="filter" size={10} />
             {PL_TAB_LABEL[tab]}
-            <button className="chip-x" data-tip="Show everyone" aria-label="Show everyone" onClick={() => setTab("all")}>
+            <button
+              className="chip-x"
+              data-tip="Show everyone"
+              aria-label="Show everyone"
+              onClick={() => setTab("all")}
+            >
               <Icon name="x" size={9} />
             </button>
           </span>

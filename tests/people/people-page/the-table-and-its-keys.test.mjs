@@ -535,9 +535,9 @@ test("Reach says the address where a reply goes by email, and its whole is in th
   const reach = byTestId(rowOf(tree, "p1"), "row-reach");
   assert.match(textOf(reach), /Email/, "the wire they last wrote on");
   assert.ok(textOf(reach).includes(address), "over the address, not the number");
-  assert.ok(String(reach.props.title).endsWith(address), "and the address whole in the tip");
+  assert.ok(String(reach.props["data-tip"]).endsWith(address), "and the address whole in the tip");
   assert.doesNotMatch(
-    String(byTestId(rowOf(tree, "p2"), "row-reach").props.title),
+    String(byTestId(rowOf(tree, "p2"), "row-reach").props["data-tip"]),
     /786/,
     "a number is never cut, so the tip does not say it again",
   );

@@ -315,7 +315,10 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
         column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
         one wherever Visits does not take the cell's place. */}
     {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && (
-      <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} data-tip={p.receptionist.label}>
+      <span
+        className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`}
+        data-tip={p.receptionist.label}
+      >
         {plReceptMark(p)}
       </span>
     )}
@@ -534,7 +537,12 @@ export const PL_COLUMNS: PeopleColumn[] = [
     width: { base: 152, min: 136, max: 220 },
     csv: { head: "Phone", cell: (p) => p.phone || "" },
     cell: (p) => (
-      <td key="phone" className="dim cl-cut tabular cl-phone-cell" data-tip={p.phone || undefined} data-testid="row-phone">
+      <td
+        key="phone"
+        className="dim cl-cut tabular cl-phone-cell"
+        data-tip={p.phone || undefined}
+        data-testid="row-phone"
+      >
         {p.phone || ""}
       </td>
     ),

@@ -67,7 +67,11 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.equal(cell("wes").props["data-due"], "past", "the warn ink is the stylesheet's, keyed on this");
   assert.equal(cell("nia").props["data-due"], "ahead");
   assert.equal(textOf(cell("cat")), "", "no step: an empty cell, never a word for nothing");
-  assert.equal(cell("wes").props.title, "Send the revised quote", "the words whole, where the cell cuts them");
+  assert.equal(
+    cell("wes").props["data-tip"],
+    "Send the revised quote",
+    "the words whole in its tip, where the cell cuts them",
+  );
   // The heading sorts by the day, within each group, and the member's view keeps it.
   const nextHead = (t) => find(t, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Next step"));
   click(nextHead(tree));

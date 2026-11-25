@@ -750,7 +750,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
     const vm = quiet();
     const tree = await openedRow(vm);
     const next = nextActOf(tree);
-    assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
+    assert.deepEqual([textOf(next), next.props["data-tip"]], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
     assert.deepEqual(went, [vm.openThread], "their conversation, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");

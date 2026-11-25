@@ -44,7 +44,9 @@ function smartChipsOf(smart: SmartChip[]): ReactNode[] {
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
       <a
         {...routeDoor(clientSegRoute(l.id))}
-        data-tip={l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`}
+        data-tip={
+          l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`
+        }
         data-tip={l.why ? `Because: ${l.why}` : undefined}
       >
         {l.label}
