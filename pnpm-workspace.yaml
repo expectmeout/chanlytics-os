@@ -50,8 +50,9 @@ catalog:
 # dependencies-declared-once.test.mjs holds the names instead.
 catalogMode: manual
 
-# Every setting pnpm reads is here, not in package.json's "pnpm" field or .npmrc: Dependabot's updater runs pnpm 11,
-# which reads neither, and the lockfile it wrote then disagreed with CI's (tests/repo/settings/pnpm-settings.test.mjs).
+# Every setting pnpm reads is here, not in package.json's "pnpm" field or .npmrc: pnpm 11 reads neither, Dependabot's
+# updater ran pnpm 11 when the lockfile it wrote disagreed with CI's (29 Sep 2026; tests/repo/settings/pnpm-settings.test.mjs),
+# and its lockfiles since (#2532, #2536) are in pnpm 10's form.
 #
 # Vercel's vanilla-function bundler (nft) did not follow pnpm symlinks into the lambda, so third-party deps are hoisted to
 # real dirs and workspace packages injected as copies. The edge is bundled by esbuild since 16 Oct 2026 and the packages
@@ -82,7 +83,8 @@ overrides:
   uuid@<11.1.1: ^11.1.1
   zod@>=4.0.0 <4.6.6: ^4.6.7
 # pnpm 11.25 writes this block into the lockfile as a bare hash, which pnpm 10.34.5 refuses at --frozen-lockfile
-# (measured 25 Nov 2026, with no other change), so the two pnpms cannot share a lockfile while a patch is here.
+# (measured 25 Nov 2026, with no other change), so the two pnpms cannot share a lockfile while a patch is here: a move to
+# pnpm 11 moves the lockfile and CI together.
 patchedDependencies:
   query-string@7.1.3: patches/query-string@7.1.3.patch
 
