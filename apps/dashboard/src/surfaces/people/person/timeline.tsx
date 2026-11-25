@@ -189,7 +189,7 @@ function rows(
               <a
                 className="cl-tl-row cl-tl-row-door"
                 {...routeDoor(e.link.to)}
-                title={e.link.label}
+                data-tip={e.link.label}
                 data-testid="timeline-open"
               >
                 {body}

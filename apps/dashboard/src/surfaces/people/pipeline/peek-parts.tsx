@@ -185,7 +185,7 @@ function DealNextStep({ c }: { c: DealSheetCtx }) {
                 iconOnly
                 className="pipe-deal-done"
                 aria-label={S.done(s.words)}
-                title={S.done(s.words)}
+                data-tip={S.done(s.words)}
                 onClick={done}
                 data-testid="pipeline-peek-step-done"
               >

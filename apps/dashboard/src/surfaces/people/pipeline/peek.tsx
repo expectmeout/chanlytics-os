@@ -139,7 +139,7 @@ function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typ
           className="pk-x"
           id="pipeline-peek-close"
           aria-label={P.words.peek.close}
-          title={P.words.peek.close}
+          data-tip={P.words.peek.close}
           onClick={onClose}
           data-testid="pipeline-peek-close"
         >

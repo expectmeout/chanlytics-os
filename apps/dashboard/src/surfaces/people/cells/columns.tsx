@@ -174,7 +174,7 @@ export const plNameCell = (
             {/* Their own name on WhatsApp, where it differs, is the name's tip rather than a third thing on the row. */}
             <span
               className={numbered ? "tabular" : ""}
-              title={!numbered && p.waName && p.waName !== p.name ? `${p.waName} on WhatsApp` : undefined}
+              data-tip={!numbered && p.waName && p.waName !== p.name ? `${p.waName} on WhatsApp` : undefined}
             >
               {p.name}
             </span>
@@ -188,7 +188,7 @@ export const plNameCell = (
                   e.stopPropagation();
                   onOpen(rowId ?? p.id);
                 }}
-                title="Give them a name on their profile"
+                data-tip="Give them a name on their profile"
                 data-testid="row-name-them"
               >
                 Name them <Icon name="arrow-right" size={9} />
@@ -198,7 +198,7 @@ export const plNameCell = (
           {words && (
             <div
               className="cl-row-words"
-              title={words}
+              data-tip={words}
               data-testid="row-words"
               data-quoted={words.startsWith("“") || undefined}
             >
@@ -243,7 +243,7 @@ const plOffersCell = (p: PersonRowVM) => {
     <td
       key="offers"
       className="cl-offers-cell"
-      title={held ? `${p.consent.marketingSub} · ${heldWords(held, "marketing")}` : p.consent.marketingSub}
+      data-tip={held ? `${p.consent.marketingSub} · ${heldWords(held, "marketing")}` : p.consent.marketingSub}
       data-testid="row-offers"
     >
       <StatePill
@@ -267,7 +267,7 @@ const plVisitsCell = (p: PersonRowVM) => {
     <td
       key="visits"
       className="cl-visits-cell"
-      title={p.nextVisit || p.lastVisit || "Never on the calendar"}
+      data-tip={p.nextVisit || p.lastVisit || "Never on the calendar"}
       data-testid="row-next-visit"
     >
       {line ? (
@@ -279,7 +279,7 @@ const plVisitsCell = (p: PersonRowVM) => {
             e.stopPropagation();
             if (line.to) navigate(line.to);
           }}
-          title={`Open ${line.day} on the Calendar`}
+          data-tip={`Open ${line.day} on the Calendar`}
           data-testid="row-visit-open"
         >
           {p.nextVisitLine ? (
@@ -315,12 +315,12 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
         column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
         one wherever Visits does not take the cell's place. */}
     {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && (
-      <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>
+      <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} data-tip={p.receptionist.label}>
         {plReceptMark(p)}
       </span>
     )}
     {p.stateDetail && (
-      <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">
+      <span className="cl-row-state-detail" data-tip={p.stateDetail} data-testid="row-state-detail">
         {p.stateDetail}
       </span>
     )}
@@ -337,7 +337,7 @@ const plReachCell = (p: PersonRowVM) => {
   // A long address is cut with an ellipsis so the column stays narrow (a number never is): its whole rides in the tip.
   const tip = [words.tip, words.id !== null && words.id === p.email ? words.id : null].filter(Boolean).join(" · ");
   return (
-    <td key="reach" className="cl-reach-cell" title={tip || undefined} data-testid="row-reach">
+    <td key="reach" className="cl-reach-cell" data-tip={tip || undefined} data-testid="row-reach">
       {words.wire || words.id ? (
         <span className="cl-row-reach">
           {words.wire && <span className="cl-row-reach-wire">{words.wire}</span>}
@@ -396,7 +396,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
         key="next"
         className="cl-step-cell"
         data-due={p.nextStep ? p.nextStep.due : undefined}
-        title={
+        data-tip={
           p.nextStep
             ? [p.nextStep.words, p.nextStep.day.words, p.nextStep.forWho].filter(Boolean).join(" · ")
             : undefined
@@ -432,7 +432,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     width: { base: 132, min: 112, max: 240 },
     csv: { head: "Last contact", cell: (p) => p.lastContact.label },
     cell: (p) => (
-      <td key="last" className="dim cl-last-cell" title={plWhen(p.lastContact.at)}>
+      <td key="last" className="dim cl-last-cell" data-tip={plWhen(p.lastContact.at)}>
         <CellLines
           top={<span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>}
           sub={p.lastContact.when ? <span className="cl-row-last-by">{p.lastContact.by}</span> : null}
@@ -519,7 +519,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
         key="since"
         className="dim cl-cut cl-since-cell"
         data-testid="row-since"
-        title={p.firstContact.estimate ? "The earliest row we hold · the true first contact is earlier" : undefined}
+        data-tip={p.firstContact.estimate ? "The earliest row we hold · the true first contact is earlier" : undefined}
       >
         {p.firstContact.label !== "—" ? p.firstContact.label : ""}
       </td>
@@ -534,7 +534,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     width: { base: 152, min: 136, max: 220 },
     csv: { head: "Phone", cell: (p) => p.phone || "" },
     cell: (p) => (
-      <td key="phone" className="dim cl-cut tabular cl-phone-cell" title={p.phone || undefined} data-testid="row-phone">
+      <td key="phone" className="dim cl-cut tabular cl-phone-cell" data-tip={p.phone || undefined} data-testid="row-phone">
         {p.phone || ""}
       </td>
     ),
@@ -546,7 +546,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     width: { base: 220, min: 140, max: 360 },
     csv: { head: "Email", cell: (p) => p.email || "" },
     cell: (p) => (
-      <td key="email" className="dim cl-cut cl-email-cell" title={p.email || undefined} data-testid="row-email">
+      <td key="email" className="dim cl-cut cl-email-cell" data-tip={p.email || undefined} data-testid="row-email">
         {p.email || ""}
       </td>
     ),
@@ -576,7 +576,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     cell: (p, x) => {
       const names = (x.listsOf[p.id] || []).join(", ");
       return (
-        <td key="lists" className="dim cl-cut cl-lists-cell" title={names || undefined} data-testid="row-lists">
+        <td key="lists" className="dim cl-cut cl-lists-cell" data-tip={names || undefined} data-testid="row-lists">
           {names}
         </td>
       );

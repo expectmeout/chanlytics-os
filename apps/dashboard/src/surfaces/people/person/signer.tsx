@@ -34,7 +34,7 @@ function CombineNotice({ c, n }: { c: PageCtx; n: NoticeVM }) {
         c.isOwner ? (
           <Button
             size="sm"
-            title={WORKS_AT_WORDS.combine}
+            data-tip={WORKS_AT_WORDS.combine}
             onClick={() => {
               c.setDel({ open: false, typed: "", busy: false, error: null });
               c.setMerge({ ...MERGE_CLOSED, open: true, pick: act.otherId, combine: act });

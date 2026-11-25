@@ -44,7 +44,7 @@ function smartChipsOf(smart: SmartChip[]): ReactNode[] {
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
       <a
         {...routeDoor(clientSegRoute(l.id))}
-        title={l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`}
+        data-tip={l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`}
         data-tip={l.why ? `Because: ${l.why}` : undefined}
       >
         {l.label}
@@ -60,7 +60,7 @@ function listChip(s: SavedList, o: { personId: string; canEdit: boolean; busy: b
     <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
       <a
         {...routeDoor(`clients/list:${s.id}`)}
-        title={whyTitle(s, personId)}
+        data-tip={whyTitle(s, personId)}
         data-tip={s.byHand ? undefined : whyTip(s, personId)}
         data-testid="person-list-open"
       >
@@ -70,7 +70,7 @@ function listChip(s: SavedList, o: { personId: string; canEdit: boolean; busy: b
         <button
           type="button"
           className="chip-x"
-          title={`Take ${who} off ${s.name}`}
+          data-tip={`Take ${who} off ${s.name}`}
           aria-label={`Take ${who} off ${s.name}`}
           disabled={busy}
           onClick={() =>
@@ -244,7 +244,7 @@ export function PersonLists({
           variant="quiet"
           size="sm"
           className="cl-prof-rename is-plain cl-prof-list-add"
-          title="Add to a list"
+          data-tip="Add to a list"
           onClick={onPick}
           data-testid="person-list-add"
         >

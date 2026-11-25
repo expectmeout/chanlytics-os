@@ -55,7 +55,7 @@ export function PersonWalkNav({
         size="sm"
         iconOnly
         aria-label={W.previous}
-        title={W.previous}
+        data-tip={W.previous}
         disabled={!w.prev}
         onClick={go(w.prev)}
         data-testid="person-walk-prev"
@@ -68,7 +68,7 @@ export function PersonWalkNav({
         size="sm"
         iconOnly
         aria-label={W.next}
-        title={W.next}
+        data-tip={W.next}
         disabled={!w.next}
         onClick={go(w.next)}
         data-testid="person-walk-next"
