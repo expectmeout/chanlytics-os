@@ -11,7 +11,6 @@ import { listChains } from "@/server/campaigns/reach-outs/reach-outs";
 import { saveChain } from "@/server/campaigns/reach-outs/chain-acts";
 import type { Member } from "@/server/shared/route";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -57,13 +56,13 @@ export async function findLeadChainAgain(
   seq: { id: string; tenant_id: TenantId },
 ): Promise<SequenceAgainDto> {
   await leadSequenceOf(ctx, seq);
-  const now = await findChainAgain(serviceDb(), {
+  const now = await findChainAgain(ctx.supabase, {
     tenantId: seq.tenant_id,
     rootId: seq.id,
     days: REACH_OUT_AGAIN_DAYS,
   });
   if (now.again_after_days === null || now.again_after_days === REACH_OUT_AGAIN_DAYS) return now;
-  return findChainAgain(serviceDb(), { tenantId: seq.tenant_id, rootId: seq.id, days: now.again_after_days });
+  return findChainAgain(ctx.supabase, { tenantId: seq.tenant_id, rootId: seq.id, days: now.again_after_days });
 }
 
 /**

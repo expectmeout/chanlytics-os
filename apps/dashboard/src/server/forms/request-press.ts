@@ -39,7 +39,6 @@ import { beginPorts } from "../new-conversation/ports";
 import { readSiteRequestShapes } from "../connections/outside-forms";
 import { answerRequestTime } from "./request-time";
 import type { Member } from "../shared/route";
-import { serviceDb } from "../shared/service-db";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 
 /**
@@ -167,8 +166,8 @@ export async function applyFormRequestPress(
   const marked = { tenantId: member.tenantId, entryId: entry.id };
   if (press.act === "mark") await markFormEntryAnswered(ctx.supabase, { ...marked, userId: ctx.userId });
   else if (press.act === "unmark") await removeFormEntryMark(ctx.supabase, marked);
-  // The entry itself is the service role's to write: the route asked the member's role, and the door asks the row's workspace.
-  else if (press.act === "hold") await holdFormEntry(serviceDb(), member.tenantId, entry.id);
-  else await letFormEntryThrough(serviceDb(), member.tenantId, entry.id);
+  // The entry itself is written by its doors, on the member's session: each asks that they act in the workspace (00717).
+  else if (press.act === "hold") await holdFormEntry(ctx.supabase, member.tenantId, entry.id);
+  else await letFormEntryThrough(ctx.supabase, member.tenantId, entry.id);
   return NOTHING_SENT;
 }

@@ -42,7 +42,7 @@ import { listMailboxConnectionsOf } from "@chanlytics/db/email";
 import { getStoredConfig } from "../workspace/config-row";
 import { requestJson } from "../connections/email";
 import { env } from "../shared/env";
-import { schedule } from "../shared/jobs";
+import { schedule } from "../shared/ledgers/jobs";
 import { log } from "../shared/log";
 import { canonicalOrigin } from "../shared/origin";
 import { serviceDb } from "../shared/service-db";

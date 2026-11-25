@@ -30,7 +30,6 @@ import {
   workspaceLogoSrc,
   type AppointmentWord,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { getOpenHandovers, getOwnPartner } from "@chanlytics/db/partners";
 import {
   findWorkspaceNamed,
@@ -41,7 +40,6 @@ import {
   listMyWorkspacesOldest,
   patchWorkspaceRowWith,
 } from "@chanlytics/db/workspace";
-import { serviceDb } from "@/server/shared/service-db";
 import { isPlatformAdmin } from "@/server/shared/back-office";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -51,6 +49,7 @@ import { saysMissing } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
 import { hasOpenInvites } from "./team";
 import type { TenantId } from "@chanlytics/contracts";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -300,7 +299,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
   // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
   // may not insert into events.
-  await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
+  await emitWorkspaceEvent(member.tenantId, "settings.changed", "workspace", member.tenantId, {
     fields: Object.keys(patch).sort(),
     by: ctx.userId,
     version: null,
@@ -347,7 +346,7 @@ export async function renameWorkspace(
   const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
   if (error) throw new DbFailure(error);
   if (!data?.length) throw new AppError("forbidden", "That workspace's name could not be changed.", 403);
-  await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
+  await emitWorkspaceEvent(member.tenantId, "settings.changed", "workspace", member.tenantId, {
     fields: ["name"],
     by: ctx.userId,
     version: null,

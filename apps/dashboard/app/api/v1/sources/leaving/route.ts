@@ -10,5 +10,5 @@ export const GET = read({
   scope: workspace,
   role: "partner",
   rate: "settings",
-  handle: ({ member }) => readSourceLeaving(member),
+  handle: ({ ctx, member }) => readSourceLeaving(ctx, member),
 });

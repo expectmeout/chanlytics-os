@@ -3,9 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { inWorkspace } from "@chanlytics/db/erasure";
 import type { Database } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
-import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
-import { signMediaUrl, signMediaUrls } from "@chanlytics/db/channels";
+import { signStoredMedia, signStoredMediaMany } from "../shared/storage";
 import { markRecordingOpened } from "@chanlytics/db/voice";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -15,9 +14,6 @@ import type { TenantId } from "@chanlytics/contracts";
  * when it sits under the asking workspace's own id (inWorkspace, the erasure's rule for what it removes, in db's
  * repositories/erasure/legs.ts), and the recording's audit row is written on the member's own session.
  */
-
-/** The client the private bucket is signed with: every stored file of a workspace is under its own folder (inWorkspace). */
-const bucketClient = () => serviceDb();
 
 /**
  * Short-lived signed URL for a private media object (an attachment, a call recording) of this workspace. A path outside
@@ -32,7 +28,7 @@ export async function findSignedMediaUrl(
     log.error("signed_media_url_refused", { tenant_id: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
   }
-  const { data, error } = await signMediaUrl(bucketClient(), storagePath, seconds);
+  const { data, error } = await signStoredMedia(storagePath, seconds);
   if (error) {
     log.error("signed_media_url_failed", { error: error.message });
     return null;
@@ -53,7 +49,7 @@ export async function listSignedMediaUrls(
   const own = storagePaths.filter((p) => inWorkspace(tenantId, p));
   if (own.length < storagePaths.length) log.error("signed_media_url_refused", { tenant_id: tenantId });
   if (!own.length) return storagePaths.map(() => null);
-  const { data, error } = await signMediaUrls(bucketClient(), own, seconds);
+  const { data, error } = await signStoredMediaMany(own, seconds);
   if (error) {
     log.error("signed_media_url_failed", { error: error.message });
     return storagePaths.map(() => null);

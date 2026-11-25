@@ -8,11 +8,10 @@
  */
 import { LEAD_CARDS, isUuid, peopleEstimateUsd, type LeadPeopleSearchInput } from "@chanlytics/contracts";
 import { createLeadPeopleSearch } from "@chanlytics/db/leads";
-import { recordActivation } from "@chanlytics/db/events";
-import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, refusalOf } from "@/server/leads/leads";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { recordWorkspaceActivation } from "@/server/shared/ledgers/events";
 
 /** What a people search may cost, from the people card's own prices. */
 function estimateOf(count: number): number {
@@ -38,7 +37,7 @@ export async function createPeopleSearch(ctx: RouteContext, member: Member, inpu
   const refused = refusalOf(result);
   if (refused) throw refused;
   try {
-    await recordActivation(serviceDb(), member.tenantId, "first_lead_search", via);
+    await recordWorkspaceActivation(member.tenantId, "first_lead_search", via);
   } catch {
     /* the milestone is written by the next search */
   }

@@ -1846,7 +1846,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `removed_at` | timestamp with time zone | yes |  | A person removed it: hidden at once. file_purge lets its bytes go and takes the row. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `made` | jsonb | yes |  | How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role. |
+| `made` | jsonb | yes |  | How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the workspace's members (00717), as the rest of its row is. |
 | `kind` | text | no | `'image'::text` | image or video (00556). A video is kept by the video platform; its folder holds only what is made of it. |
 | `media_ref` | text | yes |  | A video's id at the video platform (00556): what its webhook names it by. Service role only, never shown to a member or the model. |
 | `media_status` | text | yes |  | Where a video stands (00556): uploading (no page or Ask counts it yet), processing, ready, failed. Null for a picture. |

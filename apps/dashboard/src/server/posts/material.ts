@@ -6,30 +6,20 @@
  * under RLS, so a file removed is never drawn from memory.
  */
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  AppError,
-  FILE_WORDS as W,
-  MIN_MS,
-  WORKSPACE_LOGOS_BUCKET,
-  fileFramePathOf,
-  filePathOf,
-  recordOrNull,
-} from "@chanlytics/contracts";
+import { AppError, FILE_WORDS as W, MIN_MS, fileFramePathOf, filePathOf, recordOrNull } from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
-import type { Database } from "@chanlytics/db/types";
 import type { FileMemberRow } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import { load, readerContext } from "@/server/shared/reader";
 import * as readers from "@/server/readers/facts";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { keepVideoFrame } from "../files/copies";
 import { bucket } from "../files/file";
 import { asPng } from "./compose";
 import { postPhoneOf } from "./phone";
 import type { TenantId } from "@chanlytics/contracts";
+import { logosStore } from "@/server/shared/storage";
 
 /** The widest a photo is read at: enough for the tallest shape, and every kind it may be kept in comes back as one the code reads. */
 const PHOTO_READ_WIDTH = 2000;
@@ -44,14 +34,14 @@ interface Held {
   value: Promise<unknown>;
 }
 
-/** Held by the client that read it, so a process holds one store and a test's new world starts with none. */
-const heldBy = new WeakMap<SupabaseClient<Database>, Map<string, Held>>();
+/** Held by the bucket that read it, so a process holds one store and a test's new world starts with none. */
+const heldBy = new WeakMap<object, Map<string, Held>>();
 
 /** What was read a moment ago, or read now. A read that fails is not held. */
 function heldRead<T>(key: string, forMs: number, read: () => Promise<T>): Promise<T> {
-  const db = serviceDb();
-  const held = heldBy.get(db) ?? new Map<string, Held>();
-  heldBy.set(db, held);
+  const store = bucket();
+  const held = heldBy.get(store) ?? new Map<string, Held>();
+  heldBy.set(store, held);
   const result = held.get(key);
   if (result && Date.now() - result.at < forMs) return result.value as Promise<T>;
   const value = read();
@@ -82,7 +72,7 @@ const asFour = (v: unknown): readonly [number, number, number, number] | null =>
 
 /** The business's mark, ready to draw, or none. A mark that can't be read costs the mark, never the post. */
 async function logoRead(tenantId: TenantId, path: string): Promise<string | null> {
-  const read = await serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET).download(path);
+  const read = await logosStore().download(path);
   if (read.error || !read.data) {
     log.warn("file_post_logo_failed", { tenant_id: tenantId, error: read.error?.message ?? "no bytes" });
     return null;

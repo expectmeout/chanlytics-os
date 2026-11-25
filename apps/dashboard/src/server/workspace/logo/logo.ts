@@ -9,28 +9,21 @@
  */
 import "server-only";
 import { randomUUID } from "node:crypto";
-import {
-  AppError,
-  LOGO_WORDS,
-  WORKSPACE_LOGOS_BUCKET,
-  isLogoPathOf,
-  workspaceLogoPath,
-  workspaceLogoSrc,
-} from "@chanlytics/contracts";
+import { AppError, LOGO_WORDS, isLogoPathOf, workspaceLogoPath, workspaceLogoSrc } from "@chanlytics/contracts";
 import { setWorkspaceLogo } from "@chanlytics/db/workspace";
-import { serviceDb } from "@/server/shared/service-db";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { writeDoorRefusal, type RouteContext } from "@/server/shared/with-route";
 import { remadeLogo } from "@chanlytics/channels/files";
 import type { TenantId } from "@chanlytics/contracts";
+import { logosStore } from "@/server/shared/storage";
 
 /** A day: a replaced picture has a new name, so only a removed one is held this long in a browser that saw it. */
 const CACHE_S = String(24 * 60 * 60);
 
-/** What the bucket is to the service role. The dashboard's other storage call is the same client (people/erasure.ts). */
-const bucket = () => serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET);
+/** The logos' bucket, the server's to write (shared/storage.ts). */
+const bucket = logosStore;
 
 /** The database's refusal, in the words the row shows; the colour's door (../look.ts) is refused the same way. */
 export function logoDoorRefusal(error: { code?: string; message: string }): AppError {

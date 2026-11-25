@@ -156,7 +156,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
   );
   const shown = openable.filter((f) => copies.has(f.id));
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
-  const lastPost = shown.some((f) => !isVideo(f)) ? await findNewestPostLook(turn.tenantId) : null;
+  const lastPost = shown.some((f) => !isVideo(f)) ? await findNewestPostLook(turn.ctx.supabase, turn.tenantId) : null;
   const pictures: ToolPicture[] = await Promise.all(
     shown.map(async (f) => {
       const copy = copies.get(f.id) as FileCopy;

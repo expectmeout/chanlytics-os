@@ -5,12 +5,11 @@ import "server-only";
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
 import { changedConfigFields, valueAt } from "@chanlytics/contracts";
-import { recordEvent } from "@chanlytics/db/events";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
-import { serviceDb } from "@/server/shared/service-db";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import type { TenantId } from "@chanlytics/contracts";
+import { recordWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** How long the edge has to queue a read of the website: one insert. */
 const WEBSITE_ASK_MS = 5_000;
@@ -63,7 +62,7 @@ export async function recordSettingsChanged(
   const fields = changedConfigFields(before, after);
   if (!fields.length) return;
   // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-  const { error } = await recordEvent(serviceDb(), tenantId, "settings.changed", "workspace", tenantId, {
+  const { error } = await recordWorkspaceEvent(tenantId, "settings.changed", "workspace", tenantId, {
     fields,
     by: ctx.userId,
     version,

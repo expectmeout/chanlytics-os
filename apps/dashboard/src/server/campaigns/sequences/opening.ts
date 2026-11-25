@@ -15,15 +15,14 @@ import {
   type ReachOutOpeningDto,
   type RewriteStep,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { sendOpeningsOf, undoSendRewrite } from "@chanlytics/db/campaigns";
 import { deployment } from "@/server/shared/env";
 import { callEdge, edgeAnswered, edgeHeaders, edgeUrl } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
-import { serviceDb } from "@/server/shared/service-db";
 import { reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** How long a press waits for its check: a rewrite is two model calls of about a second each, and a site read. */
 const CHECK_NOW_MS = 20 * SECOND_MS;
@@ -149,7 +148,7 @@ export async function undoOpening(
 ): Promise<{ send_id: string; rewritten: ReachOutOpeningDto | null }> {
   const r = await undoSendRewrite(ctx.supabase, send.id);
   if (r.error) throw reachOutRefusal(r.error);
-  await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
+  await emitWorkspaceEvent(send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
     decision: "rewrite_undone",
     by: ctx.userId,
   });

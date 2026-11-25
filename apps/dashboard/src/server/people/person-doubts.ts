@@ -8,10 +8,9 @@
  */
 import { AppError, DOUBT_WORDS } from "@chanlytics/contracts";
 import { dismissPersonDoubt, findDoubtOn } from "@chanlytics/db/people";
-import { emitEvent } from "@chanlytics/db/events";
-import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 export async function settleDoubtApart(ctx: RouteContext, tenantId: TenantId, contactId: ContactId, doubtId: string) {
   const doubt = await findDoubtOn(ctx.supabase, tenantId, contactId, doubtId);
@@ -19,7 +18,7 @@ export async function settleDoubtApart(ctx: RouteContext, tenantId: TenantId, co
   try {
     const settled = await dismissPersonDoubt(ctx.supabase, doubtId);
     // The answer to "is this one person?" is a member's, and the doubt's own row is where it was kept alone.
-    await emitEvent(serviceDb(), tenantId, "contact.kept_apart", "contact", contactId, {
+    await emitWorkspaceEvent(tenantId, "contact.kept_apart", "contact", contactId, {
       by: ctx.userId,
       doubt_id: doubtId,
     });

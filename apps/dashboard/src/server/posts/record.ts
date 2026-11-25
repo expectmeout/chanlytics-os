@@ -42,7 +42,6 @@ import { log } from "@/server/shared/log";
 import { handPostOf, sentPostsOf, withRemovedThere } from "@/server/readers/content";
 import { fileDtoOf } from "@/server/readers/files";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -88,14 +87,17 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   }
   if (row.source !== "made") return { file, made: null, google: null, instagram: null };
   const [kept, connection, listed, can, page] = await Promise.all([
-    getFileMade(serviceDb(), member.tenantId, row.id),
+    getFileMade(ctx.supabase, member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
     listFilePosts(ctx.supabase, member.tenantId, row.id),
     readInstagramPostable(member.tenantId),
     readFacebookPostable(member.tenantId),
   ]);
   const posts = await withRemovedThere(ctx.supabase, member.tenantId, listed);
-  const google = { connected: !!connection?.location_name, posted: await onGoogle(member, row.id, posts) };
+  const google = {
+    connected: !!connection?.location_name,
+    posted: await onGoogle(ctx.supabase, member, row.id, posts),
+  };
   const instagram = can === null ? null : { can, posts: instagramPostsOf(posts) };
   const facebook = page === null ? null : { can: page, posts: facebookPostsOf(posts) };
   // Every place's, whatever the Meta link, so a piece read on its own stands where the page that lists it says; and apart
@@ -144,22 +146,27 @@ export async function readFilePosts(ctx: RouteContext, tenantId: TenantId, fileI
  * Where the post is on Google (decision 0121, D16): its newest placement where that says it went up or came down; else what
  * the edge's events say, for a post made before placements were kept, or one whose answer the press never heard.
  */
-async function onGoogle(member: Member, fileId: string, posts: readonly MemberPostRow[]): Promise<FilePosted | null> {
+async function onGoogle(
+  db: RouteContext["supabase"],
+  member: Member,
+  fileId: string,
+  posts: readonly MemberPostRow[],
+): Promise<FilePosted | null> {
   // A post let go (Don't post) says nothing of one that is up: the newest of the others does.
   const placed = posts.find((p) => p.place === "google" && p.status !== "pulled");
   if (placed?.status === "taken_down") return null;
   if (placed?.status === "published" && placed.external_id)
     return { name: placed.external_id, search_url: placed.permalink, at: placed.published_at ?? placed.created_at };
-  return findFilePosted(serviceDb(), member.tenantId, fileId);
+  return findFilePosted(db, member.tenantId, fileId);
 }
 
 /** The look a person settled on, as their newest post keeps it: what a card changed, since a card's Save keeps what was pressed. */
 type PostLook = Pick<PostPlan, "voice" | "layout" | "book">;
 
 /** What the workspace's newest post looks like, or null before its first. Never costs a turn: a failed read is no look to keep. */
-export async function findNewestPostLook(tenantId: TenantId): Promise<PostLook | null> {
+export async function findNewestPostLook(db: RouteContext["supabase"], tenantId: TenantId): Promise<PostLook | null> {
   try {
-    const created = recordOrNull(await getNewestMade(serviceDb(), tenantId));
+    const created = recordOrNull(await getNewestMade(db, tenantId));
     const plan = recordOrNull(created?.plan);
     if (!plan) return null;
     const { voice, layout, book } = postPlanOf(plan);

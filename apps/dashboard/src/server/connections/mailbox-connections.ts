@@ -40,7 +40,6 @@ import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/chan
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
-import { serviceDbIfConfigured } from "../shared/service-db";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
@@ -58,9 +57,8 @@ export async function listMailboxConnections(
 /**
  * The same, each live one with its day beside it: the people whose email came in through it in the last day, on this
  * member's own read; what it sent in that day (mailbox_capacity) and what its emails came to since it was counted clean
- * (mailbox_connection_counts), which are the service role's to ask, of the rows this member's own read returned. A
- * count that cannot be read is left out, never Setup's failure, and a deployment without the service role's keys reads
- * only who wrote.
+ * (mailbox_connection_counts), each asked on the same read: their doors ask that the member belongs to the mailbox's
+ * workspace (00717). A count that cannot be read is left out, never Setup's failure.
  */
 export async function listMailboxConnectionsWithDays(
   db: SupabaseClient<Database>,
@@ -68,15 +66,14 @@ export async function listMailboxConnectionsWithDays(
   now = new Date(),
 ): Promise<MailboxConnectionDto[]> {
   const rows = await listMailboxConnectionsOf(db, tenantId);
-  const svc = serviceDbIfConfigured();
   const since = new Date(now.getTime() - DAY_MS);
   return Promise.all(
     rows.map(async (r) => {
       if (r.state === "removed" || r.state === "reconnect") return mailboxDtoOf(r);
       const [cameIn, day, counts] = await Promise.all([
         getMailboxPeopleSince(db, tenantId, r.id, since).catch(logAndGoOn("getMailboxPeopleSince", null)),
-        svc ? getMailboxCapacity(svc, r.id, now).catch(logAndGoOn("getMailboxCapacity", null)) : null,
-        svc ? getMailboxCounts(svc, r.id, r.counted_since).catch(logAndGoOn("getMailboxCounts", null)) : null,
+        getMailboxCapacity(db, r.id, now).catch(logAndGoOn("getMailboxCapacity", null)),
+        getMailboxCounts(db, r.id, r.counted_since).catch(logAndGoOn("getMailboxCounts", null)),
       ]);
       return mailboxDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
     }),

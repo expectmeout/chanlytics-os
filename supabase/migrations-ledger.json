@@ -718,6 +718,7 @@
     "00713_an_approval_is_kept_whole_and_a_reply_answers_its_request.sql": "2f200183e84144bf2bebab2bc86ddd731ef042765bacfd659a54580e422c6385",
     "00714_a_held_week_goes_up_unless_the_owner_stops_it.sql": "3f4bb9ccc64f12409e4b3305d18477b5baa94307ab98f57f995460a59445c829",
     "00715_a_post_removed_at_its_place_is_noticed_within_a_day.sql": "a6a67e6f4d709f86f56f0c6c7668a9de1881d4e6f427a3b6481f1ce769c0cfe5",
-    "00716_a_story_s_day_is_asked_of_one_rule.sql": "c235a0993ccbf18aca8b47ba9adfa263279c7f4f843f0554ebd168b4a3c8a1c7"
+    "00716_a_story_s_day_is_asked_of_one_rule.sql": "c235a0993ccbf18aca8b47ba9adfa263279c7f4f843f0554ebd168b4a3c8a1c7",
+    "00717_a_member_s_own_acts_ask_who_is_calling.sql": "78cb39783cf0e8f620b23f7ad06fdb54f96b6f92623f4a095d5a999a12ea9a1a"
   }
 }
