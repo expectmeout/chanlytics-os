@@ -7,7 +7,7 @@
  * brief; /inbox; /clients, People; /clients/pipeline; /clients/<id>, a person; /soon/<surface>, an in-design landing.
  */
 import { CHANLY } from "./constants";
-import { frameSurfaceState } from "./frame-window";
+import { provided } from "@/bridge/provided";
 
 /** A route's page and its param, as drawn. */
 export interface ShellRoute {
@@ -27,14 +27,15 @@ export interface RouteAt extends ShellRoute {
 const frameAddress = () =>
   (window.CHANLY && window.CHANLY.address ? window.CHANLY : CHANLY).address as typeof CHANLY.address;
 
-// Is this route's data actually available? The bridge installs __surfaceGate for the real surfaces; others are seeded and
-// always ready. `own`: the route's own surface alone, without the bands its first draw waits for beside it (ROUTE_WAITS).
-export const routeReady = (page: string, param: string | null, own = false) =>
-  !window.__surfaceGate || window.__surfaceGate(page, param, own);
+// Is this route's data actually available? The bridge installs the route gate for the real surfaces (provided.ts); without
+// it, a page is ready. `own`: the route's own surface alone, without the bands its first draw waits for beside it (ROUTE_WAITS).
+export const routeReady = (page: string, param: string | null, own = false) => {
+  const gate = provided("surfaceGate");
+  return !gate || gate(page, param, own);
+};
 
 // A real surface whose fetch failed. Painting the mockup here would show invented customers as real, so the frame says so.
-export const routeFailed = (page: string, param: string | null) =>
-  !!window.__surfaceFailed && window.__surfaceFailed(page, param);
+export const routeFailed = (page: string, param: string | null) => !!provided("surfaceFailed")?.(page, param);
 
 /** A route's page and its param, from the route as written (`inbox/th-1`). */
 export const routeParts = (route: string): ShellRoute => {
@@ -59,11 +60,11 @@ export const shellAddress = frameAddress;
  * before the redirect (useRouteMoves).
  */
 export const routeAt = (route: ShellRoute): RouteAt => {
-  const surfaceState = frameSurfaceState();
+  const surfaceState = provided("surfaceState");
   const soonState =
     route.page === "soon" && route.param && surfaceState ? surfaceState(route.param) || "unknown" : null;
   const { page, param } = soonState === "real" ? { page: route.param || "", param: null } : route;
-  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param)) || null;
+  const retiredTo = provided("surfaceRetired")?.(page, param) || null;
   // The gate is asked per PANE, so this key must carry the param. What the surface is MOUNTED under is the route table's.
   const routeKey = `${page}/${param || ""}`;
   return { page, param, raw: route, soonState, retiredTo, routeKey };

@@ -62,6 +62,7 @@ import {
   went,
   withVisits,
 } from "./_calendar-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION (D14): on a desk an appointment opens in the peek at the board's edge, named by its title; Escape closes it, and the board holds still behind it", () => {
   // The visit opened as Ask's old modal (lane E): it is the peek People's, the Pipeline's and Leads' pages draw, beside
@@ -320,7 +321,7 @@ test("(lane D) the visit says the person's standing, business and deal from the 
     assert.deepEqual(readsOfPeople, [], "REGRESSION: the visit read People's book");
     assert.equal((listeners["surface:clients"] ?? []).length, 0, "and listens for none");
   } finally {
-    delete globalThis.window.__PEOPLE;
+    bridgeHolds({ values: { people: undefined } });
     forgetPeek();
   }
 });
@@ -785,7 +786,7 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
     setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: 1 });
   };
   setHonourDeps(true);
-  globalThis.window.__routeWaitMs = 900;
+  bridgeHolds({ parts: { routeWaitMs: 900 } });
   try {
     cold();
     assert.ok(byTestId(page(), "calendar-cold"), "the weeks in and the campaigns still out: still the frame");
@@ -808,7 +809,7 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
     assert.ok(byTestId(page(), "calendar-real"), "a board in hand never waits");
   } finally {
     setHonourDeps(false);
-    delete globalThis.window.__routeWaitMs;
+    bridgeHolds({ parts: { routeWaitMs: undefined } });
     setSurfaceValue("calendar_runs", undefined);
     setStatus("calendar_runs", "live");
   }
@@ -829,7 +830,7 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     setSurfaceValue("calendar_runs", undefined);
   };
   setHonourDeps(true);
-  globalThis.window.__routeWaitMs = 900;
+  bridgeHolds({ parts: { routeWaitMs: 900 } });
   try {
     justLanded();
     assert.ok(
@@ -874,7 +875,7 @@ test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the pa
     }
   } finally {
     setHonourDeps(false);
-    delete globalThis.window.__routeWaitMs;
+    bridgeHolds({ parts: { routeWaitMs: undefined } });
     setSurfaceValue("calendar_runs", undefined);
   }
 });

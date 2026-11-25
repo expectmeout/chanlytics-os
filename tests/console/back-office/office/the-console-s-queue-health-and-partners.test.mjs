@@ -106,10 +106,7 @@ test("Settings' Back office is a link to the Console, for the people it is for a
     settings,
     /export const SET_TABS_PLATFORM: readonly SetTab\[\] = \[\s*\{ id: "platform", label: "The Console"/,
   );
-  assert.match(
-    settings,
-    /export const isPlatformAdmin = \(\): boolean =>\s*!!\(Reflect\.get\(window, "__ME"\) as \{ platform_admin\?: boolean \} \| null \| undefined\)\?\.platform_admin;/,
-  );
+  assert.match(settings, /export const isPlatformAdmin = \(\): boolean => !!whoIsLooking\(\)\.me\?\.platform_admin;/);
   assert.match(settings, /\.\.\.SET_TABS\.filter\(.*\),\s*\.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)/);
   assert.match(settings, /\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\) \|\|/);
   // One copy, not two (decision 0066): the row opens the Console, and an old address says where it went.

@@ -40,6 +40,7 @@ import { shiftKey, stateOf, toCalendarVM } from "@chanlytics/contracts";
 import { createRequire } from "node:module";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
 
@@ -230,10 +231,10 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 
+bridgeHolds({ parts: { surfaceState: () => "live" } }, { fresh: true });
 globalThis.window = {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}`, thread: (id) => `inbox/${id}` } },
   appNavigate: (to) => went.push(to),
-  __surfaceState: () => "live",
   addEventListener: (type, fn) => {
     (listeners[type] ||= []).push(fn);
   },
@@ -283,7 +284,7 @@ for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = glo
 globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 
 // A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
-globalThis.window.__chrome = { state: stateOf };
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 
 // The surface's own verbs, with their reads answered here, and the seam that holds what the page draws.
 export const S = "../../../apps/dashboard/src/surfaces";
@@ -309,7 +310,7 @@ export const { calendarAddress, calendarParam } = await import(`${S}/calendar/ad
 
 export const realVerbs = { ...calendar };
 
-globalThis.window.__calendar = calendar;
+bridgeHolds({ parts: { calendar: calendar } });
 
 // Today's day (TSX since decision 0015), the one derivation the strip and the brief read, which names the next open time
 // the way the Calendar does: the hooks it imports are the stub's, set on the module it imports them from.
@@ -619,8 +620,8 @@ export const drawnAt = (nowMs, draw) => {
 export const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
   fresh(week);
   sheets = [];
-  globalThis.window.__WORKSPACES = [{ id: "t-salon", appointment_word: "meeting" }];
-  globalThis.window.__ACTIVE_WORKSPACE = "t-salon";
+  bridgeHolds({ who: { workspaces: [{ id: "t-salon", appointment_word: "meeting" }] } });
+  bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
   globalThis.window.openDealSheet = (args) => sheets.push(args);
   let tree = drawnAt(nowMs, () => page());
   byTestId(tree, "cal-block").props.onClick();
@@ -630,8 +631,8 @@ export const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
 };
 
 export const forgetPeek = () => {
-  delete globalThis.window.__WORKSPACES;
-  delete globalThis.window.__ACTIVE_WORKSPACE;
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   delete globalThis.window.openDealSheet;
 };
 

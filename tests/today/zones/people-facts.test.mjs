@@ -14,6 +14,7 @@ import { personDto } from "../../consent/_person-row.mjs";
 import { headline } from "../_headline.mjs";
 import { until } from "../../shared/_until.mjs";
 import { W, ZONE, answerWith, json, wire } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { todayLeaks } = await import("../../../apps/dashboard/src/surfaces/today/leaks.ts");
 const { peopleSurfaceOf } = await import("../../../apps/dashboard/src/surfaces/people/surface-map.ts");
@@ -192,8 +193,8 @@ async function firstReadLands(page, reach = { whole: !page.page.has_more, total:
 
 beforeEach(() => {
   clearReadCaches();
-  delete W.__PEOPLE;
-  W.__ME = { id: VIEWER };
+  bridgeHolds({ values: { people: undefined } });
+  bridgeHolds({ who: { me: { id: VIEWER } } });
 });
 
 /** Thirty days in which 2 of the 18 who asked booked, and four messages nobody answered: the booking and reply checks. */
@@ -296,7 +297,7 @@ test("People past its first page: the first read says how many, the page waits f
   assert.deepEqual(dto, { whole: false, total: 4200 });
   assert.equal(peopleForToday(), null);
   const book = bookOf(page);
-  W.__PEOPLE = book;
+  bridgeHolds({ values: { people: book } });
   assert.equal(peopleForToday(), book);
 });
 
@@ -341,7 +342,7 @@ test("REGRESSION (16 Nov 2026): a move to Today waits for its read of People whe
     assert.equal(reads(), before + 2, "never asked twice");
     // People's book in hand: Today draws from it, and nothing waits or is asked. (Its surface stays in: LAST in the file.)
     clearReadCaches();
-    W.__PEOPLE = bookOf(page);
+    bridgeHolds({ values: { people: bookOf(page) } });
     markHydrated(["people"]);
     arriveOnToday("today");
     readTodaySoon(() => {}, offToday);

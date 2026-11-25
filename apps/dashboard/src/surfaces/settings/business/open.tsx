@@ -71,7 +71,7 @@ const btoHoursLine = (hours: HoursIn): string | null => {
  */
 export const btoStoredZone = (): string | null => {
   // The list carries each workspace's zone (surface-data.ts), whatever else a page types of it.
-  const listed: { id: string; timezone?: string | null }[] = workspacesNow() || [];
+  const listed: readonly { id: string; timezone?: string | null }[] = workspacesNow() || [];
   const ws = listed.find((t) => t.id === activeWorkspaceNow()) || null;
   return (ws && ws.timezone) || null;
 };

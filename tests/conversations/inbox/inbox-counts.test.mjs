@@ -15,17 +15,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  toInboxThreadVM,
-  toBroadcastVM,
-  toTodayVM,
-  stateOf,
-  memberWords,
-  replyWaitsOnYou,
-} from "@chanlytics/contracts";
+import { toInboxThreadVM, toBroadcastVM, toTodayVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, settle, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds, provided, heldRead } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -188,7 +182,8 @@ test("the fixtures stand where the salon's threads stand", () => {
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
@@ -227,6 +222,10 @@ const rosterIs = (team) =>
 await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
 const { getSurfaceStatuses, setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
+bridgeHolds({
+  who: { workspaces: [{ id: "w-marisas", timezone: ZONE }], activeWorkspaceId: "w-marisas" },
+  parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -236,12 +235,7 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  // The workspace's zone, so a bulk snooze says tomorrow at ten by it without reading the workspace first.
-  __WORKSPACES: [{ id: "w-marisas", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "w-marisas",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -350,15 +344,19 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
 
 test("REGRESSION: a bucket the member picked survives the next read -- picking an empty Snoozed and waiting threw them into Needs you, a moment after the tap", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
-  globalThis.window.__tabMemory = {
-    place: () => place,
-    keepPlace: (_p, _k, v) => Object.assign(place, v),
-    // The pane's composer asks for a draft of what was being written, and finds none.
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  const had = provided("tabMemory");
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: () => place,
+        keepPlace: (_p, _k, v) => Object.assign(place, v),
+        // The pane's composer asks for a draft of what was being written, and finds none.
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   try {
     const { seen, render } = page([rosa, answered]);
     seen.list.onBucketChange("waiting");
@@ -374,7 +372,7 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
       "REGRESSION: the read moved them to the first bucket with anything in it, so an empty one could not be looked at",
     );
   } finally {
-    globalThis.window.__tabMemory = had;
+    bridgeHolds({ parts: { tabMemory: had } });
   }
 });
 
@@ -439,14 +437,18 @@ const waitingRun = () => {
 
 test("a campaign run waiting for your say is a row of Needs you: its chip counts it, the Inbox opens on it, a search stands it aside, and no card says nobody is waiting over it", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
-  globalThis.window.__tabMemory = {
-    place: () => place,
-    keepPlace: (_p, _k, v) => Object.assign(place, v),
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  const had = provided("tabMemory");
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: () => place,
+        keepPlace: (_p, _k, v) => Object.assign(place, v),
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   setSurfaceValue("broadcasts", { rows: [waitingRun()] });
   setSurfaceValue("today", todayOver([ANSWERED]));
   try {
@@ -497,20 +499,24 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
   } finally {
     setSurfaceValue("broadcasts", undefined);
     setSurfaceValue("today", undefined);
-    globalThis.window.__tabMemory = had;
+    bridgeHolds({ parts: { tabMemory: had } });
   }
 });
 
 test("REGRESSION: a run that Sent's read brings after the Inbox opened on the runs the tab's cache restored moves it to Needs you, unless the member picked a bucket -- it sat on Handled under 'Needs you 1'", () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
-  globalThis.window.__tabMemory = {
-    place: () => place,
-    keepPlace: (_p, _k, v) => Object.assign(place, v),
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  const had = provided("tabMemory");
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: () => place,
+        keepPlace: (_p, _k, v) => Object.assign(place, v),
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   // What a new tab's boot holds of Sent's runs: yesterday's, from the tab's cache (surface-cache.ts marks them ready and
   // gives them no status), none waiting, and no read of them yet. The test reaches into the statuses for that: a tab's
   // first read is the one thing a test cannot take back.
@@ -556,7 +562,7 @@ test("REGRESSION: a run that Sent's read brings after the Inbox opened on the ru
   } finally {
     unmount();
     setSurfaceValue("broadcasts", undefined);
-    globalThis.window.__tabMemory = had;
+    bridgeHolds({ parts: { tabMemory: had } });
   }
 });
 
@@ -960,14 +966,18 @@ test("Needs you with nobody but someone past a week says nothing needs you over 
 
 test("one number: a search waiting for its answer, alone, opens the Inbox on Needs you, as the badge over it says", async () => {
   const place = {};
-  const had = globalThis.window.__tabMemory;
-  globalThis.window.__tabMemory = {
-    place: () => place,
-    keepPlace: (_p, _k, v) => Object.assign(place, v),
-    draft: () => null,
-    keepDraft() {},
-    dropDraft() {},
-  };
+  const had = provided("tabMemory");
+  bridgeHolds({
+    parts: {
+      tabMemory: {
+        place: () => place,
+        keepPlace: (_p, _k, v) => Object.assign(place, v),
+        draft: () => null,
+        keepDraft() {},
+        dropDraft() {},
+      },
+    },
+  });
   setSurfaceValue("today", todayNow([], [], [await askingSearch()]));
   try {
     const { seen } = page([answered]);
@@ -976,7 +986,7 @@ test("one number: a search waiting for its answer, alone, opens the Inbox on Nee
     assert.equal(seen.list.buckets.find((b) => b.id === "escalated").count, 1);
   } finally {
     setSurfaceValue("today", undefined);
-    globalThis.window.__tabMemory = had;
+    bridgeHolds({ parts: { tabMemory: had } });
   }
 });
 
@@ -1397,7 +1407,7 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
     await Promise.all([todayOverride.apply(), repliesOverride.apply()]);
     assert.equal(asked(), 1, "one read of the replies on a Today load, the one main makes");
     assert.deepEqual(
-      globalThis.__REPLIES.replies.map((r) => [r.conversation_id, r.intent]),
+      heldRead("reach_out_replies").replies.map((r) => [r.conversation_id, r.intent]),
       [["c4", "wrong_person"]],
       "and the surface holds what Today lays over its rows",
     );
@@ -1406,10 +1416,10 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
     wire();
     todayWire(salon());
     await repliesOverride.apply().catch(() => {});
-    assert.equal(globalThis.__REPLIES, null);
+    assert.equal(heldRead("reach_out_replies"), null);
   } finally {
     globalThis.fetch = realFetch;
-    delete globalThis.__REPLIES;
+    bridgeHolds({ reads: { reach_out_replies: undefined } });
   }
 });
 

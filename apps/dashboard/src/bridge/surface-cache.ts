@@ -1,13 +1,13 @@
 /**
  * Stale-while-revalidate cache for flipped surfaces.
  *
- * The problem this exists to solve: the mockup ships seed data in the same
- * window globals the real data lands in, so every boot painted FABRICATED
+ * The problem this exists to solve: the mockup shipped seed data in the same
+ * places the real data lands in, so every boot painted FABRICATED
  * numbers for as long as the first fetch took, then swapped them for real
  * ones. A flash of wrong data is worse than a flash of no data — on a
  * dashboard about someone's customers it is briefly lying to them.
  *
- * So on a successful apply we snapshot the globals a surface owns, and on the
+ * So on a successful apply we snapshot what a surface holds, and on the
  * next boot we restore them SYNCHRONOUSLY before React ever renders. A refresh
  * then paints real (seconds-old) data immediately and revalidates in the
  * background — no seed frame, no skeleton, no transition.
@@ -41,7 +41,10 @@ import {
   slotsKept,
   SURFACES_SLOT,
 } from "@/client/kept-on-device";
-import { DAY_MS, recordOrEmpty } from "@chanlytics/contracts";
+import { DAY_MS } from "@chanlytics/contracts";
+import { whoIsLooking } from "./who";
+import { heldRead, holdKeptRead, isHeldRead } from "./held-reads";
+import { pageReport } from "@/client/page-report";
 
 /** The slot of the workspace the address names, one per workspace by the address's word; the home's own where it names none. */
 const slotName = (): string => `${SURFACES_SLOT}${getActiveWorkspace() ?? "-"}`;
@@ -57,7 +60,7 @@ function cacheStore(): Storage | null {
   }
 }
 /**
- * Where a surface's typed value (surface-values.ts) sits in its snapshot, beside the window globals it also owns: what a
+ * Where a surface's typed value (surface-values.ts) sits in its snapshot: what a
  * surface's own trim (`trimSnapshot`, Leads' first hundred rows) reads and rewrites.
  */
 export const SURFACE_VALUE_SLOT = "$value";
@@ -85,7 +88,7 @@ const keptStampOf = (entry: Record<string, unknown>) => entry[KEPT_SLOT] as Kept
 
 /**
  * Whether a surface's snapshot may be drawn now: under the build that wrote it; under another, only a typed value with
- * nothing of the window's beside it (a global's shape no checker holds), whose shape is this build's for it. A snapshot from
+ * nothing of the bridge's beside it (a shape no checker holds), whose shape is this build's for it. A snapshot from
  * before snapshots said what they were kept under is the build's and the age its slot was written at.
  */
 function drawable(key: string, entry: Record<string, unknown>, blob: CacheBlob, now: number): boolean {
@@ -145,7 +148,7 @@ interface CacheBlob {
  */
 let parsedCopy: { raw: string; blob: CacheBlob | null } | null = null;
 
-/** The slot, parsed; `own` for a copy of its own, which the page's globals may take and change. */
+/** The slot, parsed; `own` for a copy of its own, which the surfaces it is given back to may take and change. */
 function readCacheBlob(own = false): CacheBlob | null {
   try {
     const raw = cacheStore()?.getItem(slotName());
@@ -190,7 +193,7 @@ function write(blob: CacheBlob): void {
     // worse than either: the OLDER snapshot would stay behind to be painted as current.
     if (raw.length > MAX_BYTES) {
       for (const k of shedOrder(blob)) {
-        console.warn("surface_cache_oversize", raw.length, k);
+        pageReport.warn("surface_cache_oversize", raw.length, k);
         delete blob.surfaces[k];
         raw = JSON.stringify(blob);
         if (raw.length <= MAX_BYTES) break;
@@ -301,10 +304,22 @@ export function dropExpiredSlots(now: number = Date.now()): void {
   }
 }
 
-/** Restore cached globals onto window. Call ONCE, at module scope, after the
- *  manifest has installed its seeds so the cache wins. Returns the surface
- *  keys that were restored — those surfaces already have real data and must
- *  not show a loading state. Slots past their day go first (dropExpiredSlots). */
+/**
+ * What a snapshot holds of a read the bridge holds itself (held-reads.ts: who is looking, the bell's notices, the leads'
+ * replies), beside nothing else: a slot of its own, as a typed value has. They were window globals once, read off the window
+ * by name and written back onto it.
+ */
+const HELD_SLOT = "$held";
+
+/** What a surface's snapshot holds now: the read the bridge holds for it, under its slot; nothing for any other surface. */
+function bridgeHeldIn(key: string): Record<string, unknown> {
+  const it = isHeldRead(key) ? heldRead(key) : undefined;
+  return it === undefined ? {} : { [HELD_SLOT]: it };
+}
+
+/** Restore cached surfaces, before React draws. Call ONCE, at module scope. Returns the surface keys that were restored —
+ *  those surfaces already have real data and must not show a loading state. Slots past their day go first
+ *  (dropExpiredSlots). */
 export function hydrateSurfaceCache(): Set<string> {
   dropExpiredSlots();
   const restored = new Set<string>();
@@ -319,19 +334,16 @@ export function hydrateSurfaceCache(): Set<string> {
     if (addressed()) dropSlot();
     return restored;
   }
-  const w = recordOrEmpty(window);
   const now = Date.now();
-  for (const [key, globals] of Object.entries(blob.surfaces)) {
+  for (const [key, entry] of Object.entries(blob.surfaces)) {
     // Another build's of another shape, or a day old: read as a first visit reads it.
-    if (!drawable(key, globals, blob, now)) continue;
+    if (!drawable(key, entry, blob, now)) continue;
     try {
-      for (const [name, value] of Object.entries(globals)) {
-        if (name === VALUE_SLOT) restoreSurfaceValue(key, value);
-        else if (name !== KEPT_SLOT) w[name] = value;
-      }
+      if (entry[VALUE_SLOT] !== undefined) restoreSurfaceValue(key, entry[VALUE_SLOT]);
+      holdKeptRead(key, entry[HELD_SLOT]);
       restored.add(key);
       // How old the rows are, which a page says where its read then fails (surface-status.ts readAtOf).
-      noteReadAt(key, keptStampOf(globals)?.at ?? blob.savedAt);
+      noteReadAt(key, keptStampOf(entry)?.at ?? blob.savedAt);
     } catch {
       /* one bad surface must not stop the others */
     }
@@ -339,34 +351,24 @@ export function hydrateSurfaceCache(): Set<string> {
   return restored;
 }
 
-/** What a snapshot of a surface holds: the globals it owns, as they are on window now. */
-function globalsNow(globals: string[]): Record<string, unknown> {
-  const w = recordOrEmpty(window);
-  const snap: Record<string, unknown> = {};
-  for (const name of globals) {
-    if (w[name] !== undefined) snap[name] = w[name];
-  }
-  return snap;
-}
-
 /**
- * Persist the globals a surface owns, and its typed value where it has one (`value`, the key it is published under),
- * after its apply succeeded. `trim` is the surface's own say over what the cache holds of it (Leads: its first hundred
- * rows, which is all an instant paint needs); the window's globals are untouched.
+ * Persist the read the bridge holds for a surface (held-reads.ts) where it holds one (`held`), and its typed value where it
+ * has one (`value`, the key it is published under), after its apply succeeded. `trim` is the surface's own say over what the cache holds of it (Leads: its
+ * first hundred rows, which is all an instant paint needs); what the surface holds is untouched.
  */
 export function snapshotSurface(
   key: string,
-  globals: string[],
   tenant: string | null,
   trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
   value?: SurfaceKey,
+  held = false,
 ): void {
-  if ((!globals.length && !value) || deviceSealed()) return;
+  if ((!held && !value) || deviceSealed()) return;
   const kept = current();
   // Rows join only a cache of the same workspace, by both its names: the address's, and the one the server resolved
   // where both have said it. Any other cache is another workspace's, and these rows start one of their own.
   const was = ofThisAddress(kept) && (!tenant || !kept.tenant || kept.tenant === tenant) ? kept : null;
-  const snap = globalsNow(globals);
+  const snap = held ? bridgeHeldIn(key) : {};
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   // A new object over the one kept, never the kept one changed: what was written stays what it says. Of the one kept,
@@ -382,18 +384,18 @@ export function snapshotSurface(
 }
 
 /**
- * A surface the page changed in place, taken into the tab's cached copy for the workspace the page is in (the bridge's
- * `__ACTIVE_WORKSPACE`, read here once for every caller): a saved view of People, a person a mark says was read.
+ * A surface the page changed in place, taken into the tab's cached copy for the workspace the page is in (who.ts, read
+ * here once for every caller): a saved view of People, a person a mark says was read.
  */
-export function resnapshotHere(key: string, globals: string[], value?: SurfaceKey): void {
-  resnapshotSurface(key, globals, window.__ACTIVE_WORKSPACE ?? null, value);
+export function resnapshotHere(key: string, value?: SurfaceKey): void {
+  resnapshotSurface(key, whoIsLooking().activeWorkspaceId, value);
 }
 
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
-export function resnapshotSurface(key: string, globals: string[], tenant: string | null, value?: SurfaceKey): void {
+export function resnapshotSurface(key: string, tenant: string | null, value?: SurfaceKey): void {
   const blob = current();
   if (deviceSealed() || !ofThisAddress(blob) || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
-  const snap = globalsNow(globals);
+  const snap = bridgeHeldIn(key);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   snap[KEPT_SLOT] = keptNow(key);

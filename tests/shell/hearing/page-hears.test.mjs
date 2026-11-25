@@ -24,6 +24,7 @@ import path from "node:path";
 import { ROOT, importSrc, stripComments } from "../../_source.mjs";
 import { BASELINES_DIR } from "../../_ratchet.mjs";
 import { getsOfFile, registeredSurfaces } from "./_reads.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -38,9 +39,11 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 
 const { MESSAGE_STATUSES } = await importSrc("packages/contracts/src/shared/enums.ts");
@@ -351,19 +354,22 @@ test("no golden is left for a family that is gone", () => {
  * ------------------------------------------------------------------------------------------------------------------------ */
 
 const PAGES_DIR = "apps/dashboard/src/surfaces";
-/** Which surface publishes each window global (an override's `globals`). */
-const GLOBAL_OF = new Map(SURFACES.flatMap((s) => (s.override.globals ?? []).map((g) => [g, s.key])));
+/**
+ * The surface keys a call names, alone or in a list: `useSurface("people")`, `useMoved(["calendar", "people"])`, and a read
+ * the bridge holds itself (held-reads.ts `heldRead("reach_out_replies")`), where an override's window global was read once
+ * (decision 0151).
+ */
+const CALLS = /\b(?:useSurface|surfaceValue|useMoved|heldRead)\(\s*(\[[^\]]*\]|["'][a-z_]+["'])/g;
 
-/** The surface keys a call names, alone or in a list: `useSurface("people")`, `useMoved(["calendar", "people"])`. */
-const CALLS = /\b(?:useSurface|surfaceValue|useMoved)\(\s*(\[[^\]]*\]|["'][a-z_]+["'])/g;
+/** Who is looking is the workspace read's (bridge/who.ts): a module that asks it draws the workspace surface. */
+const READS_WHO = /\b(?:whoIsLooking|currentWorkspace)\(/;
 
-/** The surfaces one module draws: by key, and through a global an override publishes, read as `.__X` or named `"__X"`. */
+/** The surfaces one module draws: by key, and who is looking through who.ts. */
 function borrowsIn(rel) {
   const keys = new Set();
   const source = stripComments(fs.readFileSync(path.join(ROOT, rel), "utf8"));
   for (const m of source.matchAll(CALLS)) for (const k of m[1].matchAll(/["']([a-z_]+)["']/g)) keys.add(k[1]);
-  for (const m of source.matchAll(/(?:\.|["'])(__[A-Z][A-Z0-9_]*)\b/g))
-    if (GLOBAL_OF.has(m[1])) keys.add(GLOBAL_OF.get(m[1]));
+  if (READS_WHO.test(source)) keys.add("workspace");
   return keys;
 }
 

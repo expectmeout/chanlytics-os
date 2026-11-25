@@ -16,6 +16,7 @@ import { NEED_YOU_WORDS } from "@chanlytics/contracts";
 import { again, all, press, quiet, redrawWanted, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, answerWith, buttons, corals, json, wire, went, dayWith, draw, row } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("./_on-today.mjs");
@@ -138,7 +139,7 @@ test("Ask is asked for the drafts of the rows drawn: Up next and the five waitin
   assert.equal(asked.length, 6, `REGRESSION: drafts were asked for rows the page does not draw: ${asked.join(", ")}`);
   assert.ok(!asked.some((id) => id.startsWith("cv-o")), "never Older's on a desk");
   setSurfaceValue("today", undefined);
-  delete W.__REPLIES;
+  bridgeHolds({ reads: { reach_out_replies: undefined } });
 });
 
 test("Mark done says everyone it marked: a conversation nobody answered is archived, which has no undo, and is counted all the same", async () => {

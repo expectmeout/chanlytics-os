@@ -24,6 +24,7 @@ import {
   settled,
   speechStub,
 } from "./_page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ Glass (canvas E3) ------------------------------------ */
 
@@ -149,10 +150,10 @@ test("the head's Listen: a head said again while the clip plays (Today redrew it
 
 test("Listen reads the brief: who needs you with the oldest wait, the calendar's day, what came in, the run waiting", () => {
   clear();
+  bridgeHolds({ values: { broadcasts: broadcasts() } });
   set({
     today: busy(),
     headline: headline(),
-    __BROADCASTS: broadcasts(),
     calendar: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
   });
   const s = speechStub();
@@ -178,7 +179,8 @@ test("Listen reads the brief: who needs you with the oldest wait, the calendar's
 test("a headline whose read failed says so in what AI found, which stands on it; one that landed clears it; People's too", async () => {
   const { setStatus } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
   clear();
-  set({ today: busy(), headline: undefined, __PEOPLE: people() });
+  bridgeHolds({ values: { people: people() } });
+  set({ today: busy(), headline: undefined });
   setStatus("reports_headline", "seeded");
   const broke = draw(FoundOnToday);
   assert.match(textOf(byTestId(broke, "today-found-failed")), /Couldn't read Reports/);
@@ -190,11 +192,13 @@ test("a headline whose read failed says so in what AI found, which stands on it;
   // People that could not be read: AI found's rules stand on it, so it says so in its place rather than ranking nothing
   // as if nothing were worth a look; nothing else on the page says it. Read through the seam's status, never the shell's
   // route door, which knows People as `clients`.
-  set({ __PEOPLE: undefined });
+  bridgeHolds({ values: { people: undefined } });
+  set({});
   setStatus("people", "seeded");
   assert.match(textOf(byTestId(draw(FoundOnToday), "today-found-failed")), /Couldn't read People/);
   assert.equal(failed.has("people"), false, "the page does not ask the stand-in");
-  set({ __PEOPLE: people() });
+  bridgeHolds({ values: { people: people() } });
+  set({});
   setStatus("people", "live");
   assert.equal(byTestId(draw(FoundOnToday), "today-found-failed"), null, "People read: nothing to say");
 });

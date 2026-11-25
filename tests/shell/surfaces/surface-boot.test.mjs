@@ -10,9 +10,10 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
+bridgeHolds({ who: { activeWorkspaceId: undefined } });
 const win = {
-  __ACTIVE_WORKSPACE: undefined,
   location: {
     pathname: "/",
     search: "",
@@ -54,7 +55,7 @@ const settle = async (n) => {
 /** The page at `pathname`; the workspace surface answers after two ticks; the others record what the page named when they asked. */
 function world({ pathname }) {
   win.location.pathname = pathname;
-  win.__ACTIVE_WORKSPACE = undefined;
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   const log = [];
   const workspace = {
     key: "workspace",
@@ -62,7 +63,7 @@ function world({ pathname }) {
       log.push(["workspace:asked", getActiveWorkspace()]);
       await tick();
       await tick();
-      win.__ACTIVE_WORKSPACE = "id-a";
+      bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
       log.push(["workspace:answered", "id-a"]);
     },
   };
@@ -129,7 +130,7 @@ test("on a workspace page, the page's own surfaces fire at once with the address
 function crowd(keys, { hash = "" } = {}) {
   win.location.pathname = "/w/acme";
   win.location.hash = hash;
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const order = [];
   let live = 0;
   let peak = 0;
@@ -194,7 +195,7 @@ test("the boot holds every answer until its last surface is in: two surfaces rea
   // a surface in the first had been answered a moment before, because a settled read was dropped as it settled.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const sent = [];
   win.fetch = async (url) => {
     sent.push(url);
@@ -366,7 +367,7 @@ test("once the boot is in, the runner joins the live feed the page handed it -- 
   // only when the machine was slow enough for the boot to finish in time, which is why it came and went.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   // On screen: a hidden page reads only what says itself in the tab's title and badge, and holds Today's notice until it is
   // in front (shell/feed/the-runner-heals.test.mjs).
   globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
@@ -443,7 +444,7 @@ test("the feed is joined once who is looking is known, not once the whole boot i
   // join (the length of the boot, two seconds and more on a phone) was never heard.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const asked = [];
   let finish = () => {};
   const surfaces = [
@@ -489,7 +490,7 @@ test("REGRESSION: a refresh the live feed asks for never shares a read sent befo
   // forgets every read out (client/api.ts), and what the live feed says changed now does too.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const sent = [];
   const parked = [];
   win.fetch = async (url) => {
@@ -997,7 +998,7 @@ test("REGRESSION (16 Nov 2026): a move asked while the boot is out reads what th
 test("a page read that never lands holds the rest for the route's wait at most, and only this boot's", async () => {
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   const keys = ["settings", "people", "workspace"];
-  win.__routeWaitMs = 150;
+  bridgeHolds({ parts: { routeWaitMs: 150 } });
   try {
     const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });
     bootWaitsFor(new Promise(() => {}));
@@ -1016,7 +1017,7 @@ test("a page read that never lands holds the rest for the route's wait at most, 
     stop2();
     assert.deepEqual(again.order, ["workspace", "people", "settings"], "in one go, with no wait");
   } finally {
-    delete win.__routeWaitMs;
+    bridgeHolds({ parts: { routeWaitMs: undefined } });
   }
 });
 
@@ -1032,7 +1033,7 @@ test("a failed boot over CACHED real data is degraded, not seeded", async () => 
   // always used this rule; boot did not.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   markHydrated(["cached-rows"]);
   const down = (key) => ({
     key,
@@ -1060,7 +1061,7 @@ test("a failed boot over CACHED real data is degraded, not seeded", async () => 
 test("the runner hears the tab and the network in order, and its stop undoes it in the same order: listeners, pending refreshes, the feed, the connection", async () => {
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const said = [];
   globalThis.document = {
     visibilityState: "hidden",
@@ -1133,7 +1134,7 @@ test("a boot that ends after its runner stopped never reloads for another worksp
   // its boot is in. A runner already stopped (a StrictMode unmount, a workspace switch) is past deciding that.
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const m = new Map();
   const keptLocal = globalThis.localStorage;
   globalThis.localStorage = {
@@ -1220,7 +1221,7 @@ test("the rest of the boot waits for the page on screen to be drawn, not only fo
 
 test("a page that never says it drew holds the rest for the route's wait at most", async () => {
   const keys = ["settings", "people", "workspace", "calendar"];
-  win.__routeWaitMs = 120;
+  bridgeHolds({ parts: { routeWaitMs: 120 } });
   const { order, overrides } = crowd(keys, { hash: "#/calendar" });
   drawComing();
   const stop = startSurfaces(overrides);
@@ -1228,7 +1229,7 @@ test("a page that never says it drew holds the rest for the route's wait at most
     // Nothing says the page drew: only the route's wait lets the rest go (the test above holds them before it).
     await until(() => new Set(order).size === keys.length, "the wait ran out; the shell has its rest");
   } finally {
-    delete win.__routeWaitMs;
+    bridgeHolds({ parts: { routeWaitMs: undefined } });
     pageDrawn();
     stop();
   }
@@ -1253,7 +1254,7 @@ test("what the live feed says while the rest of the boot is out is read once the
   // The rest now go later (after the draw): held until they were all in, a message would show later than it did.
   win.location.pathname = "/w/acme";
   win.location.hash = "#/inbox";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const asked = [];
   let finishStranger = () => {};
   const surfaces = [
@@ -1302,7 +1303,7 @@ test("the pages not on screen ask their first reads as one request, each answere
   // "Pages that open at once", piece 8: the boot asked each in a request of its own, 36 a load (23 Nov 2026).
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const sent = [];
   win.fetch = async (url) => {
     sent.push(url);
@@ -1348,7 +1349,7 @@ test("the pages not on screen ask their first reads as one request, each answere
 test("a rest refused whole leaves no page without its read: each is asked alone", async () => {
   win.location.pathname = "/w/acme";
   win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
+  bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
   const sent = [];
   win.fetch = async (url) => {
     sent.push(url);

@@ -6,6 +6,7 @@
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, kitPages, all, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const ZONE = "America/New_York";
 export const NOW = new Date("2026-09-18T20:00:00Z");
@@ -13,12 +14,16 @@ export const went = [];
 export const flashes = [];
 export const asked = [];
 
-installStubReact({
-  __surfaceState: () => "live",
-  __surfaceFailed: () => false,
-  __refreshSurface: () => {},
-});
+bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false, refreshSurface: () => {} } });
+installStubReact({});
 Object.assign(globalThis.window, kitPages);
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
+});
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
@@ -29,9 +34,6 @@ Object.assign(globalThis, {
   gate: () => ({}),
   useHotkey: () => {},
   refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
 });
 
 /** What the pages asked of the wire, by method and path, and the answer each test holds (`answer`), refused by default. */

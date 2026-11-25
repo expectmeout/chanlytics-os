@@ -14,7 +14,6 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { roleGate } from "@chanlytics/contracts";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { useNeedsYou } from "../surfaces/needs-you";
@@ -31,7 +30,6 @@ declare global {
     React: typeof React;
     ReactDOM: typeof ReactDOM;
     useSurface: (names: SurfaceNames) => number;
-    __roleGate: typeof roleGate;
   }
 }
 
@@ -54,12 +52,7 @@ if (typeof window !== "undefined") {
     askAbout: DOOR_NAMES.askAbout,
     appAsk: DOOR_NAMES.appAsk,
     appNavigate: DOOR_NAMES.appNavigate,
-    // The Inbox's and Conversations' rows under the names the pages that have not moved read, and the one thread's verbs,
-    // which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). The rows are the reads',
-    // published under these names as they land (declareSurfaceValue), and nothing stands in for them before (the wiring's
-    // second audit, X6-1).
-    INBOX_DATA: undefined,
-    CONVERSATIONS_DATA: undefined,
+    // The one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.
     useNeedsYou,
@@ -77,16 +70,11 @@ if (typeof window !== "undefined") {
     // frame draws once and their doors (surfaces/frame/app-shell.tsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
     plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
-    __listRoute: PEOPLE_GLOBALS.__listRoute,
     DealSheetHost: PEOPLE_GLOBALS.DealSheetHost,
     StepSheetHost: PEOPLE_GLOBALS.StepSheetHost,
     openDealSheet: PEOPLE_GLOBALS.openDealSheet,
     openStepSheet: PEOPLE_GLOBALS.openStepSheet,
   });
-  // The gate's sentence, from the same table: a control a role may not press
-  // says who may before the press, in the words the server's refusal gives
-  // after it (contracts refusal.ts roleGate). frame/gate.ts reads it.
-  window.__roleGate = roleGate;
   // The role store every gate asks (identity.ts), made before any page loads, as settings.jsx made it as the
   // manifest loaded: identity.ts completes it once its own install runs.
   installRoleStore();

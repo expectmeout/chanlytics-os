@@ -16,6 +16,7 @@ import { setupSteps, RECEPTIONIST_MET, REHEARSE_SKIPPED } from "@chanlytics/cont
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 export const NOW = Date.parse("2026-09-07T15:00:00Z");
 export const blank = {
@@ -94,6 +95,10 @@ globalThis.React = {
     return node;
   },
 };
+bridgeHolds(
+  { who: { workspaces: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }], activeWorkspaceId: "w1" } },
+  { fresh: true },
+);
 globalThis.window = {
   // The address names the workspace the tab's drafts are kept for (tab-memory.ts: /w/<slug>/...).
   location: { hash: "#/start", pathname: "/w/harbor/start", search: "" },
@@ -106,8 +111,6 @@ globalThis.window = {
       delete store[k];
     },
   },
-  __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "w1",
   usePPToast: () => [null, () => {}],
   appNavigate: () => {},
   canDo: () => true,
@@ -179,7 +182,7 @@ installBilling(globalThis.window);
 export const { googleVerbs } = await importSrc("apps/dashboard/src/bridge/google.ts");
 googleVerbs.outcome = () => null;
 // The tab's drafts, read and written through the window's sessionStorage, where the page reads them.
-globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);
+bridgeHolds({ parts: { tabMemory: tabMemoryFor(globalThis.window) } });
 
 /* ---- a stub React: the Setup page test's, with this page as the one drawn ---- */
 /** The address's step (`start/<param>`), or null for the bare address. */
@@ -381,9 +384,9 @@ export const atChannels = (dto) => surface(dto, { later: MET });
 export const atLive = (dto, { want = KEEP, later = [], choices } = {}) =>
   surface(dto, { later: [...MET, ...later], want, ...(choices ? { choices } : {}) });
 /** What the tab has kept under a draft's name, read where the page keeps it (the window's sessionStorage). */
-export const draftOf = (kind) => globalThis.window.__tabMemory.draft(kind);
+export const draftOf = (kind) => provided("tabMemory").draft(kind);
 /** A choice kept in the tab, as the page keeps it (memory.ts). */
-export const keepChoice = (choice) => globalThis.window.__tabMemory.keepDraft("first-run-phone", choice);
+export const keepChoice = (choice) => provided("tabMemory").keepDraft("first-run-phone", choice);
 /** A tab with nothing kept in it: the drafts the last world left are gone, as a new world's own were. */
 export const emptyTab = () => clearTabMemory(globalThis.window.sessionStorage);
 /** The tab's drafts (empty), Stripe and the line doors, each remembering what it was asked. */

@@ -12,6 +12,7 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 const TID = "t-salon";
 /** A workspace's slot in the browser's local storage, by its address's word. */
@@ -44,6 +45,15 @@ const heard = {};
 const inboxWire = { conversations: [], escalations: [] };
 /** This member's views as the server holds them (a read always answers with these), every view saved to it, and while `held`, a save's reply waits for it. */
 const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [], held: null };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -62,8 +72,6 @@ globalThis.window = {
   dispatchEvent() {
     return true;
   },
-  __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: TID,
   fetch: async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     if (u.pathname === "/api/v1/contacts")
@@ -124,20 +132,20 @@ const cachedPeopleView = () => JSON.parse(stored() ?? "null")?.surfaces?.people?
 const peopleRead = async ({ cachedFor = null } = {}) => {
   clearSurfaceCache();
   await peopleOverride.apply();
-  if (cachedFor) snapshotSurface(peopleOverride.key, [], cachedFor, undefined, peopleOverride.value);
+  if (cachedFor) snapshotSurface(peopleOverride.key, cachedFor, undefined, peopleOverride.value);
 };
 
 // First in the file on purpose: each file runs in a process of its own, so People has not been read yet, as straight after F5.
 test("REGRESSION: straight after F5 a save made while the load read is out survives the read -- the page is usable from the cache before it lands, and the read brought the old view back", async () => {
   // The last session's People, in the tab's cache, painted before anything is read.
   setSurfaceValue("people", { views: { people: server.views.people } });
-  snapshotSurface(peopleOverride.key, [], TID, undefined, peopleOverride.value);
+  snapshotSurface(peopleOverride.key, TID, undefined, peopleOverride.value);
   setSurfaceValue("people", undefined);
   hydrateSurfaceCache();
   const reading = peopleOverride.apply();
   const saving = saveView("people", HIDDEN);
   assert.deepEqual(
-    globalThis.window.__PEOPLE.views.people,
+    surfaceValue("people").views.people,
     HIDDEN,
     "People mounted again before the read lands (Back) has the view",
   );
@@ -145,11 +153,11 @@ test("REGRESSION: straight after F5 a save made while the load read is out survi
   await saving;
   await reading;
   assert.deepEqual(
-    globalThis.window.__PEOPLE.views.people,
+    surfaceValue("people").views.people,
     HIDDEN,
     "REGRESSION: the read landed with the server's older view, and it stood",
   );
-  snapshotSurface(peopleOverride.key, [], TID, undefined, peopleOverride.value);
+  snapshotSurface(peopleOverride.key, TID, undefined, peopleOverride.value);
   assert.deepEqual(cachedPeopleView(), HIDDEN, "and the runner caches what the read left");
 });
 
@@ -162,7 +170,7 @@ test("REGRESSION: a reload keeps the view a member saved -- the tab's cached Peo
   // F5: the cache is painted before anything is read again.
   setSurfaceValue("people", undefined);
   assert.deepEqual([...hydrateSurfaceCache()], ["people"]);
-  assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "so People mounts with the view saved");
+  assert.deepEqual(surfaceValue("people").views.people, HIDDEN, "so People mounts with the view saved");
 });
 
 test("with no People cached, a save caches nothing -- an entry made here could carry no workspace, and the runner's guard skips one with none", async () => {
@@ -170,12 +178,12 @@ test("with no People cached, a save caches nothing -- an entry made here could c
   await saveView("people", HIDDEN);
   assert.equal(stored(), null, "no cache is made");
   // This workspace's cache holding another surface: People is not added to it.
-  globalThis.window.__TODAY_PROBE = { n: 1 };
-  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  setSurfaceValue("today", { n: 1 });
+  snapshotSurface("today", TID, undefined, "today");
   const before = stored();
   await saveView("people", { ...HIDDEN, sortBy: "name" });
   assert.equal(stored(), before, "and a cache without People gains no People");
-  delete globalThis.window.__TODAY_PROBE;
+  setSurfaceValue("today", undefined);
 });
 
 test("a cache of another workspace is left as it is: a save here writes nothing into it", async () => {
@@ -203,7 +211,7 @@ test("a save still waiting on its reply when a read of People begins is not undo
     server.held = null;
   }
   assert.deepEqual(
-    globalThis.window.__PEOPLE.views.people,
+    surfaceValue("people").views.people,
     LISTS,
     "the read began while the save waited, so the save stands",
   );
@@ -212,15 +220,15 @@ test("a save still waiting on its reply when a read of People begins is not undo
 test("with no workspace active, a save writes nothing into the cache -- not even into an entry that carries no workspace", async () => {
   await peopleRead();
   // Cached before any workspace was known, so the entry names none.
-  snapshotSurface(peopleOverride.key, [], null, undefined, peopleOverride.value);
+  snapshotSurface(peopleOverride.key, null, undefined, peopleOverride.value);
   const before = stored();
-  const active = globalThis.window.__ACTIVE_WORKSPACE;
-  delete globalThis.window.__ACTIVE_WORKSPACE;
+  const active = whoIsLooking().activeWorkspaceId;
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   try {
     await saveView("people", HIDDEN);
     assert.equal(stored(), before, "not a byte of it changed");
   } finally {
-    globalThis.window.__ACTIVE_WORKSPACE = active;
+    bridgeHolds({ who: { activeWorkspaceId: active } });
   }
 });
 
@@ -252,12 +260,12 @@ test("signing out clears what the pages kept in the tab -- a view's place, a hal
 test("a cache that would be too big sheds its biggest surfaces until it fits, rather than everything: Leads at 500 rows used to empty Today, Inbox and People with it", () => {
   clearSurfaceCache();
   const big = (n) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, words: "x".repeat(2000) })) });
-  globalThis.window.__TODAY_PROBE = { small: true };
-  globalThis.window.__PEOPLE_PROBE = big(120); // ~240 KB
-  globalThis.window.__LEADS_PROBE = big(1000); // ~2 MB: over the line on its own
-  snapshotSurface("today", ["__TODAY_PROBE"], TID);
-  snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
-  snapshotSurface("leads", ["__LEADS_PROBE"], TID);
+  setSurfaceValue("today", { small: true });
+  setSurfaceValue("people", big(120)); // ~240 KB
+  setSurfaceValue("leads", big(1000)); // ~2 MB: over the line on its own
+  snapshotSurface("today", TID, undefined, "today");
+  snapshotSurface("people", TID, undefined, "people");
+  snapshotSurface("leads", TID, undefined, "leads");
   const kept = JSON.parse(stored() ?? "null");
   assert.ok(kept, "REGRESSION: the whole cache was removed, and every page booted cold");
   assert.deepEqual(
@@ -266,32 +274,37 @@ test("a cache that would be too big sheds its biggest surfaces until it fits, ra
     "the surface that did not fit is the one left out",
   );
   assert.ok(stored().length < 2_000_000);
-  delete globalThis.window.__TODAY_PROBE;
-  delete globalThis.window.__PEOPLE_PROBE;
-  delete globalThis.window.__LEADS_PROBE;
+  setSurfaceValue("today", undefined);
+  setSurfaceValue("people", undefined);
+  setSurfaceValue("leads", undefined);
   clearSurfaceCache();
 });
 
 test("a surface may say what of itself the cache holds: Leads keeps its first hundred rows, which is all an instant paint needs", () => {
   clearSurfaceCache();
-  globalThis.window.__LEADS_PROBE = {
+  setSurfaceValue("leads", {
     rows: Array.from({ length: 500 }, (_, i) => ({ id: `l${i}` })),
     next: { key: "k", id: "l499" },
     offered: 12,
     view: { list: "all" },
-  };
-  snapshotSurface("leads", ["__LEADS_PROBE"], TID, (snap) => ({
-    ...snap,
-    __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 },
-  }));
-  const kept = JSON.parse(stored()).surfaces.leads.__LEADS_PROBE;
+  });
+  snapshotSurface(
+    "leads",
+    TID,
+    (snap) => ({
+      ...snap,
+      $value: { ...snap.$value, rows: snap.$value.rows.slice(0, 100), next: null, offered: 0 },
+    }),
+    "leads",
+  );
+  const kept = JSON.parse(stored()).surfaces.leads.$value;
   assert.deepEqual(
     [kept.rows.length, kept.next, kept.offered, kept.view],
     [100, null, 0, { list: "all" }],
     "the first hundred, no page after them and nothing offered: the read that follows says the rest",
   );
-  assert.equal(globalThis.window.__LEADS_PROBE.rows.length, 500, "and the page's own rows are untouched");
-  delete globalThis.window.__LEADS_PROBE;
+  assert.equal(surfaceValue("leads").rows.length, 500, "and the page's own rows are untouched");
+  setSurfaceValue("leads", undefined);
   clearSurfaceCache();
 });
 
@@ -300,9 +313,10 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
   try {
     clearSurfaceCache();
     cacheWrites = 0;
-    for (const k of ["today", "inbox", "calendar", "people", "settings"]) {
-      globalThis.window[`__${k}_PROBE`] = { k };
-      snapshotSurface(k, [`__${k}_PROBE`], TID);
+    // Five surfaces no other follows (the settings read's value is: offered-templates.ts makes the pickers of it).
+    for (const k of ["today", "inbox", "calendar", "people", "reports"]) {
+      setSurfaceValue(k, { k });
+      snapshotSurface(k, TID, undefined, k);
       mock.timers.tick(300);
     }
     assert.equal(cacheWrites, 0, "nothing written while snapshots keep landing");
@@ -313,18 +327,18 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
       "calendar",
       "inbox",
       "people",
-      "settings",
+      "reports",
       "today",
     ]);
     // Snapshots that never stop still reach the tab's storage within five seconds of the first one waiting.
     cacheWrites = 0;
     for (let i = 0; i < 12; i++) {
-      snapshotSurface("today", ["__today_PROBE"], TID);
+      snapshotSurface("today", TID, undefined, "today");
       mock.timers.tick(600);
     }
     assert.ok(cacheWrites >= 1, `written while they kept coming: ${cacheWrites}`);
   } finally {
-    for (const k of ["today", "inbox", "calendar", "people", "settings"]) delete globalThis.window[`__${k}_PROBE`];
+    for (const k of ["today", "inbox", "calendar", "people", "reports"]) setSurfaceValue(k, undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -334,8 +348,8 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
   try {
     clearSurfaceCache();
-    globalThis.window.__HIDE_PROBE = { n: 1 };
-    snapshotSurface("today", ["__HIDE_PROBE"], TID);
+    setSurfaceValue("today", { n: 1 });
+    snapshotSurface("today", TID, undefined, "today");
     assert.equal(globalThis.localStorage.getItem(CACHE), null, "waiting");
     for (const fn of heard.pagehide ?? []) fn(new Event("pagehide"));
     assert.ok(
@@ -343,7 +357,7 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
       "REGRESSION: a reload straight after a read painted the older cache",
     );
     // Signed out with a snapshot waiting: the clear drops it, and the write it was waiting for never comes.
-    snapshotSurface("today", ["__HIDE_PROBE"], TID);
+    snapshotSurface("today", TID, undefined, "today");
     clearSurfaceCache();
     mock.timers.tick(10_000);
     assert.equal(
@@ -353,7 +367,7 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
     );
     assert.equal(cachedTenantNow(), null);
   } finally {
-    delete globalThis.window.__HIDE_PROBE;
+    setSurfaceValue("today", undefined);
     mock.timers.reset();
   }
 });
@@ -364,22 +378,22 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
   let parses = 0;
   try {
     clearSurfaceCache();
-    globalThis.window.__PARSE_PROBE = { rows: [1, 2, 3] };
-    snapshotSurface("today", ["__PARSE_PROBE"], TID);
+    setSurfaceValue("today", { rows: [1, 2, 3] });
+    snapshotSurface("today", TID, undefined, "today");
     flushSurfaceCache();
     JSON.parse = (...a) => {
       parses += 1;
       return parse(...a);
     };
     for (let i = 0; i < 5; i++) {
-      globalThis.window.__PARSE_PROBE = { rows: [i] };
-      snapshotSurface("today", ["__PARSE_PROBE"], TID);
+      setSurfaceValue("today", { rows: [i] });
+      snapshotSurface("today", TID, undefined, "today");
       flushSurfaceCache();
     }
     assert.equal(parses, 0, "REGRESSION: every snapshot after a write parsed the slot");
     assert.equal(cachedTenantNow(), TID);
     JSON.parse = parse;
-    assert.deepEqual(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces.today.__PARSE_PROBE, { rows: [4] });
+    assert.deepEqual(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces.today.$value, { rows: [4] });
     // A slot written by anything else is read as it is: parsed again, never the copy.
     globalThis.localStorage.setItem(
       CACHE,
@@ -394,7 +408,7 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
     assert.equal(cachedTenantNow(), "t-other");
   } finally {
     JSON.parse = parse;
-    delete globalThis.window.__PARSE_PROBE;
+    setSurfaceValue("today", undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -403,15 +417,15 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
 test("REGRESSION: a load at another workspace's address draws none of the rows cached at this one -- a phone's push for another workspace opened its address and drew this one's Inbox and name until the workspaces read landed", () => {
   clearSurfaceCache();
   const w = globalThis.window;
-  w.__INBOX_PROBE = { THREADS: [{ id: "t1", who: "A customer of the salon's" }] };
+  setSurfaceValue("inbox", { THREADS: [{ id: "t1", who: "A customer of the salon's" }] });
   // The workspace surface's globals ride in the same cache: the name on the sidebar, and the id every guard reads.
-  snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
-  snapshotSurface("workspace", ["__WORKSPACES", "__ACTIVE_WORKSPACE"], TID);
+  snapshotSurface("inbox", TID, undefined, "inbox");
+  snapshotSurface("workspace", TID, undefined, undefined, true);
   flushSurfaceCache();
-  const ws = w.__WORKSPACES;
-  delete w.__INBOX_PROBE;
-  delete w.__WORKSPACES;
-  delete w.__ACTIVE_WORKSPACE;
+  const ws = whoIsLooking().workspaces;
+  setSurfaceValue("inbox", undefined);
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   // The tab is sent to another workspace's address, and loads: the cache is restored before React draws anything.
   w.location.pathname = "/w/bayside/inbox";
   try {
@@ -420,26 +434,30 @@ test("REGRESSION: a load at another workspace's address draws none of the rows c
       [],
       "REGRESSION: the salon's surfaces were drawn under bayside's address",
     );
-    assert.equal(w.__INBOX_PROBE, undefined, "none of its rows");
-    assert.equal(w.__WORKSPACES, undefined, "nor its name");
-    assert.equal(w.__ACTIVE_WORKSPACE, undefined, "nor its id, which every read after would have taken as bayside's");
+    assert.equal(surfaceValue("inbox"), undefined, "none of its rows");
+    assert.equal(whoIsLooking().workspaces, undefined, "nor its name");
+    assert.equal(
+      whoIsLooking().activeWorkspaceId,
+      undefined,
+      "nor its id, which every read after would have taken as bayside's",
+    );
     assert.equal(globalThis.localStorage.getItem(slot("bayside")), null, "bayside's own slot holds nothing yet");
     assert.ok(globalThis.localStorage.getItem(CACHE), "and the salon's stays the salon's, for its own next load");
     assert.equal(cachedTenantNow(), null, "so the runner's guard has no other workspace to reload the tab for");
   } finally {
     w.location.pathname = "/w/salon";
-    w.__WORKSPACES = ws;
-    w.__ACTIVE_WORKSPACE = TID;
+    bridgeHolds({ who: { workspaces: ws } });
+    bridgeHolds({ who: { activeWorkspaceId: TID } });
   }
 });
 
 test("off a workspace page (the home, on its way to one) the cache is drawn nowhere and left for its workspace's own load", () => {
   clearSurfaceCache();
   const w = globalThis.window;
-  w.__TODAY_PROBE = { n: 1 };
-  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  setSurfaceValue("today", { n: 1 });
+  snapshotSurface("today", TID, undefined, "today");
   flushSurfaceCache();
-  delete w.__TODAY_PROBE;
+  setSurfaceValue("today", undefined);
   w.location.pathname = "/";
   try {
     assert.deepEqual([...hydrateSurfaceCache()], [], "the home draws none of a workspace's rows");
@@ -448,21 +466,21 @@ test("off a workspace page (the home, on its way to one) the cache is drawn nowh
     w.location.pathname = "/w/salon";
   }
   assert.deepEqual([...hydrateSurfaceCache()], ["today"], "which draws them at once");
-  delete w.__TODAY_PROBE;
+  setSurfaceValue("today", undefined);
   clearSurfaceCache();
 });
 
 test("REGRESSION: rows read at one workspace's address never join the cache of another -- with the workspaces read failed, the last workspace's id stayed, and the new one's rows were written under it", () => {
   clearSurfaceCache();
   const w = globalThis.window;
-  w.__TODAY_PROBE = { whose: "the salon's" };
-  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  setSurfaceValue("today", { whose: "the salon's" });
+  snapshotSurface("today", TID, undefined, "today");
   flushSurfaceCache();
   // At bayside's address, the id the page holds still says the salon (its workspaces read failed both tries).
   w.location.pathname = "/w/bayside";
-  w.__INBOX_PROBE = { whose: "bayside's" };
+  setSurfaceValue("inbox", { whose: "bayside's" });
   try {
-    snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+    snapshotSurface("inbox", TID, undefined, "inbox");
     const kept = JSON.parse(stored(slot("bayside")));
     assert.deepEqual(Object.keys(kept.surfaces), ["inbox"], "bayside's Inbox starts bayside's own slot");
     assert.equal(kept.at, "bayside", "the cache says whose address its rows were read at");
@@ -475,26 +493,25 @@ test("REGRESSION: rows read at one workspace's address never join the cache of a
     w.location.pathname = "/w/salon";
   }
   // Back at the salon's address: nothing of bayside's is drawn there, only the salon's own.
-  delete w.__INBOX_PROBE;
-  delete w.__TODAY_PROBE;
+  setSurfaceValue("inbox", undefined);
+  setSurfaceValue("today", undefined);
   assert.deepEqual([...hydrateSurfaceCache()], ["today"]);
-  assert.equal(w.__INBOX_PROBE, undefined);
-  delete w.__TODAY_PROBE;
+  assert.equal(surfaceValue("inbox"), undefined);
+  setSurfaceValue("today", undefined);
   clearSurfaceCache();
 });
 
 test("a cache the server resolved for another workspace is not added to, even at the same address", () => {
   clearSurfaceCache();
-  const w = globalThis.window;
-  w.__TODAY_PROBE = { n: 1 };
-  snapshotSurface("today", ["__TODAY_PROBE"], "t-other");
-  w.__INBOX_PROBE = { n: 2 };
-  snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+  setSurfaceValue("today", { n: 1 });
+  snapshotSurface("today", "t-other", undefined, "today");
+  setSurfaceValue("inbox", { n: 2 });
+  snapshotSurface("inbox", TID, undefined, "inbox");
   const kept = JSON.parse(stored());
   assert.deepEqual(Object.keys(kept.surfaces), ["inbox"], "the rows start a cache of their own workspace");
   assert.equal(kept.tenant, TID);
-  delete w.__TODAY_PROBE;
-  delete w.__INBOX_PROBE;
+  setSurfaceValue("today", undefined);
+  setSurfaceValue("inbox", undefined);
   clearSurfaceCache();
 });
 
@@ -502,19 +519,18 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
   try {
     clearSurfaceCache();
-    const w = globalThis.window;
-    w.__AGE_PROBE = { n: 1 };
-    snapshotSurface("today", ["__AGE_PROBE"], TID);
+    setSurfaceValue("today", { n: 1 });
+    snapshotSurface("today", TID, undefined, "today");
     flushSurfaceCache();
-    delete w.__AGE_PROBE;
+    setSurfaceValue("today", undefined);
     mock.timers.tick(23 * 3_600_000);
     assert.deepEqual([...hydrateSurfaceCache()], ["today"], "drawn within the day");
-    delete w.__AGE_PROBE;
+    setSurfaceValue("today", undefined);
     mock.timers.tick(2 * 3_600_000);
     assert.deepEqual([...hydrateSurfaceCache()], [], "and not after it");
-    assert.equal(w.__AGE_PROBE, undefined);
+    assert.equal(surfaceValue("today"), undefined);
   } finally {
-    delete globalThis.window.__AGE_PROBE;
+    setSurfaceValue("today", undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -522,38 +538,37 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
 
 test("a page's rows leave the slot once they are a day old, though the slot is written every day: opening Today each morning kept the Inbox's threads from the one day it was opened", () => {
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
-  const w = globalThis.window;
   const kept = () => Object.keys(JSON.parse(stored()).surfaces).sort();
   try {
     clearSurfaceCache();
-    w.__INBOX_PROBE = { threads: ["a customer's words"] };
-    w.__TODAY_PROBE = { n: 1 };
-    snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
-    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    setSurfaceValue("inbox", { threads: ["a customer's words"] });
+    setSurfaceValue("today", { n: 1 });
+    snapshotSurface("inbox", TID, undefined, "inbox");
+    snapshotSurface("today", TID, undefined, "today");
     assert.deepEqual(kept(), ["inbox", "today"]);
 
     // The next morning, twenty hours on: Today is read again, and the Inbox's rows are still inside their day.
     mock.timers.tick(20 * 3_600_000);
-    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    snapshotSurface("today", TID, undefined, "today");
     assert.deepEqual(kept(), ["inbox", "today"], "inside its day a snapshot rides along");
 
     // Six hours later Today is read once more: the Inbox's rows are twenty-six hours old, and go with this write.
     mock.timers.tick(6 * 3_600_000);
-    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    snapshotSurface("today", TID, undefined, "today");
     assert.deepEqual(kept(), ["today"], "past its day it is not carried on: no load would draw it");
     assert.ok(!stored().includes("a customer's words"), "and its rows are off the device");
 
     // A page changed in place (a view saved, resnapshotSurface) writes the slot too, and carries no old snapshot either.
-    w.__PEOPLE_PROBE = { views: 1 };
-    snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
+    setSurfaceValue("people", { views: 1 });
+    snapshotSurface("people", TID, undefined, "people");
     mock.timers.tick(20 * 3_600_000);
-    snapshotSurface("today", ["__TODAY_PROBE"], TID);
+    snapshotSurface("today", TID, undefined, "today");
     assert.deepEqual(kept(), ["people", "today"]);
     mock.timers.tick(6 * 3_600_000);
-    resnapshotSurface("today", ["__TODAY_PROBE"], TID);
+    resnapshotSurface("today", TID, "today");
     assert.deepEqual(kept(), ["today"], "People's, a day old, went with Today's own write");
   } finally {
-    for (const name of ["__INBOX_PROBE", "__TODAY_PROBE", "__PEOPLE_PROBE"]) delete w[name];
+    for (const key of ["inbox", "today", "people"]) setSurfaceValue(key, undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -573,7 +588,7 @@ test("REGRESSION: over its size the slot sheds what the page on screen does not 
       setSurfaceValue("people", book(500)); // ~1 MB, People's book: Today draws it
       setSurfaceValue("inbox", book(600)); // ~1.2 MB, the Inbox's threads: Today does not
       setSurfaceValue("today", { small: true });
-      for (const k of ["people", "inbox", "today"]) snapshotSurface(k, [], TID, undefined, k);
+      for (const k of ["people", "inbox", "today"]) snapshotSurface(k, TID, undefined, k);
       const slot = JSON.parse(stored() ?? "null");
       assert.deepEqual(Object.keys(slot.surfaces).sort(), kept, `${hash}: ${shed} is the one left out`);
     }
@@ -602,7 +617,7 @@ test("a snapshot another build kept is drawn where its value's type is this buil
           today: { $value: { n: 1 }, $kept: kept("an-older-build", SURFACE_SHAPES.today) },
           // Its type changed since: read as a first visit reads it.
           people: { $value: { rows: [] }, $kept: kept("an-older-build", "a-type-since-changed") },
-          // A global of the window's beside it, whose shape no checker holds.
+          // Something beside its value (a window global once, a read the bridge holds now), whose shape no checker holds.
           calendar: {
             $value: { n: 1 },
             __CALENDAR_PROBE: { n: 1 },
@@ -629,10 +644,10 @@ test("a snapshot another build kept is drawn where its value's type is this buil
     );
     assert.deepEqual([...hydrateSurfaceCache()].sort(), ["setup", "today"]);
     assert.deepEqual(surfaceValue("today"), { n: 1 });
-    assert.equal(globalThis.window.__CALENDAR_PROBE, undefined, "nothing of a snapshot not drawn reaches the window");
+    assert.equal(surfaceValue("calendar"), undefined, "nothing of a snapshot not drawn is held");
     assert.equal(globalThis.window.$kept, undefined, "and what a snapshot was kept under is never a global");
   } finally {
-    delete globalThis.window.__CALENDAR_PROBE;
+    setSurfaceValue("calendar", undefined);
     mock.timers.reset();
     clearSurfaceCache();
   }
@@ -696,7 +711,7 @@ test("a value's type is fingerprinted all the way down: a field renamed three le
 test("each snapshot says the build, its value's type and the time it was kept under", () => {
   clearSurfaceCache();
   setSurfaceValue("today", { n: 2 });
-  snapshotSurface("today", [], TID, undefined, "today");
+  snapshotSurface("today", TID, undefined, "today");
   const { $kept } = JSON.parse(stored()).surfaces.today;
   assert.equal($kept.build, process.env.NEXT_PUBLIC_BUILD_SHA || "dev");
   assert.equal($kept.shape, SURFACE_SHAPES.today);
@@ -707,12 +722,12 @@ test("each snapshot says the build, its value's type and the time it was kept un
 test("a clear (a sign-in, a sign-out, a 401, a switch) drops every workspace's slot this browser kept, and nothing else of its storage", () => {
   clearSurfaceCache();
   const w = globalThis.window;
-  w.__TODAY_PROBE = { n: 1 };
-  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  setSurfaceValue("today", { n: 1 });
+  snapshotSurface("today", TID, undefined, "today");
   flushSurfaceCache();
   w.location.pathname = "/w/bayside";
   try {
-    snapshotSurface("today", ["__TODAY_PROBE"], "t-bayside");
+    snapshotSurface("today", "t-bayside", undefined, "today");
     flushSurfaceCache();
   } finally {
     w.location.pathname = "/w/salon";
@@ -727,7 +742,7 @@ test("a clear (a sign-in, a sign-out, a 401, a switch) drops every workspace's s
   assert.equal(globalThis.localStorage.getItem(slot("bayside")), null, "every workspace's, not only this address's");
   assert.equal(globalThis.localStorage.getItem("chanlytics.theme"), "dark", "and only the cache's own");
   globalThis.localStorage.removeItem("chanlytics.theme");
-  delete w.__TODAY_PROBE;
+  setSurfaceValue("today", undefined);
 });
 
 /* ------------------------------ a refresh says the time it is ------------------------------ */
@@ -800,13 +815,7 @@ test("REGRESSION: a refresh paints the Inbox's times as the clock says them when
   try {
     clearSurfaceCache();
     await quietly(() => inboxOverride.apply());
-    snapshotSurface(
-      inboxOverride.key,
-      inboxOverride.globals ?? [],
-      TID,
-      inboxOverride.trimSnapshot,
-      inboxOverride.value,
-    );
+    snapshotSurface(inboxOverride.key, TID, inboxOverride.trimSnapshot, inboxOverride.value);
     flushSurfaceCache();
     const read = surfaceValue("inbox").THREADS;
     assert.deepEqual(
@@ -864,7 +873,7 @@ test("a snapshot that does not say the zone its times were said in is painted as
     CHANNEL_LABELS: {},
     INBOX_BASELINE: { doneThisWeek: 0 },
   });
-  snapshotSurface("inbox", [], TID, undefined, "inbox");
+  snapshotSurface("inbox", TID, undefined, "inbox");
   flushSurfaceCache();
   setSurfaceValue("inbox", undefined);
   hydrateSurfaceCache();
@@ -923,13 +932,7 @@ test("a person erased while a teammate's device holds their thread: the read tha
   robin.messages[0].body = "Please delete everything you hold about me.";
   const sam = thread("c-sam", "Sam Example");
   const keep = () => {
-    snapshotSurface(
-      inboxOverride.key,
-      inboxOverride.globals ?? [],
-      TID,
-      inboxOverride.trimSnapshot,
-      inboxOverride.value,
-    );
+    snapshotSurface(inboxOverride.key, TID, inboxOverride.trimSnapshot, inboxOverride.value);
     return stored() ?? "";
   };
   inboxWire.conversations = [robin, sam];

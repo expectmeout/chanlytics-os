@@ -12,17 +12,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, roleTable, stateOf } from "@chanlytics/contracts";
+import { ROLE_PERMS, roleTable, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const calls = { flash: [], invite: [], setRole: [], remove: [], resend: [], leave: 0, put: [], assign: [], viewAs: [] };
+bridgeHolds({
+  who: { me: { email: "ruben@rjcapital.example", role: "owner" } },
+  parts: { chrome: { state: stateOf } },
+});
 installStubReact({
-  __chrome: { state: stateOf },
-  __ME: { email: "ruben@rjcapital.example", role: "owner" },
   gate: () => ({}),
   // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
-  __roleGate: roleGate,
 });
 globalThis.window.location.assign = (to) => calls.assign.push(to);
 // The settings save, as the bridge sends it: what was PUT is kept, and the server says yes.
@@ -336,7 +338,7 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
   reset();
   fresh();
   globalThis.window.ST_STORE = { viewAsRole: null, can: (a) => !!ROLE_PERMS.operator[a], myRole: () => "operator" };
-  globalThis.window.__ME = { email: "alex@example.com", role: "operator" };
+  bridgeHolds({ who: { me: { email: "alex@example.com", role: "operator" } } });
   workspace({ role: "operator", team: [OWNER, ALEX] });
   const tree = draw();
   assert.equal(menuOf(tree, "team-role-m-ruben"), null, "no picker for an operator");
@@ -356,7 +358,7 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
     ["Change your name", "Leave this workspace…"],
     "an operator may not change who gets alerts",
   );
-  globalThis.window.__ME = { email: "ruben@rjcapital.example", role: "owner" };
+  bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
   delete globalThis.window.ST_STORE;
 });
 

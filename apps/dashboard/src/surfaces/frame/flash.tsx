@@ -4,7 +4,7 @@
  * own clock, the oldest dropped first. Its tone (good news, a note, a warning, a failure) sets its icon and colour, so
  * "saved" is told from "not saved" across the room, and how long it stays: a failure longer than a confirmation, a toast
  * with something to press long enough to reach it, or the exact `ms` a caller knows (the reply's cancel window, from its
- * receipt). The shape is contracts' (toastShape), through the chrome bridge; the standalone mockup has no bridge and keeps
+ * receipt). The shape is contracts' (toastShape), through the chrome's words (provided.ts `chrome`); the standalone mockup has no bridge and keeps
  * one tone. A mouse resting on a toast, or focus in it, holds its clock; a finger never does (a tap on its words froze it
  * until the next tap elsewhere).
  *
@@ -28,6 +28,7 @@ import type { ComponentType, ReactNode } from "react";
 import { Icon } from "../kit/icon/icon";
 import { touchSwipe } from "../kit/motion/swipe";
 import type { FrameFlash } from "../frame-verbs";
+import { provided } from "@/bridge/provided";
 
 /** A toast's shape, as contracts' toastShape says it from the flash it was asked for. */
 interface ToastShape {
@@ -47,7 +48,6 @@ interface Timer {
 }
 
 type FlashWindow = Window & {
-  __chrome?: { toast?: (p: FrameFlash) => ToastShape };
   CHANLY?: { nav?: (route: string) => void };
 };
 const flashWindow = () => window as FlashWindow;
@@ -64,7 +64,7 @@ const TOAST_PHONE_QUERY = "(max-width: 900px)";
 const HELD_LEAST_MS = 1000;
 
 const toastShapeOf = (p: FrameFlash): ToastShape => {
-  const chrome = flashWindow().__chrome;
+  const chrome = provided("chrome");
   return chrome && chrome.toast
     ? chrome.toast(p)
     : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || FALLBACK_MS, stays: false };

@@ -11,8 +11,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [
+      { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
+    ],
+    activeWorkspaceId: "t1",
+  },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -22,10 +32,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [
-    { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
-  ],
-  __ACTIVE_WORKSPACE: "t1",
   setInterval: () => 1,
   clearInterval() {},
 });

@@ -55,6 +55,7 @@ import {
   typeHeard,
   undoFor,
 } from "./_offer.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
@@ -220,7 +221,7 @@ test("each act of What you offer is gated as a change to the settings, and named
     return {};
   };
   // The word is offered only where there is a courier to save it through, as the zone is.
-  W.__workspace = { patch: async () => ({ ok: true, workspace: {}, message: "" }) };
+  bridgeHolds({ parts: { workspace: { patch: async () => ({ ok: true, workspace: {}, message: "" }) } } });
   try {
     const tree = drawTab();
     const mine = asked.filter(([, doing]) => /call a booking|services|booking rules|consult/.test(doing));
@@ -241,7 +242,7 @@ test("each act of What you offer is gated as a change to the settings, and named
     assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
   } finally {
     W.gate = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -249,7 +250,11 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
   W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
   // A courier to save the answer through, so that only the role stops it.
   const patched = [];
-  W.__workspace = { patch: async (fields) => (patched.push(fields), { ok: true, workspace: fields, message: "" }) };
+  bridgeHolds({
+    parts: {
+      workspace: { patch: async (fields) => (patched.push(fields), { ok: true, workspace: fields, message: "" }) },
+    },
+  });
   try {
     const sent = saving();
     const tree = drawTab({ profile: many, word: "meeting" });
@@ -280,7 +285,7 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
     assert.deepEqual(patched, [], "and nothing goes to the workspace's courier");
   } finally {
     delete W.ST_STORE;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -306,7 +311,7 @@ test("What you call a booking states the workspace's word, and its menu offers t
     assert.equal(wordShown(drawTab({ word: "session" })), "Session");
     assert.deepEqual(c.sent, [], "reading sends nothing");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -324,7 +329,7 @@ test("a word picked goes through the workspace's courier as { appointment_word }
     assert.equal(told(flashes.at(-1))[1], "Saved · it says “session” now.");
     assert.equal(wordShown(redrawTab(flash)), "Session", "and the page follows it");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -339,7 +344,7 @@ test("a word refused says the server's words, and the row keeps the word it had"
     assert.deepEqual(told(flashes.at(-1)), ["danger", "That workspace's word could not be changed."]);
     assert.equal(wordShown(redrawTab(flash)), "Appointment");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -352,7 +357,7 @@ test("only a role that may change the business is offered the word's menu: an op
     assert.match(textOf(byTestId(tree, "rec-row-appointment_word")), /Meeting/);
   } finally {
     delete W.ST_STORE;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -687,13 +692,17 @@ test("what stops a save is said under its box, and nothing is sent", () => {
 
 test("while the sheet saves its boxes take nothing, and a press that would add or remove refuses the way Save does", () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise(() => {
-      sent.push({
-        config: structuredClone(config),
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise(() => {
+          sent.push({
+            config: structuredClone(config),
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+          });
+        }),
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: many, flash });

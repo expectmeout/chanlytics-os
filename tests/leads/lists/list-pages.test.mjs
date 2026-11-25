@@ -10,8 +10,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 const SRC = "../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
@@ -25,11 +27,11 @@ const { RecordSheet } = await import(`${S}/kit/record/sheet.tsx`);
 const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 
 const flashed = [];
+bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   canDo: () => true,
   gate: () => ({}),
-  __clock: { zone: () => "America/Chicago" },
 });
 const IMPORTED = {
   search_id: "s-list",

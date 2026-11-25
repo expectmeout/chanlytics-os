@@ -11,8 +11,10 @@ import { toInboxThreadVM } from "@chanlytics/contracts";
 import { all, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 import { personRow } from "../../consent/_person-row.mjs";
 import { timesSaid, unmarkedTimes } from "./_unmarked-times.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src/surfaces";
 const { threadRows } = await import(`${S}/inbox/pages/list-rows.tsx`);
 const { PL_CARD } = await import(`${S}/people/cells/columns.tsx`);

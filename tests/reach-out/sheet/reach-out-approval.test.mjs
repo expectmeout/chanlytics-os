@@ -24,19 +24,20 @@ import {
   settle,
 } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 const ZONE = "America/Chicago";
 const dayKey = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(new Date(ms));
 const TODAY = dayKey(Date.now());
 const YESTERDAY = dayKey(Date.now() - 86_400_000);
 const role = { now: "owner" };
+bridgeHolds({ parts: { clock: { zone: () => ZONE, dayKey } } });
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   ST_STORE: { can: (a) => !!(contracts.ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
-  __roleGate: contracts.roleGate,
-  __clock: { zone: () => ZONE, dayKey },
 });
 // The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
 const SRC = "../../../apps/dashboard/src";

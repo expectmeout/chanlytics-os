@@ -178,7 +178,7 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
   // has none yet. A missing field reads as false and hides the tab from an
   // admin whose only workspace was removed.
   assert.equal((route.match(/platform_admin: platformAdmin/g) ?? []).length, 2);
-  const bridge = readCode("apps/dashboard/src/bridge/surface-data.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/who.ts");
   assert.match(bridge, /platform_admin\?: boolean;/);
   // It is not the authorization, and the comment says so where somebody would
   // otherwise be tempted to trust it.

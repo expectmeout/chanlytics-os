@@ -7,6 +7,7 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -39,6 +40,15 @@ globalThis.document ??= {
   querySelector: () => null,
 };
 const heard = [];
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: "t-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "t-harbor",
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "#/clients", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
@@ -51,8 +61,6 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: "t-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t-harbor",
   fetch: async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     if (u.pathname === "/api/v1/contacts")
@@ -77,8 +85,8 @@ const { ERASURES_LONGEST_WAIT_MS } = await import("../../../apps/dashboard/src/b
 const GONE_QUIET_MS = 35_000;
 /** Each time the surface said the reads had stopped behind a press (peopleGoing's `gone`). */
 const gone = [];
-const shown = () => globalThis.window.__PEOPLE.rows.map((r) => r.id);
-const total = () => globalThis.window.__PEOPLE.aggregates.total;
+const shown = () => surfaceValue("people").rows.map((r) => r.id);
+const total = () => surfaceValue("people").aggregates.total;
 
 test("whoever a press hands the ledger leaves the rows and the count at once, and a read while the ledger works does not bring them back", async () => {
   listed = [person(1), person(2), person(3), person(4)];

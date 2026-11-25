@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = {};
 const frames = hookFrames();
@@ -66,10 +67,12 @@ const sent = [];
 const edge = { stream: null, refuse: false };
 const line = (l) => edge.stream.enqueue(new TextEncoder().encode(`${JSON.stringify(l)}\n`));
 const NOW = { send_id: SEND, opening: "Harbor opens at 7.", written: true, held: null, paused: false, undo: true };
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-harbor", timezone: "America/Chicago" }], activeWorkspaceId: "ws-harbor" } },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},

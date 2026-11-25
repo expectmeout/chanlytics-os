@@ -49,6 +49,7 @@ import { refreshAfter } from "../refresh-map";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
 import { isRefusal, saidHere, specOf, tabOf, undoVerb, walkVerb } from "../verbs/commit";
+import { provided } from "../provided";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
 export type CommitResult =
@@ -372,6 +373,6 @@ export function editReply(win: Window, p: AskProposal): void {
   const pl = p.payload;
   const text = textOrEmpty;
   const threadId = `th-${text(pl.conversation_id)}`;
-  win.__tabMemory?.keepDraft("reply", text(pl.text), threadId);
+  provided("tabMemory")?.keepDraft("reply", text(pl.text), threadId);
   win.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { text: text(pl.text), threadId } }));
 }

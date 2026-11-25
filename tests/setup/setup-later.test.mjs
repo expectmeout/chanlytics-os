@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIRST_RUN_LANDED_KEY, SETUP_LATER_REFUSED, SETUP_REST_MS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the window ------------------------------ */
 
@@ -70,10 +71,12 @@ const json = (status, body) =>
 const ok = (data) => json(200, { ok: true, data });
 const refused = (status, code, message) => json(status, { ok: false, error: { code, message } });
 
+bridgeHolds(
+  { who: { workspaces: [{ id: "ws-harbor", timezone: "America/New_York" }], activeWorkspaceId: "ws-harbor" } },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "#/today", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "ws-harbor", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener: (type, fn) => {

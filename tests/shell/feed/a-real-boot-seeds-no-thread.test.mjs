@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { surfaceValue } from "../_bridge-holds.mjs";
 
 installStubReact();
 const win = globalThis.window;
@@ -45,8 +46,12 @@ const storage = () => {
 
 test("REGRESSION (X6-1): a real boot publishes no seeded thread, and the Inbox's store holds none before its read", () => {
   assert.equal(win.__DEMO_MODE, undefined, "the seeds set no demo flag: demo mode went (16 Nov 2026)");
-  assert.equal(win.INBOX_DATA, undefined, "REGRESSION: the demo's eleven threads were published in every session");
-  assert.equal(win.CONVERSATIONS_DATA, undefined);
+  assert.equal(
+    surfaceValue("inbox"),
+    undefined,
+    "REGRESSION: the demo's eleven threads were published in every session",
+  );
+  assert.equal(surfaceValue("conversations"), undefined);
   const inbox = inboxData();
   assert.deepEqual(inbox.THREADS, [], "before its read, no thread: not the demo's");
   assert.deepEqual(inbox.CHANNEL_LABELS, REAL_CHANNEL_LABELS, "and the channels' words are the real ones");
@@ -61,7 +66,11 @@ test("REGRESSION (X6-1, X6-3): the bell over a real boot names nobody the seeds 
   // The Inbox's read lands with one real thread waiting on the owner: that is the bell's one row.
   const thread = { id: "t-real", real: true, needsYou: true, who: "Dani Ortiz", preview: "can I come saturday?" };
   setSurfaceValue("inbox", { ...inboxData(), THREADS: [thread] });
-  assert.equal(win.INBOX_DATA?.THREADS?.[0]?.id, "t-real", "the read is published under the old name, as it lands");
+  assert.equal(
+    surfaceValue("inbox")?.THREADS?.[0]?.id,
+    "t-real",
+    "the read is published under the old name, as it lands",
+  );
   const said = JSON.stringify(bell.feed());
   assert.deepEqual(
     bell.feed().map((row) => row.id),

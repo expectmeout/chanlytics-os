@@ -36,6 +36,7 @@ import {
   without,
 } from "../../../_business-tab-harness.mjs";
 import { ROWS, boxIn, cardOf, langBox, langOptions, problemOf, tokensOf, typeIn } from "./_answers.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ in your own words ------------------------------------ */
 
@@ -362,10 +363,14 @@ test("one editor at a time: a fold holding changes asks before another opens, an
 test("Save stays a button focus can rest on while it saves, and the boxes take nothing meanwhile", () => {
   // A save the server has not answered yet.
   const sent = [];
-  W.__saveSettings = (config) => {
-    sent.push(config);
-    return new Promise(() => {});
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config) => {
+        sent.push(config);
+        return new Promise(() => {});
+      },
+    },
+  });
   let tree = drawTab();
   openFold(tree, "tone");
   tree = redrawTab();

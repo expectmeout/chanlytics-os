@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
 import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -21,10 +22,14 @@ const SEARCH = "44444444-4444-4444-8444-444444444444";
 const asked = [];
 /** While set, the note's answer waits for it: a read still out. */
 let noteHeldBack = null;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: T, slug: "harbor", name: "Brightline", status: "active", timezone: "America/Chicago" }],
+    activeWorkspaceId: T,
+  },
+});
 installStubReact({
   location: { pathname: "/w/harbor/", hash: "", search: "", origin: "https://app.chanlytics.com" },
-  __WORKSPACES: [{ id: T, slug: "harbor", name: "Brightline", status: "active", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: T,
   fetch: (url) => {
     const u = String(url);
     asked.push(u);

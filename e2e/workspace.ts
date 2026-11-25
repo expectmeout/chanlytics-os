@@ -14,17 +14,14 @@ import type { Page } from "@playwright/test";
  * once already. The suite is where it came back.
  */
 export async function activeWorkspace(page: Page): Promise<string> {
-  // The BROWSER's active workspace first, which is what getActiveWorkspace()
-  // reads in surface-data.ts. /api/v1/workspaces answers with the server's
-  // default — the oldest membership — and those differ the moment a spec
-  // switches workspace through the menu, as workspace-create.spec.ts does.
-  // Asking the server would then scope the write to the workspace the person
-  // just left.
-  const inPage = await page
-    .evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null)
-    .catch(() => null);
-  if (inPage) return inPage;
-  const { data } = await (await page.request.get("/api/v1/workspaces")).json();
+  // The BROWSER's workspace: the one its address names (/w/<slug>/…), which every read the page makes names too
+  // (client/api.ts), resolved by the server to its id as the page's own workspace read resolves it. Unnamed,
+  // /api/v1/workspaces answers with the server's default — the oldest membership — and those differ the moment a spec
+  // switches workspace through the menu, as workspace-create.spec.ts does: the write would be scoped to the workspace the
+  // person just left. (The page held the id on its window until 25 Nov 2026, decision 0151; it holds it in its bundle now.)
+  const slug = /^\/w\/([^/]+)/.exec(new URL(page.url(), "http://page.invalid").pathname)?.[1];
+  const url = slug ? scoped("/api/v1/workspaces", decodeURIComponent(slug)) : "/api/v1/workspaces";
+  const { data } = await (await page.request.get(url)).json();
   const id = data?.activeWorkspaceId ?? data?.workspaces?.[0]?.id;
   if (!id) throw new Error("no workspace for this account");
   return id;

@@ -15,7 +15,7 @@ import {
   type LensWho,
   type ReportDays,
 } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/bridge/surface-data";
+import { currentWorkspace } from "@/bridge/who";
 import { adsShown } from "../campaigns/ads/shown";
 import type { SurfaceViews } from "../routes";
 
@@ -37,7 +37,7 @@ export const adsAreOn = (): boolean => adsShown();
  * failed leaves none).
  */
 const lensWho = (): LensWho | null => {
-  const ws = workspaceOverride.current();
+  const ws = currentWorkspace();
   return ws ? { role: ws.role, adsOn: adsAreOn() } : null;
 };
 

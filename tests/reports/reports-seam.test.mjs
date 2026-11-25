@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, redrawWanted, quiet } from "../_stub-react.mjs";
+import { bridgeHolds, surfaceValue } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -26,7 +27,7 @@ installStubReact();
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-globalThis.__ACTIVE_WORKSPACE = "t-salon";
+bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
@@ -45,10 +46,10 @@ test("a value is held under its key and mirrored under the name the pages that h
   assert.equal(values.surfaceValue("today"), undefined, "before the first read there is nothing");
   values.setSurfaceValue("today", TODAY);
   assert.equal(values.surfaceValue("today"), TODAY, "held as it was published, by identity");
-  assert.equal(globalThis.TODAY_DATA, TODAY, "and mirrored under its old name, the one object");
+  assert.equal(surfaceValue("today"), TODAY, "and mirrored under its old name, the one object");
   values.setSurfaceValue("today", undefined);
   assert.equal(values.surfaceValue("today"), undefined);
-  assert.equal(globalThis.TODAY_DATA, undefined, "the mirror goes with the value");
+  assert.equal(surfaceValue("today"), undefined, "the mirror goes with the value");
   values.setSurfaceValue("reports", REPORTS);
   assert.equal(values.surfaceValue("reports"), REPORTS, "Reports' is held under its key");
   assert.equal(
@@ -70,7 +71,7 @@ test("a value is held under its key and mirrored under the name the pages that h
 
 test("the tab's cache keeps the value beside the globals a surface owns, and gives it back before React draws", () => {
   values.setSurfaceValue("reports", REPORTS);
-  cache.snapshotSurface("reports", [], "t-salon", undefined, "reports");
+  cache.snapshotSurface("reports", "t-salon", undefined, "reports");
   cache.flushSurfaceCache();
   const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
   // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
@@ -85,7 +86,7 @@ test("the tab's cache keeps the value beside the globals a surface owns, and giv
 
 test("a surface with no global and no value caches nothing; a name in the cache that is no surface's key is not taken for one", () => {
   const before = globalThis.localStorage.peek(CACHE);
-  cache.snapshotSurface("nothing", [], "t-salon");
+  cache.snapshotSurface("nothing", "t-salon");
   cache.flushSurfaceCache();
   assert.equal(globalThis.localStorage.peek(CACHE), before, "nothing to keep, nothing written");
   values.restoreSurfaceValue("not-a-surface", { a: 1 });

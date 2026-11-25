@@ -22,7 +22,8 @@ import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { holdStill, listRoute, routeDoor } from "../../frame-verbs";
+import { holdStill, routeDoor } from "../../frame-verbs";
+import { plListRoute } from "../../people/words";
 import { activityMark } from "./marks";
 
 type Row = ActivityPageDto["rows"][number];
@@ -81,7 +82,7 @@ const aboutOf = (r: Row, subjects: Record<string, string>): string | null =>
  */
 const doorOf = (r: Row, doors: Record<string, string>): string | null => {
   if (!r.subject_type || !r.subject_id) return activityDoor(r);
-  if (r.subject_type === "list") return listRoute(r.subject_id);
+  if (r.subject_type === "list") return plListRoute(r.subject_id);
   return doors[`${r.subject_type}:${r.subject_id}`] ?? activityDoor(r);
 };
 

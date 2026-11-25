@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -42,6 +43,12 @@ const DAY = 86_400_000;
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
 // The page's window is the stub React's (window IS globalThis), with the workspace in it, as the shell publishes it.
+bridgeHolds({
+  who: {
+    workspaces: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
+    activeWorkspaceId: A,
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/harbor/",
@@ -51,8 +58,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
-  __ACTIVE_WORKSPACE: A,
   setInterval: () => 1,
   clearInterval() {},
 });
