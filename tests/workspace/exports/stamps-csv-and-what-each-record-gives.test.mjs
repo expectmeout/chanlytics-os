@@ -16,7 +16,9 @@ import {
   roleGate,
   toCallVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../../_source.mjs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { importSrc } from "../../_source.mjs";
 import { B, OPTS, PAGED, TZ, X, contact, exportLink, msg, pagedSections } from "./_exports.mjs";
 
 test("stamp writes the business's clock, tolerates a bad zone, and says nothing for no time", () => {
@@ -394,80 +396,52 @@ test("a download is an attachment, private, with a safe name and the real one", 
   assert.equal(X.dateTag(new Date("2026-09-05T03:30:00Z"), TZ), "20260904", "the day in the business's zone");
 });
 
-test("the wrapper passes a Response through under the no-store rule", () => {
-  const wr = readCode("apps/dashboard/src/server/shared/with-route.ts");
-  assert.ok(wr.includes("if (data instanceof Response) {"));
-  assert.ok(wr.includes('data.headers.set("cache-control", PRIVATE["cache-control"]);'));
-  assert.ok(wr.includes("): Promise<Response> => {"), "the declared return type widened with it");
+test("the wrapper passes a file through under the no-store rule, and keeps a private rule a route set itself", async () => {
+  // Through the real route wrapper, signed in by a bearer token a stand-in verifies (auth/bearer.test.mjs's way in).
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+  const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+  const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
+  const { withRoute } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
+  const part = (v) => Buffer.from(v).toString("base64url");
+  const JWT = [part('{"alg":"ES256"}'), part('{"sub":"u-1"}'), part("signature-signature")].join(".");
+  const prev = setBearerVerifier(async () => ({ supabase: {}, claims: { sub: "u-1" }, error: null }));
+  const file = (cache) =>
+    withRoute(async () => new Response("a,b\r\n", { headers: { "content-type": "text/csv", "cache-control": cache } }));
+  const call = (route) =>
+    route(new Request("http://localhost/api/v1/x", { headers: { authorization: `Bearer ${JWT}` } }), {
+      params: Promise.resolve({}),
+    });
+  try {
+    const leaked = await call(file("public, max-age=600"));
+    assert.equal(
+      leaked.headers.get("cache-control"),
+      "private, no-store",
+      "a file is never stored where others read it",
+    );
+    assert.equal(await leaked.text(), "a,b\r\n", "and it is the file, not an envelope");
+    const own = await call(file("private, max-age=0"));
+    assert.equal(own.headers.get("cache-control"), "private, max-age=0", "a route's own private rule stands");
+  } finally {
+    setBearerVerifier(prev);
+  }
 });
 
-test("the three routes keep their doors: rate bucket, a named workspace, owner only for everyone", () => {
-  const conv = readCode(
-    "apps/dashboard/app/api/v1/conversations/[id]/export/route.ts",
-    "apps/dashboard/src/server/export/conversation-export.ts",
-  );
-  const call = readCode(
-    "apps/dashboard/app/api/v1/calls/[id]/export/route.ts",
-    "apps/dashboard/src/server/export/call-export.ts",
-  );
-  const people = readCode("apps/dashboard/app/api/v1/contacts/export/route.ts");
-  for (const [name, src] of [
-    ["conversation", conv],
-    ["call", call],
-    ["people", people],
-  ]) {
-    // Declared on the export (route()): the bucket, and the workspace the tab named.
-    assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
-    assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
-    assert.ok(
-      // The read is packages/db's (decision 0111), named by the workspace the tab named.
-      src.includes('.eq("tenant_id", member.tenantId)') ||
-        src.includes("listEveryoneOnce(ctx, member.tenantId)") ||
-        /\(supabase, member\.tenantId, id\)/.test(src),
-      `${name}: scoped to the named workspace`,
-    );
-    assert.ok(src.includes("return attachment("), `${name}: a file`);
-  }
-  assert.ok(people.includes('role: "owner",'), "only an owner exports everyone");
-  // Everyone, not the first page of them, and each once: run below, over a workspace past a page whose people write
-  // while it is read.
-  // Every read of a workspace refuses an account in two that named neither (plan 3.4, run in route-definition.test.mjs); the export was the first to insist.
-  // The whole thread, not the screen's page, nor its first 10,000 messages: run below, over a thread longer than that.
-  // Offset paging under a TOTAL order, as the workspace bundle does. The old
-  // `.lt(created_at, before)` cursor stepped strictly past the last row on a
-  // page, so two messages written in one transaction -- identical timestamps --
-  // lost every one tied with the boundary, silently, from the file whose whole
-  // promise is "every message".
-  // The page itself is packages/db's (decision 0111).
-  const page = readCode("packages/db/src/repositories/conversations/reads.ts");
-  const thread = page.slice(
-    page.indexOf("export const pageThreadForExport"),
-    page.indexOf("export const pageMessagesOfThreads"),
-  );
-  assert.ok(
-    !conv.includes('.lt("created_at"') && !thread.includes('.lt("created_at"'),
-    "no cursor that can step over a tie",
-  );
-  assert.ok(
-    conv.includes("pageThreadForExport(") &&
-      thread.includes('.order("created_at", { ascending: true })') &&
-      thread.includes('.order("id", { ascending: true })'),
-    "created_at then id: a total order",
-  );
-  assert.ok(
-    /page \* THREAD_EXPORT_PAGE,\s*page \* THREAD_EXPORT_PAGE \+ THREAD_EXPORT_PAGE - 1/.test(conv) &&
-      thread.includes(".range(from, to)"),
-    "and offset paging under it",
-  );
+test("the three routes keep their doors: rate bucket, a named workspace, owner only for everyone", async () => {
+  // Declared on each export (route()) and held by route-policy.json: the export bucket, the workspace the tab named, and
+  // everyone's CSV the owner's alone. Each is run in exports/the-routes-and-the-people-csv.test.mjs: everyone as a CSV,
+  // owners only; a thread's file of every message past 10,000, and of messages tied on one instant across every
+  // page's edge, under a total order (created_at, then id) and offset paging (the old cursor stepped over a tie); and a
+  // thread of another workspace, not found. Every read of a workspace refuses an account in two that named neither
+  // (plan 3.4, run in route-definition.test.mjs).
   assert.deepEqual(
     [ROLE_PERMS.owner.export, ROLE_PERMS.operator.export, ROLE_PERMS.viewer.export],
     [true, false, false],
   );
-  const limits = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
-  assert.ok(limits.includes('export: { limit: 10, windowMs: MIN_MS, noun: "exports" }'));
+  const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  assert.deepEqual(RATE.export, { limit: 10, windowMs: 60_000, noun: "exports" }, "ten files a minute");
 });
 
-test("the pages link to the routes, and only where the bridge can name the workspace", () => {
+test("the pages link to the routes, and only where the bridge can name the workspace", async () => {
   // A conversation's file is in its thread's menu (one-thread.test.mjs), a call's under its transcript
   // (calls-in-the-thread.test.mjs): both run there, off a demo and only with the bridge.
   // Everyone, or the list that is open (decision 0009), by its token: the link the page builds, run, in a tab of the
@@ -493,25 +467,31 @@ test("the pages link to the routes, and only where the bridge can name the works
     if (had) Object.defineProperty(globalThis, "window", had);
     else delete globalThis.window;
   }
-  // The desk's file is a quiet Export button after Columns (page/file-acts.tsx; the ⋯ More menu that folded it away is gone),
-  // drawn and pressed in people/people-page/ (people-export): the link is opened in place.
-  const fileActs = readRaw("apps/dashboard/src/surfaces/people/page/file-acts.tsx");
-  assert.ok(fileActs.includes('window.open(exportHref, "_self")'));
-  assert.ok(
-    fileActs.includes('!canDo("export")') && fileActs.includes('...gate("export")'),
-    "a non-owner sees a button that says why, not a refusal",
-  );
-  assert.ok(
-    fileActs.indexOf('!canDo("export")') < fileActs.indexOf("window.open("),
-    "and the role is asked before the link is: a role that may not never reaches the door",
-  );
-  const bridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
-  assert.ok(bridge.includes('provide("href", href);'));
+  // The desk's file is a quiet Export button after Columns (page/file-acts.tsx), drawn and pressed in
+  // people/people-page/people-on-a-phone.test.mjs: the link is opened in place, and a role that may not take it sees
+  // the button gated with the role's reason, and pressing it opens nothing.
   assert.equal(
     roleGate("operator", "export").reason,
     "Only an owner can export the customer list.",
     "the Export a non-owner sees says why, in contracts' words",
   );
+  // A thread's and a call's file are links the bridge builds, the workspace named: provided by the bridge
+  // (installInboxVerbs), off a demo none.
+  globalThis.window = { location: { pathname: "/w/studio" } };
+  try {
+    const { hrefOf, hasHref } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
+    const { installInboxVerbs } = await importSrc("apps/dashboard/src/bridge/inbox-verbs.ts");
+    installInboxVerbs();
+    assert.equal(hasHref(), true, "the bridge provides the link maker");
+    const thread = new URL(hrefOf("GET conversations/[id]/export", { id: "c-1" }), "https://app.chanlytics.com");
+    assert.deepEqual(
+      [thread.pathname, [...thread.searchParams]],
+      ["/api/v1/conversations/c-1/export", [["workspace", "studio"]]],
+    );
+  } finally {
+    if (had) Object.defineProperty(globalThis, "window", had);
+    else delete globalThis.window;
+  }
   // The list route and the export share one reading of who exists, with their appointments, a page at a time: run in
   // ask/readers/, where GET contacts' rows are everyone()'s with the same reply modes.
 });
