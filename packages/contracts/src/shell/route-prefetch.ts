@@ -21,6 +21,13 @@ export const PREFETCH_SLOT = "__prefetched";
  */
 export const OPENING_MARK = "chanlytics-opening";
 /**
+ * What a read is refused with where the one request that carried it failed whole: the server could not answer it (a
+ * 5xx), or it never arrived. Said by the head's opening (routePrefetchScript) and by the rest of a load (the dashboard's
+ * client/rest-reads.ts); the client then sends one of those reads to look before any other leaves (client/trouble.ts
+ * `failedWhole`).
+ */
+export const FAILED_WHOLE = "failed whole";
+/**
  * What each page opens on, by the shell's route: its own surface's first reads, in the order it asks for them, and on
  * Today what its first draw waits for (surface-registry ROUTE_WAITS: what stands above its queue or in it). Each is spelled as the client spells
  * it (client/api.ts urlFor: the path, the read's own query in its order, then the workspace), so the client's read
@@ -461,25 +468,27 @@ export function routePrefetchScript(): string {
     // Each parked answer is handled where it is made: one the page never takes, refused with the whole, is nobody's
     // unhandled rejection, and the page's own read that takes one still hears the refusal.
     "for(var i=0;i<u.length;i++)(function(x,y){var q=new Promise(function(a,b){R[y]=[a,b]});q.catch(function(){});f[x]=q})(u[i],k[i]);",
-    'var E=function(){for(var y in R)if(R[y]){R[y][1](new Error("open"));R[y]=0}};',
+    // Refused as failed whole (FAILED_WHOLE) where the request never arrived or the server could not answer it (both
+    // thrown as 1) with no line handed over (`G`); any other way, a read not carried is the page's own to ask.
+    `var G=0,E=function(e){var W=e===1&&!G?${JSON.stringify(FAILED_WHOLE)}:"open";` +
+      "for(var y in R)if(R[y]){R[y][1](new Error(W));R[y]=0}};",
     // The line that names no read is what the opening came to (OPENING_MARK): kept for the measures, where the browser keeps
     // a mark's detail, and no read's answer.
     "var L=function(z){if(!z)return;var m=JSON.parse(z);" +
       `if(m.o){try{performance.mark(${JSON.stringify(OPENING_MARK)},{detail:m.o})}catch(e){}return}` +
-      'var c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};' +
+      'var c=R[m.k];if(!c)return;R[m.k]=0;G=1;var H={"content-type":"application/json"};' +
       "for(var e in m.h||{})H[e]=m.h[e];c[0](new Response(JSON.stringify(m.b),{status:m.s,headers:H}))};",
-    // A request the server could not answer (a 5xx) answers every read it parked with that answer, as each read's own
-    // request would have been answered: sent to be asked alone, one failure became twenty requests in the same instant, of
-    // a server that had just said it could not answer (24 Nov 2026; dashboard client/trouble.ts). Any other refusal, and a
-    // request that never arrived, still hands each read back (E): a server from before this route, a session ended.
+    // A request the server could not answer (a 5xx), or one that never arrived, refuses every read it parked as failed
+    // whole: handed back to be asked alone, one failure became twenty requests in the same instant, of a server that had
+    // just said it could not answer (24 Nov 2026). The client sends one of them to look first (dashboard client/trouble.ts
+    // failedWhole). Any other refusal hands each read back as the page's own to ask (E): a server from before this route,
+    // a session ended.
     'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){' +
-      "if(r.status>=500)return r.text().then(function(z){for(var y in R)if(R[y]){" +
-      'R[y][0](new Response(z,{status:r.status,headers:{"content-type":"application/json"}}));R[y]=0}});' +
-      "if(!r.ok)throw 0;" +
+      "if(r.status>=500)throw 1;if(!r.ok)throw 0;" +
       'if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});' +
       'var D=r.body.getReader(),C=new TextDecoder(),Q="";' +
       "var N=function(){return D.read().then(function(c){if(c.done){L(Q);return}Q+=C.decode(c.value,{stream:true});" +
-      'var n;while((n=Q.indexOf("\\n"))>=0){L(Q.slice(0,n));Q=Q.slice(n+1)}return N()})};return N()}).then(E,E)}',
+      'var n;while((n=Q.indexOf("\\n"))>=0){L(Q.slice(0,n));Q=Q.slice(n+1)}return N()})};return N()},function(){throw 1}).then(E,E)}',
     "else for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
     "}}catch(e){}",
   ].join("");

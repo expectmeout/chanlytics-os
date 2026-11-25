@@ -7,6 +7,8 @@ import {
   planWeekOf,
   reviewAskOf,
   weekDaysSaid,
+  weekEndingOf,
+  weekEndingSaid,
   weekSizeSaid,
   zoneDayKey,
   type ContentTodayDto,
@@ -17,7 +19,7 @@ import {
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import { readReviewAskFacts } from "@chanlytics/db/content";
 import { findWeekRung, listGoals, readContentWeek } from "@chanlytics/db/files";
-import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { findWorkspaceZone, isSendingStopped } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
 import { getAppointmentWord } from "../people/deals";
 import { findConfigRow } from "../workspace/config-row";
@@ -64,11 +66,43 @@ export function weekAsHeld(week: WeekPlanDto, rung: string | null, nowMs: number
   return holds && !overdue ? week : { ...week, plan: { ...week.plan, goes_at: null } };
 }
 
+type WeekEnded = NonNullable<NonNullable<ContentTodayDto["plan"]>["ended"]>;
+
+/**
+ * How AI's approval of the week ended, as Today's point (the Week review of 25 Nov 2026, C2): the week waits on the owner
+ * and why, or AI approved it (said the day it did, and for as long as a post it left out waits for another time). Null
+ * where the week has no such point. Whether AI is paused is read only for a week that waits under a setting that lets AI
+ * approve, the one place it changes the words.
+ */
+async function readWeekEnded(
+  rc: ReaderContext,
+  week: WeekPlanDto,
+  at: { rung: string | null; zone: string },
+): Promise<WeekEnded | null> {
+  const plan = week.plan;
+  if (!plan) return null;
+  const nowMs = rc.now.getTime();
+  const holds = at.rung === "veto" || at.rung === "auto";
+  const waits = holds && plan.status === "ready" && !plan.goes_at && !plan.stopped_at;
+  // A read that fails says the week waits, without the pause: the point is still true, and Today is not lost for it.
+  const paused = waits
+    ? await isSendingStopped(rc.ctx.supabase, rc.tenantId).catch(
+        logAndGoOn("whether AI is paused, for the week", false),
+      )
+    : false;
+  const ending = weekEndingOf(week, { rung: at.rung, paused, nowMs });
+  if (!ending) return null;
+  const today = (ms: number) => zoneDayKey(ms, at.zone);
+  const news = plan.approved_at !== null && today(Date.parse(plan.approved_at)) === today(nowMs);
+  if (ending.is === "approved" && ending.leftOut === 0 && !news) return null;
+  return weekEndingSaid(ending, "").today;
+}
+
 /**
  * Today's points of the week (the PRD's 12.5; the approved boards, Today 1 and the pass 3 rows): the week ready to
  * approve, with its size and days, what AI asks to be filmed, and the plan's proposal to ask every client for a review
- * (pass 6; the canvas's Loop4). Null where the workspace plans no weeks, or nothing of the week waits on the owner. Each
- * opens the Week; Today never approves.
+ * (pass 6; the canvas's Loop4); and, in the ready week's place, how AI's approval of it ended (readWeekEnded). Null where
+ * the workspace plans no weeks, or nothing of the week waits on the owner. Each opens the Week; Today never approves.
  */
 export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto["plan"]> {
   const db = rc.ctx.supabase;
@@ -93,5 +127,8 @@ export async function readWeekToday(rc: ReaderContext): Promise<ContentTodayDto[
         }
       : null;
   const film = week.slots.flatMap((s) => (s.state === "needs_footage" && s.ask ? [s.ask.what] : []));
-  return ready || film.length > 0 || reviewAsk ? { ready, film, review_ask: reviewAsk } : null;
+  const ended = live.length > 0 ? await readWeekEnded(rc, week, { rung, zone: at }) : null;
+  return ready || ended || film.length > 0 || reviewAsk
+    ? { ready: ended ? null : ready, ended, film, review_ask: reviewAsk }
+    : null;
 }

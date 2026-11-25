@@ -22,10 +22,16 @@
  * Why more than one read looks: two reads broken by a fault of their own (a route's bug, not the server's) trip the
  * hold as an outage does, and a tab that then looked through one of them alone would hold every healthy read back for
  * as long as the page stayed open. A read of an address that has not failed is the witness that ends it at once, so
- * one of those leaves during each wait too, without waiting for its end: a press that opens another page is answered
- * by the server where the server answers. One, and alone: a page reads thirty addresses, and in an outage each of them
- * is one that "has not failed" until it has, so every witness more is a request more from every tab (counted on CI's
- * stack, 25 Nov 2026: two a wait with two beside each sent 27 requests in an outage's first minute).
+ * those leave during a wait too, one at a time, without waiting for its end: a press that opens another page is
+ * answered by the server where the server answers, and a healthy read beside several broken ones is held for no longer
+ * than the broken ones take to say so. Until the outage is plain: once eight addresses have failed with none answered
+ * between, nothing more leaves but the looks. A page reads thirty addresses, and in an outage each of them is one that
+ * "has not failed" until it has (counted on CI's stack, 25 Nov 2026: with witnesses for as long as there were addresses,
+ * a tab sent 27 requests in an outage's first minute).
+ *
+ * One request that carried a page's reads and failed whole (the head's opening, the rest of a load) holds the tab at
+ * once, and one of its reads looks, alone. Answered, the failure was that request's own, and the others follow it a few
+ * at a time; failed, the outage is plain. Each asked alone at once, as they were, one failure became twenty requests.
  *
  * A person's own press (the shell's Retry, the network coming back) ends the wait at once: the next reads look. A write
  * is never held: it is somebody's act, and its answer says the server answers.
@@ -46,8 +52,11 @@ const WAIT_MAX_MS = 5 * MIN_MS;
 const WAIT_SPREAD = 0.25;
 /** How many reads look once a wait is over: the first asked, and one of an address that has not failed. */
 const LOOKS_A_ROUND = 2;
-/** How many reads of an address that has not failed may leave during one wait, before its end: the witness. */
-const WITNESSES_A_WAIT = 1;
+/**
+ * This many addresses failed since the trouble began, with none answered between, and the outage is plain: no witness
+ * leaves during a wait any more.
+ */
+const PLAIN_AT = 8;
 /** Once a look is answered, reads leave this many at a time, for this long. */
 const MENDING_LANES = 2;
 const MENDING_MS = 10 * SECOND_MS;
@@ -77,6 +86,11 @@ export interface Trouble {
   before(address: string, route?: string): ReadLeaves | ReadHeld | Promise<ReadLeaves | ReadHeld>;
   /** A write, or any answer outside a read: the server answered, so the tab is as it was. */
   answered(): void;
+  /**
+   * One request that carried many reads failed whole (contracts FAILED_WHOLE). The tab holds at once, and the next read
+   * of an address that has not failed looks, alone: answered, the rest leave; failed, no witness leaves any more.
+   */
+  failedWhole(): void;
   /** A person asked: the wait ends now, and the next reads look. */
   lookNow(): void;
   /**
@@ -198,24 +212,51 @@ function faultsInARow() {
   };
 }
 
+/** A request that carried many reads failed whole: one read is owed a look, and no other witness leaves. */
+function wholeFailureOf() {
+  let failed = false;
+  let owed = false;
+  return {
+    clear(): void {
+      failed = false;
+      owed = false;
+    },
+    /** Said as it fails: the look is owed where the tab was standing until now. */
+    note(wasStanding: boolean): void {
+      failed = true;
+      if (wasStanding) owed = true;
+    },
+    /** Whether this read is the one that looks: once. */
+    takesLook(): boolean {
+      const mine = owed;
+      owed = false;
+      return mine;
+    },
+    /** The look said nothing (its caller called it off): the next read looks in its place. */
+    giveBack(): void {
+      if (failed) owed = true;
+    },
+    plain: (): boolean => failed,
+  };
+}
+
 export function troubleOf(deps: TroubleDeps = {}): Trouble {
   const now = deps.now ?? (() => Date.now());
   const chance = deps.chance ?? Math.random;
   const due = dueOf(deps.after ?? browserTimer);
   const mending = mendingOf(now);
-
   const inARow = faultsInARow();
+  const whole = wholeFailureOf();
   /** The addresses that have failed since the trouble began: one of them looks only where it is the first read asked. */
   const failedSince = new Set<string>();
   /** While reads are held: when the wait ends, and how long it was before chance. */
   let until: number | null = null;
   let waitMs = WAIT_FIRST_MS;
-  /** The witnesses this wait still lets leave before its end. */
-  let witnesses = 0;
   let round: Round | null = null;
 
   const stand = () => {
     inARow.clear();
+    whole.clear();
     failedSince.clear();
     until = null;
     waitMs = WAIT_FIRST_MS;
@@ -225,7 +266,6 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     const ours = waitMs * (1 + chance() * WAIT_SPREAD);
     const wait = Math.max(ours, (namedWaitS ?? 0) * SECOND_MS);
     until = now() + wait;
-    witnesses = WITNESSES_A_WAIT;
     due.arm(wait);
   };
   const leftS = (): number => Math.max(1, Math.ceil(((until ?? now()) - now()) / SECOND_MS));
@@ -263,9 +303,8 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     } else if (answered === false && !ended.early) {
       waitMs = Math.min(waitMs * 2, WAIT_MAX_MS);
       hold(ended.namedWaitS);
-    }
-    // Every look called off (null): the wait stays over, and the next read asked for looks. A witness that failed
-    // before the wait's end leaves the wait as it stands.
+    } else if (answered === null && ended.early) whole.giveBack();
+    // Called off (null): the wait stays as it is, and the next read asked looks. A witness that failed leaves it too.
     ended.say(answered === true);
   };
 
@@ -299,21 +338,22 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     return lookWith(round, address);
   };
 
-  /** While the wait lasts: a read of an address that has not failed leaves as the witness, one a wait; any other is held. */
+  /** While the wait lasts: an address that has not failed is a witness, until the outage is plain; any other is held. */
   const heldOrWitness = (address: string): ReadLeaves | ReadHeld => {
-    if (failedSince.has(address) || witnesses <= 0) return { held: leftS() };
-    witnesses -= 1;
+    if (failedSince.has(address)) return { held: leftS() };
+    if (whole.takesLook()) return beginRound(address, true);
+    if (whole.plain() || failedSince.size >= PLAIN_AT) return { held: leftS() };
     return beginRound(address, true);
   };
 
   const before = (address: string, route: string = address): ReturnType<Trouble["before"]> => {
     if (round) {
-      // Looks are out. A read of an address that has not failed joins them, to LOOKS_A_ROUND: the witness a route's
-      // own fault cannot silence. A wait's own witness looks alone. Any other read waits for what they say, which is
-      // its answer too.
+      // Looks are out. A read of an address that has not failed joins them, to LOOKS_A_ROUND; a wait's own witness looks
+      // alone. Any other waits on what they say: a witness failed, and it is judged again (it may be the next itself).
       const fresh = !failedSince.has(address) && !round.addresses.has(address);
       if (fresh && !round.early && round.addresses.size < LOOKS_A_ROUND) return lookWith(round, address);
-      return round.verdict.then((answered) => (answered ? before(address, route) : { held: leftS() }));
+      const { early, verdict } = round;
+      return verdict.then((answered) => (answered || early ? before(address, route) : { held: leftS() }));
     }
     if (until !== null) return now() < until ? heldOrWitness(address) : beginRound(address, false);
     if (!mending.lasts()) return { held: null, settled: settledAs(address, route, () => {}) };
@@ -326,6 +366,11 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
       if (round) return; // the looks' own answers decide
       if (until !== null) mending.begin();
       stand();
+    },
+    failedWhole() {
+      if (round) return; // looks are out: what they say decides
+      whole.note(until === null);
+      if (until === null) hold(null);
     },
     lookNow() {
       if (until === null || round) return;

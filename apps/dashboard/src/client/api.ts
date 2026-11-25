@@ -10,7 +10,14 @@
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
  */
-import { refusalOf, SERVED_AT_HEADER, sessionEnded, textOrEmpty, type Refusal } from "@chanlytics/contracts";
+import {
+  FAILED_WHOLE,
+  refusalOf,
+  SERVED_AT_HEADER,
+  sessionEnded,
+  textOrEmpty,
+  type Refusal,
+} from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/shared/route";
 import { ROUTES, type Routes } from "./routes.generated";
 import { troubleOf, type ReadVerdict, type Trouble } from "./trouble";
@@ -198,12 +205,11 @@ function waitNamed(res: Response): number | null {
 const verdictOf = (res: Response): ReadVerdict => (res.status >= 500 ? "fault" : "answered");
 
 /**
- * What a rejection of an answer sent ahead says of the server: nothing where the read was only not carried (the gathered
- * reads refuse one they cannot name, client/rest-reads.ts, and the read is asked alone as it always was); a fault otherwise
- * (the head's one read never arrived, or ended before this read's line).
+ * Whether what was sent ahead for a read failed whole (contracts FAILED_WHOLE): the one request that carried it, the
+ * head's opening or the rest of a load, could not be answered or never arrived. Any other rejection is a read it did not
+ * carry, asked as its own as it always was, which says nothing of the server.
  */
-const aheadVerdictOf = (e: unknown): ReadVerdict =>
-  e instanceof Error && e.message === "not carried" ? "called_off" : "fault";
+const failedWhole = (e: unknown): boolean => e instanceof Error && e.message === FAILED_WHOLE;
 
 /** A request that was rejected, as a page reads it: it never arrived, or was given up on. */
 function unanswered(e: unknown, write: boolean): ApiRefusal {
@@ -465,7 +471,10 @@ async function answerTo(
       if (gate.held === null) gate.settled(verdictOf(res), waitNamed(res));
       return { res };
     } catch (e) {
-      if (gate.held === null) gate.settled(aheadVerdictOf(e));
+      // Not carried: asked as its own. Failed whole: the tab holds at once, and this read is judged again with every
+      // other it carried, the first of them as the one that looks (trouble.ts failedWhole).
+      if (gate.held === null) gate.settled("called_off");
+      if (failedWhole(e)) trouble.failedWhole();
       entry = standing();
       gate = entry instanceof Promise ? await entry : entry;
     }

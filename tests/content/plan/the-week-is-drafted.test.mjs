@@ -42,12 +42,12 @@ const clip = (id, look) => ({
   look,
 });
 
-function world({ footage = true, rung = "ask" } = {}) {
+function world({ footage = true, rung = "ask", paused = null } = {}) {
   const written = [];
   const moments = [];
   const holds = [];
   const tables = {
-    tenants: [{ id: T, timezone: ZONE, slug: "studio", name: "Studio" }],
+    tenants: [{ id: T, timezone: ZONE, slug: "studio", name: "Studio", sending_stopped_at: paused }],
     tenant_config: [{ tenant_id: T, config: { features: { content_preview: true, content_plan: true } }, version: 1 }],
     content_plans: [{ id: PLAN, tenant_id: T, week_of: WEEK, status: "drafting", asked_by: "clock" }],
     owner_claims: [
@@ -269,10 +269,21 @@ test("under Holds it, a ready week is held to the next 8:00 AM in the business's
     hour12: true,
   }).format(new Date(goes));
   assert.equal(local, "8:00 AM");
-  assert.match(
-    w.tables.notifications.find((n) => n.kind === "plan_ready").body,
-    /go up at 8:00 AM unless you stop them/,
-  );
+  // The notice names the day as well as the time (the Week review, W10): a week planned mid-week goes the next morning.
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, weekday: "short" }).format(new Date(goes));
+  const said = w.tables.notifications.find((n) => n.kind === "plan_ready").body;
+  assert.ok(said.endsWith(`They go up ${day} 8:00 AM unless you stop them.`), said);
+});
+
+test("made while AI is paused, a week is held to no time under Holds it, and its notice promises none", async () => {
+  const w = world({ rung: "veto", paused: NOW });
+  await planTheWeek(w.db, job, wordsFor());
+  assert.equal(w.holds.length, 1);
+  assert.equal(w.holds[0].p_goes_at, undefined, "no time is asked for while AI is paused");
+  assert.equal(w.tables.content_plans[0].goes_at, undefined, "nothing says it goes up at 8:00 AM");
+  const said = w.tables.notifications.find((n) => n.kind === "plan_ready").body;
+  assert.ok(said.endsWith("AI is paused, so nothing goes up until you approve them."), said);
+  assert.doesNotMatch(said, /8:00 AM|unless you stop/);
 });
 
 test("under Sends it, a ready week goes now, and its notice says AI approved it as the owner set", async () => {

@@ -20,6 +20,10 @@ export const stopTheWeek = (planId: string) => api()("POST content/plan/stop", {
 export const pressSlot = (slotId: string, to: "approved" | "post" | "removed") =>
   api()("POST content/plan/slots", { body: { slot_id: slotId, change: { to } } });
 
+/** Another time picked for a slot whose own has passed: it is never put up late, so it goes at the new one. */
+export const moveSlot = (slotId: string, at: string) =>
+  api()("POST content/plan/slots", { body: { slot_id: slotId, change: { to: "at", at } } });
+
 /** What posts are for, how often, the quiet days or the languages, in the owner's own sentence: AI reads it, and it is kept. */
 export const keepContentLine = (line: "goals" | "cadence" | "quiet_days" | "languages" | "look", words: string) =>
   api()("POST content/line", { body: { line, words } });

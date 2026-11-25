@@ -310,10 +310,19 @@ test.describe("what a page costs the database", () => {
     // A load into a server that cannot read: every read answers as the app answers a database it cannot reach.
     const cold = await freshPage(browser);
     let refused = 0;
+    const refusedAt = new Map<string, number>();
+    /** What was asked while failing, by path, most first: which requests a change to the tab's rule lets leave. */
+    const sayRefused = (name: string) => {
+      const most = [...refusedAt].sort((a, b) => b[1] - a[1]);
+      console.log(`database-calls   failing ${name}: ${most.map(([path, n]) => `${path} ${n}`).join(", ")}`);
+      refusedAt.clear();
+    };
     const failing = (context: BrowserContext) =>
       context.route(`**${API}**`, (route) => {
         if (route.request().method() !== "GET") return route.fallback();
         refused += 1;
+        const path = new URL(route.request().url()).pathname.slice(API.length);
+        refusedAt.set(path, (refusedAt.get(path) ?? 0) + 1);
         return route.fulfill({
           status: 503,
           contentType: "application/json",
@@ -326,10 +335,12 @@ test.describe("what a page costs the database", () => {
     const onLoad = refused;
     await cold.context.close();
     said("failing", "load", `${onLoad} requests in the first minute of a load with every read failing`);
+    sayRefused("load");
 
     // A tab that loaded well, then loses its reads, and is come back to after a while away: everything is asked again.
     const warm = await coldLoad(browser, `/w/${where.slug}/today`);
     refused = 0;
+    refusedAt.clear();
     await failing(warm.context);
     const hide = (hidden: boolean) =>
       warm.page.evaluate((isHidden) => {
@@ -347,6 +358,7 @@ test.describe("what a page costs the database", () => {
     const onReturn = refused;
     await warm.context.close();
     said("failing", "return", `${onReturn} requests in the minute after a return to a tab whose reads all fail`);
+    sayRefused("return");
 
     if (LINES.failing.load !== undefined)
       expect(onLoad, `${onLoad} requests in a minute of a load whose reads fail`).toBeLessThanOrEqual(
