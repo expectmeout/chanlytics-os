@@ -504,9 +504,10 @@ test("the server's own word for how long to wait is kept, and a write is never h
   assert.equal(c.sent.at(-1), "GET /api/v1/segments", "and its answer says the server answers: reads leave again");
 });
 
-test("a person's press is never answered here: a read asked right after one ends the wait and reaches the server", async () => {
+test("a person's press is never answered here, once a press: the read asked right after one looks, the ones after it are held", async () => {
   const sent = [];
   let pressed = false;
+  let now = 1_000_000;
   const api = createApi({
     fetch: async (url, init) => {
       sent.push(`${init.method} ${url.replace(/\?.*$/, "")}`);
@@ -516,18 +517,28 @@ test("a person's press is never answered here: a read asked right after one ends
     onSignedOut: () => {},
     refresh: async () => {},
     pressed: () => pressed,
+    now: () => now,
+    trouble: troubleOf({ now: () => now, chance: () => 0, after: () => () => {} }),
   });
   for (const key of ["GET views", "GET calls", "GET views"]) await api(key);
   assert.equal(api.readsHeld(), true);
   await api("GET views");
   assert.equal(sent.length, 3, "a retry nobody pressed is answered here");
-  // A page's Retry: the same read, asked by a person.
+  // A page's Retry: the same read, asked by a person. The browser goes on saying "just pressed" for some seconds.
   pressed = true;
   await api("GET views");
   assert.equal(sent.length, 4, "it reaches the server, the wait unspent");
-  pressed = false;
+  await api("GET calls");
   await api("GET views");
-  assert.equal(sent.length, 4, "and the tab holds again once it failed");
+  assert.equal(sent.length, 4, "one look a press: the reads asked in the seconds after it are held, as any other");
+  // Still pressed, six seconds on: a press of its own (a browser a tool drives says "pressed" for every script it runs).
+  now += 6_000;
+  await api("GET views");
+  assert.equal(sent.length, 5, "a press seconds later looks again");
+  pressed = false;
+  now += 1_000;
+  await api("GET views");
+  assert.equal(sent.length, 5, "and with nobody pressing, the tab holds");
 });
 
 test("a refusal that is no fault holds nothing back: not there, not allowed, too many at once", async () => {
