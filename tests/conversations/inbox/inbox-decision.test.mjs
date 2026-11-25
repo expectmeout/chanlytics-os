@@ -248,7 +248,7 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   const rosaRow = rowOf(tree, "Rosa Díaz");
   const wait = find(rosaRow, hasClass("ix-thread-wait"));
   assert.equal(textOf(wait), "8d", "REGRESSION: it read waiting 10869m");
-  assert.equal(wait.props.title, "Waiting 8d", "what the bare figure is, on a hover");
+  assert.equal(wait.props["data-tip"], "Waiting 8d", "what the bare figure is, on a hover");
   // The figure is the eye's; the row's name, which a screen reader reads, says it whole.
   assert.equal(wait.props["aria-hidden"], "true");
   assert.equal(textOf(find(rosaRow, hasClass("ix-wait-said"))), "Waiting 8d");
@@ -364,7 +364,7 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
   // The draft is drawn once, as the next bubble, its line over it saying when it sends (the thread canvas, 1 Nov 2026).
   const says = find(paneOf(vm), byTestId("ix-held-says"));
   assert.equal(
-    says.props.title,
+    says.props["data-tip"],
     "This draft sends itself at zero unless you press Edit or Hold, or start typing. Send now lets it go.",
   );
 });
