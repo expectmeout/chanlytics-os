@@ -4,8 +4,8 @@
  * This is the one place it is written: how long, when a story ends, and whether it has. A leaf, so the page, the take-down,
  * the numbers' clock and the edge all read it and carry nothing else.
  *
- * The database keeps the same day in two functions (00699 post_observations_due, 00682 posts_take_down_start): a day, as
- * here.
+ * The database keeps the same rule in one function, post_story_ended (00716), which its due list of posts' numbers and
+ * its take-down's walk both ask. tests/content/places/_story-day-cases.mjs is the table the two rules are held to.
  */
 import { DAY_MS } from "../../shared/time";
 

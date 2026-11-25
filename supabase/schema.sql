@@ -31750,7 +31750,8 @@ CREATE FUNCTION public.post_observations_due(p_limit integer DEFAULT 200) RETURN
                        ('28d', interval '28 days', null)) as s(step, after, story_after)
    where p.status = 'published' and p.place in ('instagram', 'google') and p.published_at is not null
      and p.published_at > now() - interval '29 days'
-     and (p.kind <> 'story' or (s.story_after is not null and p.published_at + interval '1 day' > now()))
+     and (p.kind <> 'story'
+          or (s.story_after is not null and not public.post_story_ended(p.kind, p.published_at, p.scheduled_for)))
      and p.published_at + case when p.kind = 'story' then s.story_after else s.after end <= now()
      and not exists (select 1 from public.post_observations o
                       where o.tenant_id = p.tenant_id and o.post_id = p.id and o.step = s.step)
@@ -31763,7 +31764,7 @@ $$;
 -- Name: FUNCTION post_observations_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699, 00705; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. A story is read at its hour and at 22 hours, and asked nothing once its day is over, since Instagram has no numbers for an ended story. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
+COMMENT ON FUNCTION public.post_observations_due(p_limit integer) IS 'The reads of posts'' numbers that are due and not kept (00699, 00705, 00716; the content loop PRD''s 9.1): each post up on a place, at each of its steps whose time has come, oldest first. A story is read at its hour and at 22 hours, and asked nothing once its day is over (post_story_ended), since Instagram has no numbers for an ended story. The health sweep asks a post_observe job for each. A post taken down is read no more. The service role''s.';
 
 
 --
@@ -31952,6 +31953,29 @@ CREATE FUNCTION public.post_shape(p_place text, p_kind text) RETURNS text
 --
 
 COMMENT ON FUNCTION public.post_shape(p_place text, p_kind text) IS 'The shape a placement sends (00681, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
+
+
+--
+-- Name: post_story_ended(text, timestamp with time zone, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone DEFAULT now()) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- From the last moment of its day on, a story has ended. The day is 24 hours, never '1 day': a day added to a
+  -- timestamp follows the session's clock changes, and contracts' day is 24 hours wherever it is asked.
+  select coalesce(
+           p_kind = 'story' and p_at >= coalesce(p_published_at, p_scheduled_for) + interval '24 hours',
+           false)
+$$;
+
+
+--
+-- Name: FUNCTION post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone) IS 'Whether a story has run its day at p_at, now unless given (00716; the content status review''s C3): the one rule the database keeps for it, and what contracts'' storyRanItsDay answers. Never true of a picture or a reel. A story has ended from the last moment of its day on: 24 hours after it went up (p_published_at); where no time it went up is kept, 24 hours after the time it was set for (p_scheduled_for). The due list of posts'' numbers (post_observations_due) and the take-down''s walk (posts_take_down_start) ask it. The service role''s.';
 
 
 --
@@ -32272,9 +32296,8 @@ begin
     select * from public.posts p
      where p.tenant_id = p_tenant_id and p.file_id = any (p_files) and p.place <> 'hand'
        and (   p.status = any (array['publishing', 'checking'])
-            -- A story lasts a day: one up for longer is gone already, and nothing is asked of the place.
-            or (p.status = 'published'
-                and not (p.kind = 'story' and coalesce(p.published_at, p.updated_at) < now() - interval '24 hours'))
+            -- A story lasts a day: one that has run it is gone already, and nothing is asked of the place.
+            or (p.status = 'published' and not public.post_story_ended(p.kind, p.published_at, p.scheduled_for))
             or (p_cancel and p.status = any (array['queued', 'preparing', 'held', 'failed'])))
        -- One take-down at a time for a post: an action still waiting on its place is the one.
        and not exists (select 1 from public.remediation_actions r
@@ -32321,7 +32344,7 @@ end $$;
 -- Name: FUNCTION posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00682; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause (owner_removed: the one cause that takes a post down) about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
+COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00682, 00716; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause (owner_removed: the one cause that takes a post down) about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story that has run its day (post_story_ended) is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
 
 
 --
@@ -73325,6 +73348,14 @@ GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_lin
 
 REVOKE ALL ON FUNCTION public.post_shape(p_place text, p_kind text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_shape(p_place text, p_kind text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_story_ended(p_kind text, p_published_at timestamp with time zone, p_scheduled_for timestamp with time zone, p_at timestamp with time zone) TO service_role;
 
 
 --
