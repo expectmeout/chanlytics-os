@@ -317,15 +317,25 @@ export async function listPostsByIds(
   return data;
 }
 
-/** How many of the workspace's posts are up, at any place: Content's tally. */
+/**
+ * What Posted lists and its count counts, the one filter (the content status review of 24 Nov 2026, C4): posts that
+ * went up and were not taken down, so what is up now and the stories that ran their day, which the view marks ended;
+ * what a press sent, since a post its owner put up by hand (00620) is read with its piece, whose tile says so; and of
+ * pieces still here, since a deleted piece's post can be opened from nowhere, and counted where none was listed. The
+ * piece is joined by its key's own name, so a second road between the two tables never makes the join ambiguous.
+ */
+const POSTED_COLUMNS_WITH_PIECE = "files!posts_file_id_same_workspace!inner(id)";
+
+/** How many posts Posted lists: Content's tally, by listPostsUp's own filter. */
 export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await db
     .from("posts")
-    .select("id", { count: "exact", head: true })
+    .select(`id, ${POSTED_COLUMNS_WITH_PIECE}`, { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("status", "published")
-    // What a press sent: a post its owner put up by hand (00620) is read with its piece, whose tile says so.
-    .neq("place", "hand");
+    .neq("place", "hand")
+    .not("published_at", "is", null)
+    .is("files.removed_at", null);
   if (error) throw new DbFailure(error, "posts out");
   return count ?? 0;
 }
@@ -417,7 +427,10 @@ export async function countPostsTimed(db: Db, tenantId: TenantId, after: string,
   return count ?? 0;
 }
 
-/** Posts that are up, newest first by when they went up: Content's Posted. */
+/**
+ * What Posted lists, newest first by when each went up: posts that are up, and the stories that ran their day, of
+ * pieces still here (countPostsOut counts the same rows).
+ */
 export async function listPostsUp(
   db: Db,
   tenantId: TenantId,
@@ -425,11 +438,12 @@ export async function listPostsUp(
 ): Promise<MemberFilePostRow[]> {
   let query = db
     .from("posts")
-    .select(MEMBER_FILE_POST_COLUMNS)
+    .select(`${MEMBER_FILE_POST_COLUMNS}, ${POSTED_COLUMNS_WITH_PIECE}`)
     .eq("tenant_id", tenantId)
     .eq("status", "published")
     .neq("place", "hand")
-    .not("published_at", "is", null);
+    .not("published_at", "is", null)
+    .is("files.removed_at", null);
   if (page.before) {
     const { at, id } = page.before;
     query = query.or(`published_at.lt.${at},and(published_at.eq.${at},id.lt.${id})`);
@@ -439,5 +453,6 @@ export async function listPostsUp(
     .order("id", { ascending: false })
     .limit(page.limit);
   if (error) throw new DbFailure(error, "posts up");
-  return data;
+  // The piece rode along only to hold the filter: a line reads its file apart.
+  return data.map(({ files: _piece, ...post }) => post);
 }

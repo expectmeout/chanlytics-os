@@ -21,7 +21,7 @@ import { DataTable } from "../../kit/table/data-table";
 import { useTableState } from "../../kit/table/state";
 import { useDataTable } from "../../kit/table/use-data-table";
 import { Picture } from "../../files/photo";
-import { placeSaid } from "./lines";
+import { placeSaid, postLineEnded } from "./lines";
 import { DEVICE_ONLY } from "./list";
 import { tileShapeOf } from "./model/tiles";
 
@@ -72,6 +72,16 @@ const whereColumn: DataColumn<PostRow, LinesCtx> = {
   ),
 };
 
+/** Posted's Where: a story that ran its day is marked ended ("Instagram story · ended"), never said to be up. */
+const postedWhereColumn: DataColumn<PostRow, LinesCtx> = {
+  ...whereColumn,
+  cell: (row) => (
+    <td key="where" className="cnv-cell">
+      {postLineEnded(row.line, Date.now()) ? W.views.whereEnded(placeSaid(row.line)) : placeSaid(row.line)}
+    </td>
+  ),
+};
+
 const SCHEDULED_COLUMNS: DataColumn<PostRow, LinesCtx>[] = [
   {
     key: "when",
@@ -111,7 +121,7 @@ const POSTED_COLUMNS: DataColumn<PostRow, LinesCtx>[] = [
     ),
   },
   pieceColumn,
-  whereColumn,
+  postedWhereColumn,
   {
     key: "acts",
     label: "",
@@ -119,7 +129,7 @@ const POSTED_COLUMNS: DataColumn<PostRow, LinesCtx>[] = [
     width: { base: 110 },
     cell: (row) => (
       <td key="acts" className="cnv-cell cnv-cell-end">
-        {row.line.post.permalink ? (
+        {row.line.post.permalink && !postLineEnded(row.line, Date.now()) ? (
           <Button size="sm" variant="quiet" href={row.line.post.permalink} target="_blank" rel="noreferrer">
             {W.views.open}
             <Icon name="external" size={12} />

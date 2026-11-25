@@ -5,6 +5,7 @@
  */
 import { clockDate, clockTime, wallClockAt, zoneDayKey } from "../../shared/clock";
 import { shiftKey } from "../../shared/zone/day-keys";
+import { placementStandingOf, standingOnItsWay, type PlacementStanding } from "../placements/standing";
 import { postStoppedWhyOf, type PostDto, type PostKind, type PostPlace } from "../posts";
 import { creativesOf, weekdayShortOf, weekSizeSaid, type PlanSlotDto } from "./week";
 import type { WeekPageDto, WeekPieceDto } from "./week-page";
@@ -99,12 +100,29 @@ function madeOf(page: Pick<WeekPageDto, "made" | "pieces">): Made {
   return { posts, fileOfPost, pieces: new Map(page.pieces.map((p) => [p.id, p])) };
 }
 
-/** A slot's dot: amber where its post stopped, green once up, plain otherwise. */
-function dotOf(slot: PlanSlotDto, making: Made): WeekMark["dot"] {
+/** A slot with the post it was made into, and where that post stands (placements/standing.ts: the one reading). */
+interface SlotStands {
+  slot: PlanSlotDto;
+  post: PostDto;
+  standing: PlacementStanding;
+}
+
+/** Where a slot's post stands, where the slot was made into one. */
+function slotStandsOf(slot: PlanSlotDto, making: Made, nowMs: number): SlotStands | null {
   const post = slot.post_id ? making.posts.get(slot.post_id) : undefined;
-  if (!post) return slot.state === "blocked" ? "you" : "";
-  if (post.status === "published") return "ok";
-  return postStoppedWhyOf(post) !== null ? "you" : "";
+  return post ? { slot, post, standing: placementStandingOf(post, null, nowMs) } : null;
+}
+
+/** A post that did not go and waits on its owner: held or refused, or let go because its day passed. */
+const didNotGo = (standing: PlacementStanding): boolean =>
+  standing.is === "stopped" || (standing.is === "let_go" && standing.late);
+
+/** A slot's dot: amber where its post needs its owner, green while it is up, plain otherwise. */
+function dotOf(slot: PlanSlotDto, making: Made, nowMs: number): WeekMark["dot"] {
+  const at = slotStandsOf(slot, making, nowMs);
+  if (!at) return slot.state === "blocked" ? "you" : "";
+  if (at.standing.is === "up") return "ok";
+  return didNotGo(at.standing) || at.standing.is === "unconfirmed" ? "you" : "";
 }
 
 /** The fix a held slot offers: an offer to add, a try again, a connection to make. */
@@ -117,37 +135,66 @@ const fixOfHeld = (slot: PlanSlotDto): WeekFix =>
         ? { act: "again", label: W.fix.again }
         : { act: "open", label: W.fix.open };
 
+type RowStands = Pick<WeekRow, "line" | "tone" | "fix" | "moving">;
+
+/** A row's line where it only says where it stands: no fix, nothing moving. */
+const rowSays = (line: string, tone: WeekRow["tone"] = ""): RowStands => ({ line, tone, fix: null, moving: false });
+
+/** A row whose post needs its owner: its line in amber, and Open. */
+const rowNeeds = (line: string): RowStands => ({
+  line,
+  tone: "you",
+  fix: { act: "open", label: W.fix.open },
+  moving: false,
+});
+
+/**
+ * A creative's line from the posts its slots were made into, or null where none says anything yet. What needs its
+ * owner first, then what is still on its way, then what is up, then what last happened: a post that came down or a
+ * story that ran its day never reads "Goes up Sat 9:00" (the review of 24 Nov 2026, A8).
+ */
+function postsStandOf(
+  first: PlanSlotDto,
+  stands: readonly SlotStands[],
+  at: { zone: string; paused: boolean },
+): RowStands | null {
+  const stopped = stands.find((s) => didNotGo(s.standing));
+  if (stopped) return rowNeeds(W.didNotPost(stopped.post.place, postStoppedWhyOf(stopped.post) ?? ""));
+  const unsure = stands.find((s) => s.standing.is === "unconfirmed");
+  if (unsure) return rowNeeds(W.unsure(unsure.post.place));
+  if (at.paused && first.state !== "proposed") return rowSays(W.waits(slotWhenSaid(first.at, at.zone)));
+  const moving = stands.find((s) => standingOnItsWay(s.standing));
+  if (moving) return rowSays(W.goesUp(slotWhenSaid(moving.slot.at, at.zone)));
+  const up = stands.filter((s) => s.standing.is === "up");
+  if (up.length > 0)
+    return rowSays(
+      W.upOn(
+        up.map((s) => s.post.place),
+        weekdayShortOf(zoneDayKey(Date.parse(first.at), at.zone)),
+      ),
+      "ok",
+    );
+  const last =
+    stands.find((s) => s.standing.is === "came_down") ??
+    stands.find((s) => s.standing.is === "ended") ??
+    stands.find((s) => s.standing.is === "let_go");
+  if (!last) return null;
+  return rowSays(last.standing.is === "came_down" ? W.cameDown : last.standing.is === "ended" ? W.storyEnded : W.letGo);
+}
+
 /** One creative's line, tone and fix, as its slots and what they were made into stand. */
 function standOf(
   first: PlanSlotDto,
   slots: readonly PlanSlotDto[],
   making: Made,
-  at: { zone: string; paused: boolean },
-): Pick<WeekRow, "line" | "tone" | "fix" | "moving"> {
+  at: { zone: string; paused: boolean; nowMs: number },
+): RowStands {
   const when = slotWhenSaid(first.at, at.zone);
   const held = slots.find((s) => s.state === "blocked");
   if (held) return { line: held.blocked_reason ?? W.fix.open, tone: "you", fix: fixOfHeld(held), moving: false };
-  const posts = slots.flatMap((s) => (s.post_id ? [making.posts.get(s.post_id)].filter((p): p is PostDto => !!p) : []));
-  const stopped = posts.find((p) => postStoppedWhyOf(p) !== null);
-  if (stopped)
-    return {
-      line: W.didNotPost(stopped.place, postStoppedWhyOf(stopped) ?? ""),
-      tone: "you",
-      fix: { act: "open", label: W.fix.open },
-      moving: false,
-    };
-  if (at.paused && first.state !== "proposed") return { line: W.waits(when), tone: "", fix: null, moving: false };
-  if (posts.length > 0 && posts.every((p) => p.status === "published"))
-    return {
-      line: W.upOn(
-        posts.map((p) => p.place),
-        weekdayShortOf(zoneDayKey(Date.parse(first.at), at.zone)),
-      ),
-      tone: "ok",
-      fix: null,
-      moving: false,
-    };
-  if (posts.length > 0) return { line: W.goesUp(when), tone: "", fix: null, moving: false };
+  const stands = slots.flatMap((s) => slotStandsOf(s, making, at.nowMs) ?? []);
+  const posted = postsStandOf(first, stands, at);
+  if (posted) return posted;
   if (first.state !== "approved") return { line: when, tone: "", fix: null, moving: false };
   const piece = first.piece_id ? making.pieces.get(first.piece_id) : undefined;
   if (piece?.status === "failed")
@@ -158,7 +205,10 @@ function standOf(
 }
 
 /** Each creative of a week once, in time order, with the slots asking for footage and those left out aside. */
-export function weekRowsOf(page: Pick<WeekPageDto, "week" | "made" | "pieces" | "zone" | "paused_at">): WeekRow[] {
+export function weekRowsOf(
+  page: Pick<WeekPageDto, "week" | "made" | "pieces" | "zone" | "paused_at">,
+  nowMs: number,
+): WeekRow[] {
   const making = madeOf(page);
   const byCreative = new Map<string, PlanSlotDto[]>();
   for (const slot of page.week.slots) {
@@ -175,11 +225,11 @@ export function weekRowsOf(page: Pick<WeekPageDto, "week" | "made" | "pieces" | 
       {
         creative: first.creative,
         title: first.title,
-        marks: slots.map((s) => ({ glyph: glyphOf(s.place, s.kind), dot: dotOf(s, making) })),
+        marks: slots.map((s) => ({ glyph: glyphOf(s.place, s.kind), dot: dotOf(s, making, nowMs) })),
         still: opens ?? first.file_id,
         opens,
         slots,
-        ...standOf(first, slots, making, { zone: page.zone, paused: page.paused_at !== null }),
+        ...standOf(first, slots, making, { zone: page.zone, paused: page.paused_at !== null, nowMs }),
       },
     ];
   });
@@ -230,7 +280,7 @@ function sizeHead(page: WeekPageDto, rows: readonly WeekRow[]): Pick<WeekView, "
 
 /** The Week as its page draws it. */
 export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
-  const rows = weekRowsOf(page);
+  const rows = weekRowsOf(page, nowMs);
   const state = stateOf(page, rows);
   const plan = page.week.plan;
   const asks = page.week.slots.filter((s) => s.state === "needs_footage" && s.ask);

@@ -142,7 +142,7 @@ export async function readFilePosts(ctx: RouteContext, tenantId: TenantId, fileI
  * the edge's events say, for a post made before placements were kept, or one whose answer the press never heard.
  */
 async function onGoogle(member: Member, fileId: string, posts: readonly MemberPostRow[]): Promise<FilePosted | null> {
-  // A post let go (Don't post) says nothing of one that is up: the newest of the others does (contracts newestAtEachPlace).
+  // A post let go (Don't post) says nothing of one that is up: the newest of the others does.
   const placed = posts.find((p) => p.place === "google" && p.status !== "pulled");
   if (placed?.status === "taken_down") return null;
   if (placed?.status === "published" && placed.external_id)

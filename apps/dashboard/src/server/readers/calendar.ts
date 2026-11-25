@@ -112,14 +112,14 @@ function runsSpanOf(
 /** The most posts a span of the Calendar draws: a workspace posts a handful a day. */
 const SPAN_POSTS_MAX = 300;
 
-/** A post held or refused before it went: the owner's to look at, while it is the newest of its piece at its place. */
+/** A post held or refused before it went: the owner's to look at, while it is the newest of its placement. */
 const heldBack = (row: { status: string }): boolean => row.status === "held" || row.status === "failed";
 
 /**
  * Content's posts over a span, each named by its piece; one whose piece is gone is not drawn, nor a stop a newer post of
- * its piece at its place came after (sent again, or let go), as Content says a stop only while it is the newest there
- * (contracts newestAtEachPlace): the Calendar kept one amber after it was posted again (16 Nov 2026). Its pieces' posts
- * are read only where the span holds a stop.
+ * its placement came after (sent again, or let go), as Content says a stop only while it is the newest there (contracts
+ * stopSuperseded): the Calendar kept one amber after it was posted again (16 Nov 2026). Its pieces' posts are read only
+ * where the span holds a stop.
  */
 async function postsInSpan(
   db: Parameters<typeof listPostsInSpan>[0],

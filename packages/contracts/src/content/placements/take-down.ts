@@ -4,7 +4,6 @@
  * confirming are two times, kept apart, and a post is taken down only once its place said so. Never an Undo: a post
  * taken down is posted again as a new post.
  */
-import { DAY_MS } from "../../shared/time";
 import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
 import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
 import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./take-down-late";
@@ -77,16 +76,6 @@ export const postCameDownAt = (post: Pick<PostDto, "id">, takeDown: PieceTakeDow
 export const placementSaid = (place: PostPlace, kind: PostKind): string =>
   place === "google" ? POST_PLACE_SAID[place] : `${POST_PLACE_SAID[place]} ${kind === "picture" ? "post" : kind}`;
 
-/** One line of the confirm: a placement, or the ad that shows the piece, and what the press does to it. */
-export interface TakeDownWill {
-  key: string;
-  glyph: "reel" | "story" | "post" | "google" | "ad";
-  name: string;
-  will: string;
-}
-
-const STORY_LASTS_MS = DAY_MS;
-
 export const TAKE_DOWN_WORDS = {
   act: "Take down",
   title: (piece: string) => `Take down “${piece}”?`,
@@ -147,43 +136,3 @@ export const TAKE_DOWN_BELL = {
   byHand: (place: PostPlace, piece: string) => `Delete it in ${POST_PLACE_SAID[place]} · ${piece || "A post"}`,
   byHandWhy: "Chanlytics couldn't take it down there",
 } as const;
-
-/** A post as the confirm reads it. */
-type DownPost = Pick<PostDto, "id" | "place" | "kind" | "status" | "published_at">;
-
-/** Whether a place takes a delete from here: it does, it does not, or nobody has seen it do so yet (`unproved`). */
-type PlaceTakesDown = (place: PostPlace) => "yes" | "no" | "unproved";
-
-/** The order the piece lists its placements in: a reel, a post, a story, then Google. */
-const downRankOf = (post: DownPost): number =>
-  post.place === "google" ? 3 : ["reel", "picture", "story"].indexOf(post.kind);
-
-/** What the press does to one post, in words; null where it does nothing to it (already let go, or never sent). */
-function downWordsOf(post: DownPost, can: PlaceTakesDown, nowMs: number): string | null {
-  const words = TAKE_DOWN_WORDS.will;
-  if (post.status === "publishing" || post.status === "checking") return words.takeDown;
-  if (post.status === "queued" || post.status === "preparing") return words.cancel;
-  if (post.status !== "published") return null;
-  if (post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS) return words.storyGone;
-  const takes = can(post.place);
-  if (takes === "yes") return words.takeDown;
-  const placeName = POST_PLACE_SAID[post.place];
-  return takes === "no" ? words.byHand(placeName) : words.asks(placeName);
-}
-
-/**
- * What the confirm says the press will do, a line a placement (the canvas's cell 36): a post up is asked down where the
- * place takes that from here, is asked where that is not proved yet, or is the owner's to delete there; a story a day
- * old is gone already; one still waiting will not go up. A post the owner put up by hand is theirs, and is no post of
- * these.
- */
-export function takeDownWillOf(posts: readonly DownPost[], can: PlaceTakesDown, nowMs: number): TakeDownWill[] {
-  return [...posts]
-    .sort((a, b) => downRankOf(a) - downRankOf(b))
-    .flatMap((post): TakeDownWill[] => {
-      const will = downWordsOf(post, can, nowMs);
-      if (will === null) return [];
-      const glyph = post.place === "google" ? "google" : post.kind === "picture" ? "post" : post.kind;
-      return [{ key: post.id, glyph, name: placementSaid(post.place, post.kind), will }];
-    });
-}

@@ -249,7 +249,7 @@ export function WeekPlannedOpen({
 }) {
   const dto = useSurface("content_week")?.dto;
   const { busy, onFix } = useWeekPresses(flash, () => undefined);
-  const row = dto ? weekRowsOf(dto).find((r) => r.creative === creative) : undefined;
+  const row = dto ? weekRowsOf(dto, Date.now()).find((r) => r.creative === creative) : undefined;
   if (!dto || !row) return null;
   return <WeekPlanned row={row} zone={dto.zone} onClose={onClose} onFix={onFix} busy={busy} />;
 }

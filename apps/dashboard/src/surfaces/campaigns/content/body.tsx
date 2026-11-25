@@ -141,8 +141,19 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
 }
 
 /** A made piece: Files' own tile, square as the Library's are, and where it stands as one mark on it. The open one is outlined. */
-function MadeTile({ made, open, onOpen }: { made: ContentMadeDto; open: boolean; onOpen: (fileId: string) => void }) {
-  const mark = contentPieceMarkOf(made, Date.now());
+function MadeTile({
+  made,
+  open,
+  reels,
+  onOpen,
+}: {
+  made: ContentMadeDto;
+  open: boolean;
+  /** Whether Instagram takes a reel from here now: a made video that never went out is then ready to post. */
+  reels: boolean;
+  onOpen: (fileId: string) => void;
+}) {
+  const mark = contentPieceMarkOf(made, Date.now(), reels);
   // Its next version being made (the version board, cell 6): the same tile, dim under AI's three, never a second one.
   const making = made.version_drawing ? VERSION_WORDS.making(made.version_drawing) : null;
   return (
@@ -200,6 +211,8 @@ interface ContentShows {
   layout: ContentLayout;
   /** On a desk: Scheduled and Posted are tables there (lines-table.tsx), lines on a phone. */
   desk: boolean;
+  /** Whether Instagram takes a reel from here now (the page's read): what a made video that never went out says. */
+  reels: boolean;
 }
 
 type ContentReadProps = { dto: ContentPageDto; acts: ContentActs; shows: ContentShows };
@@ -228,7 +241,7 @@ function MadeGrid({ dto, acts, shows }: ContentReadProps) {
         <MakingTile key={m.id} making={m} />
       ))}
       {dto.made.map((m) => (
-        <MadeTile key={m.file.id} made={m} open={m.file.id === shows.openId} onOpen={acts.onOpen} />
+        <MadeTile key={m.file.id} made={m} open={m.file.id === shows.openId} reels={shows.reels} onOpen={acts.onOpen} />
       ))}
     </TileGrid>
   );
@@ -243,7 +256,7 @@ function GroupTiles({ group, acts, shows }: { group: MadeGroup; acts: ContentAct
         <MakingTile key={m.id} making={m} />
       ))}
       {group.made.map((m) => (
-        <MadeTile key={m.file.id} made={m} open={m.file.id === shows.openId} onOpen={open} />
+        <MadeTile key={m.file.id} made={m} open={m.file.id === shows.openId} reels={shows.reels} onOpen={open} />
       ))}
     </TileGrid>
   );
@@ -257,7 +270,7 @@ function GroupRows({ group, acts, shows }: { group: MadeGroup; acts: ContentActs
         <NeedsRows lines={group.lines} notMade={group.making} openId={shows.openId} onOpen={acts.onFix} />
       </div>
     );
-  return <PieceLines made={group.made} making={group.making} onOpen={acts.onOpen} />;
+  return <PieceLines made={group.made} making={group.making} reels={shows.reels} onOpen={acts.onOpen} />;
 }
 
 /**
@@ -273,7 +286,13 @@ function MadeGroups({ dto, acts, shows }: ContentReadProps) {
   return (
     <div className="cnv-groups" data-testid="cnv-made-part">
       {shows.layout === "list" && shows.desk ? (
-        <ContentList groups={groups} openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
+        <ContentList
+          groups={groups}
+          reels={shows.reels}
+          openId={shows.openId}
+          onOpen={acts.onOpen}
+          onFix={acts.onFix}
+        />
       ) : (
         groups.map((group) => (
           <section
@@ -311,9 +330,16 @@ function MadePart(props: ContentReadProps) {
   return (
     <section className="cnv-part" aria-label={contentHeadOf(dto.tally)} data-testid="cnv-made-part">
       {shows.layout === "list" && shows.desk ? (
-        <ContentList groups={flat} flat openId={shows.openId} onOpen={acts.onOpen} onFix={acts.onFix} />
+        <ContentList
+          groups={flat}
+          flat
+          reels={shows.reels}
+          openId={shows.openId}
+          onOpen={acts.onOpen}
+          onFix={acts.onFix}
+        />
       ) : shows.layout === "list" ? (
-        <PieceLines made={dto.made} making={dto.making} onOpen={acts.onOpen} />
+        <PieceLines made={dto.made} making={dto.making} reels={shows.reels} onOpen={acts.onOpen} />
       ) : (
         <MadeGrid {...props} />
       )}
@@ -478,7 +504,11 @@ export function ContentBody({
   return (
     <>
       {mark}
-      <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos, openId, layout, desk }} />
+      <ContentRead
+        dto={held}
+        acts={acts}
+        shows={{ gettingMore, videos, openId, layout, desk, reels: held.reels === true }}
+      />
     </>
   );
 }

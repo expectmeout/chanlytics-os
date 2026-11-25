@@ -103,6 +103,8 @@ const post = (place, status) => ({
   permalink: null,
   scheduled_for: "2026-11-11T15:00:00Z",
   published_at: status === "published" ? "2026-11-11T15:01:00Z" : null,
+  // Seen at its place, as a post that is up is.
+  verified_at: status === "published" ? "2026-11-11T15:02:00Z" : null,
   error: null,
   created_at: "2026-11-11T15:00:00Z",
 });

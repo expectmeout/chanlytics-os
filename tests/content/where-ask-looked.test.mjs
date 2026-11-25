@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { contentSourcesSaid } = await importSrc("packages/contracts/src/content/sources.ts");
-const { contentMoving } = await importSrc("packages/contracts/src/content/page.ts");
+const { contentMoving } = await importSrc("packages/contracts/src/content/placements/piece-mark.ts");
 
 const place = (over) => ({
   address: null,

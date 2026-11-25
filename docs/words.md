@@ -208,6 +208,27 @@ over, and adds nothing it does not know.
 | Out of date                             | "Updated 2:14 PM", and "Couldn't update" if it failed | Try again                         |
 | Something Chanlytics can't know         | A quiet line: who doesn't say, and what settles it    | None. Never a check left open     |
 
+### Where a post stands
+
+A made piece says where it stands once, and every screen says the same: its tile, its open status, its button, its
+list of places, Posted, the Week and Today all read one answer (contracts' `pieceStandingOf`, 24 November 2026). The
+unit is a place and a kind: an Instagram post and an Instagram story are two.
+
+| Where it stands                            | Its tile says                      | Its button              |
+| ------------------------------------------ | ---------------------------------- | ----------------------- |
+| It never went out                          | Ready to post                      | Post                    |
+| Set for its time                           | Set for Saturday                   | None: it goes by itself |
+| Going up                                   | Posting to Instagram               | None                    |
+| Up                                         | On Instagram · Monday              | Post to Google          |
+| Held or refused                            | Didn't post                        | Post again              |
+| Sent, and the place never said it holds it | Couldn't confirm it's on Instagram | None yet                |
+| Nothing of it is up: its story ran its day | Story ended · Sunday, in grey      | Post again              |
+| Nothing of it is up: its post came down    | Taken down · Tuesday, in grey      | Post again              |
+
+"Ready to post" is only for a piece that never went out. A story is up for a day: after it, no screen says it is up.
+Posted lists what is up and the stories that ran their day, each of those marked ("Instagram · Saturday · Story
+ended"), and its count counts the same rows; a post that was taken down, or whose piece was deleted, is in neither.
+
 ### A problem, said right
 
 Three parts, in this order:

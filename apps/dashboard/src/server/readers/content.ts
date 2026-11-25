@@ -27,6 +27,7 @@ import {
   contentDownOf,
   contentIdeaFilesOf,
   contentPieceMarkOf,
+  videoIsSavedOnly,
   type ContentDownDto,
   type ContentLineDto,
   type ContentMakingDto,
@@ -64,6 +65,7 @@ import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { cursorAsked, fileDtoOf } from "./files";
 import { readWeekToday } from "./week-today";
 import { readContentSources } from "../files/found";
+import { readInstagramPostable } from "../connections/meta";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** A post as a page reads it: a platform's refusal in the owner's words, never its code, and never its id there. */
@@ -148,19 +150,25 @@ async function piecesStillStanding(db: Db, tenantId: TenantId, failedSince: stri
   return standing.filter((p) => p.status !== "failed" || !newest || p.created_at > newest);
 }
 
+/** A post's placement, as a key: its piece, its place and its kind (an Instagram post and an Instagram story are two). */
+const placementKeyOf = (post: Pick<MemberFilePostRow, "file_id" | "place" | "kind">): string =>
+  `${post.file_id}|${post.place}|${post.kind}`;
+
 /**
- * The stopped posts still the newest at their file and place: a post refused and sent again since is no longer the owner's
- * to mend. The newest at each place is read from all those files' posts, newest first.
+ * The stopped posts still the newest of their placement, a piece's place and kind: a post refused and sent again since is
+ * no longer the owner's to mend. The unit is the one a piece's tile and its open piece read (contracts
+ * placements/standing.ts), so what Needs you counts is what a tile says "Didn't post" of. The newest of each placement is
+ * read from all those files' posts, newest first.
  */
 async function postsStillStopped(db: Db, tenantId: TenantId): Promise<MemberFilePostRow[]> {
   const stopped = await listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX);
   if (stopped.length === 0) return [];
   const newest = new Map<string, string>();
   for (const post of await listPostsOfFiles(db, tenantId, [...new Set(stopped.map((p) => p.file_id))])) {
-    const at = `${post.file_id}|${post.place}`;
+    const at = placementKeyOf(post);
     if (!newest.has(at)) newest.set(at, post.id);
   }
-  const newestStopped = stopped.filter((p) => newest.get(`${p.file_id}|${p.place}`) === p.id);
+  const newestStopped = stopped.filter((p) => newest.get(placementKeyOf(p)) === p.id);
   // Of pieces still there and in use: one deleted or set aside needs nothing, so the count is the list's (postLinesOf).
   const inUse = new Set(
     (await listFilesByIds(db, tenantId, [...new Set(newestStopped.map((p) => p.file_id))]))
@@ -341,9 +349,24 @@ async function linesPage(
 }
 
 /**
+ * Whether Instagram takes a reel from this workspace now, asked only where the answer changes what a piece says: one of
+ * `pieces` is a video that never went out and was not posted by hand (contracts videoIsSavedOnly decides Ready to post or
+ * Ready to save by it). Most pages hold none, and read nothing. A read that fails says no: the tile says Ready to save,
+ * as it did before reels went up from here.
+ */
+async function reelsWhereAsked(
+  tenantId: TenantId,
+  pieces: readonly { file: { kind: string }; posts: readonly PostDto[]; by_hand?: HandPostDto | null }[],
+): Promise<boolean | undefined> {
+  if (!pieces.some((piece) => !piece.by_hand && videoIsSavedOnly(piece.file, piece.posts, false))) return undefined;
+  const can = await readInstagramPostable(tenantId).catch(logAndGoOn("content: whether Instagram takes a reel", null));
+  return can === "yes";
+}
+
+/**
  * Today's Content card (contracts content/note.ts ContentTodayDto), from what the note's read holds: the newest few of the
  * week's pieces with their posts; what is being made, but a video whose file has arrived, which is the week's piece (as GET
- * content draws it once); how many of the week's have no post yet, counted across the page read and not said where the week
+ * content draws it once); how many of the week's never went out, counted across the page read and not said where the week
  * runs past it; and the newest post that did not go out whose piece is still there, with it.
  */
 async function contentTodayOf(
@@ -363,13 +386,15 @@ async function contentTodayOf(
   const whole = next === null || week.length < made.length;
   const arrived = new Set(week.map((m) => m.file.id));
   const stoppedLines = await postLinesOf(db, tenantId, held.stopped);
+  const reels = (await reelsWhereAsked(tenantId, week)) === true;
   return {
     week: week.slice(0, CONTENT_TODAY_PIECES),
     making: held.standing
       .filter((p) => p.status !== "failed" && !p.revises && !(p.file_id && arrived.has(p.file_id)))
       .map(makingDtoOf),
-    // Ready to post: a video is to be saved, and is not counted (contracts contentPieceMarkOf).
-    ready: whole ? week.filter((m) => contentPieceMarkOf(m, held.now).is === "ready").length : null,
+    // Ready to post, as each one's tile says it (contracts contentPieceMarkOf): a piece that never went out. One that ran
+    // as a story yesterday is not ready again, and a video with no road from here is to be saved.
+    ready: whole ? week.filter((m) => contentPieceMarkOf(m, held.now, reels).is === "ready").length : null,
     stopped: stoppedLines[0] ?? null,
     down: held.down,
   };
@@ -419,6 +444,24 @@ const readSourcesWhileEmpty = async (
   page.tally.library === 0 && page.view === "all" && !page.about && !page.before
     ? readContentSources(db, tenantId, now).catch(logAndGoOn("content: where Ask looked", null))
     : null;
+
+/**
+ * What a page of Content says beside its pieces, read together once the page is known: where AI looked while nothing is
+ * kept (readSourcesWhileEmpty), and whether Instagram takes a reel where a piece's tile turns on it (reelsWhereAsked,
+ * left out of the answer where it was not asked).
+ */
+async function readBesideThePage(
+  db: Db,
+  tenantId: TenantId,
+  now: number,
+  held: { page: Parameters<typeof readSourcesWhileEmpty>[3]; made: Parameters<typeof reelsWhereAsked>[1] },
+): Promise<Pick<ContentPageDto, "sources" | "reels">> {
+  const [sources, reels] = await Promise.all([
+    readSourcesWhileEmpty(db, tenantId, now, held.page),
+    reelsWhereAsked(tenantId, held.made),
+  ]);
+  return reels === undefined ? { sources } : { sources, reels };
+}
 
 /**
  * GET content, as the route answers it (Campaigns › Content), for one view of Made: All, a page of what was made here,
@@ -476,7 +519,10 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
                   }))
                 : linesPage(db, rc.tenantId, view, request, timedAfter).then((page) => ({ ...empty, ...page })),
     ]);
-    const sources = await readSourcesWhileEmpty(db, rc.tenantId, now, { tally, view, about, before: request.before });
-    return { data: { view, ...shown, tally, sources }, rows: [], stamp: readerStamp() };
+    const beside = await readBesideThePage(db, rc.tenantId, now, {
+      page: { tally, view, about, before: request.before },
+      made: shown.made,
+    });
+    return { data: { view, ...shown, tally, ...beside }, rows: [], stamp: readerStamp() };
   },
 };

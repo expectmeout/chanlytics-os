@@ -103,7 +103,7 @@ export const POST_STATUSES = [
 export type PostStatus = (typeof POST_STATUSES)[number];
 
 /** The statuses of a post still on its way: one at a time per file and place (00611 posts_one_on_its_way). */
-export const POST_ON_ITS_WAY: readonly PostStatus[] = ["queued", "preparing", "publishing", "checking"];
+const POST_ON_ITS_WAY: readonly PostStatus[] = ["queued", "preparing", "publishing", "checking"];
 
 /** Up to here the owner can still say Don't post: nothing has been sent (00611 post_pull). */
 export const POST_PULLABLE: readonly PostStatus[] = ["queued", "preparing"];
@@ -248,16 +248,6 @@ export const ON_INSTAGRAM = {
     unknown: "Instagram did not say whether this went up. Look at the account before posting it again.",
   },
 } as const;
-
-/**
- * Where a post stands, in the sheet's words: still posting for one Instagram took and the account has not been read
- * holding yet, "On Instagram" once it was seen there, with no word between the two (the content loop PRD's 8.2 as the
- * journey canvas's call 7 took it, 22 Nov 2026); every other standing as it is.
- */
-export const postStandsSaid = (post: Pick<PostDto, "status" | "place" | "verified_at">): string =>
-  post.status === "published" && post.place === "instagram" && !post.verified_at
-    ? ON_INSTAGRAM.status.publishing
-    : ON_INSTAGRAM.status[post.status];
 
 /** Why a caption cannot go to Instagram as written, in words; null when it can. */
 export function postCaptionProblem(caption: string): string | null {

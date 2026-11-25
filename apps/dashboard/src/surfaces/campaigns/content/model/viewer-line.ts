@@ -111,13 +111,15 @@ function viewerLineOf(
 
 /**
  * What a place's row says in the list of places (post-both.tsx): Not yet, Posting, Posted just now, Posted Monday, Didn't
- * post, or when one that waits goes up.
+ * post, when one that waits goes up, or, where it is no longer there, Story ended Sunday or Taken down Tuesday.
  */
 export function viewerStandsSaid(stands: PieceStandsAt, clock: ViewerClock): string {
   const words = CONTENT_WORDS.piece.stands;
   if (stands.is === "up" && stands.at && Date.now() - Date.parse(stands.at) < JUST_NOW_MS) return words.justNow;
   if (stands.is === "up") return words.up(stands.at ? clock.day(stands.at) : null);
   if (stands.is === "timed") return clock.ahead(stands.at);
+  if (stands.is === "ended") return words.ended(stands.at ? clock.day(stands.at) : null);
+  if (stands.is === "down") return words.down(stands.at ? clock.day(stands.at) : null);
   return words[stands.is];
 }
 

@@ -14,8 +14,9 @@ export const CONTENT_SHEET_WORDS = {
     switchLabel: (place: PostPlace) => `Post to ${POST_PLACE_SAID[place]}`,
   },
   /**
-   * A made video's acts, while Instagram takes no video from here (decision 0121): Save video leads, its caption copied as it
-   * saves (viewer/foot.tsx), and a picture from it is in More.
+   * A made video's acts where Instagram takes no reel from this workspace (not connected, or posting not allowed): Save
+   * video leads, its caption copied as it saves (viewer/foot.tsx), and a picture from it is in More. Where Instagram takes
+   * a reel, a video leads with Post, as a picture does.
    */
   video: {
     save: "Save video",

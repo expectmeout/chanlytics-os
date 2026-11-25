@@ -16,6 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/content/route.ts"));
+const noteRoute = await import(at("apps/dashboard/app/api/v1/content/note/route.ts"));
 const { CONTENT_MAX, CONTENT_PAGE } = await import(at("packages/contracts/src/content/page.ts"));
 const { MIN_MS, DAY_MS } = await import(at("packages/contracts/src/shared/time.ts"));
 
@@ -105,15 +106,22 @@ const piece = (n, over = {}) => ({
   ...over,
 });
 
+/** Each post with the piece it is of, as the database joins them (posts_file_id_same_workspace): Posted reads through it. */
+const withPieces = (tables) =>
+  (tables.posts ?? []).map((post) => ({
+    ...post,
+    files: (tables.files ?? []).find((f) => f.id === post.file_id && f.tenant_id === post.tenant_id) ?? null,
+  }));
+
 const read = async (tables, query = "") => {
   const ctx = {
     supabase: fakeDb(
       {
         files: [],
-        posts: [],
         pieces: [],
         google_reviews: [],
         ...tables,
+        posts: withPieces(tables),
         memberships: [
           {
             user_id: USER,
@@ -581,4 +589,101 @@ test("a post its owner put up by hand is read with its piece, apart from what wa
     up.body.lines.map((l) => l.post.place),
     ["google"],
   );
+});
+
+/* ------------------------------------------------- one standing (the content status review of 24 Nov 2026, C4) */
+
+test("Posted's count is its list's: a story that ran its day is in both, a post taken down or of a deleted piece in neither", async () => {
+  const { body } = await read(
+    {
+      files: [made(1), made(2), made(3), made(4, { removed_at: minutesAgo(1) })],
+      posts: [
+        posted(10, 1, "instagram", "published"),
+        // A story that went up three days ago ran its day: Posted lists it, for the view to mark ended.
+        posted(3 * DAY_MINUTES, 2, "instagram", "published", { kind: "story" }),
+        posted(20, 3, "instagram", "taken_down", { published_at: minutesAgo(20) }),
+        // Its piece was deleted: nothing here opens it any more. It was counted, and never listed.
+        posted(30, 4, "google", "published"),
+      ],
+    },
+    "view=posted",
+  );
+  assert.deepEqual(
+    body.lines.map((l) => [l.file.name, l.post.kind]),
+    [
+      ["post-1", "picture"],
+      ["post-2", "story"],
+    ],
+  );
+  assert.equal(body.tally.posted, body.lines.length, "the count counts the rows the list draws");
+});
+
+test("Needs you counts by placement: a story that went up after a post was refused does not answer for the post", async () => {
+  const { body } = await read(
+    {
+      files: [made(1), made(2)],
+      posts: [
+        // Piece 1: its post was refused, and a story went up since. The post still needs its owner.
+        posted(9, 1, "instagram", "failed"),
+        posted(2, 1, "instagram", "published", { kind: "story" }),
+        // Piece 2: its post was refused and sent again as a post: old news.
+        posted(8, 2, "instagram", "failed"),
+        posted(1, 2, "instagram", "published"),
+      ],
+    },
+    "view=needs",
+  );
+  assert.deepEqual(
+    body.lines.map((l) => [l.file.name, l.post.kind]),
+    [["post-1", "picture"]],
+  );
+  assert.equal(body.tally.needs, 1);
+});
+
+test("whether Instagram takes a reel is said only where a made video never went out, and no where it could not be read", async () => {
+  const pictures = await read({ files: [made(1)] });
+  assert.equal("reels" in pictures.body, false, "a page of pictures asks nothing");
+  const video = made(2, { kind: "video", mime: "video/mp4", media_status: "ready", seconds: 9 });
+  const asked = await read({ files: [video] });
+  assert.equal(asked.body.reels, false, "nothing here says Instagram takes one: its tile says Ready to save");
+  const posted1 = await read({ files: [video], posts: [posted(1, 2, "instagram", "published", { kind: "reel" })] });
+  assert.equal("reels" in posted1.body, false, "one that went up already says where it stands");
+});
+
+test("Today counts as ready to post only what never went out: not a piece whose story ran its day", async () => {
+  const ctx = {
+    supabase: fakeDb(
+      {
+        files: [made(1), made(2), made(3), made(4)],
+        posts: [
+          // The review of 24 Nov 2026, A9: a piece counted "ready to post" the day after it ran as a story.
+          posted(2 * DAY_MINUTES, 2, "instagram", "published", {
+            kind: "story",
+            verified_at: minutesAgo(2 * DAY_MINUTES),
+          }),
+          posted(30, 3, "instagram", "taken_down", { published_at: minutesAgo(30) }),
+          posted(20, 4, "google", "published"),
+        ],
+        pieces: [],
+        remediation_actions: [],
+        memberships: [
+          {
+            user_id: USER,
+            tenant_id: A,
+            role: "owner",
+            tenants: { slug: "harbor" },
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      {},
+      {},
+    ),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
+  const body = await noteRoute.GET.run(new Request(`http://localhost/api/v1/content/note?workspace=${A}`), ctx);
+  assert.equal(body.today.week.length, 4);
+  assert.equal(body.today.ready, 1, "the one that never went out");
 });

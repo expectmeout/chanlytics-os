@@ -42,26 +42,12 @@ export {
   CONTENT_WORDS,
   contentHeadOf,
   contentMakingSaid,
-  contentMarkOf,
-  contentMarkSaid,
-  contentMarkToneOf,
-  contentMoving,
-  contentPieceMarkOf,
   contentViewCountOf,
   contentViewDrawsLines,
   contentWakesAt,
-  newestAtEachPlace,
   stopSuperseded,
 } from "./page";
-export type {
-  ContentLineDto,
-  ContentMadeDto,
-  ContentMakingDto,
-  ContentMark,
-  ContentMarkTone,
-  ContentPageDto,
-  ContentTally,
-} from "./page";
+export type { ContentLineDto, ContentMadeDto, ContentMakingDto, ContentPageDto, ContentTally } from "./page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
@@ -134,6 +120,14 @@ export {
   placeSwitchedOn,
 } from "./placements/facebook";
 export type { FacebookRefusal, MetaPage } from "./placements/facebook";
+export {
+  contentMarkOf,
+  contentMarkSaid,
+  contentMarkToneOf,
+  contentMoving,
+  contentPieceMarkOf,
+} from "./placements/piece-mark";
+export type { ContentMark, ContentMarkTone } from "./placements/piece-mark";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
@@ -170,22 +164,28 @@ export type {
   RevisionMadeBy,
 } from "./placements/sets";
 export {
+  leadOf,
+  pieceStandingOf,
+  placementIsOut,
+  placementStandingOf,
+  standingIsOut,
+  standingOnItsWay,
+  videoIsSavedOnly,
+} from "./placements/standing";
+export type { PieceLead, PlacementStanding, PlacementStands, PostStands } from "./placements/standing";
+export { storyRanItsDay } from "./placements/story-day";
+export {
   placementSaid,
   postCameDownAt,
   postComingDownOf,
   TAKE_DOWN_BELL,
   TAKE_DOWN_WORDS,
-  takeDownWillOf,
 } from "./placements/take-down";
-export type {
-  PieceTakeDownDto,
-  PostComingDown,
-  TakeDownActionDto,
-  TakeDownSettled,
-  TakeDownWill,
-} from "./placements/take-down";
+export type { PieceTakeDownDto, PostComingDown, TakeDownActionDto, TakeDownSettled } from "./placements/take-down";
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 export { takeDownSpec } from "./placements/take-down-spec";
+export { takeDownWillOf } from "./placements/take-down-will";
+export type { TakeDownWill } from "./placements/take-down-will";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./plan/claims";
 export type { OwnerClaim } from "./plan/claims";
 export {
@@ -268,7 +268,6 @@ export {
   POST_CAPTION_MAX,
   POST_HELD_WHYS,
   POST_KINDS,
-  POST_ON_ITS_WAY,
   POST_PLACE_SAID,
   POST_PLACES,
   POST_PULLABLE,
@@ -277,7 +276,6 @@ export {
   POST_VIAS,
   postCaptionProblem,
   postPlaceTakenOf,
-  postStandsSaid,
   postStoppedWhyOf,
   postWaitsForItsTime,
 } from "./posts";
