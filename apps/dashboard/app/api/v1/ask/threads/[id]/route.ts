@@ -21,9 +21,9 @@ import { deleteThread, readThread } from "@/server/ask/store";
 export const GET = read({
   scope: account,
   handle: async ({ ctx }) => {
-    const id = requireUuid(ctx.params.id, "thread");
+    const id = requireUuid(ctx.params.id, "conversation");
     const found = await readThread(ctx, id);
-    if (!found) throw new AppError("not_found", "That conversation is not yours, or is already gone.", 404);
+    if (!found) throw new AppError("not_found", "That conversation is not yours or is already gone.", 404);
     return { thread: found.thread, messages: found.messages };
   },
 });
@@ -34,7 +34,7 @@ export const DELETE = write({
   role: null,
   rate: null,
   handle: async ({ ctx }) => {
-    const id = requireUuid(ctx.params.id, "thread");
+    const id = requireUuid(ctx.params.id, "conversation");
     await deleteThread(ctx, id);
     return { deleted: id };
   },

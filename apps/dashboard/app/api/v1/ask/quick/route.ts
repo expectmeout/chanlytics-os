@@ -34,7 +34,7 @@ export const POST = write({
     const answer = quickAnswerOf(body?.answer);
     if (!answer) throw new AppError("validation", "That answer is not one the Line draws.");
     const threadId =
-      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
     const thread = await keepQuickTurn(ctx, member.tenantId, { text, threadId, answer, quick: intent.kind });
     return { thread };
   },

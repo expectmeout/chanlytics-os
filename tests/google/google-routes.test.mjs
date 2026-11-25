@@ -227,7 +227,7 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
     refresh.POST.run(send("POST", undefined, inB), ctxFor(tables)),
     "upstream_provider",
     502,
-    "Google could not be read.",
+    "Couldn't load from Google.",
   );
   await refused(draft.POST.run(send("POST", undefined, inA), ctxFor(tables, { id: R1 })), "forbidden", 403);
   // A malformed id in the URL's own parameter is a 404 through requireUuid, as
@@ -297,13 +297,13 @@ test("a search is the owner's: with no words of its own it uses the facts on rec
     search.POST.run(send("POST", {}, inB), ctxFor(tables)),
     "upstream_provider",
     502,
-    "Google could not be searched just now",
+    "Couldn't search Google just now",
   );
   await refused(
     search.POST.run(send("POST", { query: "Bayside Salon, Chicago" }, inB), ctxFor(tables)),
     "upstream_provider",
     502,
-    "Google could not be searched just now",
+    "Couldn't search Google just now",
   );
 });
 

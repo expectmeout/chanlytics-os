@@ -57,7 +57,7 @@ import {
   useWaitingLook,
   type Waits,
 } from "./hooks";
-import { alert_emails, brainOf, cardInputs, workspaceNow, type CardBrain } from "./inputs";
+import { alertEmails, brainOf, cardInputs, workspaceNow, type CardBrain } from "./inputs";
 import { choiceFromWant, returnedFromStripe, trySince as trySinceKept, type KeptPhoneChoice } from "./memory";
 import { FrCard, FrRail } from "./parts";
 import { FrReceptionist } from "./receptionist/receptionist";
@@ -187,7 +187,7 @@ function liveViewOf(o: {
   const lv = fr.complete
     ? F.live({
         dto: S.dto,
-        emails: alert_emails(read && read.settings ? read.settings.config : null),
+        emails: alertEmails(read && read.settings ? read.settings.config : null),
         business: S.dto.business.name,
         owner: canDo("settings"),
         assistant: brain?.profile?.assistant_name ?? null,

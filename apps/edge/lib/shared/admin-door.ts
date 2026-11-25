@@ -33,7 +33,7 @@ export const stop = (response: Response): Refused => ({ ok: false, response });
 export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /** A body its door took, or the refusal the door answers instead. */
-export type BodyRead<D extends EdgeDoor> = { ok: true; body: DoorRead<D> } | Refused;
+type BodyRead<D extends EdgeDoor> = { ok: true; body: DoorRead<D> } | Refused;
 
 /**
  * The body as sent when it is a JSON object; anything else -- not JSON, or JSON that is not an object (null, an array,

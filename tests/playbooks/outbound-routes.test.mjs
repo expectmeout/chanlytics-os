@@ -1061,12 +1061,7 @@ test("a message written in one more language: judged against what the workspace 
   await refused(ask({ translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
   await refused(ask({ language: "tlh", translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
   // Another workspace's message is not this one's to write.
-  await refused(
-    ask({ language: "fr", translate: { id: T4 } }),
-    "not_found",
-    404,
-    "That saved message is not on file here.",
-  );
+  await refused(ask({ language: "fr", translate: { id: T4 } }), "not_found", 404, "That saved message is not on file.");
   // A language the message already has is not one more.
   await refused(ask({ language: "es", translate: { id: T1 } }), "conflict", 409, "It is on file in Spanish already.");
   await refused(

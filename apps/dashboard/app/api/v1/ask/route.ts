@@ -83,7 +83,7 @@ export const POST = write({
     if (text.length > ASK_MAX_CHARS)
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
     const threadId =
-      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
     const askedScope = scopeAsked(body?.scope);
     const context = contextAsked(body?.context, member.tenantId);
     // The surface the palette names; a context says the same, and fills it when the palette named none.

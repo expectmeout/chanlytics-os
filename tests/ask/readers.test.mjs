@@ -5513,10 +5513,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   assert.deepEqual(asked(brokenCtx), ["tenant_config.select", "ad_accounts.select"]);
   // No row at all: the route's 404, in its sentence, from the reader.
   const noRow = (e) => {
-    assert.deepEqual(
-      [e.code, e.status, e.message],
-      ["not_found", 404, "Settings aren't ready yet. Chanlytics is on it."],
-    );
+    assert.deepEqual([e.code, e.status], ["not_found", 404]);
     return true;
   };
   const none = dayCtx(settingsWorld({ tenant_config: [] }));

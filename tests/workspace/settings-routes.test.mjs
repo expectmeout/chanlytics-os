@@ -378,7 +378,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
     settings.PUT.run(send("PUT", { config: [], version: 1 }, inB), ctxFor(tables)),
     "validation",
     400,
-    "Config rejected",
+    "These settings weren't saved",
   );
   const stale = ctxFor(tables);
   await refused(

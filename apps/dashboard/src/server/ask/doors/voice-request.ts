@@ -55,7 +55,8 @@ export function scopeAsked(raw: unknown): AskScope | null {
 }
 
 export function asked(body: Record<string, unknown> | null, tenantId: TenantId): Asked {
-  const threadId = typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+  const threadId =
+    typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "conversation") : null;
   const context = contextAsked(body?.context, tenantId);
   const surface =
     typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : (context?.surface ?? null);

@@ -524,7 +524,7 @@ export async function shapeTemplate(
     throw new AppError("window_closed", "They haven't written in 24 hours, so only an approved message reaches them.");
   const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
   if (!tpl || tpl.meta_status !== "approved")
-    throw new AppError("validation", "That message isn't saved, or isn't approved.");
+    throw new AppError("validation", "Saved message not found or not approved.");
   // Which yes this template needs is Meta's category, and the door asks
   // again at the wire. Asked here too, so the operator hears a sentence now
   // instead of finding a canceled row later.

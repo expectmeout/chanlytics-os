@@ -660,10 +660,8 @@ test("past status and search every op needs a database and a workspace on record
   const list =
     "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft, hold, post or unpost";
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: "unknown_op", detail: list }]);
-  // No op at all: refused at the door's schema, before the op table is asked.
-  const noOp = [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: op" }];
-  assert.deepEqual(await answer(await knock({})), noOp);
-  assert.deepEqual(await answer(await knock("not json")), noOp);
+  const noOp = [400, { ok: false, error: "bad_request", detail: "Couldn't read what was sent: op" }]; // the door's schema
+  for (const body of [{}, "not json"]) assert.deepEqual(await answer(await knock(body)), noOp);
   use(world(), new Map(), { "tenants.select": { message: "permission denied for table tenants" } });
   assert.deepEqual(await answer(await knock({ op: "refresh" })), [
     503,
