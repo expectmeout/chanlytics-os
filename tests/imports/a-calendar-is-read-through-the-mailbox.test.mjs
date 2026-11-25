@@ -10,7 +10,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
-import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, dayInZone, parseIcs } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, parseIcs } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
@@ -42,11 +42,10 @@ const WINDOW = { from: NOW - 180 * DAY_MS, to: NOW + 60 * DAY_MS };
 /** An instant a whole number of hours from now, as both providers write one. */
 const hoursOn = (h) => new Date(Math.floor(NOW / HOUR_MS) * HOUR_MS + h * HOUR_MS);
 /**
- * The all-day holiday's day and the day after, three days on in New York: still to come at any hour the suite runs,
- * its clock twelve hours on included (it was 26 Nov 2026 written in, which was past by that clock on 25 Nov).
+ * A day in New York a whole number of days from today there, as Google writes an all-day event's ("2026-11-28"). The
+ * holiday was written as 26 Nov 2026 and turned from coming to past at that midnight, so the count went with the clock.
  */
-const CLOSED_DAY = dayInZone("America/New_York", NOW + 3 * DAY_MS).key;
-const CLOSED_END = dayInZone("America/New_York", NOW + 4 * DAY_MS).key;
+const nyDayOn = (days) => new Date(NOW + days * DAY_MS).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 /** The world: the mailbox, its token, the settings naming its calendar, and what a read of the calendar writes. */
 function world({ provider = "google", box = {}, credentials = liveCredentials("ya29.sam"), grant = true } = {}) {
@@ -148,8 +147,8 @@ const GOOGLE = {
         googleEvent({
           id: "closed",
           summary: "Closed for the holiday",
-          start: { date: CLOSED_DAY },
-          end: { date: CLOSED_END },
+          start: { date: nyDayOn(3) },
+          end: { date: nyDayOn(4) },
         }),
         googleEvent({
           id: "lunch",
@@ -267,8 +266,8 @@ test("a Microsoft 365 account's calendars: its calendar view in UTC, the next pa
               subject: "Closed",
               isAllDay: true,
               // Midnight in New York, said in UTC: the day it names is the 26th.
-              start: { dateTime: `${CLOSED_DAY}T05:00:00.0000000` },
-              end: { dateTime: `${CLOSED_END}T05:00:00.0000000` },
+              start: { dateTime: "2026-11-26T05:00:00.0000000" },
+              end: { dateTime: "2026-11-27T05:00:00.0000000" },
             },
           ],
         },
@@ -323,11 +322,7 @@ test("a Microsoft 365 account's calendars: its calendar view in UTC, the next pa
     [hoursOn(26).getTime(), hoursOn(24).getTime(), "Client: 305-555-0102", null],
   );
   assert.deepEqual(by["visit-ms"].attendees, [{ name: "Ana", email: "ana@example.com" }]);
-  assert.match(
-    text,
-    new RegExp(`DTSTART;VALUE=DATE:${CLOSED_DAY.replaceAll("-", "")}\\r\\n`),
-    "the all-day event on the day it names",
-  );
+  assert.match(text, /DTSTART;VALUE=DATE:20261126\r\n/, "the all-day event on the day it names");
 });
 
 /* ------------------------------------------------------------------ what cannot be read */
