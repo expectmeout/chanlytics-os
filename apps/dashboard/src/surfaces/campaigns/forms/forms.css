@@ -9,6 +9,10 @@
   padding: var(--space-3) var(--space-4) var(--space-6);
   overflow-y: auto;
 }
+/* The empty page (list.tsx): the question and its line, then the website's start apart under its own head. */
+.fmv-list[data-empty] {
+  gap: var(--space-6);
+}
 .fmv-rows {
   display: flex;
   flex-direction: column;
@@ -413,6 +417,12 @@
   .fmv-foot > :first-child {
     flex: 1 1 auto;
     justify-content: center;
+  }
+  /* The list starts where Campaigns' and Content's do on a phone, 16px from the edge, under the strip's own start: the
+     split's 12px and 4px of its own, not 28px. */
+  .fmv-list {
+    padding-left: var(--space-1);
+    padding-right: var(--space-1);
   }
 }
 

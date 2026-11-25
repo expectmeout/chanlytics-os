@@ -205,6 +205,7 @@ export function RecordFoot({
           if (onCancel) onCancel(e);
         }}
         aria-disabled={saving || undefined}
+        data-foot-cancel=""
         data-testid={cancelTestid}
       >
         {cancelLabel}
