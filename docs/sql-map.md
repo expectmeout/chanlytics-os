@@ -356,8 +356,8 @@ being read is dropped by a migration.
 | `jobs_ledger_now` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | What the Console's Health draws of the ledger now (00526): |
 | `jobs_take_their_kind` | trigger | the server | trigger `jobs_take_their_kind on jobs` |  |
 | `jobs_wake` | trigger | the server | trigger `jobs_wake on jobs` | After a statement writes jobs: |
-| `last_inbound_on_instagram` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/contracts/src/conversations/thread-dto.ts` and 5 more | When a thread's person last wrote by Instagram DM (decision 0001, step 8): |
-| `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/db/src/repositories/campaigns/occasions.ts` and 3 more; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
+| `last_inbound_on_instagram` | computed column | a signed-in person, the server | code `packages/contracts/src/conversations/thread-dto.ts`, `packages/contracts/src/people/person-row/row-facts.ts` and 5 more | When a thread's person last wrote by Instagram DM (decision 0001, step 8): |
+| `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/occasions.ts` and 2 more; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
 | `lead_address_in_people` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 2 more | Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): |
 | `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 4 more | Whether one address is on the never-again list: |
 | `lead_addressee_choose` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's choice (permission find) of who a company lead's reach-out writes to (00430, 0057's call 8): |
@@ -510,7 +510,7 @@ being read is dropped by a migration.
 | `mint_reply_token` | the server's | the server | SQL `create_mailbox` |  |
 | `model_turn_keep` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | Keeps one receptionist turn and the prompt it read, together (decision 0039). |
 | `model_turns_scrub` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | An erasure's hand on the kept turns (decision 0039): |
-| `newest_messages` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/conversations.ts` | The newest p_each messages of each of these threads in the workspace p_tenant_id, and of those the newest p_most, newest first (created_at, then id), as one JSON list in the Inbox reader's columns: |
+| `newest_messages` | reader | a signed-in person, the server | code `packages/db/src/repositories/conversations/threads.ts` | The newest p_each messages of each of these threads in the workspace p_tenant_id, and of those the newest p_most, newest first (created_at, then id), as one JSON list in the Inbox reader's columns: |
 | `note_candidates` | the server's | the server | code `packages/db/src/repositories/people/notes.ts` | The note sweep's batch (0007): |
 | `note_for_you_notify` | the server's | the server | SQL `person_note_add`, `person_note_edit` and 1 more | Tell the member a note is for that it is there (0007): |
 | `note_page_vitals` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Keeps one page load's reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; |
