@@ -229,8 +229,8 @@ const BtaNotes = ({
           i={i}
           notes={notes}
           press={press}
-          bad={(problems[`note-${i}`] as string | undefined) || null}
-          badUntil={(problems[`note-${i}-until`] as string | undefined) || null}
+          bad={problems[`note-${i}`] || null}
+          badUntil={problems[`note-${i}-until`] || null}
           ended={BUSINESS_TAB.noteEndedWords(n && n.until, zone, now)}
           readOnly={readOnly}
         />

@@ -325,7 +325,7 @@ export async function runAct(
     settled?: Record<string, unknown> | null;
   },
 ): Promise<AskActAnswer> {
-  const tenantId = member.tenantId as TenantId;
+  const tenantId = member.tenantId;
   const { card, proposals } = await cardOnTurn(ctx, input.messageId, input.proposalId);
   // A press sent twice, or a second tab: what the first did, once more.
   if (card.outcome?.state === "done") return { ok: true, message: "", outcome: card.outcome, calls: [], forward: null };
@@ -352,9 +352,9 @@ export async function runAct(
   const key = card.plan ? `plan:${card.plan.id}:${card.plan.step}` : card.id;
   const tab = await tabHere(ctx, member, card.kind);
   const made = spec.commit(filled, tab);
-  if (!Array.isArray(made) && isProposalRefusal(made as object))
+  if (!Array.isArray(made) && isProposalRefusal(made))
     return failedAnswer(ctx, sides, {
-      message: (made as ProposalRefusal).refused,
+      message: made.refused,
       code: "refused",
       moved: false,
       card,
@@ -398,17 +398,17 @@ export async function undoAct(
   member: Member,
   input: { messageId: string; proposalId: string },
 ): Promise<AskActAnswer> {
-  const tenantId = member.tenantId as TenantId;
+  const tenantId = member.tenantId;
   const { card } = await cardOnTurn(ctx, input.messageId, input.proposalId);
   const spec = PROPOSAL_SPECS[card.kind] as ProposalSpec | undefined;
   const record = card.outcome?.undo ?? null;
   if (!spec?.undo || !record) throw new AppError("validation", "This one has no undo.");
   const tab = await tabHere(ctx, member, card.kind);
   const made = spec.undo.call(record, tab);
-  if (!Array.isArray(made) && isProposalRefusal(made as object))
+  if (!Array.isArray(made) && isProposalRefusal(made))
     return {
       ok: false,
-      message: (made as ProposalRefusal).refused,
+      message: made.refused,
       outcome: card.outcome ?? null,
       calls: [],
       forward: null,

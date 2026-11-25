@@ -251,7 +251,7 @@ function extrasOf(r: Partial<GatewayRequest>): Pick<GatewayRequest, "speed" | "t
   const betas = Array.isArray(r.betas) ? [...new Set(r.betas.filter((b) => GATEWAY_BETAS.includes(b)))] : [];
   return {
     ...(r.speed === "fast" ? { speed: "fast" as const } : {}),
-    ...(typeof type === "string" && THINKING.has(type) ? { thinking: { type: type as ThinkingType } } : {}),
+    ...(typeof type === "string" && THINKING.has(type) ? { thinking: { type } } : {}),
     ...(betas.length ? { betas } : {}),
   };
 }
