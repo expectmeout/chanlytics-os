@@ -15,7 +15,7 @@
 export const BOOT_LANES = 4;
 
 /** Run `work` over `queue`, at most `lanes` at a time, in its order as it stands when each lane comes free. */
-export async function inLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
+export async function runInLanes<T>(queue: T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
   const lane = async (): Promise<void> => {
     for (;;) {
       const next = queue.shift();

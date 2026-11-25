@@ -14,7 +14,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { namedFetch, observeDb } from "@chanlytics/db/shared";
-import { forgetDatabaseFailures } from "../../../packages/db/src/shared/read-again.ts";
+
+/** What this process has seen fail lives on globalThis (packages/db read-again.ts): a test begins with none. */
+const forgetDatabaseFailures = () => void (globalThis[Symbol.for("chanlytics.db.failed-at")] = []);
 
 const BASE = "https://db.example.com/rest/v1";
 

@@ -20,11 +20,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { burstsOf, BURST_MS } = await import(at("apps/dashboard/src/server/shared/auth/burst.ts"));
+const { burstsOf } = await import(at("apps/dashboard/src/server/shared/auth/burst.ts"));
+/** A burst, as the store keeps it: two seconds. */
+const BURST_MS = 2_000;
 const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
-const { withRoute, getMemberContext, resetMembershipBursts } = await import(
-  at("apps/dashboard/src/server/shared/with-route.ts")
-);
+const { withRoute, getMemberContext } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 const { getTenantFacts } = await import(at("apps/dashboard/src/server/shared/tenant.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const viewsRoute = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
@@ -127,8 +127,12 @@ const asked = (method = "GET") =>
   });
 const NO_PARAMS = { params: Promise.resolve({}) };
 
+/** A session of each test's own: what one test's burst holds is no other's (the store is the process's, for two seconds). */
+let sessions = 0;
+const session = () => `sess-${(sessions += 1)}`;
+
 /** Sign in as a session over a database in memory: every request of the test reads through `db`. */
-function signedIn(claims = { session_id: "sess-1", aal: "aal1" }, db = fakeDb(tables())) {
+function signedIn(claims = { session_id: session(), aal: "aal1" }, db = fakeDb(tables())) {
   setBearerVerifier(async () => ({ supabase: db, claims: { sub: "u-1", ...claims }, error: null }));
   return db;
 }
@@ -138,10 +142,7 @@ const lookups = (db) =>
 
 const realVerifier = setBearerVerifier(null);
 after(() => setBearerVerifier(realVerifier));
-beforeEach(() => {
-  resetMembershipBursts();
-  setRateStore(memoryStore());
-});
+beforeEach(() => setRateStore(memoryStore()));
 
 test("five reads of a page load ask who is asking once, and each is answered as its own request is", async () => {
   const db = signedIn();
@@ -157,12 +158,13 @@ test("five reads of a page load ask who is asking once, and each is answered as 
 
 test("another sign-in of the same person, and the same one once its second factor is shown, ask for themselves", async () => {
   const db = fakeDb(tables());
-  signedIn({ session_id: "sess-1", aal: "aal1" }, db);
+  const [one, other] = [session(), session()];
+  signedIn({ session_id: one, aal: "aal1" }, db);
   await viewsRoute.GET(asked(), NO_PARAMS);
-  signedIn({ session_id: "sess-2", aal: "aal1" }, db);
+  signedIn({ session_id: other, aal: "aal1" }, db);
   await viewsRoute.GET(asked(), NO_PARAMS);
   assert.equal(lookups(db), 2, "her other sign-in");
-  signedIn({ session_id: "sess-1", aal: "aal2" }, db);
+  signedIn({ session_id: one, aal: "aal2" }, db);
   await viewsRoute.GET(asked(), NO_PARAMS);
   assert.equal(lookups(db), 3, "the same session, signed in further");
   signedIn({ aal: "aal1" }, db);
@@ -198,18 +200,17 @@ test("a write that fails forgets too, and a read of the memberships that failed 
   await viewsRoute.GET(asked(), NO_PARAMS);
   assert.equal(lookups(db), 2, "it may have changed something before it failed");
 
-  resetMembershipBursts();
-  const broken = signedIn(undefined, fakeDb(tables(), { "memberships.select": { message: "upstream" } }));
+  const later = session();
+  signedIn({ session_id: later, aal: "aal1" }, fakeDb(tables(), { "memberships.select": { message: "upstream" } }));
   assert.equal((await viewsRoute.GET(asked(), NO_PARAMS)).status >= 500, true);
-  const mended = signedIn();
-  assert.equal((await viewsRoute.GET(asked(), NO_PARAMS)).status, 200, "the next read asked for itself");
+  const mended = signedIn({ session_id: later, aal: "aal1" });
+  assert.equal((await viewsRoute.GET(asked(), NO_PARAMS)).status, 200, "the same session's next read asked for itself");
   assert.equal(lookups(mended), 1);
-  assert.ok(lookups(broken) >= 0);
 });
 
 test("only a read through its route shares: any other caller, and a context with no session, reads the memberships", async () => {
   const db = fakeDb(tables());
-  const ctx = { supabase: db, userId: "u-1", email: "ada@example.com", params: {}, burst: "sess-1|aal1" };
+  const ctx = { supabase: db, userId: "u-1", email: "ada@example.com", params: {}, burst: `${session()}|aal1` };
   await getMemberContext(ctx, "harbor", { burst: true });
   await getMemberContext(ctx, "harbor", { burst: true });
   assert.equal(lookups(db), 1, "a route's read");
@@ -224,7 +225,7 @@ test("only a read through its route shares: any other caller, and a context with
 
 test("beneath a read, the workspace's name and clock are answered from who is asking; beneath a write they are read", async () => {
   const db = fakeDb(tables());
-  const reading = { supabase: db, userId: "u-1", email: "ada@example.com", params: {}, burst: "sess-1|aal1" };
+  const reading = { supabase: db, userId: "u-1", email: "ada@example.com", params: {}, burst: `${session()}|aal1` };
   const member = await getMemberContext(reading, "harbor", { burst: true });
   const before = db.seen.length;
   assert.deepEqual(await getTenantFacts(db, member.tenantId), { name: "Harbor", timezone: "America/New_York" });

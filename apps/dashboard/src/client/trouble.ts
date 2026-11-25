@@ -46,12 +46,12 @@ const MENDING_MS = 10 * SECOND_MS;
 export type ReadVerdict = "answered" | "fault" | "called_off";
 
 /** A read let through: it says what it came to as it settles, with the wait the server named, if it named one. */
-export interface ReadLeaves {
+interface ReadLeaves {
   held: null;
   settled(verdict: ReadVerdict, address: string, namedWaitS?: number | null): void;
 }
 /** A read answered here: the server is not answering, and this is how long is left, in seconds. */
-export interface ReadHeld {
+interface ReadHeld {
   held: number;
 }
 
@@ -98,7 +98,7 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
   let until: number | null = null;
   let waitMs = WAIT_FIRST_MS;
   /** While a look is out: settles true where it was answered. */
-  let look: { said: Promise<boolean>; say: (answered: boolean) => void } | null = null;
+  let look: { verdict: Promise<boolean>; say: (answered: boolean) => void } | null = null;
   let stopDue: (() => void) | null = null;
   const dueListeners = new Set<() => void>();
   /** While the tab mends: until when, how many reads are out, and the ones waiting their turn. */
@@ -175,14 +175,14 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
   /** The look: the one read that leaves once the wait is over. */
   const sendLook = (): ReadLeaves => {
     let say: (answered: boolean) => void = () => {};
-    const said = new Promise<boolean>((resolve) => (say = resolve));
-    look = { said, say };
+    const verdict = new Promise<boolean>((resolve) => (say = resolve));
+    look = { verdict, say };
     return { held: null, settled: lookSettled(say) };
   };
 
   const before = (): ReturnType<Trouble["before"]> => {
     // A look is out: what it says is this read's answer too.
-    if (look) return look.said.then((answered) => (answered ? before() : { held: leftS() }));
+    if (look) return look.verdict.then((answered) => (answered ? before() : { held: leftS() }));
     if (until !== null) return now() < until ? { held: leftS() } : sendLook();
     if (now() >= mendingUntil) return { held: null, settled: settledAs(() => {}) };
     return takeTurn().then((done) => ({ held: null, settled: settledAs(done) }));

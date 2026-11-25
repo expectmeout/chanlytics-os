@@ -1,5 +1,5 @@
 import { globalSlot } from "@chanlytics/contracts";
-import { askedAgain, type AgainWith } from "./read-again";
+import { sendOrAskAgain, type AgainWith } from "./read-again";
 import { readShared } from "./read-once";
 /**
  * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
@@ -191,7 +191,7 @@ export function namedFetch(base?: typeof fetch, again?: AgainWith): typeof fetch
     const id = dbRequestId();
     const how = touchOfCall(input, init)?.how ?? null;
     if (!id) {
-      const call = askedAgain({ init, how }, () => send(input, init), again);
+      const call = sendOrAskAgain({ init, how }, () => send(input, init), again);
       // The caller hears this failure: this only reads the answer.
       void call.then(
         (answer) => sayWhenAtCap(input, init, answer),
@@ -217,6 +217,6 @@ export function namedFetch(base?: typeof fetch, again?: AgainWith): typeof fetch
     };
     // A request that answers several reads as one asks each question once (read-once.ts); any other sends every call.
     const scope = (observerSlot.get() ?? FALLBACK).sharedReads?.() ?? null;
-    return readShared(scope, { input, init, how }, () => askedAgain({ init, how }, sendNamed, again));
+    return readShared(scope, { input, init, how }, () => sendOrAskAgain({ init, how }, sendNamed, again));
   };
 }

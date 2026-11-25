@@ -22,7 +22,7 @@
 import { SECOND_MS } from "@chanlytics/contracts";
 
 /** How long a burst is: reads of one session begun within it share one answer. */
-export const BURST_MS = 2 * SECOND_MS;
+const BURST_MS = 2 * SECOND_MS;
 
 /** Past this many sessions held the expired are swept: an instance must not grow with everyone who ever asked. */
 const SWEEP_AT = 2_000;
@@ -33,7 +33,7 @@ interface Shared<A> {
 }
 
 /** What one burst store holds and does. */
-export interface Bursts<A> {
+interface Bursts<A> {
   /**
    * The session's answer: the one its burst already has, else `ask`'s, which the burst then holds. `session` absent (a
    * write, a test's context) asks every time and holds nothing.
@@ -41,8 +41,6 @@ export interface Bursts<A> {
   shared(person: string, session: string | undefined, ask: () => Promise<A>): Promise<A>;
   /** Let go of everything held for a person, every session of theirs: a write of theirs may have changed it. */
   forget(person: string): void;
-  /** Tests only: let go of everything. */
-  clear(): void;
 }
 
 /** A store of one question's answers, shared across each session's bursts. */
@@ -80,10 +78,6 @@ export function burstsOf<A>(now: () => number = () => Date.now()): Bursts<A> {
       if (!mine) return;
       sessions -= mine.size;
       held.delete(person);
-    },
-    clear() {
-      held.clear();
-      sessions = 0;
     },
   };
 }

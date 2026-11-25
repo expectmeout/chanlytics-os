@@ -416,11 +416,6 @@ type MembershipRows = NonNullable<Awaited<ReturnType<typeof listMyMemberships>>[
 /** Each session's memberships, shared across a burst of its reads on this instance (auth/burst.ts). */
 const MEMBERSHIPS = burstsOf<MembershipRows>();
 
-/** Tests only: forget every membership a burst holds. */
-export function resetMembershipBursts(): void {
-  MEMBERSHIPS.clear();
-}
-
 /** Whether a request only reads: its method says so. */
 const isRead = (req: Request): boolean => req.method === "GET" || req.method === "HEAD";
 

@@ -64,11 +64,6 @@ export function databaseFailing(now: number = Date.now()): boolean {
   return times.length >= FAILING_AT && now - (times[0] ?? 0) < FAILING_WINDOW_MS;
 }
 
-/** Tests only: forget what has failed. */
-export function forgetDatabaseFailures(): void {
-  failedAt.set([]);
-}
-
 /** The pause an answer names in whole seconds (`Retry-After`), in ms; null where it names none. */
 function pauseNamed(answer: Response): number | null {
   const seconds = Number.parseInt(answer.headers.get("retry-after") ?? "", 10);
@@ -117,7 +112,7 @@ function pauseBeforeAgain(call: AskedCall, sent: Sent, at: number, chance: () =>
  * The call's answer, sent by `send`: a read that failed is sent once more where the database is not failing (above).
  * Every failure is counted toward that, whatever the call was.
  */
-export async function askedAgain(
+export async function sendOrAskAgain(
   call: AskedCall,
   send: () => Promise<Response>,
   using: AgainWith = {},

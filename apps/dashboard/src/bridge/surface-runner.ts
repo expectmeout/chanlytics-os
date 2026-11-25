@@ -46,7 +46,7 @@ import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
 import { passesOf, type Passes } from "./hearing/passes";
 import { catchUpOn, QUIET_LOOKBACK_MS, type CatchUp } from "./hearing/catch-up";
-import { BOOT_LANES, inLanes } from "./hearing/lanes";
+import { BOOT_LANES, runInLanes } from "./hearing/lanes";
 import { watchTheMend } from "./hearing/mend";
 
 export type { CatchUp, CaughtUpNotice } from "./hearing/catch-up";
@@ -601,13 +601,13 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
   const releaseAnswers = api().holdAnswers();
   const firstPass = workspaceFirst
     ? boot(workspaceFirst).then(() =>
-        inLanes(
+        runInLanes(
           pagesOwn.filter((o) => o !== workspaceFirst),
           BOOT_LANES,
           boot,
         ),
       )
-    : inLanes(pagesOwn.slice(), BOOT_LANES, boot);
+    : runInLanes(pagesOwn.slice(), BOOT_LANES, boot);
   // A move while the boot is out reads what the page moved to draws first of what is left: in the first page's order, Today
   // waited behind the Calendar's strangers and drew 1.3 to 2.4 s after the press (the phone re-measure of 16 Nov 2026).
   const stopFollowing = onRouteAsked((route) => {

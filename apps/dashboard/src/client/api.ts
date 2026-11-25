@@ -450,8 +450,8 @@ async function answerTo(
     }
   }
   const standing = (): Standing | Promise<Standing> => trouble.before();
-  let asked = standing();
-  let gate = asked instanceof Promise ? await asked : asked;
+  let entry = standing();
+  let gate = entry instanceof Promise ? await entry : entry;
   if (leaving.ahead) {
     try {
       const res = await leaving.ahead;
@@ -459,8 +459,8 @@ async function answerTo(
       return { res };
     } catch (e) {
       if (gate.held === null) gate.settled(aheadVerdictOf(e), leaving.key);
-      asked = standing();
-      gate = asked instanceof Promise ? await asked : asked;
+      entry = standing();
+      gate = entry instanceof Promise ? await entry : entry;
     }
   }
   if (gate.held !== null) return { refusal: heldHere(gate.held, now()) };

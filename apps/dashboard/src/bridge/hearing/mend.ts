@@ -15,7 +15,7 @@ import { pageHidden } from "./front";
 import type { Passes } from "./passes";
 
 /** What the mend asks of the runner it reads through. */
-export interface MendRun {
+interface MendRun {
   readonly overrides: readonly SurfaceOverride[];
   readonly passes: Pick<Passes, "again">;
   /** Hears the client's wait come due (client/api.ts `onReadsDue`); answers the stop. */

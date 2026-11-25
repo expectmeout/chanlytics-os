@@ -15,12 +15,18 @@ import { sessionCookieOptions } from "./cookie-options";
 const MEMBER_FETCH_TIMEOUT_MS = 35 * SECOND_MS;
 
 /**
- * What both clients here send their calls through: named for the request and counted (packages/db observe.ts), bounded,
- * and a failed read asked once more at most (read-again.ts), so the client's own three more asks are off.
+ * What both clients here send their calls through: named for the request and counted (packages/db observe.ts), a failed
+ * read asked once more at most (read-again.ts), so the client's own three more asks are off, and each call that is sent
+ * bounded. The bound is beneath the naming, never around it: a request that answers several reads as one shares a read
+ * only where the call carries no signal of its own (read-once.ts), and a bound around it put one on every call, so an
+ * opening asked the database every question again (the nightly's own stack, 25 Nov 2026: seventeen more calls a load).
+ * The process's fetch as it is at the call, so a test that stubs it later is heard.
  */
 const memberTransport = () => ({
   db: { retry: false },
-  global: { fetch: boundedFetch(MEMBER_FETCH_TIMEOUT_MS, namedFetch()) },
+  global: {
+    fetch: namedFetch(boundedFetch(MEMBER_FETCH_TIMEOUT_MS, (input, init) => globalThis.fetch(input, init))),
+  },
 });
 
 /**
