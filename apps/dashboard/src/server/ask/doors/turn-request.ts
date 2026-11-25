@@ -23,7 +23,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 // The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
 // dropped in silence, and the prompt never learnt the page.
-export const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
+const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
 
 export const SURFACES = new Set<string>(ASK_SURFACES);
 
