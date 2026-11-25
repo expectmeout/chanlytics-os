@@ -248,6 +248,24 @@ const CASES = [
       instagram: "Posted Saturday",
     },
   },
+  {
+    name: "16 a post that came down, and a later one let go because its day passed",
+    file: picture,
+    posts: [
+      post({
+        ...never,
+        status: "pulled",
+        held_why: "late",
+        held_reason: "Its day passed. It was not posted.",
+        created_at: iso(NOW - D),
+      }),
+      post({ status: "taken_down" }),
+    ],
+    out: [],
+    went: true,
+    // It went out once: what last happened to it leads, and it is never "ready to post" again for the one let go.
+    says: { tile: "Taken down", status: "Taken down", button: "again", instagram: "Taken down" },
+  },
 ];
 
 const keyOf = (at) => `${at.place} ${at.kind}`;
@@ -408,6 +426,33 @@ test("a video with no road from here is saved on its tile and in its open piece 
   const takesReel = pieceTakesOf([], { instagram: true, google: false, onGoogle: false, fileKind: "video" });
   assert.equal(contentMarkSaid(contentPieceMarkOf({ file: video, posts: [] }, NOW, true), day), "Ready to post");
   assert.deepEqual(pieceNextOf(video, [], takesReel, NOW), { is: "post" });
+});
+
+test("a post let go because its day passed is said beside the one that speaks, never in its place", () => {
+  const late = post({
+    ...never,
+    status: "pulled",
+    held_why: "late",
+    held_reason: "Its day passed. It was not posted.",
+    created_at: iso(NOW - D),
+  });
+  // Over a post that is still up: both lines, and the piece is on Instagram.
+  const up = readersOf({ file: picture, posts: [late, post()] });
+  assert.deepEqual(
+    up.lines.map((line) => [line.said, line.tone]),
+    [
+      ["Its day passed · It was not posted", "gone"],
+      ["On Instagram · Sat 23:00", "ok"],
+    ],
+  );
+  assert.equal(up.tile, "On Instagram · Saturday");
+  // Over one that came down: both lines, and the status is the tile's.
+  const down = readersOf({ file: picture, posts: [late, post({ status: "taken_down" })] });
+  assert.deepEqual(
+    down.lines.map((line) => line.said),
+    ["Its day passed · It was not posted", "Taken down"],
+  );
+  assert.equal(down.statusSaid, down.tile);
 });
 
 test("a story's day is one rule: up until the last moment of its day, ended from it, whoever asks", () => {

@@ -288,12 +288,12 @@ function postSaid({ post, standing }: PostStands, known: GoesKnown): Said | null
 /**
  * The piece's placements, in the one order (contracts pieceStandingOf): for each place and kind, the post that speaks
  * for it, and under it the one still up where a newer one waits, goes up, stopped or was never confirmed (a second post
- * after Monday's), so neither hides the other. A placement whose posts say nothing (the owner let it go) has no line:
+ * after Monday's), so neither hides the other; over it, a newer one that was let go because its day passed. A placement whose posts say nothing (the owner let it go) has no line:
  * the place is offered again where a post can go.
  */
 export function goesLinesOf(posts: readonly PostDto[], known: GoesKnown): GoesLine[] {
   return pieceStandingOf(posts, known.takeDown, known.nowMs).placements.flatMap((at) =>
-    [at, ...(at.under ? [at.under] : [])].flatMap((stands) => {
+    [...(at.late ? [at.late] : []), at, ...(at.under ? [at.under] : [])].flatMap((stands) => {
       const line = postSaid(stands, known);
       return line
         ? [{ key: stands.post.id, place: at.place, kind: at.kind, name: placementSaid(at.place, at.kind), ...line }]

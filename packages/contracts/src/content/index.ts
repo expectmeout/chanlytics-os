@@ -42,25 +42,12 @@ export {
   CONTENT_WORDS,
   contentHeadOf,
   contentMakingSaid,
-  contentMarkOf,
-  contentMarkSaid,
-  contentMarkToneOf,
-  contentMoving,
-  contentPieceMarkOf,
   contentViewCountOf,
   contentViewDrawsLines,
   contentWakesAt,
   stopSuperseded,
 } from "./page";
-export type {
-  ContentLineDto,
-  ContentMadeDto,
-  ContentMakingDto,
-  ContentMark,
-  ContentMarkTone,
-  ContentPageDto,
-  ContentTally,
-} from "./page";
+export type { ContentLineDto, ContentMadeDto, ContentMakingDto, ContentPageDto, ContentTally } from "./page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
@@ -133,6 +120,14 @@ export {
   placeSwitchedOn,
 } from "./placements/facebook";
 export type { FacebookRefusal, MetaPage } from "./placements/facebook";
+export {
+  contentMarkOf,
+  contentMarkSaid,
+  contentMarkToneOf,
+  contentMoving,
+  contentPieceMarkOf,
+} from "./placements/piece-mark";
+export type { ContentMark, ContentMarkTone } from "./placements/piece-mark";
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
@@ -273,7 +268,6 @@ export {
   POST_CAPTION_MAX,
   POST_HELD_WHYS,
   POST_KINDS,
-  POST_ON_ITS_WAY,
   POST_PLACE_SAID,
   POST_PLACES,
   POST_PULLABLE,

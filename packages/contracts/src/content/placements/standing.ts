@@ -125,6 +125,12 @@ export interface PlacementStands extends PostStands {
    * speaks is the one up, or none is.
    */
   under: PostStands | null;
+  /**
+   * A newer post there that was let go because its day passed, where an earlier one speaks (it is up, or it came down
+   * or ended): said beside it, since it never went, and never in its place, so a piece that went out is not "ready to
+   * post" again for it. Null where the one that speaks is the newest news.
+   */
+  late: PostStands | null;
 }
 
 /**
@@ -162,21 +168,27 @@ const standsAs =
 /**
  * A placement from its posts, newest first, or null where none of them says anything (its owner let each go: the place
  * is free again). Who speaks: a stop only while it is the newest there (sent again, it is old news); else the post on
- * its way; else the post that is there, up or never confirmed; else what last happened. So a post that is still up is
- * never lost under a newer one that came down, and a story that ended never hides the post beside it.
+ * its way; else the post that is there, up or never confirmed; else the last that was (it ended, or came down); else
+ * one let go because its day passed. So a post that is still up is never lost under a newer one that came down, and a
+ * story that ended never hides the post beside it.
  */
-function placementOf(theirs: readonly PostStands[]): Pick<PlacementStands, "post" | "standing" | "under"> | null {
+function placementOf(
+  theirs: readonly PostStands[],
+): Pick<PlacementStands, "post" | "standing" | "under" | "late"> | null {
   const [newest] = theirs;
   const stop = newest && standsAs("stopped")(newest) ? newest : undefined;
   const moving = theirs.find((at) => standingOnItsWay(at.standing));
   const there = theirs.find(standsAs("up", "unconfirmed"));
-  const past = theirs.find(
-    (at) => standsAs("ended", "came_down")(at) || (at.standing.is === "let_go" && at.standing.late),
-  );
-  const speaks = stop ?? moving ?? there ?? past;
+  const gone = theirs.find(standsAs("ended", "came_down"));
+  const late = theirs.find((at) => at.standing.is === "let_go" && at.standing.late);
+  const speaks = stop ?? moving ?? there ?? gone ?? late;
   if (!speaks) return null;
   const up = theirs.find(standsAs("up"));
-  return { ...speaks, under: up && up !== speaks ? up : null };
+  return {
+    ...speaks,
+    under: up && up !== speaks ? up : null,
+    late: late && theirs.indexOf(late) < theirs.indexOf(speaks) ? late : null,
+  };
 }
 
 /** When a placement's last news happened, as a moment: a time not kept counts as the latest, since it is the one unknown. */

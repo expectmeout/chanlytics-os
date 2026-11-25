@@ -446,6 +446,24 @@ const readSourcesWhileEmpty = async (
     : null;
 
 /**
+ * What a page of Content says beside its pieces, read together once the page is known: where AI looked while nothing is
+ * kept (readSourcesWhileEmpty), and whether Instagram takes a reel where a piece's tile turns on it (reelsWhereAsked,
+ * left out of the answer where it was not asked).
+ */
+async function readBesideThePage(
+  db: Db,
+  tenantId: TenantId,
+  now: number,
+  held: { page: Parameters<typeof readSourcesWhileEmpty>[3]; made: Parameters<typeof reelsWhereAsked>[1] },
+): Promise<Pick<ContentPageDto, "sources" | "reels">> {
+  const [sources, reels] = await Promise.all([
+    readSourcesWhileEmpty(db, tenantId, now, held.page),
+    reelsWhereAsked(tenantId, held.made),
+  ]);
+  return reels === undefined ? { sources } : { sources, reels };
+}
+
+/**
  * GET content, as the route answers it (Campaigns › Content), for one view of Made: All, a page of what was made here,
  * newest first, each with its posts at every place, and what is being made on its first page; Being made, the videos being
  * made and those not made this week; Needs you, the posts that stopped and the videos not made; Scheduled, the posts that
@@ -501,14 +519,10 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
                   }))
                 : linesPage(db, rc.tenantId, view, request, timedAfter).then((page) => ({ ...empty, ...page })),
     ]);
-    const [sources, reels] = await Promise.all([
-      readSourcesWhileEmpty(db, rc.tenantId, now, { tally, view, about, before: request.before }),
-      reelsWhereAsked(rc.tenantId, shown.made),
-    ]);
-    return {
-      data: { view, ...shown, tally, sources, ...(reels === undefined ? {} : { reels }) },
-      rows: [],
-      stamp: readerStamp(),
-    };
+    const beside = await readBesideThePage(db, rc.tenantId, now, {
+      page: { tally, view, about, before: request.before },
+      made: shown.made,
+    });
+    return { data: { view, ...shown, tally, ...beside }, rows: [], stamp: readerStamp() };
   },
 };

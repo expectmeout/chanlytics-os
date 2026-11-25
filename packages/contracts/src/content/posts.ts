@@ -103,7 +103,7 @@ export const POST_STATUSES = [
 export type PostStatus = (typeof POST_STATUSES)[number];
 
 /** The statuses of a post still on its way: one at a time per file and place (00611 posts_one_on_its_way). */
-export const POST_ON_ITS_WAY: readonly PostStatus[] = ["queued", "preparing", "publishing", "checking"];
+const POST_ON_ITS_WAY: readonly PostStatus[] = ["queued", "preparing", "publishing", "checking"];
 
 /** Up to here the owner can still say Don't post: nothing has been sent (00611 post_pull). */
 export const POST_PULLABLE: readonly PostStatus[] = ["queued", "preparing"];

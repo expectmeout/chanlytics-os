@@ -5,7 +5,8 @@
  *
  * A piece can be up on Google and held on Instagram at once: each place keeps its own state, and the tile says the one
  * thing that matters most (the content canvas, "Every state a piece can be in"): what needs the owner, then what is
- * working, then what is done.
+ * working, then what is done. That mark is placements/piece-mark.ts's, apart from these words: the frame reads this
+ * module for a tab's name on every page, and carries none of the standing's rules with it.
  */
 import type { ContentSourcesDto } from "./sources";
 import type { FileDto } from "../files/views";
@@ -14,12 +15,9 @@ import type { ContentView } from "./address";
 import type { PieceFail, PieceStage } from "./piece-making";
 import { pieceWordsIn } from "./piece-words";
 import type { PieceLanguage } from "./pieces";
-import { pieceStandingOf, videoIsSavedOnly } from "./placements/standing";
-import { TAKE_DOWN_WORDS } from "./placements/take-down";
 import {
   POST_PLACE_SAID,
   POST_SOON_MS,
-  linkPlaceSaid,
   postWaitsForItsTime,
   type HandPostDto,
   type PostDto,
@@ -137,27 +135,6 @@ export function contentViewCountOf(tally: ContentTally, view: ContentView): numb
 export const contentViewDrawsLines = (view: ContentView): boolean =>
   view === "needs" || view === "scheduled" || view === "posted";
 
-/** Where a made piece stands, as its tile says it. */
-export type ContentMark =
-  | { is: "ready" }
-  /** A video AI made that has no road from here (Instagram takes no reel from this workspace now): saved, and posted from the phone. */
-  | { is: "save" }
-  | { is: "going"; place: PostPlace }
-  /** Set for its time at a place, and that time: the soonest, where two wait. Not moving yet, so nothing turns. */
-  | { is: "timed"; place: PostPlace; at: string }
-  /** Up, at each place, and when the newest of them went up (null where no time is kept). */
-  | { is: "posted"; places: PostPlace[]; at: string | null }
-  /** Held before its send, or refused: the file's own sheet says why. */
-  | { is: "stuck"; place: PostPlace }
-  /** Sent, and its place was never seen holding it: nobody can say it is up. */
-  | { is: "unsure"; place: PostPlace }
-  /** Nothing of it is up any more, and the last of it was a story that ran its day: where, and when it ended. */
-  | { is: "ended"; place: PostPlace; at: string | null }
-  /** Nothing of it is up any more, and the last of it came down: where, and when, where that was kept. */
-  | { is: "down"; place: PostPlace; at: string | null }
-  /** Posted by its owner's own hand, as they said (00620): when they said so, and where its link says, if it has one. */
-  | { is: "by_hand"; at: string; where: string | null };
-
 /**
  * Whether a stop (a post held or refused) is old news: a newer post of its piece came after it in its placement, the
  * same place and kind (sent again, or let go), so the stop no longer speaks there, as a tile says one only while it is
@@ -172,41 +149,6 @@ export function stopSuperseded(
     (p) =>
       p.file_id === stop.file_id && p.place === stop.place && p.kind === stop.kind && p.created_at > stop.created_at,
   );
-}
-
-/**
- * Where a made piece stands, as its tile, its row and Today count it: where its posts say (contentMarkOf); with none
- * out from here, what its owner said they posted themselves; and a video with no road from here is to be saved, never
- * "ready to post". `reels`: whether Instagram takes a reel from this workspace now, as the page's read says.
- */
-export function contentPieceMarkOf(
-  piece: { file: Pick<FileDto, "kind">; posts: readonly PostDto[]; by_hand?: HandPostDto | null },
-  nowMs: number,
-  reels: boolean,
-): ContentMark {
-  const mark = contentMarkOf(piece.posts, nowMs);
-  if (mark.is !== "ready" && mark.is !== "ended" && mark.is !== "down") return mark;
-  // Nothing sent from here stands anywhere: what its owner said they posted themselves is where it stands.
-  if (piece.by_hand) return { is: "by_hand", at: piece.by_hand.at, where: linkPlaceSaid(piece.by_hand.link) };
-  if (mark.is !== "ready") return mark;
-  return videoIsSavedOnly(piece.file, piece.posts, reels) ? { is: "save" } : mark;
-}
-
-/**
- * Where a made piece stands, from its posts: the piece's one standing (placements/standing.ts pieceStandingOf), as a
- * tile says it. What needs the owner first, then what is going up now, then what waits for its time, then what is up,
- * then what last happened where nothing of it is up any more; "ready" only for a piece that never went out.
- */
-export function contentMarkOf(posts: readonly PostDto[], nowMs: number): ContentMark {
-  const { lead } = pieceStandingOf(posts, null, nowMs);
-  if (lead.is === "never") return { is: "ready" };
-  const { place } = lead.at;
-  if (lead.is === "stopped") return { is: "stuck", place };
-  if (lead.is === "unconfirmed") return { is: "unsure", place };
-  if (lead.is === "going_up") return { is: "going", place };
-  if (lead.is === "waiting") return { is: "timed", place, at: lead.when };
-  if (lead.is === "up") return { is: "posted", places: [...new Set(lead.all.map((at) => at.place))], at: lead.when };
-  return { is: lead.is === "ended" ? "ended" : "down", place, at: lead.when };
 }
 
 /** How many ideas Ask can make now, as the first day's sentence starts on it: "Three", "One". */
@@ -531,35 +473,6 @@ export const CONTENT_WORDS = {
   },
 } as const;
 
-/**
- * A mark in the owner's words. A made video is ready to save only where it has no road from here (contentPieceMarkOf).
- * `dayOf` says a day by the business's own clock.
- */
-export function contentMarkSaid(mark: ContentMark, dayOf: (at: string) => string): string {
-  if (mark.is === "going") return CONTENT_WORDS.mark.going(mark.place);
-  if (mark.is === "unsure") return CONTENT_WORDS.mark.unsure(mark.place);
-  if (mark.is === "ended") return CONTENT_WORDS.mark.ended(mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "down") return TAKE_DOWN_WORDS.cameDown(mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "timed") return CONTENT_WORDS.mark.timed(dayOf(mark.at));
-  if (mark.is === "posted") return CONTENT_WORDS.mark.posted(mark.places, mark.at ? dayOf(mark.at) : null);
-  if (mark.is === "stuck") return CONTENT_WORDS.mark.stuck;
-  if (mark.is === "by_hand") return CONTENT_WORDS.mark.byHand(mark.where, dayOf(mark.at));
-  if (mark.is === "save") return CONTENT_WORDS.mark.save;
-  return CONTENT_WORDS.mark.ready;
-}
-
-/**
- * A mark's tone, as its dot draws it: grey ready, and grey too where nothing of it is up any more; the accent turning
- * while it moves, the accent still while it waits for its time, green out, amber where it needs the owner.
- */
-export type ContentMarkTone = "ready" | "going" | "timed" | "up" | "need";
-
-export const contentMarkToneOf = (mark: ContentMark): ContentMarkTone => {
-  if (mark.is === "posted" || mark.is === "by_hand") return "up";
-  if (mark.is === "stuck" || mark.is === "unsure") return "need";
-  return mark.is === "going" || mark.is === "timed" ? mark.is : "ready";
-};
-
 /** What heads the made pieces, in one line: how many are made, and how many are out. */
 export function contentHeadOf(tally: ContentTally): string {
   if (tally.made === 0) return CONTENT_WORDS.empty.title;
@@ -574,20 +487,6 @@ export function contentMakingSaid(making: ContentMakingDto): { title: string; st
   if (making.status === "failed")
     return { title, state: says.follows.failedMark, failed: says.failed[making.failed_why ?? "unknown"] };
   return { title, state: says.follows.stage[making.stage](making.moments), failed: null };
-}
-
-/**
- * Whether the page should be read again on its own: a video still being made, or a post going up now. Neither is told to a
- * page by the feed (00611, 00613), so the page asks while one moves and stops when none does. A post set for later is not
- * moving: the page does not ask all week for it. A place read for its photos and videos is not asked after either: what it
- * brings, its ledger's run and the website's read are told by the feed as they land (00480, 00551), and the card reads itself
- * once more where a run ends unheard (sources.ts `reading_until`).
- */
-export function contentMoving(page: ContentPageDto, nowMs: number): boolean {
-  return (
-    page.making.some((m) => m.status === "making") ||
-    page.made.some((m) => contentMarkOf(m.posts, nowMs).is === "going")
-  );
 }
 
 /**

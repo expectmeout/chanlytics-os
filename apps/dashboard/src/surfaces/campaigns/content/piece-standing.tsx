@@ -92,6 +92,8 @@ export function usePieceStanding(
         version,
       )
     : [];
+  // The post the piece's one standing leads with: the one its status says, as its tile does (model/goes.ts goesPillOf).
+  const leads = goesLeadOf(posts, record.takeDown, Date.now());
   const again = () => {
     record.reread();
     reread();
@@ -161,9 +163,7 @@ export function usePieceStanding(
   return {
     lines,
     /** The piece's one status from its lines; null where it has no placement yet, and its usual status says it. */
-    pill: version.pill
-      ? { ...version.pill, moving: false }
-      : goesPillOf(lines, aiMade ? goesLeadOf(posts, record.takeDown, Date.now()) : null),
+    pill: version.pill ? { ...version.pill, moving: false } : goesPillOf(lines, leads),
     lead: versionLead ?? (may ? standingLeadOf(lines, goes) : null),
     /**
      * Whether the list opens to be read, with nothing switched on: a line needs the owner for something another post
