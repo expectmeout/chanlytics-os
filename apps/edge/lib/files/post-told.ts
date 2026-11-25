@@ -7,8 +7,9 @@
  * bell could do, and a kind the database does not take yet (00616 not applied) is logged and let go.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { POST_PLACES, TAKE_DOWN_BELL, fileSaidOf, isOneOf, type TenantId } from "@chanlytics/contracts";
-import { findFileForWork, type PostRow, type TakeDownKept } from "@chanlytics/db/files";
+import { POST_PLACES, STANDING_WORDS, TAKE_DOWN_BELL, fileSaidOf, isOneOf, type TenantId } from "@chanlytics/contracts";
+import { countAdsOnShowingFile } from "@chanlytics/db/ads";
+import { findFileForWork, listPostsRemovedThere, type PostRow, type TakeDownKept } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import type { Database } from "@chanlytics/db/types";
 import { recordNotification } from "../shared/alerts/notify.js";
@@ -35,7 +36,7 @@ export async function tellPostMoved(db: Db, post: PostRow, moved: PostMoved): Pr
     moved.is === "up"
       ? {
           kind: "post_up",
-          title: POST_BELL.up(place),
+          title: STANDING_WORDS.up.bell.title(place),
           body: POST_BELL.upBody(name),
           route: postBellRouteOf(post.file_id, false),
           about,
@@ -43,7 +44,7 @@ export async function tellPostMoved(db: Db, post: PostRow, moved: PostMoved): Pr
       : {
           kind: "post_stopped",
           title: POST_BELL.held(name),
-          body: POST_BELL.heldBody(moved.why),
+          body: STANDING_WORDS.stopped.bell.body(moved.why),
           route: postBellRouteOf(post.file_id, true),
           about,
         },
@@ -74,7 +75,12 @@ export async function tellTakeDownMoved(
   if (down) {
     await recordNotification(
       tenantId,
-      { kind: "post_down", title: TAKE_DOWN_BELL.down(name), body: TAKE_DOWN_BELL.downFrom(down), ...row },
+      {
+        kind: "post_down",
+        title: STANDING_WORDS.came_down.bell.title(name),
+        body: STANDING_WORDS.came_down.bell.body(down),
+        ...row,
+      },
       db,
     );
     return;
@@ -88,12 +94,44 @@ export async function tellTakeDownMoved(
 }
 
 /**
- * A post its place no longer holds, found by a read of its numbers (content/observe.ts): removed on the place itself,
- * by its owner there or by the place. Told once, in the words a take-down that came through has, since the piece is
- * down there all the same; it closes a "Delete it in" line of the piece's too. Never a failed job, as above.
+ * A post its place no longer holds, found by a read of its numbers (content/observe.ts) or of what its account holds
+ * (content/posts-read.ts). Told once. Where a take-down from here had asked it down (one its place left to its owner to
+ * delete), it is the take-down that came through, in its words, which close the piece's "Delete it in" line too. Where
+ * nobody asked, it was removed on the place itself, by its owner there or by the place, and the line says so in its
+ * own words: Chanlytics did not take it down (the content status review of 24 Nov 2026, A12). A read that fails says
+ * the first, as every such post was told before. Never a failed job, as above.
  */
 export async function tellPostGone(db: Db, post: PostRow): Promise<void> {
-  if (!isOneOf(POST_PLACES, post.place)) return;
-  const kept = { kept: true, fileId: post.file_id, place: post.place, down: [post.place] };
-  await tellTakeDownMoved(db, post.tenant_id, kept, { toOwner: false });
+  const place = post.place;
+  if (!isOneOf(POST_PLACES, place)) return;
+  const none: string[] = [];
+  const there = await listPostsRemovedThere(db, post.tenant_id, [post]).catch(
+    logAndGoOn("whether a post was removed at its place", none),
+  );
+  if (there.length === 0) {
+    const kept = { kept: true, fileId: post.file_id, place, down: [place] };
+    await tellTakeDownMoved(db, post.tenant_id, kept, { toOwner: false });
+    return;
+  }
+  const file = await findFileForWork(db, post.tenant_id, post.file_id).catch(
+    logAndGoOn("removed post's piece for its bell line", null),
+  );
+  // An ad made from the piece is still on (the content status review of 24 Nov 2026, B5 and D3): said, with where
+  // its one press is. Nothing here pauses it. A count that could not be read says nothing of an ad.
+  const adsOn = await countAdsOnShowingFile(db, post.tenant_id, {
+    fileId: post.file_id,
+    now: new Date().toISOString(),
+  }).catch(logAndGoOn("whether a removed post's ad is still on", 0));
+  const says = STANDING_WORDS.removed.bell;
+  await recordNotification(
+    post.tenant_id,
+    {
+      kind: "post_down",
+      title: says.title(place, fileSaidOf(file?.name ?? "")),
+      body: adsOn > 0 ? says.bodyWithAd(place) : says.body(place),
+      route: takeDownBellRouteOf(post.file_id),
+      about: { type: "file", id: post.file_id },
+    },
+    db,
+  );
 }

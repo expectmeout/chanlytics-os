@@ -6,18 +6,26 @@
  * changes something reads the piece and the page again.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { SECOND_MS, TAKE_DOWN_WORDS, fileSaidOf, type PostDto } from "@chanlytics/contracts";
+import {
+  POST_PLACE_SAID,
+  SECOND_MS,
+  TAKE_DOWN_WORDS,
+  fileSaidOf,
+  type PieceTakeDownDto,
+  type PostDto,
+} from "@chanlytics/contracts";
 import {
   goesLeadOf,
   goesLinesOf,
   goesPillOf,
+  removedPlaceOf,
   takeDownOffered,
   takeDownStandsOf,
   type GoesAct,
   type GoesLine,
 } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
-import { keepPostUp, markDeletedByHand, pressPieceVersion } from "@/bridge/verbs/pieces";
+import { keepPostUp, markDeletedByHand, pausePieceAd, pressPieceVersion, sayPostIsThere } from "@/bridge/verbs/pieces";
 import { versionStandingOf, type VersionStanding } from "./model/version";
 import type { PieceStanding } from "./model/standing";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
@@ -155,6 +163,8 @@ export function usePieceStanding(
     deleted: (postId) => void run(markDeletedByHand(file.id, postId)),
     // Keep it up acts at once, with no card: nothing changes at the place, and the line says who kept it (Piece 34).
     keep: (postId) => void run(keepPostUp(file.id, postId)),
+    // The owner's word on a post its place never confirmed: it moves at once, and the piece reads where it stands.
+    seen: (postId, there) => void run(sayPostIsThere(file.id, postId, there)),
   };
   // While a take-down is open nothing new is offered to go up; while a place is yet to answer, the press is not offered twice.
   const down = takeDownStandsOf(record.takeDown);
@@ -205,6 +215,32 @@ export function usePieceStanding(
       made: aiMade,
     },
     version: { ...version, instead: (fileId) => void run(pressPieceVersion(fileId, "approve")) },
+    // The ad is paused only by this press, never by itself: a removal at its place was not the owner's press here.
+    ad: pieceAdHandsOf({ aiMade, may, busy, posts, takeDown: record.takeDown }, (ad) =>
+      run(pausePieceAd(ad.id, ad.version)),
+    ),
+  };
+}
+
+/**
+ * What an ad made from the piece is drawn by: the place a post of the piece was removed at itself, by its name, and
+ * the press that pauses an ad, for someone who may. Nothing is said of a file AI did not make.
+ */
+function pieceAdHandsOf(
+  piece: {
+    aiMade: boolean;
+    may: boolean;
+    busy: boolean;
+    posts: readonly PostDto[];
+    takeDown: PieceTakeDownDto | null;
+  },
+  pause: NonNullable<PieceStanding["ad"]["pause"]>,
+): PieceStanding["ad"] {
+  const removedOn = piece.aiMade ? removedPlaceOf(piece.posts, piece.takeDown, Date.now()) : null;
+  return {
+    removedOn: removedOn ? POST_PLACE_SAID[removedOn] : null,
+    busy: piece.busy,
+    pause: piece.may ? pause : null,
   };
 }
 

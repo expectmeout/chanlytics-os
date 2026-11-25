@@ -1,7 +1,8 @@
 /**
  * A post comes down, on a real database (00682; the content loop PRD's 5.3, 8.3 and 15.1), with real sessions: the owner's
  * press asks down what is up and lets go what waited, as one remediation with its job; a post is taken_down only once the
- * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. A viewer may do
+ * place's answer is kept, and kept once; "I deleted it" makes the action wait again and asks the place. The press's walk
+ * is posts_take_down_start, which leaves a story that has run its day (post_story_ended, 00716). A viewer may do
  * none of it, and another workspace reads none of it. And "Keep it up" (00689): a post a place left to its owner stays
  * up on the owner's word, with who and when, the bell's line for it closes, and nothing is asked of the place again.
  * That line is about a piece at a place (00698): with a post and a story both left to the owner, it ends only with

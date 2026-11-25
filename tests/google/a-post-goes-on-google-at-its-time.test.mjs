@@ -12,8 +12,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { FILE_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
-import { POST_BELL } from "../../apps/edge/lib/files/post-bell.ts";
+import { FILE_WORDS, ON_INSTAGRAM, STANDING_WORDS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
@@ -239,7 +238,7 @@ test("at its time it goes up as the owner, with its words and the picture drawn 
   assert.equal(w.tables.publish_attempts[0].outcome, "ok");
   const [rang] = w.tables.notifications;
   assert.equal(rang.kind, "post_up");
-  assert.equal(rang.title, POST_BELL.up("google"));
+  assert.equal(rang.title, STANDING_WORDS.up.bell.title("google"));
   assert.equal(rang.route, `campaigns/content:${FILE}`, "the row opens the piece");
 });
 

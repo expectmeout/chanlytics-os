@@ -7,10 +7,10 @@
  * guesses it. Pure: the posts, its take-down, a clock and now are handed in.
  */
 import {
-  ON_FACEBOOK,
   ON_INSTAGRAM,
   POST_PLACE_SAID,
   POST_PULLABLE,
+  STANDING_WORDS,
   TAKE_DOWN_WORDS,
   pieceStandingOf,
   placementSaid,
@@ -43,7 +43,10 @@ export type GoesAct =
   | { is: "open_place"; says: string; href: string }
   | { is: "deleted"; postId: string }
   /** "Keep it up", of a post a place left to its owner to delete: it stays, on their word. */
-  | { is: "keep"; postId: string };
+  | { is: "keep"; postId: string }
+  /** "It's there" and "It's not there", of a post its place never confirmed: its owner looked, and says which. */
+  | { is: "there"; postId: string }
+  | { is: "not_there"; postId: string };
 
 /** One placement's line. */
 export interface GoesLine {
@@ -67,20 +70,9 @@ export const GOES_WORDS = {
   title: "Where it goes",
   /** The line to AI at the piece's foot. */
   tell: "Tell AI what to change",
-  notYet: "Not yet",
   hereToo: "Post it here too",
-  timed: (when: string) => `Goes up ${when}`,
   changeTime: "Change time",
   dontPost: "Don't post",
-  gettingReady: (place: PostPlace) => `${POST_PLACE_SAID[place]} is getting it ready`,
-  posting: (place: PostPlace) => `Posting to ${POST_PLACE_SAID[place]}`,
-  checking: (place: PostPlace) => `Checking with ${POST_PLACE_SAID[place]}`,
-  checkingNote: (place: PostPlace) =>
-    `No answer came back, so Chanlytics is asking ${POST_PLACE_SAID[place]} what it has. It won't post twice.`,
-  up: (place: PostPlace, when: string | null) =>
-    when ? `On ${POST_PLACE_SAID[place]} · ${when}` : `On ${POST_PLACE_SAID[place]}`,
-  storyEnded: (place: PostPlace, when: string | null) =>
-    when ? `Was on ${POST_PLACE_SAID[place]} for a day · ${when}` : `Was on ${POST_PLACE_SAID[place]} for a day`,
   seeIt: "See it",
   changed: "Changed since you approved it",
   lookAgain: "Look again",
@@ -90,12 +82,10 @@ export const GOES_WORDS = {
   needsConnecting: (place: PostPlace) => `${POST_PLACE_SAID[place]} needs connecting again`,
   connect: "Connect",
   paused: "AI is paused · nothing posts",
-  didnt: (reason: string | null) => (reason ? `Didn't post · ${reason}` : "Didn't post"),
   tryAgain: "Try again",
   shorten: "Shorten it",
   makeAgain: "Make it again",
   dismiss: "Dismiss",
-  lateNote: "It was fixed after the day it was about.",
   /** What the line to AI is begun with. */
   ask: {
     stillSo: "It still stands: ",
@@ -104,10 +94,12 @@ export const GOES_WORDS = {
   /** The piece's one status, where every placement says the same or one leads. */
   pill: {
     changed: "Changed · approve it again",
-    didnt: (place: PostPlace) => `Didn't post on ${POST_PLACE_SAID[place]}`,
     places: (words: string, n: number) => (n > 1 ? `${words} · ${n} places` : words),
   },
 } as const;
+
+/** Where a post stands, in words: the one table every screen reads (contracts standing-words.ts), here its `line` column. */
+const SAYS = STANDING_WORDS;
 
 /** What the lines read beside the posts. */
 interface GoesKnown {
@@ -180,10 +172,10 @@ function upSaid(post: PostDto, known: GoesKnown): Said {
   if (left?.finished_at)
     return lineSaysOf(TAKE_DOWN_WORDS.keptUp(left.left_up_by, known.when(left.finished_at)), "ok", {
       acts: seeOf(post),
-      status: GOES_WORDS.up(post.place, null),
+      status: SAYS.up.line(post.place, null),
     });
   const at = post.published_at ? known.when(post.published_at) : null;
-  return lineSaysOf(GOES_WORDS.up(post.place, at), "ok", { acts: seeOf(post) });
+  return lineSaysOf(SAYS.up.line(post.place, at), "ok", { acts: seeOf(post) });
 }
 
 /** A post set for its time: when it goes, with Change time and Don't post while each still can be. */
@@ -196,22 +188,42 @@ function waitingSaid(post: PostDto, known: GoesKnown): Said {
           : []),
       ]
     : [];
-  return lineSaysOf(GOES_WORDS.timed(known.when(post.scheduled_for)), "", { acts });
+  return lineSaysOf(SAYS.waiting.line(known.when(post.scheduled_for)), "", { acts });
 }
 
 /** A post going up now, step by step: its place is getting it ready, or it is being posted and not yet seen there. */
 const goingUpSaid = (post: PostDto): Said =>
   post.status === "preparing"
-    ? lineSaysOf(GOES_WORDS.gettingReady(post.place), "live", { moving: true })
-    : lineSaysOf(GOES_WORDS.posting(post.place), "live", { moving: true });
+    ? lineSaysOf(SAYS.going_up.lineGettingReady(post.place), "live", { moving: true })
+    : lineSaysOf(SAYS.going_up.line(post.place), "live", { moving: true });
 
 /**
- * A post its place took and was never seen holding, past the time that read takes: nobody can say it went up, and the
- * line says so in the words a send with no answer always had.
+ * The place a post of the piece was removed at itself, by its owner there or by the place, or null: what an ad made
+ * from the piece says while it still runs (contracts ads/on-piece.ts). The first in the order places are listed.
  */
-const unconfirmedSaid = (post: PostDto): Said =>
-  lineSaysOf(post.place === "facebook" ? ON_FACEBOOK.refused.unknown : ON_INSTAGRAM.refused.unknown, "you", {
-    acts: seeOf(post),
+export function removedPlaceOf(
+  posts: readonly PostDto[],
+  takeDown: PieceTakeDownDto | null,
+  nowMs: number,
+): PostPlace | null {
+  const { placements } = pieceStandingOf(posts, takeDown, nowMs);
+  return placements.find((at) => at.standing.is === "came_down" && at.standing.there)?.place ?? null;
+}
+
+/**
+ * A post its place took and was never seen holding, past the time that read takes: nobody here can say it went up. The
+ * line says so in its tile's words, and asks its owner, who can look: two presses, the first the one that leads (the
+ * content status review of 24 Nov 2026, D5). A reader is asked nothing.
+ */
+const unconfirmedSaid = (post: PostDto, known: GoesKnown): Said =>
+  lineSaysOf(SAYS.unconfirmed.line(post.place), "you", {
+    note: SAYS.unconfirmed.note(post.place),
+    acts: [
+      ...(known.may
+        ? [{ is: "there", postId: post.id } satisfies GoesAct, { is: "not_there", postId: post.id } satisfies GoesAct]
+        : []),
+      ...seeOf(post),
+    ],
   });
 
 /** A post the recheck held: what stands in the way, and its one fix. */
@@ -225,7 +237,7 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
   if (heldWhy === "disconnected" || heldWhy === "line_off" || heldWhy === "place")
     return lineSaysOf(GOES_WORDS.needsConnecting(post.place), "you", { acts: mine([{ is: "connect" }]) });
   if (heldWhy === "stopped") return lineSaysOf(GOES_WORDS.paused, "you");
-  const reason = post.held_reason ?? ON_INSTAGRAM.status.held;
+  const reason = post.held_reason ?? ON_INSTAGRAM.heldNoReason;
   if (heldWhy === "reason_passed")
     return lineSaysOf(reason, "you", {
       acts: mine([leave, words, { is: "say_ai", hint: GOES_WORDS.stillSo, begin: GOES_WORDS.ask.stillSo }]),
@@ -244,23 +256,25 @@ function failedSaid(post: PostDto, known: GoesKnown): Said {
       : stoppedWhy === ON_INSTAGRAM.refused.video || stoppedWhy === ON_INSTAGRAM.refused.picture
         ? { is: "tell_ai", says: GOES_WORDS.makeAgain, prompt: GOES_WORDS.ask.again }
         : { is: "approve", says: GOES_WORDS.tryAgain };
-  return lineSaysOf(GOES_WORDS.didnt(stoppedWhy), "you", {
+  return lineSaysOf(SAYS.stopped.line(stoppedWhy), "you", {
     acts: known.may ? [fix, { is: "pull", postId: post.id, says: GOES_WORDS.dismiss }] : [],
   });
 }
 
-/** A post that never went, or is no longer there: what its standing says, in grey. */
+/**
+ * A post that never went, or is no longer there: what its standing says, in grey. One removed at its place itself says
+ * so, with when it was noticed, and that Chanlytics did not take it down (the review of 24 Nov 2026, A12).
+ */
 function goneSaid(post: PostDto, standing: PlacementStanding, known: GoesKnown): Said | null {
+  const when = "at" in standing && standing.at ? known.when(standing.at) : null;
   if (standing.is === "came_down")
-    return lineSaysOf(TAKE_DOWN_WORDS.cameDown(standing.at ? known.when(standing.at) : null), "gone");
-  if (standing.is === "ended")
-    return lineSaysOf(
-      GOES_WORDS.storyEnded(post.place, post.published_at ? known.when(post.published_at) : null),
-      "gone",
-    );
+    return standing.there
+      ? lineSaysOf(SAYS.removed.line(post.place, when), "gone", { note: SAYS.removed.note(post.place) })
+      : lineSaysOf(SAYS.came_down.line(when), "gone");
+  if (standing.is === "ended") return lineSaysOf(SAYS.ended.line(when), "gone");
   // Let go because its day went by: said, since it never went. One the owner let go says nothing: the place is free again.
   if (standing.is === "let_go" && standing.late && post.held_reason)
-    return lineSaysOf(post.held_reason.replace(/\.$/u, "").replace(". ", " · "), "gone", { note: GOES_WORDS.lateNote });
+    return lineSaysOf(SAYS.let_go.line(post.held_reason), "gone", { note: SAYS.let_go.note });
   return null;
 }
 
@@ -273,13 +287,13 @@ function postSaid({ post, standing }: PostStands, known: GoesKnown): Said | null
   const down = standingIsOut(standing) ? comingDownSaid(post, known) : null;
   if (down) return down;
   if (standing.is === "up") return upSaid(post, known);
-  if (standing.is === "unconfirmed") return unconfirmedSaid(post);
+  if (standing.is === "unconfirmed") return unconfirmedSaid(post, known);
   if (standing.is === "stopped") return post.status === "held" ? heldSaid(post, known) : failedSaid(post, known);
   if (standing.is === "waiting") return waitingSaid(post, known);
   if (standing.is === "checking")
-    return lineSaysOf(GOES_WORDS.checking(post.place), "live", {
+    return lineSaysOf(SAYS.checking.line(post.place), "live", {
       moving: true,
-      note: GOES_WORDS.checkingNote(post.place),
+      note: SAYS.checking.note(post.place),
     });
   if (standing.is === "going_up") return goingUpSaid(post);
   return goneSaid(post, standing, known);
@@ -320,8 +334,8 @@ export function goesPillOf(
   if (!lead) return null;
   if (lead.said === GOES_WORDS.changed) return { said: GOES_WORDS.pill.changed, tone: "you", moving: false };
   // A refusal's reason is its line's to say: the pill says where it did not go.
-  if (lead.said.startsWith(GOES_WORDS.didnt(null)))
-    return { said: GOES_WORDS.pill.didnt(lead.place), tone: "you", moving: false };
+  if (lead.said.startsWith(SAYS.stopped.line(null)))
+    return { said: SAYS.stopped.status(lead.place), tone: "you", moving: false };
   // A line whose words are its own to say (a post kept up) gives the status the place it stands at.
   const statusOf = (line: GoesLine): string => line.status ?? line.said;
   const same = lines.filter((line) => line.tone === lead.tone && statusOf(line) === statusOf(lead)).length;

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
 import { moveFilePost } from "@/server/posts/instagram";
+import { sayWhetherPostIsThere } from "@/server/posts/seen";
 import { sayOfPostByHand, takePieceDown } from "@/server/posts/take-down";
 
 /**
@@ -20,7 +21,12 @@ import { sayOfPostByHand, takePieceDown } from "@/server/posts/take-down";
  * stays up on the owner's word, the reminder ends, and nothing is asked of the place until Take down is pressed again.
  * Answers `{ asking, left_up }`: where the post's take-down now stands.
  *
- * The handles are in src/server/posts/instagram.ts and src/server/posts/take-down.ts.
+ * POST — `{ post_id, there }`: the owner's word on a post its place took and never confirmed (Instagram or a Page was
+ * never read holding it, so nobody here can say it is up). `there: true` is "It's there": it is up from now. `there:
+ * false` is "It's not there": it never went up, and is a post that did not go, to post again. Answers `{ moved }`,
+ * false where the post was confirmed or moved meanwhile, which the page then reads.
+ *
+ * The handles are in src/server/posts/instagram.ts, src/server/posts/take-down.ts and src/server/posts/seen.ts.
  */
 export const PATCH = write({
   scope: fileScope,
@@ -35,6 +41,14 @@ export const DELETE = write({
   role: "partner",
   rate: "settings",
   handle: ({ ctx, member, row }) => takePieceDown(ctx, member, row),
+});
+
+export const POST = write({
+  scope: fileScope,
+  role: "partner",
+  rate: "settings",
+  input: z.strictObject({ post_id: z.uuid(), there: z.boolean() }),
+  handle: ({ ctx, input, member, row }) => sayWhetherPostIsThere(ctx, member, row, input),
 });
 
 export const PUT = write({

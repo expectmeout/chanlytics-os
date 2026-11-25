@@ -13,6 +13,7 @@ import {
   POST_KINDS,
   POST_PLACES,
   POST_SOON_MS,
+  clockWhen,
   POST_STATUSES,
   WEEK_MS,
   fileCursorOf,
@@ -27,6 +28,9 @@ import {
   contentDownOf,
   contentIdeaFilesOf,
   contentPieceMarkOf,
+  linkPlaceSaid,
+  pieceStandsSaid,
+  placementStandingOf,
   videoIsSavedOnly,
   type ContentDownDto,
   type ContentLineDto,
@@ -51,10 +55,12 @@ import {
   listFilesOnShelf,
   listPiecesStanding,
   listPostsOfFiles,
+  listPostsRemovedThere,
   readVersionsOfFiles,
   findPostWaitingOnVersion,
   listPostsStopped,
   listPostsTimed,
+  listPostsUnseen,
   listPostsUp,
   listTakeDownsOpen,
   type MemberFilePostRow,
@@ -68,8 +74,30 @@ import { readContentSources } from "../files/found";
 import { readInstagramPostable } from "../connections/meta";
 import { logAndGoOn } from "@chanlytics/log";
 
+/** A member's post with what a second read said of it: whether its place removed it itself (withRemovedThere). */
+export type MemberPostRead = MemberPostRow & { removed_there?: boolean };
+
+/**
+ * These posts, each marked where its place removed it itself (the content status review of 24 Nov 2026, A12): it came
+ * down, and no take-down from here asked it down. A second read only where one of them came down, which is rare; a
+ * failed one marks none, and the post says "Taken down" as it did before, since a page is not lost to a word.
+ */
+export async function withRemovedThere<Row extends Pick<MemberPostRow, "id" | "place" | "status">>(
+  db: Db,
+  tenantId: TenantId,
+  rows: readonly Row[],
+): Promise<(Row & { removed_there?: boolean })[]> {
+  const down = rows.filter((row) => row.status === "taken_down");
+  if (down.length === 0) return [...rows];
+  const none: string[] = [];
+  const there = new Set(
+    await listPostsRemovedThere(db, tenantId, down).catch(logAndGoOn("posts removed at their place", none)),
+  );
+  return rows.map((row) => (there.has(row.id) ? { ...row, removed_there: true } : row));
+}
+
 /** A post as a page reads it: a platform's refusal in the owner's words, never its code, and never its id there. */
-export function postDtoOf(row: MemberPostRow): PostDto {
+export function postDtoOf(row: MemberPostRead): PostDto {
   const words = recordOrEmpty(row.error).words;
   return {
     id: row.id,
@@ -87,6 +115,8 @@ export function postDtoOf(row: MemberPostRow): PostDto {
     good_until: row.good_until,
     error: typeof words === "string" ? words : null,
     created_at: row.created_at,
+    updated_at: row.updated_at,
+    ...(row.removed_there ? { removed_there: true } : {}),
   };
 }
 
@@ -94,7 +124,7 @@ export function postDtoOf(row: MemberPostRow): PostDto {
 const isByHand = (row: Pick<MemberPostRow, "place">): boolean => row.place === "hand";
 
 /** A file's posts that a press sent, as a page reads them: one by hand is read apart (handPostOf). */
-export const sentPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
+export const sentPostsOf = (rows: readonly MemberPostRead[]): PostDto[] =>
   rows.filter((row) => !isByHand(row)).map(postDtoOf);
 
 /**
@@ -161,7 +191,37 @@ const placementKeyOf = (post: Pick<MemberFilePostRow, "file_id" | "place" | "kin
  * read from all those files' posts, newest first.
  */
 async function postsStillStopped(db: Db, tenantId: TenantId): Promise<MemberFilePostRow[]> {
-  const stopped = await listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX);
+  return stillSpeaking(db, tenantId, await listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX));
+}
+
+/** How far back Needs you looks for a post nobody could confirm: an older one still says so on its own piece. */
+const UNSEEN_DAYS = 30;
+
+/**
+ * What Needs you lists of posts, newest first: those that stopped, and those a place took and never confirmed, whose
+ * owner is asked whether each is there (the content status review of 24 Nov 2026, D5). Which of the unseen ones are
+ * past the time the read that looks for them takes is the one standing's to say (contracts placementStandingOf): a
+ * post still going up needs nobody.
+ */
+async function postsNeedingYou(db: Db, tenantId: TenantId, now: number): Promise<MemberFilePostRow[]> {
+  const [stopped, unseen] = await Promise.all([
+    listPostsStopped(db, tenantId, CONTENT_STOPPED_MAX),
+    listPostsUnseen(db, tenantId, {
+      since: new Date(now - UNSEEN_DAYS * DAY_MS).toISOString(),
+      limit: CONTENT_STOPPED_MAX,
+    }),
+  ]);
+  const unconfirmed = unseen.filter((row) => placementStandingOf(postDtoOf(row), null, now).is === "unconfirmed");
+  const newestFirst = [...stopped, ...unconfirmed].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return stillSpeaking(db, tenantId, newestFirst);
+}
+
+/** Of these posts, the ones still the newest at their file and placement, of pieces still there and in use. */
+async function stillSpeaking(
+  db: Db,
+  tenantId: TenantId,
+  stopped: readonly MemberFilePostRow[],
+): Promise<MemberFilePostRow[]> {
   if (stopped.length === 0) return [];
   const newest = new Map<string, string>();
   for (const post of await listPostsOfFiles(db, tenantId, [...new Set(stopped.map((p) => p.file_id))])) {
@@ -305,12 +365,13 @@ async function piecesOf(db: Db, tenantId: TenantId, all: readonly Parameters<typ
     all.filter((f) => f.kind === "video").map((f) => f.id),
   );
   const page = all.filter((f) => !versions.behind.has(f.id));
-  const rowsOf = new Map<string, MemberFilePostRow[]>();
-  for (const post of await listPostsOfFiles(
+  const posts = await listPostsOfFiles(
     db,
     tenantId,
     page.map((f) => f.id),
-  )) {
+  );
+  const rowsOf = new Map<string, (MemberFilePostRow & { removed_there?: boolean })[]>();
+  for (const post of await withRemovedThere(db, tenantId, posts)) {
     const held = rowsOf.get(post.file_id) ?? [];
     held.push(post);
     rowsOf.set(post.file_id, held);
@@ -326,6 +387,35 @@ async function piecesOf(db: Db, tenantId: TenantId, all: readonly Parameters<typ
     };
   });
 }
+
+/**
+ * Where each of these made pieces stands, as AI is told it (the content status review of 24 Nov 2026, B4): a clause a
+ * placement, from the same posts and the same one standing Made's tiles are drawn from (piecesOf, contracts
+ * pieceStandsSaid), so what AI says of a piece is what its tile says. One read of the pieces' posts, and one more only
+ * where one of them came down.
+ */
+export const piecesStandForAsk: Reader<
+  { files: readonly string[]; zone: string },
+  { stands: Record<string, string[]> }
+> = {
+  name: "piecesStandForAsk",
+  async read(rc, request) {
+    const db = rc.ctx.supabase;
+    const posts = await withRemovedThere(db, rc.tenantId, await listPostsOfFiles(db, rc.tenantId, request.files));
+    const nowMs = rc.now.getTime();
+    // A moment as the business's own clock says it: "today 6:00 PM", "tomorrow 10:00 AM", "Nov 21 · 5:19 PM".
+    const known = { nowMs, when: (iso: string) => clockWhen(Date.parse(iso), request.zone, nowMs) };
+    const stands = Object.fromEntries(
+      request.files.map((fileId) => {
+        const rows = posts.filter((post) => post.file_id === fileId);
+        const byHand = handPostOf(rows);
+        const piece = { posts: sentPostsOf(rows), ...(byHand ? { byHandWhere: linkPlaceSaid(byHand.link) } : {}) };
+        return [fileId, pieceStandsSaid(piece, known)];
+      }),
+    );
+    return { data: { stands }, rows: [], stamp: readerStamp() };
+  },
+};
 
 /** A page of a view's lines: what waits for its time, soonest first, or what is up, newest first. */
 async function linesPage(
@@ -481,7 +571,7 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
     const timedAfter = new Date(now + POST_SOON_MS).toISOString();
     const [standing, stopped] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, failedSince),
-      postsStillStopped(db, rc.tenantId),
+      postsNeedingYou(db, rc.tenantId, now),
     ]);
     const about = view === "all" ? (request.about?.trim() ?? "") : "";
     // All alone is found by its words; any other view reads as it is, whatever words were sent with it.

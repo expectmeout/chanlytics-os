@@ -1291,6 +1291,31 @@
     },
     {
       "kind": "unfed",
+      "why": "Whether a post that came down was asked down from here (00682 remediation_actions, read by listPostsRemovedThere, and only where a page holds a post that came down): Made's tiles and the Week's rows say Taken down, or Removed on Instagram where nobody asked. The feed tells no workspace of a take-down's actions. An action is written by the press that takes a piece down, which reads Content again, and is settled in the same door that moves its post; a post found gone at its place moves with no action at all. So the answer changes only as the post's own row does (00611 posts, unfed above), and is read with it: on a file's notice, and by the page asking again while a post moves.",
+      "reads": {
+        "content": [
+          "remediation_actions"
+        ],
+        "content_week": [
+          "remediation_actions"
+        ]
+      },
+      "heardWith": {
+        "content": [
+          "files"
+        ],
+        "content_week": [
+          "files"
+        ]
+      },
+      "rereadAfter": {
+        "content": [
+          "DELETE files/[id]/posts"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The Week's own records (00706: content_plans, plan_slots, owner_claims, content_goals) and what its read stands on beside them (the workspace's config with its content lines, its row's pause), none of which the feed tells a workspace of. The plan job's draft and the approval's making are told to no page: the Week asks again itself every five seconds while either moves (campaigns/content/week/week.tsx), and every press of the Week and of Settings › Content reads it again (bridge/refresh-map.ts weekIfDrawn).",
       "reads": {
         "content_week": [

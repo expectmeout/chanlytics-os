@@ -288,7 +288,7 @@ export function PieceResultLine({
   down: boolean;
 }) {
   const { data } = usePieceResults(fileId, upPostId !== null);
-  const parts = upPostId && data ? pieceResultLineOf(data, { down }) : null;
+  const parts = upPostId && data ? pieceResultLineOf(data, { down, nowMs: Date.now() }) : null;
   return parts ? <ResultLine parts={parts} /> : null;
 }
 
@@ -332,7 +332,7 @@ export function PieceResults({
   const titleId = useId();
   const { data, again } = held;
   if (!upPostId || !data) return null;
-  const shown = pieceResultsSaid(data, viewerClockOf().zone);
+  const shown = pieceResultsSaid(data, viewerClockOf().zone, Date.now());
   const how = shown.howItDid;
   const brought = shown.whatItBrought;
   const people = broughtApartOf(data, brought);

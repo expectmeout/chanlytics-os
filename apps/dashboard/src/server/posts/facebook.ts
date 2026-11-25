@@ -22,10 +22,10 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
-import type { FileMemberRow, MemberPostRow } from "@chanlytics/db/files";
+import type { FileMemberRow } from "@chanlytics/db/files";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { readMetaSwitch } from "@/server/connections/meta";
-import { postDtoOf } from "@/server/readers/content";
+import { postDtoOf, type MemberPostRead } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -43,7 +43,7 @@ export async function readFacebookPostable(tenantId: TenantId): Promise<Instagra
 }
 
 /** A file's posts on Facebook, newest first, of the file's posts read under the member's session. */
-export const facebookPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
+export const facebookPostsOf = (rows: readonly MemberPostRead[]): PostDto[] =>
   rows.filter((r) => r.place === "facebook").map(postDtoOf);
 
 /** What a press on Facebook carries: how it goes, its words, its time, and what AI's card said its words are about. */

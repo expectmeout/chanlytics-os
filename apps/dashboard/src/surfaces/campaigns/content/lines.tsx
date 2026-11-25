@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import {
   CONTENT_WORDS as W,
+  STANDING_WORDS,
   contentMakingSaid,
   contentMarkSaid,
   contentMarkToneOf,
@@ -21,6 +22,7 @@ import {
   type ContentMakingDto,
   type ContentPageDto,
   type FileDto,
+  type PostDto,
 } from "@chanlytics/contracts";
 import { knownZone, pageClock } from "@/bridge/zone";
 import { askAbout } from "../../frame-verbs";
@@ -244,6 +246,15 @@ export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen
 }
 
 /**
+ * Why a post needs its owner, under its piece's name: it stopped, with why; or its place took it and never confirmed
+ * it, which only a post still said to be posted can be (the server lists no other).
+ */
+const needsSaidOf = (post: PostDto): string =>
+  post.status === "published"
+    ? STANDING_WORDS.unconfirmed.tile(post.place)
+    : STANDING_WORDS.stopped.line(postStoppedWhyOf(post) ?? W.piece.place[post.place]);
+
+/**
  * What needs the owner, as lines: each post that stopped, with why, then each video that could not be made. Needs you's view
  * draws them, and All's Needs you group over the rest (body.tsx MadeGroups): one drawing, so the two never differ.
  */
@@ -264,7 +275,7 @@ export function NeedsRows({
         <Line
           key={line.post.id}
           line={line}
-          sub={W.views.didntPost(postStoppedWhyOf(line.post) ?? W.piece.place[line.post.place])}
+          sub={needsSaidOf(line.post)}
           subNeeds
           end={null}
           open={line.file.id === openId}
@@ -371,7 +382,7 @@ export function ContentLines({
           <Line
             key={line.post.id}
             line={line}
-            sub={postLineEnded(line, now) ? W.views.upEnded(upLineOf(line)) : upLineOf(line)}
+            sub={postLineEnded(line, now) ? STANDING_WORDS.ended.posted(upLineOf(line)) : upLineOf(line)}
             end={null}
             door={
               line.post.permalink && !postLineEnded(line, now) ? (

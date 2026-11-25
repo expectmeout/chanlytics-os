@@ -82,7 +82,15 @@ beforeEach(() => {
 });
 
 /** A workspace with one post up on Instagram, three days on, and the Meta link's numbers line on. */
-function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights = true, bell = [] } = {}) {
+function world({
+  kind = "picture",
+  upFor = 3 * DAY_MS,
+  takeDown = null,
+  insights = true,
+  bell = [],
+  seen = true,
+  ads = null,
+} = {}) {
   const now = new Date().toISOString();
   const up = new Date(Date.now() - upFor).toISOString();
   const tables = {
@@ -143,7 +151,8 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
         permalink: "https://www.instagram.com/p/abc/",
         published_at: up,
         error: null,
-        verified_at: up,
+        // Seen on the account when it went up, unless a test says Instagram took it and was never read holding it.
+        verified_at: seen ? up : null,
         account_id: ACCOUNT,
         created_at: up,
         updated_at: up,
@@ -171,6 +180,8 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
     jobs: [],
     // What post_observations_keep was handed, each read as one call.
     kept: [],
+    // The ads made here, where a test has any: a world without the table reads as no ad known.
+    ...(ads ? { ads } : {}),
   };
   const post = () => tables.posts[0];
   const db = fakeDb(
@@ -183,10 +194,13 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
         return args.p_rows.length;
       },
       // The door as 00611 writes it: moved only from where it stood, so two runs never both move it.
-      post_moved: ({ p_post_id, p_from, p_to }) => {
+      post_moved: ({ p_post_id, p_from, p_to, p_patch = {} }) => {
         const row = tables.posts.find((p) => p.id === p_post_id);
         if (!row || !p_from.includes(row.status)) return false;
         Object.assign(row, { status: p_to, held_reason: null, held_why: null, updated_at: new Date().toISOString() });
+        // What the patch names is kept, the rest stands (00681).
+        if (p_patch.verified_at) row.verified_at = p_patch.verified_at;
+        if ("error" in p_patch) row.error = p_patch.error;
         return true;
       },
     },
@@ -204,7 +218,7 @@ function world({ kind = "picture", upFor = 3 * DAY_MS, takeDown = null, insights
 /** Each read kept: its step, and how each number it asked stood. */
 const keptOf = (w) => w.tables.kept.map((k) => [k.p_step, [...new Set(k.p_rows.map((r) => r.availability))].sort()]);
 
-test("removed on Instagram: the account reads without it, so it is taken down here and its owner told once", async () => {
+test("removed on Instagram: the account reads without it, so it is down here and its owner told once, in its own words", async () => {
   meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
   meta[`GET /${MEDIA}`] = BY_ID_GONE;
   meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
@@ -213,12 +227,92 @@ test("removed on Instagram: the account reads without it, so it is taken down he
   assert.deepEqual(calls, [`GET /${MEDIA}/insights`, `GET /${MEDIA}`, `GET /${ACCOUNT}/media`]);
   assert.equal(w.post().status, "taken_down");
   assert.deepEqual(keptOf(w), [["3d", ["failed", "unsupported"]]], "the read is kept as it came, as before");
-  assert.deepEqual(w.bell(), [["post_down", "Taken down · The finish", "From Instagram", false]]);
+  // Nobody asked it down from here: the line says where it was removed, and that Chanlytics did not do it (the review
+  // of 24 Nov 2026, A12). Never "Taken down", which is the owner's own press.
+  assert.deepEqual(w.bell(), [
+    [
+      "post_down",
+      "Removed on Instagram · The finish",
+      "Chanlytics didn't take it down. It was deleted on Instagram itself.",
+      false,
+    ],
+  ]);
   // Asked again (a job run twice): a post taken down is read no more, and the bell is not rung a second time.
   calls.length = 0;
   assert.deepEqual(await w.run(), { skipped: "taken_down" });
   assert.deepEqual(calls, []);
   assert.equal(w.bell().length, 1);
+});
+
+test("removed on Instagram while an ad made from the piece is on: the bell says the ad still runs, and nothing pauses it", async () => {
+  // The review of 24 Nov 2026, B5 and D3.
+  meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
+  meta[`GET /${MEDIA}`] = BY_ID_GONE;
+  meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
+  const adOf = (id, over = {}) => ({
+    id,
+    tenant_id: T,
+    origin: "chanlytics",
+    status: "made",
+    intent: "on",
+    approved: { picture: FILE },
+    ends_at: null,
+    ...over,
+  });
+  const w = world({ ads: [adOf("ad-1")] });
+  await w.run();
+  assert.equal(w.post().status, "taken_down");
+  assert.deepEqual(w.bell(), [
+    [
+      "post_down",
+      "Removed on Instagram · The finish",
+      "Chanlytics didn't take it down. It was deleted on Instagram itself. Its ad is still running: open the piece to pause it.",
+      false,
+    ],
+  ]);
+  assert.equal(w.tables.ads[0].intent, "on", "the ad is the owner's to pause");
+  // An ad already paused, one that ended, one of another piece, and one made in Meta's own tools are not "still running".
+  const others = [
+    adOf("ad-2", { intent: "paused" }),
+    adOf("ad-3", { ends_at: new Date(Date.now() - DAY_MS).toISOString() }),
+    adOf("ad-4", { approved: { picture: "ffffffff-0000-4000-8000-000000000099" } }),
+    adOf("ad-5", { origin: "platform" }),
+    adOf("ad-6", { status: "sending" }),
+  ];
+  const quiet = world({ ads: others });
+  await quiet.run();
+  assert.equal(quiet.bell()[0][2], "Chanlytics didn't take it down. It was deleted on Instagram itself.");
+});
+
+test("never seen on Instagram, and not held there: it never went up, so it did not post, and no take-down is told", async () => {
+  // The review of 24 Nov 2026, A6: such a post stayed "posted" until this read, then turned into "Taken down" and rang
+  // a take-down for a post that was never up.
+  meta[`GET /${MEDIA}/insights`] = NUMBERS_GONE;
+  meta[`GET /${MEDIA}`] = BY_ID_GONE;
+  meta[`GET /${ACCOUNT}/media`] = LIST_WITHOUT_IT;
+  const w = world({ seen: false });
+  await w.run();
+  assert.equal(w.post().status, "failed", "a post that did not go: never taken down, since nothing was up");
+  assert.deepEqual(w.post().error, { code: null, subcode: null, words: "Instagram doesn't have it." });
+  assert.deepEqual(w.bell(), [["post_stopped", "The finish", "Didn't post · Instagram doesn't have it.", false]]);
+  // Asked again: it is no longer said to be posted, so nothing is read and nothing rings twice.
+  assert.deepEqual(await w.run(), { skipped: "failed" });
+  assert.equal(w.bell().length, 1);
+});
+
+test("never seen on Instagram, and its numbers come: it is there, says so from now, and nobody is asked", async () => {
+  meta[`GET /${MEDIA}/insights`] = NUMBERS;
+  const w = world({ seen: false });
+  await w.run();
+  assert.deepEqual(calls, [`GET /${MEDIA}/insights`], "the numbers are the proof: nothing more is asked");
+  assert.equal(w.post().status, "published");
+  assert.ok(w.post().verified_at, "seen, by the read of its numbers");
+  assert.deepEqual(w.bell(), []);
+  // One already seen is not written again.
+  const seen = world();
+  const first = seen.post().verified_at;
+  await seen.run();
+  assert.equal(seen.post().verified_at, first);
 });
 
 test("refused by its id, and the account's own list does not read: the connection failed, not the post", async () => {

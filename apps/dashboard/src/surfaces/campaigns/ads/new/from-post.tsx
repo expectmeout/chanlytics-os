@@ -62,7 +62,7 @@ export function FromPost({
     : post.kind === "story"
       ? NEW.from.story(since)
       : NEW.from.up(POSTED_ON[post.place], since);
-  const line = pieceResultLineOf(results, { down });
+  const line = pieceResultLineOf(results, { down, nowMs: Date.now() });
   return (
     <div className="ads-new-from" data-testid="ads-new-from">
       {picture.src ? (

@@ -12,6 +12,20 @@ export const takeDownPiece = (fileId: string) => api()("DELETE files/[id]/posts"
 export const markDeletedByHand = (fileId: string, postId: string) =>
   api()("PUT files/[id]/posts", { params: { id: fileId }, body: { post_id: postId } });
 
+/**
+ * "It's there" or "It's not there", of a post its place took and never confirmed: its owner looked, and says which. It
+ * is up from now, or it never went up and is posted again.
+ */
+export const sayPostIsThere = (fileId: string, postId: string, there: boolean) =>
+  api()("POST files/[id]/posts", { params: { id: fileId }, body: { post_id: postId, there } });
+
+/**
+ * An ad made from the piece, paused from the piece (decision 0050's pause, by its own door): the one press its line
+ * offers where the piece's post was removed at its place while the ad runs. The owner's, as every pause is.
+ */
+export const pausePieceAd = (adId: string, version: number) =>
+  api()("POST ads/[id]/pause", { params: { id: adId }, body: { version } });
+
 /** A post of the piece's one link, made on first ask (00699): it opens a chat carrying the post's code, or its booking page. */
 export const makePiecePostLink = (fileId: string, postId: string) =>
   api()("POST files/[id]/link", { params: { id: fileId }, body: { post_id: postId } });

@@ -290,6 +290,7 @@ export const ROUTES = {
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
   "POST files/[id]/link": { method: "POST", path: "/api/v1/files/[id]/link" },
+  "POST files/[id]/posts": { method: "POST", path: "/api/v1/files/[id]/posts" },
   "POST files/[id]/restore": { method: "POST", path: "/api/v1/files/[id]/restore" },
   "POST files/[id]/version": { method: "POST", path: "/api/v1/files/[id]/version" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
@@ -768,6 +769,7 @@ export type Routes = {
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
   "POST files/[id]/link": typeof import("../../app/api/v1/files/[id]/link/route").POST;
+  "POST files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").POST;
   "POST files/[id]/restore": typeof import("../../app/api/v1/files/[id]/restore/route").POST;
   "POST files/[id]/version": typeof import("../../app/api/v1/files/[id]/version/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;

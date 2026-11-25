@@ -9,6 +9,7 @@ import {
   CONNECTIONS_PAGE,
   CONTENT_SHEET_WORDS,
   CONTENT_WORDS,
+  STANDING_WORDS,
   instagramKindsFor,
   type InstagramPostKind,
   type PostPlace,
@@ -46,11 +47,11 @@ interface PlaceRowHands {
  */
 function placeSaidOf(at: PlaceStanding, clock: ViewerClock): string | null {
   // Why it stopped, where its post says: with no reason kept it says it stopped, never the place's name as the reason.
-  if (at.stands.is === "stuck" && at.stands.why) return CONTENT_WORDS.views.didntPost(at.stands.why);
+  if (at.stands.is === "stuck" && at.stands.why) return STANDING_WORDS.stopped.line(at.stands.why);
   // On Instagram, what waits is named, as the status row names it: a post up beside a story set for later is two things.
   if (at.stands.is === "timed" && at.kind && at.place === "instagram")
-    return CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[at.kind], clock.ahead(at.stands.at));
-  if (at.stands.is === "timed") return CONTENT_SHEET_WORDS.places.timed(clock.ahead(at.stands.at));
+    return STANDING_WORDS.waiting.status(at.kind, clock.ahead(at.stands.at));
+  if (at.stands.is === "timed") return STANDING_WORDS.waiting.line(clock.ahead(at.stands.at));
   if (at.stands.is !== "none") return viewerStandsSaid(at.stands, clock);
   return at.takes ? null : at.wont;
 }
@@ -158,7 +159,7 @@ function PlaceWaitsToo({ at, both, clock }: { at: PlaceStanding; both: LineHands
   if (!too) return null;
   const line =
     too.stands.is === "timed"
-      ? CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[too.kind], clock.ahead(too.stands.at))
+      ? STANDING_WORDS.waiting.status(too.kind, clock.ahead(too.stands.at))
       : viewerStandsSaid(too.stands, clock);
   const moves = both.may && too.stands.is === "timed" ? too.movable : null;
   const stops = both.may ? too.pull : null;

@@ -49,6 +49,9 @@ export const DB_PATHS = [
   "tests/table/goldens/leads-shown.json",
   // and the block the suites that read at volume run in, which never commits (leads/table/leads-at-volume.db.test.mjs)
   "tests/leads/table/_*.mjs",
+  // and the story-day rule's cases, which the database's rule is held to, case for case, beside the code's
+  // (content/places/a-story-s-day-is-one-rule.db.test.mjs, 00716)
+  "tests/content/places/_story-day-cases.mjs",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",

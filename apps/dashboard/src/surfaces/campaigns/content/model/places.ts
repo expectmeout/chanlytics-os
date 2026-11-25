@@ -6,9 +6,9 @@
  * are handed in.
  */
 import {
-  CONTENT_WORDS,
   POST_PLACES,
   POST_PULLABLE,
+  STANDING_WORDS,
   contentMarkOf,
   contentMarkSaid,
   contentMarkToneOf,
@@ -59,7 +59,7 @@ export function pieceStatusOf(posts: readonly PostDto[], clock: ViewerClock, now
   if (lead.is === "waiting")
     return {
       tone: "timed",
-      said: CONTENT_WORDS.piece.step.timed(CONTENT_WORDS.viewer.kinds[lead.at.kind], clock.ahead(lead.when)),
+      said: STANDING_WORDS.waiting.status(lead.at.kind, clock.ahead(lead.when)),
       pull: pullOf(lead.at.post),
     };
   return { tone: contentMarkToneOf(mark), said: sentence, pull: null };

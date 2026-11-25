@@ -1,7 +1,7 @@
 {
-  "rows": 197,
+  "rows": 198,
   "same": 9,
-  "differ": 188,
+  "differ": 189,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1448,6 +1448,12 @@
       "missing": {
         "content_week": "admin/content",
         "notifications": "every page",
+        "today": "inbox, today"
+      }
+    },
+    "POST files/[id]/posts": {
+      "changes": "posts UPDATE",
+      "missing": {
         "today": "inbox, today"
       }
     },

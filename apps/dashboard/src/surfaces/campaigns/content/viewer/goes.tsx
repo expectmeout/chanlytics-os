@@ -6,7 +6,7 @@
  * these (post-both-places.tsx). One thing moves: the ring of a line that mends itself.
  */
 import { useId, type ReactNode } from "react";
-import { CONNECTIONS_PAGE, TAKE_DOWN_WORDS, type PostPlace } from "@chanlytics/contracts";
+import { CONNECTIONS_PAGE, STANDING_WORDS, TAKE_DOWN_WORDS, type PostPlace } from "@chanlytics/contracts";
 import { GOES_WORDS, type GoesAct, type GoesLine } from "../model/goes";
 import { askAbout, routeDoor } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
@@ -36,6 +36,8 @@ export interface GoesPresses {
   deleted: (postId: string) => void;
   /** "Keep it up", of the same post: it stays, on the owner's word. */
   keep: (postId: string) => void;
+  /** "It's there" (true) or "It's not there", of a post its place never confirmed. */
+  seen: (postId: string, there: boolean) => void;
 }
 
 /** One press beside a line: quiet words the height of the line, or the small button of the line's one fix. */
@@ -86,6 +88,9 @@ function GoesActPress({ act, lead, on, at }: { act: GoesAct; lead: boolean; on: 
   if (act.is === "words") return press(act.says, on.words, "words");
   if (act.is === "deleted") return press(TAKE_DOWN_WORDS.deleted, () => on.deleted(act.postId), "deleted");
   if (act.is === "keep") return press(TAKE_DOWN_WORDS.keep, () => on.keep(act.postId), "keep");
+  if (act.is === "there") return press(STANDING_WORDS.unconfirmed.there, () => on.seen(act.postId, true), "there");
+  if (act.is === "not_there")
+    return press(STANDING_WORDS.unconfirmed.notThere, () => on.seen(act.postId, false), "not-there");
   if (act.is === "connect")
     return (
       <Button

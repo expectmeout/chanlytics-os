@@ -41,8 +41,11 @@ export type PlacementStanding =
   | { is: "up"; at: string | null }
   /** A story that ran its day and ended by itself: when it ended. */
   | { is: "ended"; at: string }
-  /** It came down, taken down from here or removed at its place: when, where its take-down kept that. */
-  | { is: "came_down"; at: string | null }
+  /**
+   * It came down: when, as its take-down kept it, else when its record moved. `there`: removed at its place itself (by
+   * its owner there, or by the place), with no take-down asked from here.
+   */
+  | { is: "came_down"; at: string | null; there: boolean }
   /** Held before its send, or refused by its place: it waits for its owner, with why where that was said. */
   | { is: "stopped"; why: string | null }
   /** Let go before it went: by its owner, or (`late`) because its day passed. */
@@ -61,15 +64,24 @@ export type StandingPost = Pick<
   | "held_reason"
   | "held_why"
   | "error"
+  | "updated_at"
+  | "removed_there"
 >;
+
+/**
+ * Whether a post its place took was never seen there. Google says a post is up as it takes it; Instagram's, and a
+ * Page's, is up only once the account was read holding it (`verified_at`), or its owner said it is there.
+ */
+export const postNeverSeen = (post: { place: string; verified_at: string | null }): boolean =>
+  post.place !== "google" && !post.verified_at;
 
 /** A post its place holds, or took: up, or sent and not yet seen there. */
 function upStandingOf(post: StandingPost, nowMs: number): PlacementStanding {
   const ends = storyEndsAt(post);
   if (ends !== null && storyRanItsDay(post, nowMs)) return { is: "ended", at: new Date(ends).toISOString() };
-  // Google says a post is up as it takes it. Instagram's, and a Page's, is up only once the account was read holding
-  // it, and until then it is still going up: no word between the two (the content loop PRD's 8.2).
-  if (post.place === "google" || post.verified_at) return { is: "up", at: post.published_at };
+  // Seen at its place, it is up. Until then it is still going up: no word between the two (the content loop PRD's
+  // 8.2); and past the time that read takes, nobody here can say, and its owner is asked.
+  if (!postNeverSeen(post)) return { is: "up", at: post.published_at };
   const sentMs = Date.parse(post.published_at ?? post.scheduled_for);
   return nowMs - sentMs < POST_SEEN_WAIT_MS
     ? { is: "going_up", sent: true }
@@ -86,7 +98,12 @@ export function placementStandingOf(
   nowMs: number,
 ): PlacementStanding {
   // Down is down, whatever a take-down still says: found gone at its place while one waited on its owner or the place.
-  if (post.status === "taken_down") return { is: "came_down", at: postCameDownAt(post, takeDown) };
+  if (post.status === "taken_down")
+    return {
+      is: "came_down",
+      at: postCameDownAt(post, takeDown) ?? post.updated_at ?? null,
+      there: post.removed_there === true,
+    };
   if (post.status === "pulled") return { is: "let_go", late: post.held_why === "late" };
   if (post.status === "held" || post.status === "failed") return { is: "stopped", why: postStoppedWhyOf(post) };
   if (post.status === "published") return upStandingOf(post, nowMs);

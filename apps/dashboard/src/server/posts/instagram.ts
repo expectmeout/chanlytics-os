@@ -15,15 +15,15 @@ import {
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
-import { listFilePosts, movePostTime, pullPost, type FileMemberRow, type MemberPostRow } from "@chanlytics/db/files";
+import { listFilePosts, movePostTime, pullPost, type FileMemberRow } from "@chanlytics/db/files";
 import { readInstagramPostable } from "@/server/connections/meta";
-import { postDtoOf } from "@/server/readers/content";
+import { postDtoOf, type MemberPostRead } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements, prepareApproval } from "./approve";
 
 /** A file's posts on Instagram, newest first, as the sheet shows them, of the file's posts read under the member's session. */
-export const instagramPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
+export const instagramPostsOf = (rows: readonly MemberPostRead[]): PostDto[] =>
   rows.filter((r) => r.place === "instagram").map(postDtoOf);
 
 /** What the press refuses before anything is read or written, in words: only a post or a video made here goes. */

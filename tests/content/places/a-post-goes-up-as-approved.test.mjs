@@ -190,6 +190,7 @@ function world({
           held_why: p_to === "held" || late ? p_patch.held_why : null,
         });
         for (const k of ["permalink", "external_id", "account_id", "verified_at"]) if (p_patch[k]) p[k] = p_patch[k];
+        if ("error" in p_patch) p.error = p_patch.error;
         // As the door does (00681): up on Instagram unseen, its job that asks the account for it is written with the move.
         if (p_to === "published" && p.place === "instagram" && !p.verified_at && p.external_id)
           tables.jobs.push({
@@ -351,15 +352,25 @@ test("a post that went up unseen is still posting, never on Instagram, and Insta
   assert.equal(w.post().permalink, "https://www.instagram.com/p/seen/");
   assert.equal(placementStandingOf(w.post(), null, Date.now()).is, "up", "on Instagram once it was seen there");
   assert.equal(calls.filter((c) => c.route === `POST /${ACCOUNT}/media_publish`).length, 1, "one send, ever");
-  // Gone from the account (its owner deleted it there): left as posted, never called seen.
+  // Not on the account at all: it never went up (the review of 24 Nov 2026, A6).
   meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];
   const gone = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });
   await postJobs(gone.db, quick).publish(job("post_publish"));
   meta[`GET /${MEDIA}`] = [400, { error: { message: "Object does not exist", code: 100, error_subcode: 33 } }];
   // Refused by its id proves nothing alone (Meta says the same of a post it may not show): the job comes back.
   await assert.rejects(postJobs(gone.db, quick).reconcile(again), /did not say whether it is up/);
-  // The account's own list reads, and the post is not on it: gone.
+  // The account's own list reads, and the post is not on it. A first look can be early: the job comes back, and the
+  // post still says it is going up.
   meta[`GET /${ACCOUNT}/media`] = [200, { data: [] }];
-  assert.deepEqual(await postJobs(gone.db, quick).reconcile(again), { skipped: "not_seen" });
+  await assert.rejects(postJobs(gone.db, quick).reconcile(again), /does not hold it yet/);
+  assert.equal(gone.post().status, "published");
+  // Its last try still finds none: it never went up. It is a post that did not go, in those words, never left as
+  // posted and never taken down, since nothing was up.
+  const last = { ...again, attempts: 3 };
+  assert.deepEqual(await postJobs(gone.db, quick).reconcile(last), { skipped: "not_seen" });
+  assert.equal(gone.post().status, "failed");
+  assert.deepEqual(gone.post().error, { code: null, subcode: null, words: "Instagram doesn't have it." });
   assert.equal(gone.post().verified_at, null);
+  assert.equal(placementStandingOf({ ...gone.post(), error: gone.post().error.words }, null, Date.now()).is, "stopped");
+  assert.equal(calls.filter((c) => c.route === `POST /${ACCOUNT}/media_publish`).length, 2, "one send a world, ever");
 });

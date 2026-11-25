@@ -139,7 +139,7 @@ what the script writes.
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/files/plans.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`post_observations`](#post_observations) | `packages/db/src/repositories/content/observations.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
-| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/posts-held.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
+| [`posts`](#posts) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/posts-held.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/waiting-posts.ts`, `packages/db/src/repositories/files/week-facts.ts` | on, 1 policy |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/auth/account.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
@@ -4164,7 +4164,7 @@ Foreign keys:
 
 One row per place a post goes (00611, decision 0121): the exact file approved, who approved it and when, its words there, when it goes and where it stands. Written only through its doors.
 
-- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/posts-held.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/week-facts.ts`
+- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/posts-held.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`, `packages/db/src/repositories/files/posts.ts`, `packages/db/src/repositories/files/take-down.ts`, `packages/db/src/repositories/files/versions.ts`, `packages/db/src/repositories/files/waiting-posts.ts`, `packages/db/src/repositories/files/week-facts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

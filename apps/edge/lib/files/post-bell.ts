@@ -4,16 +4,16 @@
  * the job's own line (today/notifications/feed.ts). Each row opens the piece in Campaigns › Content: one up in Made, one held
  * in Made's Needs you, where it says why.
  */
-import { POST_PLACE_SAID, SECOND_MS, contentRouteOf, fileSaidOf, type PostPlace } from "@chanlytics/contracts";
+import { SECOND_MS, contentRouteOf, fileSaidOf } from "@chanlytics/contracts";
 
 export const POST_BELL = {
   // The content canvas's bell (PhDoors "bell"): "Posted to Google" over the piece's name; a held one is the piece's name over
-  // "Didn't post · <why>", and its door says Try again (today/notifications/feed.ts). A piece that could not be read is
-  // named without its name (post-told.ts): a post up then says only where, and a held one is "Your post", never a blank row.
-  up: (place: PostPlace) => `Posted to ${POST_PLACE_SAID[place]}`,
+  // "Didn't post · <why>", and its door says Try again (today/notifications/feed.ts). Where a post stands is said in the
+  // one table's words (contracts STANDING_WORDS, its `bell` column); here is what a row says of the piece itself. A piece
+  // that could not be read is named without its name (post-told.ts): a post up then says only where, and a held one is
+  // "Your post", never a blank row.
   upBody: (name: string) => fileSaidOf(name),
   held: (name: string) => fileSaidOf(name) || "Your post",
-  heldBody: (reason: string) => (reason ? `Didn't post · ${reason}` : "Didn't post"),
 } as const;
 
 /** Where a take-down's row opens: the piece, in Made, at its list, where each place's line says what it answered. */

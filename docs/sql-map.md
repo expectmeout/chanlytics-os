@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 217 | 217 |
 | reader | 98 | 0 |
-| the server's | 465 | 395 |
+| the server's | 466 | 395 |
 | computed column | 3 | 0 |
 | trigger | 125 | 91 |
-| all | 908 | 703 |
+| all | 909 | 703 |
 
 ## Called by nothing
 
@@ -644,19 +644,20 @@ being read is dropped by a migration.
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
-| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00705; |
+| `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00705, 00716; |
 | `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00699): |
 | `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00699): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
 | `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00681, contracts renditionShapeOf): |
+| `post_story_ended` | the server's | the server | SQL `post_observations_due`, `posts_take_down_start` | Whether a story has run its day at p_at, now unless given (00716; |
 | `post_take_down_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00682; |
 | `post_take_down_by_hand` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00682; |
 | `post_take_down_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00689; |
 | `post_take_down_settle` | the server's | the server | code `packages/db/src/repositories/files/take-down.ts` | The take-down job's door (00682; |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `posts_read_due` | the server's | the server | code `packages/db/src/repositories/content/posts-held.ts` | The workspaces due their daily read of what their places hold (the content status review of 24 November 2026, piece 4): |
-| `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682; |
+| `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682, 00716; |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |
 | `preview_claim` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | Make it mine (0079): the signed-in caller claims a ready preview by its token. |

@@ -3,7 +3,6 @@
  * when a week is ready and when it asks for clips, Today's point, and the Week's head. A week is said as what it is ("A
  * reel and 2 posts"), never "4 pieces, 6 places"; a place is Instagram or Google.
  */
-import { ON_INSTAGRAM, POST_PLACE_SAID, type PostPlace } from "../posts";
 import { weekdayShortOf } from "./week";
 
 /** The days a week's posts go up on, first to last: "Tue to Fri", or one day alone. */
@@ -78,18 +77,12 @@ export const WEEK_WORDS = {
   connectGoogle: "Connect Google",
   plan: "Plan this week",
   add: "Add",
-  /** A row's line, as its creative stands. */
-  goesUp: (when: string) => `Goes up ${when}`,
+  /**
+   * A row's line, as its creative stands. Where its posts say where it stands, the words are the one table's
+   * (placements/standing-words.ts, its `week` column: "Goes up Tue 6:00 PM", "On Instagram · Tue", "Didn't post on
+   * Instagram · why"); here, what the Week alone says.
+   */
   waits: (when: string) => `Waits for you · was ${when}`,
-  upOn: (places: readonly PostPlace[], day: string) =>
-    `On ${[...new Set(places)].map((p) => POST_PLACE_SAID[p]).join(" and ")} · ${day}`,
-  didNotPost: (place: PostPlace, why: string) => `Didn't post on ${POST_PLACE_SAID[place]}${why ? ` · ${why}` : ""}`,
-  /** Sent, and its place never said it holds it (docs/words.md, a write that got no answer). */
-  unsure: (place: PostPlace) => `Couldn't confirm it's on ${POST_PLACE_SAID[place]}`,
-  /** Nothing of it is up, and nothing is on its way: it came down, its story ran its day, or its owner said not to post it. */
-  cameDown: ON_INSTAGRAM.status.taken_down,
-  storyEnded: "Story ended",
-  letGo: "Won't go up",
   making: "Being made",
   videoMaking: "Its video is being made",
   videoMade: (when: string) => `Made · approve it to go up ${when}`,

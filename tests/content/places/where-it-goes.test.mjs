@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_FACEBOOK, ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
@@ -64,12 +64,16 @@ test("up is said only once the account was seen holding it, and a story says whe
   );
   // Past the time that read takes, nobody can say it went up: said so, and the owner looks before posting it again.
   const never = one(post({ verified_at: null, published_at: ago(HOUR) }));
-  assert.equal(never.said, ON_INSTAGRAM.refused.unknown);
+  assert.equal(never.said, "Couldn't confirm it's on Instagram");
+  assert.equal(never.note, "Instagram never said it has this post. Look at the account, then say which.");
   assert.deepEqual([never.tone, never.moving], ["you", false]);
+  // Its owner can look, so its owner is asked (the review of 24 Nov 2026, D5); a reader is offered its door alone.
+  assert.deepEqual(acts(never), ["there", "not_there", "see"]);
+  assert.deepEqual(acts(one(post({ verified_at: null, published_at: ago(HOUR) }), { may: false })), ["see"]);
   const google = one(post({ place: "google", kind: "picture", verified_at: null }));
   assert.equal(google.said, "On Google · @17:00");
   const story = one(post({ kind: "story", published_at: ago(26 * HOUR) }));
-  assert.equal(story.said, "Was on Instagram for a day · @16:00");
+  assert.equal(story.said, "Story ended · @16:00");
   assert.equal(story.tone, "gone");
   assert.deepEqual(story.acts, []);
 });
@@ -291,7 +295,7 @@ test("Take down is offered only where something of the piece is up: never for a 
   const ended = post({ kind: "story", published_at: ago(25 * HOUR), verified_at: ago(25 * HOUR) });
   const live = post({ kind: "story", published_at: ago(2 * HOUR), verified_at: ago(2 * HOUR) });
   // The story's line already says it ended by itself, and a take-down asks nothing of it (00682): nothing to press.
-  assert.equal(one(ended).said, "Was on Instagram for a day · @17:00");
+  assert.equal(one(ended).said, "Story ended · @17:00");
   assert.equal(takeDownOffered([ended], NOW), false, "a story past its day is gone already");
   assert.equal(takeDownOffered([live], NOW), true, "a story still in its day is up");
   assert.equal(takeDownOffered([ended, post({ kind: "picture" })], NOW), true, "the post beside it is up");
@@ -311,5 +315,6 @@ test("a Page's post is said as Instagram's is: named with its kind, up only once
   const unseen = one(page({ verified_at: null, published_at: ago(MIN) }));
   assert.deepEqual([unseen.said, unseen.tone, unseen.moving], ["Posting to Facebook", "live", true]);
   const never = one(page({ verified_at: null, published_at: ago(HOUR) }));
-  assert.equal(never.said, ON_FACEBOOK.refused.unknown);
+  assert.equal(never.said, "Couldn't confirm it's on Facebook");
+  assert.equal(never.note, "Facebook never said it has this post. Look at the Page, then say which.");
 });

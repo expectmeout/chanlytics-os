@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 import {
   CONTENT_WORDS as W,
+  STANDING_WORDS,
   fileSaidOf,
   fileViewOf,
   type ContentLineDto,
@@ -77,7 +78,9 @@ const postedWhereColumn: DataColumn<PostRow, LinesCtx> = {
   ...whereColumn,
   cell: (row) => (
     <td key="where" className="cnv-cell">
-      {postLineEnded(row.line, Date.now()) ? W.views.whereEnded(placeSaid(row.line)) : placeSaid(row.line)}
+      {postLineEnded(row.line, Date.now())
+        ? STANDING_WORDS.ended.postedWhere(placeSaid(row.line))
+        : placeSaid(row.line)}
     </td>
   ),
 };

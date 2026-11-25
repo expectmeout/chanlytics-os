@@ -588,6 +588,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PATCH files/[id]/posts": postMoved,
   // A piece asked down (00682): what waited is let go at once, and its posts move as each place answers.
   "DELETE files/[id]/posts": postMoved,
+  // The owner's word on a post its place never confirmed: it is up, or it never went up, from this press on, on its
+  // tile and on the Week's row, where the Week is drawn beside Made.
+  "POST files/[id]/posts": () => [...weekIfDrawn(), ...postMoved()],
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],

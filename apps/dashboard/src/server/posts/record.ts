@@ -39,7 +39,7 @@ import { facebookPostsOf, readFacebookPostable } from "./facebook";
 import { fileMadeOf } from "./made-as";
 import { readPieceTakeDown } from "./take-down";
 import { log } from "@/server/shared/log";
-import { handPostOf, sentPostsOf } from "@/server/readers/content";
+import { handPostOf, sentPostsOf, withRemovedThere } from "@/server/readers/content";
 import { fileDtoOf } from "@/server/readers/files";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
@@ -56,7 +56,7 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   if (row.kind === "video") {
     const ours = row.source === "made";
     const piece = ours ? await findPieceOfVideo(ctx.supabase, member.tenantId, row.id) : null;
-    const [sound, plan, posts, can, page, version] = await Promise.all([
+    const [sound, plan, listed, can, page, version] = await Promise.all([
       readFileSound(ctx.supabase, row.id),
       ours ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
       // A made video's posts: its reel on Instagram (00681) and on a Page (pass 5), and the one its owner put up by hand;
@@ -70,6 +70,7 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
       ours ? readFacebookPostable(member.tenantId) : null,
       piece ? readVersions(ctx, member, piece) : null,
     ]);
+    const posts = await withRemovedThere(ctx.supabase, member.tenantId, listed);
     const drawnBy = recordOrNull(plan);
     return {
       file,
@@ -86,13 +87,14 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
     };
   }
   if (row.source !== "made") return { file, made: null, google: null, instagram: null };
-  const [kept, connection, posts, can, page] = await Promise.all([
+  const [kept, connection, listed, can, page] = await Promise.all([
     getFileMade(serviceDb(), member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
     listFilePosts(ctx.supabase, member.tenantId, row.id),
     readInstagramPostable(member.tenantId),
     readFacebookPostable(member.tenantId),
   ]);
+  const posts = await withRemovedThere(ctx.supabase, member.tenantId, listed);
   const google = { connected: !!connection?.location_name, posted: await onGoogle(member, row.id, posts) };
   const instagram = can === null ? null : { can, posts: instagramPostsOf(posts) };
   const facebook = page === null ? null : { can: page, posts: facebookPostsOf(posts) };
@@ -134,7 +136,8 @@ const waitingAt = (posts: readonly { id: string; status: string; revision?: numb
 
 /** A file's posts at every place, newest first, under the caller's RLS: what Ask's card to put a post up checks first. */
 export async function readFilePosts(ctx: RouteContext, tenantId: TenantId, fileId: string): Promise<PostDto[]> {
-  return sentPostsOf(await listFilePosts(ctx.supabase, tenantId, fileId));
+  const posts = await listFilePosts(ctx.supabase, tenantId, fileId);
+  return sentPostsOf(await withRemovedThere(ctx.supabase, tenantId, posts));
 }
 
 /**

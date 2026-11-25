@@ -5,8 +5,9 @@
  *
  * A piece can be up on Google and held on Instagram at once: each place keeps its own state, and the tile says the one
  * thing that matters most (the content canvas, "Every state a piece can be in"): what needs the owner, then what is
- * working, then what is done. That mark is placements/piece-mark.ts's, apart from these words: the frame reads this
- * module for a tab's name on every page, and carries none of the standing's rules with it.
+ * working, then what is done. That mark is placements/piece-mark.ts's, and the words for where a post stands are one
+ * table's (placements/standing-words.ts), apart from these: the frame reads this module for a tab's name on every
+ * page, and carries none of the standing's rules or words with it.
  */
 import type { ContentSourcesDto } from "./sources";
 import type { FileDto } from "../files/views";
@@ -193,30 +194,6 @@ export const CONTENT_WORDS = {
     /** The door to the Library while it is empty. */
     addDoor: (videos: boolean) => (videos ? "Add photos and clips" : "Add photos"),
   },
-  /** Where a piece stands, under its tile (the content canvas: a dot and a few words). */
-  mark: {
-    /** A piece that never went out. A video's too, where Instagram takes a reel from here. */
-    ready: "Ready to post",
-    /** A video's, where nothing takes a reel from here: its Save video leads, and it is posted from the phone. */
-    save: "Ready to save",
-    going: (place: PostPlace) => `Posting to ${POST_PLACE_SAID[place]}`,
-    /** "On Instagram · Monday": where it is, and the day the newest went up. */
-    posted: (places: readonly PostPlace[], day: string | null) =>
-      `On ${places.map((p) => POST_PLACE_SAID[p]).join(" and ")}${day ? ` · ${day}` : ""}`,
-    /** Said once: why is the place's row in its sheet (Post it), where it is posted again or let go. */
-    stuck: "Didn't post",
-    /** Sent, and its place never said it holds it (docs/words.md, a write that got no answer). */
-    unsure: (place: PostPlace) => `Couldn't confirm it's on ${POST_PLACE_SAID[place]}`,
-    /**
-     * Nothing of it is up any more, in grey, what last happened: "Story ended · Sunday"; a post that came down says the
-     * take-down's own words, "Taken down · Tuesday" (TAKE_DOWN_WORDS.cameDown).
-     */
-    ended: (day: string | null) => (day ? `Story ended · ${day}` : "Story ended"),
-    /** Set for its time: "Set for Saturday", "Set for today". The open piece says the place and the hour. */
-    timed: (day: string) => `Set for ${day}`,
-    /** Posted by the owner's own hand: "Posted by you · Monday", or "On TikTok, by you · Monday" where its link says where. */
-    byHand: (where: string | null, day: string) => `${where ? `On ${where}, by you` : "Posted by you"} · ${day}`,
-  },
   /** One line over the pieces while anything needs the owner (the content canvas, PhHome): what, and Look. */
   needsLine: {
     posts: (n: number) => (n === 1 ? "1 post didn't go out" : `${n} posts didn't go out`),
@@ -240,21 +217,6 @@ export const CONTENT_WORDS = {
       dontPost: "Don't post",
       /** A post that stopped, let go: not tried again, and no longer waiting for the owner (00619). */
       dismiss: "Dismiss",
-      /** A post that waits for its time: "Instagram story goes up tomorrow 9:00 PM". */
-      timed: (post: string, when: string) => `${post} goes up ${when}`,
-    },
-    stands: {
-      none: "Not yet",
-      going: "Posting",
-      up: (when: string | null) => (when ? `Posted ${when}` : "Posted"),
-      /** Up a moment ago (the content canvas, PhAct "posting"): "Google · Posted just now". */
-      justNow: "Posted just now",
-      stuck: "Didn't post",
-      /** Sent, and the place never said it holds it. */
-      unsure: "Couldn't confirm",
-      /** No longer there: a story that ran its day, a post that came down. */
-      ended: (when: string | null) => (when ? `Story ended ${when}` : "Story ended"),
-      down: (when: string | null) => (when ? `Taken down ${when}` : "Taken down"),
     },
     place: POST_PLACE_SAID,
     of: (at: number, of: number) => `${at} of ${of}`,
@@ -398,7 +360,6 @@ export const CONTENT_WORDS = {
     earlier: "Earlier",
     open: "Open",
     /** The lines' own words (the content canvas, PhList). */
-    didntPost: (reason: string) => `Didn't post · ${reason}`,
     couldntMake: (reason: string) => `Couldn't be made · ${reason}`,
     /** A video Ask could not make, asked of Ask again as it was made: in its words, with why it was not. */
     makeAgainAsk: (title: string, why: string) => ({
@@ -414,12 +375,6 @@ export const CONTENT_WORDS = {
     onCalendar: "Each one also shows on your Calendar.",
     /** "Google · today, 9:12 AM", "Instagram · Monday". */
     upAt: (where: string, when: string) => `${where} · ${when}`,
-    /**
-     * Posted lists what is up and the stories that ran their day, each of those marked: "Instagram · Saturday · Story
-     * ended" on a line, and "Instagram story · ended" in a desk's Where.
-     */
-    upEnded: (line: string) => `${line} · Story ended`,
-    whereEnded: (where: string) => `${where} · ended`,
     grid: "Grid",
     list: "List",
     columns: {
