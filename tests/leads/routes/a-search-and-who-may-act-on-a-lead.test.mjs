@@ -417,7 +417,7 @@ test("the leads page is keyset-paged by the door under the caller's RLS: the sea
 
 test("keep, exclude, put back and undo reach their doors with the ids and the version; a hidden place and a changed record are refused in sentences", async () => {
   const seen = [];
-  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  // The service role, stood in and read below: a press writes nothing of its own on it.
   const ledger = { events: [] };
   setServiceClient(fakeDb(ledger));
 
@@ -461,13 +461,12 @@ test("keep, exclude, put back and undo reach their doors with the ids and the ve
   ]);
   await refused(keep.POST.run(send({ search_id: S1 }), ctxFor("owner", rpcs, { id: "nope" })), "not_found", 404);
   setServiceClient(null);
+  // Each door writes its press's event beside its operation row (lead.kept, lead.excluded, lead.put_back: 00718), and
+  // tests/leads/a-trial-counts-its-leads-at-every-door.db.test.mjs reads them: a route writing one too would be two.
   assert.deepEqual(
-    ledger.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
-    [
-      ["lead.kept", "lead", L1, { by: USER, search_id: S1 }],
-      ["lead.excluded", "lead", L1, { by: USER, search_id: S1 }],
-    ],
-    "REGRESSION: a place kept (it counts against the month) or left out was on no ledger; a refused put-back says nothing",
+    ledger.events,
+    [],
+    "REGRESSION: the route wrote a press's event after the door, which writes it in the press's own transaction",
   );
 });
 

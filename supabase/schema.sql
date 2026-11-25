@@ -17698,9 +17698,22 @@ COMMENT ON FUNCTION public.lead_list_counts(p_tenant_id uuid) IS 'The six number
 --
 
 CREATE FUNCTION public.lead_member_exclude(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'exclude') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'exclude');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.excluded', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -17715,9 +17728,22 @@ COMMENT ON FUNCTION public.lead_member_exclude(p_search_id uuid, p_lead_id uuid)
 --
 
 CREATE FUNCTION public.lead_member_keep(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'keep') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'keep');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.kept', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -17917,9 +17943,22 @@ COMMENT ON FUNCTION public.lead_member_of(p_tenant_id uuid, p_lead_id uuid, p_se
 --
 
 CREATE FUNCTION public.lead_member_put_back(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'put_back') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'put_back');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.put_back', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -20222,6 +20261,7 @@ declare
   run     record;
   v_ids   uuid[];
   v_op    uuid;
+  v_kept  integer;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -20256,6 +20296,12 @@ begin
   insert into public.lead_operations (tenant_id, kind, search_id, lead_ids, before, after, version, by)
   values (s.tenant_id, 'undo_search', p_search_id, v_ids, jsonb_build_object('removed_at', null), jsonb_build_object('removed_at', now()), 1, v_user)
   returning id into v_op;
+  -- A search and the leads nobody worked are gone on a member's word: whose, and what it kept and set aside.
+  select count(*) into v_kept from public.lead_search_members where search_id = p_search_id and blanked_at is null;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead.search_removed', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('name', s.name, 'kept', v_kept, 'archived', coalesce(array_length(v_ids, 1), 0),
+                             'by', v_user));
   return jsonb_build_object('op_id', v_op, 'version', 1, 'blanked', coalesce(array_length(v_ids, 1), 0));
 end $$;
 
@@ -20291,6 +20337,9 @@ begin
     raise exception 'Search not found.' using errcode = 'P0002';
   end if;
   update public.lead_searches set name = v_name where id = p_search_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead.search_renamed', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('name', v_name, 'by', v_user));
   return jsonb_build_object('search_id', p_search_id, 'name', v_name);
 end $$;
 
@@ -21951,6 +22000,10 @@ begin
        set e164 = p_number, forwarding_state = 'instructed', state_since = now(), facts = v_facts, last_error = null
      where id = v_id;
   end if;
+  -- Where a business's calls go changed on a member's word: who and which calls, never the number.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_set', 'setup', 'line', v_id,
+          jsonb_build_object('carrier', p_carrier, 'mode', p_mode, 'by', auth.uid()));
   return v_id;
 end $_$;
 
@@ -22562,6 +22615,40 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) IS 'An email the owner sent from their connected mailbox, not through Chanlytics (00482): kept in the thread of the one person it went to when the workspace knows them (the email identity, else the address on a living record; nobody is made), once by the provider''s id, outbound by a person; and the open holds on that thread that wait on a person (p_reasons) and opened before it was sent, resolved by one resolve decision with no member, via mailbox. Returns kept, why (not_known, already) when not kept, message_id, conversation_id, resolved, and decision_id when it resolved any. Service role only.';
+
+
+--
+-- Name: mailbox_provider_wanted(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_provider text := nullif(btrim(coalesce(p_provider, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_provider is null or char_length(v_provider) > 60 then
+    raise exception 'Say which you use, in 60 characters or fewer.' using errcode = '22023';
+  end if;
+  -- Which mailbox a workspace that can't connect would use, with who asked: the ask is the whole write.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.provider_wanted', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('provider', v_provider, 'by', auth.uid()));
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_provider_wanted(p_tenant_id uuid, p_provider text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) IS 'Cold email''s Tell us (00718): which mailbox a workspace that can''t connect one would use, kept on the ledger with who asked (mailbox_connection.provider_wanted), so Microsoft is built when the asks justify it and they can be told. An owner''s or a partner''s (permission settings), as its route asks.';
 
 
 --
@@ -27518,10 +27605,10 @@ COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text,
 
 
 --
--- Name: person_doubt_dismiss(uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: person_doubt_dismiss(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) RETURNS jsonb
+CREATE FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -27544,6 +27631,11 @@ begin
        set settled_at = now(), settled_as = 'not_the_same', settled_by = v_user
      where id = p_doubt_id
      returning * into v_row;
+    -- The answer to "is this one person?" is a member's: on the record they answered from, either side of the pair.
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'contact.kept_apart', 'contact', 'contact',
+            case when p_contact_id in (v_row.contact_id, v_row.other_id) then p_contact_id else v_row.contact_id end,
+            jsonb_build_object('by', v_user, 'doubt_id', v_row.id));
   end if;
   return jsonb_build_object('doubt_id', v_row.id, 'contact_id', v_row.contact_id, 'other_id', v_row.other_id,
                             'settled_as', v_row.settled_as, 'settled_at', v_row.settled_at);
@@ -27551,10 +27643,10 @@ end $$;
 
 
 --
--- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) IS 'Not the same (decision 0034, step 4): a member settles a doubt, and the pair is never raised again by the next arrival. Twice is once; a pair the merge settled is refused in words.';
+COMMENT ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) IS 'Not the same (decision 0034, step 4): a member settles a doubt, and the pair is never raised again by the next arrival, with its event (contact.kept_apart, 00718) on the record it was answered from (p_contact_id, either side; the doubt''s own contact where none is named). Twice is once, and writes no second event; a pair the merge settled is refused in words.';
 
 
 --
@@ -34934,6 +35026,9 @@ begin
     return jsonb_build_object('stopped', false, 'already', true, 'skipped', 0, 'leaving', 0, 'left', 0);
   end if;
   update public.leads set reach_out_stopped_at = now() where id = p_lead_id;
+  -- A business stops hearing from the workspace because a member said so: who.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'reach_out.lead_stopped', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid()));
   with skipped as (
     update public.sequence_sends s
        set state = 'skipped', reason = 'owner_stopped'
@@ -37220,6 +37315,10 @@ begin
     else
       raise exception 'Include, rewrite, skip or not a fit.' using errcode = '22023';
   end case;
+  -- What a member decided of an email the check held, on the run it belongs to.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_send.tenant_id, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+          jsonb_build_object('decision', p_decision, 'by', auth.uid()));
   return jsonb_build_object('send_id', p_send_id, 'decision', p_decision);
 end $$;
 
@@ -37275,6 +37374,9 @@ begin
          check_tries = 0, check_first_at = null,
          rewrite_asked = null
    where sequence_sends.lead_id is not null and ( id = p_send_id);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_send.tenant_id, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+          jsonb_build_object('decision', 'rewrite_undone', 'by', auth.uid()));
   return jsonb_build_object('send_id', p_send_id, 'opening', v_was->>'opening',
                             'state', case when v_was->>'state' = 'held' then 'held' else 'planned' end);
 end $$;
@@ -37335,6 +37437,10 @@ begin
     update public.sequence_sends
        set state = 'skipped', reason = v_why, said_at = v_at, said_by = v_user
      where sequence_sends.lead_id is not null and ( id = p_send_id);
+    -- A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is.
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+            jsonb_build_object('decision', 'skip', 'by', v_user));
     return jsonb_build_object('said', true, 'state', 'skipped', 'reason', v_why);
   end if;
 
@@ -41086,6 +41192,13 @@ begin
              checked_words = case when s.checked_at is not null then p_checked_words else s.checked_words end
        where s.id = v_send.id;
     end if;
+  end if;
+  -- A lead's own email typed on their sheet, or the step's words put back: who, never the words. Putting back what is
+  -- back changed nothing, and writes nothing.
+  if p_body is not null or v_was.step_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_step.tenant_id, 'reach_out.lead_words_changed', 'lead', 'lead', p_lead_id,
+            jsonb_build_object('step_id', p_step_id, 'kept', p_body is not null, 'by', v_user));
   end if;
   return jsonb_build_object(
     'step_id', p_step_id,
@@ -71957,6 +72070,15 @@ GRANT ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address tex
 
 
 --
+-- Name: FUNCTION mailbox_provider_wanted(p_tenant_id uuid, p_provider text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) TO authenticated;
+GRANT ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) TO service_role;
+
+
+--
 -- Name: FUNCTION mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -72732,12 +72854,12 @@ GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome tex
 
 
 --
--- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) TO service_role;
 
 
 --

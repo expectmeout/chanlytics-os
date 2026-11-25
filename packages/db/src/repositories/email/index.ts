@@ -9,6 +9,7 @@ export {
   findMailboxConnection,
   getMailboxCounts,
   getMailboxCredentials,
+  keepMailboxProviderWanted,
   listMailboxConnectionsOf,
   listMailboxesToTend,
   noteCalendarGrant,

@@ -277,12 +277,7 @@ export async function decideSend(
   const { decision } = input;
   const result = await decideSendDoor(ctx.supabase, { sendId: send.id, decision, change: input.change || null });
   if (result.error) throw reachOutRefusal(result.error);
-  // What a member decided of an email the check held, on the run it belongs to: an email went out, or did not, on
-  // their word, and the ledger said neither.
-  await emitWorkspaceEvent(send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
-    decision,
-    by: ctx.userId,
-  });
+  // The door wrote what was decided, on the run it belongs to, beside the decision (reach_out.send_decided, 00718).
   return { send_id: send.id, decision };
 }
 
@@ -299,12 +294,8 @@ export async function saySend(
 ): Promise<ReachOutSaidDto> {
   const result = await sendSaid(ctx.supabase, { sendId: send.id, outcome, reason: null });
   if (result.error) throw reachOutRefusal(result.error);
-  // A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is.
-  if (result.data.said && outcome === "not_sent")
-    await emitWorkspaceEvent(send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
-      decision: "skip",
-      by: ctx.userId,
-    });
+  // A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is: the door
+  // wrote it beside the skip (reach_out.send_decided, 00718).
   return {
     send_id: send.id,
     said: result.data.said,

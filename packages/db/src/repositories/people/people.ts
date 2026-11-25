@@ -224,12 +224,17 @@ export async function findDoubtOn(
   return data;
 }
 
-/** Not the same (person_doubt_dismiss, 00344): the member settles the pair, as themselves. The door's refusals are thrown as they came. */
+/**
+ * Not the same (person_doubt_dismiss, 00344): the member settles the pair, as themselves, and the door writes its event
+ * on the record they answered from (`contactId`, either side of the pair; 00718). The door's refusals are thrown as
+ * they came.
+ */
 export async function dismissPersonDoubt(
   db: Db,
   doubtId: string,
+  contactId: ContactId,
 ): Promise<{ doubt_id: string; settled_as: string | null }> {
-  const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId });
+  const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId, p_contact_id: contactId });
   if (error) throw new DbFailure(error);
   const o = recordOrEmpty(data);
   return {
