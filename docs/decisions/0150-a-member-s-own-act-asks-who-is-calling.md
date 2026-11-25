@@ -21,8 +21,9 @@ token). So neither may do anything the route's checks were standing in front of.
 
 1. **A member's read or act goes on the member's session where a policy already lets them**, or through a SQL door that
    asks who is calling, in the house's form (SECURITY DEFINER, `auth.uid()`, `may_read_workspace`, `is_acting_member` or
-   `caller_has_permission` with the workspace's own id, refused with 42501), the service role still let through for the
-   edge, the clocks and a deploy from before. 00717 makes twelve such doors and grants members `files.made`.
+   `caller_has_permission` with the workspace's own id, refused with 42501). The service role (the edge, a deploy from
+   before) and a session of the database itself (a clock, a migration) are let through as before; only an API session
+   with no person in it is refused (28000). 00717 makes twelve such doors and grants members `files.made`.
 2. **A door that takes what the route worked out or checked first stays the service role's**: `reach_out_save` (the
    chain's checks), `reach_out_reply_said` (the plan the dashboard made), `assemble_broadcast`, `create_message_version`,
    `file_found` and `file_made` (bytes the server proved). `tests/database/privileges.db.test.mjs` names the first four.
@@ -56,7 +57,8 @@ member.
 ## Tests
 
 `tests/repo/data/data.test.mjs` (the kept list); the doors proved on PGlite as an owner, an operator, a viewer, a stranger,
-nobody and the service role (`dev-tools/db-without-docker/example-doors-least-privilege.mjs`, 75 checks, red on main);
+nobody, a session with no person, a session of the database itself and the service role
+(`dev-tools/db-without-docker/example-doors-least-privilege.mjs`, 91 checks, red on main);
 `tests/database/privileges.db.test.mjs` on the engine; the readers', the posts' and the leads' tests read what the member's
 session reads.
 
