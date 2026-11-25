@@ -65,8 +65,8 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
           ? listPiecePosts(ctx.supabase, member.tenantId, { id: piece.id, fileId: row.id })
           : listFilePosts(ctx.supabase, member.tenantId, row.id)
         : [],
-      ours ? readInstagramPostable(member.tenantId) : null,
-      ours ? readFacebookPostable(member.tenantId) : null,
+      ours ? readInstagramPostable(ctx.supabase, member.tenantId) : null,
+      ours ? readFacebookPostable(ctx.supabase, member.tenantId) : null,
       piece ? readVersions(ctx, member, piece) : null,
     ]);
     const posts = await withRemovedThere(ctx.supabase, member.tenantId, listed);
@@ -90,8 +90,8 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
     getFileMade(ctx.supabase, member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
     listFilePosts(ctx.supabase, member.tenantId, row.id),
-    readInstagramPostable(member.tenantId),
-    readFacebookPostable(member.tenantId),
+    readInstagramPostable(ctx.supabase, member.tenantId),
+    readFacebookPostable(ctx.supabase, member.tenantId),
   ]);
   const posts = await withRemovedThere(ctx.supabase, member.tenantId, listed);
   const google = {

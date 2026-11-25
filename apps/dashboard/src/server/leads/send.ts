@@ -54,6 +54,13 @@ import type { LeadEmailWhy, TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 
+/**
+ * The client a cold email is judged and sent with: the service role's. Its mailbox's day, the month's count, the draft's
+ * facts, the lead's slots, the person it makes and the email's row are the send door's (00424, 00429), read and written
+ * after the route's own scope has proved the member and the lead. The one place this module takes that client.
+ */
+const sendDb = () => serviceDb();
+
 /** Where the email's one-click way out opens: the cold link host where this project has one, else its own (as the edge's). */
 const unsubscribeOrigin = (): string => {
   const host = linkHostOf(env.UNSUBSCRIBE_ORIGIN);
@@ -62,7 +69,7 @@ const unsubscribeOrigin = (): string => {
 
 /** The mailbox it would leave from now, or why it would not (contracts leadEmailFromOf), each with its day. */
 async function roadOf(ctx: Ctx, lead: LeadRow, nowMs: number) {
-  const db = serviceDb();
+  const db = sendDb();
   const [rows, sequenceMailbox] = await Promise.all([
     listMailboxConnectionsOf(ctx.supabase, lead.tenant_id),
     findLeadSequenceMailbox(db, lead.tenant_id, lead.id),
@@ -96,7 +103,7 @@ const NO_ROAD: LeadEmailOffer = { from: null, why: null, why_not: null, foot: nu
  */
 async function workspaceRefusal(tenantId: TenantId, nowMs: number): Promise<string | null> {
   if (!env.UNSUBSCRIBE_SECRET) return W.noUnsubscribe;
-  const db = serviceDb();
+  const db = sendDb();
   const [may, sent] = await Promise.all([
     mayWorkspaceSpend(db, tenantId),
     readMonthSent(db, tenantId, new Date(nowMs)),
@@ -120,7 +127,7 @@ export async function getLeadEmailOffer(
     if (!road.from) return { ...NO_ROAD, why: road.why, why_not: W.whyNot[road.why] };
     const held = await workspaceRefusal(lead.tenant_id, now);
     if (held) return { ...NO_ROAD, why_not: held };
-    const db = serviceDb();
+    const db = sendDb();
     const refused = draftRefusalOf(await draftFactsOf(db, lead.tenant_id, lead.id));
     if (refused) return { ...NO_ROAD, why_not: leadEmailRefusalOf(refused) };
     const [slots, stored] = await Promise.all([
@@ -169,7 +176,7 @@ interface LeadSendAnswer {
  * refusal. The door judges it again at the wire.
  */
 export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWords): Promise<LeadSendAnswer> {
-  const db = serviceDb();
+  const db = sendDb();
   const tenantId = lead.tenant_id;
   const refused = draftRefusalOf(await draftFactsOf(db, tenantId, lead.id));
   if (refused) throw wontSend(leadEmailRefusalOf(refused));
@@ -274,7 +281,7 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
  * and a write that fails is said, never thrown over the stage the door already moved.
  */
 export async function keepSaidEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWords): Promise<void> {
-  const db = serviceDb();
+  const db = sendDb();
   const tenantId = lead.tenant_id;
   try {
     const person = await addReachOutPerson(db, tenantId, lead.id);

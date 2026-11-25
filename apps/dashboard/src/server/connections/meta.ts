@@ -20,7 +20,6 @@ import { STATE_TTL_MS, verifyStateFor, signStateFor } from "@chanlytics/channels
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
-import { serviceDb } from "../shared/service-db";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
@@ -176,11 +175,15 @@ export async function disconnectMeta(ctx: RouteContext, member: Member, channelI
 /**
  * Whether this workspace's Instagram takes a post now; null where the Meta link is not switched on, and nothing is offered.
  * A connection Meta no longer accepts (the daily check's `token_lapsed_at`) is not connected: a press there would only be
- * held a minute later, so it is not offered, and the sheet says to connect again.
+ * held a minute later, so it is not offered, and the sheet says to connect again. Read on the member's own session: every
+ * member reads their workspace's channels (tenant_channels_member_select).
  */
-export async function readInstagramPostable(tenantId: TenantId): Promise<InstagramPostable | null> {
+export async function readInstagramPostable(
+  db: RouteContext["supabase"],
+  tenantId: TenantId,
+): Promise<InstagramPostable | null> {
   if (!(await readMetaSwitch(tenantId))) return null;
-  const row = await findMetaInstagramRow(serviceDb(), tenantId);
+  const row = await findMetaInstagramRow(db, tenantId);
   if (!row) return "not_connected";
   const config = recordOrEmpty(row.config);
   if (config.token_lapsed_at) return "not_connected";

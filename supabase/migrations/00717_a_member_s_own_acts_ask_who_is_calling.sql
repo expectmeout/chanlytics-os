@@ -17,7 +17,11 @@
 --   Acts, by a member who acts (owner, operator, a partner on a session that showed its second factor), as the routes
 --   that call them ask:
 --     form_entry_hold, form_entry_let_through, conversation_set_aside, and claim_conversation_control for the caller's
---     own hold alone (a person's, by themself); a call's hold stays the edge's.
+--     own hold alone (a person's, by themself; a call's hold stays the edge's).
+--
+-- Left the service role's, as tests/database/privileges.db.test.mjs names them: a door that takes what the route
+-- worked out or checked first (reach_out_save after the chain's own checks, reach_out_reply_said with the plan the
+-- dashboard made, assemble_broadcast, create_message_version) is no session's to call.
 --   files.made, read by members: the row is theirs already (files_member_select), and how a piece was made is what its
 --   Details say.
 --

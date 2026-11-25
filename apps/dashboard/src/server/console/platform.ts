@@ -54,7 +54,6 @@ import {
   recordOrNull,
   DbFailure,
 } from "@chanlytics/contracts";
-import { serviceDb } from "../shared/service-db";
 import type { BackOffice } from "../shared/back-office";
 import { takeAct } from "./acts";
 import { log } from "@/server/shared/log";
@@ -412,7 +411,7 @@ export async function resetPlatformPartnerSecondFactor(
   office: BackOffice,
   partnerId: string,
   reason: ConsoleWhy,
-  svc: SupabaseClient<Database> = serviceDb(),
+  svc: SupabaseClient<Database> = office.db,
 ): Promise<{ removed: number }> {
   return takeAct(
     office,
