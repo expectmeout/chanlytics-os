@@ -275,7 +275,7 @@
 .settings .cl-prof-attr { grid-template-columns: 176px minmax(0, 1fr); gap: 16px; padding: 11px 0; font-size: var(--set-label); line-height: 1.45; border-bottom: 1px solid var(--line); }
 .settings .cl-prof-attr:last-child { border-bottom: none; }
 .settings .cl-prof-attr-key { font-size: var(--set-hint); color: var(--ink-dim); padding-top: 1px; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .settings .cl-prof-attr { grid-template-columns: 1fr; gap: 2px; }
 }
 /* A fact's own link ("Open") is part of its sentence, not a control at the end of a row. */
@@ -430,7 +430,7 @@
    to still reads as the line. The spine runs on through them. */
 .act-under .act-what { font-size: var(--set-hint); }
 .act-under .act-said { color: var(--ink-muted); }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   /* On a phone the sentence wants the whole width, so the kind, the time and the
      door share one line and the sentence takes the next. Every cell is placed:
      left to itself, the sentence spanned to the end and pushed the door onto a
@@ -594,7 +594,7 @@
    and its button behind the row -- a Settings row is its press with a chevron, which turns as it opens -- never a
    line of boxed buttons under the words. A Connect row keeps its button, in the state's place; a Later row is its
    name. */
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .set-conn .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
   .set-conn .set-int-row > .set-int-tile { align-self: start; }
   .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
@@ -713,7 +713,7 @@
 .set-table-row .dim { color: var(--ink-dim); }
 .set-table-num { font-variant-numeric: tabular-nums; text-align: right; }
 .set-table-key { font-weight: 500; font-variant-numeric: tabular-nums; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .set-table { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; }
   .set-table-head { display: none; }
   .set-table-row { row-gap: 4px; }
@@ -922,7 +922,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 /* The matrix on a phone (autonomy/matrix.tsx PolPhoneRows): one line per class, its mode the row's value and its act a
    menu. The rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
 .pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   /* Notifications' grid keeps its table on a phone: its two columns of switches narrow, and their heads say one word. */
   .settings .ntf-col { width: 52px; }
   .ntf-grid .pol-mode-sub { display: none; }
@@ -1159,7 +1159,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    disc with letters on it and had no contrast to spare. */
 .set-team-row.pending .avatar { opacity: 1; }
 .settings .set-team-row.pending .set-team-face { opacity: 1; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   /* The words keep the width; the acts take the next line, at the end of it. */
   .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 6px; padding-left: 15px; padding-right: 15px; }
   .setup-rows .cl-attn-acts { grid-column: 2; justify-self: end; }
@@ -1193,7 +1193,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-number-where { font-size: var(--set-hint); color: var(--ink-muted); }
 .setup-confirm, .setup-ask { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--set-label); line-height: 1.5; color: var(--ink); }
 .setup-confirm-text, .setup-ask-text { flex: 1; min-width: 200px; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .setup-chooser { margin-left: 14px; margin-right: 14px; padding: 14px; }
   .setup-paths { grid-template-columns: 1fr; }
 }
@@ -1252,7 +1252,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .biz-group-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
 .biz-group-sub { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 .biz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
-@media (max-width: 640px) { .biz-fields { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .biz-fields { grid-template-columns: 1fr; } }
 .biz-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /* One cell of the form's grid holds one kit field (the box, its label, its hint or what is wrong); a few sentences,
    not a word, take the whole row. */
@@ -1286,7 +1286,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    answers, side by side on a desk and stacked on a phone, each carrying what
    it means -- an answer whose consequence is out of sight is not a choice. */
 .biz-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 640px) { .biz-choices { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .biz-choices { grid-template-columns: 1fr; } }
 /* Each answer is the kit's Button drawn as a card: its words and the sentence of what it means, stacked and left-aligned,
    the button's own height, nowrap and pill radius let go of. Scoped to Settings so it outranks the button's one class. */
 .settings .biz-choice {
@@ -1445,7 +1445,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   padding: 1px 5px;
   white-space: nowrap;
 }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   /* The sentence takes the width; the kind sits under it with the time. */
   .pf-event { grid-template-columns: 58px minmax(0, 1fr); row-gap: 2px; }
   .pf-said { grid-column: 2 / -1; }
@@ -1876,7 +1876,7 @@ html.frame-on .bt-link { position: relative; }
 /* A sheet whose save is out says so (aria-busy, the kit's Sheet's `busy`): its rows' acts say wait. */
 [aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's
      end, and the plus that adds a break after them, its word left to its tip. A break's times stand under the day's,
      each shift's remove after it; a closed day says so where its times would be. Where the line is too narrow for
@@ -2147,7 +2147,7 @@ html.frame-on .bt-link { position: relative; }
 .set-domain-add {
   padding: 12px 14px 14px 54px;
 }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .set-domains {
     margin-left: 0;
   }

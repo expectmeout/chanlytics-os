@@ -870,10 +870,10 @@ const headCells = (tree) =>
 
 test("on a phone the matrix is one line per class: its mode is the row's value and its act a menu of the modes it takes, and money is said once, on Limits", () => {
   // 24 Sep: the table of four columns collapsed into four captioned dots under every label on a phone, 107px a row.
-  // Settings reads its own breakpoint (useSetPhone, 640px); the desktop keeps the matrix, which the tests above draw.
+  // Settings reads the product's phone (useSetPhone, 720px); the desktop keeps the matrix, which the tests above draw.
   const W = globalThis.window;
   const was = W.matchMedia;
-  W.matchMedia = (q) => ({ matches: q === "(max-width: 640px)", addEventListener() {}, removeEventListener() {} });
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 720px)", addEventListener() {}, removeEventListener() {} });
   try {
     let tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
     assert.equal(
@@ -920,7 +920,7 @@ test("on a phone the reply dials are their row's value and an act that opens the
   // 25 Sep: five dials drew a 50px strip of 44px buttons under every label on a phone, 110px a row.
   const W = globalThis.window;
   const was = W.matchMedia;
-  W.matchMedia = (q) => ({ matches: q === "(max-width: 640px)", addEventListener() {}, removeEventListener() {} });
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 720px)", addEventListener() {}, removeEventListener() {} });
   try {
     let tree = autonomy([{ class: "reply", mode: "veto", limits: { max_replies_day: 20, pause_hours: 4 } }]);
     // The element drawn, not the dial's own element, which carries the same name.

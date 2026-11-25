@@ -61,7 +61,7 @@ export function RptSection({
 }
 
 /** The page's own phone, under which it draws the meters smaller; and the frame's, under which the strip has no act beside it. */
-const RPT_PHONE_QUERY = "(max-width: 760px)";
+const RPT_PHONE_QUERY = "(max-width: 900px)";
 const FRAME_PHONE_QUERY = "(max-width: 900px)";
 
 const widthQuery = (query: string) => (typeof window.matchMedia === "function" ? window.matchMedia(query) : null);
