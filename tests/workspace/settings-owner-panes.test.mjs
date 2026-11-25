@@ -860,13 +860,15 @@ const autonomy = (rows, over = {}, role = "owner") => {
   autonomyVerbs.setPolicy = async () => ({ ok: true });
   return settings("autonomy");
 };
+/** A record row's value, as it is read: the answer a row's act opens the others of (settings/choice-act.tsx). */
+const rowValueOf = (row) => textOf(find(row, (n) => n.props?.className === "rec-row-value"));
 const headCells = (tree) =>
   all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
     head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
     sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
   }));
 
-test("on a phone the matrix is one line per class: its mode is a word that opens a menu of the modes it takes, and money is said once, on Limits", () => {
+test("on a phone the matrix is one line per class: its mode is the row's value and its act a menu of the modes it takes, and money is said once, on Limits", () => {
   // 24 Sep: the table of four columns collapsed into four captioned dots under every label on a phone, 107px a row.
   // Settings reads its own breakpoint (useSetPhone, 640px); the desktop keeps the matrix, which the tests above draw.
   const W = globalThis.window;
@@ -890,8 +892,8 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
     const reply = byTestId(tree, "pol-phone-reply");
     assert.match(textOf(reply), /Replies to customers/);
     const trigger = byTestId(tree, "pol-phone-mode-reply");
-    assert.equal(trigger.props["aria-haspopup"], "menu", "its mode is a menu");
-    assert.match(textOf(trigger), /Holds it/, "the word is the mode's, as the matrix's heading says it");
+    assert.deepEqual([trigger.props["aria-haspopup"], trigger.props.className], ["menu", "rec-row-act"], "its act");
+    assert.match(rowValueOf(reply), /Holds it/, "the value is the mode's word, as the matrix's heading says it");
     assert.equal(all(reply, (n) => n.props?.role === "menuitemradio").length, 0, "closed until pressed");
     press(trigger);
     tree = settle("autonomy");
@@ -914,7 +916,7 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
   }
 });
 
-test("on a phone the reply dials are a word that opens their steps, and a desktop keeps the segmented control", () => {
+test("on a phone the reply dials are their row's value and an act that opens their steps, and a desktop keeps the segmented control", () => {
   // 25 Sep: five dials drew a 50px strip of 44px buttons under every label on a phone, 110px a row.
   const W = globalThis.window;
   const was = W.matchMedia;
@@ -924,8 +926,9 @@ test("on a phone the reply dials are a word that opens their steps, and a deskto
     // The element drawn, not the dial's own element, which carries the same name.
     const drawn = (t) => find(t, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "aut-reply-cap");
     const cap = drawn(tree);
-    assert.equal(cap.props["aria-haspopup"], "menu", "the dial is a menu on a phone");
-    assert.match(textOf(cap), /20/, "its word is the value in force");
+    assert.deepEqual([cap.props["aria-haspopup"], cap.props.className], ["menu", "rec-row-act"], "its row's act");
+    const row = find(tree, (n) => n.props?.["data-act"] === "true" && find(n, (k) => k === cap));
+    assert.match(rowValueOf(row), /20/, "the row's value is the value in force");
     press(cap);
     tree = settle("autonomy");
     const steps = all(tree, (n) => n.props?.role === "menuitemradio");
@@ -1378,17 +1381,18 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
     ),
     "the bell's line names them",
   );
-  // The two the receptionist must always reach someone with are locked, with nothing to press.
+  // The two the receptionist must always reach someone with are locked: a switch drawn on that takes no press, saying why.
   for (const key of ["handoff", "deadman"]) {
     const row = byTestId(grid, `ntf-topic-${key}`);
-    const lock = find(row, (n) => n.props?.className === "ntf-lock");
+    const lock = find(row, (n) => n.props?.role === "switch");
     assert.equal(lock?.props["data-tip"], ALERT_PANE_WORDS.always, key);
+    assert.deepEqual([lock.props["aria-checked"], lock.props["aria-readonly"]], [true, true], `${key}: on, and held`);
     assert.equal(byTestId(row, `ntf-email-${key}`), null, `${key}: nothing to turn off`);
   }
-  // Every other emailed topic is a tick, on until the business turns it off; and no phone column without a phone. Ads'
-  // own is drawn only where Campaigns › Ads is, which it is not here.
+  // Every other emailed topic is the kit's switch, on until the business turns it off; and no phone column without a
+  // phone. Ads' own is drawn only where Campaigns › Ads is, which it is not here.
   assert.deepEqual(
-    ticks(grid, "email").map((n) => [n.props["data-testid"], n.props["aria-pressed"]]),
+    ticks(grid, "email").map((n) => [n.props["data-testid"], n.props["aria-checked"]]),
     ALERT_TOPICS.filter((t) => t.email === "choice" && t.ads !== true).map((t) => [`ntf-email-${t.key}`, true]),
   );
   assert.equal(byTestId(grid, "ntf-topic-ads"), null, "no choice about ads where no ad can run");
@@ -1397,7 +1401,7 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
   assert.ok(!textOf(tree).includes("to Chanlytics"), "Chanlytics' own alerts are not the workspace's");
   assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.never));
   assert.equal(
-    all(tree, (n) => n.props?.role === "switch").length,
+    all(byTestId(tree, "ntf-channels"), (n) => n.props?.role === "switch").length,
     0,
     "a browser that cannot alert draws no switch (none can here)",
   );
@@ -1410,7 +1414,7 @@ test("where Campaigns › Ads is drawn, an ad that needs its owner is a topic un
   const grid = byTestId(settings("notifications"), "ntf-grid");
   const row = byTestId(byTestId(grid, "ntf-group-needs_you"), "ntf-topic-ads");
   assert.ok(textOf(row).startsWith("An ad needs you"));
-  assert.equal(byTestId(row, "ntf-email-ads").props["aria-pressed"], true, "mailed until turned off");
+  assert.equal(byTestId(row, "ntf-email-ads").props["aria-checked"], true, "mailed until turned off");
   const ads = ALERT_TOPICS.find((t) => t.key === "ads");
   // An ad on that AI can't answer, and ads Chanlytics paused for the workspace, are mailed the same way (00676).
   assert.deepEqual(
@@ -1425,8 +1429,8 @@ test("a member with a phone ticks what reaches it, whatever their role; a kind n
   const tree = settings("notifications");
   assert.ok(textOf(byTestId(tree, "ntf-channels")).includes("iPhone"), "their phone, by what it is");
   const grid = byTestId(tree, "ntf-grid");
-  assert.equal(byTestId(grid, "ntf-phone-call").props["aria-pressed"], false, "turned off");
-  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-pressed"], true);
+  assert.equal(byTestId(grid, "ntf-phone-call").props["aria-checked"], false, "turned off");
+  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-checked"], true);
   assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-disabled"], undefined, "a phone is the member's own");
   assert.equal(byTestId(grid, "ntf-phone-templates"), null, "a template's news never reaches a phone");
   assert.ok(byTestId(grid, "ntf-topic-review"), "with a phone, the topics a phone alone carries are rows");
@@ -1445,7 +1449,7 @@ test("a member with a phone ticks what reaches it, whatever their role; a kind n
   const told = settings("notifications");
   assert.equal(ticks(byTestId(told, "ntf-grid"), "phone").length, 0);
   assert.equal(
-    all(told, (n) => n.type === "button" && n.props?.["aria-label"] === ALERT_PANE_WORDS.phoneTold).length,
+    all(told, (n) => n.props?.role === "switch" && n.props?.["data-tip"] === ALERT_PANE_WORDS.phoneTold).length,
     ALERT_TOPICS.filter((t) => t.phone).length,
   );
 });
@@ -1466,7 +1470,7 @@ test("an email tick saves what the business is emailed in the whole config, with
   assert.equal(saved[0].config.brain.business_name, "Northside Studio", "the rest of the config rides along");
   const after = settle("notifications");
   assert.equal(
-    byTestId(after, "ntf-email-call").props["aria-pressed"],
+    byTestId(after, "ntf-email-call").props["aria-checked"],
     false,
     "drawn from what the server accepted, not the read before it, which says the opposite until it is read again",
   );

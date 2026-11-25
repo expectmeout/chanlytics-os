@@ -147,7 +147,9 @@ const pick = async (row, label, flash = () => {}) => {
   press(item);
   for (let i = 0; i < 5; i++) await flush();
 };
-const valueOf = (tree, row) => textOf(byTestId(tree, `${row}-menu`)).trim();
+/** A row's answer: its value, which the row's act opens the answers of (settings/choice-act.tsx). */
+const valueOf = (tree, row) =>
+  textOf(all(byTestId(tree, `rec-row-${row}`), (n) => n.props?.className === "rec-row-value")[0]).trim();
 
 test("When someone wants to book: the switch on first, then the booking row held, and one toast that says what is so", async () => {
   const sent = saving();

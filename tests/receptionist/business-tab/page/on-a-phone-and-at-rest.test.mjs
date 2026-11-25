@@ -353,7 +353,7 @@ test("the line the page marks as changed is the line the kit draws as a new elem
   assert.deepEqual(changedLines("Tone: warm", null), []);
 });
 
-test("at rest a whole record draws every row's act, quietly, and five controls an owner acts on without looking for it", () => {
+test("at rest a whole record draws every row's act, quietly, and three controls an owner acts on without looking for it", () => {
   const drawn = drawnAtRest(drawTab());
   const isAct = (c) => classes(c.n).includes("rec-row-act");
   assert.deepEqual(
@@ -361,18 +361,20 @@ test("at rest a whole record draws every row's act, quietly, and five controls a
     [
       // Where the carrier record is asked, a link in Who you are's foot sentence: part of what it says.
       "rec-who-carriers",
-      // When someone wants to book: the answer is the row's value, and a press of it offers the three (18 Oct 2026).
-      "booking_choice-menu",
-      // Walk-ins (decision 0073): the answer is the row's value, as the booking row's is.
-      "walk_ins-menu",
       // Look at a photo: its switch, on its ability's row (18 Oct 2026: it sat in the rules fold, among limits).
       "rec-can-vision-switch",
       // Read it: what the receptionist is told.
       "rec-prompt-open",
-      // When someone asks a price, on Autonomy's Limits: the answer, as the booking row's is.
-      "price_choice-menu",
     ],
   );
+  // When someone wants to book, Walk-ins and When someone asks a price: each answer is its row's value, and its row's act
+  // offers the answers, as every row's act opens what it changes (the phone change list's B3, 25 Nov 2026).
+  for (const id of ["booking_choice-menu", "walk_ins-menu", "price_choice-menu"]) {
+    assert.ok(
+      drawn.some((c) => c.id === id && classes(c.n).includes("rec-row-act")),
+      `${id}: its row's act`,
+    );
+  }
   // Every row with an act draws it, one each, in its own row: nothing is latent any more.
   const acts = drawn.filter(isAct);
   assert.ok(acts.length >= 20, `every row's act: ${acts.length}`);
@@ -396,11 +398,9 @@ test("at rest an empty record adds only what is empty or missing, and the gap li
           ? "a row's act, drawn at rest"
           : /^rec-can-door-/.test(c.id)
             ? "missing"
-            : c.id === "booking_choice-menu" || c.id === "price_choice-menu" || c.id === "walk_ins-menu"
-              ? "a question's answer, drawn as its row's value"
-              : c.id === "rec-can-vision-switch"
-                ? "the photo switch, on its ability's row"
-                : null;
+            : c.id === "rec-can-vision-switch"
+              ? "the photo switch, on its ability's row"
+              : null;
   assert.deepEqual(
     drawn.filter((c) => !why(c)).map((c) => c.id),
     [],

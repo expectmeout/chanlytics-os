@@ -18,6 +18,7 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import type { ReactElement, Ref } from "react";
 import { chosen } from "../chosen";
+import { Icon } from "../icon/icon";
 import { Panel } from "../panel/panel";
 import { usePhoneList } from "../picker/phone-list";
 import { cx } from "../variants";
@@ -95,6 +96,9 @@ export function Select<V extends string>({
                     {option.label}
                   </BaseSelect.ItemText>
                   {option.meta ? <span className="rec-combo-meta">{option.meta}</span> : null}
+                  <span className="rec-combo-tick" aria-hidden="true">
+                    <Icon name="check" size={13} />
+                  </span>
                 </BaseSelect.Item>
               ))}
             </BaseSelect.List>

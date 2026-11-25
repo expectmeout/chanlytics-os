@@ -3,15 +3,15 @@
 // When someone wants to book (Hours & booking's Booking card) and when someone asks a price (Autonomy's Limits) were two
 // and three controls on two pages: the booking requests switch in the booking tool's fold and the Book · reschedule row
 // of the matrix; the price rule among the rules it keeps and the Service & pricing row of the matrix. Each is one row
-// now, its value a menu of the three answers, each saying what it does, as a phone's matrix row is (autonomy/matrix.tsx
-// PolPhoneRows). A pick goes at once, as a mode's dot does.
+// now, its answer the row's value and its act a menu of the three answers, each saying what it does, as a phone's matrix
+// row is (autonomy/matrix.tsx PolPhoneRows; ../../choice-act.tsx). A pick goes at once, as a mode's dot does.
 //
 // Every word, the reading of the stored fields and the writes that move them are contracts' (business-tab/choices.ts);
 // the facts are read here as the ability card reads them (can.tsx: BUSINESS_TAB's offersBookingLink, bookingHeld and
 // takesBookingRequests over the settings read and the policies it carries), so the row and What it can do never say two
 // things. A policy's write reads the settings again (refresh-map PUT policies), which draws the page again.
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   BOOKING_CHOICES,
   BOOKING_CHOICE_WORDS,
@@ -33,9 +33,10 @@ import {
   type WalkInsChoice,
 } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
-import { MoreMenu } from "../../../kit/more-menu/more-menu";
+import type { MoreMenu } from "../../../kit/more-menu/more-menu";
 import { RecordRow } from "../../../kit/record/row";
 import { gate, showTip, type FrameFlash } from "../../../frame-verbs";
+import { choiceAct } from "../../choice-act";
 import { btoStoredZone } from "../open";
 import type { Brain, Config } from "../save";
 import { businessTabSave } from "../saver";
@@ -81,8 +82,8 @@ interface ChoiceRowProps<C extends string> {
 }
 
 /**
- * One question as a row: its answer as the value, and its answers in a menu, each saying what it does. Shared with
- * Details' word for a booking (offer.tsx BtWordRow), the third question asked this way.
+ * One question as a row: its answer as the value, and its act a menu of its answers, each saying what it does. Shared
+ * with Details' word for a booking (offer.tsx BtWordRow), the third question asked this way.
  */
 export function ChoiceRow<C extends string>(p: ChoiceRowProps<C>) {
   const [busy, setBusy] = useState(false);
@@ -106,21 +107,9 @@ export function ChoiceRow<C extends string>(p: ChoiceRowProps<C>) {
       };
     }),
   ];
-  const value: ReactNode = p.canEdit ? (
-    <MoreMenu
-      items={items}
-      label={p.words[p.current].label}
-      title={`${p.label}: ${p.words[p.current].label}`}
-      btnClass="bt-link"
-      align="right"
-      escape
-      gated={gated}
-      testid={`${p.id}-menu`}
-    />
-  ) : (
-    p.words[p.current].label
-  );
-  return <RecordRow id={p.id} label={p.label} hint={p.hint} value={value} />;
+  const answer = p.words[p.current].label;
+  const act = p.canEdit ? choiceAct({ items, name: `${p.label}: ${answer}`, gated, testid: `${p.id}-menu` }) : null;
+  return <RecordRow id={p.id} label={p.label} hint={p.hint} value={answer} act={act} />;
 }
 
 /** The writes a pick makes, then the one toast that says what is so now; a refusal is said by the write refused. */
