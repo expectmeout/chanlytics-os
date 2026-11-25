@@ -211,6 +211,9 @@ for (const hook of [
   "useSyncExternalStore",
 ])
   reactModule[hook] = globalThis.React[hook];
+// A part that says a state on the document's root holds it in an insertion effect (kit/motion/root-flags.ts): run where
+// a layout effect runs, as the kit's stub runs it.
+reactModule.useInsertionEffect = globalThis.React.useLayoutEffect;
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {
   body: {},
