@@ -53,7 +53,7 @@ export function MakeKeySheet(props: {
           >
             {W.makeSheet.press}
           </Button>
-          <Button variant="quiet" onClick={props.onClose}>
+          <Button variant="quiet" onClick={props.onClose} data-foot-cancel="">
             {W.makeSheet.cancel}
           </Button>
         </div>

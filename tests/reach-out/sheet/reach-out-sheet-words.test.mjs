@@ -221,7 +221,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     approvalWordsOf(RUN(over), { timezone: "America/Chicago", today: "2026-09-28", now: MORNING, ...p });
   const w = at();
   assert.deepEqual([w.title, w.step, w.who], ["Reach out · Personal trainers", "Step 1", null]);
-  assert.deepEqual(w.count, { n: 30, words: "go today", of: "of 42" });
+  assert.deepEqual(w.count, { n: 30, words: "emails go today", of: "of 42" });
   assert.deepEqual(
     w.parts.map((x) => [x.key, x.n, x.words]),
     [
@@ -342,7 +342,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     { run_for: "2026-09-27", today: 0, later: 41 },
     { today: "2026-09-27", now: Date.parse("2026-09-27T17:00:00Z") },
   );
-  assert.deepEqual(sunday.count, { n: 41, words: "go in the coming days", of: "of 42" });
+  assert.deepEqual(sunday.count, { n: 41, words: "emails go in the coming days", of: "of 42" });
   assert.equal(sunday.approve, "Approve all 41");
   assert.deepEqual(
     [flat(sunday.when.lead), flat(sunday.dock.lead)],
@@ -373,7 +373,7 @@ test("a run approved or going says the same facts in its state: going today, the
   const live = (state, over) =>
     contracts.reachOutRunWordsOf(RUN(over), { state, timezone: "America/Chicago", today: "2026-09-28", now: MORNING });
   const sending = live("sending");
-  assert.deepEqual([sending.k, sending.count.words, sending.approve], ["Sending", "going today", null]);
+  assert.deepEqual([sending.k, sending.count.words, sending.approve], ["Sending", "emails going today", null]);
   assert.deepEqual(sending.when, { lead: "Going now", rest: "one every 12 minutes as each business opens" });
   assert.equal(sending.heldNote.closed, "It waits for your approval. The run goes on without them.");
   assert.equal(sending.heldNote.open, "It waits for your approval. The run goes on without them.");
@@ -388,7 +388,7 @@ test("a run approved or going says the same facts in its state: going today, the
   assert.equal(live("pending_approval").k, "Waits for your approval");
   // A run its owner sends (00429): what is handed to them counts, from their own inbox, and its head says whose it is.
   const owner = live("sending", { owner_sends: true, mailboxes: [] });
-  assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "for you to send", null]);
+  assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "emails for you to send", null]);
   assert.deepEqual(owner.when, { lead: "From your own inbox", rest: "each handed to you once it is checked" });
   assert.equal(owner.parts[0].words, "30 handed to you");
   // Who gets it: a clock time is a clock time; the words that stand for one are not.

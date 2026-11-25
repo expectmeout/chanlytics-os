@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   LIFECYCLE_WORDS,
+  SEQUENCE_ACT_WORDS as A,
   SEQUENCES_ROUTE,
   SEQUENCE_WORDS,
   peopleTabWord,
@@ -26,9 +27,12 @@ import {
   sequenceStateTone,
   sequenceStateWords,
   type SequenceRecordDto,
+  type SequenceRowDto,
   type SequenceTab,
 } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { Icon } from "../../kit/icon/icon";
 import { heldAlong, heldUnder } from "../../kit/motion/held-list";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
@@ -61,8 +65,7 @@ const sequenceTabOf = (id: string): SequenceTab => TAB_ORDER.find((t) => t === i
  * meaning each: the number is who is in it, the dot that something waits on you), and History. People's and History's
  * reads start as a finger or a pointer reaches their tab (the strip's `warm`), so a swipe lands on their rows.
  */
-function tabsOf(rec: SequenceRecordDto) {
-  const row = rec.sequence;
+function tabsOf(row: SequenceRowDto) {
   const warm = (read: (id: string) => Promise<unknown>) => () => void read(row.id);
   // What needs you there: an email held or for you to send, a batch waiting for an OK, a reply to answer.
   const needs = row.needs.held + row.needs.to_send + row.needs.waiting + row.needs.replies;
@@ -92,9 +95,8 @@ function tabPages(page: Element, from: EventTarget | null): ViewPage | null {
 }
 
 /** The strip: a desk's sub-tabs; a phone's capsule of views, stuck under the head as the tab scrolls (as a person's is). */
-function RecordTabs({ rec, tab, phone }: { rec: SequenceRecordDto; tab: SequenceTab; phone: boolean }) {
-  const row = rec.sequence;
-  const tabs = tabsOf(rec);
+function RecordTabs({ row, tab, phone }: { row: SequenceRowDto; tab: SequenceTab; phone: boolean }) {
+  const tabs = tabsOf(row);
   // On a phone a tab move replaces the address: Back is the list, as the swipe right from Steps is, never three Backs
   // through the tabs a thumb walked. A desk's tabs are pushed, as its pages are.
   const go = (id: string) => (phone ? replaceRoute : navigate)(sequenceRoute(row.id, sequenceTabOf(id)));
@@ -221,7 +223,7 @@ function OpenRecord(p: {
       <RecordFootContext.Provider value={footSlot}>
         <div className="sq-rec">
           {top}
-          <RecordTabs rec={rec} tab={tab} phone={phone} />
+          <RecordTabs row={rec.sequence} tab={tab} phone={phone} />
           <TabView tab={tab}>
             {tab === "steps" ? (
               <SequenceSteps
@@ -247,6 +249,18 @@ function OpenRecord(p: {
   );
 }
 
+/**
+ * The head's caret on a phone while the record is still being read: drawn where More will be, at its size, and taking no
+ * press until the record that says what it holds has come, so the head is laid out once (SequenceRecord, below).
+ */
+function HeadActsReading({ name }: { name: string }) {
+  return (
+    <Button variant="quiet" size="touch" iconOnly aria-label={A.more(name)} aria-disabled data-testid="sq-more-reading">
+      <Icon name="chevron-down" size={18} />
+    </Button>
+  );
+}
+
 interface SequenceRecordProps {
   id: string;
   tab: SequenceTab;
@@ -255,6 +269,7 @@ interface SequenceRecordProps {
 }
 
 export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
+  const phone = useCmPhone();
   // Said only by the draw that opens it, and kept: a record still being read as it opened arrives over the list later.
   const [cameOver] = useState(over);
   const [again, setAgain] = useState(0);
@@ -276,6 +291,10 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
     // the record came: 0.3 to 1.6 s on a cold load, 6.2 s once, and 690 ms (the median) on a phone opening one this tab had
     // not read (the Campaigns load review, 28 Oct 2026). The tabs and what they hold come with the record: the notice over
     // the tabs is its read's (sequenceNotice: a last run that did nothing, a step's words WhatsApp turned down).
+    //
+    // From the row too, on a phone, the head's caret and the strip of tabs, both drawn from the row alone, so nothing
+    // moves as the record lands: the caret came with the record and took the title's room (the title cut shorter, the
+    // state beside it moving left), and the tabs came with it under a blank page (Ruben's recording, 24 Nov 2026).
     const row = read.state === "reading" && list ? list.sequences.find((s) => s.id === id) : undefined;
     return (
       <CmPane
@@ -284,14 +303,18 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
           row ? <StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} /> : undefined
         }
         sub={row && list ? sequenceSubLine(row, { word: list.word, timezone: list.timezone }, Date.now()) : undefined}
+        tools={row && phone ? <HeadActsReading name={row.name} /> : undefined}
         onClose={() => navigate(SEQUENCES_ROUTE)}
         testid="sq-record"
       >
         {read.state === "failed" ? (
           <FailedRead what="this campaign" why={read.why} onRetry={moved} testid="sq-record-failed" />
         ) : (
-          <div className="route-reading sq-reading" role="status" aria-busy="true">
-            {LIFECYCLE_WORDS.reading}
+          <div className="sq-rec">
+            {row ? <RecordTabs row={row} tab={tab} phone={phone} /> : null}
+            <div className="route-reading sq-reading" role="status" aria-busy="true">
+              {LIFECYCLE_WORDS.reading}
+            </div>
           </div>
         )}
         {toast}

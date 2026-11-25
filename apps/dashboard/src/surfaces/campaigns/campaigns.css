@@ -2608,6 +2608,67 @@ html.frame-on .cm-pane-sub .bc-run-link {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
+/* What was checked before it goes, the decision's last part while it waits (approval.tsx RoDecision): a small head and a
+   tick a line, under a hairline as when and from where are. */
+.ro-dec-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ro-dec-checks-h {
+  margin: 0 0 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+.ro-dec-checks > .ro-check {
+  gap: 8px;
+  min-height: 0;
+  padding: 2px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* On a phone the decision is a glance, not a poster: the number and its words on one line at a reading size, when and
+   from where in the small words of a fact, the card's own room trimmed (Ruben, 25 Nov 2026: "more compact"). */
+@media (max-width: 900px) {
+  .ro-dec {
+    padding: 14px 16px;
+  }
+  .ro-dec-n {
+    gap: 8px;
+  }
+  .ro-dec-n > b {
+    font-size: var(--text-3xl);
+  }
+  .ro-dec-n > span {
+    font-size: var(--text-lg);
+  }
+  .ro-dec-n > small {
+    font-size: var(--text-sm);
+  }
+  .ro-dec-bar {
+    margin-top: 12px;
+  }
+  .ro-leg {
+    margin-top: 8px;
+  }
+  .ro-when,
+  .ro-from {
+    gap: 8px;
+    margin-top: 6px;
+    font-size: var(--text-sm);
+  }
+  .ro-when {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  :is(.ro-when, .ro-from) > svg {
+    margin-top: 1px;
+  }
+}
 
 /* The gate a member who may not act meets, said once over the held. */
 .ro-gate {
@@ -2763,7 +2824,7 @@ html.frame-on .cm-pane-sub .bc-run-link {
 }
 
 /* A business: its tile (the kit's Face, People's 32px), and its name, an underlined door to its lead over the page. */
-:is(.ro-hrow-who, .ro-send-who, .ro-whor) > .ro-name {
+:is(.ro-hrow-who, .ro-send-who, .ro-whor-main) > .ro-name {
   min-width: 0;
   overflow: hidden;
   font-size: var(--text-base);
@@ -2949,6 +3010,10 @@ html.frame-on .cm-pane-sub .bc-run-link {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
+/* The name at the head's own weight: a <b> in a semibold press is drawn bolder still, which read as a heavier face. */
+.ro-fold-h > b {
+  font-weight: inherit;
+}
 .ro-fold-n {
   font-weight: var(--weight-medium);
   color: var(--ink-dim);
@@ -2959,21 +3024,31 @@ html.frame-on .cm-pane-sub .bc-run-link {
 .ro-fold-h > svg {
   color: var(--ink-dim);
 }
+/* A business ready: its tile and its name on one line with when at its end; under them, from the name's edge to the row's,
+   the opening it goes with and its answers side by side (Ruben, 25 Nov 2026: the name cut short by "from now", and the two
+   answers stacked one over the other in the narrow column between). The main column lends its parts to the row's grid. */
 .ro-whor {
   display: grid;
   grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
+  gap: 4px 10px;
+  align-items: center;
   min-height: 54px;
-  padding: 8px 12px;
+  padding: 10px 12px;
 }
 /* Under the name: the opening it goes with, as they read it, and its answers as pills (the held card's). */
 .ro-whor-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: contents;
+}
+.ro-whor-main > * {
+  grid-column: 2 / -1;
   min-width: 0;
-  padding-top: 8px;
+}
+.ro-whor-main > .ro-name {
+  grid-row: 1;
+  grid-column: 2;
+}
+.ro-whor-main > .ro-hrow-acts {
+  margin-top: 6px;
 }
 .ro-whor-opening {
   font-size: var(--text-sm);
@@ -2982,7 +3057,8 @@ html.frame-on .cm-pane-sub .bc-run-link {
   quotes: "\201C" "\201D";
 }
 .ro-whor > small {
-  padding-top: 10px;
+  grid-row: 1;
+  grid-column: 3;
 }
 .ro-whor > small {
   font-size: var(--text-sm);
@@ -3022,7 +3098,14 @@ html.frame-on .cm-pane-sub .bc-run-link {
   min-width: 0;
 }
 .ro-sends > .ro-cap {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+/* How the list is worked, under its caption, in the caption's quiet words (to-send.tsx RoToSend). */
+.ro-sends-how {
+  margin: 0 4px 8px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
 .ro-send {
   padding: 12px 14px;
@@ -3095,7 +3178,10 @@ html.frame-on .cm-pane-sub .bc-run-link {
   border-left-color: var(--line-strong);
   border-radius: 0 var(--radius-full) var(--radius-full) 0;
 }
+/* Skip, the quiet answer beside Sent, in the outline every other quiet answer wears (a held row's, a ready row's), where it
+   stood as words on no ground beside two pills (Ruben, 25 Nov 2026). */
 .ro-send-acts > .ro-ans-word {
+  border-color: var(--line-strong);
   background: transparent;
   color: var(--ink-muted);
 }
@@ -3873,12 +3959,11 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* The sheet's kicker (see-sheet.tsx; the run-to-leads canvas's board 5): what it is, small and mono, and on its line the
    way to its home, an inset pill the Close's own height (kit.css, "One Close for every sheet"), before the Close. */
+/* The kicker says what is open in plain words, as every other sheet's title does: spaced mono capitals ("A RUN") read as
+   the system talking (Ruben, 25 Nov 2026). */
 .see-kicker {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-dim);
 }
 .see-home.see-home {
@@ -3913,6 +3998,19 @@ div.tpl-slotbox:not([data-lines="1"]) {
   }
   .cmh-host-body > .cm-pane > .cm-pane-body {
     padding: 0 16px 16px;
+  }
+  /* Its foot where every sheet's stands (kit.css .rec-sheet-foot): 14px in from the sheet's sides and over its edge, the
+     sheet's own room under it given to the foot, as a sheet with a foot gives it (kit.css, ".sheet:has(> .rec-sheet-foot)"),
+     and its words 16px in from the rim. A run's foot stood 14px higher than every other sheet's, 2px further out at the
+     sides, and its words 4px nearer the rim, as a page's foot stands (Ruben, 25 Nov 2026). */
+  .cmh-host.cmh-host:has(.cmh-host-body > .cm-pane > .cm-pane-foot) {
+    padding-bottom: 0;
+  }
+  .cmh-host-body > .cm-pane > .cm-pane-foot {
+    margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)));
+  }
+  .cmh-host-body > .cm-pane > .cm-pane-foot > .ro-dock > .ro-dock-t {
+    padding: 0 10px;
   }
 }
 

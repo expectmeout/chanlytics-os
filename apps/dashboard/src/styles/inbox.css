@@ -3937,17 +3937,17 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
 @media (max-width: 900px) {
   /* The select-all box takes no room until something is picked, as on a desk (mobile.css gives it a thumb's 44px, which
      stood left of the search and pushed it off the buckets' edge); the search row sits at the buckets' 12px. */
-  .inbox .ix-list > :nth-child(2) > .ix-checkall {
+  :is(.inbox .ix-list, .ix-under) > .ix-find-line > .ix-checkall {
     width: 0;
     min-height: 0;
     margin: 0;
   }
-  .inbox .ix-list.picking > :nth-child(2) > .ix-checkall,
-  .inbox .ix-list > :nth-child(2) > .ix-checkall:focus-within {
+  :is(.inbox .ix-list, .ix-under).picking > .ix-find-line > .ix-checkall,
+  :is(.inbox .ix-list, .ix-under) > .ix-find-line > .ix-checkall:focus-within {
     width: 44px;
     margin-right: 4px;
   }
-  .main .inbox .ix-list > :nth-child(2) {
+  .main .inbox .ix-list > .ix-find-line {
     padding: 6px 12px 10px;
   }
   /* Nobody waiting: the page says Inbox zero under the list, so the list's own small card, which had 65px to stand in and
@@ -3999,8 +3999,26 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
     align-self: auto;
   }
   /* The search under the tabs, at the strip's sides (the capsule is the kit's, 38px). */
-  .inbox .ix-list > :nth-child(2) {
+  .inbox .ix-list > .ix-find-line {
     padding: 6px 12px 8px;
+  }
+  /* In the frame's top (kit/head/under-row.tsx): the buckets and the search's glyph one row, as they stood at the list's
+     head, and the field under them, folded while it rests, so they hold still as the window scrolls the rows (Ruben, 25
+     Nov 2026). The frame's slot gives the page's gutter. */
+  .ix-under > .ix-bucket-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .ix-under > .ix-bucket-row > .ix-buckets {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .ix-under > .ix-find-line {
+    padding: 6px 0 2px;
   }
   /* The rows straight on the page, no fill at rest: the open one takes the screen, so none is marked here. */
   .inbox :is(.ix-thread-rows, .ix-runs) {
