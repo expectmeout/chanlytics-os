@@ -303,8 +303,11 @@ test(
     assert.equal(ok(await handOut(), "handed"), 1);
     assert.equal(ok(await handOut(), "a second knock"), 0);
     assert.ok(!(await due()).includes(A), "its read is on the ledger");
-    // A read that failed is not the day's read: the clock's next turn hands the workspace another.
-    ok(await db.from("jobs").update({ state: "failed" }).eq("tenant_id", A).eq("kind", "posts_read"), "it failed");
+    // A read that failed is not the day's read: the clock's next turn hands the workspace another. A job fails only
+    // from a run (jobs_guard: scheduled, then fired, then failed).
+    const move = (state) => db.from("jobs").update({ state }).eq("tenant_id", A).eq("kind", "posts_read");
+    ok(await move("fired"), "it ran");
+    ok(await move("failed"), "it failed");
     assert.ok((await due()).includes(A), "due again");
     ok(await db.from("jobs").delete().eq("tenant_id", A).eq("kind", "posts_read"), "tidied");
     for (const who of [as.owner, as.viewer, as.stranger])
