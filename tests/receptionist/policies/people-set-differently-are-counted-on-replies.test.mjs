@@ -3,7 +3,7 @@
  * contracts people/person-receptionist.ts ownModesOf and ownModesWords): every person whose receptionist has a mode of
  * their own is counted, under the mode they have, and the newest are named; the line says so in the person page's own
  * words, and says nothing where nobody is set apart. The read and the line on the page are proved where they are drawn
- * (ask/readers.test.mjs, workspace/settings-owner-panes.test.mjs).
+ * (ask/readers/, workspace/settings-owner-panes.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

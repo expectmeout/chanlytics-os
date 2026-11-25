@@ -3,7 +3,7 @@
  * page draws, every phrase it kept is drawn where it belongs, and every label is sentence case, names the thing and
  * carries no colon and no instruction. settings-words.test.mjs holds Settings' and Setup's words on a stub of its own;
  * the page is drawn here, on the shared harness (_business-tab-harness.mjs), which a second stub in that file could
- * not share. The Calendar page's half of "Calendar it reads" is calendar-honest.test.mjs's, where that page is drawn.
+ * not share. The Calendar page's half of "Calendar it reads" is calendar/calendar-page/'s, where that page is drawn.
  *
  * What is read is what the page draws: the tab at rest (every fold drawn closed and hidden, its head, hint and fields
  * with it), the two sheets open, a viewer's page, and a record with nothing in it. The composed prompt's own text is

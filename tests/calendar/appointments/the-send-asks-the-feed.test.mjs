@@ -1,7 +1,7 @@
 /**
  * What the owner's calendar feed names now, as the edge answers a broadcast's batch (S1-05; apps/edge/lib/calendar/feed-names.ts):
  * the record is only as new as the hourly sweep, so a reminder asks the cached feed too, and a visit cancelled in the owner's
- * calendar alone is held. The question the batch puts to the answer is core-broadcast.test.mjs's, and the rule it asks is
+ * calendar alone is held. The question the batch puts to the answer is broadcasts/core-broadcast/'s, and the rule it asks is
  * feed-appointments.test.mjs's; this proves the edge's half over a feed served by a stub and a database in memory: a workspace
  * with no calendar is none, one with a feed is the keys it names over the span it was read for, a feed that cannot be read throws
  * (a reminder never goes on a guess), a settings row that cannot be read throws too, and the feed is fetched once within its cache.

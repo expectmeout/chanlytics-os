@@ -304,7 +304,7 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
   ])
     assert.ok(mig.includes(pin), pin);
   // The edge's half (a test call on an instructed line marks it verified, and
-  // the bell says so) runs in retell-webhook-door.test.mjs; the two routes'
+  // the bell says so) runs in voice/calls/retell-door/; the two routes'
   // owner policy and their database calls run in settings-routes.test.mjs.
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
   // Setup's surface and rows are TSX since decision 0015's step 10 (surfaces/setup): the card imports its words.

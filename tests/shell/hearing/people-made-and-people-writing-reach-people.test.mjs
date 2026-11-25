@@ -13,7 +13,7 @@
  * Inbox and Conversations, which every message re-reads, and reads its one person again when either holds something of theirs newer
  * than the page: never People's list. A take-over, a hand-back, a snooze and its wake move no message clock (the wiring's second
  * audit, W-thread-wait-step-1): the page reads them again when a thread of theirs the Inbox held stands otherwise. (The page itself
- * is drawn in people/person-honest.test.mjs; what else it hears, its own surface, in hearing/a-person-s-page-hears-its-person.test.mjs.)
+ * is drawn in people/person-page/; what else it hears, its own surface, in hearing/a-person-s-page-hears-its-person.test.mjs.)
  *
  * Run on the real Calendar surface and the real runner for the retired F3b, and on the real surface values for N1.
  */

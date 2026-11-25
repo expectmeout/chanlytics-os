@@ -6,7 +6,7 @@
  * And the premise the Ask route's fallback stands on: a teammate's thread is,
  * to the session client, not there at all.
  *
- * Runs the way lead-engine.db.test.mjs does, against the database `supabase
+ * Runs the way leads/engine/engine/ does, against the database `supabase
  * start` builds on this machine, and leaves nothing behind.
  */
 import { test, before, after } from "node:test";

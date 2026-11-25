@@ -280,7 +280,7 @@ test("the line it answers on is stored as no number at all, which is what makes 
 });
 
 test("a number typed and then put back to the line is stored as no number, not as the line", () => {
-  // The row this box is shared with has the same case (business-tab-page.test.mjs, "A number typed before, put
+  // The row this box is shared with has the same case (receptionist/business-tab/page/, "A number typed before, put
   // back to the line"): pressing A different number fills the box with the line it answers on, so a draft that
   // kept what was in the box would publish the line as an OVERRIDE -- a stored string that stops following the
   // line the moment the line changes, which is the whole reason absent is the right answer.

@@ -1252,7 +1252,7 @@ test.describe("Settings › Business on a real workspace", () => {
     // Spec §11, as amended by Task 6.3 and by the 23 Sep quieting, measured by computed style: a control is drawn when
     // it is laid out and nothing over it is transparent. A row's act is drawn at rest in the dim ink and takes the ink
     // as the row is approached (record.css); it was opacity 0 until hovered, which read as a page with nothing to
-    // press. business-tab-page.test.mjs holds which controls the page draws at rest on a whole record and on an empty
+    // press. receptionist/business-tab/page/ holds which controls the page draws at rest on a whole record and on an empty
     // one; this is what the browser paints of them.
     await page.setViewportSize({ width: 1280, height: 900 });
     const drawn = () =>

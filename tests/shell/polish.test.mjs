@@ -76,7 +76,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     2,
     "and reaches the owner through the one closure",
   );
-  // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
+  // A call said by name, about its call or the thread that needs a call back, runs: voice/calls/retell-door/.
   assert.ok(
     /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
     "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
@@ -92,12 +92,8 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
       server.includes("replied.set(m.conversation_id, m.created_at)"),
     "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)",
   );
-  const mig = readRaw("supabase/migrations/00064_campaign_reply_window.sql");
-  assert.ok(
-    mig.includes("and i.created_at <= s.sent_at + interval '72 hours')  as replied") &&
-      mig.includes("create or replace function public.campaign_series"),
-    "the SQL series keeps the same window",
-  );
+  // The SQL series keeps the same window: campaign_series, redefined since 00064 through 00451, run on the stack
+  // (reports/campaigns/campaign-answers.db.test.mjs). Pinned as 00064's text until 25 Nov 2026.
   assert.ok(
     [
       "packages/contracts/src/reports/campaigns/words/heads.ts",

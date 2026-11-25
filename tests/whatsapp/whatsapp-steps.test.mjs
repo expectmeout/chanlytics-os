@@ -210,10 +210,10 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 });
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
-  // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
+  // The webhook's GET and POST are imported and run in whatsapp/door/.
   // The message path is a verb over ports now, and apps/edge/lib/inbound/arrival.ts
   // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
-  // which whatsapp-door.test.mjs and the inbound phase tests (inbound/phases/) CALL rather than read.
+  // which whatsapp/door/ and the inbound phase tests (inbound/phases/) CALL rather than read.
   // The verb is answer.ts's order of phases, each declared in a module beside it
   // (decision 0001), in the order it calls them; what each one does is run there.
   const HOME = {
@@ -279,7 +279,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // The tenant's credentials or none: waCfgFor answers null for a tenant with
   // nothing in the vault, and the door refuses rather than sending on any
   // other (per-tenant-credentials.test.mjs runs the resolver,
-  // deliver.test.mjs runs the door).
+  // messages/deliver/ runs the door).
   assert.ok(
     src.ingest.includes("whatsapp: ports.sender(ports.waCfg(rt)),") &&
       /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(

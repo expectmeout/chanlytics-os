@@ -97,17 +97,11 @@ test("a search's rows say Leads: a finished one opens Leads, and one that asks k
 test("the wiring: the table and its doors, the route, the surface, the bell reading both, and every edge alert kept with a kind and a route", () => {
   // The table, its RPCs, its RLS and the purge run on Postgres: notifications.db.test.mjs.
   // The route reaches the doors by name through its server module; the calls themselves are packages/db's (decision 0111).
-  const route = readCode("apps/dashboard/app/api/v1/notifications/route.ts");
-  const doors = readCode("packages/db/src/repositories/notices/devices.ts");
-  assert.ok(
-    route.includes("markBellSeen(ctx, { p_tenant_id: tenantId })") &&
-      route.includes("markOne(ctx, {") &&
-      route.includes('rate: "notify_mark",') &&
-      doors.includes('db.rpc("notifications_seen", args)') &&
-      doors.includes('db.rpc("notification_mark", args)'),
-  );
+  // The route marks the bell seen and one row read or dismissed through the two doors, counted in its own bucket: run
+  // through the route in routes/reads-routes.test.mjs ("marking notifications"). Pinned as the route's and the doors'
+  // text until 25 Nov 2026.
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
-  // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
+  // route in reads-routes.test.mjs ("reading notifications") and through its reader in ask/readers/.
   const sd = readCode("apps/dashboard/src/bridge/surfaces/notifications.ts");
   assert.ok(
     sd.includes('key: "notifications",') &&
@@ -153,7 +147,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       wa.includes('about: { type: "conversation", id: ing.conversation_id },'),
     "a handoff points at its thread",
   );
-  // The call and deadman bells run: retell-webhook-door.test.mjs and cron-deadman-door.test.mjs.
+  // The call and deadman bells run: voice/calls/retell-door/ and cron-deadman-door.test.mjs.
   // Moved out of fire.ts when a second place could fail a job: the stale-jobs
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.

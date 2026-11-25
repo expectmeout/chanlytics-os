@@ -11,7 +11,7 @@
  * function reads from messages stay where they were once every thread's history is three times as long. Blocks, not
  * rows, because a read that takes each thread whole and sorts it answers the same rows and reads every block of them.
  *
- * The sessions are real, as tenancy.db.test.mjs makes them: users made with the admin API sign in with a password
+ * The sessions are real, as database/tenancy/ makes them: users made with the admin API sign in with a password
  * through the anon key. The plan is read through the CLI, as text-search.db.test.mjs reads its plan; SUPABASE_CLI names
  * the binary when `supabase` is not on PATH. Against the database `supabase start` builds on this machine, never
  * production.

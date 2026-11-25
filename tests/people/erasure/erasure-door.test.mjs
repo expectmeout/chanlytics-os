@@ -10,7 +10,7 @@
  *
  * Run over one database in memory, which is both the session's client and the service client (the block, Storage, and
  * the jobs, deliveries, notes and turns scrubs), with a Storage bucket that records what it was asked to remove.
- * people-routes.test.mjs holds the refusals and the key reads; this holds what comes after them.
+ * people/routes/ holds the refusals and the key reads; this holds what comes after them.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

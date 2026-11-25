@@ -212,7 +212,7 @@ test("the sweep's schedule and its 60 seconds", () => {
   // hears -- moved to lib/line-resume.ts and is run below against a fake database.
   // The route itself -- its refusals (no provider, no key, no secret), its bound of
   // two a tick, the job it schedules and who it tells -- runs in
-  // cron-doors-b.test.mjs. What stays here is configuration nothing runs.
+  // cron/doors-b/. What stays here is configuration nothing runs.
 
   // Registered, scheduled, and watched from its first tick.
   const m = readRaw("supabase/migrations/00097_a_line_stops_being_stuck.sql");
@@ -473,7 +473,7 @@ test("a read that FAILS must not be reported as 'we do not own it'", async () =>
 });
 
 // `release` giving back a number the row lost the receipt for is run in
-// lines-door.test.mjs: the door looks the number up at the carrier by its
+// lines/door/: the door looks the number up at the carrier by its
 // digits, releases the SID that answered, says `number_found_by_lookup`, and
 // keeps the row when the lookup is refused.
 

@@ -7,7 +7,7 @@
  * not. Now the edge compares the save with what was on record, reads where the workspace's filing stands across its
  * lines, and keeps the name its brand was filed under; contracts turns that into the sentence, and the route passes it
  * on. What is proved here runs the rules and the dashboard's route over a stand-in edge; the edge's own door is run in
- * lines-door.test.mjs, the form in registration-path.test.mjs.
+ * lines/door/, the form in registration-path.test.mjs.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

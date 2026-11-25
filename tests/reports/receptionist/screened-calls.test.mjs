@@ -1,7 +1,7 @@
 /**
  * The calls kept off the owner's list, counted (decision 0138): db's countScreenedCalls over the ledger's
  * `call.screened` rows, which Reports' Receptionist lens says in one sentence (receptionist-report.test.mjs holds the
- * words, receptionist-page.test.mjs where they are drawn, ask/readers.test.mjs that the route carries them).
+ * words, receptionist-page.test.mjs where they are drawn, ask/readers/ that the route carries them).
  *
  * A row is written where a rule acted: by the inbound door for a call turned away, by the call webhook for a call that
  * asked nobody, by the reply_draft job for a call back set aside as selling. So the count is of what happened, between

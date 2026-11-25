@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { OPEN_READ_PATHS } from "@chanlytics/contracts";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../_source.mjs";
+import { importSrc, readCode } from "../_source.mjs";
 import { asText } from "../_log-lines.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -174,7 +174,7 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
   assert.ok(RATE.aggregate.limit <= 600 && RATE.aggregate.windowMs <= 60_000, "…and still stop a script");
 });
 
-test("every route that sends, spends or aggregates counts against its bucket", () => {
+test("every route that sends, spends or aggregates counts against its bucket", async () => {
   const routes = [
     ["team/invite/route.ts", 'rate: "invite",'],
     ["conversations/[id]/reply/route.ts", 'rate: "reply",'],
@@ -187,22 +187,25 @@ test("every route that sends, spends or aggregates counts against its bucket", (
     ["workspaces/create/route.ts", 'rate: "create_workspace",'],
     ["contacts/[id]/receptionist/route.ts", 'rate: "person_mode",'],
   ];
+  // Asked of each route's own declaration (route()), which the wrapper performs: pinned as the routes' text until 25 Nov
+  // 2026. route-policy.json holds every route's policy beside these (routes/route-policy.test.mjs).
+  const declared = async (rel) =>
+    Object.values(await importSrc(`apps/dashboard/app/api/v1/${rel}`))
+      .map((handler) => handler?.policy)
+      .filter(Boolean);
   for (const [rel, call] of routes) {
-    const src = readCode(`apps/dashboard/app/api/v1/${rel}`);
-    // A route that declares its policy (route()) never imports the limiter itself: the wrapper takes the token.
+    const bucket = /rate: "([a-z_]+)",/.exec(call)[1];
     assert.ok(
-      src.includes('from "@/server/shared/rate-limit"') || src.includes('from "@/server/shared/route"'),
-      `${rel} imports the limiter, or declares its bucket to the wrapper that does`,
+      (await declared(rel)).some((p) => p.rate === bucket),
+      `${rel} counts against its bucket`,
     );
-    assert.ok(src.includes(call), `${rel} counts against its bucket`);
   }
-  // The role door still comes first where there is one: a viewer is refused
-  // as a viewer, not told to slow down.
-  // For a declared route the order is route()'s: role before rate, by construction.
-  const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
-  assert.ok(invite.includes('role: "owner",') && invite.includes('rate: "invite",'));
-  const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
-  assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "reply",'));
+  // The role door still comes first where there is one: a viewer is refused as a viewer, not told to slow down. For a
+  // declared route the order is route()'s: role before rate, by construction.
+  const [invite] = await declared("team/invite/route.ts");
+  assert.deepEqual([invite.role, invite.rate], ["owner", "invite"]);
+  const [reply] = await declared("conversations/[id]/reply/route.ts");
+  assert.deepEqual([reply.role, reply.rate], ["operator", "reply"]);
 });
 
 test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {

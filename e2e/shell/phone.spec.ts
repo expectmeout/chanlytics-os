@@ -3,6 +3,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
 import { apiGet } from "../workspace";
+import { drawnIn } from "./ready";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -1176,10 +1177,13 @@ test.describe("Phone shell on a real workspace", () => {
     // a frame, which took 0.8 to 1.7 s on the nightly's runner (24 Nov 2026), so four swipes are 30 to 40 s of input
     // before the four pages they cross load. The suite's 45 s ran out with nothing waiting, now and then, on its last page.
     test.setTimeout(120_000);
+    // Each load is waited for until the page says it is drawn with its rows (READY), never until the network goes quiet: a
+    // signed-in page keeps reading, and the nightly's waits for quiet ran out the test's time four nights of 45 (13-25 Nov
+    // 2026). A swipe on the copy a cold load draws first (first-rows) would land on nothing.
     const swipe = (from: number, to: number) => swipeAcross(page, from, to);
     const inbox = page.locator(".stabs.stabs-inbox .stabs-tab.active");
     await page.goto("/#/inbox");
-    await page.waitForLoadState("networkidle");
+    await drawnIn(page, "inbox");
     await expect(inbox).toHaveText(/^Inbox/);
     await swipe(300, 90);
     await expect(page).toHaveURL(atRoute(/^conversations/));
@@ -1188,11 +1192,11 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page).toHaveURL(atRoute(/^inbox/));
     await expect(inbox).toHaveText(/^Inbox/);
     await swipe(90, 300);
-    await page.waitForTimeout(800);
+    await motionSettled(page);
     await expect(page, "nothing before the first tab").toHaveURL(atRoute(/^inbox$/));
 
     await page.goto("/#/clients");
-    await page.waitForLoadState("networkidle");
+    await drawnIn(page, "people");
     await expect(page.getByTestId("people-scope")).toBeVisible();
     await swipe(300, 90);
     // The address is the tab's own route: the Leads view draws its strip once Leads is read.
@@ -1200,7 +1204,7 @@ test.describe("Phone shell on a real workspace", () => {
 
     // Campaigns is Sequences, its strip Sequences | Messages (decision 0060): its address lands on the first tab, lit.
     await page.goto("/#/campaigns");
-    await page.waitForLoadState("networkidle");
+    await drawnIn(page, "campaigns");
     await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
     await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
     await expect(page.getByTestId("campaigns-view-sequences")).toHaveAttribute("aria-current", "page");
@@ -1208,7 +1212,7 @@ test.describe("Phone shell on a real workspace", () => {
     // Settings on a phone is a list of its sections, not a strip (17 Oct 2026): a row opens its section as a page, and
     // the way back is the list, where it opened Business again when the sections were a strip of nine.
     await page.goto("/#/admin");
-    await page.waitForLoadState("networkidle");
+    await drawnIn(page, "settings");
     await expect(page.getByTestId("set-list")).toBeVisible();
     await expect(page.locator(".stabs-settings")).toHaveCount(0);
     await page.getByTestId("set-list-team").tap();
@@ -1274,7 +1278,26 @@ test.describe("Phone shell on a real workspace", () => {
       await carryBack();
       await expect(page.locator(opened), `${hash}: the row's page has gone`).toBeHidden();
       await expect(row, `${hash}: the same row, kept: nothing was built again`).toBeVisible();
-      const off = Math.round((await row.evaluate((el) => el.getBoundingClientRect().top)) - was.top);
+      // Where it stands once the list has come to rest: read while the list was still sliding back under the page that
+      // left, it stood 4px short twice in 45 nights (13-25 Nov 2026), and was where it stood on the retry. At rest is two
+      // frames running at one place, after every animation the Back began has finished.
+      await motionSettled(page);
+      const restsAt = await row.evaluate(
+        (el) =>
+          new Promise<number>((done) => {
+            let last = Number.NaN;
+            const look = () => {
+              const top = el.getBoundingClientRect().top;
+              if (Math.abs(top - last) < 0.5) done(top);
+              else {
+                last = top;
+                requestAnimationFrame(look);
+              }
+            };
+            requestAnimationFrame(look);
+          }),
+      );
+      const off = Math.round(restsAt - was.top);
       places[hash] = Math.abs(off) <= 1 ? "where it stood" : `${off}px from where it stood`;
     }
     test.skip(Object.keys(places).length === 0, "no list here has a row");
