@@ -617,6 +617,9 @@
   .set-conn .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
   .set-conn .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
   .set-conn .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
+  /* Its press a pill, as Connect's is: "Fix" in a thumb's 44px is as wide as it is tall, and stood as a circle no other
+     press is (the phone change list's C1, 25 Nov 2026). Its coral stays, Ruben's own (row.tsx, 20 Oct 2026). */
+  .set-conn .set-int-row[data-offers="primary"] > .set-int-actions > button { min-width: 64px; }
   .set-conn .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
   /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
      (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines

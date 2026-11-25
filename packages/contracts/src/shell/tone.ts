@@ -130,7 +130,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     sending: "accent",
     replying: "info",
     unanswered: "warn",
-    no_reply: "info",
+    // Nobody wrote back: a state to read, so the grey of status, not a blue no other state means (the phone change
+    // list's C4, 25 Nov 2026).
+    no_reply: "plain",
     auto_reply: "info",
     sent: "info",
     went_quiet: "plain",
@@ -170,7 +172,8 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     // You have it: in hand, as the Inbox, Conversations and the person's page draw it -- one tone for one word (the wiring's
     // second audit, R11 S9-5). The rail's amber count is People's own choice (lists.ts listAsks), not this tone.
     waiting_on_you: "info",
-    new: "info",
+    // New to the list: a state to read, the grey of status, as No reply is (the phone change list's C4, 25 Nov 2026).
+    new: "plain",
     active: "ok",
     quiet: "plain",
     opted_out: "plain",

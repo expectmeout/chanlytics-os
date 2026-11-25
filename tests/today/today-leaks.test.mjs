@@ -585,8 +585,8 @@ test("several templates at once are one row each way -- a sync can approve a bat
   assert.equal(withRun.queued, 2);
   assert.equal(
     todayAwayGrouped([readyRun("r3", "Birthday offer"), readyRun("r4", "Welcome")], [], 5).groups[0].title,
-    "2 campaigns are ready",
-    "a group says campaigns, never playbooks (decision 19)",
+    "2 campaigns wait for you",
+    "a group says campaigns, never playbooks (decision 19), and that they wait, in the amber of what needs you",
   );
   assert.equal(
     todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days")], [], 5).groups.length,
