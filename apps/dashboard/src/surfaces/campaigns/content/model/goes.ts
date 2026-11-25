@@ -198,6 +198,19 @@ const goingUpSaid = (post: PostDto): Said =>
     : lineSaysOf(SAYS.going_up.line(post.place), "live", { moving: true });
 
 /**
+ * The place a post of the piece was removed at itself, by its owner there or by the place, or null: what an ad made
+ * from the piece says while it still runs (contracts ads/on-piece.ts). The first in the order places are listed.
+ */
+export function removedPlaceOf(
+  posts: readonly PostDto[],
+  takeDown: PieceTakeDownDto | null,
+  nowMs: number,
+): PostPlace | null {
+  const { placements } = pieceStandingOf(posts, takeDown, nowMs);
+  return placements.find((at) => at.standing.is === "came_down" && at.standing.there)?.place ?? null;
+}
+
+/**
  * A post its place took and was never seen holding, past the time that read takes: nobody here can say it went up. The
  * line says so in its tile's words, and asks its owner, who can look: two presses, the first the one that leads (the
  * content status review of 24 Nov 2026, D5). A reader is asked nothing.

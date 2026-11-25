@@ -424,7 +424,9 @@ function DeskSheetAtRest(props: {
       <WhereItGoes
         lines={standing.lines}
         on={standing.goes}
-        ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+        ads={
+          held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} piece={standing.ad} onPaused={held.again} /> : null
+        }
       />
       <PieceVersions
         list={standing.version.list}

@@ -250,7 +250,7 @@ export function PostBoth({
   both: PostBothState;
   doors?: PlaceDoors;
   /** The piece's placements, a line each (viewer/goes.tsx): said over the places, which then keep only their switch. */
-  standing?: Pick<PieceStanding, "lines" | "goes" | "results" | "version">;
+  standing?: Pick<PieceStanding, "lines" | "goes" | "results" | "version" | "ad">;
 }) {
   const { draft, takes, wont, offers } = both;
   // One read of its results, for its ads' lines under Where it goes and its own part below (pass 6).
@@ -265,7 +265,11 @@ export function PostBoth({
         <WhereItGoes
           lines={lines}
           on={standing.goes}
-          ads={held.data?.ads?.length ? <PieceAdLines ads={held.data.ads} /> : null}
+          ads={
+            held.data?.ads?.length ? (
+              <PieceAdLines ads={held.data.ads} piece={standing.ad} onPaused={held.again} />
+            ) : null
+          }
         />
       ) : null}
       {standing ? (

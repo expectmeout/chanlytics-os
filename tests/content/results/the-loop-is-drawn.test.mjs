@@ -84,6 +84,7 @@ const ad = {
   currency: "USD",
   ends_at: "2026-12-05T04:59:00.000Z",
   paused_by: null,
+  version: 2,
   people: 9,
   booked: 2,
 };
@@ -121,16 +122,37 @@ test("the one line: an icon, its words, and its numbers set apart (Loop1)", () =
   assert.equal(S.sinceSaid("2026-12-01T12:00:00Z", Date.parse("2026-12-01T12:20:00Z")), "20 min ago");
 });
 
+/** What the piece hands its ad lines: no post of it was removed at its place, and someone who may pause is looking. */
+const noneRemoved = { removedOn: null, busy: false, pause: async () => undefined };
+const adLines = (ads, piece = noneRemoved) => draw(S.PieceAdLines, { ads, piece, onPaused: () => undefined });
+
 test("the ad's line under Where it goes, in Ads' words, opening the ad (Loop2)", () => {
-  const html = draw(S.PieceAdLines, { ads: [ad] });
+  const html = adLines([ad]);
   assert.match(html, /<b>Ad on Facebook<\/b>/);
   assert.match(html, /Running as an ad · \$18 of \$40 · until/);
   assert.match(html, /data-testid="cnv-goes-ad-open"/);
   assert.match(html, /Open the ad/);
-  assert.equal(draw(S.PieceAdLines, { ads: [] }), "", "nothing where no ad was made from it");
-  const checking = draw(S.PieceAdLines, { ads: [{ ...ad, state: "review" }] });
+  assert.doesNotMatch(html, /Pause the ad/, "nothing was removed: the line offers no pause of its own");
+  assert.equal(adLines([]), "", "nothing where no ad was made from it");
+  const checking = adLines([{ ...ad, state: "review" }]);
   assert.match(checking, /Meta is checking it · usually within a day/);
   assert.doesNotMatch(checking, /Open the ad/, "an ad Meta is checking has nothing to open yet");
+});
+
+test("its post was removed on Instagram while the ad runs: the line says so, in amber, with Pause the ad before Open the ad", () => {
+  // The content status review of 24 Nov 2026, B5 and D3.
+  const html = adLines([ad], { ...noneRemoved, removedOn: "Instagram" });
+  assert.match(html, /data-tone="you"/, "it needs its owner");
+  assert.match(html, /Its post was removed on Instagram\. The ad is still running\./);
+  assert.match(html, /data-testid="cnv-goes-ad-pause"[^>]*>Pause the ad</);
+  assert.ok(html.indexOf("cnv-goes-ad-pause") < html.indexOf("cnv-goes-ad-open"), "the pause leads");
+  // Someone who may not pause reads the same sentence, and is offered the door to the ad alone.
+  const reader = adLines([ad], { removedOn: "Instagram", busy: false, pause: null });
+  assert.match(reader, /The ad is still running\./);
+  assert.doesNotMatch(reader, /Pause the ad/);
+  // An ad already paused says so, and has nothing more to pause.
+  const paused = adLines([{ ...ad, state: "paused", paused_by: null }], { ...noneRemoved, removedOn: "Instagram" });
+  assert.doesNotMatch(paused, /Pause the ad|still running/);
 });
 
 test("What it brought, the post and the ad apart, each person once; one who booked offers their chain (Loop2, Loop3)", () => {

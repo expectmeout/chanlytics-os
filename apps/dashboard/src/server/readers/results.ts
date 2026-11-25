@@ -291,6 +291,7 @@ async function pieceAdsOf(rc: ReaderContext, fileId: string): Promise<Pick<Piece
       currency: page?.account.currency ?? null,
       ends_at: ad.ends_at,
       paused_by: ad.paused_by,
+      version: ad.version,
       people: ad.people,
       booked: ad.booked,
     })),

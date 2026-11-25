@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { POST_PLACES, STANDING_WORDS, TAKE_DOWN_BELL, fileSaidOf, isOneOf, type TenantId } from "@chanlytics/contracts";
+import { countAdsOnShowingFile } from "@chanlytics/db/ads";
 import { findFileForWork, listPostsRemovedThere, type PostRow, type TakeDownKept } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import type { Database } from "@chanlytics/db/types";
@@ -115,12 +116,19 @@ export async function tellPostGone(db: Db, post: PostRow): Promise<void> {
   const file = await findFileForWork(db, post.tenant_id, post.file_id).catch(
     logAndGoOn("removed post's piece for its bell line", null),
   );
+  // An ad made from the piece is still on (the content status review of 24 Nov 2026, B5 and D3): said, with where
+  // its one press is. Nothing here pauses it. A count that could not be read says nothing of an ad.
+  const adsOn = await countAdsOnShowingFile(db, post.tenant_id, {
+    fileId: post.file_id,
+    now: new Date().toISOString(),
+  }).catch(logAndGoOn("whether a removed post's ad is still on", 0));
+  const says = STANDING_WORDS.removed.bell;
   await recordNotification(
     post.tenant_id,
     {
       kind: "post_down",
-      title: STANDING_WORDS.removed.bell.title(place, fileSaidOf(file?.name ?? "")),
-      body: STANDING_WORDS.removed.bell.body(place),
+      title: says.title(place, fileSaidOf(file?.name ?? "")),
+      body: adsOn > 0 ? says.bodyWithAd(place) : says.body(place),
       route: takeDownBellRouteOf(post.file_id),
       about: { type: "file", id: post.file_id },
     },

@@ -246,6 +246,17 @@ said it has this post. Look at the account, then say which.", with two presses, 
 never went up: "Didn't post · Instagram doesn't have it.", with Post again. It is never "Taken down", since nothing was
 up to take down. Where its numbers arrive, they are proof enough that it is there, and nobody is asked.
 
+**AI says what the page says.** Asked whether a post is up, or why one did not go, AI reads where each piece stands
+from the same answer its tile is drawn from, a clause for each post: "up on Instagram since Nov 21 · 5:19 PM", "set to
+go up on Instagram tomorrow 9:00 AM", "not posted on Instagram: it waits for its owner", "removed on Instagram itself,
+not taken down from here". It never guesses a standing, and never says "taken down" of a post removed on the place.
+
+**A removed post's ad is said, never paused by itself.** Take down, here, pauses the ads made from a piece. A post
+removed on Instagram itself does not: the owner did not press anything here. So where an ad made from the piece is
+still running, its line under Where it goes turns amber and says "Its post was removed on Instagram. The ad is still
+running.", with one press, "Pause the ad", and the bell's line ends "Its ad is still running: open the piece to pause
+it."
+
 **A piece's numbers say whether more are coming.** While a later read comes: "Reel: couldn't be read this time" and
 "Next at 3 days." Once none will (it came down, its story's day ended, or its last read is past), the same facts are
 said for good: "Story: its numbers couldn't be read before it ended", "Read before the story ended.", "Its numbers

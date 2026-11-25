@@ -51,6 +51,27 @@ export async function listAdsShowingFile(
   return data;
 }
 
+/**
+ * How many ads made here from one file are on now, as their rows keep them: made, meant to run, and not past their
+ * end. For the bell that says a removed post's ad still runs (the edge's files/post-told.ts), under the service role.
+ */
+export async function countAdsOnShowingFile(
+  db: Db,
+  tenantId: TenantId,
+  shown: { fileId: string; now: string },
+): Promise<number> {
+  const { count, error } = await tenantDb(db, tenantId)
+    .from("ads")
+    .select("id", { count: "exact", head: true })
+    .eq("origin", "chanlytics")
+    .eq("status", "made")
+    .eq("intent", "on")
+    .eq("approved->>picture", shown.fileId)
+    .or(`ends_at.is.null,ends_at.gt.${shown.now}`);
+  if (error) throw new DbFailure(error, "the ads on that show a file");
+  return count ?? 0;
+}
+
 /** One ad of the workspace's, by Chanlytics' own id. */
 /**
  * Ads by their own ids, whichever account each is of: the ones a window's counts name that an account's list did not

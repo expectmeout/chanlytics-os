@@ -29,6 +29,7 @@ import { readMadeAs } from "../../../posts/made-as";
 import { findNewestPostLook } from "../../../posts/record";
 import { getZoomInto } from "../../../files/zoom";
 import { load } from "../../../shared/reader";
+import { piecesStandForAsk } from "../../../readers/content";
 import { filesFoundForAsk, filesNamedForAsk } from "../../../readers/files";
 import {
   timeLeftOf,
@@ -99,6 +100,22 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
 /** The files named, read alone (a question about one file reads one), and the names that found none. */
 const filesNamedOfTurn = async (t: ToolContext, names: readonly string[]) =>
   filesNamed((await load(t.rc, filesNamedForAsk, { names })).data.files, names);
+
+/**
+ * Where each piece AI made stands, among these files (the content status review of 24 Nov 2026, B4): what its tile and
+ * its open piece say, a clause a placement, so "is my post up?" has a source. One read for the made pieces of a page,
+ * none where it holds none; a file the business keeps has no standing.
+ */
+async function madeStandsOf(turn: ToolContext, files: readonly FileForAsk[]): Promise<ReadonlyMap<string, string[]>> {
+  const pieceIds = files.filter((f) => f.source === "made" && f.status === "filed").map((f) => f.id);
+  if (pieceIds.length === 0) return new Map();
+  const { stands } = (await load(turn.rc, piecesStandForAsk, { files: pieceIds, zone: turn.timezone })).data;
+  return new Map(Object.entries(stands));
+}
+
+/** A file's line with where it stands, where it is a made piece: `… · stands: post: up on Instagram since …`. */
+const lineWithStands = (line: string, stands: readonly string[] | undefined): string =>
+  stands?.length ? `${line} · stands: ${stands.join("; ")}` : line;
 
 /** A copy's size, where the edge said it, as the model is told it. */
 const sizeOf = (c: { width: number | null; height: number | null }): ZoomSize | null =>
@@ -381,7 +398,7 @@ export const filesTool = defineActions({
       }),
       examples: [{ shelf: "work" }],
       label: "Looking through your files",
-      words: `Action list answers one line a file, newest first, ${LIST_MAX} a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on.`,
+      words: `Action list answers one line a file, newest first, ${LIST_MAX} a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound; a made piece, after "stands:", where each post stands now: say that, never guess. Where it says more, page reads on.`,
       async run(turn, input) {
         const page = input.page ?? 1;
         const from = (page - 1) * LIST_MAX;
@@ -399,8 +416,9 @@ export const filesTool = defineActions({
             error: `there is no page ${page}: this list ends on page ${Math.max(1, Math.ceil(total / LIST_MAX))}`,
           };
         const more = total - from - LIST_MAX;
+        const stands = await madeStandsOf(turn, files);
         return {
-          files: files.map(fileIndexLineOf),
+          files: files.map((file) => lineWithStands(fileIndexLineOf(file), stands.get(file.id))),
           ...(more > 0 ? { more, next_page: page + 1 } : {}),
         };
       },
@@ -410,10 +428,11 @@ export const filesTool = defineActions({
       examples: [{ name: "storefront-dusk-street" }],
       label: "Reading what a file shows",
       words:
-        "Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it.",
+        "Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, stands_at, the moment its look chose to stand for the whole clip, and moments, the few it named as worth using on their own, best first: where to start choosing one, then zoom at it to see it; a made piece's stands too.",
       async run(turn, input) {
         const file = await oneNamed(turn, input.name);
         if ("error" in file) return file;
+        const stands = (await madeStandsOf(turn, [file])).get(file.id);
         return {
           name: file.name,
           shelf: fileShelfSaid(file),
@@ -433,6 +452,7 @@ export const filesTool = defineActions({
           look: file.look_status,
           ...(file.width && file.height ? { size: [file.width, file.height] } : {}),
           ...(isVideo(file) ? await videoGot(turn, file) : {}),
+          ...(stands ? { stands } : {}),
           added: file.created_at,
         };
       },

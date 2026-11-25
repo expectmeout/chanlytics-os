@@ -18,6 +18,7 @@ import {
   contentMarkToneOf,
   contentPieceMarkOf,
   pieceStandingOf,
+  pieceStandsSaid,
   placementStandingOf,
   storyRanItsDay,
   takeDownWillOf,
@@ -359,8 +360,15 @@ function readersOf({ file, posts }) {
     offered: takeDownOffered(posts, NOW),
     will: takeDownWillOf(posts, () => "yes", NOW),
     week: weekRowOf(posts),
+    // What AI is told of the piece (the review's B4): a clause a placement, from the same standing.
+    ai: pieceStandsSaid({ posts }, { nowMs: NOW, when }),
   };
 }
+
+/** A placement as AI's clause names it up: "post: up on Instagram". */
+const AI_KIND = { picture: "post", story: "story", reel: "reel" };
+const AI_PLACE = { instagram: "Instagram", google: "Google", facebook: "Facebook" };
+const aiUpOf = (key) => `${AI_KIND[key.split(" ")[1]]}: up on ${AI_PLACE[key.split(" ")[0]]}`;
 
 /** A pill's tone as the tile's dot would draw the same fact (viewer/foot.tsx PILL_TONE; grey is the tile's "ready"). */
 const TILE_TONE_OF_PILL = { ok: "up", live: "going", you: "need", gone: "ready", "": "timed" };
@@ -428,6 +436,17 @@ for (const each of CASES) {
       if (read.week.tone === "ok") assert.ok(out.size > 0, "the Week says up, and nothing is");
       assert.ok(!read.week.line.startsWith("Goes up"), `the Week: ${read.week.line}`);
     }
+
+    // AI: it says "up on" a place of exactly the placements that are up, "never posted" only of a piece with no post
+    // at all, and never both.
+    const aiUp = read.ai.filter((clause) => / up on /.test(clause)).map((clause) => clause.split(" since ")[0]);
+    assert.deepEqual(new Set(aiUp), new Set([...out].map(aiUpOf)), `what AI calls up: ${read.ai.join("; ")}`);
+    assert.equal(read.ai.includes("never posted"), each.posts.length === 0, "AI says never posted");
+    if (each.went && out.size === 0 && maybe.size === 0)
+      assert.ok(
+        read.ai.some((clause) => /ended by itself|taken down|removed on/.test(clause)),
+        `AI says what last happened: ${read.ai.join("; ")}`,
+      );
 
     // And the standing itself, which they all read: its placements that are up are the ones the case names.
     const { placements } = pieceStandingOf(each.posts, null, NOW);
@@ -543,6 +562,51 @@ test("the words of each standing are the one table's: what a tile, a line, a row
     tiles.filter(([, words]) => words === "Ready to post").map(([standing]) => standing),
     ["never"],
   );
+});
+
+test("what AI is told of a piece is its screens' answer, a clause a placement (the review's B4)", () => {
+  const said = (posts, byHandWhere) =>
+    pieceStandsSaid({ posts, ...(byHandWhere === undefined ? {} : { byHandWhere }) }, { nowMs: NOW, when });
+  assert.deepEqual(said([]), ["never posted"]);
+  assert.deepEqual(said([post()]), ["post: up on Instagram since Sat 23:00"]);
+  // A story that ended and a post removed on Instagram itself: production's piece, as its open piece says it.
+  assert.deepEqual(said([post({ kind: "story", created_at: iso(SAT + 60_000) }), post(removedThere)]), [
+    "post: removed on Instagram itself, not taken down from here (noticed Mon 23:00)",
+    "story: a story that ran its day and ended by itself Sun 23:00",
+  ]);
+  assert.deepEqual(said([post(cameDown)]), ["post: taken down from Instagram by its owner Mon 23:00"]);
+  const waits = post({ ...never, status: "queued", scheduled_for: iso(NOW + 2 * D), created_at: iso(NOW) });
+  assert.deepEqual(said([waits]), ["post: set to go up on Instagram Thu 23:00"]);
+  assert.deepEqual(said([post({ ...never, status: "failed", error: "Instagram is busy right now." })]), [
+    "post: not posted on Instagram: it waits for its owner (Instagram is busy right now.)",
+  ]);
+  const unseen = post({ ...never, published_at: iso(NOW - 3 * H), created_at: iso(NOW - 3 * H) });
+  assert.deepEqual(said([unseen]), [
+    "post: sent to Instagram, which never confirmed it went up: its owner is asked to look",
+  ]);
+  // Two places, and a story beside a post: each placement its own clause, in the order places are listed.
+  assert.deepEqual(
+    said([
+      post({ place: "google", created_at: iso(NOW - 4 * D) }),
+      post({ kind: "reel" }),
+      post({ kind: "story", published_at: iso(NOW - 5 * H), created_at: iso(NOW - 5 * H) }),
+    ]).sort(),
+    [
+      "post: up on Google since Sat 23:00",
+      "reel: up on Instagram since Sat 23:00",
+      "story: up on Instagram since Tue 18:00",
+    ],
+  );
+  // A post still up beneath a newer one that waits is said too; one its owner let go says nothing.
+  const under = said([{ ...waits, id: "post-over" }, post()]);
+  assert.deepEqual(under, ["post: set to go up on Instagram Thu 23:00", "post: up on Instagram since Sat 23:00"]);
+  assert.deepEqual(said([post({ ...never, status: "pulled" })]), ["never posted"]);
+  // What its owner put up themselves is said first, since nothing here sent it.
+  assert.deepEqual(said([], "TikTok"), ["posted by its owner on TikTok"]);
+  assert.deepEqual(said([post()], null), [
+    "posted by its owner, not from here",
+    "post: up on Instagram since Sat 23:00",
+  ]);
 });
 
 test("a video with no road from here is saved on its tile and in its open piece alike; with one, both say Ready to post", () => {
