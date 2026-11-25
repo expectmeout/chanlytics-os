@@ -88,10 +88,10 @@ test.describe("Settings → Notifications on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const seen = await holdSaves(page);
     const tick = page.getByTestId("ntf-email-call");
-    await expect(tick).toHaveAttribute("aria-pressed", "true");
+    await expect(tick).toHaveAttribute("aria-checked", "true");
     await tick.click();
     await expect.poll(() => seen.length).toBe(1);
     expect(seen[0]?.config?.notifications?.email_off).toEqual(["call"]);
-    await expect(tick).toHaveAttribute("aria-pressed", "false");
+    await expect(tick).toHaveAttribute("aria-checked", "false");
   });
 });

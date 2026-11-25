@@ -2990,6 +2990,12 @@ a.more-item {
     border-color var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
 }
+/* What an empty box says ("Optional") is a hint, in the ink placeholders take, never a value's: the browser's own grey
+   read as an answer beside a row's dim "None" (the phone change list's B4, 25 Nov 2026). A title's and a sentence's box
+   say theirs in the dim ink (below). */
+.rec-input::placeholder {
+  color: var(--ink-faint);
+}
 /* A box that holds the keys: its hairline in the accent and a soft wash around it (tokens.css, --focus-field), over
    the specular edge it keeps. One line; the keyboard's ring over an accent border was two. */
 .rec-input:focus-visible {
@@ -5886,6 +5892,39 @@ a.list-row {
   .rec-combo-pop .rec-combo-opt:hover {
     background: var(--accent-soft);
   }
+}
+/* The current pick (the phone change list's B1, 25 Nov 2026): the one chosen of a set stands on the pick's lilac with its
+   tick, as a chosen chip, segment or two-line option does, in a menu, a picker's list and a select's alike. It was a tick
+   alone in a menu, and in a list the walk's coral wash, since Base UI walks to the one chosen as its list opens. It stays
+   lilac under a pointer and as the list opens, the walk's wash being for the others; a key's focus draws the house's ring
+   over it, as a lit chip's does. */
+.more-item[role="menuitemradio"][aria-checked="true"],
+.rec-combo-pop .rec-combo-opt[data-chosen="true"] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  color: var(--ink);
+}
+.more-item[role="menuitemradio"][aria-checked="true"] .icon {
+  color: var(--ink);
+}
+.more-item[role="menuitemradio"][aria-checked="true"]:focus-visible,
+.rec-combo-pop .rec-combo-opt[data-chosen="true"]:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+/* A list's tick, at the option's end (picker.tsx, select.tsx, combobox.tsx): drawn on every option and seen beside the
+   one chosen, as a menu's set draws it, so a word at the options' end (a code, a count) stands in one column; the words
+   take the room before them. */
+.rec-combo-opt > .rec-combo-label {
+  flex: 1 1 auto;
+}
+.rec-combo-tick {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--ink);
+}
+.rec-combo-opt:not([data-chosen="true"]) > .rec-combo-tick {
+  visibility: hidden;
 }
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----

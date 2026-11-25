@@ -327,6 +327,25 @@ test("on a phone Sort sorts as a desktop's headings do, Add people adds one pers
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone", "the list gone, everyone shown");
   }));
 
+test("on a phone Sort ticks the sort in force where a desk's heading gave one no phone sort is: first, said as the list's head says it", () =>
+  onPhone(async () => {
+    // Oldest contact first: a desk's Last contact pressed twice, which no phone sort runs.
+    await freshPage({ people: [person(1), person(2)], views: { people: { sortBy: "last", sortDir: "asc" } } });
+    const sorts = sortMenuOf(draw())
+      .filter((i) => typeof i.checked === "boolean")
+      .map((i) => [i.label, i.checked]);
+    assert.deepEqual(
+      sorts.slice(0, 3),
+      [
+        ["Sorted by last contact", true],
+        ["Needs you first", false],
+        ["Latest contact first", false],
+      ],
+      "the sort in force, ticked, over the phone's own",
+    );
+    assert.equal(sorts.filter(([, on]) => on).length, 1, "one sort ticked");
+  }));
+
 test("the page holds its keys while a phone's sheet is open, leaves its Esc to it, and closes it when it asks", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }] });

@@ -29,12 +29,23 @@ import { Select as BaseSelect } from "@base-ui/react/select";
 import type { ReactElement, ReactNode, Ref } from "react";
 import { useMemo } from "react";
 import { chosen } from "../chosen";
+import { Icon } from "../icon/icon";
 import { Panel } from "../panel/panel";
 import { cx } from "../variants";
 import { usePhoneList } from "./phone-list";
 
 /** The room between the token and its list. */
 const PICKER_LIST_GAP_PX = 6;
+
+/**
+ * The tick at an option's end, drawn on every option and seen beside the one chosen, on the pick's lilac (kit.css, "The
+ * current pick"). A span of the kit's, not Base UI's ItemIndicator, which put its code on every page a list is drawn on.
+ */
+const LIST_TICK = (
+  <span className="rec-combo-tick" aria-hidden="true">
+    <Icon name="check" size={13} />
+  </span>
+);
 
 /** An option: the value the page keeps, its words, and what it may say beside them. */
 export type PickerOption<V extends string> = {
@@ -177,6 +188,7 @@ function PickerList<V extends string>(props: PickerProps<V> & { one: PickerOptio
                           {option.label}
                         </BaseSelect.ItemText>,
                       )}
+                      {LIST_TICK}
                     </BaseSelect.Item>
                   ))}
                 </BaseSelect.Group>
@@ -254,6 +266,7 @@ function PickerFind<V extends string>(props: PickerProps<V> & { one: PickerOptio
                         render={(itemProps, state) => <div {...itemProps} data-chosen={chosen(state)} />}
                       >
                         {optionContent(option, <span className="rec-combo-label">{option.label}</span>)}
+                        {LIST_TICK}
                       </BaseCombobox.Item>
                     )}
                   </BaseCombobox.Collection>

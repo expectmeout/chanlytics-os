@@ -58,6 +58,9 @@ import {
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
+/** The word for a booking the row says: its value, which the row's act opens the five of (settings/choice-act.tsx). */
+const wordShown = (tree) =>
+  textOf(find(byTestId(tree, "rec-row-appointment_word"), (n) => n.props?.className === "rec-row-value")).trim();
 test("the services row counts them and names the first three, and says nothing of how they are priced", () => {
   const row = byTestId(drawTab({ profile: many }), "rec-row-services");
   assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-value"))), "33", "the count alone");
@@ -288,7 +291,7 @@ test("What you call a booking states the workspace's word, and its menu offers t
     const row = byTestId(tree, "rec-row-appointment_word");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-key"))), "What you call a booking");
     // Never picked: an appointment, as everywhere a workspace has said nothing.
-    assert.equal(textOf(byTestId(tree, "appointment_word-menu")).trim(), "Appointment");
+    assert.equal(wordShown(tree), "Appointment");
     press(byTestId(redrawTab(), "appointment_word-menu"));
     const items = all(redrawTab(), (n) => n.props?.role === "menuitemradio");
     const vm = appointmentWordVM("appointment");
@@ -300,7 +303,7 @@ test("What you call a booking states the workspace's word, and its menu offers t
     assert.equal(vm.choices.length, APPOINTMENT_WORDS.length);
     assert.equal(vm.choices[2].hint, "Next meeting · Meeting reminder");
     // A word stored is the row's answer.
-    assert.equal(textOf(byTestId(drawTab({ word: "session" }), "appointment_word-menu")).trim(), "Session");
+    assert.equal(wordShown(drawTab({ word: "session" })), "Session");
     assert.deepEqual(c.sent, [], "reading sends nothing");
   } finally {
     delete W.__workspace;
@@ -319,11 +322,7 @@ test("a word picked goes through the workspace's courier as { appointment_word }
     assert.equal(sent.length, 0, "never the settings save");
     assert.deepEqual(told(flashes.at(-1)), ["ok", appointmentWordSaved("session")]);
     assert.equal(told(flashes.at(-1))[1], "Saved · it says “session” now.");
-    assert.equal(
-      textOf(byTestId(redrawTab(flash), "appointment_word-menu")).trim(),
-      "Session",
-      "and the page follows it",
-    );
+    assert.equal(wordShown(redrawTab(flash)), "Session", "and the page follows it");
   } finally {
     delete W.__workspace;
   }
@@ -338,7 +337,7 @@ test("a word refused says the server's words, and the row keeps the word it had"
     await pickWord("Lesson", flash);
     assert.deepEqual(c.sent, [{ appointment_word: "lesson" }]);
     assert.deepEqual(told(flashes.at(-1)), ["danger", "That workspace's word could not be changed."]);
-    assert.equal(textOf(byTestId(redrawTab(flash), "appointment_word-menu")).trim(), "Appointment");
+    assert.equal(wordShown(redrawTab(flash)), "Appointment");
   } finally {
     delete W.__workspace;
   }

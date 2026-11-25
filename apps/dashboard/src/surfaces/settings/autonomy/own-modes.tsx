@@ -6,9 +6,9 @@
  * the person page's PERSON_MODE_LABELS). Nothing where nobody is set apart, or where the read failed.
  */
 import { PERSON_MODE_LABELS, addressOf, ownModesWords, type OwnModesDto } from "@chanlytics/contracts";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { RecordRow } from "../../kit/record/row";
 import { navigate } from "../../frame-verbs";
+import { choiceAct } from "../choice-act";
 
 export function AutOwnModes({ own }: { own: OwnModesDto | null | undefined }) {
   const W = ownModesWords(own);
@@ -18,24 +18,20 @@ export function AutOwnModes({ own }: { own: OwnModesDto | null | undefined }) {
       id="aut-own-modes"
       label={W.label}
       hint={W.hint}
-      value={
-        <MoreMenu
-          items={[
-            { header: W.header },
-            ...own.named.map((p) => ({
-              label: p.name,
-              meta: PERSON_MODE_LABELS[p.mode],
-              onClick: () => navigate(addressOf({ kind: "person", id: p.id })),
-            })),
-          ]}
-          label={W.value}
-          title={`${W.label}: ${W.value}`}
-          btnClass="bt-link"
-          align="right"
-          escape
-          testid="aut-own-modes-menu"
-        />
-      }
+      value={W.value}
+      // The value and a menu at its end, as every row of Settings that opens a list is (../choice-act.tsx).
+      act={choiceAct({
+        items: [
+          { header: W.header },
+          ...own.named.map((p) => ({
+            label: p.name,
+            meta: PERSON_MODE_LABELS[p.mode],
+            onClick: () => navigate(addressOf({ kind: "person", id: p.id })),
+          })),
+        ],
+        name: `${W.label}: ${W.value}`,
+        testid: "aut-own-modes-menu",
+      })}
     />
   );
 }
