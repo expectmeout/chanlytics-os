@@ -68,6 +68,7 @@ apps/dashboard/src/
   client/
   lib/
   server/
+  styles/
   surfaces/
   yes/
 apps/dashboard/src/server/

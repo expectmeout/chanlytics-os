@@ -39,6 +39,13 @@ export const publicEnv = {
   get NEXT_PUBLIC_PAGE_FIRST(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_PAGE_FIRST);
   },
+  /**
+   * Each page's own stylesheets, as next.config wrote and listed them (src/styles/page-sheets.ts SheetManifest, as
+   * JSON). Unset where nothing wrote them (a test): a page then links none.
+   */
+  get NEXT_PUBLIC_SHEETS(): string | undefined {
+    return blankAsUnset(process.env.NEXT_PUBLIC_SHEETS);
+  },
   /** The build's commit, set by next.config from Vercel's; "dev" off Vercel. Keys the tab's caches to one build. */
   get NEXT_PUBLIC_BUILD_SHA(): string {
     return blankAsUnset(process.env.NEXT_PUBLIC_BUILD_SHA) ?? "dev";

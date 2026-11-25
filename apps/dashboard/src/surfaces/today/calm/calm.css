@@ -163,7 +163,11 @@
   grid-row: 1 / span 2;
   align-self: center;
 }
-.calm-fold > :first-child:not(:has(> :nth-child(4))) > :first-child {
+/* The mark is named (the kit's row draws its mark or its face first, and Today's line always has one): a rule whose
+   :has() stands on a box above the element it styles, and that names the element only by its place, has the browser
+   style the whole document again at every change to the page (tests/styles/has-subjects.test.mjs). */
+.calm-fold > :first-child:not(:has(> :nth-child(4))) > .list-row-mark,
+.calm-fold > :first-child:not(:has(> :nth-child(4))) > .list-row-face {
   grid-row: 1;
 }
 .calm-fold {

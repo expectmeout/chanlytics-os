@@ -230,13 +230,21 @@ test("a page outside the shell that draws the kit has app/globals.css import it 
   assert.equal(importsKit(tokens, GLOBALS_CSS), false);
 });
 
-test("the shell's entry imports the tokens, then the kit (§3.3); globals.css, the other entry, the tokens alone", () => {
-  // Every stylesheet the shell draws comes through bridge/frame.css, in its order, since Next orders nothing across
-  // imports: the kit's rules right after the values they read. The pages outside the shell open on app/globals.css,
-  // which takes the kit the day one of them draws it (the test above).
+test("the shell links the tokens, then the kit (§3.3); globals.css, every document's entry, imports the tokens alone", () => {
+  // Every stylesheet the shell draws is listed in src/styles/sheets.json, in the cascade's order, since Next orders
+  // nothing across imports (a page links its own part of each: src/styles/page-sheets.ts): the kit's rules first,
+  // right after the values they read, which app/globals.css brings to every document. The pages outside the shell
+  // open on globals.css alone, which takes the kit the day one of them draws it (the test above). The frame's own
+  // rules (bridge/frame.css) are one of the list, and import nothing.
+  const { sheets } = JSON.parse(fs.readFileSync(path.join(ROOT, "apps/dashboard/src/styles/sheets.json"), "utf8"));
+  assert.equal(sheets[0], "surfaces/kit/kit.css", "the kit first, after the tokens");
+  assert.ok(sheets.includes("bridge/frame.css"), "the frame's own rules are one of the list");
   const FRAME_CSS = "apps/dashboard/src/bridge/frame.css";
-  const frame = importsOf(fs.readFileSync(path.join(ROOT, FRAME_CSS), "utf8"), FRAME_CSS);
-  assert.deepEqual(frame.slice(0, 2), ["../styles/tokens.css", "../surfaces/kit/kit.css"], "the tokens, then the kit");
+  assert.deepEqual(importsOf(fs.readFileSync(path.join(ROOT, FRAME_CSS), "utf8"), FRAME_CSS), [], "and import nothing");
+  for (const row of sheets) {
+    const file = typeof row === "string" ? path.join(ROOT, "apps/dashboard/src", row) : null;
+    assert.ok(!file || fs.existsSync(file), `${String(row)} is a stylesheet of the app`);
+  }
   const globals = importsOf(fs.readFileSync(path.join(ROOT, GLOBALS_CSS), "utf8"), GLOBALS_CSS);
   assert.deepEqual(
     globals,

@@ -48,6 +48,7 @@
     "@types/qrcode": "1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "lightningcss": "1.33.0",
     "typescript": "catalog:"
   }
 }
