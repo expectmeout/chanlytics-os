@@ -55,7 +55,7 @@ export function StatePill({
       data-tip={tip || undefined}
       data-testid={testid || undefined}
     >
-      {tone === "accent" && !lit && <span className="live-dot" style={{ width: 5, height: 5 }} />}
+      {tone === "accent" && !lit && <span className="live-dot" />}
       {glyph}
       {label ?? said.label}
     </span>

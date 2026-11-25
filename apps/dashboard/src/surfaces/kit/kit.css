@@ -517,6 +517,11 @@ a.chip:focus-visible {
   background: var(--accent);
   flex-shrink: 0;
 }
+/* In a live pill (StatePill's accent at rest), a step under its own size beside the pill's words. */
+.pill > .live-dot {
+  width: 5px;
+  height: 5px;
+}
 .live-dot::before {
   content: "";
   position: absolute;

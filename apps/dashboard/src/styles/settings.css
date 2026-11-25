@@ -86,6 +86,8 @@
   color: var(--ink-dim);
 }
 .set-nav-group:first-of-type { padding-top: 6px; }
+/* Details' hours and the door to the Calendar beside them, on one line (settings/frame/workspace.tsx). */
+.set-hours-val { display: inline-flex; align-items: center; gap: 8px; }
 
 .set-pane {
   overflow-y: auto;

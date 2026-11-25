@@ -193,7 +193,7 @@ function evidenceRow(e: Evidence, i: number) {
       <div className="ix-evid-body">
         <div className="ix-evid-label">
           {e.label}
-          {e.to && <Icon name="arrow-right" size={9} style={{ marginLeft: 5, color: "var(--ink-faint)" }} />}
+          {e.to && <Icon name="arrow-right" size={9} className="ix-appr-to" />}
         </div>
         <div className="ix-evid-detail">{e.detail}</div>
       </div>

@@ -351,7 +351,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
 
       {c.live && c.checking && (
         <div className="lm-banner" data-testid="live-checking">
-          <span className="live-dot" style={{ width: 6, height: 6, background: "var(--warn)" }} />
+          <span className="live-dot lm-dot lm-dot-warn" />
           Still marked live · {c.checkingWhy}. It is checked with the phone provider within five minutes.
         </div>
       )}

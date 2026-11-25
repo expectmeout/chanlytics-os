@@ -124,6 +124,7 @@
   color: var(--ink-dim);
   padding-top: 5px;
   padding-bottom: 5px;
+  padding-left: 38px;
 }
 .nav-item.nav-sub.active { color: var(--ink); }
 
@@ -282,6 +283,12 @@
   color: var(--ink-dim);
 }
 .nav-item.active .icon { color: var(--ink); }
+/* A row's chevron that opens its children (sidebar.tsx): at the row's end, or just after its count; turned while open;
+   faint whether its row or its parent is the page shown or not, as it was drawn: its class twice outranks the rows' own
+   ink (.nav-item.active .icon, .nav-item.parent-active .icon). */
+.nav-item .icon.nav-chev.nav-chev { margin-left: auto; color: var(--ink-faint); transition: transform 160ms; }
+.nav-item .icon.nav-chev-after { margin-left: 4px; }
+.nav-item .icon.nav-chev-open { transform: rotate(90deg); }
 
 .sidebar-foot {
   margin-top: auto;
@@ -1298,6 +1305,8 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 .ct-week-foot .icon { color: var(--ink-faint); flex-shrink: 0; }
 
 .bc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+/* A line of them that holds a press too, its items centred on it (composer-forms.tsx). */
+.bc-mid { align-items: center; }
 @media (max-width: 900px) {
   .ct-drafts { grid-template-columns: 1fr; }
   .ct-week { width: max-content; }
@@ -2092,6 +2101,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
+/* The workspace's chevrons, beside its name, in the dim ink (sidebar.tsx). */
+.icon.sb-team-chev { color: var(--ink-dim); }
 .sb-team-plan {
   margin-top: 1px;
   font-size: var(--text-xs);
