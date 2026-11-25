@@ -487,7 +487,7 @@ const fileRow = (over = {}) => ({
 
 function askedOnce(
   input,
-  { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100", subject = null, brain = {} } = {},
+  { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100", subject = null, brain = {}, kept = [] } = {},
 ) {
   const config = {
     brain: {
@@ -499,7 +499,8 @@ function askedOnce(
     },
   };
   const tables = {
-    files: [fileRow(file)],
+    // How a piece was made (`kept`) is read on the member's own session (00717), as the rest of its row is.
+    files: [fileRow(file), ...kept],
     memberships: [],
     tenants: [{ id: A, name: "Harbor", slug: "harbor", timezone: TZ, status: "active" }],
     tenant_config: [{ tenant_id: A, config, version: 1 }],
@@ -657,13 +658,14 @@ test("a piece made here and asked about lends its own kept words: made again wit
   // The post the owner pressed Content's line to Ask on ("Move the words to the top."), kept with an offer in its words.
   const MADE = "eeeeeeee-0000-4000-8000-000000000009";
   const plan = { line: "20% off balayage", over: null, under: null, book: true, words_at: "bottom", voice: "classic" };
-  const service = fakeDb({ files: [{ id: MADE, tenant_id: A, made: { from: FILE, plan } }] }, {}, {});
+  const kept = [{ id: MADE, tenant_id: A, made: { from: FILE, plan } }];
+  const service = fakeDb({ files: kept }, {}, {});
   service.storage = { from: () => ({ download: async () => ({ data: new Blob([await storedOf()]), error: null }) }) };
   const ask = async (opts) => {
     setServiceClient(service);
-    const first = await askedOnce({ words_at: "top" }, opts);
+    const first = await askedOnce({ words_at: "top" }, { ...opts, kept });
     if (first.proposal || first.isError) return first;
-    return askedOnce({ words_at: "top", looked: JSON.parse(first.result).look_key }, opts);
+    return askedOnce({ words_at: "top", looked: JSON.parse(first.result).look_key }, { ...opts, kept });
   };
   const again = await ask({ question: "Move the words to the top.", subject: MADE });
   assert.equal(again.proposal?.kind, "post", again.result);

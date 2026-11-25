@@ -106,5 +106,6 @@ export async function findThreadPhone(db: Db, tenantId: TenantId, conversationId
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "the steered draft's thread");
-  return data?.contacts.phone_e164 ?? null;
+  // The embed is typed as always there, but a thread whose person is gone answers none.
+  return data?.contacts?.phone_e164 ?? null;
 }

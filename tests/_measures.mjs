@@ -1144,7 +1144,8 @@ export function emittedKinds() {
       );
       // Every literal inside the call, to its closing paren: a conditional that picks one of three billing kinds
       // names all three.
-      for (const m of src.matchAll(/\b(?:emitEvent|recordEvent)\(/g)) {
+      // The dashboard's events ledger (server/shared/ledgers/events.ts) names its kinds the same way, without the client.
+      for (const m of src.matchAll(/\b(?:emitEvent|recordEvent|emitWorkspaceEvent|recordWorkspaceEvent)\(/g)) {
         let depth = 0;
         let i = m.index;
         for (; i < src.length; i++) {

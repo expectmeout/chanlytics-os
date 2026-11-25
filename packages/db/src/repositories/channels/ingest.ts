@@ -232,8 +232,9 @@ export async function recordOutbound(
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", params.conversationId)
-      .throwOnError()
-      .then(() => undefined, dbLogAndGoOn("stamping the thread's last message")),
+      .then(({ error: stampError }) => {
+        if (stampError) dbLogAndGoOn("stamping the thread's last message")(new DbFailure(stampError, "thread stamp"));
+      }),
     status === "sent"
       ? emitEvent(db, params.tenantId, "message.sent", "message", data.id, { sender: params.sender })
       : Promise.resolve(),

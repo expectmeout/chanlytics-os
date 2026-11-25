@@ -93,9 +93,9 @@ const row = (n, over = {}) => ({
   ...over,
 });
 
-function tool(files, input, more = {}) {
+function tool(files, input, more = {}, supabase = fakeDb({ files, memberships: [], ...more }, {}, {})) {
   const ctx = {
-    supabase: fakeDb({ files, memberships: [], ...more }, {}, {}),
+    supabase,
     userId: USER,
     email: "ada@example.com",
     params: {},
@@ -338,31 +338,38 @@ test("a picture opened says how their newest post looks, so the next keeps what 
     made: { from: ID(1), plan },
     ...over,
   });
-  setServiceClient(
-    fakeDb({
-      files: [
-        made(1, { voice: "classic", layout: "over", book: false }),
-        made(2, { voice: "modern", layout: "band", book: true }),
-        made(3, { voice: "classic", layout: "frame", book: false }, { removed_at: "2026-11-04T00:00:00Z" }),
-        made(4, { voice: "classic", layout: "left", book: false }, { tenant_id: "another" }),
-        { ...made(5, {}), source: "upload" },
-        // A video made since is no post: what it keeps is its own plan, and no look to carry on.
-        { ...made(6, { shape: "hook_cut", lines: ["I asked for volume"] }), kind: "video" },
-      ],
-    }),
-  );
+  // How their posts were made is read on the member's own session (00717), beside the files themselves.
+  const posted = [
+    made(1, { voice: "classic", layout: "over", book: false }),
+    made(2, { voice: "modern", layout: "band", book: true }),
+    made(3, { voice: "classic", layout: "frame", book: false }, { removed_at: "2026-11-04T00:00:00Z" }),
+    made(4, { voice: "classic", layout: "left", book: false }, { tenant_id: "another" }),
+    { ...made(5, {}), source: "upload" },
+    // A video made since is no post: what it keeps is its own plan, and no look to carry on.
+    { ...made(6, { shape: "hook_cut", lines: ["I asked for volume"] }), kind: "video" },
+  ];
   readerCache.clear();
-  assert.deepEqual((await said()).last_post, { voice: "modern", layout: "band", book: true }, "the newest still here");
+  const seen = JSON.parse((await tool([...files, ...posted], { action: "view", names: ["good"] })).result);
+  assert.deepEqual(seen.last_post, { voice: "modern", layout: "band", book: true }, "the newest still here");
 });
 
 test("a read of how their last post looks that fails costs the turn nothing", async () => {
   copiesOf({ [ID(1)]: "file_abc" });
-  const db = fakeDb({}, {}, {});
-  db.from = () => {
-    throw new Error("no database");
+  const files = [row(1, { name: "good" })];
+  // The member's read of how their posts were made fails; the files themselves still read.
+  const db = fakeDb({ files, memberships: [] }, {}, {});
+  const from = db.from.bind(db);
+  db.from = (table) => {
+    const query = from(table);
+    if (table !== "files") return query;
+    const select = query.select.bind(query);
+    query.select = (columns, ...rest) => {
+      if (columns === "made") throw new Error("no database");
+      return select(columns, ...rest);
+    };
+    return query;
   };
-  setServiceClient(db);
-  const out = await tool([row(1, { name: "good" })], { action: "view", names: ["good"] });
+  const out = await tool(files, { action: "view", names: ["good"] }, {}, db);
   assert.equal(out.isError, false);
   assert.equal(JSON.parse(out.result).last_post, undefined);
   assert.equal(out.pictures.length, 1);

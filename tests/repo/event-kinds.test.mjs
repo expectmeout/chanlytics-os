@@ -7,7 +7,8 @@
  * would have met rows nobody could name. The emitters are found the way they
  * are written: `insert into events` in a migration, `emitEvent(...)` and
  * `recordEvent(...)` (packages/db events.ts, the one writer, whose table the
- * compiler holds to EVENT_KINDS: events.type-test.ts), the send door's own
+ * compiler holds to EVENT_KINDS: events.type-test.ts) and the dashboard's ledger over them (`emitWorkspaceEvent`,
+ * `recordWorkspaceEvent`), the send door's own
  * `event(...)`, a direct `.from("events").insert({ kind })`, and a `*_KIND`
  * constant. Meta's account webhooks are the one computed
  * family, `channel.<field>`, held to WABA_FIELDS in contracts.
