@@ -148,7 +148,7 @@ export async function findMetricsSummary(
   const dto = waHeld
     ? { ...booked, channels: booked.channels.map((c) => (c.kind === "whatsapp" ? { ...c, held: waHeld } : c)) }
     : booked;
-  if (email === null) return { ...dto, linesRead: false };
+  if (email === null) return { ...dto, lines_read: false };
   const wires = emailWires(email);
   // Untouched where there is no email line: a deployment without the channel
   // gets exactly the payload the function answered.

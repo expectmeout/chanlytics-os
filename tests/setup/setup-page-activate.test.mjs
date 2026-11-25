@@ -30,12 +30,12 @@ const dto = {
     broken: false,
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: true, active: true, number: "+13055550101", lastInboundAt: ago(3) },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: true, active: true, number: "+13055550101", last_inbound_at: ago(3) },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
   consent: { yes: 0, offers: 0 },
   requests: { line: null },
   lines: {
@@ -486,7 +486,7 @@ const noLine = {
   ...dto,
   channels: {
     ...dto.channels,
-    voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+    voice: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
   },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   billing: {

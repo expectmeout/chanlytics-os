@@ -16,5 +16,7 @@ export { type BrainPort } from "../../lib/receptionist/steer.js";
 export const POST = adminDoor(async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
-  return steerHeldDraft(auth, await readBody(request, STEER_DOOR), brain);
+  const read = await readBody(request, STEER_DOOR);
+  if (!read.ok) return read.response;
+  return steerHeldDraft(auth, read.body, brain);
 });

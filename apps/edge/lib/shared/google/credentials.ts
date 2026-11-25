@@ -135,7 +135,7 @@ async function tokenFor(
     const fresh = liveToken(await readCredentials(db, tenantId), now);
     return fresh
       ? { ok: true, token: fresh }
-      : { ok: false, error: "no_token", detail: "the connection changed while its token was refreshed" };
+      : { ok: false, error: "no_token", detail: "the connection changed while its sign-in was renewed" };
   } catch (e) {
     return { ok: false, error: "no_token", detail: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
   }

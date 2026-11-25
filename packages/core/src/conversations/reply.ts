@@ -521,19 +521,17 @@ export async function shapeTemplate(
   body: ReplyBody,
 ): Promise<ShapedTemplate> {
   if (!body.template?.name)
-    throw new AppError(
-      "window_closed",
-      "The 24-hour WhatsApp window is closed — replies must use an approved template.",
-    );
+    throw new AppError("window_closed", "They haven't written in 24 hours, so only an approved message reaches them.");
   const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
-  if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
+  if (!tpl || tpl.meta_status !== "approved")
+    throw new AppError("validation", "Saved message not found or not approved.");
   // Which yes this template needs is Meta's category, and the door asks
   // again at the wire. Asked here too, so the operator hears a sentence now
   // instead of finding a canceled row later.
   if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
     throw new AppError(
       "forbidden",
-      "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.",
+      "This saved message is an offer, and this person has not said yes to offers. Use an appointment message, or ask them first.",
     );
   }
   // The template's own slots, filled as broadcasts and the assistant fill them (inboxSlots, resolveParams): the
@@ -555,7 +553,7 @@ export async function shapeTemplate(
   if (toWrite) {
     throw new AppError(
       "validation",
-      `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`,
+      `This saved message needs words for “${toWrite}”, which the Inbox does not ask for. Pick a message without them, or send it from Campaigns.`,
     );
   }
   // Params are TENANT FACTS (E4): the workspace's own words for the slots
@@ -564,10 +562,7 @@ export async function shapeTemplate(
   // send a template from here, and is told so before anything is queued.
   const facts = await ports.templateFacts(conv.tenant_id);
   if (!facts)
-    throw new AppError(
-      "validation",
-      "This workspace has no template facts configured yet. Add the business name in Settings › Details first.",
-    );
+    throw new AppError("validation", "Saved messages need the business name. Add it in Settings › Details first.");
   const slots = inboxSlots(tpl).map((s, at) =>
     blank && at === blank.at ? { kind: "text" as const, value: words } : s,
   );
@@ -578,7 +573,7 @@ export async function shapeTemplate(
   if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
     throw new AppError(
       "validation",
-      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Hours & booking first.",
+      "This saved message takes the booking link, and none is on file. Pick another message, or add the link in Settings › Hours & booking first.",
     );
   const params: string[] = resolveParams(slots, {
     firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
@@ -642,7 +637,11 @@ async function queueReply(
   if (
     !(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))
   ) {
-    throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
+    throw new AppError(
+      "conflict",
+      "Couldn't take this conversation over just now, so nothing was sent. Try again.",
+      409,
+    );
   }
   // Who is speaking now (00132), taken before the drafts go: the wire asks
   // this, and between the claim and the withdrawal a draft can still reach it.

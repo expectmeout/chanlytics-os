@@ -107,7 +107,7 @@ export async function appendNotesMany(
     const refusal = recordOrEmpty(data).error;
     const refused = typeof refusal === "string" ? refusal : null;
     if (error || refused) {
-      failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
+      failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Couldn't add the note." });
       continue;
     }
     done += 1;

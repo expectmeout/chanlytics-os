@@ -23,8 +23,8 @@ export const POST = write({
       throw new AppError(
         "upstream_provider",
         read?.error
-          ? `Google could not be read: ${read.error}`
-          : "Google could not be read. It will be tried again within the hour.",
+          ? `Couldn't load from Google: ${read.error}`
+          : "Couldn't load from Google. Chanlytics tries again within the hour.",
       );
     return { listing: body.listing ?? null, fresh: read?.fresh ?? 0, counted: read?.counted ?? 0 };
   },

@@ -782,8 +782,8 @@ test("Setup reads again for the first WhatsApp message alone: while the number i
   const setup = byKey("setup");
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const withWhatsapp = (whatsapp) =>
-    setSurfaceValue("setup", { dto: { channels: { whatsapp, voice: { lastInboundAt: null } } } });
-  const waiting = { present: true, active: true, number: "+15555550123", quality: null, lastInboundAt: null };
+    setSurfaceValue("setup", { dto: { channels: { whatsapp, voice: { last_inbound_at: null } } } });
+  const waiting = { present: true, active: true, number: "+15555550123", quality: null, last_inbound_at: null };
   try {
     for (const route of ["today", "start"]) {
       at(route);
@@ -798,7 +798,7 @@ test("Setup reads again for the first WhatsApp message alone: while the number i
           `${route}: ${table} changed is no first`,
         );
       }
-      withWhatsapp({ ...waiting, lastInboundAt: "2026-10-13T12:00:00Z" });
+      withWhatsapp({ ...waiting, last_inbound_at: "2026-10-13T12:00:00Z" });
       assert.equal(
         hears(setup, "messages"),
         false,

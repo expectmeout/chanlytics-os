@@ -37,13 +37,13 @@ const facts = {
 const chosenNothing = (over = {}) => ({
   business: facts,
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: false, active: false, number: null, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 1 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   rehearsal: { reviewed: 1, kept: 1, last_at: "2026-11-03T14:00:00Z" },
@@ -130,8 +130,8 @@ test("Not by phone: Where it answers is done, Go live owes no number, and a chan
       workspace_choices: w,
       billing: { ...chosenNothing().billing, status: "trialing", trial_end: "2026-11-17T15:00:00Z" },
       channels: {
-        whatsapp: { present: true, active: true, number: WA, quality: "GREEN", lastInboundAt: null },
-        voice: { present: false, active: false, number: null, lastInboundAt: null },
+        whatsapp: { present: true, active: true, number: WA, quality: "GREEN", last_inbound_at: null },
+        voice: { present: false, active: false, number: null, last_inbound_at: null },
       },
     }),
     NOW,
@@ -199,11 +199,11 @@ test("no combination of what the first run asks leaves a workspace that has what
             lines: { ...chosenNothing().lines, ready: numbersHere, rows: forwarded },
             channels: {
               whatsapp: wa
-                ? { present: true, active: true, number: WA, quality: "GREEN", lastInboundAt: null }
-                : { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+                ? { present: true, active: true, number: WA, quality: "GREEN", last_inbound_at: null }
+                : { present: false, active: false, number: null, quality: null, last_inbound_at: null },
               voice: calls
-                ? { present: true, active: true, number: NEW, lastInboundAt: "2026-11-03T14:30:00Z" }
-                : { present: false, active: false, number: null, lastInboundAt: null },
+                ? { present: true, active: true, number: NEW, last_inbound_at: "2026-11-03T14:30:00Z" }
+                : { present: false, active: false, number: null, last_inbound_at: null },
             },
           }),
           NOW,

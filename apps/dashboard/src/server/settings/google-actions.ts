@@ -160,7 +160,7 @@ export async function stopGoogleReviewReply(ctx: RouteContext & { params: Params
   if (answer.status !== 200 || body.ok !== true)
     throw new AppError(
       answer.status === 404 ? "not_found" : "upstream_provider",
-      answer.status === 404 ? "That review is not on record." : "The reply could not be stopped just now. Try again.",
+      answer.status === 404 ? "That review is not on record." : "Couldn't stop the reply just now. Try again.",
       answer.status === 404 ? 404 : 502,
     );
   const held = body.held === true;
@@ -205,7 +205,7 @@ export async function searchGoogleFor(ctx: RouteContext, req: Request, member: M
     });
     throw new AppError(
       "upstream_provider",
-      "Google could not be searched just now. Try again in a minute; if it keeps failing, Chanlytics has been told.",
+      "Couldn't search Google just now. Try again in a minute. Chanlytics is told if it keeps happening.",
     );
   }
   const candidates = Array.isArray(result.candidates) ? result.candidates : [];

@@ -37,7 +37,7 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
   // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrNull(await req.json().catch(() => null));
   if (!body || typeof body.version !== "number") {
-    throw new AppError("validation", "Body must be { config, version }.");
+    throw new AppError("validation", "Send the settings with their version.");
   }
   // The row as stored, the feed's address whole: what withHiddenFeed puts back, and what withStoredKeysKept keeps.
   const before = await findConfigRow(ctx.supabase, member.tenantId);
@@ -63,7 +63,10 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
       return field ? `${field}: ${i.message}` : i.message;
     });
     const more = parsed.error.issues.length - sentence.length;
-    throw new AppError("validation", `Config rejected — ${sentence.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
+    throw new AppError(
+      "validation",
+      `These settings weren't saved: ${sentence.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
+    );
   }
   await judgeChangedHandoff(ctx, member.tenantId, parsed.data, before?.config);
   // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any

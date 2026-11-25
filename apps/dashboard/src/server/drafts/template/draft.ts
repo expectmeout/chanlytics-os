@@ -211,7 +211,7 @@ export async function askOnce(
       .map((b) => b.text)
       .join("");
     if (item.streamError && !text)
-      return { ok: false, reason: "refused", message: `The ${kind} could not be written right now. Try again.` };
+      return { ok: false, reason: "refused", message: `Couldn't write the ${kind} right now. Try again.` };
     return {
       ok: true,
       text,

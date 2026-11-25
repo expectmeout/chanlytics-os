@@ -240,7 +240,7 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     broadcasts.POST.run(send("POST", { template_id: "nope", audience: everyone }, inB), ctxFor(tables, {}, rpcs)),
     "validation",
     400,
-    "Pick a template.",
+    "Pick a saved message.",
   );
   await refused(
     broadcasts.POST.run(
@@ -280,7 +280,7 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     ),
     "validation",
     400,
-    "This template takes 1 value.",
+    "This saved message takes 1 value.",
   );
   const nobody = ctxFor(tables, {}, rpcs);
   await refused(
@@ -911,18 +911,18 @@ test("a message written in one more language: judged against what the workspace 
     ask({ language: "fr", translate: {} }),
     "validation",
     400,
-    "Say which template to write in another language.",
+    "Say which saved message to write in another language.",
   );
   await refused(
     ask({ language: "fr", translate: { id: T1, starter: "winback_offer" } }),
     "validation",
     400,
-    "Say which template to write in another language.",
+    "Say which saved message to write in another language.",
   );
   await refused(ask({ translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
   await refused(ask({ language: "tlh", translate: { id: T1 } }), "validation", 400, "Pick a language from the list.");
   // Another workspace's message is not this one's to write.
-  await refused(ask({ language: "fr", translate: { id: T4 } }), "not_found", 404, "That template is not on file here.");
+  await refused(ask({ language: "fr", translate: { id: T4 } }), "not_found", 404, "That saved message is not on file.");
   // A language the message already has is not one more.
   await refused(ask({ language: "es", translate: { id: T1 } }), "conflict", 409, "It is on file in Spanish already.");
   await refused(

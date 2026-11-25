@@ -40,7 +40,7 @@ export async function takeOver(
   // No timer to set: expire_stale_pauses() ends the pause from paused_until (00098).
   const done = await ports.takeOver(conv.tenant_id, conv.id, paused_until);
   if (!done) {
-    throw new AppError("conflict", "Could not take this thread over — reload and try again.", 409);
+    throw new AppError("conflict", "Couldn't take this conversation over. Reload and try again.", 409);
   }
   return { state: "needs_human", paused_until, decision_id: done.decision_id, withdrawn_drafts: done.withdrawn_drafts };
 }

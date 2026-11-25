@@ -13,5 +13,7 @@ import { WHATSAPP_TEMPLATES_DELETE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-delete");
   if (!auth.ok) return auth.response;
-  return deleteWhatsappTemplate(auth, await readBody(request, WHATSAPP_TEMPLATES_DELETE_DOOR));
+  const read = await readBody(request, WHATSAPP_TEMPLATES_DELETE_DOOR);
+  if (!read.ok) return read.response;
+  return deleteWhatsappTemplate(auth, read.body);
 });

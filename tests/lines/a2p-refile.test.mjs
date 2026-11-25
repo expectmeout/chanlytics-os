@@ -409,8 +409,8 @@ test("a rejection reaches every person who can act on it, in words about what ha
   // produce it.
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.match(owner, /body\.error === "campaign_rejected"/, "the owner route knows this answer exists");
-  assert.match(owner, /The carriers sent this registration back\./);
-  assert.match(owner, /Chanlytics resubmits it/, "and says who sends it again, because it is not them");
+  assert.match(owner, /Texting approval was sent back\./);
+  assert.match(owner, /Chanlytics files it again/, "and says who sends it again, because it is not them");
   assert.match(owner, /body\.reason/, "carrying what the carriers actually said");
 
   // The row no longer promises the action gate 6 took away from owners.

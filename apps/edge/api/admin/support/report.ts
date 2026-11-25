@@ -13,5 +13,7 @@ import { SUPPORT_REPORT_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/support/report");
   if (!auth.ok) return auth.response;
-  return mailSupportReport(auth, await readBody(request, SUPPORT_REPORT_DOOR));
+  const read = await readBody(request, SUPPORT_REPORT_DOOR);
+  if (!read.ok) return read.response;
+  return mailSupportReport(auth, read.body);
 });

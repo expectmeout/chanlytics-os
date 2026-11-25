@@ -159,7 +159,10 @@ test("the person is the token's: a token about nobody with no person in the body
   const nobody = () => ({ "x-edge-token": token({ workspace: T(1), user: null }) });
   const bad = [400, { ok: false, error: "bad_request", detail: "tenant_id and user_id required" }];
   assert.deepEqual(await answer(await knock(T(1), ask({ user_id: undefined }), nobody())), bad);
-  assert.deepEqual(await answer(await knock(T(1), ask({ user_id: "ada" }), nobody())), bad);
+  assert.deepEqual(await answer(await knock(T(1), ask({ user_id: "ada" }), nobody())), [
+    400,
+    { ok: false, error: "bad_request" },
+  ]);
   assert.equal(net.calls.length, 0);
 });
 
@@ -194,7 +197,7 @@ test("the vendor's no: its limit (429) is 503 provider_unreachable, a dropped co
   const busy = wired(() => json(429, { detail: { status: "concurrent_limit_exceeded", message: "Too many calls." } }));
   assert.deepEqual(await answer(await knock(T(1), ask())), [
     503,
-    { ok: false, error: "provider_unreachable", detail: "voice agent 429" },
+    { ok: false, error: "provider_unreachable", detail: "Voice didn't answer (429)" },
   ]);
   assert.equal(busy.calls.length, 1);
 
@@ -203,14 +206,14 @@ test("the vendor's no: its limit (429) is 503 provider_unreachable, a dropped co
   });
   assert.deepEqual(await answer(await knock(T(1), ask())), [
     503,
-    { ok: false, error: "provider_unreachable", detail: "voice agent timeout" },
+    { ok: false, error: "provider_unreachable", detail: "Voice didn't answer (timeout)" },
   ]);
   assert.equal(down.calls.length, 1);
 
   const refused = wired(() => json(401, { detail: { status: "invalid_api_key", message: "Invalid API key" } }));
   assert.deepEqual(await answer(await knock(T(1), ask())), [
     502,
-    { ok: false, error: "provider_refused", detail: "voice agent 401" },
+    { ok: false, error: "provider_refused", detail: "Voice said no (401)" },
   ]);
   assert.equal(refused.calls.length, 1);
 });

@@ -85,7 +85,7 @@ export function useStandingCheck(channels: ChannelVM[] | null | undefined): void
 }
 
 /**
- * Meta's SDK, fetched once the WhatsApp row offers Connect to a member who may press it (the server's `canConnect`), so the
+ * Meta's SDK, fetched once the WhatsApp row offers Connect to a member who may press it (the server's `can_connect`), so the
  * press itself asks for Meta's window: a phone's browser gives a page one only inside a press. A number already connected, a door
  * that is not ready and a member who may not connect fetch nothing of Meta's.
  */
@@ -93,7 +93,8 @@ export function useSignupAhead(
   door: Partial<SignupDoor> | null | undefined,
   channels: ChannelVM[] | null | undefined,
 ): void {
-  const offered = !!door && !!door.ready && door.canConnect === true && !!channels && !channelFor(channels, "whatsapp");
+  const offered =
+    !!door && !!door.ready && door.can_connect === true && !!channels && !channelFor(channels, "whatsapp");
   useEffect(() => {
     if (offered) waConnect.prepare(door);
   }, [offered, door]);

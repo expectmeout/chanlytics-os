@@ -127,7 +127,7 @@ function asked(raw: unknown): Asked {
     breathe?: unknown;
   } | null;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  if (!UUID.test(templateId)) throw new AppError("validation", "Pick a template.");
+  if (!UUID.test(templateId)) throw new AppError("validation", "Pick a saved message.");
   const kind = body?.audience?.kind;
   if (typeof kind !== "string" || !isOneOf(AUDIENCE_KINDS, kind)) {
     throw new AppError("validation", "Pick who this goes to.");
@@ -420,7 +420,7 @@ export async function createBroadcast(
     // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
     // database said is the log's.
     createLog.error("campaign_step_failed", { step: "assemble", error: created.error });
-    throw new AppError("internal", "The send could not be created. Nothing was sent; try again.", 500);
+    throw new AppError("internal", "Couldn't create the send. Nothing was sent. Try again.", 500);
   }
   // The door answers the decision's id with the run's; one was asked for, so an answer without it is refused where
   // the door is called (db assembleBroadcast), never read as a run made with none.

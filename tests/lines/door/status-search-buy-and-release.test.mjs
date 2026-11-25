@@ -428,7 +428,7 @@ test("retry resumes only the named row of the named workspace at its own step, r
   try {
     assert.deepEqual(await answer(await knock({ op: "retry", line_id: "nope" })), [
       400,
-      { ok: false, error: "bad_request", detail: "line_id is required" },
+      { ok: false, error: "bad_request" },
     ]);
     assert.deepEqual(await answer(await knock({ op: "retry" })), [
       400,

@@ -87,6 +87,6 @@ export async function importAgain(
     return json(200, { ok: true });
   } catch (e) {
     log.error("history_start_failed", { source, error: errField(e) });
-    return refuse(503, "could_not_queue", "it could not be started again");
+    return refuse(503, "could_not_queue", "it couldn't be started again");
   }
 }

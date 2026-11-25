@@ -15,5 +15,7 @@ import { WHATSAPP_STANDING_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/standing");
   if (!auth.ok) return auth.response;
-  return checkNumberStanding(auth, await readBody(request, WHATSAPP_STANDING_DOOR));
+  const read = await readBody(request, WHATSAPP_STANDING_DOOR);
+  if (!read.ok) return read.response;
+  return checkNumberStanding(auth, read.body);
 });

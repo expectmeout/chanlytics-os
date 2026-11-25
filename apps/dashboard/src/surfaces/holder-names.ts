@@ -17,6 +17,6 @@ const roster = () => surfaceValue("settings")?.team ?? null;
  * and Conversations name the holder of a row with.
  */
 export function holderName(userId: string | null | undefined): string | null {
-  const member = userId ? roster()?.find((m) => m.userId === userId) : null;
-  return member ? memberWords({ email: member.email, display_name: member.displayName || null }).name : null;
+  const member = userId ? roster()?.find((m) => m.user_id === userId) : null;
+  return member ? memberWords({ email: member.email, display_name: member.display_name || null }).name : null;
 }

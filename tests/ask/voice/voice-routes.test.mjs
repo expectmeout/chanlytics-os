@@ -279,9 +279,19 @@ test("the edge's no: a workspace that may not spend is 402 in the edge's words; 
   wired(() => {
     throw new TypeError("fetch failed");
   });
-  await refused(voice.POST.run(send("POST", {}, inA), ctxFor(tables)), "upstream_voice", 503, "could not be started");
+  await refused(
+    voice.POST.run(send("POST", {}, inA), ctxFor(tables)),
+    "upstream_voice",
+    503,
+    "Couldn't start a call with AI",
+  );
   wired(() => json(200, { ok: true }));
-  await refused(voice.POST.run(send("POST", {}, inA), ctxFor(tables)), "upstream_voice", 503, "could not be started");
+  await refused(
+    voice.POST.run(send("POST", {}, inA), ctxFor(tables)),
+    "upstream_voice",
+    503,
+    "Couldn't start a call with AI",
+  );
   assert.deepEqual(
     [tables.ask_threads.length, tables.ask_voice_sessions.length],
     [0, 0],

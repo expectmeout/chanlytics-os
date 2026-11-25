@@ -143,14 +143,11 @@ export const lists = {
    */
   add: async (id: string, contactIds: string[]) => {
     // Each part through the list's verb (contracts listMemberSpec), the walk a person page's tick and Ask take too.
-    let last: ApiResult<Output<"PUT segments/[id]">> | null = null;
-    for (let at = 0; at < Math.max(1, contactIds.length); at += LIST_ADD_PART) {
-      last = memberAnswer(
-        await commitVerb("list_member", { list_id: id, add: contactIds.slice(at, at + LIST_ADD_PART) }),
-      );
-      if (!last.ok) return last;
-    }
-    return last!;
+    const addPart = async (at: number): Promise<ApiResult<Output<"PUT segments/[id]">>> =>
+      memberAnswer(await commitVerb("list_member", { list_id: id, add: contactIds.slice(at, at + LIST_ADD_PART) }));
+    let last = await addPart(0);
+    for (let at = LIST_ADD_PART; last.ok && at < contactIds.length; at += LIST_ADD_PART) last = await addPart(at);
+    return last;
   },
   drop: async (id: string, contactIds: string[]) =>
     memberAnswer(await commitVerb("list_member", { list_id: id, remove: contactIds })),

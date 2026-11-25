@@ -24,10 +24,10 @@ function dto(over = {}) {
       broken: false,
     },
     channels: {
-      whatsapp: { present: true, active: true, number: "+13055550100", quality: "GREEN", lastInboundAt: ago(2) },
-      voice: { present: true, active: true, number: "+13055550101", lastInboundAt: ago(30) },
+      whatsapp: { present: true, active: true, number: "+13055550100", quality: "GREEN", last_inbound_at: ago(2) },
+      voice: { present: true, active: true, number: "+13055550101", last_inbound_at: ago(30) },
     },
-    templates: { approved: 3, pending: 0, startersApproved: 3 },
+    templates: { approved: 3, pending: 0, starters_approved: 3 },
     lines: {
       rows: [
         {
@@ -113,7 +113,7 @@ test("voice blockers, in the order the owner meets them", () => {
     state_since: ago(1),
     created_at: ago(1),
   });
-  const noVoice = { present: false, active: false, number: null, lastInboundAt: null };
+  const noVoice = { present: false, active: false, number: null, last_inbound_at: null };
   assert.equal(
     capabilityStatus(
       "voice",
@@ -163,7 +163,7 @@ test("voice blockers, in the order the owner meets them", () => {
       dto({
         channels: {
           whatsapp: dto().channels.whatsapp,
-          voice: { present: true, active: false, number: "+1", lastInboundAt: null },
+          voice: { present: true, active: false, number: "+1", last_inbound_at: null },
         },
       }),
       NOW,
@@ -175,7 +175,7 @@ test("voice blockers, in the order the owner meets them", () => {
     dto({
       channels: {
         whatsapp: dto().channels.whatsapp,
-        voice: { present: true, active: true, number: "+1", lastInboundAt: null },
+        voice: { present: true, active: true, number: "+1", last_inbound_at: null },
       },
     }),
     NOW,
@@ -188,7 +188,7 @@ test("voice blockers, in the order the owner meets them", () => {
 test("whatsapp: Meta's approval is a blocker; a connected-but-off number is another; a message answered is the evidence", () => {
   const waiting = capabilityStatus(
     "whatsapp",
-    dto({ templates: { approved: 0, pending: 2, startersApproved: 0 } }),
+    dto({ templates: { approved: 0, pending: 2, starters_approved: 0 } }),
     NOW,
   );
   assert.equal(waiting.ready, false);
@@ -198,7 +198,7 @@ test("whatsapp: Meta's approval is a blocker; a connected-but-off number is anot
     dto({
       channels: {
         voice: dto().channels.voice,
-        whatsapp: { present: true, active: false, number: "+1", quality: null, lastInboundAt: null },
+        whatsapp: { present: true, active: false, number: "+1", quality: null, last_inbound_at: null },
       },
     }),
     NOW,
@@ -209,7 +209,7 @@ test("whatsapp: Meta's approval is a blocker; a connected-but-off number is anot
     dto({
       channels: {
         voice: dto().channels.voice,
-        whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+        whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
       },
     }),
     NOW,

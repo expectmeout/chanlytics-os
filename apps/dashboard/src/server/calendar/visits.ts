@@ -110,7 +110,7 @@ async function sayOnVisit(
     // found in the log rather than by its blandness.
     if (!(item.error && VISIT_REFUSALS[item.error]))
       log.error("visit_door_unknown_answer", { appointment: appointmentId, error: item.error ?? null });
-    throw new AppError("validation", VISIT_REFUSALS[item.error ?? ""] ?? "Could not say this.");
+    throw new AppError("validation", VISIT_REFUSALS[item.error ?? ""] ?? "Couldn't say this.");
   }
   if (!item.unchanged && typeof item.decision_id !== "string")
     throw new Error("mark_visit: the door answered without its decision");

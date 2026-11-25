@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OWN_VERSION_CHANNELS, TEMPLATE_CATEGORIES, type OwnVersionChannel } from "@chanlytics/contracts";
+import { OWN_VERSION_CHANNELS, TEMPLATE_CATEGORIES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { MESSAGE_VALUES_WORDS, saveVersion } from "@/server/campaigns/template-versions";
 
@@ -49,7 +49,7 @@ const Message = z.object({
 const Body = z.object({
   name: z.string({ message: "Say which message." }).min(1, "Say which message."),
   language: z.string({ message: "Pick a language from the list." }),
-  channel: z.enum(OWN_VERSION_CHANNELS as readonly [OwnVersionChannel, ...OwnVersionChannel[]], {
+  channel: z.enum(OWN_VERSION_CHANNELS, {
     message: "A version is written for email or text.",
   }),
   subject: z.string().nullish(),

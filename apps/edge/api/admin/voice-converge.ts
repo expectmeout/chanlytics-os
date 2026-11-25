@@ -15,5 +15,7 @@ import { VOICE_CONVERGE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
-  return convergeVoiceAgents(auth, await readBody(request, VOICE_CONVERGE_DOOR));
+  const read = await readBody(request, VOICE_CONVERGE_DOOR);
+  if (!read.ok) return read.response;
+  return convergeVoiceAgents(auth, read.body);
 });

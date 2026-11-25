@@ -109,7 +109,7 @@ const NOT_ANSWERS = {
     "provision.error",
   ],
   // Meta's answer stood in for a template never synced: a 404, which the door reads as a delete already done.
-  "apps/edge/lib/whatsapp/template-admin.ts": ['"not synced: no template id on file, so Meta was not asked"'],
+  "apps/edge/lib/whatsapp/template-admin.ts": ['"not updated: no saved message id on file, so Meta was not asked"'],
 };
 
 /**

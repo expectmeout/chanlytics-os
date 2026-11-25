@@ -121,7 +121,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
       ? {
           business: setup.business.name,
           missing,
-          consent: { yes_to_messages: setup.consent.yes, yes_to_offers: setup.consent.offersSaidYes },
+          consent: { yes_to_messages: setup.consent.yes, yes_to_offers: setup.consent.offers_said_yes },
         }
       : { error: "Setup could not be read just now" },
     note: 'Answer "what can you do" from ask_can in plain words, a few examples a page; a missing piece is said with what it stops and where it is fixed, and a sign-in is the page\'s (open it), never yours.',

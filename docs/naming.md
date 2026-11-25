@@ -16,9 +16,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   the table it references, so `tenant_id` and `contact_id` stay for ever. Tables are never renamed, with one exception:
   decision 0060 moved what sends on its own to the `sequence_*` tables (00440); the views it left under the old names
   went in 00452, once nothing read them. Review holds it.
-  The wire still says tenant in a few answers (a `tenant_id` or `tenantId` in `GET workspaces`, the partner's
-  workspaces, a lead search and the back office) and in the back office's `platform/tenants/[id]`; each moves with
-  its domain, as the wire's camelCase does.
+  The wire still says tenant in a few answers (a `tenant_id` in the partner's workspaces' overview, a lead search
+  and the back office) and in the back office's `platform/tenants/[id]`; each moves with its domain, as the wire's
+  camelCase does. A handover and an invitation say `workspace_id` (25 Nov 2026).
 - **A provider's word stays in its adapter.** Retell's agent, Twilio's campaign and Meta's template category live in
   `packages/channels` and the edge door that speaks to them, never in a product word. Review holds it.
 - **The API and the pages say the product's nouns.** A new route segment is a glossary word (`people`, `lists`,

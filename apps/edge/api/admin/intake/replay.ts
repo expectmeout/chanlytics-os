@@ -32,5 +32,7 @@ const DOORS = {
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/intake/replay");
   if (!auth.ok) return auth.response;
-  return replayProviderEvent(pg(), await readBody(request, INTAKE_REPLAY_DOOR), DOORS);
+  const read = await readBody(request, INTAKE_REPLAY_DOOR);
+  if (!read.ok) return read.response;
+  return replayProviderEvent(pg(), read.body, DOORS);
 });

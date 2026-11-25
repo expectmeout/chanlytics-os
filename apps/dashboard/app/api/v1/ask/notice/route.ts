@@ -1,4 +1,4 @@
-import { ASK_NOTICES_SENT, dayInZone } from "@chanlytics/contracts";
+import { ASK_NOTICES_SENT, dayInZone, recordOrNull } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
@@ -17,10 +17,7 @@ export const GET = read({
     const rc = readerContext(ctx, member);
     const [zone, views] = await Promise.all([
       load(rc, factsReader, undefined).then((r) => r.data.timezone),
-      load(rc, memberViews, undefined).then(
-        (r) => r.data as Record<string, unknown> | null,
-        logAndGoOn("ask notice views", null),
-      ),
+      load(rc, memberViews, undefined).then((r) => recordOrNull(r.data), logAndGoOn("ask notice views", null)),
     ]);
     const language = new URL(req.url).searchParams.get("language") === "es" ? "es" : "en";
     const t: Parameters<typeof listNotices>[0] = {

@@ -32,7 +32,7 @@ const NOW = new Date("2026-09-15T14:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 const later = new Date(NOW.getTime() + 3 * 3_600_000).toISOString();
 const ANA = "u-ana";
-const TEAM = [{ userId: ANA, email: "ana@marisas.example.com", displayName: "Ana García" }];
+const TEAM = [{ user_id: ANA, email: "ana@marisas.example.com", display_name: "Ana García" }];
 const person = (id, name) => ({
   id,
   display_name: name,

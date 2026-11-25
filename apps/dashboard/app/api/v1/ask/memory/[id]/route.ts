@@ -1,3 +1,4 @@
+import { recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { changeMemoryLine, forgetMemoryLine } from "@/server/ask/companion/memory-pane";
 
@@ -14,7 +15,7 @@ export const PATCH = write({
   role: "partner",
   rate: "settings",
   handle: async ({ ctx, req, member }) =>
-    changeMemoryLine(ctx, member, ctx.params.id, (await req.json().catch(() => null)) as { text?: unknown } | null),
+    changeMemoryLine(ctx, member, ctx.params.id, recordOrNull(await req.json().catch(() => null))),
 });
 
 export const DELETE = write({

@@ -14,5 +14,7 @@ import { YOU_ARE_LIVE_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/you-are-live");
   if (!auth.ok) return auth.response;
-  return sendYouAreLive(auth, await readBody(request, YOU_ARE_LIVE_DOOR));
+  const read = await readBody(request, YOU_ARE_LIVE_DOOR);
+  if (!read.ok) return read.response;
+  return sendYouAreLive(auth, read.body);
 });

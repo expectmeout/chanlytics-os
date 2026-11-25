@@ -217,7 +217,7 @@ test("a message the reply verb would refuse opens no thread: the words, their le
   assert.deepEqual(slot.ops(), ["person"]);
   const factless = world();
   factless.ports.reply.templateFacts = async () => null;
-  await refused(beginConversation(factless.ports, sent()), "validation", /no template facts/);
+  await refused(beginConversation(factless.ports, sent()), "validation", /need the business name/);
   assert.deepEqual(factless.ops(), ["person"]);
   // A first email with no subject, to someone with no thread of theirs to find one on.
   const bare = world({ person: async () => ({ ...ROW, deal_id: "d1" }) });

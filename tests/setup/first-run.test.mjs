@@ -101,13 +101,13 @@ const empty = (over = {}) => ({
     receptionist: "none",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: false, active: false, number: null, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 0 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   later: [],
   rests: {},
@@ -132,13 +132,13 @@ const live = (over = {}) =>
   empty({
     business: facts,
     channels: {
-      whatsapp: { present: true, active: true, number: WA, quality: "GREEN", lastInboundAt: "2026-09-07T14:30:00Z" },
-      voice: { present: true, active: true, number: VOICE, lastInboundAt: "2026-09-06T14:30:00Z" },
+      whatsapp: { present: true, active: true, number: WA, quality: "GREEN", last_inbound_at: "2026-09-07T14:30:00Z" },
+      voice: { present: true, active: true, number: VOICE, last_inbound_at: "2026-09-06T14:30:00Z" },
     },
-    templates: { approved: 6, pending: 0, startersApproved: 5 },
+    templates: { approved: 6, pending: 0, starters_approved: 5 },
     calendar: { state: "ok" },
-    team: { members: 2, invitesOpen: 0, alertEmails: 1 },
-    consent: { yes: 3, offers: 1, offersSaidYes: 1 },
+    team: { members: 2, invites_open: 0, alert_emails: 1 },
+    consent: { yes: 3, offers: 1, offers_said_yes: 1 },
     activations: [
       { capability: "voice", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
       { capability: "whatsapp", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
@@ -409,7 +409,7 @@ test("Today's card: while a step is open, one row back to where the owner left o
   assert.equal(alone.left, "1 left");
   assert.equal(setupCardOf(setupSteps(live({ later: ["keep"] }), NOW)), null, "nothing left once it is put off");
 
-  const quiet = live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 } });
+  const quiet = live({ calendar: { state: "none" }, team: { members: 1, invites_open: 0, alert_emails: 0 } });
   const three = setupCardOf(setupSteps(quiet, NOW));
   assert.deepEqual(ids(three.rows), ["calendar", "team", "keep"], "WhatsApp, the calendar, a back-up, then the rest");
   assert.deepEqual(three.hide, { put: "Hide for a week", cost: WAITING });
@@ -420,7 +420,7 @@ test("Today's card: while a step is open, one row back to where the owner left o
 
 test("Skip says both choices before either is pressed: a week, or for good with where it lives; a row back from its week says so by its name", () => {
   const quiet = (over = {}) =>
-    live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 }, ...over });
+    live({ calendar: { state: "none" }, team: { members: 1, invites_open: 0, alert_emails: 0 }, ...over });
   const first = setupCardOf(setupSteps(quiet(), NOW));
   assert.deepEqual(first.rows.find((r) => r.id === "calendar").put, {
     week: "Put off for a week.",
@@ -455,8 +455,8 @@ test("each row put off for good says where it is set up from then: the page its 
     Object.fromEntries(setupCardOf(setupSteps(live(over), NOW)).rows.map((r) => [r.id, r.put.good]));
   const said = homes({
     calendar: { state: "none" },
-    team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-    consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+    team: { members: 1, invites_open: 0, alert_emails: 0 },
+    consent: { yes: 0, offers: 0, offers_said_yes: 0 },
     google: { ready: true, places: true, listing: null },
     later: [KEEP_ROW],
     rests: backFrom(["calendar", "team", "yes", "google"]),
@@ -469,7 +469,7 @@ test("each row put off for good says where it is set up from then: the page its 
     yes: "Off your list. It's in People › Get their yes.",
   });
   const invite = homes({
-    team: { members: 1, invitesOpen: 0, alertEmails: 1 },
+    team: { members: 1, invites_open: 0, alert_emails: 1 },
     later: [KEEP_ROW],
     rests: backFrom(["team"]),
   });
@@ -638,7 +638,7 @@ test("the reminder is not offered once a day-before reminder runs: the routes re
 
 test("the card holds what waits on the owner: a row waiting on Meta, Google or a first booking email stays on Setting up", () => {
   // WhatsApp connected, its first messages with Meta: the row waits on them, and drew the card's coral "Open the Inbox".
-  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, startersApproved: 0 } }), NOW);
+  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, starters_approved: 0 } }), NOW);
   assert.equal(meta.rows.find((r) => r.id === "whatsapp").state, "waiting_them");
   assert.ok(!ids(setupCardOf(meta).rows).includes("whatsapp"));
   // A booking tool named, its first email not in yet.
@@ -782,7 +782,7 @@ test("AI card: every value is Setup's or the settings read's, the greeting is th
     setup: live({
       channels: {
         whatsapp: empty().channels.whatsapp,
-        voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+        voice: { present: true, active: true, number: VOICE, last_inbound_at: null },
       },
     }),
     answering: true,
@@ -1140,7 +1140,7 @@ test("Try it waits for a call at Go live: Setup's row names the number to call, 
     live({
       channels: {
         ...live().channels,
-        voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+        voice: { present: true, active: true, number: VOICE, last_inbound_at: null },
       },
       ...over,
     });

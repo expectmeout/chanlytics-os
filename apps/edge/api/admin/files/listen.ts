@@ -14,5 +14,7 @@ import { FILE_LISTEN_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/listen");
   if (!auth.ok) return auth.response;
-  return listenToVideo(auth, await readBody(request, FILE_LISTEN_DOOR));
+  const read = await readBody(request, FILE_LISTEN_DOOR);
+  if (!read.ok) return read.response;
+  return listenToVideo(auth, read.body);
 });

@@ -353,10 +353,7 @@ interface RateStore {
 
 /** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
 function uncountable(reason: string): AppError {
-  return new AppError(
-    "unavailable",
-    `The shared count could not be read just now (${reason}) — try again in a moment.`,
-  );
+  return new AppError("unavailable", `Couldn't check the limit just now (${reason}). Try again in a moment.`);
 }
 
 /** Past this many live keys the map is swept; a long-lived instance must not grow forever. */

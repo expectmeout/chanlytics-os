@@ -254,7 +254,7 @@ export async function deleteWhatsappTemplate(
   // id for a template Meta never had.
   const gone = row.meta_id
     ? await deleteTemplate(accessToken, ch.waba_id, row.name, row.meta_id)
-    : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
+    : ({ ok: false, status: 404, error: "not updated: no saved message id on file, so Meta was not asked" } as const);
   if (!row.meta_id)
     log.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.

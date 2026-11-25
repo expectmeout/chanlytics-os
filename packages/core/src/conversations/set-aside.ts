@@ -13,7 +13,7 @@ type SetAsideThread = Pick<Thread, "id" | "tenant_id"> & {
 };
 
 /** A door that changed no row did nothing at all: the thread moved while the person looked. */
-const threadMoved = () => new AppError("conflict", "That thread has moved. Reload and try again.", 409);
+const threadMoved = () => new AppError("conflict", "That conversation has moved. Reload and try again.", 409);
 
 /**
  * Not a customer (decisions 0093 and 0136). On a thread set aside it stays archived and leaves the Set aside list, and its

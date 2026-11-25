@@ -1,3 +1,4 @@
+import { recordOrNull } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { keepMemoryLine, getMemoryPage } from "@/server/ask/companion/memory-pane";
 
@@ -24,6 +25,6 @@ export const POST = write({
       ctx,
       member,
       // A body that is not JSON is none: what reads it next refuses.
-      (await req.json().catch(() => null)) as { text?: unknown; thread_id?: unknown; source?: unknown } | null,
+      recordOrNull(await req.json().catch(() => null)),
     ),
 });

@@ -112,7 +112,7 @@ for (const status of [401, 403]) {
     const [r, lines] = await logged(() => refreshLineToken(w.db, line()));
     assert.equal(r.ok, false);
     assert.equal(r.error, "provider_unauthorized");
-    assert.match(r.detail, new RegExp(`platform's credentials \\(HTTP ${status}\\)`));
+    assert.match(r.detail, new RegExp(`Chanlytics' sign-in \\(HTTP ${status}\\)`));
     assert.deepEqual(w.vault, [], "nothing stored");
     const refused = lines.find((l) => l.event === "line_token_refresh_refused");
     assert.ok(refused, "the event alerting greps for");
@@ -131,7 +131,7 @@ for (const [what, twilio, words] of [
     const [r, lines] = await logged(() => refreshLineToken(w.db, line()));
     assert.equal(r.ok, false);
     assert.equal(r.error, "unavailable");
-    assert.match(r.detail, /could not be asked just now/);
+    assert.match(r.detail, /couldn't be asked just now/);
     assert.match(r.detail, words);
     assert.doesNotMatch(r.detail, /platform's credentials/);
     assert.deepEqual(w.vault, [], "nothing stored");
@@ -176,13 +176,13 @@ test("REGRESSION: the registration sync writes the blip on the line as a blip, n
   const [out] = await logged(() => syncRegistration(w.db, rows[0]));
   assert.equal(out.ok, false);
   assert.equal(out.error, "unavailable", "the sync hands the refresh's verdict on");
-  assert.match(rows[0].last_error, /could not read the registration: the provider could not be asked just now/);
-  assert.doesNotMatch(rows[0].last_error, /platform's credentials/);
+  assert.match(rows[0].last_error, /could not read the registration: the texting provider couldn't be asked just now/);
+  assert.doesNotMatch(rows[0].last_error, /Chanlytics' sign-in/);
 
   // The same sync where the platform's key really is refused keeps saying so.
   const keyRows = [line()];
   const k = world(() => answer(401, { message: "Authenticate" }), keyRows);
   const [refused] = await logged(() => syncRegistration(k.db, keyRows[0]));
   assert.equal(refused.error, "provider_unauthorized");
-  assert.match(keyRows[0].last_error, /platform's credentials \(HTTP 401\)/);
+  assert.match(keyRows[0].last_error, /Chanlytics' sign-in \(HTTP 401\)/);
 });

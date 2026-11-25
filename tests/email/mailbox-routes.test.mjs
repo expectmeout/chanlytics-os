@@ -294,7 +294,7 @@ test("Today counts the workspace's email line beside the routing rows, and only 
     ],
     "REGRESSION: Today said '1 of 1 line connected' on a workspace with two",
   );
-  assert.equal(m.linesRead, undefined, "every line was read");
+  assert.equal(m.lines_read, undefined, "every line was read");
   // The line is one row: Today asks nothing of how the workspace sends (its own domains, the edge's switch for them). The
   // day's bookings are read beside it (server/metrics/bookings.ts), from the record's own two tables.
   const BOOKINGS_READ = new Set(["events", "appointments"]);
@@ -325,5 +325,5 @@ test("Today counts the workspace's email line beside the routing rows, and only 
   );
   const short = await findMetricsSummary(broken, A, 1);
   assert.deepEqual(short.channels, summary.channels, "what WAS read still stands");
-  assert.equal(short.linesRead, false, "never a blank Today, never '1 of 1' on a workspace with two");
+  assert.equal(short.lines_read, false, "never a blank Today, never '1 of 1' on a workspace with two");
 });

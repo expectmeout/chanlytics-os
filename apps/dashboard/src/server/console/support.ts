@@ -70,6 +70,7 @@ import { listPlatformOverview } from "./platform";
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
+import { NOT_SAVED } from "@/server/console/words";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -368,7 +369,8 @@ export async function markSupport(
 ): Promise<{ ok: true }> {
   const found =
     message.target === "report" ? await reportById(office.db, message.id) : await setupAskById(office.db, message.id);
-  if (found.error) throw new AppError("unavailable", "The queue could not be read just now. Try again in a moment.");
+  if (found.error)
+    throw new AppError("unavailable", "Couldn't load the requests waiting just now. Try again in a moment.");
   if (!found.data) throw new AppError("not_found", NO_SUCH, 404);
   const code =
     message.target === "report" ? reportCode((found.data as { number: number }).number) : askCode(message.id);
@@ -398,7 +400,7 @@ const RESEND_TIMEOUT_MS = 8000;
  */
 export async function resendSupport(office: BackOffice, id: string): Promise<{ mailed: boolean }> {
   const found = await reportById(office.db, id);
-  if (found.error) throw new AppError("unavailable", "The report could not be read just now. Try again in a moment.");
+  if (found.error) throw new AppError("unavailable", "Couldn't load the report just now. Try again in a moment.");
   const data = found.data;
   if (!data) throw new AppError("not_found", NO_SUCH, 404);
   return takeAct(
@@ -437,7 +439,7 @@ export async function resendSupport(office: BackOffice, id: string): Promise<{ m
 /** A report moved between Support and Health, as what the member needed: an act whose reason is its code. */
 export async function moveSupport(office: BackOffice, id: string, kind: ReportKind): Promise<{ kind: ReportKind }> {
   const found = await reportById(office.db, id);
-  if (found.error) throw new AppError("unavailable", "The report could not be read just now. Try again in a moment.");
+  if (found.error) throw new AppError("unavailable", "Couldn't load the report just now. Try again in a moment.");
   const data = found.data;
   if (!data) throw new AppError("not_found", NO_SUCH, 404);
   return takeAct(
@@ -451,8 +453,7 @@ export async function moveSupport(office: BackOffice, id: string, kind: ReportKi
     },
     async () => {
       const moved = await setReportKind(office.db, data.id, kind);
-      if (moved.error || !moved.data)
-        throw new AppError("unavailable", "That could not be saved just now. Try again in a moment.");
+      if (moved.error || !moved.data) throw new AppError("unavailable", NOT_SAVED);
       return { kind };
     },
   );

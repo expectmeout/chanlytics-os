@@ -38,13 +38,13 @@ export interface SetupDto {
       active: boolean;
       number: string | null;
       quality: string | null;
-      lastInboundAt: string | null;
+      last_inbound_at: string | null;
     };
-    voice: { present: boolean; active: boolean; number: string | null; lastInboundAt: string | null };
+    voice: { present: boolean; active: boolean; number: string | null; last_inbound_at: string | null };
   };
   /** Email: whether this deployment has the channel, and the workspace's mailbox when it has one (mailbox.ts). Absent reads as off. */
   email?: EmailSetupDto;
-  templates: { approved: number; pending: number; startersApproved: number };
+  templates: { approved: number; pending: number; starters_approved: number };
   /**
    * What the calendar is fed by, as the one rule reads it (calendar-source.ts): the link's last read, the
    * booking tool the owner named and what is known of its emails, and the owner's word that they book by hand. The
@@ -73,8 +73,8 @@ export interface SetupDto {
      * is no one to back the owner up. Counted so on both reads, the member's and the back office's.
      */
     members: number;
-    invitesOpen: number;
-    alertEmails: number;
+    invites_open: number;
+    alert_emails: number;
     /** The partner who brought the workspace and sits on its team (0012), by name; the member's read alone carries it. */
     partner?: string | null;
   };
@@ -96,7 +96,7 @@ export interface SetupDto {
    * refused all seven.
    *
    * `offers` is who a promotional broadcast REACHES: that yes, and a number to
-   * send it to (`mayReceive`). `offersSaidYes` is everyone who gave the answer,
+   * send it to (`mayReceive`). `offers_said_yes` is everyone who gave the answer,
    * a number or not (`saidYesTo`), so `offers` is never larger. A zero reach has
    * two causes and only one is a missing yes: someone who has only ever emailed,
    * or a walk-in recorded with a yes and no number, said it and cannot be sent
@@ -111,7 +111,7 @@ export interface SetupDto {
    * them (email-offers.ts: the campaigns domain verified, the business's address on file, no pause). Absent while it
    * cannot, or where the count could not be read, and never a zero standing in for either.
    */
-  consent: { yes: number; offers: number; offersSaidYes: number; offers_by_email?: number };
+  consent: { yes: number; offers: number; offers_said_yes: number; offers_by_email?: number };
   /**
    * Facts that disagree with what the platform knows (contracts/facts.ts).
    *

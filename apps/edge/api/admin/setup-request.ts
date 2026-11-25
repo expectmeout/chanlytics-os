@@ -14,5 +14,7 @@ import { SETUP_REQUEST_DOOR } from "@chanlytics/contracts";
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/setup-request");
   if (!auth.ok) return auth.response;
-  return notifySetupRequest(auth, await readBody(request, SETUP_REQUEST_DOOR));
+  const read = await readBody(request, SETUP_REQUEST_DOOR);
+  if (!read.ok) return read.response;
+  return notifySetupRequest(auth, read.body);
 });

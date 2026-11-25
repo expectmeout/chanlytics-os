@@ -233,7 +233,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
       };
     }
     case "error":
-      return { type: "error", message: ev.error?.message ?? ev.error?.type ?? "model error" };
+      return { type: "error", message: ev.error?.message ?? ev.error?.type ?? "AI didn't answer" };
     default:
       return null;
   }

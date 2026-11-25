@@ -112,7 +112,7 @@ export function soundsWords(
 /** Whether it answers, and whether anyone has tried it yet. */
 function cardStatusOf(i: ReceptionistCardInputs): ReceptionistCardVM["status"] {
   if (!i.answering) return { state: "not_started", words: "Not answering yet" };
-  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
+  const tried = !!(i.setup.channels.voice.last_inbound_at || i.setup.channels.whatsapp.last_inbound_at);
   return tried ? { state: "ready", words: "Answering" } : { state: "waiting_you", words: "Answering · not tried yet" };
 }
 

@@ -335,8 +335,8 @@ export async function getActivityLog(
     zone,
   ]);
   const members: ActivityMemberDto[] = team.map((m) => ({
-    id: m.userId,
-    name: memberWords({ email: m.email, display_name: m.displayName }).name,
+    id: m.user_id,
+    name: memberWords({ email: m.email, display_name: m.display_name }).name,
   }));
   for (const m of members) if (ids.has(m.id)) actors[m.id] = m.name;
   const last = page[page.length - 1];

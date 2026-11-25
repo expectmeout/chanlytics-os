@@ -42,13 +42,13 @@ const empty = (over = {}) => ({
     receptionist: "none",
   },
   channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
+    whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+    voice: { present: false, active: false, number: null, last_inbound_at: null },
   },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  templates: { approved: 0, pending: 0, starters_approved: 0 },
   calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
+  team: { members: 1, invites_open: 0, alert_emails: 0 },
+  consent: { yes: 0, offers: 0, offers_said_yes: 0 },
   requests: { line: null },
   later: [],
   ...over,
@@ -67,13 +67,13 @@ const live = (over = {}) =>
   empty({
     business: facts,
     channels: {
-      whatsapp: { present: true, active: true, number: WA, quality: "GREEN", lastInboundAt: "2026-09-07T14:30:00Z" },
-      voice: { present: true, active: true, number: VOICE, lastInboundAt: "2026-09-06T14:30:00Z" },
+      whatsapp: { present: true, active: true, number: WA, quality: "GREEN", last_inbound_at: "2026-09-07T14:30:00Z" },
+      voice: { present: true, active: true, number: VOICE, last_inbound_at: "2026-09-06T14:30:00Z" },
     },
-    templates: { approved: 6, pending: 0, startersApproved: 5 },
+    templates: { approved: 6, pending: 0, starters_approved: 5 },
     calendar: { state: "ok" },
-    team: { members: 2, invitesOpen: 0, alertEmails: 1 },
-    consent: { yes: 3, offers: 1, offersSaidYes: 1 },
+    team: { members: 2, invites_open: 0, alert_emails: 1 },
+    consent: { yes: 3, offers: 1, offers_said_yes: 1 },
     // The owner's own act (00108): a workspace that answers everywhere has said so.
     activations: [
       { capability: "voice", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
@@ -89,8 +89,8 @@ test("a receptionist answering with nothing to answer with says so, and points a
   // fallback that refuses to state hours, prices or an address.
   const withLine = empty({
     channels: {
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-      voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+      whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
+      voice: { present: true, active: true, number: VOICE, last_inbound_at: null },
     },
   });
   const bare = row(setupSteps(withLine, NOW), "receptionist");
@@ -207,7 +207,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
     ["3 people said yes to messages"],
     "and the other count rides along, so the owner knows what to go and ask for",
   );
-  const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
+  const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offers_said_yes: 0 } }, NOW);
   assert.equal(
     row(none, "yes").sentence,
     "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes.",
@@ -216,7 +216,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   // The door lands on the QR itself (#663), as People's, Today's and Playbooks' do: the top of Broadcasts is the
   // ledger, where the QR can be below the fold.
   assert.deepEqual(row(none, "yes").verb, { label: "Get their yes", to: GET_YES_ROUTE });
-  const both = setupSteps({ ...live(), consent: { yes: 3, offers: 3, offersSaidYes: 3 } }, NOW);
+  const both = setupSteps({ ...live(), consent: { yes: 3, offers: 3, offers_said_yes: 3 } }, NOW);
   assert.deepEqual(row(both, "yes").details, [], "nothing to add when the two agree");
   assert.equal(
     vm.rows.every((r) => !r.later),
@@ -255,7 +255,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
   const dto = await setupDtoFor(db, T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual(
     dto.consent,
-    { yes: 2, offers: 0, offersSaidYes: 1 },
+    { yes: 2, offers: 0, offers_said_yes: 1 },
     "REGRESSION: the read counted who can be sent an offer, and nobody who said yes without a number",
   );
   const yes = row(setupSteps({ ...dto, later: [] }, NOW), "yes");
@@ -273,13 +273,13 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
     },
   );
   // Two, and the messages answer no larger than the offers one: nothing to add under it.
-  const two = row(setupSteps(live({ consent: { yes: 2, offers: 0, offersSaidYes: 2 } }), NOW), "yes");
+  const two = row(setupSteps(live({ consent: { yes: 2, offers: 0, offers_said_yes: 2 } }), NOW), "yes");
   assert.deepEqual(
     [two.state, two.sentence, two.details],
     ["waiting_you", `2 people said yes to offers, but nobody can be sent one yet · ${NO_NUMBER_REACH}.`, []],
   );
   // And a yes with a number beside it makes the row ready, as before: the reach is the row's number.
-  const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offersSaidYes: 2 } }), NOW), "yes");
+  const one = row(setupSteps(live({ consent: { yes: 3, offers: 1, offers_said_yes: 2 } }), NOW), "yes");
   assert.deepEqual(
     [one.state, one.sentence, one.verb],
     ["ready", "1 person said yes to offers.", { label: "Get their yes", to: GET_YES_ROUTE }],
@@ -445,7 +445,7 @@ test("who said yes is counted in Setup's rows, and rows that cannot be read fail
   });
   const setup = await setupDtoFor(fakeDb(tables()), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual(
-    [setup.consent.yes, setup.consent.offersSaidYes, setup.consent.offers, setup.people],
+    [setup.consent.yes, setup.consent.offers_said_yes, setup.consent.offers, setup.people],
     [1, 1, 0, 1],
     "a yes to messages and to offers, no number to send an offer to, and one person held",
   );
@@ -511,7 +511,7 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
   const dto = live({
     channels: {
       ...live().channels,
-      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
     },
     later: ["keep"],
   });
@@ -531,7 +531,7 @@ test("calls only: the sentence says what is missing, and WhatsApp can now wait f
 test("WhatsApp only: no phone line yet, and the line row still asks", () => {
   const vm = setupSteps(
     live({
-      channels: { ...live().channels, voice: { present: false, active: false, number: null, lastInboundAt: null } },
+      channels: { ...live().channels, voice: { present: false, active: false, number: null, last_inbound_at: null } },
     }),
     NOW,
   );
@@ -563,7 +563,7 @@ test("a line that was asked for waits on us and says when; one that exists but i
   );
   const inactive = setupSteps(
     empty({
-      channels: { ...empty().channels, voice: { present: true, active: false, number: VOICE, lastInboundAt: null } },
+      channels: { ...empty().channels, voice: { present: true, active: false, number: VOICE, last_inbound_at: null } },
     }),
     NOW,
   );
@@ -621,7 +621,7 @@ test("REGRESSION (S8): a broken configuration offers the ask for a repair, then 
 });
 
 test("WhatsApp waits on Meta while the first messages are with them, or while the number is not active", () => {
-  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, startersApproved: 0 } }), NOW);
+  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, starters_approved: 0 } }), NOW);
   assert.equal(row(meta, "whatsapp").state, "waiting_them");
   assert.equal(row(meta, "whatsapp").stateWords, "Waiting on Meta");
   assert.equal(
@@ -634,7 +634,7 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
     empty({
       channels: {
         ...empty().channels,
-        whatsapp: { present: true, active: false, number: WA, quality: null, lastInboundAt: null },
+        whatsapp: { present: true, active: false, number: WA, quality: null, last_inbound_at: null },
       },
     }),
     NOW,
@@ -644,7 +644,7 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   // The label is Connections; the ROUTE stays admin/integrations, because
   // notification rows already written in production carry it.
   assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Connections", to: "admin/integrations" });
-  const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
+  const few = setupSteps(live({ templates: { approved: 2, pending: 0, starters_approved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "campaigns/sequences" });
   assert.ok(
     row(few, "whatsapp").details.includes("Add the starter messages: the reminder, how did it go, the win-back"),
@@ -665,22 +665,22 @@ test("business facts: partly there says what is missing; a broken config is its 
 });
 
 test("team and alerts: the verb goes to whichever half is missing; calendar: unreadable is waiting on you", () => {
-  const noAlerts = setupSteps(empty({ team: { members: 2, invitesOpen: 0, alertEmails: 0 } }), NOW);
+  const noAlerts = setupSteps(empty({ team: { members: 2, invites_open: 0, alert_emails: 0 } }), NOW);
   assert.equal(row(noAlerts, "team").state, "waiting_you");
   assert.deepEqual(row(noAlerts, "team").verb, { label: "Set alerts", to: "admin/notifications" });
-  const alone = setupSteps(empty({ team: { members: 1, invitesOpen: 0, alertEmails: 1 } }), NOW);
+  const alone = setupSteps(empty({ team: { members: 1, invites_open: 0, alert_emails: 1 } }), NOW);
   assert.equal(row(alone, "team").sentence, "Only you so far · alerts go to 1 address.");
   assert.deepEqual(
     row(alone, "team").verb,
     { label: "Invite", to: "admin/team" },
     "the roster lives on Team since it left the Business pane",
   );
-  const invited = setupSteps(empty({ team: { members: 1, invitesOpen: 1, alertEmails: 2 } }), NOW);
+  const invited = setupSteps(empty({ team: { members: 1, invites_open: 1, alert_emails: 2 } }), NOW);
   assert.equal(row(invited, "team").state, "ready");
   assert.equal(row(invited, "team").sentence, "1 person · 1 invite open · alerts go to 2 addresses.");
   // The partner who brought the workspace sits on its team, and the owner is told who they are (0012).
   const brought = setupSteps(
-    empty({ team: { members: 2, invitesOpen: 0, alertEmails: 1, partner: "Ada Lovelace" } }),
+    empty({ team: { members: 2, invites_open: 0, alert_emails: 1, partner: "Ada Lovelace" } }),
     NOW,
   );
   assert.equal(row(brought, "team").sentence, "2 people · Ada Lovelace is your partner · alerts go to 1 address.");
@@ -753,8 +753,8 @@ test("a channel row without a number never reads a null aloud", () => {
   const vm = setupSteps(
     live({
       channels: {
-        whatsapp: { present: true, active: true, number: null, quality: null, lastInboundAt: null },
-        voice: { present: true, active: true, number: null, lastInboundAt: null },
+        whatsapp: { present: true, active: true, number: null, quality: null, last_inbound_at: null },
+        voice: { present: true, active: true, number: null, last_inbound_at: null },
       },
     }),
     NOW,
@@ -1187,7 +1187,7 @@ test("a line stopped at the vault reads as ours on the row, offers no Retry, and
     empty({
       channels: {
         ...empty().channels,
-        voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+        voice: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
       },
       lines: {
         rows: [

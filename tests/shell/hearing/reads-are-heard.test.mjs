@@ -319,7 +319,7 @@ function hearsTableOn(key, table, page) {
   }
 }
 
-/** A field as the wire spells it and as a view model does: `last_inbound_at`, `lastInboundAt`. */
+/** A field as the wire spells it and as a view model does: `last_inbound_at`, `last_inbound_at`. */
 const spellings = (field) => [field, field.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
 
 test("every group says what kind of exception it is, and holds only the tables that kind may", () => {

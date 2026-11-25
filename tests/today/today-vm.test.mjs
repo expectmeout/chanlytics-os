@@ -696,7 +696,7 @@ test("the count above the work sees every wire, and calls each one what the owne
   assert.equal(none.queue.empty.testid, "today-queue-empty-unconnected");
 
   // A mailbox that could not be read is a line that could not be counted: its own state, never a shorter count.
-  const short = toTodayVM({ ...metrics(), linesRead: false }, [], [], [], NOW);
+  const short = toTodayVM({ ...metrics(), lines_read: false }, [], [], [], NOW);
   assert.deepEqual(short.standing.lines, {
     text: "couldn't count email",
     short: "not counted",

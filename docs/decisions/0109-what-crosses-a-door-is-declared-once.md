@@ -41,3 +41,25 @@ The dashboard's changes are types. The edge's door reads what it always read and
 ## How to reverse
 
 Each step on its own: a door's `readBody(request, DOOR)` back to `readBody(request)` with the old signature; `callEdge`'s path back to `string`; a route's `input` back to its own read. The test then names what it no longer holds.
+
+## The doors refuse (25 November 2026)
+
+Step 3's week, taken: the edge and the dashboard log one day back, and in that day (24 Nov 10:00Z to 25 Nov 11:30Z)
+neither `door_body_unexpected` nor `edge_answer_unexpected` was said once, over 17 doors that production knocked on
+(the lines, Google, billing, mailboxes, Meta, Instagram, the calendar feed, files, sources, WhatsApp, the model gateway).
+The other 47 doors were not knocked in that day; every one of their senders is typed by the door's schema (the
+dashboard's `callEdge`, a body written `satisfies EdgeBody<…>`), and the four an operator or a workflow sends
+(`voice-converge`, `voice-provision`, `intake/replay`, `voice-canary`) were read against theirs by hand. So both ends
+refuse now:
+
+- **A door** answers a body its schema does not hold with 400 `bad_request`, its fields named in the log and never their
+  values, and the op never runs (`readBody` gives the body or the refusal, as `workspaceOf` does). The answer names no
+  field: a page may show what a refusal says.
+- **The dashboard** does not read a field of an answer its door's schema does not hold (`readEdgeAnswer`): the
+  field is left out, as one the door did not send (every declared field may be absent), and said in the log. The
+  status stands: the edge's answers are not held to their declarations by the compiler, and a door may have done its
+  work (a number bought), so a field the page reads is never a reason to say the work failed. Reading the doors not
+  knocked that day found one such field, signup-confirm's `why`, null when it asked; its declaration says so now.
+
+Either deploy order still works: a field is added to a schema as optional before either side sends or reads it.
+Reverse: `readBody` and `readEdgeAnswer` log and go on again, one function each.
