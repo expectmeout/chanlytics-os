@@ -27,7 +27,6 @@ import {
   R1,
   READ_DEFS,
   SEARCH,
-  USER,
   askIdea,
   ctxOf,
   doors,
@@ -433,7 +432,7 @@ test("the question the runner asks reaches the page with its exclusion's key: th
 
 test("a kept search is renamed, removed with the worked leads kept, or has its finished round's leads given back", async () => {
   const rpcs = doors();
-  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  // The service role, stood in and read below: a rename or a removal writes nothing of its own on it.
   const ledger = { events: [] };
   setServiceClient(fakeDb(ledger));
 
@@ -457,22 +456,13 @@ test("a kept search is renamed, removed with the worked leads kept, or has its f
     [40, 2, "Removed. The 2 you contacted or are talking to are kept."],
   );
   setServiceClient(null);
+  // Each door writes its event beside its change (lead.search_renamed, lead.search_removed with what it kept: 00718): a
+  // route writing one too would be two.
   assert.deepEqual(
-    ledger.events.map((e) => [
-      e.kind,
-      e.subject_type,
-      e.subject_id,
-      e.data.by,
-      e.data.kept ?? null,
-      e.data.archived ?? null,
-    ]),
-    [
-      ["lead.search_renamed", "lead_search", SEARCH, USER, null, null],
-      ["lead.search_removed", "lead_search", SEARCH, USER, 2, 40],
-    ],
-    "REGRESSION: a search renamed or removed was on no ledger; the removal says what was kept",
+    ledger.events,
+    [],
+    "REGRESSION: the route wrote a rename's or a removal's event after the door, which writes it in its own transaction",
   );
-  assert.equal(ledger.events[0].data.name, "Austin trainers");
   const back = await searchUndo.POST.run(req("POST", undefined), ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs));
   assert.deepEqual([back.removed, back.credited, back.op_id], [3, 2, OP]);
   assert.equal(back.toast, "Took back 3 leads. 2 went back to this month's leads.");

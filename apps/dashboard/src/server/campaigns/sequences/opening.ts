@@ -22,7 +22,6 @@ import { log } from "@/server/shared/log";
 import { reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** How long a press waits for its check: a rewrite is two model calls of about a second each, and a site read. */
 const CHECK_NOW_MS = 20 * SECOND_MS;
@@ -147,10 +146,7 @@ export async function undoOpening(
 ): Promise<{ send_id: string; rewritten: ReachOutOpeningDto | null }> {
   const r = await undoSendRewrite(ctx.supabase, send.id);
   if (r.error) throw reachOutRefusal(r.error);
-  await emitWorkspaceEvent(send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
-    decision: "rewrite_undone",
-    by: ctx.userId,
-  });
+  // The door wrote the undo's event beside it (reach_out.send_decided, rewrite_undone, 00718).
   const [now] = await openingsOf(ctx, send.tenant_id, [send.id]);
   return { send_id: send.id, rewritten: now ?? null };
 }

@@ -2,9 +2,9 @@
    WHAT THE RECORD KIT LEAVES HERE. Its rules are the kit's now (src/surfaces/kit/kit.css, step 2.1 of
    docs/plans/2026-09-28-the-interface-kit-and-its-looks.md). What stays here stands where it stood, in the order it
    had, each for a reason the move could not keep:
-   - a width the kit's sheet does not take yet (its one breakpoint is 900px): the record kit's phone at 760px (as
-     record-fold.jsx holds it), its desk from 761px, and a toast beside a sheet from 1140px. Moved to 900px, what 761
-     to 1139px draw would change; People's step of Phase 4 takes the record kit to 900px, as a listed harmony;
+   - the record kit's phone and desk, at the kit's one breakpoint, 900px: its own 760px moved there on 25 Nov 2026, the
+     listed harmony Phase 4 named (a window of 761 to 900px now draws the record kit as a phone, as it draws the kit's
+     sheet and menus);
    - what names a class the kit does not own: the deal sheet's layout (components/deal-sheet.jsx), and the answers to
      the shell's touch floor (html.frame-on, bridge/frame.css);
    - two rules that must still come after a rule of another sheet: a busy Save's pointer, after components.css's role
@@ -55,13 +55,13 @@ html.frame-on .rec-inline-act { min-height: 0; }
    the whole row, and its box stays where the row can hold it. */
 html.frame-on .rec-fold-close, html.frame-on .rec-card-tip-act { position: relative; min-height: 0; }
 html.frame-on .rec-row-act { min-height: 0; }
-@media (min-width: 761px) {
+@media (width > 900px) {
   .rec-row-act { position: relative; }
   .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
 }
 
-/* ---------- On a phone: 760px and under, the record kit's own width (record-fold.jsx) ---------- */
-@media (max-width: 760px) {
+/* ---------- On a phone: 900px and under, the kit's one breakpoint (the record kit's own 760px until 25 Nov 2026) ---------- */
+@media (max-width: 900px) {
   .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
   /* A card's subtitle is not drawn on a phone (23 Sep): its title says what the card is, and the line under it took a
      second and third line of every card on a screen that fits three rows. */

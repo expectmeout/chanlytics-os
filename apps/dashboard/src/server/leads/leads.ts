@@ -15,15 +15,7 @@ export {
 } from "./searches";
 export type { SearchViewRow } from "./searches";
 export { planFacts } from "./plan-facts";
-export {
-  setStage,
-  bulkStage,
-  checkAgain,
-  eraseLead,
-  recordLeadKept,
-  recordLeadExcluded,
-  recordLeadPutBack,
-} from "./work";
+export { setStage, bulkStage, checkAgain, eraseLead } from "./work";
 export { draftFor } from "./draft";
 export { sendLeadEmail } from "./send";
 export { getLineForMe, listNewIdeas, getSuggestionsKept, getSuggestionsWritten, setBusinessLine } from "./suggestions";

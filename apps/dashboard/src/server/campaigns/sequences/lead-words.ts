@@ -14,7 +14,6 @@ import { requireUuid } from "../../shared/request-guards";
 import type { RouteContext } from "../../shared/with-route";
 import { stepOfSequence } from "./doors";
 import type { TenantId } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 type Sequence = { id: string; tenant_id: TenantId };
 
@@ -53,10 +52,6 @@ export async function saveLeadWords(
     needsLine: wordsNeedOpening(standing),
   });
   if (result.error) throw reachOutRefusal(result.error);
-  await emitWorkspaceEvent(seq.tenant_id, "reach_out.lead_words_changed", "lead", leadId, {
-    step_id: step.id,
-    kept: words !== null,
-    by: ctx.userId,
-  });
+  // The door wrote the change's event beside it (reach_out.lead_words_changed, 00718): who, never the words.
   return result.data;
 }

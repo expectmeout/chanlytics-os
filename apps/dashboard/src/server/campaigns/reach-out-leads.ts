@@ -37,7 +37,6 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { listChains } from "@/server/campaigns/reach-outs/reach-outs";
 import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { TenantId } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** An open search's chain and its leads' lines; both null when the search has no chain. */
 export async function getLeadLines(ctx: RouteContext, tenantId: TenantId, searchId: string): Promise<ReachOutLeadsDto> {
@@ -107,8 +106,7 @@ export async function stopLead(
 ): Promise<ReachOutStopDto> {
   const { data, error } = await stopReachOutLead(ctx.supabase, lead.id);
   if (error) throw reachOutRefusal(error);
-  // On the ledger: a business stops hearing from the workspace because a member said so, and nothing recorded who.
-  await emitWorkspaceEvent(lead.tenant_id, "reach_out.lead_stopped", "lead", lead.id, { by: ctx.userId });
+  // The door wrote who stopped them beside the stop (reach_out.lead_stopped, 00718), once: a second press writes none.
   return dtoOf<ReachOutStopDto>(data);
 }
 

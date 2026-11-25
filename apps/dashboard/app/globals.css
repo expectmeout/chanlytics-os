@@ -560,7 +560,7 @@ html.in-app .auth-or {
 .auth-aside {
   display: none;
 }
-@media (min-width: 900px) {
+@media (width > 900px) {
   .auth-split {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

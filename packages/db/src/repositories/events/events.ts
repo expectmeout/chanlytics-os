@@ -41,9 +41,6 @@ type BillingData = {
 /** A booking tool's email read into the calendar: where it came from, and which tool sent it. */
 type BookingData = { source: "booking_email"; tool: string };
 
-/** A member's act on a lead in Needs review: who, and in which search. */
-type LeadTriageData = { by: string; search_id: string };
-
 type TextingData = { e164: string | null; from: string | null; to: string; mock: boolean };
 
 /** Each kind the product writes from TypeScript, and the data it carries: the table's own kinds. */
@@ -90,7 +87,6 @@ interface TableData {
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
   "contact.email_suppressed": { reason: string };
-  "contact.kept_apart": { by: string; doubt_id: string };
   /** The owner answered from the WhatsApp Business app: the receptionist is quiet on the thread until then. */
   "conversation.owner_replied": { until: string };
   /** A thread handed to the team: why (an escalation's reason), on the conversation. Once per hold. */
@@ -112,26 +108,17 @@ interface TableData {
   "ingest.unreachable_sender": Nothing;
   "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" | "instagram" } & JsonObject;
   "lead.emailed": { by: "reach_out"; send_id: string };
-  "lead.excluded": LeadTriageData;
-  "lead.kept": LeadTriageData;
-  "lead.put_back": LeadTriageData;
-  "lead.search_removed": { name: string; kept: number; archived: number; by: string };
-  "lead.search_renamed": { name: string; by: string };
   /** A person accepted an invitation: who, and the role they joined at. */
   "member.joined": { by: string; role: string };
   /** A person left by deleting their account: who (an id no row names any more), and how. */
   "member.left": { by: string; how: "account_deleted" | "left"; had_role?: string };
   "line.answering": { e164: string | null; provider: string; agent_id: string | null; by: string | null };
   "line.failed": { step: string; error: string; provider: string; by: string | null };
-  /** The number a business keeps, set to forward to its line: its carrier and which calls, never the number. */
-  "line.forwarding_set": { carrier: string; mode: string; by: string };
   "line.forwarding_verified": { from: string | null; call_id: string; proof: string };
   "line.released": { e164: string | null; provider: string } & JsonObject;
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
-  /** A workspace that can't connect a mailbox says which it would use (Cold email's Tell us): told when it is built. */
-  "mailbox_connection.provider_wanted": { provider: string; by: string };
   /** A mailbox the business writes from (00423, decision 0056): its address, never its token. */
   "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
   "mailbox_connection.signed_out": { address: string; provider: string };
@@ -175,10 +162,6 @@ interface TableData {
   "playbook.changed": { name: string; by: string; fields: string[] };
   "playbook.run": Record<string, unknown>;
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
-  "reach_out.lead_stopped": { by: string };
-  "reach_out.send_decided": { decision: string; by: string };
-  /** A lead's own email typed on their sheet, or the step's words put back (decision 0096): who, never the words. */
-  "reach_out.lead_words_changed": { step_id: string; kept: boolean; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
   /** A rename of the workspace keeps the names it changed from and to (00439, X4-5): the one setting the ledger says in full. */
   "settings.changed": {
@@ -236,7 +219,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "contact.email_suppressed": { category: "contact", version: 1 },
-  "contact.kept_apart": { category: "contact", version: 1 },
   "conversation.owner_replied": { category: "message", version: 1 },
   "escalation.opened": { category: "message", version: 1 },
   "google.connected": { category: "google", version: 1 },
@@ -249,22 +231,15 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },
-  "lead.excluded": { category: "lead", version: 1 },
-  "lead.kept": { category: "lead", version: 1 },
-  "lead.put_back": { category: "lead", version: 1 },
-  "lead.search_removed": { category: "lead", version: 1 },
-  "lead.search_renamed": { category: "lead", version: 1 },
   "member.joined": { category: "system", version: 1 },
   "member.left": { category: "system", version: 1 },
   "line.answering": { category: "setup", version: 1 },
   "line.failed": { category: "setup", version: 1 },
-  "line.forwarding_set": { category: "setup", version: 1 },
   "line.forwarding_verified": { category: "setup", version: 1 },
   "line.released": { category: "setup", version: 1 },
   "line.texting_approved": { category: "setup", version: 1 },
   "line.texting_on": { category: "setup", version: 1 },
   "line.texting_rejected": { category: "setup", version: 1 },
-  "mailbox_connection.provider_wanted": { category: "setup", version: 1 },
   "mailbox_connection.connected": { category: "setup", version: 1 },
   "mailbox_connection.signed_out": { category: "setup", version: 1 },
   "mailbox_connection.held": { category: "setup", version: 1 },
@@ -290,9 +265,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
-  "reach_out.lead_stopped": { category: "lead", version: 1 },
-  "reach_out.send_decided": { category: "lead", version: 1 },
-  "reach_out.lead_words_changed": { category: "lead", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
   "template.fix_written": { category: "message", version: 1 },

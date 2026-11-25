@@ -269,3 +269,13 @@ export async function noteCalendarGrant(
   if (error) throw new DbFailure(error, "calendar_grant_note");
   return data === true;
 }
+
+/**
+ * Which mailbox a workspace that can't connect one would use (Cold email's Tell us): kept on the ledger with who asked,
+ * by its door (mailbox_provider_wanted, 00718), as the member signed in. The ask is the whole write, so a door that
+ * refuses or fails throws, and the sheet never says told for nothing.
+ */
+export async function keepMailboxProviderWanted(db: Db, tenantId: TenantId, provider: string): Promise<void> {
+  const { error } = await db.rpc("mailbox_provider_wanted", { p_tenant_id: tenantId, p_provider: provider });
+  if (error) throw new DbFailure(error, "cannot keep which mailbox they use");
+}

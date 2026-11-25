@@ -196,9 +196,9 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
 // given way to another, before it goes is no longer the open one, and leaves it alone.
 export const useRecDrawn = (id: FoldId) => useEffect(() => recFolds.drawn(id), [id]);
 
-// Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 760px`, read as Reports reads it
+// Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 900px` (760px until 25 Nov 2026)
 // and kept current as the window changes size.
-const REC_PHONE_QUERY = "(max-width: 760px)";
+const REC_PHONE_QUERY = "(max-width: 900px)";
 const recPhoneQuery = () => mediaQuery(REC_PHONE_QUERY);
 export function useRecPhone() {
   const [phone, setPhone] = useState(() => {

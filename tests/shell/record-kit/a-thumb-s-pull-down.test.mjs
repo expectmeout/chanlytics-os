@@ -40,7 +40,7 @@ test("on a phone a pull down on a sheet from its top is its Close, not while its
   const popup = (props = {}) => popupOf(draw(W.RecordSheet, offer({ onClose: () => closed.push(1), ...props }))).props;
   const kitPhone = (fn) => {
     const was = W.matchMedia;
-    W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" || q === "(max-width: 760px)" });
+    W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
     try {
       fn();
     } finally {

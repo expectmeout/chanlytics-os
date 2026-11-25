@@ -284,7 +284,7 @@ a.rpt-cmp-send { text-decoration: none; color: inherit; }
 @media (max-width: 900px) {
   .main-scroll > .rpt { --gutter-page: 12px; }
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .rpt-inner { padding: 0 var(--gutter-page) 40px; }
   .rpt-head { padding: 10px 0; }
   /* The period stands over what scrolls, as every page's strip does (25 Sep): sticky, the head rode a pull down with
