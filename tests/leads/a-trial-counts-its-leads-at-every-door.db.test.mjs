@@ -341,6 +341,27 @@ test(
       assert.equal(ok(await move("lead_member_keep", k2), "keep on a plan").counted, true);
       assert.equal(ok(await move("lead_member_put_back", k3), "put back on a plan").counted, true);
       assert.deepEqual(await allowance(), { used: LEAD_TRIAL_ALLOWANCE + 2, reserved: 0 });
+      // Each press taken leaves its own event, the door's, in its transaction (00718); a refused one leaves none, and
+      // the bulk Keep's refusal none either.
+      const said = ok(
+        await db
+          .from("events")
+          .select("kind, subject_id, data")
+          .eq("tenant_id", A)
+          .in("kind", ["lead.kept", "lead.excluded", "lead.put_back"])
+          .in("subject_id", [k1, k2, k3])
+          .order("created_at"),
+        "the presses' events",
+      );
+      assert.deepEqual(
+        said.map((e) => [e.kind, e.subject_id, e.data.search_id]),
+        [
+          ["lead.kept", k1, search.search_id],
+          ["lead.excluded", k3, search.search_id],
+          ["lead.kept", k2, search.search_id],
+          ["lead.put_back", k3, search.search_id],
+        ],
+      );
     } finally {
       await billing("trialing");
     }

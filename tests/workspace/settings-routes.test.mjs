@@ -338,7 +338,7 @@ test("F2: a transfer number that would come straight back is refused at both doo
     "Change the transfer number",
   );
   assert.equal(doors.length, 0, "the forwarding never reached its door");
-  // The ledger is the service role's, over the same tables (ctxFor): held, to read what the save wrote there.
+  // The service role's, over the same tables (ctxFor): held, to read that the save wrote nothing of its own there.
   const forwarded = { ...tables("+19175550100"), events: [] };
   assert.deepEqual(
     await forwarding.POST.run(
@@ -348,11 +348,16 @@ test("F2: a transfer number that would come straight back is refused at both doo
     { line_id: L1 },
     "any other number forwards",
   );
-  assert.deepEqual(
-    forwarded.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
-    [[B, "line.forwarding_set", "line", L1, { carrier: "verizon", mode: "unanswered", by: USER }]],
-    "REGRESSION: where a business's calls go changed on a member's word and no ledger said so; never the number",
-  );
+  assert.deepEqual(doors.at(-1), {
+    p_tenant_id: B,
+    p_number: "+17185550142",
+    p_carrier: "verizon",
+    p_mode: "unanswered",
+    p_test_from: null,
+  });
+  // The door writes where the calls go beside the row (line.forwarding_set, who and which calls, never the number:
+  // 00718): a route writing one too would be two.
+  assert.deepEqual(forwarded.events, [], "REGRESSION: the route wrote the save's event after the door");
 });
 
 test("the settings write: the owner's, the workspace named, the body { config, version }, the write schema's refusals named by field, a stale version a conflict, the change on the ledger as fields never values", async () => {

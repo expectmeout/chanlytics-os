@@ -370,6 +370,21 @@ test(
 
     ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", run));
     refusedWith(await decide(await sendRow(inc).then((x) => x.id), "skip"), "22023", REACH_OUT_REFUSALS.runOver);
+
+    // Each answer taken leaves its event on the run, the door's own, in its transaction (00718); a refusal leaves none.
+    const said = ok(
+      await db
+        .from("events")
+        .select("subject_type, data")
+        .eq("tenant_id", A)
+        .eq("kind", "reach_out.send_decided")
+        .eq("subject_id", run)
+        .order("created_at"),
+    );
+    assert.deepEqual(
+      said.map((e) => [e.subject_type, e.data.decision, e.data.by]),
+      ["include", "rewrite", "skip", "not_a_fit"].map((decision) => ["broadcast", decision, as.operator.id]),
+    );
   },
 );
 
@@ -508,6 +523,17 @@ test(
       "22023",
       REACH_OUT_REFUSALS.nothingToUndo,
     );
+    // The undo's event is the door's own (00718): once, for the undo taken, never for the one refused.
+    const undone = ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", A)
+        .eq("kind", "reach_out.send_decided")
+        .eq("data->>decision", "rewrite_undone")
+        .eq("data->>by", as.operator.id),
+    );
+    assert.equal(undone.length, 1, JSON.stringify(undone));
 
     // What was asked, and what their website said, go with the lead: lead_blank clears them with the opening.
     ok(await decide({ p_decision: "rewrite", p_change: "Say it warmer" }));

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { answerOf, refusalOf, recordLeadExcluded } from "@/server/leads/leads";
+import { answerOf, refusalOf } from "@/server/leads/leads";
 import { excludeFoundLead } from "@/server/leads/search-acts";
 import { DbFailure } from "@chanlytics/contracts";
 
@@ -13,7 +13,7 @@ export const POST = write({
   role: "partner",
   rate: "lead_member",
   input: Body,
-  handle: async ({ ctx, member, input }) => {
+  handle: async ({ ctx, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
     const { data, error } = await excludeFoundLead(ctx, {
       p_search_id: input.search_id,
@@ -23,7 +23,7 @@ export const POST = write({
     const answer = answerOf(data);
     const refused = refusalOf(answer);
     if (refused) throw refused;
-    await recordLeadExcluded({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
+    // The door wrote the member's word on the ledger beside its operation row (lead.excluded, 00718).
     return { lead_id: leadId, op_id: answer.op_id, version: answer.version };
   },
 });

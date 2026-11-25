@@ -211,6 +211,27 @@ test(
     assert.deepEqual(ok(await set(l, null)).was, { subject: "Another", body: "Still mine." });
     assert.deepEqual(await wordsOf(l), []);
     assert.equal(ok(await set(l, null)).was, null, "putting back what is back moves nothing");
+
+    // Each change's event is the door's own, in its transaction (00718): who, at which step, kept or put back, never
+    // the words; putting back what is back writes none.
+    const said = ok(
+      await db
+        .from("events")
+        .select("subject_type, data")
+        .eq("tenant_id", A)
+        .eq("kind", "reach_out.lead_words_changed")
+        .eq("subject_id", l)
+        .order("created_at"),
+    );
+    assert.deepEqual(
+      said.map((e) => [e.subject_type, e.data.step_id, e.data.kept, e.data.by]),
+      [
+        ["lead", root, true, as.operator.id],
+        ["lead", root, true, as.owner.id],
+        ["lead", root, false, as.operator.id],
+      ],
+    );
+    assert.equal(JSON.stringify(said).includes("booked out"), false, "never the words");
   },
 );
 

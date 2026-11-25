@@ -19,7 +19,6 @@ import { writeLineForwarding } from "@chanlytics/db/workspace";
 import { findConfigRow } from "@/server/workspace/config-row";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 const NO_TEST_PHONE: string | null = null;
 
@@ -46,11 +45,6 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
     p_test_from: NO_TEST_PHONE,
   });
   if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
-  // Where a business's calls go changed on a member's word: the ledger says who and which calls, never the number.
-  await emitWorkspaceEvent(member.tenantId, "line.forwarding_set", "line", data, {
-    carrier: body.carrier,
-    mode: body.mode,
-    by: ctx.userId,
-  });
+  // The door wrote its event beside the row (line.forwarding_set, 00718): who and which calls, never the number.
   return { line_id: data };
 }

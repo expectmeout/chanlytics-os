@@ -322,7 +322,7 @@ test("a search with a reach-out answers its lines beside the chain as Playbooks 
 
 test("POST stop: an operator stops a lead; a viewer may not; another workspace's lead is not found", async () => {
   const d = doors();
-  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  // The service role, stood in and read below: a stop writes nothing of its own on it.
   const ledger = { events: [] };
   setServiceClient(fakeDb(ledger));
 
@@ -336,11 +336,9 @@ test("POST stop: an operator stops a lead; a viewer may not; another workspace's
   await refused(stop.POST.run(post(), ctxFor(tables("operator"), { id: THEIRS }, stranger.rpcs)), "not_found", 404);
   assert.deepEqual(stranger.asked, []);
   setServiceClient(null);
-  assert.deepEqual(
-    ledger.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
-    [[A, "reach_out.lead_stopped", "lead", LEAD, { by: USER }]],
-    "REGRESSION: a business stopped hearing from the workspace on a member's word, and nothing said whose; a refusal says nothing",
-  );
+  // The door writes who stopped them beside the stop, once (reach_out.lead_stopped: 00718): a route writing one too
+  // would be two.
+  assert.deepEqual(ledger.events, [], "REGRESSION: the route wrote the stop's event after the door");
 });
 
 test("the door's refusal is said in contracts' words", async () => {

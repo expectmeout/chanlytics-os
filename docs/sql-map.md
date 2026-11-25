@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 229 | 229 |
+| door | 230 | 230 |
 | reader | 98 | 0 |
 | the server's | 454 | 384 |
 | computed column | 3 | 0 |
 | trigger | 125 | 91 |
-| all | 909 | 704 |
+| all | 910 | 705 |
 
 ## Called by nothing
 
@@ -137,7 +137,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 37 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 38 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -472,6 +472,7 @@ being read is dropped by a migration.
 | `mailbox_connections_within_limit` | trigger | the server | trigger `mailbox_connections_within_limit on mailbox_connections` |  |
 | `mailbox_left_note` | the server's | the server | code `packages/db/src/repositories/email/senders.ts` | One more email a connected mailbox left where it was, from one sender (00483): |
 | `mailbox_owner_wrote` | the server's | the server | code `packages/db/src/repositories/email/sync.ts` | An email the owner sent from their connected mailbox, not through Chanlytics (00482): |
+| `mailbox_provider_wanted` | door | a signed-in person, the server | code `packages/db/src/repositories/email/connections.ts` | Cold email's Tell us (00718): |
 | `mailbox_sender_sort` | door | a signed-in person, the server | code `packages/db/src/repositories/email/senders.ts` | What the workspace says of a sender of mail to its connected mailbox (00483): |
 | `mailbox_senders_on_erase` | trigger | the server | trigger `contacts_erase_takes_mailbox_senders on contacts` |  |
 | `mailbox_threads_known` | the server's | the server | code `packages/db/src/repositories/email/sync.ts` | Of the provider thread ids a mailbox's sync saw change, the ones a message this workspace sent is in (00424): |
