@@ -1,4 +1,5 @@
 import FrameHost from "@/bridge/FrameHost";
+import { SheetsAlone } from "@/styles/sheet-links";
 
 /**
  * /w/<slug>/<route> — the OS shell for one workspace, named in the address (plan 3.5).
@@ -10,9 +11,19 @@ import FrameHost from "@/bridge/FrameHost";
  * here, nor is anything else of the request: the proxy gates every address, and the server validates membership on
  * each call, so every workspace's frame is the one prerendered for all (decision 0053, step 5).
  *
- * `children` is the route's page. Until a surface has a page of its own it is the catch-all's, which draws nothing:
- * the route is the frame's route table's to draw.
+ * `children` is the route's page, in its own layout, which links the page's own stylesheets around it
+ * (styles/sheets-layout.tsx). Until a surface has a page of its own it is the catch-all's, which draws
+ * nothing: the route is the frame's route table's to draw.
+ *
+ * It is drawn twice. Inside the frame, which only a browser draws (FrameHost), and beside it for its links alone
+ * (SheetsAlone): so they are in the prerendered document's head, where a browser finds them before any script and
+ * holds the first paint for them, and the outline is drawn in the page's own styles.
  */
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  return <FrameHost>{children}</FrameHost>;
+  return (
+    <>
+      <SheetsAlone>{children}</SheetsAlone>
+      <FrameHost>{children}</FrameHost>
+    </>
+  );
 }

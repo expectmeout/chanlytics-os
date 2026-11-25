@@ -178,6 +178,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.3.0(@types/react@19.3.0)
+      lightningcss:
+        specifier: 1.33.0
+        version: 1.33.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

@@ -1,39 +1,7 @@
-/* The tokens, the kit and the shell's stylesheets, in their order — Next.js does
-   not guarantee cross-import CSS order, so one entry file does. The harness's
-   pages link the same list (tooling/scripts/e2e-harness/app-styles.mjs reads
-   these imports). */
-@import "../styles/tokens.css";
-@import "../surfaces/kit/kit.css";
-@import "../styles/components.css";
-@import "../surfaces/campaigns/campaigns.css";
-@import "../styles/dashboard.css";
-@import "../styles/dashboard-a-v2.css";
-@import "../surfaces/today/need-you/need-you.css";
-@import "../styles/inbox.css";
-@import "../styles/clients.css";
-@import "../styles/people.css";
-@import "../styles/leads.css";
-@import "../styles/store.css";
-@import "../styles/fleet.css";
-@import "../styles/pipeline.css";
-@import "../styles/conversations.css";
-@import "../styles/live.css";
-@import "../styles/calendar.css";
-@import "../styles/charts.css";
-@import "../styles/record.css";
-@import "../styles/reports.css";
-@import "../styles/settings.css";
-@import "../styles/first-run.css";
-@import "../styles/mobile.css";
-@import "../surfaces/today/zones/zones.css";
-@import "../surfaces/today/calm/calm.css";
-@import "../surfaces/today/calm/held.css";
-@import "../surfaces/today/calm/evening.css";
-@import "../surfaces/today/ai/ai.css";
-@import "../surfaces/today/over/over.css";
-@import "../surfaces/ask/ask.css";
-@import "../surfaces/files/post.css";
-@import "../surfaces/frame/outline.css";
+/* The frame's own rules: the last of the frame's stylesheets but the map's and the console's. Which stylesheets
+   there are and their order is src/styles/sheets.json (Next orders nothing across imports, and a page links only the
+   files its code can draw: src/styles/page-sheets.ts). The harness's pages link the same list
+   (tooling/scripts/e2e-harness/app-styles.mjs). */
 
 /* The standalone mockup's inline viewport rules, scoped so they only apply while
    the frame is mounted (login and other pages keep normal scrolling).

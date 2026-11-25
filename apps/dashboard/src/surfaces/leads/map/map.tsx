@@ -21,6 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { gate } from "../../frame-verbs";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { SheetOf } from "@/styles/sheet-links";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { NearbyArea } from "../bench/types";
@@ -127,6 +128,8 @@ const LeadStreets = ({
   }, [ids, center && center.lat, center && center.lng, plot.spanM]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="ld-map-streets" data-testid="lead-map-streets" data-own-drag>
+      {/* MapLibre's own stylesheet (its canvas, its controls), linked where the streets are drawn and nowhere else. */}
+      <SheetOf name="map" />
       <div className="ld-map-canvas" ref={box} />
       {children}
     </div>

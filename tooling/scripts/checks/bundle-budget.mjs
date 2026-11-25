@@ -12,10 +12,14 @@
  *                                 the workspace's layout's carry the shell, which FrameHost imports (until 17 Oct
  *                                 2026 by `import()`, and the loadable manifest named it)
  *   a page's loadable manifest    what `next/dynamic` loads when the page draws, where it names anything
+ *   a page's prerendered document  the stylesheets of its own it links (apps/dashboard/src/styles/page-sheets.ts: a
+ *                                 page links only the rules its code can draw, as files under public/sheets beside
+ *                                 the build), read from its head
  *
- * gzips each file once, at level 9, and sums three things: the route's JavaScript, the route's CSS, and each other
- * page's own JavaScript beyond the route (its segments' chunks and its loadable's, less the route's; a chunk two pages
- * share counts for each, since each page's visitor downloads it). A chunk fetched later, on demand (the map, a
+ * gzips each file once, at level 9, and sums four things: the route's JavaScript, the route's CSS (Next's own for the
+ * route and the stylesheets the route's document links), each other page's own JavaScript beyond the route (its
+ * segments' chunks and its loadable's, less the route's; a chunk two pages share counts for each, since each page's
+ * visitor downloads it), and each page's own stylesheets, all its document links (`styles <page>`). A chunk fetched later, on demand (the map, a
  * refresh), is not counted: it is not what a person waits for. A build that no longer writes one of the manifests,
  * or whose frame loads less than SHELL_SHARE of the route at once, fails the check rather than measuring less. The build is deterministic to the byte (6 Oct 2026).
  *
@@ -24,7 +28,7 @@
  *   1. What this change adds. A push to main records its measurement under its own sha (the Actions cache, and an
  *      artifact the weekly reading finds); a pull request is compared with the record of the main commit its merge
  *      stands on, so the difference is this change's alone. A sum it grows past its line (GROWTH_LINE: the route's JS
- *      and CSS 1 KB, a page 2 KB, gzipped) fails until the pull request says why, in a line of its description:
+ *      and CSS 1 KB, a page 2 KB, a page's stylesheets 1 KB, gzipped) fails until the pull request says why, in a line of its description:
  *      `Bundle: <why>`. The description is read when the check runs, so after editing it, run the job again.
  *   2. The ceiling (baselines/bundle-ceiling.json): what a visitor may be asked to wait for. Every build is held to
  *      it, a pull request's and main's; within NEAR of it the summary warns. Over it is a split or a lighter module,
@@ -40,7 +44,8 @@
  * held to the byte, and argued where it is made, in its pull request.
  *
  *   corepack pnpm check:bundle                                        # after a build: measure, and hold the ceiling
- *   corepack pnpm check:bundle -- --ceiling js=819200 page=262144     # no build: set a ceiling (page: each page's own)
+ *   corepack pnpm check:bundle -- --ceiling js=819200 page=262144     # no build: set a ceiling (page: each page's own
+ *                                                                     # JavaScript; sheets: each page's stylesheets)
  *   node tooling/scripts/checks/bundle-budget.mjs --week <older> <newer> [--commits <file>] [--report <file>]
  *
  * `--next <dir>`, `--baseline <file>`, `--sha <sha>`, `--record <file>`, `--against <file>`, `--base <sha>` and
@@ -69,10 +74,10 @@ const ROOT_LAYOUT = "[project]/apps/dashboard/app/layout";
  * loaded some other way (an `import()` no manifest names) leaves the frame light, and the route's sum without it.
  */
 const SHELL_SHARE = 0.5;
-/** What one change may add to a sum, gzipped bytes, before its pull request says why: the route's two, and a page's. */
-export const GROWTH_LINE = { js: 1024, css: 1024, page: 2048 };
+/** What one change may add to a sum, gzipped bytes, before its pull request says why: the route's two, a page's, and a page's stylesheets. */
+export const GROWTH_LINE = { js: 1024, css: 1024, page: 2048, sheets: 1024 };
 /** What main may add to a sum in a week before the weekly reading keeps an issue open about it. */
-export const WEEK_LINE = { js: 4096, css: 2048, page: 8192 };
+export const WEEK_LINE = { js: 4096, css: 2048, page: 8192, sheets: 2048 };
 /** How near its ceiling a sum comes before the summary warns. */
 export const NEAR = 0.9;
 /** The route's two sums; every other key is a page's own JavaScript. */
@@ -80,6 +85,12 @@ const KINDS = ["js", "css"];
 const LABELS = { js: "route JS", css: "route CSS" };
 /** How a person runs this, for the messages that name a flag. */
 const COMMAND = "corepack pnpm check:bundle";
+/** A page's own stylesheets as a row's key: `styles <page>`, which no page's key is (a key has no space). */
+const STYLES = "styles ";
+const isStyles = (key) => key.startsWith(STYLES);
+/** Where the pages' own stylesheets are served from, and where they are kept, from the build's folder. */
+const SHEETS_AT = "/sheets/";
+const SHEETS_DIR = "../public/sheets";
 const BASELINE = "tests/baselines/bundle-ceiling.json";
 
 /** A build that is not the shape this reads: fails with exit 2, rather than measuring less. */
@@ -150,6 +161,20 @@ function pagesOf(next) {
   return out.sort();
 }
 
+/**
+ * The stylesheets of its own a page's prerendered document links, as paths from the build's folder: none where the
+ * build prerendered no such document (a build from before a page had stylesheets of its own; a test's).
+ */
+function sheetsLinked(next, page) {
+  const doc = path.join(next, "server/app", `${page.replace(/^\(os\)\//, "").replace(/\/page$/, "")}.html`);
+  if (!fs.existsSync(doc)) return [];
+  const [head] = fs.readFileSync(doc, "utf8").split("</head>");
+  return [...head.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*>/g)]
+    .map((link) => /\bhref="([^"?]+)"/.exec(link[0])?.[1] ?? "")
+    .filter((href) => href.startsWith(SHEETS_AT))
+    .map((href) => `${SHEETS_DIR}/${href.slice(SHEETS_AT.length)}`);
+}
+
 /** Each file's raw and gzipped size, under its path. */
 function sizesOf(next, files) {
   const out = {};
@@ -166,8 +191,8 @@ const total = (files, field) => Object.values(files).reduce((a, v) => a + v[fiel
 const summed = (files) => ({ files: Object.keys(files).length, raw: total(files, "raw"), gzip: total(files, "gzip") });
 
 /**
- * Measures a build: the route's JavaScript and CSS, and each other workspace page's own JavaScript beyond the route,
- * each as its files' sizes (`files`) and their sums. Exported so a test, or a comparison of two builds, measures as
+ * Measures a build: the route's JavaScript and CSS, each other workspace page's own JavaScript beyond the route, and
+ * each page's own stylesheets, each as its files' sizes (`files`) and their sums. Exported so a test, or a comparison of two builds, measures as
  * the check does.
  */
 export function measureBuild(next) {
@@ -181,8 +206,12 @@ export function measureBuild(next) {
     for (const f of files) css.add(typeof f === "string" ? f : f.path);
   }
   for (const f of dynamic) (f.endsWith(".css") ? css : js).add(f);
+  for (const f of sheetsLinked(next, PAGE)) css.add(f);
   const page = {};
+  const sheets = {};
   for (const name of pagesOf(next)) {
+    const linked = sheetsLinked(next, name);
+    if (linked.length) sheets[name === PAGE ? "route" : pageKey(name)] = sizesOf(next, linked);
     if (name === PAGE) continue;
     const own = chunksOf(manifestOf(next, name));
     for (const f of loadableOf(next, name) ?? []) own.add(f);
@@ -190,7 +219,7 @@ export function measureBuild(next) {
     const key = pageKey(name) in page ? name : pageKey(name);
     page[key] = sizesOf(next, own);
   }
-  const files = { js: sizesOf(next, js), css: sizesOf(next, css), page };
+  const files = { js: sizesOf(next, js), css: sizesOf(next, css), page, sheets };
   const below = new Set([...(build.rootMainFiles ?? []), ...(client.entryJSFiles[ROOT_LAYOUT] ?? [])]);
   const frame = new Set([...(client.entryJSFiles[FRAME] ?? []), ...dynamic]);
   const shell = [...frame].filter((f) => f.endsWith(".js") && !below.has(f)).reduce((a, f) => a + files.js[f].gzip, 0);
@@ -204,33 +233,53 @@ export function measureBuild(next) {
     js: summed(files.js),
     css: summed(files.css),
     page: Object.fromEntries(Object.entries(page).map(([k, v]) => [k, summed(v)])),
+    sheets: Object.fromEntries(Object.entries(sheets).map(([k, v]) => [k, summed(v)])),
     files,
   };
 }
 
-/** The gzipped sums a budget holds, from a measurement: `{ js, css, page: { <name>: bytes } }`. */
-export const sumsOf = (measured) => ({
-  js: measured.js.gzip,
-  css: measured.css.gzip,
-  page: Object.fromEntries(Object.entries(measured.page).map(([k, v]) => [k, v.gzip])),
-});
+/**
+ * The gzipped sums a budget holds, from a measurement: `{ js, css, page: { <name>: bytes } }`, and
+ * `sheets: { <name>: bytes }` where the build's pages link stylesheets of their own.
+ */
+export const sumsOf = (measured) => {
+  const sheets = Object.entries(measured.sheets ?? {}).map(([k, v]) => [k, v.gzip]);
+  return {
+    js: measured.js.gzip,
+    css: measured.css.gzip,
+    page: Object.fromEntries(Object.entries(measured.page).map(([k, v]) => [k, v.gzip])),
+    ...(sheets.length ? { sheets: Object.fromEntries(sheets) } : {}),
+  };
+};
 
 /* ---------------------------------- the holds ---------------------------------- */
 
-/** A sum's line: the route's two by kind, a page's for every other key. */
-const lineOf = (key, lines = GROWTH_LINE) => (KINDS.includes(key) ? lines[key] : lines.page);
-const labelOf = (key) => (KINDS.includes(key) ? LABELS[key] : `page ${key}`);
+/** A sum's line: the route's two by kind, a page's stylesheets', and a page's for every other key. */
+const lineOf = (key, lines = GROWTH_LINE) =>
+  KINDS.includes(key) ? lines[key] : isStyles(key) ? lines.sheets : lines.page;
+const labelOf = (key) => (KINDS.includes(key) ? LABELS[key] : isStyles(key) ? key : `page ${key}`);
+/** A sum's ceiling, by the same three. */
+const capOf = (key, ceiling) =>
+  KINDS.includes(key) ? ceiling?.[key] : isStyles(key) ? ceiling?.sheets : ceiling?.page;
 
 /**
  * Every sum beside another build's (null: beside nothing): what it adds. A page the other build lacks counts from
- * nothing; a page this build no longer has is said as gone, and adds nothing.
+ * nothing; a page this build no longer has is said as gone, and adds nothing. A page's stylesheets are compared where
+ * the other build measured any: a record from before a page had stylesheets of its own holds none, and beside it
+ * they add nothing (the route's CSS, which both measured, says what that change did).
  */
 export function compareWith(sums, other) {
   const pages = new Set([...Object.keys(sums.page ?? {}), ...Object.keys(other?.page ?? {})]);
-  return [...KINDS, ...[...pages].sort()].map((key) => {
-    const now = KINDS.includes(key) ? sums[key] : sums.page?.[key];
-    const base = KINDS.includes(key) ? other?.[key] : other?.page?.[key];
+  const styled = new Set([...Object.keys(sums.sheets ?? {}), ...Object.keys(other?.sheets ?? {})]);
+  const keys = [...KINDS, ...[...pages].sort(), ...[...styled].sort().map((name) => STYLES + name)];
+  const sumIn = (from, key) => {
+    if (KINDS.includes(key)) return from?.[key];
+    return isStyles(key) ? from?.sheets?.[key.slice(STYLES.length)] : from?.page?.[key];
+  };
+  return keys.map((key) => {
+    const now = sumIn(sums, key);
     const gone = typeof now !== "number";
+    const base = isStyles(key) && other && !other.sheets ? now : sumIn(other, key);
     return { key, label: labelOf(key), base: base ?? 0, now: now ?? 0, growth: gone ? 0 : now - (base ?? 0), gone };
   });
 }
@@ -253,7 +302,7 @@ export function reasonIn(body) {
 export function judge(sums, ceiling) {
   const out = { over: [], near: [] };
   for (const row of compareWith(sums, null)) {
-    const cap = KINDS.includes(row.key) ? ceiling?.[row.key] : ceiling?.page;
+    const cap = capOf(row.key, ceiling);
     if (row.gone || typeof cap !== "number") continue;
     if (row.now > cap) out.over.push({ ...row, ceiling: cap });
     else if (row.now > cap * NEAR) out.near.push({ ...row, ceiling: cap });
@@ -267,11 +316,11 @@ export function weekOf(older, newer) {
   return { rows, past: rows.filter((r) => r.growth > lineOf(r.key, WEEK_LINE)) };
 }
 
-/** The numbers after a flag, `js=819200 css=163840 page=262144`. */
+/** The numbers after a flag, `js=819200 css=163840 page=262144 sheets=131072`. */
 export function numbersIn(args) {
   const out = {};
   for (const a of args) {
-    const m = /^(js|css|page)=(\d+)$/.exec(a);
+    const m = /^(js|css|page|sheets)=(\d+)$/.exec(a);
     if (m) out[m[1]] = Number(m[2]);
   }
   return out;
@@ -289,6 +338,7 @@ const sumLine = (label, m) =>
 function describe(measured) {
   const lines = [`/w/[workspace]: ${sumLine(LABELS.js, measured.js)}; ${sumLine(LABELS.css, measured.css)}`];
   for (const [key, m] of Object.entries(measured.page)) lines.push(`  ${sumLine(`page ${key}`, m)}`);
+  for (const [key, m] of Object.entries(measured.sheets ?? {})) lines.push(`  ${sumLine(STYLES + key, m)}`);
   return lines.join("\n");
 }
 
@@ -315,7 +365,7 @@ const ceilingMessage = (rows) =>
   `over the ceiling, which no pull request crosses:\n` +
   rows.map((r) => `  ${r.label} ${bytes(r.now)} bytes gzipped against ${bytes(r.ceiling)}`).join("\n") +
   `\n\nSplit what grew it, or load it where it is drawn. A ceiling moves only by a decision on what a visitor may wait for ` +
-  `(docs/runbook.md, "See how fast the pages are"): \`${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes>\`.`;
+  `(docs/runbook.md, "See how fast the pages are"): \`${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes> sheets=<bytes>\`.`;
 
 const nearLines = (rows) =>
   rows.map((r) => `  ${r.label} ${bytes(r.now)} of ${bytes(r.ceiling)} bytes gzipped (${share(r.now, r.ceiling)})`);
@@ -327,7 +377,6 @@ const nearLines = (rows) =>
 export function summaryOf({ measured, ceiling, compared, reason = null }) {
   const sums = sumsOf(measured);
   const rows = compared?.record ? compared.rows : compareWith(sums, null);
-  const capOf = (key) => (KINDS.includes(key) ? ceiling?.[key] : ceiling?.page);
   const cell = (n) => (typeof n === "number" ? bytes(n) : "");
   const header = compared?.record
     ? `Against main's own build \`${compared.record.sha}\`${compared.held ? "" : ` (${compared.why}: compared, not held)`}.`
@@ -337,7 +386,7 @@ export function summaryOf({ measured, ceiling, compared, reason = null }) {
     "| --- | ---: | ---: | ---: | ---: | ---: |",
     ...rows.map((r) => {
       const change = compared?.record ? (r.gone ? "gone" : signed(r.growth)) : "";
-      return `| ${r.label} | ${compared?.record ? cell(r.base) : ""} | ${r.gone ? "" : bytes(r.now)} | ${change} | ${bytes(lineOf(r.key))} | ${cell(capOf(r.key))} |`;
+      return `| ${r.label} | ${compared?.record ? cell(r.base) : ""} | ${r.gone ? "" : bytes(r.now)} | ${change} | ${bytes(lineOf(r.key))} | ${cell(capOf(r.key, ceiling))} |`;
     }),
   ];
   const near = judge(sums, ceiling).near;
@@ -485,7 +534,7 @@ function main() {
   if (grown.length) console.log(`grown past its line, and the pull request says why: ${reason}`);
   console.log(
     `within its lines and under its ceilings (${LABELS.js} ${bytes(ceiling.js)}, ${LABELS.css} ${bytes(ceiling.css)}, ` +
-      `each page ${bytes(ceiling.page)} gzipped)`,
+      `each page ${bytes(ceiling.page)}${ceiling.sheets ? `, a page's stylesheets ${bytes(ceiling.sheets)}` : ""} gzipped)`,
   );
 }
 

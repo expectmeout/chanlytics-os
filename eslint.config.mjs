@@ -553,6 +553,9 @@ const DASHBOARD_CODE = [
   "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
   // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
   "apps/dashboard/src/*.ts",
+  // Beside the stylesheets, what works out each page's own and writes them as a build's configuration is read
+  // (page-sheets.ts, write-page-sheets.ts).
+  "apps/dashboard/src/styles/**/*.{ts,tsx}",
   // The app's own configuration and entry points (next.config.ts, proxy.ts, instrumentation.ts), which its tsconfig compiles.
   "apps/dashboard/*.ts",
 ];

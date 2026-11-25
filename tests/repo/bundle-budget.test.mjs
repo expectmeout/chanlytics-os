@@ -97,8 +97,8 @@ function writeBuild({
   loadable = null,
   chunks = CHUNKS,
   pages = PAGES,
+  dir = tempDir("bundle-budget-"),
 } = {}) {
-  const dir = tempDir("bundle-budget-");
   const put = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
     fs.writeFileSync(path.join(dir, rel), text);
@@ -426,4 +426,94 @@ test("a manifest naming a file the build did not write fails", () => {
   const r = run(writeBuild({ chunks }));
   assert.equal(r.status, 2, r.out);
   assert.match(r.out, /static\/chunks\/page\.js/);
+});
+
+/* ----------------------------- a page's own stylesheets ----------------------------- */
+
+const SHEETS = {
+  "kit.aaaa.css": noise("kit-sheet", 30_000),
+  "today.bbbb.css": noise("today-sheet", 9_000),
+  "inbox.cccc.css": noise("inbox-sheet", 14_000),
+};
+/** Which of them each page's prerendered document links, in its head; the route's is the workspace's own address. */
+const LINKED = {
+  "[[...route]]": ["kit.aaaa.css", "today.bbbb.css"],
+  "inbox/[[...thread]]": ["kit.aaaa.css", "inbox.cccc.css"],
+};
+
+/** A build whose pages link stylesheets of their own: kept under public/sheets beside the build, as the app keeps them. */
+function writeStyledBuild(sheets = SHEETS) {
+  const app = tempDir("bundle-budget-styled-");
+  const dir = writeBuild({ dir: path.join(app, ".next") });
+  const put = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), text);
+  };
+  for (const [name, text] of Object.entries(sheets)) put(`../public/sheets/${name}`, text);
+  for (const [route, names] of Object.entries(LINKED)) {
+    const links = names.map((name) => `<link rel="stylesheet" href="/sheets/${name}" data-precedence="s"/>`).join("");
+    put(
+      `server/app/w/[workspace]/${route}.html`,
+      `<html><head><link rel="stylesheet" href="/_next/static/chunks/app.css" data-precedence="next"/>${links}</head>` +
+        `<body><link rel="stylesheet" href="/sheets/never-in-a-head.css"/></body></html>`,
+    );
+  }
+  return dir;
+}
+
+test("a page's own stylesheets are counted from its prerendered document: the route's with its CSS, and each page's as its own row", () => {
+  const dir = writeStyledBuild();
+  const sums = sumsOf(measureBuild(dir));
+  assert.equal(
+    sums.css,
+    seeded().css + gz(SHEETS, "kit.aaaa.css", "today.bbbb.css"),
+    "the route's CSS is Next's and its document's",
+  );
+  assert.deepEqual(sums.sheets, {
+    route: gz(SHEETS, "kit.aaaa.css", "today.bbbb.css"),
+    inbox: gz(SHEETS, "kit.aaaa.css", "inbox.cccc.css"),
+  });
+  const r = run(dir);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /styles inbox [\d,]+ bytes gzipped/);
+  // A build with none (every build before 24 Nov 2026) has no such sums, and is measured as it was.
+  assert.equal("sheets" in sumsOf(measureBuild(writeBuild())), false);
+});
+
+test("a page's stylesheets grown past their line fail until argued; beside a record from before pages had any, nothing is held of them", () => {
+  const base = writeStyledBuild();
+  const recordFile = recordOf(base);
+  const more = { ...SHEETS, "inbox.cccc.css": SHEETS["inbox.cccc.css"] + noise("more-inbox", 6_000) };
+  const change = writeStyledBuild(more);
+  const growth = gz(more, "inbox.cccc.css") - gz(SHEETS, "inbox.cccc.css");
+  assert.ok(growth > GROWTH_LINE.sheets, `the fixture grows the page's stylesheets past their line (${growth})`);
+  const held = run(change, "--against", recordFile, "--base", "base1");
+  assert.equal(held.status, 1, held.out);
+  assert.ok(
+    held.out.includes(`styles inbox +${growth.toLocaleString("en-US")} bytes gzipped (its line 1,024)`),
+    held.out,
+  );
+  assert.ok(!held.out.includes("styles route +"), "the route's did not grow");
+  // The first build whose pages have stylesheets of their own, beside main's record, which measured none.
+  const before = recordOf(writeBuild(), "before");
+  const first = run(change, "--against", before, "--base", "before", {
+    body: "Bundle: the route's CSS and JS are argued here, as they would be",
+  });
+  assert.equal(first.status, 0, first.out);
+  assert.ok(!/styles [a-z]+ [+]/.test(first.out), "nothing to compare them with: they add nothing");
+  // And the ceiling holds each page's.
+  assert.deepEqual(
+    judge(sumsOf(measureBuild(change)), { js: 10_000_000, css: 10_000_000, page: 10_000_000, sheets: 1 }).over.map(
+      (row) => row.label,
+    ),
+    ["styles inbox", "styles route"],
+  );
+  assert.deepEqual(numbersIn(["sheets=131072", "css=1"]), { sheets: 131_072, css: 1 });
+  assert.deepEqual(
+    weekOf(
+      { sha: "a", sums: { js: 1, css: 1, page: {}, sheets: { inbox: 100 } } },
+      { sha: "b", sums: { js: 1, css: 1, page: {}, sheets: { inbox: 100 + WEEK_LINE.sheets + 1 } } },
+    ).past.map((row) => row.label),
+    ["styles inbox"],
+  );
 });

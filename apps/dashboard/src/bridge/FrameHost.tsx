@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Suspense, memo, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfPath } from "@chanlytics/contracts";
 import { FrameOutline } from "@/surfaces/frame/outline";
+import { warmSheets } from "@/styles/sheet-links";
 import { routeHasPage } from "@/surfaces/routes";
 import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
@@ -137,7 +138,12 @@ export default function FrameHost({ home = false, children }: { home?: boolean; 
     setAppRouter({
       push: (href) => router.push(href, { scroll: false }),
       replace: (href) => router.replace(href, { scroll: false }),
-      prefetch: (href) => router.prefetch(href),
+      // A page warmed brings its own stylesheets with it (styles/sheet-links.tsx): asked for here, ahead of the
+      // move, so a press never waits for one.
+      prefetch: (href) => {
+        router.prefetch(href);
+        warmSheets(href, document);
+      },
     });
     // The first moment anything can be asked of the router, and the frame has not drawn yet (it is placed after this effect).
     if (!home) warmPhonePlaces();

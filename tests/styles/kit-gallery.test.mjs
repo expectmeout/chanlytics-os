@@ -18,9 +18,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { transform } from "lightningcss";
 import { cssOf, KIT_REGISTRY } from "../_css.mjs";
 import { ROOT } from "../_source.mjs";
+import { appStylesheets } from "../../tooling/scripts/e2e-harness/app-styles.mjs";
 import { FAMILIES, galleryDocument, UNLISTED } from "../../tooling/scripts/e2e-harness/kit-gallery.mjs";
 
 /** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
@@ -174,21 +174,11 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   );
 });
 
-/** The stylesheets a stylesheet @imports, from the repository's root (styles/kit-css.test.mjs reads them so too). */
-function cssImports(sheet) {
-  const urls = [];
-  transform({
-    filename: sheet,
-    code: fs.readFileSync(path.join(ROOT, sheet)),
-    visitor: { Rule: { import: (rule) => void urls.push(rule.value.url) } },
-  });
-  return urls.map((url) => path.posix.join(path.posix.dirname(sheet), url));
-}
-
-/** The stylesheets the app imports (bridge/frame.css), each where the harness serves it (e2e-harness/server.mjs). */
-const APP_SHEETS = cssImports("apps/dashboard/src/bridge/frame.css").map((p) =>
-  p.replace(/^apps\/dashboard\/src\/(legacy\/)?/, ""),
-);
+/**
+ * The stylesheets the app links (the tokens, then src/styles/sheets.json up to the frame's own rules), each where the
+ * harness serves it (e2e-harness/app-styles.mjs, server.mjs).
+ */
+const APP_SHEETS = appStylesheets();
 
 /** What is wrong with a page's head: its stylesheets not the app's in the app's order then the app's rules, the fonts
  *  not first, or a script loaded by its src. */

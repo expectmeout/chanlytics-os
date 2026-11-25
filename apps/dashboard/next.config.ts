@@ -1,5 +1,8 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants";
 import { env } from "./src/server/shared/env";
+import { watchPageSheets, writePageSheets } from "./src/styles/write-page-sheets";
 
 /**
  * Response headers for an application that renders other people's customers.
@@ -170,4 +173,30 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * A page's stylesheets, kept for good by whoever fetched them: a build names each by what it holds
+ * (src/styles/write-page-sheets.ts), so a file whose rules changed is another address.
+ */
+const SHEETS_KEPT = {
+  source: "/sheets/:file*",
+  headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+};
+
+/**
+ * The configuration, with each page's own stylesheets written and listed for the app (src/styles/page-sheets.ts says
+ * what a page's are). A build works each page's out from its code; the development server gives every page every
+ * stylesheet whole and writes one again when its source changes. Anything else that reads this (the production
+ * server, whose build already wrote them; a test) gets the configuration alone.
+ */
+export default function nextConfigFor(phase: string): NextConfig {
+  if (phase !== PHASE_DEVELOPMENT_SERVER && phase !== PHASE_PRODUCTION_BUILD) return nextConfig;
+  const building = phase === PHASE_PRODUCTION_BUILD;
+  const folder = path.join(__dirname, "public/sheets");
+  const sheets = writePageSheets(__dirname, building ? "split" : "whole", folder);
+  if (!building) watchPageSheets(__dirname, folder);
+  return {
+    ...nextConfig,
+    env: { ...nextConfig.env, NEXT_PUBLIC_SHEETS: JSON.stringify(sheets) },
+    headers: async () => [...((await nextConfig.headers?.()) ?? []), ...(building ? [SHEETS_KEPT] : [])],
+  };
+}

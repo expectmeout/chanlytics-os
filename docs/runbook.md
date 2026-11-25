@@ -106,6 +106,20 @@ Three things trip this up, in this order:
 3. **A page renders before its surfaces land.** Wait for the thing you came to
    look at, not for the shell.
 
+**A stylesheet you change shows on the next load, not as you save.** The frame's stylesheets are not Next's to
+bundle: the server writes them under `apps/dashboard/public/sheets` as it starts and again when one is saved
+(`apps/dashboard/src/styles/write-page-sheets.ts`), every one whole for every page, so reload the page. A build gives
+each page only the rules its code can draw (`docs/architecture.md`, "How a page opens"): to see a page as production
+links it, build and `next start`. A rule a page should have and does not is a class its modules never write whole in a
+string (a name built from data alone); write the name out where it is chosen.
+
+**This server reads production's database** wherever `.env.local` is production's, which a lane's is. One page load
+is 150 to 550 database calls; a sweep of every page, a walk that reloads, or two builds compared on live data is a
+crowd, and on 25 November 2026 such walks from one desk helped take the database down. Open the pages you came to
+look at; for anything wider, replay kept answers. The nightly's copy of the app keeps them, on its own stack and
+from its own workspace: a manual run of `.github/workflows/nightly-e2e.yml` with `specs=e2e/shell/tape.spec.ts` attaches
+every page's answers to the run's report as `tape.json`, and asks production nothing.
+
 A page that a spec should hold is still a spec (the nightly's, below); this is for
 looking at one while you change it.
 
@@ -1258,7 +1272,10 @@ ceiling answers to (`check:bundle -- --ceiling js=<bytes> css=<bytes> page=<byte
 on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB for each page's own, with room for a month's
 work at the rate main grew in early October, read again with these numbers; the route's JS raised to 832 KiB on 13 Oct 2026
 by Ruben's word, #1579, and to 1 MiB with its CSS to 192 KiB on 16 Oct 2026 by his word, with p75 LCP 1.6 s and INP 102 ms
-that day, docs/debt.md "Rises"): LCP for the page drawn, INP for a tap answered.
+that day, docs/debt.md "Rises"; the CSS brought down to 144 KiB on 25 Nov 2026, when a page came to link only the rules
+its code can draw and the route's fell from 183 KB to 127, with a ceiling of 132 KiB for each page's own stylesheets,
+`sheets=<bytes>`, the rows `check:bundle` calls `styles <page>`, the largest 117 KB that day): LCP for the page drawn,
+INP for a tap answered.
 
 Since 00412 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for
 (Today's queue, the Inbox's list and thread, People's table, the Calendar's board…), reports `READY` when it is drawn
