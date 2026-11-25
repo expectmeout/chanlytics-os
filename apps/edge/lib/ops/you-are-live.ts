@@ -2,8 +2,7 @@
  * Two mails to a workspace's own alert addresses that the dashboard asks for.
  *
  * POST /api/admin/you-are-live — the first run's Finish recorded a workspace's first activation of its calls, and its
- * owner is emailed that the receptionist is answering (the "you're live" email, decision 4 of
- * docs/superpowers/specs/2026-09-24-first-run-design.md; canvas C2).
+ * owner is emailed that the receptionist is answering (the "you're live" email; canvas C2).
  *
  * The door is api/admin/you-are-live.ts: it checks who may knock (authorizeAdmin) and reads the body, then hands this
  * the knock (`auth`) and what the body carried; everything after is here, in the order the door had it.

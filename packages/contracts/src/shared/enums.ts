@@ -107,7 +107,7 @@ export const JOB_KINDS = [
    */
   "reply_read",
   /**
-   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * One booking tool's notice read into an appointment: the
    * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
    * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
    * again: a second claim finds the row by the delivery's id and pays nothing.

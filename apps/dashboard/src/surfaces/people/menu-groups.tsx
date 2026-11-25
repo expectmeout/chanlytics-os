@@ -1,5 +1,5 @@
 /**
- * People's menus, drawn by the kit's Menu (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4). A People menu
+ * People's menus, drawn by the kit's Menu. A People menu
  * is built as data -- a label, the name of its glyph, its act, a line between two groups (`divider`), a heading over the
  * group under it (`header`), a set the member chooses one of (`checked` on each item of it: a sort) and the honesty gate's
  * props -- by the page that knows what the acts are (phone-menu.ts, the row and card menus, the notes and lists), and this

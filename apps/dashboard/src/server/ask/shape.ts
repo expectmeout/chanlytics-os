@@ -7,8 +7,7 @@
  * (tooling/scripts/ops/ask-day.mjs), never a search of the logs. Milliseconds
  * count from the turn's start in the loop. Null means "never happened this
  * turn": a turn answered by cards alone streams no Say; a broken stream has
- * no first byte; a script sends no opened_ms. The spec:
- * docs/superpowers/specs/2026-09-25-ask-rewired-design.md, 5.8.
+ * no first byte; a script sends no opened_ms.
  */
 export interface AskTurnShape {
   v: 1;

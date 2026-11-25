@@ -1,5 +1,5 @@
 /**
- * One answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): Say, Show and Do, each
+ * One answer as the Line draws it: Say, Show and Do, each
  * beside one of the three's own squares on a rail (the stage's spec, S3), lightest to darkest; a figure as a tile with its
  * receipt inside; the rows it names as their own doors; the next step once; and the cards, which approve, edit, wait or undo
  * through the verbs' own routes. What an answer shows is decided by the contract (askCalls().answer: the answer and one door
@@ -430,7 +430,7 @@ export const AskTurn = ({
   );
 };
 
-// ---- A phone's thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md) ----------------------------
+// ---- A phone's thread ----------------------------
 
 // A question in a phone's thread (D2): the person's own words at the right, in the Inbox's sent bubble. The newest
 // carries the id the thread stands at its top (D5, hooks.ts useAskPin).

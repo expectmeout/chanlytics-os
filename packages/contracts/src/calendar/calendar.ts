@@ -82,7 +82,7 @@ function nextOpenWords(startIso: string | null, tz: string, todayKey: string): s
 }
 
 /**
- * What a booking that arrived by email states and a feed's event does not (docs/plans/2026-10-07-bookings-arrive-by-email.md):
+ * What a booking that arrived by email states and a feed's event does not:
  * the tool, who it is with and the price. All null for a feed's event.
  */
 function noticeFacts(item: CalendarItemDto): Pick<CalendarBlockVM, "tool" | "staff" | "price"> {

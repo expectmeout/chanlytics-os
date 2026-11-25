@@ -1,5 +1,5 @@
 /**
- * The first run (docs/superpowers/specs/2026-09-24-first-run-design.md; five steps since decision 0073): Setup's own
+ * The first run (five steps since decision 0073): Setup's own
  * rows and the owner's receptionist, one step to a screen at `#/start`, and what is left afterwards as one card on Today
  * (first-run-card.ts).
  *

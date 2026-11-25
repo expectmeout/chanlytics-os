@@ -1,7 +1,6 @@
 // Chanlytics — Settings › Business: the services sheet.
 //
-// What you offer's list of services, in a sheet beside the page (docs/superpowers/specs/2026-09-20-business-tab-design.md
-// §4.4 and §5; the canvas's Edit-Sheet board): thirty-three rows of three boxes on the live record, the "99 inputs in a
+// What you offer's list of services, in a sheet beside the page (the canvas's Edit-Sheet board): thirty-three rows of three boxes on the live record, the "99 inputs in a
 // 720px column" the redesign exists to remove. Add above the rows (and a search once the list is long), the rows in
 // three columns with a remove each, and a foot that says what the receptionist will be told. On a phone a service is
 // one line, its name and "3 h · At consult", that opens onto its boxes when pressed (Ruben, 10 Oct 2026: each service

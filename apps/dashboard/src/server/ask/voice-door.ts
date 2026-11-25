@@ -42,7 +42,7 @@ import {
 
 /**
  * The brain door: the custom LLM endpoint the ElevenLabs agent calls, one request per spoken turn
- * (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.3; docs/decisions/0026). The vendor sends the agent's
+ * (docs/decisions/0026). The vendor sends the agent's
  * whole history in the chat-completions shape and reads back a chat-completions event stream; the door takes only the
  * last thing the person said, runs one Ask turn as them (server/ask/turn.ts, the same two halves the typed route
  * runs) and streams the Say as it is written, word by word, for the agent's voice to speak.
