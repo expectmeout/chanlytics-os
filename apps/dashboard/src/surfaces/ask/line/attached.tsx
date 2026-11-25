@@ -156,7 +156,7 @@ export function AskAttachPress({ t, attach }: { t: LineWords; attach: (files: re
         kind="attach"
         className="ask-attach"
         aria-label={t.attach}
-        title={t.attach}
+        data-tip={t.attach}
         onClick={() => picker.current?.click()}
         data-testid="ask-attach"
       >
@@ -180,7 +180,7 @@ function AttachedTile({ photo, t, detach }: { photo: AttachedPhoto; t: LineWords
   return (
     <span
       className={`ask-attached-photo ${photo.state}`}
-      title={photo.file.name}
+      data-tip={photo.file.name}
       data-testid={`ask-attached-${photo.state}`}
     >
       {unseen ? (
