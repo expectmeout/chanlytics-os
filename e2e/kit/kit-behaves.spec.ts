@@ -1414,7 +1414,10 @@ test("the Glass check names a popup held under a blur, and one standing away fro
     await show(page, "dark", "glass");
     await page.addStyleTag({ content: ".pop-place { margin-top: 400px; }" });
     const away = await heldByNothing(page, menu);
-    expect(away.some((f) => /^the menu: stands \d+px from its control/.test(f))).toBe(true);
+    expect(
+      away.some((f) => /^the menu: stands \d+px from its control/.test(f)),
+      `what the check said of the menu set 400px down: ${JSON.stringify(away)}`,
+    ).toBe(true);
   } finally {
     await context.close();
   }
