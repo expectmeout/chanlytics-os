@@ -269,7 +269,7 @@ function signedLine(c: ComposerDraw) {
     <div className="ix-composer-signed" data-testid="ix-composer-signed">
       {signed ? (
         <>
-          <span className="ix-composer-signed-words" data-testid="ix-composer-signed-words" title={signed}>
+          <span className="ix-composer-signed-words" data-testid="ix-composer-signed-words" data-tip={signed}>
             {emailSignedLine(signed)}
           </span>
           <Button
@@ -277,7 +277,7 @@ function signedLine(c: ComposerDraw) {
             size="text"
             className="ix-composer-tool ix-press"
             onClick={() => appNavigate(SIGNATURE_ROUTE)}
-            title={W.changeSignatureTip}
+            data-tip={W.changeSignatureTip}
           >
             {W.changeSignature}
           </Button>

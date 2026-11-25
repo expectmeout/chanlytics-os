@@ -59,7 +59,7 @@ export const LrControls = ({ c }: { c: LiveCallVM }) => {
         className="btn btn-sm"
         onClick={handOver}
         disabled={!!busy || noLine}
-        title={
+        data-tip={
           line
             ? `Rings ${line}, the business's own line`
             : noLine
