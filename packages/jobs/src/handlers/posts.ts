@@ -1,6 +1,7 @@
 /**
  * The handlers of a business's pieces and posts (00613, 00611, 00616, 00682, 00699): one step of a video made, a post made
- * ready, sent, sent to Google, asked about, taken down, its numbers read, and a comment on it answered. Each hands its
+ * ready, sent, sent to Google, asked about, taken down, its numbers read, its places asked what they hold, and a comment
+ * on it answered. Each hands its
  * job to what the edge injects (ctx.files, ctx.posts) and says so when this runtime holds none. Apart from handlers.ts,
  * the table of every kind, since these are the content loop's own.
  */
@@ -46,6 +47,13 @@ export async function postTakeDown(ctx: JobContext, job: ClaimedJob): Promise<vo
 export async function postObserve(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts?.observe) throw new Error("post_observe: this runtime reads no post's numbers");
   return ctx.posts.observe(job, ctx.deadline);
+}
+
+/** posts_read: a workspace's places asked which of its posts they still hold, once a day. payload: {} or { dry } */
+export async function readPosts(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts?.held) throw new Error("posts_read: this runtime asks no place what it holds");
+  const answer = await ctx.posts.held(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
 }
 
 /** comment_reply: a public answer to a comment, AI's draft or the owner's words sent (00699). payload: { touch_id, step, attempt? } */

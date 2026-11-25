@@ -5,7 +5,7 @@
  * there are the ones read here, and anything else is the plain "did not take the post".
  */
 import { MIN_MS, recordOrEmpty, valueAt, type FacebookRefusal, type PostKind } from "@chanlytics/contracts";
-import { metaErrorOf, metaText } from "../meta/client";
+import { metaErrorOf, metaNextPageOf, metaText, type MetaNextPage } from "../meta/client";
 
 const objectOf = (json: unknown): Record<string, unknown> | null =>
   json && typeof json === "object" && !Array.isArray(json) ? recordOrEmpty(json) : null;
@@ -68,6 +68,22 @@ export function parsePagePost(json: unknown): PagePost | null {
 
 /** The Page's newest posts. */
 export const parsePagePosts = (json: unknown): PagePost[] => listOf(json).flatMap((o) => pagePostOf(o) ?? []);
+
+/** One page of the Page's own list: the posts it names, and where the next page begins (null: the list ended here). */
+export interface PageListedPage {
+  posts: { id: string; atMs: number | null }[];
+  next: MetaNextPage | null;
+}
+
+/** One page of the Page's posts as Meta listed it; null where the answer is no list at all. */
+export function parsePageListedPage(json: unknown): PageListedPage | null {
+  if (!Array.isArray(valueAt(objectOf(json), "data"))) return null;
+  const posts = parsePagePosts(json).map((post) => {
+    const at = post.createdTime ? Date.parse(post.createdTime) : Number.NaN;
+    return { id: post.id, atMs: Number.isFinite(at) ? at : null };
+  });
+  return { posts, next: metaNextPageOf(json) };
+}
 
 /** Of the Page's newest posts, the one a send made: since the send, with the words it was sent with; null when not one. */
 export function pagePostSentBy(

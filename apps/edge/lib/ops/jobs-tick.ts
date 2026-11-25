@@ -34,14 +34,17 @@ import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
 import { takeDownPlaceFor } from "../instagram/post-ready.js";
-import { findPagePosting } from "../facebook/posting.js";
+import { findPageHeld, findPagePosting } from "../facebook/posting.js";
 import { sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
+import { findGoogleHeld } from "../google/posts-held.js";
 import { planTheWeek } from "../content/plan.js";
 import { makeTheWeek, putTheWeekUp } from "../content/week-go.js";
 import { takePostDown } from "../content/take-down.js";
 import { readPostResults } from "../content/observe.js";
+import { readPostsHeld, type HeldPlaces } from "../content/posts-read.js";
 import { replyToComment } from "../content/comment-reply.js";
+import { findInstagramHeld } from "../instagram/posts-held.js";
 import { findResultsPlace } from "../instagram/results-place.js";
 import { previewBuilder } from "../previews/build.js";
 import { getCampaignsBinding } from "../email/campaigns-domain.js";
@@ -170,6 +173,12 @@ const numbersPlaceOf = (
       : findResultsPlace(db, post, "insights");
 
 /**
+ * The places the daily read asks what they hold, each by its own finder: Instagram's account and a Page through the
+ * Meta link, Google's location through its connection.
+ */
+const HELD_AT: HeldPlaces = { instagram: findInstagramHeld(), google: findGoogleHeld, facebook: findPageHeld() };
+
+/**
  * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
  * its calendar, WhatsApp's), with the grants that live here, the business's website read for Check (R10), and a lead's
  * preview built (0079).
@@ -206,6 +215,8 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
       ),
     // A post's numbers read at one of the clock's steps (00699).
     observe: (job: ClaimedJob) => readPostResults(db, job, (post) => numbersPlaceOf(db, post)),
+    // Each place asked, once a day, which of the workspace's posts it still holds.
+    held: (job: ClaimedJob, deadline: number) => readPostsHeld(db, job, deadline, HELD_AT),
     // A public answer to a comment (00699): AI's draft, or the owner's words posted under it on Instagram.
     commentReply: (job: ClaimedJob) => replyToComment(db, job, (post) => findResultsPlace(db, post, "comments")),
   },

@@ -279,6 +279,11 @@ export const JOB_KINDS = [
    * and written to be run again: every write is once an ad and once a day.
    */
   "ad_read",
+  /**
+   * A workspace's places asked which of its posts they still hold, handed out by the health sweep once a day
+   * (posts_read_due), one a workspace while one waits or runs, in the bulk lane. Payload {}, or { dry: "yes" }.
+   */
+  "posts_read",
   "booking_lapse", // a time asked for that ran out: AI tells the customer and it closes (0061 as amended, 00679)
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;

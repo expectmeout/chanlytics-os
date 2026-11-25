@@ -403,6 +403,8 @@ export interface JobContext {
     takeDown: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
     /** A post's numbers read back from its place at one step (00699). */
     observe?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    /** A workspace's places asked which of its posts they still hold, once a day. No ask starts after `deadline`. */
+    held?: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
     /** A public answer to a comment: AI's draft, or the owner's words posted under it (00699). */
     commentReply?: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };

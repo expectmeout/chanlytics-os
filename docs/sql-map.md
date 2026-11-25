@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 217 | 217 |
 | reader | 98 | 0 |
-| the server's | 464 | 394 |
+| the server's | 465 | 395 |
 | computed column | 3 | 0 |
 | trigger | 125 | 91 |
-| all | 907 | 702 |
+| all | 908 | 703 |
 
 ## Called by nothing
 
@@ -655,6 +655,7 @@ being read is dropped by a migration.
 | `post_take_down_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00689; |
 | `post_take_down_settle` | the server's | the server | code `packages/db/src/repositories/files/take-down.ts` | The take-down job's door (00682; |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
+| `posts_read_due` | the server's | the server | code `packages/db/src/repositories/content/posts-held.ts` | The workspaces due their daily read of what their places hold (the content status review of 24 November 2026, piece 4): |
 | `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682; |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |

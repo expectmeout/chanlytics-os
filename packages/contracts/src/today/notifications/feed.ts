@@ -211,6 +211,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A connected ad account's read (00650). Not sent (kinds.ts: the platform's to mend), and the clock hands the account
   // another; an account that cannot be read says so on its own card.
   ad_read: { stopped: "Couldn't update your ads", to: ADS_ROUTE },
+  // The daily read of what a workspace's places hold. Not sent (kinds.ts: the platform's to mend), and the clock hands
+  // the workspace another; a place that cannot be read is asked again tomorrow.
+  posts_read: { stopped: "Couldn't check your posts are still up", to: CONTENT_ROUTE },
   // A time asked for that ran out (decision 0061). Not sent (kinds.ts: its conversation's card says reply to them).
   booking_lapse: { stopped: "Couldn't tell a customer their time wasn't confirmed", to: "inbox" },
   canary: { stopped: "The background work's own check didn't finish", to: "today" },

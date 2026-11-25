@@ -143,6 +143,8 @@ export const JOB_PAYLOADS = {
   source_walk: carrying({ source_id: z.string(), run: z.string(), step: z.string(), walk: z.string() }),
   source_read: carrying({ source_id: z.string() }),
   ad_read: carrying({ account_id: z.string() }),
+  // `dry`: "yes" for a read that asks as ever and moves nothing (an operator's proof on a place not yet seen).
+  posts_read: carrying({ dry: z.string().optional() }),
   booking_lapse: carrying({ appointment_id: z.string() }),
   canary: CARRIES_NOTHING,
 } satisfies Record<JobKind, z.ZodType>;

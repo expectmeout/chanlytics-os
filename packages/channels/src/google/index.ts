@@ -36,6 +36,8 @@ export {
 export type { PlaceCandidate, PlaceDetails, PlacePhoto, PlaceReview, PlacesHttp, PlacesRequest } from "./places";
 export { cleanReply, GBP_REPLY_MAX, readLocationDetails } from "./profile/details";
 export type { GbpLocationDetails, GbpPeriod } from "./profile/details";
+export { listLocalPosts, readLocalPost } from "./profile/local-posts";
+export type { GbpLocalPost } from "./profile/local-posts";
 export {
   createLocalPost,
   deleteLocalPost,

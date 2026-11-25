@@ -136,6 +136,33 @@ export function metaErrorOf(json: unknown, refused = "Meta refused the request")
   };
 }
 
+/** Where a list's next page begins, as Graph names it: a cursor to go on after, or a time to end at. */
+export interface MetaNextPage {
+  after?: string;
+  until?: string;
+}
+
+/**
+ * The next page of a list Graph answered, or null where it named none. Read from Graph's own `paging.next` address,
+ * which is never followed as it is: it carries the token, so only its cursor and its time are taken and the request is
+ * built again by whoever asks. A next page that names neither comes back empty: the list did not end, and nothing here
+ * can go on with it.
+ */
+export function metaNextPageOf(json: unknown): MetaNextPage | null {
+  const next = metaText(valueAt(metaObject(valueAt(metaObject(json), "paging")), "next"));
+  if (!next) return null;
+  let query: URLSearchParams;
+  try {
+    query = new URL(next).searchParams;
+  } catch {
+    // Not an address: the list did not end, and it cannot be gone on with.
+    return {};
+  }
+  const after = query.get("after");
+  const until = query.get("until");
+  return { ...(after ? { after } : {}), ...(until ? { until } : {}) };
+}
+
 /** The code exchange's answer: the business's token, and when it lapses (null when Meta says it does not). */
 export function parseMetaToken(json: unknown): { accessToken: string; expiresInS: number | null } {
   const o = metaObject(json);

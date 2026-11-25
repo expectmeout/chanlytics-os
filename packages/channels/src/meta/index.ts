@@ -7,6 +7,7 @@ export {
   metaCodeRequest,
   metaDebugTokenRequest,
   metaDialogUrl,
+  metaErrorOf,
   parseMetaBusiness,
   parseMetaDebugToken,
   parseMetaToken,

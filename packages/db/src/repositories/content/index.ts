@@ -17,6 +17,7 @@ export {
 export type { CommentAnswerRead, CommentForWork, CommentPostRead, CommentRead } from "./comments";
 export { keepPostObservations, listObservationsDue, readPostNumbers } from "./observations";
 export type { ObservationDue, PostNumber } from "./observations";
+export { listPostsHeldAt, listPostsReadDue } from "./posts-held";
 export {
   findPostByPlaceId,
   findPostOfCode,

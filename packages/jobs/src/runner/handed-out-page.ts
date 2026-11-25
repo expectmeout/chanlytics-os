@@ -1,7 +1,8 @@
 /**
  * The platform's page for a workspace's handed-out job that failed for good (ledger PAGES_THE_PLATFORM, tick.ts conclude): the
  * job a clock handed it for its campaigns, its reach-out steps, its calendar or its Google read (decision 0115), for the
- * steps due to one person each (0119), or for a watched folder's listing and its read (00641). Such a job
+ * steps due to one person each (0119), for a watched folder's listing and its read (00641), or for the daily read of the
+ * posts its places hold. Such a job
  * throws only when it cannot read what is due, or what it runs on: a database or a provider, nothing an owner can act on. The
  * work stays due and the next hour's clock hands out another job, so it is late, not lost.
  *
@@ -22,6 +23,7 @@ export const HANDED_OUT_KINDS = [
   "source_read",
   "ad_read",
   "content_plan",
+  "posts_read",
 ] as const satisfies readonly JobKind[];
 
 type HandedOutKind = (typeof HANDED_OUT_KINDS)[number];
@@ -37,6 +39,7 @@ const HANDED_OUT_WORDS: Record<HandedOutKind, string> = {
   source_read: "watched folder's read",
   ad_read: "ad account's read",
   content_plan: "week of posts",
+  posts_read: "read of the posts its places hold",
 };
 
 /** The pager's condition key: one page per window for every workspace whose job of this kind failed for good. */

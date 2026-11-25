@@ -14264,6 +14264,12 @@ export type Database = {
         Args: { p_attempt: string; p_post_id: string }
         Returns: boolean
       }
+      posts_read_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          tenant_id: string
+        }[]
+      }
       posts_take_down_start: {
         Args: {
           p_actor: string

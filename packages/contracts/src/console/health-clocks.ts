@@ -347,6 +347,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   source_walk: "Listing a business's watched folder",
   source_read: "Reading what changed in a business's watched folder",
   ad_read: "Reading a business's ad account",
+  posts_read: "Asking a business's places which posts they still hold",
   booking_lapse: "Telling a customer their time wasn't confirmed",
   canary: "The ledger's proof that it runs",
 };
