@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
-import { dbLog } from "../../shared/observe";
+import { dbLog, dbLogAndGoOn } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";
 import { noStopColumn } from "../workspace/rows";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -227,7 +227,13 @@ export async function recordOutbound(
   // stamped either way.
   const status = params.status ?? "sent";
   await Promise.all([
-    db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", params.conversationId),
+    // The message is kept either way: a stamp that fails is said, and the thread's next message stamps it.
+    db
+      .from("conversations")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", params.conversationId)
+      .throwOnError()
+      .then(() => undefined, dbLogAndGoOn("stamping the thread's last message")),
     status === "sent"
       ? emitEvent(db, params.tenantId, "message.sent", "message", data.id, { sender: params.sender })
       : Promise.resolve(),

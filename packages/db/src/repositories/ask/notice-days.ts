@@ -1,6 +1,6 @@
 /**
  * One morning per business (ask_notice_days, 00575): which businesses are due, what was said lately, and the line it leaves on the
- * bell. Read and written by the sweep with the service role. A database before the table reads as nothing said yet.
+ * bell. Read and written by the sweep with the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, DbFailure, type TenantId } from "@chanlytics/contracts";
@@ -24,6 +24,8 @@ export async function listBusinessesForMorning(
     .gte("day", since)
     .order("day", { ascending: false })
     .limit(10000);
+  // A morning said twice is worse than one a tick late: a read that fails throws, and the next tick looks again.
+  if (days.error) throw new DbFailure(days.error, "ask_notice_days");
   const last = new Map<string, string>();
   for (const d of days.data ?? []) if (!last.has(d.tenant_id)) last.set(d.tenant_id, d.day);
   return rows.map((r) => ({ id: r.id, timezone: r.timezone ?? "UTC", lastDay: last.get(r.id) ?? null }));
@@ -43,7 +45,9 @@ export async function listOwnerSeats(db: Db, tenantId: TenantId): Promise<Array<
 
 /** What was said since a day: not said again. */
 export async function listAskNoticeKeysSince(db: Db, tenantId: TenantId, sinceDay: string): Promise<string[]> {
-  const { data } = await db.from("ask_notice_days").select("key").eq("tenant_id", tenantId).gte("day", sinceDay);
+  const { data, error } = await db.from("ask_notice_days").select("key").eq("tenant_id", tenantId).gte("day", sinceDay);
+  // What could not be read is not "nothing said": the business's morning waits for the next tick rather than say one twice.
+  if (error) throw new DbFailure(error, "ask_notice_days");
   return (data ?? []).flatMap((r) => (r.key ? [r.key] : []));
 }
 

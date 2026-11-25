@@ -623,8 +623,10 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   content_goals: { detail: WITH_WORKSPACE },
   content_plans: { fewer: WITH_WORKSPACE },
   // A slot prepared ahead (00714) keeps the approval its placement will take: the business's own words and its file's path.
+  // The words AI wrote for a slot while drafting (00706: its line, over and under, as the Week shows them) are the
+  // business's own post, as its title and reason are.
   plan_slots: {
-    ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason", "prepared"),
+    ...all(WITH_WORKSPACE, "title", "reason", "intent", "ask", "blocked_reason", "prepared", "words"),
     score: NOT_PERSONAL,
   },
   file_moments: { ...all(WITH_WORKSPACE, "words", "shows") },

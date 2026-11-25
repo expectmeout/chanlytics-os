@@ -68,3 +68,86 @@ export const LINKS_LEFT_UNINDEXED = {
   "jobs.kind":
     "job_kinds is a registry its migrations write and nothing deletes from, and jobs is the busiest table there is: an index on kind would cost every enqueue and claim to serve a delete that never comes",
 };
+
+/**
+ * The dashboard's modules that take the service role, each with why: the client with row-level security off, so what a
+ * module reads or writes there is fenced by its own code and not by the database. A member's own read and act go on the
+ * member's session or through a SQL door that asks who is calling (lane 2 of the code refinement plan, 25 Nov 2026:
+ * 108 reaches in 65 modules came down to these, migration 00717). What is left is what no member may do from a browser:
+ * the platform's own, a public page, a clock or a machine's door, an invitation before the person is a member, and the
+ * server's own work after the route's checks (the ledgers, storage, bytes it proved, what the model wrote, a door that
+ * takes what the route worked out). data.test.mjs holds the list to the code both ways; the count is the
+ * `service-role` measure's, which may only fall.
+ */
+export const SERVICE_ROLE_KEPT = {
+  // The platform's own, and what every page reports to it.
+  "apps/dashboard/src/server/shared/back-office.ts":
+    "The Console: platform staff act on every workspace, through the BackOffice handle made here alone (decision 0066)",
+  "apps/dashboard/src/server/console/health.ts":
+    "An error a member's page hit, kept for Health (client_errors, 00469): the platform's table, which no session reads or writes",
+  "apps/dashboard/src/server/console/report.ts":
+    "A problem a member reports: the platform's table, named to a workspace only where the member belongs; no session writes it",
+  "apps/dashboard/src/server/console/vitals.ts":
+    "A page load's timings (page_vitals, 00255): the platform's measure, naming no person or workspace, which no session writes",
+  "apps/dashboard/src/server/shared/rate-limit.ts":
+    "The rate limiter: every request is counted (rate_hits), before a member is known or with none",
+  // A page anyone may open, and a door with no member behind it.
+  "apps/dashboard/src/server/public/facts.ts": "A workspace's public page, read by its slug with no session",
+  "apps/dashboard/src/server/public/link-page.ts": "A public link page, read with no session",
+  "apps/dashboard/src/server/public/live-forms.ts": "A public site's live forms, read with no session",
+  "apps/dashboard/src/server/ask/voice-door.ts":
+    "The voice provider's call into Ask: the session row is read by the hash the provider carries, before any member is known",
+  "apps/dashboard/src/server/ask/notice/sweep.ts": "A clock across every business whose morning it is: no member",
+  "apps/dashboard/src/server/content/week-made.ts":
+    "The edge's signed door for a week AI makes under the owner's rung (00714): no member, the service role at the doors",
+  // Before the person is a member.
+  "apps/dashboard/src/server/workspace/signup.ts": "The waitlist, joined before there is an account (deny-all)",
+  "apps/dashboard/src/server/workspace/handover.ts":
+    "A workspace handed to its owner: the platform's invitation to an address that is not yet a member",
+  "apps/dashboard/src/server/workspace/team.ts":
+    "An invitation sent, read and seated by the address before the person is a member; and the team's doors (00277), which take the session's verified user as their actor and check the owner themselves",
+  // The server's own work after the route's checks.
+  "apps/dashboard/src/server/shared/ledgers/events.ts":
+    "The events ledger: a member's act recorded after the route's checks; no session inserts into events. Each moves into its change's door (decision 0031) and leaves",
+  "apps/dashboard/src/server/shared/ledgers/jobs.ts": "The jobs ledger: what happens later, which no session may write",
+  "apps/dashboard/src/server/shared/storage.ts":
+    "Storage: no policy on storage.objects lets a session write, and the media bucket is private; a caller is handed a bucket, never the client",
+  "apps/dashboard/src/server/files/upload.ts":
+    "A file filed after the server proved its bytes (file_found): no file is filed on a member's word alone",
+  "apps/dashboard/src/server/posts/make.ts":
+    "What AI made, kept as a file after the server stored its bytes (file_made, 00553)",
+  "apps/dashboard/src/server/posts/caption.ts":
+    "How a piece was made keeps its words (files.made, a piece's plan), written by the server alone",
+  "apps/dashboard/src/server/posts/google.ts":
+    "A post's attempt at Google and its moves (post_attempts, post_moved): every move of a post is the service role's door",
+  "apps/dashboard/src/server/posts/seen.ts":
+    "The owner's word on an unconfirmed post moves it through post_moved, as every move of a post is",
+  "apps/dashboard/src/server/leads/suggestions.ts":
+    "The ideas the model writes for a search: no member writes lead_suggestions (00142), and its one writer is the service role's (00400)",
+  "apps/dashboard/src/server/leads/send.ts":
+    "A cold email judged and sent: the mailbox's day, the draft's facts, the person it makes and the email's row are the send door's (00424, 00429)",
+  "apps/dashboard/src/server/campaigns/ports.ts":
+    "A broadcast assembled whole with its send job (assemble_broadcast, 00282), and those past the month's allowance held: no session puts a job on the ledger",
+  "apps/dashboard/src/server/campaigns/reach-out-leads.ts":
+    "What a lead wrote back, with the plan the dashboard made (reach_out_reply_said, 00429): a door that takes what the route worked out",
+  "apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts":
+    "A sequence to leads saved whole after the route checked the chain (reach_out_save, held no session's by privileges.db.test.mjs)",
+  "apps/dashboard/src/server/campaigns/template-versions.ts":
+    "A message's version filed with its category after the route's checks (create_message_version, 00343: no session's)",
+  "apps/dashboard/src/server/people/erase-contact.ts":
+    "An erasure (decision 0036): its legs reach storage, the provider and rows no member may write",
+  // A write a member's role allows but no door takes yet: each goes when its door is written with its event.
+  "apps/dashboard/src/server/calendar/notices.ts":
+    "A held booking notice dismissed: members hold no write on the appointment ledger (00345), and a dismissal has no event of its own yet",
+  "apps/dashboard/src/server/content/plan.ts":
+    "The slots a week's approval left out, held with why once the member's own press is taken: a member's session writes no slot but through its doors",
+  "apps/dashboard/src/server/ask/act/stop.ts":
+    "Stop everything: any member who acts may stop, below the settings role that writes the workspace's config; the stop is the workspace's own row, written first",
+  "apps/dashboard/src/server/ask/companion/morning.ts":
+    "What every member's mornings offered lately (ask_mornings, each member's own) and the bell's line a morning leaves (notifications, which no session inserts)",
+  // A read a member's own session is refused, though the answer is theirs.
+  "apps/dashboard/src/server/workspace/billing.ts":
+    "What Anthropic has said of the workspace's profile (model standing): the service role's table",
+  "apps/dashboard/src/server/workspace/config-row.ts":
+    "The settings as stored where a member's own read hides an address (tenant_config is the owner's to read), read whole for the member's own sends",
+};
