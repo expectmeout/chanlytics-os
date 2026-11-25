@@ -19,7 +19,7 @@ import { listKeptPostIds, type PostRow } from "@chanlytics/db/files";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { env } from "../shared/env.js";
-import { readListing } from "../content/place-listing.js";
+import { readPlaceList } from "../content/place-list.js";
 import { mediaHostOf, type Posting } from "../content/posting.js";
 import type { HeldPlace, HeldPlaceOf } from "../content/posts-read.js";
 import type { SendHold } from "../content/recheck.js";
@@ -92,6 +92,6 @@ export const findPageHeld = (deps: FacebookPlaceDeps = {}): HeldPlaceOf =>
       holds: (post) => post.kind === "picture" && post.account_id === poster.pageId,
       placeOf: () => page.place,
       list: (since, deadline) =>
-        readListing((next: Parameters<typeof page.listed>[1]) => page.listed(since, next), since.getTime(), deadline),
+        readPlaceList((next: Parameters<typeof page.listed>[1]) => page.listed(since, next), since.getTime(), deadline),
     };
   };

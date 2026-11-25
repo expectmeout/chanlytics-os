@@ -59,7 +59,7 @@ import {
   type PagePoster,
   type PageReel,
 } from "@chanlytics/channels/facebook";
-import { listedPageOfMeta, type ListedPage } from "../content/place-listing.js";
+import { listedPageOfMeta, type ListedPage } from "../content/place-list.js";
 
 /** One request to a Page, as the wire builds it. */
 type PageRequest = Parameters<typeof callFacebook>[0];

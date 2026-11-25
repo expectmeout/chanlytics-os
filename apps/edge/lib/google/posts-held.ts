@@ -9,7 +9,7 @@
  */
 import { PlacesError, listLocalPosts, reviewParent } from "@chanlytics/channels/google";
 import { FILE_WORDS } from "@chanlytics/contracts";
-import { readListing, type ListedPage } from "../content/place-listing.js";
+import { readPlaceList, type ListedPage } from "../content/place-list.js";
 import type { HeldPlace, HeldPlaceOf } from "../content/posts-read.js";
 import { tokenFor } from "../shared/google/credentials.js";
 import { http } from "../shared/google/places.js";
@@ -44,6 +44,6 @@ export const findGoogleHeld: HeldPlaceOf = async (db, tenantId): Promise<HeldPla
   return {
     holds: (post) => !!post.external_id?.startsWith(`${parent}/localPosts/`),
     placeOf: (post) => googlePlaceAsked(db, { tenantId, fileId: post.file_id, by: post.approved_by }),
-    list: (since, deadline) => readListing(page, since.getTime(), deadline),
+    list: (since, deadline) => readPlaceList(page, since.getTime(), deadline),
   };
 };

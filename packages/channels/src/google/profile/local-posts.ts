@@ -26,14 +26,14 @@ export interface GbpLocalPost {
 }
 
 function localPostOf(raw: unknown): GbpLocalPost | null {
-  const o = recordOrNull(raw);
-  const name = nonBlankOrNull(o?.name);
+  const given = recordOrNull(raw);
+  const name = nonBlankOrNull(given?.name);
   if (!name) return null;
   return {
     name,
-    state: nonBlankOrNull(o?.state),
-    created_at: nonBlankOrNull(o?.createTime),
-    search_url: nonBlankOrNull(o?.searchUrl),
+    state: nonBlankOrNull(given?.state),
+    created_at: nonBlankOrNull(given?.createTime),
+    search_url: nonBlankOrNull(given?.searchUrl),
   };
 }
 
@@ -53,22 +53,22 @@ export async function listLocalPosts(
   parent: string,
   pageToken: string | null,
 ): Promise<{ posts: GbpLocalPost[]; next_page_token: string | null }> {
-  const o = recordOrNull(await callProfileApi(http, localPostsRequest(token, parent, pageToken)));
-  const listed = Array.isArray(o?.localPosts) ? o.localPosts : [];
+  const page = recordOrNull(await callProfileApi(http, localPostsRequest(token, parent, pageToken)));
+  const listed = Array.isArray(page?.localPosts) ? page.localPosts : [];
   return {
     posts: listed.flatMap((raw) => localPostOf(raw) ?? []),
-    next_page_token: nonBlankOrNull(o?.nextPageToken),
+    next_page_token: nonBlankOrNull(page?.nextPageToken),
   };
 }
 
 /** One post by Google's name for it; null where Google no longer has it (NOT_FOUND). Any other refusal throws, named. */
 export async function readLocalPost(http: PlacesHttp, token: string, name: string): Promise<GbpLocalPost | null> {
-  const r = await http({ url: `${GBP_V4_BASE}/${name}`, method: "GET", headers: bearer(token, true) });
-  if (r.status === 404) return null;
-  if (r.status < 200 || r.status >= 300) throw refusal(r.status, r.body);
+  const reply = await http({ url: `${GBP_V4_BASE}/${name}`, method: "GET", headers: bearer(token, true) });
+  if (reply.status === 404) return null;
+  if (reply.status < 200 || reply.status >= 300) throw refusal(reply.status, reply.body);
   let json: unknown = null;
   try {
-    json = JSON.parse(r.body);
+    json = JSON.parse(reply.body);
   } catch {
     // Not JSON: read below as an answer that names no post.
   }

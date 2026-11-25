@@ -19,7 +19,7 @@ import { tokenFor } from "../shared/google/credentials.js";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** The connection and a token good now, or why not. */
-export async function asTheOwner(db: Db, tenantId: TenantId, now: Date) {
+async function asTheOwner(db: Db, tenantId: TenantId, now: Date) {
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false as const, error: "not_connected" as const };
   const t = await tokenFor(db, tenantId, now.getTime());

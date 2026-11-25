@@ -280,10 +280,8 @@ export const JOB_KINDS = [
    */
   "ad_read",
   /**
-   * A workspace's places asked which of its posts they still hold (the content status review's piece 4), handed out by
-   * the health sweep once a day a workspace (posts_read_due), one a workspace while one waits or runs, in the bulk lane.
-   * Each place's own list is held against the posts Chanlytics calls up there, and one the place no longer holds is
-   * taken down here and its owner told once. Payload {}, or { dry: "yes" } for a read that moves nothing.
+   * A workspace's places asked which of its posts they still hold, handed out by the health sweep once a day
+   * (posts_read_due), one a workspace while one waits or runs, in the bulk lane. Payload {}, or { dry: "yes" }.
    */
   "posts_read",
   "booking_lapse", // a time asked for that ran out: AI tells the customer and it closes (0061 as amended, 00679)

@@ -15,7 +15,7 @@ import {
   type InstagramDeps,
 } from "@chanlytics/channels/instagram";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
-import { listedPageOfMeta, readListing } from "../content/place-listing.js";
+import { listedPageOfMeta, readPlaceList } from "../content/place-list.js";
 import type { HeldPlace, HeldPlaceOf } from "../content/posts-read.js";
 import { env } from "../shared/env.js";
 import { readKeptSecret } from "./credentials.js";
@@ -37,7 +37,7 @@ export const findInstagramHeld = (deps: InstagramDeps = {}): HeldPlaceOf =>
       holds: (post) => post.account_id === row.external_id,
       placeOf: () => place,
       list: (since, deadline) =>
-        readListing(
+        readPlaceList(
           async (next: Parameters<typeof metaMediaSinceRequest>[1]["next"]) =>
             listedPageOfMeta(
               await callInstagram(

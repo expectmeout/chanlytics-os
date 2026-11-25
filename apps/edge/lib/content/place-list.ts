@@ -26,25 +26,25 @@ export type ListedPage<Next> =
  * is whole since the time asked, else the time of the oldest post it named before it stopped. `refused` and `unknown`
  * say nothing of any post; `said` is the place's own code for the log, never words.
  */
-export type PlaceListing =
+export type PlaceList =
   | { is: "read"; ids: ReadonlySet<string>; backToMs: number | null; calls: number }
   | { is: "refused" | "unknown"; calls: number; said: string };
 
 /** The most pages of a list one read takes: at a hundred a page, an account's newest thousand posts. */
-export const LISTED_PAGES_MAX = 10;
+const LISTED_PAGES_MAX = 10;
 
 /** A list that stopped before its end reaches back to the oldest post it named; one that named no time, to nothing. */
-const reachOf = (oldestMs: number | null): number => oldestMs ?? Number.POSITIVE_INFINITY;
+const reachBackOf = (oldestMs: number | null): number => oldestMs ?? Number.POSITIVE_INFINITY;
 
 /**
  * The list since `sinceMs`, page after page until it ends, reaches back past the time asked, or has taken its pages.
  * No page is asked for after `deadline`: a read out of time says nothing, and tomorrow's asks again.
  */
-export async function readListing<Next>(
+export async function readPlaceList<Next>(
   pageOf: (next: Next | null) => Promise<ListedPage<Next>>,
   sinceMs: number,
   deadline: number,
-): Promise<PlaceListing> {
+): Promise<PlaceList> {
   const ids = new Set<string>();
   let oldestMs: number | null = null;
   let next: Next | null = null;
@@ -56,12 +56,12 @@ export async function readListing<Next>(
       ids.add(post.id);
       if (post.atMs !== null && (oldestMs === null || post.atMs < oldestMs)) oldestMs = post.atMs;
     }
-    if (page.short) return { is: "read", ids, backToMs: reachOf(oldestMs), calls };
+    if (page.short) return { is: "read", ids, backToMs: reachBackOf(oldestMs), calls };
     if (page.next === null || (oldestMs !== null && oldestMs < sinceMs))
       return { is: "read", ids, backToMs: null, calls };
     next = page.next;
   }
-  return { is: "read", ids, backToMs: reachOf(oldestMs), calls: LISTED_PAGES_MAX };
+  return { is: "read", ids, backToMs: reachBackOf(oldestMs), calls: LISTED_PAGES_MAX };
 }
 
 /** What one call to Meta came to, as the Instagram and the Page wires both answer it. */

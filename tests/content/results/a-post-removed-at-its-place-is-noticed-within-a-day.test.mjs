@@ -71,7 +71,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { readPostsHeld } = await import(at("apps/edge/lib/content/posts-read.ts"));
-const { readListing, LISTED_PAGES_MAX } = await import(at("apps/edge/lib/content/place-listing.ts"));
+const { readPlaceList } = await import(at("apps/edge/lib/content/place-list.ts"));
+/** The most pages of a list one read takes. */
+const LISTED_PAGES_MAX = 10;
 const { keepResultsMoving } = await import(at("apps/edge/lib/content/results-upkeep.ts"));
 const { findInstagramHeld } = await import(at("apps/edge/lib/instagram/posts-held.ts"));
 const { findGoogleHeld } = await import(at("apps/edge/lib/google/posts-held.ts"));
@@ -442,7 +444,7 @@ test("a list of two pages is read to its end by Meta's own cursor, and a post on
 test("a list that never ends stops at its pages, and covers only back to the oldest post it named", async () => {
   const now = Date.now();
   let page = 0;
-  const listing = await readListing(
+  const listing = await readPlaceList(
     async () => {
       page += 1;
       return { is: "page", posts: [{ id: `p${page}`, atMs: now - page * DAY_MS }], next: `t${page}` };
@@ -462,11 +464,11 @@ test("a list stops where a page reaches back past the time asked, and one out of
     asked += 1;
     return { is: "page", posts: [{ id: `p${asked}`, atMs: now - asked * 10 * DAY_MS }], next: "more" };
   };
-  const whole = await readListing(pages, now - 25 * DAY_MS, now + 60_000);
+  const whole = await readPlaceList(pages, now - 25 * DAY_MS, now + 60_000);
   assert.deepEqual([whole.is, whole.calls, whole.backToMs], ["read", 3, null]);
-  const late = await readListing(pages, now - 25 * DAY_MS, now - 1);
+  const late = await readPlaceList(pages, now - 25 * DAY_MS, now - 1);
   assert.deepEqual([late.is, late.calls, late.said], ["unknown", 0, "out_of_time"]);
-  const failed = await readListing(async (next) => (next ? { is: "refused", said: "10" } : pages()), 0, now + 60_000);
+  const failed = await readPlaceList(async (next) => (next ? { is: "refused", said: "10" } : pages()), 0, now + 60_000);
   assert.deepEqual([failed.is, failed.said], ["refused", "10"], "one page that fails makes the whole list say nothing");
 });
 

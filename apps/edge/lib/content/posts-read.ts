@@ -23,12 +23,12 @@ import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import { errField, logger } from "../shared/log.js";
 import { askWhetherGone, settleGone } from "./observe.js";
-import type { PlaceListing } from "./place-listing.js";
+import type { PlaceList } from "./place-list.js";
 
 type Db = SupabaseClient<Database>;
 
 /** How long a post is watched after it went up: a year. Past it Chanlytics still calls it up, and no longer asks. */
-export const POSTS_WATCHED_MS = 365 * DAY_MS;
+const POSTS_WATCHED_MS = 365 * DAY_MS;
 
 /** A post up for less than this is left to its first read of numbers: its place may not list it yet. */
 const POSTS_SETTLED_MS = HOUR_MS;
@@ -42,7 +42,7 @@ const DRY_LIST_MS = 30 * DAY_MS;
 /** A place as the daily read asks it, for one workspace's account there. */
 export interface HeldPlace {
   /** The account's own list of posts since a time. */
-  list: (since: Date, deadline: number) => Promise<PlaceListing>;
+  list: (since: Date, deadline: number) => Promise<PlaceList>;
   /** Whether a post is one this list would name: it went to this account, and is of a kind the list holds. */
   holds: (post: PostRow) => boolean;
   /** The adapter a post missing from the list is asked of, by its own id. */
@@ -80,10 +80,10 @@ interface ReadTurn {
 }
 
 /** The posts the place's list does not name, though it reaches back to when each went up. */
-function missingFrom(listing: Extract<PlaceListing, { is: "read" }>, posts: readonly PostRow[]): PostRow[] {
+function missingFrom(ownList: Extract<PlaceList, { is: "read" }>, posts: readonly PostRow[]): PostRow[] {
   return posts.filter((post) => {
-    if (!post.external_id || !post.published_at || listing.ids.has(post.external_id)) return false;
-    return listing.backToMs === null || Date.parse(post.published_at) >= listing.backToMs;
+    if (!post.external_id || !post.published_at || ownList.ids.has(post.external_id)) return false;
+    return ownList.backToMs === null || Date.parse(post.published_at) >= ownList.backToMs;
   });
 }
 
@@ -111,7 +111,7 @@ interface PlaceAsked {
 }
 
 /** One place's read: its list, held against the workspace's posts there. Null where none of them is this account's. */
-async function readPlace(turn: ReadTurn, { place, placeOf, up }: PlaceAsked): Promise<PlaceRead | null> {
+async function askPlace(turn: ReadTurn, { place, placeOf, up }: PlaceAsked): Promise<PlaceRead | null> {
   const began = Date.now();
   const read = { place, held: 0, listed: 0, calls: 0, missing: 0, asked: 0, gone: 0 };
   const held = await placeOf(turn.db, turn.tenantId);
@@ -121,15 +121,15 @@ async function readPlace(turn: ReadTurn, { place, placeOf, up }: PlaceAsked): Pr
   if (!oldest && !turn.dry) return null;
   // An hour before the oldest: a place may date a post a little before Chanlytics learned it was up.
   const since = oldest ? Date.parse(oldest) - HOUR_MS : turn.nowMs - DRY_LIST_MS;
-  const listing = await held.list(new Date(since), turn.deadline);
-  const counted = { ...read, held: posts.length, calls: listing.calls };
-  if (listing.is !== "read") return { ...counted, read: listing.is, said: listing.said, ms: Date.now() - began };
-  const missing = missingFrom(listing, posts);
+  const ownList = await held.list(new Date(since), turn.deadline);
+  const counted = { ...read, held: posts.length, calls: ownList.calls };
+  if (ownList.is !== "read") return { ...counted, read: ownList.is, said: ownList.said, ms: Date.now() - began };
+  const missing = missingFrom(ownList, posts);
   const settled = await settleMissing(turn, held, missing);
   return {
     ...counted,
-    read: listing.backToMs === null ? "whole" : "short",
-    listed: listing.ids.size,
+    read: ownList.backToMs === null ? "whole" : "short",
+    listed: ownList.ids.size,
     missing: missing.length,
     ...settled,
     ms: Date.now() - began,
@@ -159,7 +159,7 @@ export async function readPostsHeld(
       upTo: new Date(turn.nowMs - POSTS_SETTLED_MS).toISOString(),
     });
     if (up.length === 0 && !turn.dry) continue;
-    const read = await readPlace(turn, { place, placeOf, up }).catch((e: unknown) => {
+    const read = await askPlace(turn, { place, placeOf, up }).catch((e: unknown) => {
       log.error("posts_read_failed", { place, error: errField(e) });
       return null;
     });
