@@ -317,12 +317,15 @@ test.describe("what a page costs the database", () => {
       console.log(`database-calls   failing ${name}: ${most.map(([path, n]) => `${path} ${n}`).join(", ")}`);
       refusedAt.clear();
     };
+    // A database that cannot be reached answers nothing that needs it, a write no more than a read: both are refused,
+    // and the reads are what is counted. (With writes let through, each one answered told the tab the server answers.)
     const failing = (context: BrowserContext) =>
       context.route(`**${API}**`, (route) => {
-        if (route.request().method() !== "GET") return route.fallback();
-        refused += 1;
-        const path = new URL(route.request().url()).pathname.slice(API.length);
-        refusedAt.set(path, (refusedAt.get(path) ?? 0) + 1);
+        if (route.request().method() === "GET") {
+          refused += 1;
+          const path = new URL(route.request().url()).pathname.slice(API.length);
+          refusedAt.set(path, (refusedAt.get(path) ?? 0) + 1);
+        }
         return route.fulfill({
           status: 503,
           contentType: "application/json",
