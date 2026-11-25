@@ -215,6 +215,23 @@ export function sessionEnded(details: unknown): boolean {
 const FAULTS: ReadonlySet<string> = new Set(["internal", "unavailable", "upstream_provider"]);
 const readAs = (code: string): string => (FAULTS.has(code) ? "internal" : code);
 
+/**
+ * A no that is not an envelope: nothing answered, a gateway answered for us, or this page asked for a route the deployed
+ * app no longer has. Its code, title and sentence.
+ */
+function unenvelopedOf(status: number, write: boolean | undefined): [string, string, string] {
+  if (status === 0) return ["network", "No connection", write ? NETWORK_WRITE : NETWORK_READ];
+  if (status >= 500) return ["internal", "No answer", write ? NO_ANSWER_WRITE : READ_AGAIN];
+  if (status === 413) return ["internal", "Too large", "That was too large to send."];
+  return ["internal", "Out of date", OUT_OF_DATE];
+}
+
+/** A forbidden press's title: the role it needs, where the refusal names one. */
+function forbiddenTitleOf(details: unknown): string {
+  const needs = details && typeof details === "object" ? (details as { needs?: unknown }).needs : undefined;
+  return needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed";
+}
+
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const sentence = typeof input.message === "string" ? input.message.trim() : "";
@@ -232,14 +249,7 @@ export function refusalOf(input: RefusalInput): Refusal {
     ...aside,
   });
 
-  if (!code) {
-    // Not an envelope: nothing answered, a gateway answered for us, or this page
-    // asked for a route the deployed app no longer has.
-    if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
-    if (status >= 500) return refusal("internal", "No answer", input.write ? NO_ANSWER_WRITE : READ_AGAIN);
-    if (status === 413) return refusal("internal", "Too large", "That was too large to send.");
-    return refusal("internal", "Out of date", OUT_OF_DATE);
-  }
+  if (!code) return refusal(...unenvelopedOf(status, input.write));
 
   switch (readAs(code)) {
     case "unauthorized":
@@ -260,15 +270,8 @@ export function refusalOf(input: RefusalInput): Refusal {
         "Too many at once",
         sentence || `Too many at once · try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
       );
-    case "forbidden": {
-      const needs =
-        input.details && typeof input.details === "object" ? (input.details as { needs?: unknown }).needs : undefined;
-      return refusal(
-        code,
-        needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed",
-        sentence || (REFUSAL_REASON_WORDS.get(code) as string),
-      );
-    }
+    case "forbidden":
+      return refusal(code, forbiddenTitleOf(input.details), sentence || (REFUSAL_REASON_WORDS.get(code) as string));
     default:
       return refusal(
         code,

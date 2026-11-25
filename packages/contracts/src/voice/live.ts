@@ -352,6 +352,20 @@ function turnsAndLastOf(dto: CallDto): Pick<LiveCallVM, "transcript" | "saidLast
   return { transcript, saidLast: lastClientTurn ? lastClientTurn.text : (dto.said_last ?? null) };
 }
 
+/** The analysis's words, as toCallVM reads them; none while the call is still on the line. */
+function analysisOf(
+  dto: CallDto,
+  live: boolean,
+  missed: boolean,
+): Pick<LiveCallVM, "wanted" | "outcomeWords" | "notes" | "lengthWords"> {
+  return {
+    wanted: live ? null : dto.wanted?.trim() || null,
+    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
+    notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
+    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
+  };
+}
+
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -401,11 +415,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     sentiment: dto.sentiment,
     endedHow: endedHowOf(dto),
     recordingState: recordingStateOf(dto),
-    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
-    wanted: live ? null : dto.wanted?.trim() || null,
-    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
-    notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
-    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
+    ...analysisOf(dto, live, missed),
     ...turnsAndLastOf(dto),
   };
 }
