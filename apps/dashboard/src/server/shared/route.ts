@@ -204,12 +204,14 @@ async function resolve(
     case "workspace": {
       // The tab names its workspace with ?workspace=; an account in two that
       // named neither is refused here, read or write (getMemberContext, plan 3.4).
-      const m = await getMemberContext(ctx, new URL(req.url).searchParams.get("workspace"));
+      const m = await getMemberContext(ctx, new URL(req.url).searchParams.get("workspace"), {
+        burst: kind === "read",
+      });
       return { member: m, given: { member: mint(m) } };
     }
     case "row": {
       const found = await scope.load(ctx, ctx.params);
-      const m = await getMemberContext(ctx, found.tenant_id);
+      const m = await getMemberContext(ctx, found.tenant_id, { burst: kind === "read" });
       return { member: m, given: { member: mint(m), row: found } };
     }
     case "platform":

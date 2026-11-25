@@ -30,10 +30,10 @@ export interface ServiceClientConfig {
  * The runtime's fetch, bounded for the database's requests. Storage's are left alone: a file takes as long as its
  * size, and its caller bounds it. A caller's own signal still aborts first when it is sooner.
  *
- * A request given up on is said as an abort, which PostgREST's client never retries: it retries a read that failed,
- * three times over seven seconds, and three more waits of the bound would outlast every function that calls it.
+ * A request given up on is said as an abort, which is never asked again (read-again.ts): another wait of the bound
+ * would outlast every function that calls it.
  */
-function boundedFetch(ms: number, base: typeof fetch): typeof fetch {
+export function boundedFetch(ms: number, base: typeof fetch): typeof fetch {
   return async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!url.includes("/rest/v1/")) return base(input, init);
@@ -53,6 +53,8 @@ function boundedFetch(ms: number, base: typeof fetch): typeof fetch {
 export function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<Database> {
   return createClient<Database>(cfg.url, cfg.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // The client's own three more asks of a failed read are off: the transport asks once more, or not at all (read-again.ts).
+    db: { retry: false },
     global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) },
   });
 }

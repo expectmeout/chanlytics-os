@@ -219,6 +219,23 @@ function markSeen(who: RowOf, reading: SeenReading): void {
   if (id && !(done && done.seen && done.upTo === reading.heardAtMs)) send(id, { seen: true, upTo: reading.heardAtMs });
 }
 
+/** The mark a visit to a person's page made: whose, and how far it said they had been seen. */
+export interface VisitMark {
+  id: string;
+  upTo: number;
+}
+
+/**
+ * Whether a visit to a person's page still owes its mark (people/person/person-real.tsx): none made for them this visit,
+ * or they have said something since the one made. Never for the mark's own answer coming back: that moves the row's stamp
+ * and nothing they said, and a page that marked again for it marked every two seconds for as long as it was on screen,
+ * each mark a write and a read of the whole person behind it (production, 24 Nov 2026: 558 marks in nineteen minutes
+ * from one tab left on a person).
+ */
+export function owesVisitMark(marked: VisitMark | null, id: string, heardAtMs: number): boolean {
+  return !marked || marked.id !== id || marked.upTo < heardAtMs;
+}
+
 /**
  * The reader marked several people as read at once, from a pick, without opening any: each as `seePerson` marks one,
  * the pages told once. Nobody was opened, so a person put back while on screen stays held unless they are among these.

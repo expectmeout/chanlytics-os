@@ -3,19 +3,22 @@
  * now, Approve the week approves every slot that is ready in one press, and a slot is left out, put back, moved or
  * approved by itself once mended. Each goes through its door on the member's own session, which asks the settings
  * permission itself. Before the week is approved, each slot is held to the checks a press is (posts/checks.ts's moment):
- * the reason it was made for still stands, and nothing goes while AI is paused; a slot one refuses is left out of the
- * approval, said in words, and asks by itself once mended. What is approved is made after the press answers
+ * its time has not passed (no approval posts late, the owner's or AI's: contracts slotTimePassed), the reason it was made
+ * for still stands; a slot one refuses is left out of the approval, said in words on its row, and asks by itself once
+ * mended. What is approved is made after the press answers
  * (make-week.ts); a reel, once its video is made, goes up on its own Approve, as a video's bytes are approved once seen.
  */
 import "server-only";
 import { AppError, planWeekOf, type WeekPlanDto, type TenantId } from "@chanlytics/contracts";
-import { weekApprovalOf } from "@chanlytics/core";
+import { judgeWeekApproval, type WeekApproval } from "@chanlytics/core";
 import {
   approveWeek,
   askForPlan,
   findFile,
   findPiece,
   findPlanSlot,
+  holdSlotsLeftOut,
+  listClaims,
   markSlotMade,
   readContentWeek,
   setPlanSlot,
@@ -23,10 +26,13 @@ import {
   type SlotChange,
 } from "@chanlytics/db/files";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import { logAndGoOn } from "@chanlytics/log";
 import type { Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { postFileToInstagram } from "../posts/instagram";
-import { makeWeekAfter } from "./make-week";
+import { getStoredConfig } from "../workspace/config-row";
+import { makeWeekAfter, type MadeLater } from "./make-week";
 
 /** The words a refused act says (the Week's own, through docs/words.md). */
 const PLAN_REFUSED = {
@@ -58,14 +64,39 @@ async function readWeekOf(ctx: RouteContext, tenantId: TenantId, weekOf: string)
   return readContentWeek(ctx.supabase, tenantId, weekOf);
 }
 
+/** What the business says of itself, as the week's approval asks it, on the member's session. */
+const businessOn = (ctx: RouteContext, member: Member) => async () => {
+  const [config, claims] = await Promise.all([
+    getStoredConfig(ctx.supabase, member.tenantId),
+    listClaims(ctx.supabase, member.tenantId),
+  ]);
+  return { config, claims };
+};
+
+/**
+ * The slots the press left out because their reason no longer stands, held on their rows with why, so "it says why" is
+ * true of each. Written as the service once the member's own press has been taken (a member's session writes no slot but
+ * through its doors, and none of those holds a slot not yet approved); a slot whose time passed says so by itself.
+ */
+async function holdLeftOut(tenantId: TenantId, planId: string, slots: WeekApproval["holds"]): Promise<void> {
+  // The press has been taken either way: a row that could not be held keeps its time, and is not the press's failure.
+  if (slots.length > 0)
+    await holdSlotsLeftOut(serviceDb(), tenantId, { planId, slots }).catch(
+      logAndGoOn("holding the slots a week's approval left out", 0),
+    );
+}
+
 /**
  * Approve the week (PRD 8.4, canvas call 10): every slot ready, as shown, under one approval of the plan. A slot whose
- * reason no longer stands is left out of it and said; a blocked slot or one asking for footage stays as it is.
+ * time has passed or whose reason no longer stands is left out of it and said, on the press's answer and on its row; a
+ * blocked slot or one asking for footage stays as it is. `later` runs the making once the press has answered (the
+ * framework's own, where none is handed; a test hands its own).
  */
 export async function approveWeekFor(
   ctx: RouteContext,
   member: Member,
   input: { week_of: string; plan_id: string },
+  later?: MadeLater,
 ): Promise<{ approved: number; left_out: { id: string; why: string }[] }> {
   const week = await readWeekOf(ctx, member.tenantId, input.week_of);
   if (!week.plan || week.plan.id !== input.plan_id) throw new AppError("not_found", PLAN_REFUSED.gone, 404);
@@ -73,8 +104,12 @@ export async function approveWeekFor(
     throw new AppError("conflict", PLAN_REFUSED.approved, 409);
   if (week.plan.status === "drafting") throw new AppError("conflict", PLAN_REFUSED.drafting, 409);
   // The rule a held week's job asks too (core weekApprovalOf): each ready slot held to the checks before it goes.
-  const { going, leftOut, snapshot } = weekApprovalOf(week.slots, memberZoneOf(member), Date.now());
-  if (going.length === 0) throw new AppError("validation", leftOut[0]?.why ?? PLAN_REFUSED.nothing);
+  const at = { zone: memberZoneOf(member), nowMs: Date.now() };
+  const { going, leftOut, holds, snapshot } = await judgeWeekApproval(week.slots, at, businessOn(ctx, member));
+  if (going.length === 0) {
+    await holdLeftOut(member.tenantId, week.plan.id, holds);
+    throw new AppError("validation", leftOut[0]?.why ?? PLAN_REFUSED.nothing);
+  }
   const answer = await approveWeek(ctx.supabase, member.tenantId, {
     planId: week.plan.id,
     snapshot: jsonCopyOf(snapshot),
@@ -82,7 +117,8 @@ export async function approveWeekFor(
   if (answer.fate === "changed") throw new AppError("conflict", PLAN_REFUSED.changed, 409);
   if (answer.fate === "gone") throw new AppError("not_found", PLAN_REFUSED.gone, 404);
   if (answer.fate !== "approved") throw new AppError("conflict", PLAN_REFUSED.approved, 409);
-  makeWeekAfter(ctx, member, { tenantId: member.tenantId, weekOf: input.week_of });
+  await holdLeftOut(member.tenantId, week.plan.id, holds);
+  makeWeekAfter(ctx, member, { tenantId: member.tenantId, weekOf: input.week_of }, later);
   return { approved: answer.slots, left_out: leftOut };
 }
 

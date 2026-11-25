@@ -47,6 +47,10 @@ stack's, or a project you own). Then:
 corepack pnpm --filter @chanlytics/dashboard dev
 ```
 
+**With production's keys in `.env.local`, this server reads production's database.** Every page it draws is read from
+the real one, as a deployed page is: one page at a time, by hand, and never a walk of it ("Nothing loops over
+production's data", below).
+
 `.claude/launch.json` starts the same command on port 3100. An unset
 `VERCEL_ENV` is a laptop, never production (`src/server/shared/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
@@ -84,7 +88,8 @@ Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 
 **Run the app.** Every page is an App Router page that only the app draws (the standalone mockup that once drew the shell
 over seeded data went with demo mode, 15 Nov 2026). To see what a member sees, run the dashboard against a real project
-and open a workspace:
+and open a workspace. Where that project is production, the laptop's server reads production's database: open one page,
+look, and leave the app afterwards, since a tab left parked keeps reading ("Nothing loops over production's data"):
 
 ```bash
 corepack pnpm --filter @chanlytics/dashboard dev
@@ -208,6 +213,11 @@ run. The ported shell and the built bundles are outside the check
 | The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                    | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
 | The browser suite                                            | `corepack pnpm e2e`                        | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
 | The edge's frozen HTTP contract                              | `node tooling/scripts/ops/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
+
+**`corepack pnpm e2e` drives production by default** (`E2E_BASE_URL` unset): a spec or two by hand, to look at what
+only production can answer. A run of many specs, a sweep of the pages or anything repeated goes to CI's own stack
+(Actions, Nightly e2e, with `specs`), which holds no secret and cannot reach production ("Nothing loops over
+production's data").
 
 A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
@@ -1319,6 +1329,59 @@ reading` and `too long to keep` are why the screen last left kept none (contract
 7. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## Nothing loops over production's data
+
+On the evening of 24 Nov 2026 a few browsers' worth of page loads, started by walks and measures of the app from
+laptops, took production's database down. Postgres was killed twice and the edge got no answer for about half an hour,
+while customers were writing in. The gateway's log has the arithmetic: the database was killed after ten minutes at
+1,500 to 2,100 requests a minute, a page load was 160 to 260 of them, and one walk that loads a page every ten seconds
+is about a thousand a minute by itself. So, for a person and for an agent:
+
+- **A dashboard server on a laptop reads production's database** where its `.env.local` holds production's keys, and
+  `corepack pnpm e2e` drives production by default. Each is for single page loads, by hand.
+- **Nothing loops over production's data.** No walk, crawl, lab, load measure or repeated page load, on localhost or
+  on a deployed address, by a script or by a browser a tool drives. A look at production is single page loads by hand,
+  one browser at a time, and the tab leaves the app afterwards: a tab left parked keeps reading.
+- **A comparison or a measure that needs many loads runs on CI's own stack**, or replays recorded answers. Actions,
+  Nightly e2e, with `specs` set to the specs wanted, runs them on the suite's own copy: no secret is read, and
+  production is out of reach. Never that workflow without `specs` for this: whole, it also checks production.
+- **Stop at a slow read.** A read of production that takes seconds is the database saying it is busy: stop, and read
+  why from the logs ("See what a page costs the database", below), never by asking again.
+
+What a load costs is counted and held, so it can only fall (the next section). On 25 Nov 2026, on CI's stack: a first
+load in a browser that holds nothing asked the database 177 to 260 times, the same page loaded again in a browser that
+holds the workspace's rows 32 to 133 times (Today and the Inbox over a hundred, a person's page about ninety, every
+other page under sixty), and a tab left
+open on Today 8 times a minute.
+
+## See what a page costs the database
+
+A page load is many requests, and each request many calls to the database. Until 25 Nov 2026 nothing held a load, a
+tab left open or a failing read to a number. Never count by walking production ("Nothing loops over production's
+data", above): a walk of it is a crowd.
+
+1. **Read a route's cost from production's own log.** Every `route_answered` line says `db_n` (the calls to the database
+   behind that answer) and `db_ms`; the two streamed reads say theirs once their last read is in (`page_opened`,
+   `page_rest_opened`: `db_n`, and each read's own ms). One request in twenty also says which tables (`tables`).
+2. **Read a request's cost in a browser.** Its `Server-Timing` header says `db;dur=<ms>;desc="<calls>"`; GET open's and
+   GET open/rest's last line says `{"o":{"ms","db_ms","db_n"}}`.
+3. **Read a whole load's cost, a tab left open and a failing minute**: the nightly's whole suite counts them on its own
+   stack (`e2e/shell/database-calls.spec.ts`), one line each in its log: `database-calls load people: 264 calls in 13
+requests (...)`, `database-calls idle today: ...`, `database-calls failing load: ...`, and each read asked alone
+   (`database-calls read contacts 200: 11`). Each is held to its line in `tests/baselines/database-calls.json`, which may
+   only fall. To count a branch before it merges, run that one spec on the nightly's stack by hand (Actions, Nightly
+   e2e, `specs: e2e/shell/database-calls.spec.ts`, on the branch): no secret is read and production is out of reach.
+4. **Read what the database's own gateway saw**, where a count is needed of what already happened: Supabase's log
+   (`edge_logs`), grouped by `request.path` for the tables and by
+   `request.sb.jwt.authorization.payload.session_id` for the sign-in. A dashboard server's calls say
+   `supabase-ssr createServerClient` in `request.headers.x_client_info`.
+5. **When the database is failing**, three things hold the load down by themselves. The server asks a failed read once
+   more and then not at all (`packages/db/src/shared/read-again.ts`: three failed calls in half a minute on an
+   instance); a fault then tells the tab to wait fifteen seconds; and a tab whose reads fail on two routes stops
+   asking, looks with two reads after five seconds, then ten, twenty and on to five minutes, and comes back by itself
+   (`apps/dashboard/src/client/trouble.ts`, which says what still leaves meanwhile and why). A page's Retry looks at
+   once.
+
 ## When calls fail
 
 The phone receptionist's troubles, each with where it shows and what to do (decision 0092; `docs/voice.md` is the whole
@@ -1411,7 +1474,8 @@ minute or a day later; and the ledger's rows say it (`select * from events where
 
 Other lines to know:
 
-- `route_answered`: every answer of the dashboard's routes, with the path (`route`), who asked and how long it took. One
+- `route_answered`: every answer of the dashboard's routes, with the path (`route`), who asked, how long it took and what it
+  asked of the database (`db_n` calls, `db_ms`; "See what a page costs the database"). One
   request in twenty, chosen by its name, adds what its database calls touched and the page it was asked from (decision
   0058, lane R7): `method`, `tables` (each table and how, `contacts:INSERT+read`, and each SQL function called,
   `rpc:merge_contacts:call`) and `page` (the page's first two words after the workspace, an id as `:id`; never the

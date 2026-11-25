@@ -297,12 +297,13 @@ export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/pla
 export { takeDownSpec } from "./content/placements/take-down-spec";
 export { takeDownWillOf } from "./content/placements/take-down-will";
 export { CLAIM_TEXT_MAX, claimsStanding, offersOf, ownerClaimOf, statedFactsOf } from "./content/plan/claims";
-export { CALLS_A_WEEK_MADE, MAKING_CALLS_A_SECOND, RUNG_SUGGESTION_USE, rungSuggestionOf, SECONDS_A_WEEK_MADE, WEEK_MADE_AHEAD_MS, WEEK_MAKING_LEASE_S, WEEK_MAKING_QUEUE, weekGoesAtOf, WEEKS_MAKING_AT_ONCE } from "./content/plan/held-week";
+export { CALLS_A_WEEK_MADE, MAKING_CALLS_A_SECOND, RUNG_SUGGESTION_USE, rungSuggestionOf, SECONDS_A_WEEK_MADE, WEEK_MAKING_LEASE_S, WEEK_MAKING_QUEUE, weekGoesAtOf, WEEKS_MAKING_AT_ONCE } from "./content/plan/held-week";
 export { PATTERN_AT, PATTERN_DAYS, PATTERN_DIMENSIONS, PATTERN_EARLY_AT } from "./content/plan/patterns";
 export { REVIEW_ASK_REST_DAYS, REVIEW_ASK_START, REVIEW_ASK_WORDS, reviewAskLineOf, reviewAskOf, reviewAskWordsOf } from "./content/plan/review-ask";
 export { CLAIM_KINDS, CLAIM_SOURCES, CONTENT_GOALS, PLAN_ASKED_BY, PLAN_PLACES, PLAN_STATUSES, SLOT_STATES } from "./content/plan/sets";
 export { cadenceSaid, contentLinesOf } from "./content/plan/settings-lines";
 export { cadenceOf, creativesOf, FOOTAGE_ASKS_MOST, planWeekOf, SLOT_CAPTION_MAX, slotWordsOf, weekdayShortOf, weekSizeSaid } from "./content/plan/week";
+export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekEndingOf, weekEndingSaid } from "./content/plan/week-endings";
 export { slotWhenSaid, weekMoving, weekRowsOf, weekViewOf } from "./content/plan/week-view";
 export { WEEK_WORDS, weekDaysSaid } from "./content/plan/words";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, linkPlaceSaid, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
@@ -577,7 +578,7 @@ export { cleanDisplayName, DISPLAY_NAME_MAX, identityWords, invitationWords, joi
 export { PAGE_SPEED_MIN, PAGE_SPEED_READ, pageSpeedWords } from "./shell/page-speed";
 export { combinedInto, NEEDS_TITLE, PERM_DOING, refusalOf, roleGate, SESSION_ENDED, sessionEnded, waitWords } from "./shell/refusal";
 export { REPORT_KIND_WORDS, REPORT_KINDS, REPORT_LIMITS, REPORT_WORDS, reportKindOf, reportProblemOf } from "./shell/report-problem";
-export { OPEN_READ_PATHS, OPENING_MARK, openReadPathOf, openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
+export { FAILED_WHOLE, OPEN_READ_PATHS, OPENING_MARK, openReadPathOf, openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";

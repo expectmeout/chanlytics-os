@@ -26,8 +26,8 @@ import { hearFront, pageHidden } from "./front";
  */
 const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
 
-/** Why everything is read again. */
-export type PassReason = "return" | "online" | "join" | "rejoin" | "shown" | "midnight";
+/** Why everything is read again. `mend`: the server answers this tab again, or it is time to look (hearing/mend.ts). */
+export type PassReason = "return" | "online" | "join" | "rejoin" | "shown" | "midnight" | "mend";
 
 /**
  * The reasons that ask for no moment of their own: a return, the network back or the page shown while a pass is out joins it at
@@ -53,6 +53,11 @@ export interface PassRun {
   /** The order the page on screen reads in (screenRank): its own surface first. */
   order(): (o: SurfaceOverride) => number;
   stopped(): boolean;
+  /**
+   * The network is back: a tab holding its reads back while the server did not answer looks now (client/trouble.ts), before
+   * the pass that reads everything again. Absent (a test's), nothing is held.
+   */
+  look?(): void;
 }
 
 export interface Passes {
@@ -150,6 +155,7 @@ export function passesOf(run: PassRun, win: Window = window): Passes {
   const onOffline = () => setConnection({ offline: true });
   const onOnline = () => {
     setConnection({ offline: false });
+    run.look?.();
     void again("online");
   };
   if (typeof navigator !== "undefined" && navigator.onLine === false) setConnection({ offline: true });

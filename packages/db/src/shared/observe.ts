@@ -1,4 +1,5 @@
 import { globalSlot } from "@chanlytics/contracts";
+import { sendOrAskAgain, type AgainWith } from "./read-again";
 import { readShared } from "./read-once";
 /**
  * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
@@ -179,15 +180,18 @@ function sayWhenAtCap(input: string | URL | Request, init: RequestInit | undefin
  * A fetch that names the request it is made for: the database client's transport, so a SQL function writing to the
  * ledger in that request can say which it was, and that says how long each call took (`timed`), so the answer can say
  * how much of its time was the database's and in how many calls, and what each touched (`touched`). A call outside a
- * request goes as it came. Either way, a read that stopped at the row cap without asking to is said (`db_answer_at_cap`).
+ * request goes as it came. Either way, a read that stopped at the row cap without asking to is said (`db_answer_at_cap`),
+ * and a read that failed is asked once more, or not at all while the database is failing (read-again.ts): each ask is a
+ * call of its own, timed and counted as one.
  */
-export function namedFetch(base?: typeof fetch): typeof fetch {
+export function namedFetch(base?: typeof fetch, again?: AgainWith): typeof fetch {
   return (input, init) => {
     // The process's fetch as it is at the call, not at the client's making: a test that stubs it later is heard.
     const send = base ?? globalThis.fetch;
     const id = dbRequestId();
+    const how = touchOfCall(input, init)?.how ?? null;
     if (!id) {
-      const call = send(input, init);
+      const call = sendOrAskAgain({ init, how }, () => send(input, init), again);
       // The caller hears this failure: this only reads the answer.
       void call.then(
         (answer) => sayWhenAtCap(input, init, answer),
@@ -213,6 +217,6 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
     };
     // A request that answers several reads as one asks each question once (read-once.ts); any other sends every call.
     const scope = (observerSlot.get() ?? FALLBACK).sharedReads?.() ?? null;
-    return readShared(scope, { input, init, how: touchOfCall(input, init)?.how ?? null }, sendNamed);
+    return readShared(scope, { input, init, how }, () => sendOrAskAgain({ init, how }, sendNamed, again));
   };
 }

@@ -139,6 +139,11 @@ export interface WeekPlanDto {
      * while it is ready and the rung still holds it; null when nothing goes without the owner's press.
      */
     goes_at: string | null;
+    /**
+     * When its owner stopped a held week (00714, Stop it), while it is still ready: it waits for their own press. Absent
+     * from an older build's answer.
+     */
+    stopped_at?: string | null;
   } | null;
   slots: PlanSlotDto[];
 }

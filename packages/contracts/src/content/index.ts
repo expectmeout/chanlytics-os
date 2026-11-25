@@ -198,7 +198,6 @@ export {
   RUNG_SUGGESTION_USE,
   rungSuggestionOf,
   SECONDS_A_WEEK_MADE,
-  WEEK_MADE_AHEAD_MS,
   WEEK_MAKING_LEASE_S,
   WEEK_MAKING_QUEUE,
   weekGoesAtOf,
@@ -257,6 +256,8 @@ export type {
   SlotWords,
   WeekPlanDto,
 } from "./plan/week";
+export { slotTimePassed, WEEK_MADE_AHEAD_MS, weekEndingOf, weekEndingSaid } from "./plan/week-endings";
+export type { WeekEnding } from "./plan/week-endings";
 export { WEEK_MADE_DOOR } from "./plan/week-made-door";
 export type { WeekMadeBody } from "./plan/week-made-door";
 export type { WeekGoalDto, WeekPageDto, WeekPieceDto } from "./plan/week-page";
