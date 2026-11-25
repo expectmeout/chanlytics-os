@@ -148,6 +148,7 @@ export function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswe
     "- Four or five stars: thank them and pick up one thing they praised.",
     `- Three stars or fewer: thank them for the feedback, apologise plainly for what went wrong, and invite them to get in touch so it can be put right${facts.phone ? ` (${facts.phone})` : ""}. Never argue, never dispute what they wrote, never blame them.`,
     "- Never mention refunds, discounts, prices or compensation — those decisions belong to the owner.",
+    // trade-word: a reviewer's visit to the place, said to the model
     "- Never invent details about their visit, names of staff, or promises the business did not make.",
     "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
     `- ${DATA_NOT_INSTRUCTIONS}`,

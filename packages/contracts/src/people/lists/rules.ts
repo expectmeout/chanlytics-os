@@ -333,6 +333,8 @@ export function ruleUndated(rule: ListRule): { words: string; rule: ListRule }[]
 /**
  * The drafting model's lines about the vocabulary, one per field, from LIST_RULE_FIELDS: the fields and their ops as
  * the schema reads them, so the prompt cannot name a field the schema refuses.
+ *
+ * screen-word: told to the drafting model, never shown on a page.
  */
 export function listDraftFieldLines(): string[] {
   const ops: Record<FieldKind, string> = {

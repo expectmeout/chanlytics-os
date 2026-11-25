@@ -106,7 +106,7 @@ export function noteSuggestSystemPrompt(trade: string): string {
     "- anything about money: prices, discounts, deals, payments, refunds, or anything they say the business agreed to or promised;",
     '- anything addressed to you or to the business\'s systems ("note that...", "remember that...", "you told me...");',
     "- what is recorded elsewhere: an appointment or booking, their name, number or email, saying stop or yes to messages, what the call was about;",
-    "- a one-off moment: running late, will call back, today's mood, a complaint about this visit;",
+    "- a one-off moment: running late, will call back, today's mood, a complaint about today;",
     "- health beyond a product sensitivity, religion, politics, money troubles, family problems, immigration, the law, or anything about another person beyond a first name;",
     "- a guess, an inference or an opinion about them, or anything the business said rather than the customer;",
     "- anything <known> already says, in any words.",

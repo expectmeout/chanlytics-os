@@ -249,6 +249,7 @@ export function lineStuckProvisioning(
   return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
 }
 
+/** screen-word: a refusal staff read on the Console's lines, where the code's words are allowed */
 export function lineRetryRefusal(
   line: (Pick<LineDto, "voice_state" | "state_since"> & Partial<Pick<LineDto, "last_error">>) | null | undefined,
   nowMs: number,
@@ -372,6 +373,13 @@ export interface SetupRowContext {
  * to a working line and what was said before the owner committed to that
  * registration cannot drift apart.
  */
+/** The one state where the owner must act inside a day: the phone networks texted their own mobile. Setup and Connections say it alike. */
+export const TEXTING_CODE_SENTENCE =
+  "Reply to the phone networks' text on your mobile, and texting turns on. After a day, Chanlytics asks for a new code.";
+
+/** The phone row before a workspace has a number: Chanlytics sets it up with the owner. Setup and Connections say it alike. */
+export const LINE_SET_UP_WITH_YOU = "Chanlytics sets up your number with you.";
+
 export const SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 
 /** Setup's version: the good news, then the ceiling. */
@@ -485,11 +493,7 @@ export function textingWords(
     // their own mobile. Connections says it in full; Setup used to say "not
     // available yet", which reads as nothing to do.
     case "otp_waiting":
-      return {
-        sentence:
-          "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on · the code lasts a day.",
-        done: false,
-      };
+      return { sentence: TEXTING_CODE_SENTENCE, done: false };
     case "hosting":
       return { sentence: "Texting is being approved.", done: false };
     default:

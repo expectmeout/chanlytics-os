@@ -47,7 +47,7 @@ export function WorkspaceData() {
     <section className="rec-card set-data" data-testid="set-data" aria-labelledby="set-data-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="set-data-title">
-          Your data
+          Data
         </h2>
         <span className="rec-card-sub">Your workspace's records, in one file you keep.</span>
       </div>
@@ -106,7 +106,7 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
             msg: r.already ? (
               <>Already asked · a person at Chanlytics has it.</>
             ) : (
-              <>We got it · a person at Chanlytics will repair your settings and reach you by email.</>
+              <>Got it · a person at Chanlytics will repair your settings and email you.</>
             ),
           }
         : refusalToast(r, "Request not sent"),

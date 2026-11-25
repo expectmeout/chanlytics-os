@@ -12,6 +12,7 @@ import {
   LINE_STEP_WORDS,
   LINE_CREDENTIALS_SENTENCE,
   PROVISIONING_DEADLINE_MS,
+  TEXTING_CODE_SENTENCE,
   toChannelVM,
 } from "@chanlytics/contracts";
 import {
@@ -358,7 +359,8 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // owner's own handset and the reply must come from it; telling somebody to
   // type a code sends them hunting for a field that does not exist while a
   // 24-hour window runs out.
-  assert.match(words("otp_waiting").sentence, /reply to that message from the handset itself/);
+  assert.equal(words("otp_waiting").sentence, TEXTING_CODE_SENTENCE);
+  assert.match(TEXTING_CODE_SENTENCE, /Reply to the phone networks' text on your mobile/);
   assert.doesNotMatch(words("otp_waiting").sentence, /Type the code/);
   // And NO verb. This row used to offer "Send it again" against a verb no page
   // handled -- a button that did nothing, on the one row where a person is
@@ -367,11 +369,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // cannot be withdrawn, so the row says who asks for a new code instead of
   // pretending the owner can.
   assert.equal(words("otp_waiting").verb, null, "no dead button");
-  assert.match(
-    words("otp_waiting").sentence,
-    /Chanlytics asks the phone networks for another/,
-    "and it says who does it",
-  );
+  assert.match(words("otp_waiting").sentence, /Chanlytics asks for a new code/, "and it says who does it");
   const reg = words("registering", { state_since: ago(2 * 24 * H) });
   assert.equal(reg.state, "waiting_them");
   assert.equal(reg.stateWords, "Texting is being approved");
@@ -383,7 +381,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // resubmit", and the button behind it was guaranteed to answer "The carriers did
   // not answer" -- about a message the carriers had explicitly sent.
   const sentBack = words("rejected", { last_error: "the website couldn't be reached" });
-  assert.match(sentBack.sentence, /^The phone networks sent the registration back: the website couldn't be reached\./);
+  assert.match(sentBack.sentence, /^The phone networks asked for a change: the website couldn't be reached\./);
   assert.match(sentBack.sentence, /Chanlytics sends it again/, "and it says who does");
   assert.match(
     sentBack.sentence,
@@ -559,9 +557,9 @@ test("every verb a row can offer is a verb the page runs", () => {
   // The row still tells the owner what to do -- reply from the handset -- and
   // says who asks for a new code, rather than offering a button for it.
   const otp = rows.slice(rows.indexOf('case "otp_waiting":'), rows.indexOf('case "registering":'));
-  assert.match(otp, /reply to that message from the handset itself/);
-  assert.match(otp, /nothing to type here/);
-  assert.match(otp, /Chanlytics asks the phone networks for another/);
+  assert.match(otp, /sentence: TEXTING_CODE_SENTENCE/, "in the one sentence Setup says it in");
+  assert.match(TEXTING_CODE_SENTENCE, /on your mobile/);
+  assert.match(TEXTING_CODE_SENTENCE, /Chanlytics asks for a new code/);
   // That the row carries no verb at all is asserted on the RETURNED row above,
   // where it is a fact rather than an absence of a substring -- this comment
   // block itself names the retired verb, so a source scan here would match it.
@@ -682,7 +680,7 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
   assert.deepEqual([folded.mailbox.title, folded.mailbox.icon, folded.mailbox.state], ["Email", "mail", "attention"]);
   // Until one is connected, the hosted address keeps its own row, and the mailbox row its own name.
   const before = rowsWith({ providers: ["google"], mailboxes: [] });
-  assert.deepEqual([before.email.title, before.mailbox.title], ["Email", "Your mailbox"]);
+  assert.deepEqual([before.email.title, before.mailbox.title], ["Email", "Mailbox"]);
   // A hosted address that could not take an email in keeps its row, to say so.
   const hurt = by(
     connectionRows(

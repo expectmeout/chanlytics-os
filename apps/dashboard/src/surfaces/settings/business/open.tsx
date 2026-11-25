@@ -231,7 +231,7 @@ type ClosureKey = "date" | "until" | "note";
 type ClosureFields = FoldFields<Closure[]>;
 
 /** What the closed days' tip says: the case the list cannot hold, and that a date gone by goes by itself. */
-const BTO_CLOSURES_TIP = "Closing early? Set that day's hours instead. Dates that have passed drop off by themselves.";
+const BTO_CLOSURES_TIP = "Closing early? Set that day's hours instead · past dates drop off by themselves.";
 
 /** The closed days, as rows of from, until and why. Hookless: its rows come and go. */
 const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFields) => {

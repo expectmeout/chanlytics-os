@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import ts from "typescript";
 import { visitsWrittenIn } from "../_ast.mjs";
+import { appointmentWordsWrittenIn } from "../_measures.mjs";
 import { campaignsHomeOf } from "../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 
 /** The four shapes: a calendar connected or not, a deal on file or not. */
@@ -323,4 +324,9 @@ test("the count reads what a reader reads, from the syntax tree: a sentence or a
   assert.equal(count(`const a = "a visit"; // trade-word: the word's own forms`), 0, "a marked line");
   assert.equal(count(`// trade-word: a clinic's own service\nconst a = "Sick visit";`), 0, "a line marked over it");
   assert.equal(count(`// "about your visit" in a comment`), 0);
+});
+
+test("no sentence writes visit in: a page says the workspace's word, read from the one list, or none", () => {
+  // The count reached nothing on 25 Nov 2026, and is held there: a new one reads appointmentWords, or says why beside it.
+  assert.deepEqual(appointmentWordsWrittenIn(), {});
 });

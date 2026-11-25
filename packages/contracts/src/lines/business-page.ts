@@ -291,6 +291,7 @@ export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTer
       { label: "Cost", text: "Message and data rates may apply." },
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
       { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
+      // screen-word: the phone networks' own disclosure on a customer's page, worded as they require it
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
       { label: "Your information", text: SMS_CLAUSES[3] ?? "" },
     ],

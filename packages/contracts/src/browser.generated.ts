@@ -92,7 +92,7 @@ export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calend
 export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
 export { holdDraftInstruction, LAPSE_WIRES, REQUEST_LAPSE_WORDS, REQUEST_TOLD_WITHIN_MS, requestLapsedNews, requestLapseInstruction, requestNudgeNews } from "./calendar/visit/request-lapse";
 export { visitTitleWithout } from "./calendar/visit/service";
-export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
+export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, CALENDAR_UNLOADED, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
 export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, VISITS_KEPT_MAX, visitStands, visitStateOf } from "./calendar/words/visit";
 export { AUDIENCE_KINDS, audienceLate, audienceMembers, audiencePreview, audienceTrigger, CONSENT_LIST_IDS, eligibleFor, enrolFor, EVERYONE_HINT, EVERYONE_LABEL, heldWords, saidYesOnAny, UNKNOWN_AUDIENCE_WORDS } from "./campaigns/broadcasts/audience";
 export { BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_THROTTLE_WAITS_MS, broadcastName, cleanParam, emptyAudienceRefusal, OUTCOME_UNKNOWN, renderTemplate, runCountsOf, runTitleOf, sentByWords, toBroadcastVM, whenLabel } from "./campaigns/broadcasts/broadcasts";
@@ -545,7 +545,7 @@ export { firstRunPhoneOf } from "./setup/first-run-phone/phone";
 export { FIRST_RUN_PHONE_WORDS } from "./setup/first-run-phone/vm";
 export { businessNameOf, receptionistCardOf, soundsWords } from "./setup/first-run-receptionist";
 export { FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, FIRST_RUN_TITLE, shouldLandOnFirstRun, firstRunStepOf, FIND_PARAM, FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, FIRST_RUN_STEP_KEYS, firstRunStepRoute } from "./setup/first-run-route";
-export { BROKEN_CONFIG_WORDS, LINE_STEP_WORDS, lineRetryRefusal, lineStuckProvisioning, MOCK_TEXTING_SENTENCE, PROVISIONING_DEADLINE_MS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, textingWords } from "./setup/lines";
+export { BROKEN_CONFIG_WORDS, LINE_STEP_WORDS, lineRetryRefusal, lineStuckProvisioning, MOCK_TEXTING_SENTENCE, PROVISIONING_DEADLINE_MS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, TEXTING_CODE_SENTENCE, LINE_SET_UP_WITH_YOU, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, textingWords } from "./setup/lines";
 export { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, KEEP_ROW, putOffEnds, RECEPTIONIST_MET, REHEARSE_SKIPPED, REMIND_SKIPPED, restEndsDay, SETUP_LATER_REFUSED, SETUP_REST_MS, setupLaterOf, setupPutOffNext, setupRestsOf, TRY_SKIPPED, WORKSPACE_MARKS, FORWARDING_WAIT_WORDS } from "./setup/put-off";
 export { keptNumberRowOf, ownLineStandOf } from "./setup/rows-phone";
 export { setupSteps } from "./setup/rows/steps";

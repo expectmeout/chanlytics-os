@@ -253,7 +253,7 @@ test("a call: the member's own phone, the brief Ask wrote with what is known sai
   assert.equal(call.props.href, "tel:+12125550143", "a link the phone itself answers: never the receptionist");
   const brief = said(tree, "ix-new-brief");
   for (const part of [
-    "What we know",
+    "What's known",
     "Next visit: Tue, Oct 13 · 2:00 PM",
     "Say",
     "Saturday opened up",

@@ -39,6 +39,7 @@ export const LIST_RULE_FIELDS: readonly {
     label: "Next on the calendar",
     kind: "days",
     needs: ["calendar"],
+    // screen-word: told to the drafting model, never shown on a page.
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week",
   },
   {
@@ -138,6 +139,7 @@ export const LIST_RULE_FIELDS: readonly {
     label: "On the list",
     kind: "list",
     needs: [],
+    // screen-word: told to the drafting model, never shown on a page.
     draft: "on another list, by its token (list); never use it in a draft",
   },
 ] as const;

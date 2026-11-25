@@ -56,10 +56,11 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
         changes nothing to keep in step.
       </>
     );
+  // screen-word: "Your number" names the choice beside "A different number" (docs/words.md, One word for each thing)
   if (samePhone(draft.typed, line))
     return (
       <>
-        That is your line. Choose <b>Your line</b> and it stays right when the number changes.
+        That is your number. Choose <b>Your number</b> and it stays right when the number changes.
       </>
     );
   if (kept && samePhone(draft.typed, kept))
@@ -104,7 +105,8 @@ export const btPublishedBox =
             label="The number to tell customers to call"
             value={draft.own ? "line" : "other"}
             options={[
-              { value: "line", label: "Your line" },
+              // screen-word: "Your number" beside "A different number" (docs/words.md, One word for each thing)
+              { value: "line", label: "Your number" },
               { value: "other", label: "A different number" },
             ]}
             onChange={(v) =>

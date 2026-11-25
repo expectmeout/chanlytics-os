@@ -33,7 +33,7 @@ test("a code whose meaning is documented is said in plain words, and its number 
   const wa = (code) => sendFailureWords({ errors: [{ code, title: "x" }] }, "whatsapp");
   assert.equal(
     wa(131047),
-    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now.",
+    "WhatsApp wouldn't send it: they haven't written in 24 hours, so only an approved message reaches them.",
   );
   assert.match(wa(131026), /^WhatsApp couldn't deliver it: their number may not be on WhatsApp/);
   assert.match(
@@ -74,7 +74,7 @@ test("the code is found wherever the writer put it: a receipt, a status callback
     '{"error":{"message":"(#131047) Re-engagement message","type":"OAuthException","code":131047,"error_data":{"messaging_product":"whatsapp","details":"Message failed to send because more than 24 hours have passed s';
   assert.match(
     sendFailureWords({ http_status: 400, body: cut }, "whatsapp"),
-    /^WhatsApp wouldn't send it: more than 24 hours/,
+    /^WhatsApp wouldn't send it: they haven't written in 24 hours/,
   );
   assert.match(
     sendFailureWords(
@@ -178,7 +178,7 @@ test("the failed bubble says why in both panes, and no other bubble says anythin
   const inbox = toInboxThreadVM(dto, null, ZONE).timeline.filter((e) => e.type === "msg");
   const chat = toConversationVM(dto, null, ZONE).messages;
   for (const [bad, ok, unsaid, off] of [inbox, chat]) {
-    assert.match(bad.failedWhy, /^WhatsApp wouldn't send it: more than 24 hours/);
+    assert.match(bad.failedWhy, /^WhatsApp wouldn't send it: they haven't written in 24 hours/);
     assert.equal(ok.failedWhy, undefined);
     assert.equal(unsaid.failedWhy, undefined);
     assert.equal(off.failedWhy, undefined);

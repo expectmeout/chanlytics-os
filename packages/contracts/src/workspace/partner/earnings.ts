@@ -140,7 +140,7 @@ export interface PartnerWorkspaceMoneyDto {
 export const PARTNER_STANDING_WORDS: Record<string, string | null> = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
-  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
+  review: "Under review: a person at Chanlytics looks at it before its share is paid, and emails you.",
   disqualified: "Not eligible for a share.",
 };
 

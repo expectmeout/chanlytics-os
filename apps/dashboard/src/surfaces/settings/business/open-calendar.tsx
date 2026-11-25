@@ -28,9 +28,9 @@ export const btoFeedHost = (url: string) => {
   const raw = String(url || "").trim();
   if (!raw) return "";
   try {
-    return new URL(raw.replace(/^webcal:/i, "https:")).host || "Your calendar";
+    return new URL(raw.replace(/^webcal:/i, "https:")).host || "The calendar";
   } catch {
-    return "Your calendar";
+    return "The calendar";
   }
 };
 
@@ -393,7 +393,7 @@ export const BtoFeedBox = ({ url, onUrl, problem, readOnly, stored, offers, note
       {stored ? <BtoFeedWhole /> : null}
       {/* Where to find it, until there is one; and, always, that it is read and never written. */}
       <p className="bt-fold-note" data-testid="rec-calendar-note">
-        {stored ? "" : `${note} `}It is only ever read. Nothing is booked from here;{" "}
+        {stored ? "" : `${note} `}It is only ever read, and nothing is booked from here:{" "}
         {offers ? "your booking link does that." : "your team does that, from the details it takes."}
       </p>
       {readOnly ? null : <BtoFeedGuides />}

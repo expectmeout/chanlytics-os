@@ -27,11 +27,11 @@ export const COMBINE_WORDS = {
   takesThread: (other: string) => `Takes the messages and calls on ${other}'s record, in one conversation`,
   /** In the workspace's word for its appointments: "Takes its notes, deals, appointments and lists". */
   takesRecords: (many: string) => `Takes its notes, deals, ${many} and lists`,
-  takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
+  takesReachOut: "Takes the emails sent to it, the replies, and the lead's link to it",
   answers: MERGE_ANSWERS,
   after: (other: string) => `${other}'s record stays as a merged record with no number or address`,
   why: (business: string, wroteTo: string, answerer: string | null, from: string) =>
-    `Both work at ${business}. We wrote to ${wroteTo}, and ${answerer ?? "someone"} answered from ${from}.`,
+    `Both work at ${business}. You wrote to ${wroteTo}, and ${answerer ?? "someone"} answered from ${from}.`,
   owner: NEEDS_TITLE.owner,
   cancel: "Cancel",
   yes: "Combine",

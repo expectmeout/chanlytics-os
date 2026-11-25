@@ -266,7 +266,7 @@ test("last contact says who and how long ago, and the newer of message vs call w
   assert.equal(called.label, "Phoned · 1h ago");
   // A call the receptionist placed is the last contact too, but nobody phoned us (the 2 Oct 2026 audit).
   const weCalled = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: null }), ZONE, NOW).lastContact;
-  assert.equal(weCalled.label, "We called · 1h ago");
+  assert.equal(weCalled.label, "Called them · 1h ago");
   assert.equal(weCalled.who, "system");
   assert.match(
     toPersonRowVM(row({ last_message_at: iso(20 * D) }), ZONE, NOW).lastContact.label,
@@ -1006,12 +1006,12 @@ test("where a person came from, in the words People says it: one per stored valu
     email: "Email",
     instagram: "Instagram",
     call: "Phone",
-    calendar: "Your calendar",
+    calendar: "The calendar",
     manual: "Added by hand",
     import: "Imported",
     lead: "A lead you found",
     ad: "An ad",
-    website: "Your website",
+    website: "The website",
     form: "A form",
   });
   for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS))
@@ -1026,7 +1026,7 @@ test("where a person came from, in the words People says it: one per stored valu
   assert.equal(contracts.cameFromOf({ came_from: "toString" }), null, "nor one every object answers to");
   assert.deepEqual(
     toPersonRowVM(row({ came_from: "calendar" }), ZONE, NOW).cameFrom,
-    { key: "calendar", label: "Your calendar" },
+    { key: "calendar", label: "The calendar" },
     "the row carries it",
   );
   assert.equal(toPersonRowVM(row(), ZONE, NOW).cameFrom, null);

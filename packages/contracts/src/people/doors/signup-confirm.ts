@@ -130,31 +130,31 @@ export function signupAskRefusal(typed: string, signupAskFacts: SignupAskFacts):
 export function signupAskLine(outcome: string | null): string | null {
   switch (outcome) {
     case "asked":
-      return "We emailed them to confirm. Offers by email start once they do.";
+      return "Emailed them to confirm. Offers by email start once they do.";
     case "made_up":
-      return "The address looks made up by a program, so we did not email it.";
+      return "The address looks made up by a program, so it wasn't emailed.";
     case "not_their_address":
-      return "They typed an address their page does not have, so we did not email it.";
+      return "They typed an address their page doesn't have, so it wasn't emailed.";
     case "already":
       return "They already said yes to offers by email.";
     case "stopped":
-      return "They asked you to stop messaging them, so we did not email them.";
+      return "They asked you to stop messaging them, so they weren't emailed.";
     case "suppressed":
-      return "Email to their address does not arrive, so we did not ask them to confirm.";
+      return "Email to their address doesn't arrive, so they weren't asked to confirm.";
     case "no_mailbox":
-      return "We couldn't email them to confirm: you have no email address yet (Settings › Connections › Email).";
+      return "Couldn't email them to confirm: connect an email address first.";
     case "open":
-      return "We already emailed them to confirm.";
+      return "Already emailed them to confirm.";
     case "not_from_website":
       return "Only someone who signed up on your website is asked to confirm by email.";
     case "no_email":
       return "Their page has no email address to ask them at.";
     case "address_limit":
-      return `We did not email them to confirm: their address was asked ${SIGNUP_ASK_LIMITS.perAddress} times already in ${SIGNUP_ASK_LIMITS.perAddressMs / DAY_MS} days.`;
+      return `Not emailed to confirm: their address was asked ${SIGNUP_ASK_LIMITS.perAddress} times already in ${SIGNUP_ASK_LIMITS.perAddressMs / DAY_MS} days.`;
     case "workspace_limit":
-      return `We did not email them to confirm: today's ${SIGNUP_ASK_LIMITS.perWorkspaceDay} confirmations went out already.`;
+      return `Not emailed to confirm: today's ${SIGNUP_ASK_LIMITS.perWorkspaceDay} confirmations went out already.`;
     case "failing":
-      return "We did not email them to confirm: too many of today's confirmations did not arrive.";
+      return "Not emailed to confirm: too many of today's confirmations didn't arrive.";
     default:
       return null;
   }
