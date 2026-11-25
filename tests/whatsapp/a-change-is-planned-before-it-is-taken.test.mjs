@@ -1,7 +1,7 @@
 /**
  * The WhatsApp door's plan for one change of a delivery (apps/edge/lib/whatsapp/delivery-plan.ts planWhatsappChange),
  * run every way: what is taken in, what is owed (the door's 503), the line it says and the platform's alert. The door
- * itself is run in whatsapp-door.test.mjs; this is the table it follows.
+ * itself is run in whatsapp/door/; this is the table it follows.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

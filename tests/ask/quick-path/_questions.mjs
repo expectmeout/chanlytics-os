@@ -1,6 +1,6 @@
 /**
- * The questions that tell the quick path's forms from the model's, read by ask.test.mjs (contracts askIntent) and
- * ask-palette.test.mjs (the Line): the ordinary questions it answered without a model, matched anywhere in their words
+ * The questions that tell the quick path's forms from the model's, read by ask/line/ (contracts askIntent) and
+ * ask/palette/ (the Line): the ordinary questions it answered without a model, matched anywhere in their words
  * (the end-to-end review, 15 October 2026, A1: a draft asked for got a list, another period got today's, a name and a
  * format were dropped), and the short forms that stay quick, the Line's own chips' words among them (contracts
  * ask/suggestions.ts).

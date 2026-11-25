@@ -93,8 +93,8 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   const svc = readCode("apps/dashboard/src/server/campaigns/meta-templates.ts");
   assert.ok(svc.includes('"/api/admin/whatsapp/templates-sync"'));
   // `?all=1` is Settings' read and the composer still sees approved only: RUN through the route in
-  // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in
-  // readers.test.mjs. The columns moved with the body, to the reader.
+  // playbooks/routes/ ("templates: the composers see the approved and unhidden") and its reader in
+  // ask/readers/. The columns moved with the body, to the reader.
   // With the read it names, packages/db's (decision 0111).
   const g = readCode(
     "apps/dashboard/src/server/readers/templates.ts",

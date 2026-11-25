@@ -5,7 +5,7 @@
  * running. Executed: the predicate, the surface the home draws from, the moments the home offers to turn on (its view
  * model, campaignsHomeOf, over that surface), the composer's moment picker, and the run itself.
  *
- * The check's refusals are core-campaigns.test.mjs's, Ask's are ask-turn.test.mjs's, and a playbook counted by its message
+ * The check's refusals are broadcasts/core-campaigns/'s, Ask's are ask/turn/'s, and a playbook counted by its message
  * is calendar-counts.test.mjs's.
  */
 import { test } from "node:test";

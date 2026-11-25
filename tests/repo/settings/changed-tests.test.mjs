@@ -298,14 +298,18 @@ test("REGRESSION: the five tests main left red on 28 Oct 2026 run for the module
   // Each imported, directly or through a package, what its pull request changed, in a folder its paths did not name.
   const RED = {
     // #1882
-    "apps/dashboard/src/server/readers/campaign-report.ts": ["ask/readers.test.mjs"],
+    // The readers' and the back office's tests are split by behaviour since 25 Nov 2026 (layer 14): the file of each that
+    // holds the test #1882 and #1890 broke.
+    "apps/dashboard/src/server/readers/campaign-report.ts": [
+      "ask/readers/the-person-and-the-reports-as-their-pages.test.mjs",
+    ],
     // #1895
     "packages/contracts/src/today/notification-kinds.ts": [
       "links/every-alert-mail-ends-with-the-link-to-its-page.test.mjs",
     ],
     // #1890
     "apps/dashboard/src/bridge/surface-registry.ts": [
-      "console/back-office/back-office.test.mjs",
+      "console/back-office/office/the-boundary-and-the-line-acts.test.mjs",
       "reports/headline/on-demand-boot.test.mjs",
     ],
     // #1900: a new write route, written into the routes the test reads

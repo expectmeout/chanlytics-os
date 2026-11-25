@@ -127,7 +127,7 @@ test("a browser sees the attachment's facts and never its storage path", () => {
     { mime_type: "audio/ogg", filename: null, caption: null },
     "no fetch_state key when there is none",
   );
-  // The one-thread route is run, not read: readers.test.mjs, "the one thread's messages carry an attachment's
+  // The one-thread route is run, not read: ask/readers/, "the one thread's messages carry an attachment's
   // public facts".
   for (const rel of [
     "apps/dashboard/src/server/conversations/dto.ts",
@@ -257,5 +257,5 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
 });
 
 // The owner turns it on with the switch on What it can do's photo row (the Settings wiring review, 18 Oct 2026), which
-// patches features.vision and nothing else, and is off unless the config says true: business-tab-answers.test.mjs
+// patches features.vision and nothing else, and is off unless the config says true: receptionist/business-tab/answers/
 // presses it and draws it.

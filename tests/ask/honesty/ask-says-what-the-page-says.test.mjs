@@ -10,7 +10,7 @@
  * - X5-4: a warm turn says when the turns it replays were asked, as history.
  *
  * Executed: the tools over the database in memory, and the turn's words. X5-5 to X5-8 are held where their reads are run:
- * the Library's figure and the shape block in ask-context.test.mjs, the words of four fields in ask-tool-names.test.mjs.
+ * the Library's figure and the shape block in ask/context/, the words of four fields in ask/tool-names/.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

@@ -490,9 +490,9 @@ test("the edge reads the feed once per five minutes and tells both receptionists
 test("Settings collects the rules and the feed; the feed address is whole only for an owner", () => {
   // The rules and the feed are folds of the Business page now (Task 3.7 deleted the form), and each patches only its
   // own keys. What each writes, the row that states the feed and the sentence that it is only ever read are EXECUTED
-  // in business-tab-folds.test.mjs and business-tab-open.test.mjs, so four pins that were here are gone.
+  // in receptionist/business-tab/folds/ and receptionist/business-tab/open/, so four pins that were here are gone.
   const page = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
   assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
   // The feed address whole for an owner and masked for anyone else is RUN: through the route in settings-routes.test.mjs
-  // ("the settings read") and through its reader in readers.test.mjs, so the two pins on the route's text are gone.
+  // ("the settings read") and through its reader in ask/readers/, so the two pins on the route's text are gone.
 });

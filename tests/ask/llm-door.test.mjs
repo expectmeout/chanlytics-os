@@ -1,7 +1,7 @@
 /**
  * The model gateway, run: POST /api/admin/llm over a database in memory and
  * a captured wire where api.anthropic.com would be. Until 13 Sep 2026 its
- * text was pinned by six assertions across two reads in ask.test.mjs and
+ * text was pinned by six assertions across two reads in ask/line/ and
  * its POST had never been called.
  *
  * The dashboard builds the whole request and runs the tools itself as the

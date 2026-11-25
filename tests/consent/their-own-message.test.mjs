@@ -13,7 +13,7 @@
  * person's page offers to choose from, and the two single doors and the two
  * batch doors run over a database in memory. The doors themselves are run
  * against Postgres in their-own-message.db.test.mjs; the pages, in
- * person-honest.test.mjs and people-honest.test.mjs.
+ * people/person-page/ and people/people-page/.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

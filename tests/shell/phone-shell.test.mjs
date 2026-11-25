@@ -96,13 +96,13 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
       shell.includes('window.addEventListener("shell:top", onTop)'),
     "the native More tab opens the drawer and a re-tap scrolls to the top (bridge/app-bridge.ts)",
   );
-  // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
+  // The ✦'s own lift lives in ask.css with the palette's rules (ask/line/ holds it there).
   assert.ok(
     css.includes("position: fixed;") && css.includes("bottom: var(--bar-foot);"),
     "fixed to the viewport, floating clear of its bottom: flowed, it lived below the fold",
   );
   // The status the bridge's floating pill used to carry is the shell's one
-  // line under the top bar now, mounted in shell-status.test.mjs; nothing
+  // line under the top bar now, mounted in shell/surfaces/status/; nothing
   // fixed sits over the tab bar.
   assert.ok(!readRaw("apps/dashboard/src/bridge/frame.css").includes(".bridge-pill"), "the pill is gone");
 });

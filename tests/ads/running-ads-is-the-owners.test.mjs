@@ -2,7 +2,7 @@
  * Running ads is the owner's alone (decision 0050, call 2; decision 0049, step P0b): the permission `ads` in contracts'
  * ROLE_PERMS, and the sentence the gate says before a press. The platform bills the owner, so a partner, who sets a
  * workspace up, does not hold it. SQL's has_permission says the same from 00645, and
- * tests/leads/engine/lead-engine.db.test.mjs holds the two equal, role by role and permission by permission.
+ * tests/leads/engine/engine/ holds the two equal, role by role and permission by permission.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

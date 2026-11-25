@@ -12,7 +12,7 @@
  * store, no flag decides where the memory is read from, and the queue declares
  * no kind it cannot run. The behaviour that flag protected — a Postgres miss
  * hands the thread to a person rather than answering from an invented empty
- * history — is run for real in whatsapp-door.test.mjs and thread-memory.test.mjs.
+ * history — is run for real in whatsapp/door/ and thread-memory.test.mjs.
  *
  * And the job queue says only what it can carry: every declared kind has a
  * handler and a caller.

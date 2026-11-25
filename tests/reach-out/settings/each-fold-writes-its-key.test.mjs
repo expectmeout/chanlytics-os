@@ -3,7 +3,7 @@
  * writes the config's reach_out section has a real change here, which lands on its one key and leaves the rest of the
  * config exactly as it was; an emptied box takes its key away, and the section with its last key; a fold opened and
  * saved with no change writes nothing. The receptionist's folds are held the same way in
- * tests/receptionist/business-tab/business-tab-folds.test.mjs, so between the two files no fold arrives unproven.
+ * tests/receptionist/business-tab/folds/, so between the two files no fold arrives unproven.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";

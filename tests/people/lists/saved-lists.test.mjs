@@ -57,7 +57,7 @@ test("the tables: the workspace's, members read, acting members write, a person 
 });
 
 test("the routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words", () => {
-  // Scoped by tenant, not by RLS alone, and every member read: people-routes.test.mjs runs the GET over two
+  // Scoped by tenant, not by RLS alone, and every member read: people/routes/ runs the GET over two
   // workspaces and over a list past PostgREST's max_rows.
   const list = readCode(
     "apps/dashboard/app/api/v1/segments/route.ts",
@@ -75,14 +75,14 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
       one.includes('const remove = cleanIdList(body?.remove, "remove");'),
   );
   assert.ok(one.includes('throw new AppError("validation", "Nothing to change.");'));
-  // Adding someone twice is not an error: people-routes.test.mjs runs the PUT twice over the same person.
+  // Adding someone twice is not an error: people/routes/ runs the PUT twice over the same person.
   assert.ok(
     /if \(error\.code === "42501"\)\s*throw new AppError\("validation", "One of those people is not in this workspace any more\."\);/.test(
       one,
     ),
     "RLS's refusal gets words",
   );
-  // The delete counts what it removed (packages/db deleteList); people-routes.test.mjs deletes a list twice.
+  // The delete counts what it removed (packages/db deleteList); people/routes/ deletes a list twice.
   assert.ok(
     one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
     "a delete that removed nothing is not a success",
@@ -313,10 +313,10 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   tree.props.onClose();
   assert.equal(closed, 1);
   // list-action (the list's one door) and show-everyone are the page's own (page/screen.tsx): pressed in
-  // people-honest.test.mjs, with the shell's and a profile's New list (segments:new) opening the box.
+  // people/people-page/, with the shell's and a profile's New list (segments:new) opening the box.
   // The People page owns where a list's route lands:
   assert.equal(peoplePages.__listRoute, plListRoute, "the People page owns where a list's route lands");
-  // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell-status.test.mjs), no
+  // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell/surfaces/status/), no
   // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
 });
 

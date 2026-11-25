@@ -16,7 +16,7 @@ import { normalizeCall } from "@chanlytics/channels/voice";
 
 test("a payload without call_status normalises to ended — the default the webhook pins a transcript update away from", () => {
   // The pin itself (ongoing before normalising), the routing through the
-  // call's own row, and the delivery row run in retell-webhook-door.test.mjs.
+  // call's own row, and the delivery row run in voice/calls/retell-door/.
   const n = normalizeCall({ call_id: "call_x", transcript_with_tool_calls: [{ role: "user", content: "hi" }] });
   assert.equal(n.status, "ended", "the default the guard exists for");
   assert.equal(n.transcriptObject?.length, 1, "the turns are read from transcript_with_tool_calls");

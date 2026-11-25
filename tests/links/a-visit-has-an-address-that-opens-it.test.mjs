@@ -4,7 +4,7 @@
  * takes its param with. `calendar/a-<id>`, the shape Settings > Activity wrote when it knew no day, keeps landing on the
  * board, and now opens the panel when the visit is among the days the board holds.
  *
- * The page's own behaviour (the panel opening once its block is drawn) is executed in calendar/calendar-honest.test.mjs.
+ * The page's own behaviour (the panel opening once its block is drawn) is executed in calendar/calendar-page/.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

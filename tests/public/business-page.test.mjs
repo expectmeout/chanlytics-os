@@ -136,8 +136,8 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
   // links are run in a-paused-workspace-asks-nobody-for-a-yes.test.mjs (/yes/<slug>, /b/<slug>, /b/<slug>/terms).
   // And the ABSOLUTE form the phone networks are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
-  // The door's filing is run in lines-door.test.mjs, and the sweep that finishes
-  // a filing in cron-doors-b.test.mjs: in both, the captured campaign names
+  // The door's filing is run in lines/door/, and the sweep that finishes
+  // a filing in cron/doors-b/: in both, the captured campaign names
   // `/b/<slug>` as the privacy policy and `/yes/<slug>` in the flow, both on
   // DASHBOARD_ORIGIN.
 });
@@ -370,7 +370,7 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // checked -- not the record's, which is what the brand says.
   assert.match(edge, /workspaceName: filing\.workspaceName,/);
   // And the door tells it whether anybody can say yes -- run in
-  // lines-door.test.mjs: a line with no number and no active texting row is
+  // lines/door/: a line with no number and no active texting row is
   // refused with the sentence, and an active row beside it is enough.
 });
 

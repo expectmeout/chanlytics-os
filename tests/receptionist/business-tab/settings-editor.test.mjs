@@ -3,10 +3,10 @@
  *
  * Task 3.7 replaced BusinessEditor with the Business page (surfaces/settings/business/tab.tsx), so what this file used to prove
  * about a form is proved where those fields now live, by drawing them:
- *   every check said under its own field, and the toast only counting them  business-tab-page.test.mjs,
+ *   every check said under its own field, and the toast only counting them  receptionist/business-tab/page/,
  *                                                                           business-tab-open/-offer/-answers.test.mjs;
- *   Cancel asking before it throws anything typed away                      business-tab-open.test.mjs;
- *   the instructions box (S4) and the three messages (S5)                   business-tab-answers.test.mjs;
+ *   Cancel asking before it throws anything typed away                      receptionist/business-tab/open/;
+ *   the instructions box (S4) and the three messages (S5)                   receptionist/business-tab/answers/;
  *   the three things a new workspace is asked for                           business-tab-create.test.mjs.
  *
  * What is left here is the Settings page's own (surfaces/settings/frame/page.tsx), and it is what the swap turned on: the rail's one question before it
@@ -93,7 +93,7 @@ globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
-    // The Business page and the create card are drawn for real in business-tab-page.test.mjs and business-tab-create.test.mjs:
+    // The Business page and the create card are drawn for real in receptionist/business-tab/page/ and business-tab-create.test.mjs:
     // here they are the marks the pane's choice is read by (the page imports them, so the stub stands in for them as drawn).
     if (typeof type === "function" && MARKED[type.name]) type = MARKED[type.name];
     const node = { type, props };
@@ -386,7 +386,7 @@ test("on a phone the bare address is the list of sections: their words in order,
 /* ------------------------------ which card the pane draws ------------------------------ */
 
 // The page and the create card as PaneWorkspace reaches them: it imports both, so the stub's createElement draws a mark
-// where either is written (MARKED, above). Drawn for real in business-tab-page.test.mjs and business-tab-create.test.mjs.
+// where either is written (MARKED, above). Drawn for real in receptionist/business-tab/page/ and business-tab-create.test.mjs.
 const marker = (id) => () => globalThis.React.createElement("div", { "data-testid": id });
 MARKED.BusinessTab = marker("the-business-page");
 MARKED.BtCreateCard = marker("the-create-card");

@@ -60,7 +60,7 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
 
 // The diagnostic listing which credential each delivery passed, beside a
 // fingerprint of the held key and never the key, is run in diag-door.test.mjs;
-// the rows themselves are written by the webhook, run in retell-webhook-door.test.mjs.
+// the rows themselves are written by the webhook, run in voice/calls/retell-door/.
 
 test("The transfer number is compared with the receptionist's own line, not the number customers are told", () => {
   // The comparison moved into contracts with the field it guards. What the row
@@ -69,7 +69,7 @@ test("The transfer number is compared with the receptionist's own line, not the 
   // comparing against that refused the very number the owner wanted.
   // Since Task 3.7 the transfer number is a row of the Business page, and its check is the page's one table of them
   // (surfaces/settings/business/save.tsx CHECK_OF), asked with the PROVISIONED line the settings read resolved, never phone_display:
-  // the Who you are card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
+  // the Who you are card reads F.voice_line and asks the check with it, which receptionist/business-tab/page/ presses.
   // Made-up numbers, in 555-01xx: the line the receptionist answers on; +1 212 555 0142 is the number customers are told.
   const LINE = "+13055550123";
   assert.equal(

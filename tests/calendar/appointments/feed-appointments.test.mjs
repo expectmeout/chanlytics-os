@@ -2,7 +2,7 @@
  * An appointment is a record (decision 0002): the key each event of the owner's calendar is kept under, the rows a read
  * becomes, and the question a reminder asks at its send. Executed against the built contracts; the table, its guard and
  * the sync door are proved on Postgres in appointments.db.test.mjs, the sweep that writes them in
- * cron/cron-calendar-door.test.mjs, and the send that asks them in broadcasts/core-broadcast.test.mjs.
+ * cron/cron-calendar-door.test.mjs, and the send that asks them in broadcasts/core-broadcast/.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

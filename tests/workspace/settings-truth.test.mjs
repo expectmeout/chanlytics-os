@@ -52,7 +52,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
 test("F32: a config the parser refuses is its own state, and no form can save over it", () => {
   // The read's half is RUN: a config the parser refuses answers { config: null, configBroken: true, issues }, never
   // {} read as "no receptionist yet" -- through the route in settings-routes.test.mjs ("the settings read") and
-  // through its reader in readers.test.mjs, so the three pins on the route's text are gone.
+  // through its reader in ask/readers/, so the three pins on the route's text are gone.
   const surface = readCode("apps/dashboard/src/bridge/surfaces/settings.ts");
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
   const business = frame["workspace.tsx"];
@@ -98,7 +98,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
     .join("\n");
   const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
-  // the default day when none is set, is run in whatsapp-door.test.mjs.
+  // the default day when none is set, is run in whatsapp/door/.
   assert.ok(
     alerts.includes("AI is paused on this conversation for ${ctx.pausedHours}h."),
     "and the handoff email states the same number",
@@ -169,12 +169,12 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   );
   assert.equal(ROLE_PERMS.viewer.settings, false);
   // Every act of the Business page is a PUT an operator is refused, so every card gates on "settings" and names what
-  // it acts on, and none opens on a gate this door refuses. Drawn, not read: business-tab-page.test.mjs, "every act
+  // it acts on, and none opens on a gate this door refuses. Drawn, not read: receptionist/business-tab/page/, "every act
   // of the record is a PUT the settings door refuses, and none asks a different door", draws the whole page and the
   // card a workspace with no receptionist sees for an operator who may do autonomy and not settings, and then for one
   // who may do settings and nothing else -- so a card asking the WRONG door shows up either as a live button this
   // role cannot save with, or as a refused one where every act should be offered. (Refusing every permission at once,
-  // as the viewer test below does, cannot tell those apart.) business-tab-open.test.mjs reads the sentence on each act.
+  // as the viewer test below does, cannot tell those apart.) receptionist/business-tab/open/ reads the sentence on each act.
   // The autonomy matrix keeps its own gate (PUT /policies is operator-or-owner), and a delay edit sends no mode: drawn
   // in settings-owner-panes.test.mjs ("F50: every dot and dial asks the autonomy gate"), the pane being TSX.
   const policies = readCode(
@@ -239,7 +239,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
   // default without being asked.
   // The row is When you're open's (surfaces/settings/business/open.tsx BtoZone, drawn as rec-row-timezone), beside the hours it
   // qualifies; it saves through the workspace's own door and not the settings save, and the card a workspace with
-  // no receptionist sees draws the same row. All three are drawn: business-tab-open.test.mjs, "the timezone row
+  // no receptionist sees draws the same row. All three are drawn: receptionist/business-tab/open/, "the timezone row
   // says the zone and the time there, and saves through the workspace's own door", and business-tab-create.test.mjs.
 
   const mig = readRaw("supabase/migrations/00084_workspace_timezone.sql");

@@ -6,9 +6,9 @@
  * acts), called with the props the page hands it, pressed, and read. Their words come from contracts by import, as the
  * page's do; nothing here publishes a name on the window for them. The two acts that reach out are run against what they
  * reach: Ask's door is a fake held by `holdAsk` (frame-verbs.ts), and a search's answer is a fake `window.fetch`,
- * so the request it makes is read as it would go over the wire (surface.ts answerSearch). The page itself is proved in leads-honest.test.mjs; here the three components are proved on their own
+ * so the request it makes is read as it would go over the wire (surface.ts answerSearch). The page itself is proved in leads/finder/page/; here the three components are proved on their own
  * props, so a change to one of them fails here and not four files away. A fresh Find is Ask's, proved in
- * ask-palette.test.mjs: nothing here composes one.
+ * ask/palette/: nothing here composes one.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

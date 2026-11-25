@@ -34,7 +34,7 @@ const B1 = "88888888-8888-4888-8888-888888888881";
 const K2 = "99999999-9999-4999-8999-999999999992";
 const T1 = "77777777-7777-4777-8777-777777777771";
 const USER = "u1";
-// The membership and playbook rows outbound-routes.test.mjs runs the route over.
+// The membership and playbook rows playbooks/routes/ runs the route over.
 const tables = () => ({
   memberships: [
     { user_id: USER, tenant_id: B, role: "operator", tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" },
