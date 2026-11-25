@@ -3,15 +3,7 @@
  * (begin, pull) ask the settings permission themselves; the edge's (an attempt opened and closed, a placement moved) are the
  * service role's alone, and a move is a compare-and-set, so two runs never both move one post.
  */
-import {
-  DbFailure,
-  POST_PLACES,
-  postNeverSeen,
-  recordOrEmpty,
-  type PostHeldWhy,
-  type PostPlace,
-  type PostStatus,
-} from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty, type PostHeldWhy, type PostPlace, type PostStatus } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
@@ -349,52 +341,8 @@ export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number>
   return count ?? 0;
 }
 
-/** The places whose post is up only once it was seen there (contracts postNeverSeen): every place but Google. */
-const PLACES_THAT_ARE_SEEN = POST_PLACES.filter((place) => postNeverSeen({ place, verified_at: null }));
-
-/**
- * The workspace's posts a place took and was never seen holding, newest first, under the caller's RLS: Content's Needs
- * you asks their owner whether each is there, once the read that looks for it has had its time (the caller's to say,
- * by contracts placementStandingOf). Since `since`: an older one still says so on its own piece. By
- * posts_tenant_newest.
- */
-export async function listPostsUnseen(
-  db: Db,
-  tenantId: TenantId,
-  unseen: { since: string; limit: number },
-): Promise<MemberFilePostRow[]> {
-  const { data, error } = await db
-    .from("posts")
-    .select(MEMBER_FILE_POST_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .eq("status", "published")
-    .is("verified_at", null)
-    .in("place", PLACES_THAT_ARE_SEEN)
-    .gte("created_at", unseen.since)
-    .order("created_at", { ascending: false })
-    .limit(unseen.limit);
-  if (error) throw new DbFailure(error, "posts unseen");
-  return data;
-}
-
 /** Where a page of posts ended: the time it is ordered by, and the id, which breaks a tie. */
 export type PostCursor = { at: string; id: string };
-
-/**
- * The workspace's posts that stopped (held, or refused), newest first by when they were pressed, under the caller's RLS:
- * Content's Needs you, which keeps those still the newest at their file and place. By posts_tenant_newest.
- */
-export async function listPostsStopped(db: Db, tenantId: TenantId, limit: number): Promise<MemberFilePostRow[]> {
-  const { data, error } = await db
-    .from("posts")
-    .select(MEMBER_FILE_POST_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .in("status", ["held", "failed"])
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new DbFailure(error, "posts stopped");
-  return data;
-}
 
 /**
  * The posts of a span of the Calendar (the content redesign's stage 3): those set for a time in it, or up in it, but for one
