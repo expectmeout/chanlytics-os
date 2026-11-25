@@ -60,7 +60,6 @@ export const UNLISTED = {
   "stabs-person": "a person's tabs' own mark (ViewTabs, stabs-<name>), which no stylesheet names",
   "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
   "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
-  "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
   "dtable-words": "a table heading's words where it does not sort (kit/table/head.tsx), which no stylesheet names",
 };
 
@@ -172,7 +171,7 @@ const recCombo = ({ open = false, label = "Languages", placeholder = "Add a lang
 /** A switch (RecordSwitch). */
 const recSwitch = (on, label, readOnly = false) =>
   `<button type="button" role="switch" class="rec-switch" aria-checked="${on}" aria-label="${label}"` +
-  `${readOnly ? ' aria-disabled="true"' : ""}><span class="rec-knob" aria-hidden="true"></span></button>`;
+  `${readOnly ? ' aria-disabled="true" aria-readonly="true"' : ""}><span class="rec-knob" aria-hidden="true"></span></button>`;
 
 /** A choice of a few (RecordToggleGroup): the chosen one, then the rest. */
 const recSeg = (label, options, chosen) =>
@@ -1236,11 +1235,15 @@ const figureDefined = () =>
   `<div class="tip-place" role="presentation" ${placed("top: 64px; left: 16px;")}>` +
   `<div class="ui-tip show" tabindex="-1">What customers wrote or phoned in. Your replies and your campaigns are not counted.</div></div>`;
 
+/** The tick at the end of a list's option, seen beside the one chosen on the pick's lilac (kit.css, "The current pick"). */
+const comboTick = (chosen) =>
+  `<span${chosen ? ' data-selected=""' : ""} aria-hidden="true" class="rec-combo-tick">${icon("check", 13)}</span>`;
+
 /** An option of the kit's select or combobox: its words and its word at the end, walked to, chosen, or neither. */
 const kitOption = (label, meta, { chosen = false, walked = false, focus = null } = {}) =>
   `<div role="option" aria-selected="${chosen}"${focus === null ? "" : ` tabindex="${focus}"`} class="rec-combo-opt"` +
   `${chosen ? ' data-selected="" data-chosen="true"' : ""}${walked ? ' data-highlighted=""' : ""}>` +
-  `<span class="rec-combo-label">${label}</span><span class="rec-combo-meta">${meta}</span></div>`;
+  `<span class="rec-combo-label">${label}</span><span class="rec-combo-meta">${meta}</span>${comboTick(chosen)}</div>`;
 
 /** The kit's Select in its Field, open: its box a button, its list over the page, the one chosen walked to. */
 const kitSelect = () =>
@@ -1281,6 +1284,7 @@ const pickOption = (label, { sub = null, meta = null, glyph = null, chosen = fal
   (sub ? `<span class="rec-combo-sub">${sub}</span>` : "") +
   `</span>` +
   (meta ? `<span class="rec-combo-meta">${meta}</span>` : "") +
+  comboTick(chosen) +
   `</div>`;
 
 /** A group of the kit's Picker under its heading. */

@@ -8,13 +8,18 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppointmentWord, ListRule, PersonRowVM } from "@chanlytics/contracts";
 import type { SavedList, SmartList } from "../types";
-import { PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL } from "../words";
+import { PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL, plSortedBy } from "../words";
 import type { ListDraft } from "../words";
 import type { PeopleMenuItem } from "../menu-groups";
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
 
-/** The sorts a phone offers, the appointments' in the workspace's word: each checked when it is the one in use. */
+/**
+ * The sorts a phone offers, the appointments' in the workspace's word: each checked when it is the one in use. A sort a
+ * desk's heading gave that no phone sort is (another column, or the other way round) comes first, checked, said as the
+ * list's head says it ("Sorted by next step"), so the sheet always marks the order the list stands in (the phone change
+ * list's B1, 25 Nov 2026: People's Sort opened with nothing checked, where the Pipeline's checks the sort in force).
+ */
 export function peopleSortItems({
   withCalendar,
   word,
@@ -28,11 +33,15 @@ export function peopleSortItems({
   sortDir: string;
   pickSort: (by: string, dir: string) => void;
 }): PeopleMenuItem[] {
-  return PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({
+  const sorts = PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({
     label: s.labelOf ? s.labelOf({ word }) : s.label,
     checked: sortBy === s.by && sortDir === s.dir,
     onClick: () => pickSort(s.by, s.dir),
   }));
+  const said = plSortedBy(sortBy, word);
+  if (sorts.some((s) => s.checked) || !said) return sorts;
+  // Chosen again, the sort in force stays as it is.
+  return [{ label: said, checked: true, onClick: () => undefined }, ...sorts];
 }
 
 /**

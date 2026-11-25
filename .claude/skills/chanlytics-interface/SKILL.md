@@ -215,6 +215,15 @@ month. An option under a pointer or a key is a lozenge in `--accent-soft`, as a 
 lifts to `--selected-fill` under a pointer and while its list is open. Both fall back to the solid where the browser
 draws no blur or less transparency is asked for (`tokens.css`).
 
+The current pick is one look wherever a choice is made: the one chosen of a set stands on the pick's lilac
+(`--selected-fill` with `--selected-depth`) with its tick, in a menu's set, a picker's or a select's list, a chip, a
+segment, a narrowed pill and a desk's row of views alike; never the accent's coral, which is for live and now, and never
+a tick alone. It stays lilac under a pointer and as its list opens (kit.css, "The current pick"). Something on or off is
+the kit's switch (`RecordSwitch` on a shell page), one kept on drawn on and dimmed (`readOnly`), never a lock or a tick
+of a page's own. A setting whose answer is one of a few is its row's value, and the row's act opens the answers
+(`apps/dashboard/src/surfaces/settings/choice-act.tsx`), never a word with a caret inside it (the phone change list's B1
+to B3, 25 Nov 2026).
+
 A list on a page that loads no Base UI popup (Settings) is the house's `MoreMenu` under the kit's box
 (`btnClass="rec-input rec-select"`, each item `checked` or not), never the kit's Select: the Select, Combobox and date
 picker stand on Base UI, and a page that newly imports them pays for it twice. Imported with Settings' Activity pane

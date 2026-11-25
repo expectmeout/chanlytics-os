@@ -254,14 +254,16 @@
   align-items: center;
   margin-top: -2px;
 }
-/* Its words a step over a small press's, the one picked on the inset's fill and its words the heavier (the canvas's .ct-vchips). */
+/* Its words a step over a small press's, the one picked on the pick's lilac and its words the heavier (the canvas's
+   .ct-vchips; the phone change list's B1, 25 Nov 2026: a pick is the lilac lozenge everywhere, where this one was coral). */
 .cnv-view-row > button {
   font-size: var(--text-aside);
 }
 .cnv-view-row > button[aria-pressed="true"] {
   font-weight: var(--weight-semibold);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  color: var(--ink);
 }
 /* Ads, the paid view, set apart at the row's end by a hairline (three tabs, 23 Nov 2026). */
 .cnv-view-row-paid {
@@ -270,20 +272,10 @@
   margin: 6px 6px;
   background: var(--line);
 }
-/* In the pill's card, the same view under its word: a hairline over a quiet small heading. */
-.cnv-views-paid {
-  margin: 4px 0 0;
-  padding: 8px 12px 2px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--ink-dim);
-}
 /* A row's act at a table's end (lines-table.tsx: Don't post, Open), at the cell's end. */
 .cnv-cell-end {
   text-align: end;
 }
-.cnv-views,
 .cnv-layout {
   display: flex;
   flex-wrap: wrap;
@@ -1102,23 +1094,14 @@
   border-radius: var(--radius-full);
   background: var(--selected-fill);
 }
-/* What is chosen is Chanlytics' coral (Ruben, 12 Nov 2026): the side shown raised says its words in the accent's ink, as a chosen
-   view and a narrowed views pill stand on the accent's soft fill. */
-.cnv-layout > button[aria-pressed="true"],
-.cnv-layout > button[aria-pressed="true"] > svg {
-  color: var(--accent-ink);
+/* A pick is the pick's lilac, as every chosen chip, segment and option is (the phone change list's B1, 25 Nov 2026), where
+   Content's picks were coral (12 Nov 2026): a narrowed views pill stands on it, its words and caret in the ink. */
+.cnv-bar-end > button[data-narrowed] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  color: var(--ink);
 }
-/* The Library's All, Photos and Videos, as Made or Library: the one chosen says its words in the accent's ink. */
-.cnv-library .files-shelves-row > button[aria-checked="true"] {
-  color: var(--accent-ink);
-}
-.cnv-bar-end > button[data-narrowed],
-.cnv-view[aria-pressed="true"] {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-.cnv-bar-end > button[data-narrowed] > svg,
-.cnv-view[aria-pressed="true"] > .cnv-count {
+.cnv-bar-end > button[data-narrowed] > svg {
   color: inherit;
 }
 /* Grid or List, a step smaller than Made or Library: a tool at the bar's end (the canvas's .ct-gl). */
@@ -1149,32 +1132,6 @@
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-/* Made's views: a small card hanging from the pill, a row each a thumb's height, its name, Needs you's amber dot beside it,
-   and its count at the far end (the canvas's .ct-menu.views). */
-.cnv-views-open {
-  width: 224px;
-}
-.cnv-views-open .cnv-views {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  padding: 6px;
-}
-.cnv-view {
-  justify-content: flex-start;
-  padding: 0 12px;
-}
-.cnv-view > .cnv-count {
-  margin-left: auto;
-}
-/* Squares or List under the views in the same card (views.tsx LayoutRows), a hairline between the two. */
-.cnv-views-open .cnv-views-layout {
-  border-top: 1px solid var(--line);
-}
-.cnv-views-layout > .cnv-view {
-  gap: 10px;
 }
 
 /* The first day: a raised card of Ask's three, its words and what Ask makes, in the middle; then the ideas it can make now,

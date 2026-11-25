@@ -7,13 +7,13 @@
  * note behind a mark the kit's tip. They were a row, a strip of tab buttons and a mark of the page's own.
  */
 import { useId, type ReactNode } from "react";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { RecordTip, RecordToggleGroup } from "../../kit/record/field";
-import { RecordRow } from "../../kit/record/row";
+import { RecordRow, type RecordAct } from "../../kit/record/row";
 import type { GateProps } from "../../frame-verbs";
+import { choiceAct } from "../choice-act";
 
 /**
- * A settings row: what it is on the left, the control on the right.
+ * A settings row: what it is on the left, the control on the right, or its value and its act (`act`: a dial on a phone).
  *
  * The control is named FROM the row. Every switch on this surface rendered as an unlabelled `role="switch"` -- the words
  * that say what it does live in the left column, and nothing tied the two together, so a screen reader announced
@@ -25,11 +25,13 @@ export function SetRow({
   hint,
   note,
   control,
+  act = null,
 }: {
   label: string;
   hint?: ReactNode;
   note?: string;
   control: (labelId: string) => ReactNode;
+  act?: RecordAct | null;
 }) {
   const id = useId().replace(/:/g, "");
   return (
@@ -43,6 +45,7 @@ export function SetRow({
       }
       hint={hint}
       value={control(`rec-row-${id}-key`)}
+      act={act}
     />
   );
 }
@@ -77,34 +80,36 @@ function SetSeg({ value, options, onChange, gate = null, ...group }: SegProps) {
 
 /**
  * A dial of a few steps (the hold window, the confidence, the budget, the reply cap, the pause): the segmented control
- * on a desktop, and on a phone its value as a word that opens a menu of the steps, as the policy's rows do there. Five
- * of them put a 50px strip of 44px buttons under every label, 110px a row (25 Sep). Hookless: the pane says which it is,
- * from the one `useSetPhone` it reads.
+ * on a desktop. Five of them put a 50px strip of 44px buttons under every label on a phone, 110px a row (25 Sep), so
+ * there the dial is its row's value and act (dialAct).
  */
-export function SetDial({
-  phone = false,
+export function SetDial({ value, options, onChange, gate = null, ...rest }: SegProps) {
+  return <SetSeg value={value} options={options} onChange={onChange} gate={gate} {...rest} />;
+}
+
+/**
+ * A dial on a phone: its value the row's, and the row's act a menu of the steps, the one in force ticked, as the policy's
+ * rows are there (../choice-act.tsx; the phone change list's B3, where the value was a word with a caret inside it).
+ */
+export function dialAct({
+  label,
   value,
   options,
   onChange,
   gate = null,
-  label = "",
-  ...rest
-}: SegProps & { phone?: boolean; label?: string }) {
-  if (!phone) return <SetSeg value={value} options={options} onChange={onChange} gate={gate} {...rest} />;
-  const gated = gate && gate["aria-disabled"] ? gate["data-tip"] : null;
-  return (
-    <MoreMenu
-      items={[
-        ...(label ? [{ header: label }] : []),
-        ...options.map((o) => ({ label: o, checked: value === o, onClick: () => onChange(o) })),
-      ]}
-      label={value}
-      title={label ? `${label}: ${value}` : value}
-      btnClass="bt-link set-dial"
-      align="right"
-      escape
-      gated={gated}
-      testid={rest["data-testid"] || null}
-    />
-  );
+  testid,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (option: string) => void;
+  gate?: GateProps | null;
+  testid?: string;
+}): RecordAct {
+  return choiceAct({
+    items: [{ header: label }, ...options.map((o) => ({ label: o, checked: value === o, onClick: () => onChange(o) }))],
+    name: `${label}: ${value}`,
+    gated: gate && gate["aria-disabled"] ? String(gate["data-tip"]) : null,
+    testid,
+  });
 }
