@@ -7,8 +7,6 @@ export {
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   emailDomainOf,
-  MAILBOX_FROM_NAME_MAX,
-  MAILBOX_LOCAL_PART_MAX,
   MAILBOX_RESERVED,
   normalizeLocalPart,
   suggestLocalPart,
