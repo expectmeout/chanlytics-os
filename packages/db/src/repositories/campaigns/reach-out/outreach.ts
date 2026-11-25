@@ -37,7 +37,7 @@
  */
 import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { conversationPatch, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
+import { conversationPatch, nonEmptyOrNull, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
 import { getErasureDigests } from "../../people/pages";
@@ -183,8 +183,6 @@ export interface ReachOutReplyOf {
   not_names: string[];
 }
 
-const textOf = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
-
 /**
  * Whose reply a received email is (00222 reach_out_reply_of): the reach-out email it answers or cites, else the latest
  * one sent to its person, within `days` before it arrived; null when it answers none. A read that fails throws: a reply
@@ -205,38 +203,39 @@ export async function findReachOutReply(
   if (error && isMissingFunction(error)) return null;
   if (error) throw new DbFailure(error, "cannot read whose reply this is");
   const value = data && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : null;
-  const sendId = textOf(value?.send_id);
-  const leadId = textOf(value?.lead_id);
-  const conversationId = textOf(value?.conversation_id);
-  const receivedAt = textOf(value?.received_at);
+  const sendId = nonEmptyOrNull(value?.send_id);
+  const leadId = nonEmptyOrNull(value?.lead_id);
+  const conversationId = nonEmptyOrNull(value?.conversation_id);
+  const receivedAt = nonEmptyOrNull(value?.received_at);
   if (!value || !sendId || !leadId || !conversationId || !receivedAt) return null;
   const claim = value.claim === "auto_reply" || value.claim === "automated" ? value.claim : "person";
   return {
     send_id: sendId,
     lead_id: leadId,
-    lead_contact_id: textOf(value.lead_contact_id),
-    lead_email: textOf(value.lead_email),
-    lead_website: textOf(value.lead_website),
+    lead_contact_id: nonEmptyOrNull(value.lead_contact_id),
+    lead_email: nonEmptyOrNull(value.lead_email),
+    lead_website: nonEmptyOrNull(value.lead_website),
     lead_website_root: typeof value.lead_website_root === "boolean" ? value.lead_website_root : null,
-    answered_message_id: textOf(value.answered_message_id),
-    answered_text: textOf(value.answered_text),
-    business: textOf(value.business) ?? "",
-    chain: textOf(value.chain),
-    signed_by: textOf(value.signed_by),
-    tz: textOf(value.tz),
+    answered_message_id: nonEmptyOrNull(value.answered_message_id),
+    answered_text: nonEmptyOrNull(value.answered_text),
+    business: nonEmptyOrNull(value.business) ?? "",
+    chain: nonEmptyOrNull(value.chain),
+    signed_by: nonEmptyOrNull(value.signed_by),
+    tz: nonEmptyOrNull(value.tz),
     conversation_id: conversationId,
     contact_id:
       typeof value.contact_id === "string" && value.contact_id !== "" ? heldContactId(value.contact_id) : null,
     claim,
-    from: textOf(value.from),
-    subject: textOf(value.subject),
-    text: textOf(value.text),
+    from: nonEmptyOrNull(value.from),
+    subject: nonEmptyOrNull(value.subject),
+    text: nonEmptyOrNull(value.text),
     received_at: receivedAt,
     cited: value.cited === true,
-    from_name: textOf(value.from_name),
-    not_names: [textOf(value.workspace), ...(Array.isArray(value.team) ? value.team.map(textOf) : [])].filter(
-      (x): x is string => !!x,
-    ),
+    from_name: nonEmptyOrNull(value.from_name),
+    not_names: [
+      nonEmptyOrNull(value.workspace),
+      ...(Array.isArray(value.team) ? value.team.map(nonEmptyOrNull) : []),
+    ].filter((x): x is string => !!x),
   };
 }
 

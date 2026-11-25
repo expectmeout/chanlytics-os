@@ -5,7 +5,7 @@
  * has not run the migration answers `no_door`, where nothing is written and nothing is wrong (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, recordOrEmpty, type AdPlatform, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, finiteOrZero, recordOrEmpty, type AdPlatform, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database, Json } from "../../types";
@@ -67,8 +67,6 @@ export interface AdsReadOutcome {
   days: number;
 }
 
-const count = (value: unknown): number => (typeof value === "number" ? value : 0);
-
 /** Keeps what one read of a connected account learned (ads_read_keep, 00650), in one transaction. */
 export async function keepAdsRead(
   db: Db,
@@ -89,9 +87,9 @@ export async function keepAdsRead(
   const { outcome } = answer;
   return {
     outcome: outcome === "moved" || outcome === "kept" || outcome === "failed" ? outcome : "not_connected",
-    adopted: count(answer.adopted),
-    moved: count(answer.moved),
-    days: count(answer.days),
+    adopted: finiteOrZero(answer.adopted),
+    moved: finiteOrZero(answer.moved),
+    days: finiteOrZero(answer.days),
   };
 }
 
@@ -102,7 +100,7 @@ export async function handOutAdReads(db: Db, spreadSeconds: number): Promise<{ r
     if (isMissingDoor(error)) return { reads: 0 };
     throw new DbFailure(error, "ads_hand_out");
   }
-  return { reads: count(recordOrEmpty(data).reads) };
+  return { reads: finiteOrZero(recordOrEmpty(data).reads) };
 }
 
 /**
@@ -115,7 +113,7 @@ export async function askAdRead(db: Db, platform: AdPlatform, externalId: string
     if (isMissingDoor(error)) return 0;
     throw new DbFailure(error, "ads_read_ask");
   }
-  return count(data);
+  return finiteOrZero(data);
 }
 
 /** The most ads of one account a read asks the platform about by name. */

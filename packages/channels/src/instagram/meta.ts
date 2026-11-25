@@ -12,7 +12,7 @@
  * Meta's Unified Login pages (get started, authentication, webhooks setup) on 9 November 2026.
  */
 import { valueAt } from "@chanlytics/contracts";
-import { metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { metaGraphUrl, metaObject, metaProofQuery, metaRemoveRequest, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { instagramErrorOf } from "./graph";
 
@@ -73,10 +73,7 @@ export function metaSubscribeRequest(
 
 /** The account's events no longer sent to this app (a disconnect). */
 export function metaUnsubscribeRequest(token: string, appSecret: string, accountId: string): MetaRequest {
-  return {
-    url: metaGraphUrl(`${encodeURIComponent(accountId)}/subscribed_apps`, metaProofQuery(token, appSecret)),
-    method: "DELETE",
-  };
+  return metaRemoveRequest(`${encodeURIComponent(accountId)}/subscribed_apps`, token, appSecret);
 }
 
 /* -------------------------------------------------------------- answers */
