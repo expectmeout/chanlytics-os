@@ -26,7 +26,6 @@ import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
-  DECISION_VERBS,
   PEOPLE_LISTS,
   consentSourceLabel,
   OFFERS_YES_SOURCES,
@@ -35,7 +34,7 @@ import {
   STOP_ENDED_OFFERS_SOURCE,
   verbalOptInScript,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode } from "../_source.mjs";
 import { personRow } from "./_person-row.mjs";
 
 // People's table, from the code the page draws it with (surfaces/people/cells/columns.tsx), not a scan of it.

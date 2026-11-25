@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REPORT_MIN_N, isThinShare, shareSaid, toCampaignReportVM } from "@chanlytics/contracts";
-import { importSrc, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The route runs below over a database in memory; a module that ever builds a service client reads these, and nothing

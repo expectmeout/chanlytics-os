@@ -180,7 +180,7 @@ export async function refused(p, code, status) {
 /* ------------------------------------------------- release B's ten routes */
 /**
  * B's cases build a whole workspace (`world`) and hand it to `ctxOf`, the way
- * people-routes.test.mjs does, because a row-scoped route resolves its member
+ * people/routes/ does, because a row-scoped route resolves its member
  * from the row it loaded: the lead, the search and the membership must agree
  * or the role is judged in the wrong workspace. The model is a fake stream, so
  * a draft and the first day's suggestions are exercised without a key.

@@ -9,7 +9,7 @@
  * Settings › Business, the page, EXECUTED on the stub React: the gap line, *Who you are* with each row
  * edited where it is stated, the tab's one saver, who may change it, and the two gestures every card draws its rows and
  * folds with (surfaces/settings/business/gestures/), tested through the rows and folds on the page. Each card's own tests are a
- * file of their own (business-tab-open.test.mjs); the page, the fixture and the presses are _business-tab-harness.mjs.
+ * file of their own (receptionist/business-tab/open/); the page, the fixture and the presses are _business-tab-harness.mjs.
  */
 import { after } from "node:test";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";

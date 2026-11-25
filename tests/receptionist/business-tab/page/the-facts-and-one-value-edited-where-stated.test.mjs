@@ -1018,7 +1018,7 @@ test("answered with Keep editing, another row's ask gives focus back to the box"
 
     // The registry's ask, from another row's act (a row's own Cancel asks nothing: it holds one value). "Yes, discard"
     // had focus, and "Keep editing" takes the ask away. A fold's own ask gives focus back the same way, and a keystroke
-    // that answers one leaves focus where it is: the kit's tests hold both (shell/record-kit.test.mjs).
+    // that answers one leaves focus where it is: the kit's tests hold both (shell/record-kit/).
     openFold(tree, "name");
     tree = redrawTab();
     inline(tree, "website").props.onFocus({ target: yes });

@@ -39,7 +39,6 @@ import {
   playbook,
   playbooksSurface,
   quiet,
-  setH,
   setSurfaceValue,
   settingsOf,
   starterTemplate,
@@ -820,7 +819,7 @@ test("the run open at its home is the address's: closing it goes back to where i
     assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its campaign, by the campaign's own id the run names");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
     // Closed with no frame to say what opened it (a link, a reload): onto its sequence's History, the days it is one of,
-    // never a Back out of the app. The frame's own Back to the opener is the shell's (shell-status.test.mjs).
+    // never a Back out of the app. The frame's own Back to the opener is the shell's (shell/surfaces/status/).
     press(byTestId(tree, "bc-detail-close"));
     assert.equal(went.at(-1), "campaigns/sequences/pb-1/history");
     assert.equal(calls.length, before, "nothing replaced here: the page is left as it is drawn");

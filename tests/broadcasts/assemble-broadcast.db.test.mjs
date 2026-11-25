@@ -5,7 +5,7 @@
  * with no people or no job: shown as scheduled, and sent by nothing. Also the release 00282 adds to the recipients'
  * guard: a claim goes back to the queue as `not_taken` when WhatsApp was never reached.
  *
- * Sessions are real (made with the admin API, signed in through the anon key), as tenancy.db.test.mjs makes them.
+ * Sessions are real (made with the admin API, signed in through the anon key), as database/tenancy/ makes them.
  * Runs against the database `supabase start` builds on this machine, never production.
  */
 import { test, before, after } from "node:test";

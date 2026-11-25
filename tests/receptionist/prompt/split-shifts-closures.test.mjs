@@ -194,11 +194,11 @@ test("closures do NOT decide whether a workspace has a profile", () => {
 
 // The form is gone (Task 3.7). The week, its shifts, the closed days and their caps are the Business page's *When
 // you're open* card (surfaces/settings/business/open.tsx) over the fold helpers (surfaces/settings/business/folds.ts), and
-// business-tab-open.test.mjs EXECUTES every one of the behaviours the pins below described: the undo of a removed
+// receptionist/business-tab/open/ EXECUTES every one of the behaviours the pins below described: the undo of a removed
 // shift, closure and copy, the cap, a closed day keeping its shifts until Save, and the closures counted on the
 // business's own day. What is left here is what only the source can say.
 
-// Three shapes of the closed-days fold that were pinned here are drawn in business-tab-open.test.mjs instead:
+// Three shapes of the closed-days fold that were pinned here are drawn in receptionist/business-tab/open/ instead:
 //   a date is PICKED, not typed (each row's three boxes, the end date never before the start);
 //   there is no bulk clear-past button to delete a date by accident;
 //   and the half-day case is named rather than left to be discovered.
@@ -214,7 +214,7 @@ test("one shift is still stored as open/close, never as a one-item array", () =>
   assert.ok(/:\s*\{ intervals: shifts\.map\(\(s\) => \(\{ open: s\.open, close: s\.close \}\)\) \};/.test(folds));
   // The cap the fold offers is the write schema's, and it is no longer written twice: the page reads contracts'
   // PROFILE_LIMITS, which is read off the schemas (business-tab-vm.test.mjs holds every one of them to its schema,
-  // and business-tab-bridge.test.mjs holds the page's copy to contracts'). business-tab-open.test.mjs fills a day to
+  // and business-tab-bridge.test.mjs holds the page's copy to contracts'). receptionist/business-tab/open/ fills a day to
   // the cap and presses Add again.
   assert.equal(PROFILE_LIMITS.shifts, MAX_INTERVALS_PER_DAY, "the fold's cap is the schema's cap");
   assert.ok(!/maxIntervalsPerDay\)\s*\|\|/.test(folds), "REGRESSION: a literal cap in the page, beside the schema's");

@@ -225,7 +225,7 @@ test("the word reader says the word picked, else an appointment, and a row it ca
 });
 
 test("metrics: the numbers behind Today as GET metrics answers them, for the days handed in, in the workspace read; a function that says no is a 404, never a silent zero", async () => {
-  // ask-routes.test.mjs, "the metrics behind Today".
+  // ask/routes/, "the metrics behind Today".
   const asked = [];
   const rpcs = {
     metrics_summary: (a) => {
@@ -474,7 +474,7 @@ test("calls: GET calls' answer -- the named workspace's calls, newest first, nar
 });
 
 test("searches: GET lead-searches' answer -- every kept search with its latest round, and the rail's counts, read together -- and each search a row a citation names, opened on Leads at that search", async () => {
-  // lead-routes.test.mjs, "the searches read brings the rail's counts with it".
+  // leads/routes/, "the searches read brings the rail's counts with it".
   const ctx = dayCtx(
     {
       lead_searches_view: [

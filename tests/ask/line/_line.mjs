@@ -13,7 +13,7 @@
  * suggestions from the data, three questions answered without a model, and
  * a model turn that reads through capped view-model tools as the signed-in
  * person, answers in the Line's shape, and may name only what it read. The
- * answer's own tests are ask-answer.test.mjs; the turn's, ask-turn.test.mjs.
+ * answer's own tests are ask/answer/; the turn's, ask/turn/.
  */
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -40,7 +40,7 @@ export const { ASK_RULES } = await import(
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/prompt/stable-system.ts")).href
 );
 
-// The words history a turn is asked with (executed in ask-turn.test.mjs): memory.ts's, beside the live replay.
+// The words history a turn is asked with (executed in ask/turn/): memory.ts's, beside the live replay.
 export const { foldHistory } = await import(
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/memory.ts")).href
 );
@@ -94,7 +94,7 @@ export const REACHED = {
   "campaigns/sequences": ["Campaigns", "campaigns/sequences"],
   // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
   broadcasts: ["Campaigns", "campaigns/sequences"],
-  // Messages (D4: once the Library), Campaigns' other view, found by its old names (ask-palette.test.mjs) and address.
+  // Messages (D4: once the Library), Campaigns' other view, found by its old names (ask/palette/) and address.
   "campaigns/messages": ["Campaigns", "campaigns/sequences"],
   messages: ["Campaigns", "campaigns/sequences"],
   // Forms (00680), Campaigns' third view (decision 0147): an address of `campaigns`, listed in SCOPES.

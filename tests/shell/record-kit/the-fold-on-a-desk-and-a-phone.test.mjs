@@ -930,7 +930,7 @@ test('a fold given frame="sheet" is the sheet beside a desktop page too, its row
 
 test("a fold open when the window crosses the phone's width is drawn again in the other frame, open, with focus in its first field", () => {
   // The frame is the kit's, and the page's draft is the page's: a width crossed while it is open redraws the one fold
-  // in the other frame, still open, and nothing is asked. What was typed is the page's (business-tab-page.test.mjs
+  // in the other frame, still open, and nothing is asked. What was typed is the page's (receptionist/business-tab/page/
   // holds that the draft stays). Focus left with the frame that went, so it goes to the first field of the new one.
   const width = atWidth(true);
   const focused = [];

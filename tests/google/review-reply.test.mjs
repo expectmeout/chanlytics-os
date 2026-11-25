@@ -28,7 +28,7 @@ import {
   MODEL_ROUTES,
   MODELS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { readCode } from "../_source.mjs";
 
 const { UI_ROWS, uiRows } = await import("../../apps/dashboard/src/bridge/policy-store.ts");
 
@@ -256,7 +256,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   );
   assert.ok(lib.includes('if (mode === "never") return nothingAnswered();'), "Never answers nothing");
   assert.ok(lib.includes("autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC)"));
-  // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google-door.test.mjs.
+  // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google/door/.
   assert.ok(
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",
@@ -277,7 +277,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "no key: no draft, said so",
   );
   // The draft op -- Never refused before the review is read, the no-model
-  // path -- runs in google-door.test.mjs.
+  // path -- runs in google/door/.
 
   const route = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts");
   assert.ok(
@@ -305,7 +305,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(
     reports.includes("const d = await draftReply(r.id);") && reports.includes('data-testid="google-reply-drafted"'),
   );
-  // What the receptionist does under a new review is said beside the latest reviews' source (executed: reports-page.test.mjs).
+  // What the receptionist does under a new review is said beside the latest reviews' source (executed: reports/page/).
   assert.ok(
     reports.includes(
       "<ReviewReply r={r} mode={vm.reply.mode} flash={flash} sent={sent} named={isNamed} answered={answered} />",

@@ -11,7 +11,6 @@ import {
   all,
   barMenuOf,
   byTestId,
-  cells,
   click,
   draw,
   find,

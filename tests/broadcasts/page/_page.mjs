@@ -470,6 +470,3 @@ export const offeredOf = (...rows) =>
     templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
     messages: contracts.campaignMessagesOf(rows),
   });
-
-/** Sets the world's `H` for a test, as its assignment did: a module that imports a binding cannot assign it. */
-export const setH = (value) => (H = value);

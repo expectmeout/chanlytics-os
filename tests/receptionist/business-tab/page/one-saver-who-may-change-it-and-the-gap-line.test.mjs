@@ -807,7 +807,7 @@ test("the gap line's door opens the row it names, and that row asks before its c
   assert.equal(boxOf(tree, "address").props.value, "1200 Maple Ave, Brooklyn, NY 11208");
 
   // A fold is opened the same way: the voice's gap opens How it answers' voice fold, and its door is heard with that
-  // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
+  // row's act and label (receptionist/business-tab/answers/ holds the fold it opens).
   tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-gap"), "rec-gap-door");
   assert.equal(heard(toTone), `${businessGap(settingsHeld().config.brain, null).sentence} Give it one Its voice`);

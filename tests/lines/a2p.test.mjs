@@ -517,7 +517,7 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   );
   assert.ok(edge.includes("last_error: result.ok || waiting ? null : result.error,"), "a wait carries no error");
   // And the next status check files the campaign, so the wait finishes by
-  // itself: run in lines-door.test.mjs, where `registration-status` on an
+  // itself: run in lines/door/, where `registration-status` on an
   // approved brand with no campaign POSTs the one thing that was waiting.
 });
 
@@ -852,7 +852,7 @@ test("the wiring: filed under our own profile, the table and the row, and the sw
   // The door's half -- never twice (`already_registered`), never real by
   // default (`mock` only when asked, and never on a refile), the record asked
   // for first (`no_business_record`), and the reviewer sent to this
-  // deployment's own pages -- is run in lines-door.test.mjs.
+  // deployment's own pages -- is run in lines/door/.
   const lib = readCode("apps/edge/lib/lines/a2p-register.ts");
   assert.ok(
     lib.includes("export function primaryProfileSid()") && lib.includes('error: "no_primary_profile"'),
@@ -863,7 +863,7 @@ test("the wiring: filed under our own profile, the table and the row, and the sw
     "our own profile is referenced by sid, which is the whole declaration that this business is ours",
   );
   // The business's record is a member's to read and the row says which registration it is and what it made: the table
-  // and its policies on the stack (database/tenancy.db.test.mjs); TWILIO_PRIMARY_PROFILE_SID is declared where the edge
+  // and its policies on the stack (database/tenancy/); TWILIO_PRIMARY_PROFILE_SID is declared where the edge
   // reads it (repo/env-manifest.test.mjs); and the registration sweep is registered and scheduled
   // (ops/sweep-registry.db.test.mjs), its two waiting states run in cron/doors-b/. Pinned as 00075's, the example env's
   // and 00077's text until 25 Nov 2026.

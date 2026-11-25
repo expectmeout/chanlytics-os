@@ -1,7 +1,7 @@
 /**
  * The dashboard's assemble port hands the run to the one SQL door whole: the list the audience was counted by rides
  * with it (decision 0009, "sends remember"). The core verb put the token, the rule and the moment on the audience
- * (createBroadcast, core-campaigns.test.mjs holds it), and the edge's port passed the audience whole; the dashboard's
+ * (createBroadcast, broadcasts/core-campaigns/ holds it), and the edge's port passed the audience whole; the dashboard's
  * port rebuilt it from three fields and dropped the list, so a broadcast a person sent forgot what its list meant
  * while a playbook's run remembered (the wiring trace, 5 October 2026). Run over a database in memory standing in as
  * the service client: what reaches the door's p_run is what is asserted.

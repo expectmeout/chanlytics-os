@@ -49,7 +49,7 @@ import {
   GOOGLE_SHOWN_REVIEWS,
   placesQueryOf,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
@@ -905,8 +905,8 @@ test("a review on the bell is good news that opens the Reviews lens, and its rou
 test("the edge library: the key alone on the edge, one check routine, a failed read that moves no stamp, the manifests", () => {
   // The door -- the knock, status, search, link (a read before a row, the
   // old place's reviews forgotten), unlink, refresh, and the two events --
-  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
-  // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
+  // runs in google/door/. The library is modules: the key's, the check's and the profile's sync. The
+  // bell each of them rings, and the lens it opens, run there and in cron/doors-b/.
   const lib = ["shared/google/config", "google/listing-check", "google/profile-sync"]
     .map((m) => readCode(`apps/edge/lib/${m}.ts`))
     .join("\n");
@@ -936,7 +936,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   );
   assert.ok(lib.includes('"google.reviews"'));
   // The sweep -- skipped without a key, forty listings a tick, never-read
-  // first, a refusal left on its row -- runs in cron-doors-b.test.mjs.
+  // first, a refusal left on its row -- runs in cron/doors-b/.
   assert.equal(edgeFunctions()["api/admin/google.ts"].maxDuration, 60);
   assert.equal(edgeFunctions()["api/cron/google.ts"].maxDuration, 60);
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
@@ -989,9 +989,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   // Reports' Reviews page draws the section from its own read (`reports_reviews`), which carries Google's own and publishes it as the
   // `google` value where one is held (executed: reports/lenses/reviews-surface.test.mjs); the source is named and what the receptionist
-  // does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
+  // does under a new review beside it (executed: reports/page/, Google's reviews under the period).
   // Today's line reads the seam's Google, the one value there is, and its door opens the Reviews lens: executed in
-  // today/today-page.test.mjs, over a review that landed this morning.
+  // today/page/, over a review that landed this morning.
   const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
   assert.ok(
     settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),

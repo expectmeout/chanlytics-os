@@ -61,5 +61,8 @@ test("every test file that reads source is counted once: a behaviour test's read
     isRuleTest("repo/hygiene.test.mjs") && isRuleTest("repo/words/screen-words.test.mjs"),
     "tests/repo/ holds rules",
   );
-  assert.ok(!isRuleTest("ask/ask.test.mjs"), "a domain's test is a behaviour test");
+  assert.ok(
+    !isRuleTest("ask/line/jumps-suggestions-and-quick-answers.test.mjs"),
+    "a domain's test is a behaviour test",
+  );
 });

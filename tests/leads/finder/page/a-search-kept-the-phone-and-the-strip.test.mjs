@@ -26,7 +26,6 @@ import {
   asks,
   bar,
   byTestId,
-  cells,
   click,
   confirms,
   draw,

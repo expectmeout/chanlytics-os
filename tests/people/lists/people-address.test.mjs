@@ -2,7 +2,7 @@
  * People's address, run (decision 0015, step 5: People's list left the shell). The frame draws its chrome around the page
  * from what surfaces/routes.ts and surfaces/people/chrome.ts say of an address; a list's own route (`lists/<id>`) is a page
  * that replaces itself with People's address for the list; and the page mounts afresh only for an address it did not write.
- * The page's own behaviour is people-honest.test.mjs's; this is the address around it.
+ * The page's own behaviour is people/people-page/'s; this is the address around it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

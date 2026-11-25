@@ -4,7 +4,7 @@
  * leads/import.ts). The import door is the only thing stubbed, so what is proved is what each piece draws and what it
  * asks of the bridge: the import sheet reads pasted rows, says what it read, and hands the door the rows it can take;
  * the rail's foot carries *Import leads*. *Write to them* went with the composer (the lead-to-sequence canvas, 18 Oct
- * 2026): the bulk bar's Add is the one road, proved in leads/finder/leads-honest.test.mjs.
+ * 2026): the bulk bar's Add is the one road, proved in leads/finder/page/.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

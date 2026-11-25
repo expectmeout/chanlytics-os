@@ -40,7 +40,7 @@ import {
   heldNoticeWords,
   vetoRunNotice,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 import { installStubReact, fresh as freshTree, all, find, byTestId, textOf } from "../_stub-react.mjs";
@@ -157,7 +157,7 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
 });
 
 test("the refusal names the yes that was actually missing", () => {
-  // Nobody on it said either yes; a yes with no number to send to is core-campaigns.test.mjs's, through the route.
+  // Nobody on it said either yes; a yes with no number to send to is broadcasts/core-campaigns/'s, through the route.
   const nobody = [person({ consent: { state: "unknown", dnc: false, marketing: "unknown" } })];
   assert.match(
     emptyAudienceRefusal("marketing", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
@@ -678,7 +678,7 @@ test("the job reads the stalls it carried, so a run that keeps stalling stops at
 test("the routes: a message, values its slots take, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", async () => {
   // The route is an operator's, counted as a broadcast: its declared policy, held in playbooks/routes/ ("the seventeen
   // declare their policy") and route-policy.json.
-  // The message, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
+  // The message, the values, the audience, the number, the assembly and the ledger are run: broadcasts/core-campaigns/.
   // The route's read of the message is every row of it, on any channel, whichever version's id is picked, with the category
   // (or the purpose is always marketing) and no other workspace's.
   const { templateValuePorts } = await importSrc("apps/dashboard/src/server/campaigns/ports.ts");
@@ -926,7 +926,7 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 });
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", async () => {
-  // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
+  // The detail route answers getBroadcast's own answer: run through its reader in ask/readers/.
   const s = [
     "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
     "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
@@ -944,8 +944,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "names come with the rows",
   );
   assert.ok(s.includes("replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),"));
-  // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
-  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
+  // The number's refusals are run: broadcasts/core-campaigns/. Its quality, read from the row's config, is run through the
+  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in ask/readers/.
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   // The number is the channels read's now (S10-9): its health is made where every composer's is, from the active
   // WhatsApp line's quality, its last quality event and its messaging limit (parts/channels.ts cmNumberOf).
@@ -1049,7 +1049,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
 test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campaign.broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
-  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.audiences with every size named for what it
+  // Both tools are the registry's, and run in ask/turn/: campaigns.audiences with every size named for what it
   // counts, and propose_campaign.broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
   // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
   // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
@@ -1118,7 +1118,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     ACT_TOOLS.find((t) => t.name === "propose_sequence").description.includes("never propose a send to nobody"),
     "a broadcast to nobody is never proposed",
   );
-  // Its card's mark and word: executed in ask-palette.test.mjs ("a send's card carries its mark and its word").
+  // Its card's mark and word: executed in ask/palette/ ("a send's card carries its mark and its word").
   const s = buildAskSuggestions({
     lang: "en",
     surface: "other",

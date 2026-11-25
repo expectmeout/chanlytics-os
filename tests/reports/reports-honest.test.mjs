@@ -1,6 +1,6 @@
 /**
  * Campaigns, honest: the reply window is one rule said one way (the wiring audit's C25). The Reports page's own
- * regressions (C13, C25 to C28) moved to reports-page.test.mjs with the page's redesign. A moment's Turn on opened the
+ * regressions (C13, C25 to C28) moved to reports/page/ with the page's redesign. A moment's Turn on opened the
  * composer on that moment until the composer's Every time went (the closed-loop audit of 17 Oct 2026, G): New sequence
  * opens on it now (sequence-words.test.mjs).
  */

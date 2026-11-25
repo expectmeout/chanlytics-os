@@ -5,7 +5,7 @@
  * their counts, the page's sorts, the bell's two kinds, and the undo of each
  * (release B, migration 00142_the_leads_are_worked.sql; PRD v3 §9, §0.4).
  *
- * Runs the way lead-engine.db.test.mjs does: against the database
+ * Runs the way leads/engine/engine/ does: against the database
  * `supabase start` builds on this machine, never production. The sessions are
  * real -- users made with the admin API, signed in with a password through the
  * anon key -- so every door judges auth.uid() as the dashboard's client would.

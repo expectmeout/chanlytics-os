@@ -587,7 +587,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
     "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
   );
-  // The assistant counts with the calendar too: campaigns.playbooks runs over a feed in ask-turn.test.mjs, and the pool
+  // The assistant counts with the calendar too: campaigns.playbooks runs over a feed in ask/turn/, and the pool
   // it counts from is read once a turn there. A visit moment's sequence is made in New sequence (the closed-loop audit of
   // 17 Oct 2026, G: the playbook composer went), whose steps say what the calendar holds.
 });

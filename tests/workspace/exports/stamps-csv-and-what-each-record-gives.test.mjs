@@ -494,7 +494,7 @@ test("the pages link to the routes, and only where the bridge can name the works
     else delete globalThis.window;
   }
   // The desk's file is a quiet Export button after Columns (page/file-acts.tsx; the ⋯ More menu that folded it away is gone),
-  // drawn and pressed in people-honest.test.mjs (people-export): the link is opened in place.
+  // drawn and pressed in people/people-page/ (people-export): the link is opened in place.
   const fileActs = readRaw("apps/dashboard/src/surfaces/people/page/file-acts.tsx");
   assert.ok(fileActs.includes('window.open(exportHref, "_self")'));
   assert.ok(
@@ -513,7 +513,7 @@ test("the pages link to the routes, and only where the bridge can name the works
     "the Export a non-owner sees says why, in contracts' words",
   );
   // The list route and the export share one reading of who exists, with their appointments, a page at a time: run in
-  // readers.test.mjs, where GET contacts' rows are everyone()'s with the same reply modes.
+  // ask/readers/, where GET contacts' rows are everyone()'s with the same reply modes.
 });
 
 test("the bundle is one JSON document: every section in contracts' order, every page, never held whole, with what it counted and what it leaves out", async () => {

@@ -33,9 +33,9 @@ const sql = readRaw("supabase/migrations/00034_call_pipeline_hardening.sql");
 test("the trigger wakes the edge for calls never analysed", () => {
   // Message bodies are immutable (P3): a note written on call_ended stayed
   // "No summary available." forever. The webhook's half -- the note waits for
-  // the summary -- runs in retell-webhook-door.test.mjs; the sweep's -- the
+  // the summary -- runs in voice/calls/retell-door/; the sweep's -- the
   // line written after the grace period for a call the provider never
-  // analysed -- runs in cron-doors-b.test.mjs. This is the trigger's.
+  // analysed -- runs in cron/doors-b/. This is the trigger's.
   assert.ok(sql.includes("and message_id is null"), "the trigger wakes the edge for them");
 });
 
@@ -61,7 +61,7 @@ test("no provider URL reaches a row the browser can read", () => {
   const repo = readCode("packages/db/src/repositories/voice/calls.ts");
   assert.ok(!repo.includes("provider_url: n.recordingUrl"), "ingest no longer writes it");
   // The copy's own row, stored with no provider URL on it, and a retry that
-  // asks the provider for a fresh URL by call id both run in cron-doors-b.test.mjs.
+  // asks the provider for a fresh URL by call id both run in cron/doors-b/.
 });
 
 test("a conversation row moves only when its timestamps move", () => {
@@ -100,13 +100,13 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
 test("the trigger wakes the edge for calls that have simply run too long", () => {
   // The sweep's half -- a call still producing turns but forty minutes old is
   // asked about, and the Live page's "being checked" is made true -- runs in
-  // cron-doors-b.test.mjs. This is the trigger's.
+  // cron/doors-b/. This is the trigger's.
   assert.ok(sql.includes("or started_at < now() - interval '30 minutes'"), "the trigger wakes the edge for them");
 });
 
 test("the storage upload is bounded too", () => {
   // A CDN's 401, 403 or 410 as final, and its 404 as a try to repeat, run in
-  // cron-doors-b.test.mjs, where the wire answers each.
+  // cron/doors-b/, where the wire answers each.
   const lib = readCode("apps/edge/lib/voice/call-recording.ts");
   assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
 });

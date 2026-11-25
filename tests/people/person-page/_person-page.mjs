@@ -62,7 +62,7 @@ export const iso = (ms) => new Date(NOW - ms).toISOString();
 
 export const ahead = (ms) => new Date(NOW + ms).toISOString();
 
-/** A person the People read returns, the shape people-vm.test.mjs pins (as people-honest.test.mjs copies it). */
+/** A person the People read returns, the shape people-vm.test.mjs pins (as people/people-page/ copies it). */
 export const row = (over = {}) => ({
   id: "p1",
   display_name: "Daniela Reyes",
@@ -104,7 +104,7 @@ export const row = (over = {}) => ({
 });
 
 /**
- * A booking ahead, as the calendar match attaches it (calendar-people.test.mjs): two days ahead on a weekday, so it
+ * A booking ahead, as the calendar match attaches it (calendar/people/): two days ahead on a weekday, so it
  * is still "this week" (Monday to Sunday, by the workspace's clock) -- from a Saturday two days ahead is next week,
  * and the suite failed every weekend. On Saturday it is tomorrow; on Sunday, later today.
  */

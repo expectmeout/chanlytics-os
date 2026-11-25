@@ -46,7 +46,7 @@ export const inRoots = (sel, root) =>
     .includes(root);
 
 /**
- * A new tree, drawn as today-page.test.mjs draws one, over the last one unmounted as React replaces a tree: its effects
+ * A new tree, drawn as today/page/ draws one, over the last one unmounted as React replaces a tree: its effects
  * clean up (a fold's hold on the registry among them), its cells are forgotten, and the component is created.
  */
 export const draw = (Comp, props = {}) => {

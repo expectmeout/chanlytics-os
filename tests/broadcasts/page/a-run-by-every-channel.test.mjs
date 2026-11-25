@@ -29,7 +29,6 @@ import {
   playbook,
   playbooksSurface,
   quiet,
-  setH,
   setSurfaceValue,
   toBroadcastVM,
   versionRow,

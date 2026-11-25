@@ -11,7 +11,7 @@
  * UPDATE succeeds with zero rows.
  *
  * Runs against the database `supabase start` builds on this machine, never
- * production, the way lead-engine.db.test.mjs does; the catalog is read
+ * production, the way leads/engine/engine/ does; the catalog is read
  * through the CLI the way privileges.db.test.mjs reads it (SUPABASE_CLI names
  * the binary when `supabase` is not on PATH). A failed sign-in fails the test
  * (review E11).

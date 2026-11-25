@@ -8,7 +8,7 @@
 /**
  * The Leads scope of People: the same page, its other scope.
  *
- * Drawn the way people-honest.test.mjs draws People -- LeadsReal (surfaces/leads/page/leads-real.tsx, decision 0015 step 9:
+ * Drawn the way people/people-page/ draws People -- LeadsReal (surfaces/leads/page/leads-real.tsx, decision 0015 step 9:
  * People's other scope, TSX that imports) on a stub React that keeps each hook's state where its component sits, as React
  * does (_hook-frames.mjs) -- with the address's view as `leadsRoute`. Nothing is published on the window for it: People's
  * table, rail kit, hooks and words, the scope's parts, the peek, the strip and the plan panel are imported by the page

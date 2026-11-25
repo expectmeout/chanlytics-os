@@ -1,7 +1,7 @@
 /**
  * The floor, read from the catalog.
  *
- * tenancy.db.test.mjs signs real people in and proves rows: who reads and who
+ * database/tenancy/ signs real people in and proves rows: who reads and who
  * writes which workspace's. It cannot see a column, and it cannot see a grant
  * nothing uses. Six tables carried column UPDATE grants beside the table-wide
  * UPDATE Supabase hands out, so their column lists fenced nothing, every write
@@ -10,7 +10,7 @@
  * `supabase start` builds from the migrations, through the CLI, each naming the
  * object that breaks it.
  *
- * Runs the way tenancy.db.test.mjs does, against the local stack only.
+ * Runs the way database/tenancy/ does, against the local stack only.
  * SUPABASE_CLI names the binary when `supabase` is not on PATH, as it does for
  * gen/db-types.mjs.
  */

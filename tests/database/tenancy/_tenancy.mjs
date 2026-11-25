@@ -591,7 +591,7 @@ before(async () => {
     day: "2026-09-19",
   });
   // Ended as soon as it exists: a round that has not ended is lead work to
-  // the lead finder's clock, and lead-engine.db.test.mjs runs beside this
+  // the lead finder's clock, and leads/engine/engine/ runs beside this
   // suite. queued -> ended is allowed, and the row wants its ending with it.
   const roundEnded = await db.from("lead_rounds").update({ state: "ended", ending: "stopped" }).eq("id", ctx.leadRound);
   assert.equal(roundEnded.error, null, `ending the tenancy round: ${roundEnded.error?.message}`);

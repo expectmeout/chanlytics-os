@@ -634,7 +634,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   );
   assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
   // The composers never see a hidden template and Settings sees everything: RUN through the route in
-  // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in readers.test.mjs.
+  // playbooks/routes/ ("templates: the composers see the approved and unhidden") and its reader in ask/readers/.
   // Hidden through the definer door, an operator's: run through the route in playbooks/routes/
   // ("one template: hidden or titled through the definer doors"). Pinned as the route's and doors.ts's text until 25
   // Nov 2026.
@@ -683,7 +683,7 @@ test("a template's title: the workspace's own words, set through its door, shown
   for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.
   assert.ok(s.includes('"data-testid": "template-rename"'), "template-rename");
-  // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs. The composers read
+  // The default names of a broadcast and a playbook use the title: run in broadcasts/core-campaigns/. The composers read
   // it: GET templates answers its reader's payload, key for key (ask/readers/, "the templates, for the composers").
 });
 

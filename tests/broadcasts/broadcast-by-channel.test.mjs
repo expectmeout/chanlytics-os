@@ -1,7 +1,7 @@
 /**
  * A broadcast goes by each person's channel, run end to end (One message, every channel, step 3): the real job
  * (packages/jobs broadcast_send) over a database in memory, the real door (core deliver) and the real email wire
- * (core emailSender over channels' request check), with only the provider's HTTP stubbed. core-broadcast.test.mjs proves
+ * (core emailSender over channels' request check), with only the provider's HTTP stubbed. broadcasts/core-broadcast/ proves
  * the batch's rules over fakes; this proves what the three channels actually put on their wires.
  *
  *   - WhatsApp: the template, its slots filled, as ever;

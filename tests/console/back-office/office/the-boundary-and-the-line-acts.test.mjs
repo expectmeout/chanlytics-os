@@ -134,7 +134,7 @@ test("support sees the customer's own Setup, from the customer's own function", 
   );
 
   // The customer's route reads through its reader (readers/connections.ts), which is where the call now is; the
-  // route and the reader are held to the one assembly alike. readers.test.mjs runs the route: setupDtoFor's own reads.
+  // route and the reader are held to the one assembly alike. ask/readers/ runs the route: setupDtoFor's own reads.
   const [own, route] = [
     "apps/dashboard/src/server/readers/connections.ts",
     "apps/dashboard/app/api/v1/setup/route.ts",

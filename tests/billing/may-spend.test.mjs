@@ -161,7 +161,7 @@ test("both money routes carry the second door", async () => {
   // requireSpend asks whether the WORKSPACE may spend our money. A money route
   // needs both, and for months had only the first. The edge behind them is
   // reachable with the diagnostic key alone, so it asks the same question on
-  // its own side of the wire -- run, not read, in lines-door.test.mjs: `buy`
+  // its own side of the wire -- run, not read, in lines/door/: `buy`
   // and `register` refused with the reason for every status that may not
   // spend, and the one free filing (a rejected campaign corrected in place)
   // let through a lapsed card.

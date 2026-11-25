@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonRowVM } from "@chanlytics/contracts";
 import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc, readRaw } from "../_source.mjs";
 
 // The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
 const { plNameCell } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");

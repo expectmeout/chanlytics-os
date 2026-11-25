@@ -76,7 +76,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     2,
     "and reaches the owner through the one closure",
   );
-  // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
+  // A call said by name, about its call or the thread that needs a call back, runs: voice/calls/retell-door/.
   assert.ok(
     /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
     "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",

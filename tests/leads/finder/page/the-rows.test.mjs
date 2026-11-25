@@ -40,7 +40,6 @@ import {
   fresh,
   headingCells,
   headings,
-  holdViewSaves,
   lastWrite,
   listeners,
   menus,

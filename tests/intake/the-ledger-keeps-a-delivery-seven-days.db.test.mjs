@@ -4,7 +4,7 @@
  * younger, run with its default so a default that drifts from contracts' RETENTION_DAYS fails here; an erasure's scrub
  * deletes the workspace's rows, and the rows no door could place, whose body names the person by any needle, without
  * regard to case and through a form-encoded address, and nothing else, a needle's `_` never a wildcard; and the table
- * is the service role's alone (tenancy.db.test.mjs holds the floor). Runs against the database `supabase start` builds
+ * is the service role's alone (database/tenancy/ holds the floor). Runs against the database `supabase start` builds
  * on this machine, never production.
  */
 import { test, before, after } from "node:test";

@@ -5,6 +5,7 @@
 import { existsSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -206,12 +207,12 @@ test("the dashboard's stream parser: blocks, deltas, thinking and its signature,
 // The tables' own rows, column grants and ninety-day purge are proved on the database (database/tenancy.db,
 // database/privileges.db, ops/sweep-registry.db), the scrub by running it (people/erasure/erasure-ask-scrub.db), and
 // the erasure's calls of it by running the route (people/people-routes).
-// The store never scopes by hand, RLS is the door: run through the thread routes in ask-routes.test.mjs ("the openings
+// The store never scopes by hand, RLS is the door: run through the thread routes in ask/routes/ ("the openings
 // and the threads"), every read and delete asked of the database without a filter on who asks.
 
 test("the entry points are real everywhere: the button opens AI, and the Line is the only palette", () => {
   // Run, not read (25 Nov 2026). The top bar's button is a real door, never a Soon tag, and pressed opens AI:
-  // shell/surfaces/shell-status.test.mjs draws the bar and presses it. The frame publishes the door the pages open AI
+  // shell/surfaces/status/ draws the bar and presses it. The frame publishes the door the pages open AI
   // by (appAsk, openAsk): doors/doors.test.mjs. A card's press is marked as Ask's from its header
   // (auth/bearer.test.mjs, through withRoute) and the ledger keeps the mark (ask-commit.test.mjs, "the card's mark
   // stays"). The frame installs the bridge at its load: the nightly's e2e/ask.spec.ts opens the Line on every page.
@@ -219,7 +220,7 @@ test("the entry points are real everywhere: the button opens AI, and the Line is
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
   assert.equal(existsSync("apps/dashboard/mockup/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
   // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, published by seed-globals.ts), with no seeded
-  // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask-palette.test.mjs ("the Line
+  // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask/palette/ ("the Line
   // is its own dialog"). A quick answer never spends a model turn: there too ("the Line at rest").
   // The Line is a chunk of its own, fetched by the frame's ask/line.tsx: the imports are walked in ask-line-chunk.test.mjs.
 });
@@ -235,7 +236,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
   // The acts as the registry offers them, one per card family, sorted by name, the acts before them their actions (D11;
-  // propose_list and propose_campaign's run since PR 4.7; the operator's families and actions since 15 Oct 2026). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
+  // propose_list and propose_campaign's run since PR 4.7; the operator's families and actions since 15 Oct 2026). What this block pinned as text runs in ask/turn/, "the proposal builders run against the
   // database in memory": every card's result says nothing has happened yet, a proposal never writes, the money row is
   // refused before it is a card, a person who opted out gets no reply, a reply no longer held has nothing to rewrite, a
   // whisper needs a call in progress.
@@ -306,7 +307,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       prompt.includes("Never say it was sent, changed or done"),
   );
   // Run, not read (25 Nov 2026): a card approved once cannot be approved again, its outcome in its shape and the turn's
-  // content the one thing written, through the outcome route in ask-routes.test.mjs ("a card's outcome is the person's
+  // content the one thing written, through the outcome route in ask/routes/ ("a card's outcome is the person's
   // own turn"); the column grant and the policy that let a person write only that, on the database
   // (database/privileges.db, database/tenancy.db). The client sends x-via: typed-client.test.mjs.
   // The route each card commits and undoes through -- the reply, the steer, the thread verbs, a person's mode, a
@@ -314,22 +315,22 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   // undo through the cancel window -- was pinned here as commit.ts's text. It is each kind's spec now, and it runs:
   // ask-commit.test.mjs, "every kind, committed and undone" and the case per kind, over the typed client; and
   // ask-specs.test.mjs holds every route a spec names to the app's routes and to the card's role.
-  // The card checks the role gate before Approve (the route re-checks): executed in ask-palette.test.mjs, "a card's
+  // The card checks the role gate before Approve (the route re-checks): executed in ask/palette/, "a card's
   // Approve is gated by the shell's rule".
-  // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask-palette.test.mjs, "a card
+  // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask/palette/, "a card
   // approved records what its commit made with its outcome" and, through the real route, "REGRESSION (ruling 3)".
-  // A thread reads back with the card's outcome: executed in ask-palette.test.mjs ("a card drawn again reads back").
+  // A thread reads back with the card's outcome: executed in ask/palette/ ("a card drawn again reads back").
   // Edit in the composer lands the words in the composer of its own thread: conversations/inbox/inbox-place.test.mjs.
 });
 
 test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens AI above the tab bar", async () => {
   // The one recogniser is the kit's (surfaces/kit/talk), which Ask's hook delegates to. Press to start, release to
-  // stop, what was heard sent on its own, and the language it listens in: executed in ask-palette.test.mjs ("on a
+  // stop, what was heard sent on its own, and the language it listens in: executed in ask/palette/ ("on a
   // phone the mic keeps the finger", "the Line's recogniser listens in the Line's language").
   // Run, not read (25 Nov 2026). The page may ask for the microphone and for nothing else, and can never be framed, so
   // (self) is only ever this app: the headers Next serves, in auth/auth-gate.test.mjs ("the headers Next serves"). The
   // phone's ✦ opens AI, stays in the bar's row, and goes under the native app's own AI: pressed in
-  // shell/surfaces/shell-status.test.mjs ("the phone's drawer is a dialog").
+  // shell/surfaces/status/ ("the phone's drawer is a dialog").
   const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),
@@ -357,9 +358,7 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
       !readRaw("apps/dashboard/src/styles/dashboard-a-v2.css").includes(".ask-card"),
     "the palette's rules live in ask.css alone",
   );
-  const { default: sheets } = await import("../../../apps/dashboard/src/styles/sheets.json", {
-    with: { type: "json" },
-  });
+  const sheets = createRequire(import.meta.url)("../../../apps/dashboard/src/styles/sheets.json");
   const sheetAt = (name) => sheets.sheets.indexOf(name);
   assert.ok(
     sheetAt("styles/mobile.css") >= 0 && sheetAt("surfaces/ask/ask.css") > sheetAt("styles/mobile.css"),
@@ -369,7 +368,7 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
 
 test("an answer never carries tags: the leak seen on production is cut", () => {
   // Every string of the answer, and Say while it streams, goes through cleanAnswer: normalizeAnswer in
-  // ask-answer.test.mjs, the stream in ask-turn.test.mjs.
+  // ask/answer/, the stream in ask/turn/.
   const leaked =
     'The 4:22 AM call ran 5:16 and AI handled it.</answer>\n<parameter name="citations">[{"kind": "call", "id": "' +
     ID +
@@ -382,13 +381,13 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
     "Two open at 10 < 12 slots.",
     "a bare less-than is not a tag",
   );
-  // inbox.list carries the last exchanges, so one read round answers most questions: ask-turn.test.mjs, "the
+  // inbox.list carries the last exchanges, so one read round answers most questions: ask/turn/, "the
   // fourteen reads run against the database in memory" (each row's `recent`).
 });
 
 test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, the address a details card sets (card_fields, PR 4.6), a run's verb, which has none either, and a list's rule and what it left out (card_fields and list_card, PR 4.7)", async () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
-  // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
+  // ask/palette/ ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
   // one button is Send alone, executed there too ("one button at the field's end").
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
@@ -442,9 +441,9 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   // The snapshot is gone, and the eval's excuse for it with it: a case sent with no page reads what it answers from.
   const overview = { expect: { tools_any: ["today", "inbox.list"] } };
   assert.equal(fromContext(overview, { tools: [] }, null), false, "no page and no read: judged as missing the read");
-  // The day is read once through the readers: ask-turn.test.mjs, a round that calls today, inbox.list and
+  // The day is read once through the readers: ask/turn/, a round that calls today, inbox.list and
   // calls.list together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
-  // messages, in readers.test.mjs.
+  // messages, in ask/readers/.
   // The gateway passes a known effort through and nothing else: executed in ask-model.test.mjs.
   const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
@@ -453,7 +452,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
 });
 
 test("the cards to finish: an operator is offered cards to finish, a viewer none", async () => {
-  // A thread keeps its first question as its title (D9): executed through the route in ask-routes.test.mjs.
+  // A thread keeps its first question as its title (D9): executed through the route in ask/routes/.
   const withActs = buildAskSuggestions({
     surface: "settings",
     language: "en",
@@ -497,7 +496,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
     canAct: true,
   });
   assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
-  // A compose row lands in the input for the person to finish: executed in ask-palette.test.mjs ("a compose row").
+  // A compose row lands in the input for the person to finish: executed in ask/palette/ ("a compose row").
   // Whoever may approve in the workspace is offered cards, as the pages' canDo("approve"), and a viewer none: the
   // palette's own suggestions, by the role signed in (pinned as palette.ts's text until 25 Nov 2026).
   const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
@@ -510,8 +509,8 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
 });
 
 test("the hours and the definitions come from the prompt: the eval expects no read for them", async () => {
-  // An act beside the answer stands and a read beside it sets it aside: executed in ask-turn.test.mjs.
-  const { default: cases } = await import("../../../tooling/evals/ask-cases.json", { with: { type: "json" } });
+  // An act beside the answer stands and a read beside it sets it aside: executed in ask/turn/.
+  const cases = createRequire(import.meta.url)("../../../tooling/evals/ask-cases.json");
   assert.ok(!cases.find((c) => c.id === "hours").expect.tools_any, "hours come from the prompt, no read expected");
   assert.ok(
     !cases.find((c) => c.id === "definition").expect.tools_any,
@@ -521,7 +520,7 @@ test("the hours and the definitions come from the prompt: the eval expects no re
 
 test("the Open button says where it goes, a repeated question is the same thread, and the bridge is four modules composed", async () => {
   // What an answer shows is decided once, a place offered once and a next question that echoes one dropped: oneDoor,
-  // executed in ask-answer.test.mjs.
+  // executed in ask/answer/.
   const nav = { to: `conversations/cv-${ID}`, label: "Call transcript" };
   assert.equal(
     navigateLabel(nav, "en"),
@@ -535,8 +534,8 @@ test("the Open button says where it goes, a repeated question is the same thread
   assert.equal(sameQuestion("Who wrote today?", "Who called today?"), false);
   assert.equal(sameQuestion("", ""), false);
   // A repeated question resumes its thread instead of opening a twin, even before the list has landed: executed in
-  // ask-palette.test.mjs ("a question asked again").
-  // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
+  // ask/palette/ ("a question asked again").
+  // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask/palette/.
   // The bridge is its parts composed into one object, the shell reaching nothing else: installAsk runs above ("the
   // palette reads the workspace"), and here the object it publishes carries every one of the palette's own (pinned as
   // ask.ts's text until 25 Nov 2026). A fetch of its own is a new offender of check:debt's fetches-outside-a-client.
@@ -567,7 +566,7 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
 test("the speed pass: a fast model for a short answer, the autonomy modes in the prompt", async () => {
   // Run, not read (25 Nov 2026). The loop asks the deployment's profile for the model and the effort and names neither
   // itself (spec 5.11): every request ask/turn/ scripts carries ASK_MODEL and ASK_EFFORT. The saved turn names the model
-  // that ran: ask-routes.test.mjs ("a question answered", the stored row's model).
+  // that ran: ask/routes/ ("a question answered", the stored row's model).
   const turn = readCode("apps/dashboard/src/server/ask/turn.ts");
   assert.ok(
     // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
@@ -596,7 +595,7 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
 });
 
 test("the speed pass, two: no definitions tool", () => {
-  // Cards alone are the answer with no second round, and a refused one keeps the round: executed in ask-turn.test.mjs.
+  // Cards alone are the answer with no second round, and a refused one keeps the round: executed in ask/turn/.
   assert.ok(
     ![...READ_TOOLS, ...ACT_TOOLS].some((t) => t.name === "explain_metric"),
     "the definitions are in the prompt; a tool for them was a round",
@@ -604,7 +603,7 @@ test("the speed pass, two: no definitions tool", () => {
   assert.ok(
     ASK_RULES.join("\n").includes("the pages' words under Definitions: answer about them from there, without a read"),
   );
-  // What the answer may hold is ASK_ANSWER_CAPS, said in the format's own words: ask-answer.test.mjs.
+  // What the answer may hold is ASK_ANSWER_CAPS, said in the format's own words: ask/answer/.
 });
 
 test("the cross-page reads: what a question names plainly of another page is read beside the page's context and rides into the first round; what the page itself shows is not read again; the rest is left to the model", async () => {
@@ -813,7 +812,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
   // A tool with actions is named by the action it read (D11), its title the call as it was made.
   const week = mod.readBlock({ name: "calendar", input: { action: "week", day: "tomorrow" } }, "{}");
   assert.deepEqual([week.source, week.title], ["read://calendar.week", 'calendar {"action":"week","day":"tomorrow"}']);
-  // The model is told so in the tool's own description; the refusal itself runs in ask-turn.test.mjs ("the proposal
+  // The model is told so in the tool's own description; the refusal itself runs in ask/turn/ ("the proposal
   // builders run against the database in memory": money stays owner-only by charter).
   assert.ok(
     ACT_TOOLS.find((t) => t.name === "propose_settings").description.includes(

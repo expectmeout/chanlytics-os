@@ -8,7 +8,7 @@
 /**
  * The dashboard's campaign verbs, run: a person's broadcast, the approval,
  * the cancel and the playbook's check, every branch through fakes that log
- * their writes. outbound-routes.test.mjs keeps running the routes, now
+ * their writes. playbooks/routes/ keeps running the routes, now
  * adapters, through route().
  */
 import assert from "node:assert/strict";

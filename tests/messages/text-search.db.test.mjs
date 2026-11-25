@@ -10,7 +10,7 @@
  * finds nothing of this one even naming it; anon cannot call it; and each of the function's predicates spells its
  * index's expression, so the index is usable.
  *
- * The sessions are real, as tenancy.db.test.mjs makes them: users made with the admin API sign in with a password
+ * The sessions are real, as database/tenancy/ makes them: users made with the admin API sign in with a password
  * through the anon key. The plan is read inside one transaction through the CLI that never commits, as
  * sweep-registry.db.test.mjs turns a clock; SUPABASE_CLI names the binary when `supabase` is not on PATH. Against the
  * database `supabase start` builds on this machine, never production.

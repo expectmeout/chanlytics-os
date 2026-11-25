@@ -778,7 +778,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
       lib.includes('return { ok: false, error: "no_refresh_token" };') &&
       lib.includes('return { ok: false, error: "not_on_maps" };'),
   );
-  // The public five make way for the profile on its first sync: run in google-door.test.mjs ("connect: … the public five making way").
+  // The public five make way for the profile on its first sync: run in google/door/ ("connect: … the public five making way").
   assert.ok(
     lib.includes("{ reviews: carriesReviews }"),
     "with the profile connected the public read keeps only the numbers",
@@ -786,9 +786,9 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
   assert.ok(lib.includes("creds.expires_at - TOKEN_SLACK_MS > now"), "a token is refreshed before it expires");
   // The door's profile half -- connect, locations, choose (proven against
   // Google's list), disconnect, reply, and unlink disconnecting first -- runs
-  // in google-door.test.mjs.
+  // in google/door/.
   // The sweep's half -- connected profiles due are synced, forty a tick, a
-  // rejected credential written on the row -- runs in cron-doors-b.test.mjs.
+  // rejected credential written on the row -- runs in cron/doors-b/.
   const env = readRaw("apps/edge/.env.example");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID=", "GOOGLE_OAUTH_CLIENT_SECRET=", "GOOGLE_OAUTH_REDIRECT_URI="])
     assert.ok(env.includes(v), v);

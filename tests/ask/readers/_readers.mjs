@@ -532,7 +532,7 @@ export const personRow = (id, over = {}) => ({
 });
 
 /**
- * people-routes.test.mjs, "one person in full": harbor's person with the owner's notes, a WhatsApp identity, their own
+ * people/routes/, "one person in full": harbor's person with the owner's notes, a WhatsApp identity, their own
  * reply mode and the workspace's, where they came from, their consent changes beside another person's and another
  * kind, and the workspace's booking link; the member is in harbor and bayside. `threads` gives them two threads, the
  * newer with a message, and a call.
@@ -738,7 +738,7 @@ export const reportMembers = () => [
 
 export const series = (a) => ({ days: a.p_days, tenant: a.p_tenant_id });
 
-/** ask-routes.test.mjs, "the reports: the three presets and no other": nobody in People, no calendar, no deals. */
+/** ask/routes/, "the reports: the three presets and no other": nobody in People, no calendar, no deals. */
 export const presetsWorld = () => ({
   tables: { memberships: reportMembers(), tenants: [], tenant_config: [], policies: [] },
   rpcs: {
@@ -751,7 +751,7 @@ export const presetsWorld = () => ({
 export const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
 
 /**
- * ask-routes.test.mjs, "the reports' Deals section": one page of People, whose one row says the client came from a
+ * ask/routes/, "the reports' Deals section": one page of People, whose one row says the client came from a
  * lead, and their deal, won five days ago at $2,500 a month.
  */
 export const dealsWorld = () => ({
@@ -1419,7 +1419,7 @@ export const PEOPLE_KEYS = [
 ];
 
 /**
- * people-routes.test.mjs, "the people list is the workspace the tab named": harbor holds two people and bayside one;
+ * people/routes/, "the people list is the workspace the tab named": harbor holds two people and bayside one;
  * harbor's reply mode is auto, and one of its people has their own, never. No calendar, and no deal on file.
  */
 export const listWorld = () => ({
@@ -1432,7 +1432,7 @@ export const listWorld = () => ({
   rpcs: { people_list: (a) => (a.p_tenant_id === A ? [personRow(P1), personRow(P2)] : [personRow(P3)]) },
 });
 
-/** people-routes.test.mjs, "the list pages under one order": the door does the matching, the count is where the rows are. */
+/** people/routes/, "the list pages under one order": the door does the matching, the count is where the rows are. */
 export const pagingWorld = () => ({
   tables: {
     memberships: reportMembers(),
@@ -1672,7 +1672,7 @@ export const SEG1 = "5e5e5e5e-1111-4111-8111-5e5e5e5e5e5e";
 
 export const SEG2 = "5e5e5e5e-2222-4222-8222-5e5e5e5e5e5e";
 
-/** people-routes.test.mjs, "lists: one workspace's with their members' ids": a list in each workspace, one member each. */
+/** people/routes/, "lists: one workspace's with their members' ids": a list in each workspace, one member each. */
 export const segmentsWorld = () => ({
   tables: {
     memberships: reportMembers(),
@@ -1694,7 +1694,7 @@ export const BC2 = "88888888-8888-4888-8888-888888888882";
 
 export const BC3 = "88888888-8888-4888-8888-888888888883";
 
-/** A broadcast row as outbound-routes.test.mjs builds one. */
+/** A broadcast row as playbooks/routes/ builds one. */
 export const bcRow = (id, tenant_id, over = {}) => ({
   id,
   tenant_id,
@@ -1716,7 +1716,7 @@ export const bcRow = (id, tenant_id, over = {}) => ({
   ...over,
 });
 
-/** outbound-routes.test.mjs, "the broadcasts list is the workspace the tab named": two of harbor's, one of bayside's. */
+/** playbooks/routes/, "the broadcasts list is the workspace the tab named": two of harbor's, one of bayside's. */
 export const bcWorld = () => ({
   tables: {
     memberships: reportMembers(),
@@ -1740,7 +1740,7 @@ export const bcWorld = () => ({
   rpcs: {},
 });
 
-/** outbound-routes.test.mjs, "who a run of any kind reached this week": sent, held back, canceled, last month. */
+/** playbooks/routes/, "who a run of any kind reached this week": sent, held back, canceled, last month. */
 export const touchedWorld = () => {
   const rec = (broadcast_id, contact_id, state, sent_at) => ({
     broadcast_id,
@@ -1953,7 +1953,7 @@ export const countsWorld = (people, extra = {}) => ({
   rpcs: { people_list: people },
 });
 
-/** outbound-routes.test.mjs, "playbooks: the workspace's with their runs' numbers": one of harbor's, one of bayside's. */
+/** playbooks/routes/, "playbooks: the workspace's with their runs' numbers": one of harbor's, one of bayside's. */
 export const outboundWorld = () => ({
   tables: {
     memberships: reportMembers(),
@@ -2384,7 +2384,7 @@ export const TP4 = "77777777-7777-4777-8777-777777777774";
 
 export const TP9 = "77777777-7777-4777-8777-777777777779";
 
-/** A template row as outbound-routes.test.mjs builds one. */
+/** A template row as playbooks/routes/ builds one. */
 export const tplRow = (id, tenant_id, over = {}) => ({
   id,
   tenant_id,
@@ -2405,7 +2405,7 @@ export const tplRow = (id, tenant_id, over = {}) => ({
 });
 
 /**
- * outbound-routes.test.mjs, "templates: the composers see the approved and unhidden": bayside's approved reminder, its
+ * playbooks/routes/, "templates: the composers see the approved and unhidden": bayside's approved reminder, its
  * hidden sample and its pending offer, harbor's own; the reminder here titled, and carrying a heading, a footer and a
  * button that takes a value (Meta's components, as the sync keeps them).
  */
@@ -2430,7 +2430,7 @@ export const templatesWorld = () => ({
   ],
 });
 
-/** outbound-routes.test.mjs, "a template says what sends it": bayside's messages, playbooks and runs. */
+/** playbooks/routes/, "a template says what sends it": bayside's messages, playbooks and runs. */
 export const usageWorld = () => ({
   memberships: templatesWorld().memberships,
   templates: [

@@ -351,7 +351,7 @@ test("every default pane is one the registry classifies", () => {
 // The empty profile leads with a button, not a footnote. Every workspace starts here, and a faint Edit link in a
 // card header is findable only by someone who already knows the form exists. Since Task 3.7 the form is gone and
 // the page says it at the top instead: the gap line names the one gap most worth closing and IS the door to
-// the row that closes it (the spec's 4.1). Drawn and pressed, not read -- business-tab-page.test.mjs, "a missing
+// the row that closes it (the spec's 4.1). Drawn and pressed, not read -- receptionist/business-tab/page/, "a missing
 // voice is named in the gap line, and the link opens its row".
 
 /* ------------------ the gate must resolve the same way ------------------- */
@@ -384,7 +384,7 @@ test("the Leads SCOPE of People waits for its own surface, not for People's", ()
   // registry's two halves must agree: real means an override feeds it.
   assert.equal(registry.routeSurfaceFor("leads"), "leads");
   assert.equal(registry.surfaceRetiredTo("leads"), "clients/leads");
-  // The Deal board retired into People (pinned as surface-registry.ts's text in calendar-people.test.mjs until 25 Nov 2026).
+  // The Deal board retired into People (pinned as surface-registry.ts's text in calendar/people/ until 25 Nov 2026).
   assert.equal(registry.surfaceRetiredTo("pipeline"), "clients");
 });
 

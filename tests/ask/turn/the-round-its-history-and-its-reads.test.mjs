@@ -585,8 +585,8 @@ test("every read, each an action of the read tools, runs against the database in
   assert.equal(out["inbox.thread"].isError, false, out["inbox.thread"].result);
   assert.equal(thread.conversation_id ?? thread.thread?.conversation_id ?? C1, C1);
   // Each row carries its last exchanges, so one read round answers most questions; and every row a tool returns
-  // says where it opens, in the shape the answer's sources take (normalizeAnswer, ask-answer.test.mjs). Both were
-  // pinned as source text in ask.test.mjs until the registry (PR 3.1).
+  // says where it opens, in the shape the answer's sources take (normalizeAnswer, ask/answer/). Both were
+  // pinned as source text in ask/line/ until the registry (PR 3.1).
   assert.deepEqual(
     threads.threads[0].recent.map((x) => [["customer", "you", "receptionist"].includes(x.from), x.text]),
     [[true, "Are you open Saturday?"]],
@@ -1121,7 +1121,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   );
 
   // What the model is told of every card, and the reply refused for a person who opted out (pinned as text in
-  // ask.test.mjs until PR 3.1).
+  // ask/line/ until PR 3.1).
   assert.equal(
     JSON.parse(broadcast.result).note,
     "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",

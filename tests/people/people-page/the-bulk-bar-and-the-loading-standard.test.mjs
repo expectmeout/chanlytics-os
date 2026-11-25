@@ -13,7 +13,6 @@ import {
   barMenuOf,
   byTestId,
   catchExports,
-  cells,
   clearTabMemory,
   drained,
   draw,

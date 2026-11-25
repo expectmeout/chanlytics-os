@@ -185,7 +185,7 @@ test("the owner's route may not refile: making a filing real is an operator's ca
   // The route's three answers -- a real filing that stands is final, a
   // rehearsal says what it is and asks for `refile`, a refile is never itself
   // a rehearsal and runs the saga against the cleared row -- are run in
-  // lines-door.test.mjs.
+  // lines/door/.
   //
   // The owner's side: the register route may NOT refile. Making a filing real
   // charges the workspace, so it is an operator's call with the business record
@@ -248,7 +248,7 @@ test("a question we could not ask is never reported as an answer", () => {
   // And the sweep says so out loud. Every line unreadable is OUR fault, not a
   // quiet week, so it fails the request (503 no_registration_readable) and
   // sweep_health turns it red; some readable is still a 200, those rows carrying
-  // their own reason. Run in cron-doors-b.test.mjs, heal included.
+  // their own reason. Run in cron/doors-b/, heal included.
   // And something is watching this sweep to receive that 503: the registration sweep is in the register of clocks and
   // scheduled (ops/sweep-registry.db.test.mjs), pinned as 00086's text until 25 Nov 2026.
 });
@@ -287,7 +287,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
   assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
   assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
-  // The door's side is run in lines-door.test.mjs: `refile` on a rejected line
+  // The door's side is run in lines/door/: `refile` on a rejected line
   // POSTs the INSTANCE url once, as the subaccount, with the workspace's
   // CURRENT name in the description, and asks the spend rule of nobody.
   assert.ok(
@@ -444,7 +444,7 @@ test("a rejection reaches every person who can act on it, in words about what ha
 // A refile refused by the pre-flight is a 409 about this workspace, not a 502
 // about the carriers -- "try again in a moment" is the one thing that cannot
 // help a name mismatch -- and "can anybody say yes" is read once, above the
-// branch, for both ways out. Run in lines-door.test.mjs on every door to the
+// branch, for both ways out. Run in lines/door/ on every door to the
 // carriers: resubmit, replace, rehearsal made real, and the first filing.
 
 /* -------------------------------------------------------------------------- *
@@ -563,5 +563,5 @@ test("only a REFUSED campaign is replaceable, only after the pre-flight, and a r
 
 // The route offers the replacement only by name (`replace`, because it costs),
 // only where a resubmit is offered, and a filing that stands is final flag or
-// no flag: run in lines-door.test.mjs, where the same rejected row answers a
+// no flag: run in lines/door/, where the same rejected row answers a
 // bare refile with one edit and a refile-with-replace with a DELETE and a POST.

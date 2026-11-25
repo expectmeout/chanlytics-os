@@ -597,7 +597,7 @@ test("one validator, three writers", () => {
     "and the path travels with the record to the door that writes it",
   );
 
-  // The door that writes it is run in lines-door.test.mjs: `record` refuses the
+  // The door that writes it is run in lines/door/: `record` refuses the
   // row it is about to write in the owner's words, stores a sole proprietor
   // with no tax id, and holds a caller that says "standard" to it.
   const filing = readCode("apps/edge/lib/lines/a2p-register.ts");

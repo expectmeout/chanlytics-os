@@ -9,9 +9,7 @@ import { personDto } from "../../../consent/_person-row.mjs";
 import {
   PAGES,
   address,
-  cells,
   clearPeople,
-  deep,
   find,
   fire,
   frames,
@@ -311,7 +309,7 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   assert.equal(wrap(open).props["aria-label"], "Navigation");
   assert.equal(wrap(open).props["aria-modal"], undefined, "not modal: it does not move focus into itself");
   assert.ok(ask(closed) && ask(open), "REGRESSION: the ✦ stays with the bar while the drawer is open");
-  // Its press opens AI (pinned as shell-chrome.tsx's text in ask.test.mjs until 25 Nov 2026).
+  // Its press opens AI (pinned as shell-chrome.tsx's text in ask/line/ until 25 Nov 2026).
   const line = (tree) => find(tree, (n) => n.type === "AskBar");
   assert.equal(line(open).props.open, false, "AI is closed until asked");
   ask(open).props.onClick();

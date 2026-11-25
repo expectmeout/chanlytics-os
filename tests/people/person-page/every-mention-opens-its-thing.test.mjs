@@ -19,7 +19,6 @@ import {
   SubTabs,
   VISITS,
   ZONE,
-  cells,
   detail,
   filterTimeline,
   frames,

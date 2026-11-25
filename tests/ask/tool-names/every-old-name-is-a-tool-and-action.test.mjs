@@ -24,7 +24,6 @@ import {
   againstOffered,
   ago,
   answer,
-  call,
   inWords,
   pageModesOf,
   quietReceptionist,
@@ -102,7 +101,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const got = withoutWholeDays(NAMES[old], withoutPersonState(old, await answer(call.name, call.input, role)));
     // 2 Oct 2026: a moment no longer offered for a new playbook (contracts MOMENTS_RETIRED) is not one of the tool's
     // triggers: the schema refuses it, naming the ones that are, before anything is read (the check refuses it in the
-    // moment's own words if it gets that far, which core-campaigns.test.mjs runs).
+    // moment's own words if it gets that far, which broadcasts/core-campaigns/ runs).
     if (call.name === "propose_sequence" && String(call.input.trigger) in MOMENTS_RETIRED) {
       assert.equal(got.isError, true, `${old}: a retired moment is refused`);
       assert.match(got.result, /expected one of/, `${old}: by the schema, naming the moments there are`);

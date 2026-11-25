@@ -1,7 +1,7 @@
 /**
  * The world the tests of turn/ share: the assistant's turn, executed without a model, its rounds scripted through\nthe
  * ports the loop takes, the read tools and proposal builders run against the database in memory. Split by
- * behaviour\nfrom ask-turn.test.mjs on 25 Nov 2026 (layer 14: a test file over 1,600 lines is two files); its header,
+ * behaviour\nfrom ask/turn/ on 25 Nov 2026 (layer 14: a test file over 1,600 lines is two files); its header,
  * as it was:
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
@@ -493,7 +493,7 @@ export const saidFigure = (x) => ({ label: x.label, value: x.value, meta: x.meta
 export const PEOPLE_DAY = 86_400_000;
 
 /**
- * A person as people_list answers it (readers.test.mjs's book): wrote on WhatsApp `daysAgo` days before NOW, said yes to
+ * A person as people_list answers it (ask/readers/'s book): wrote on WhatsApp `daysAgo` days before NOW, said yes to
  * messages and to offers on it, with nothing else open. `over` is what a case puts in the row.
  */
 export const bookRow = (n, daysAgo, over = {}) => {

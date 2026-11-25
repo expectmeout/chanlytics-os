@@ -378,7 +378,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
     h.includes('if (broadcast.state !== "scheduled" && broadcast.state !== "sending") return;'),
     "only a scheduled or sending broadcast goes out",
   );
-  // Approve and skip are run: core-campaigns.test.mjs; the button is drawn by broadcasts-honest and confirm.
+  // Approve and skip are run: broadcasts/core-campaigns/; the button is drawn by broadcasts-honest and confirm.
   assert.ok(
     DECISION_VERBS.includes("start_playbook") &&
       DECISION_VERBS.includes("pause_playbook") &&
@@ -400,7 +400,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   );
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
-  // The run's branches are run: core-run-playbook.test.mjs. The touches the loader and the Playbooks page read
+  // The run's branches are run: playbooks/run/. The touches the loader and the Playbooks page read
   // (packages/db listTouchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
@@ -448,9 +448,9 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
     svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("),
     "through the edge, production only",
   );
-  // The check is run: core-campaigns.test.mjs.
+  // The check is run: broadcasts/core-campaigns/.
   // Today's queue and the Inbox's Needs you draw the runs that wait through one builder (the Campaigns wiring review's
-  // rule D): today-page.test.mjs and inbox-counts.test.mjs run it.
+  // rule D): today/page/ and inbox-counts.test.mjs run it.
   const rows = readCode("apps/dashboard/src/surfaces/waits/wait-rows.tsx");
   assert.ok(
     rows.includes('testid: "brief-run-row"') && rows.includes("runsPending()"),
@@ -596,7 +596,7 @@ test("REGRESSION: on a US WhatsApp number a playbook's card says how many said y
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions, cardOpenRoute } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.playbook, "approve");
-  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.playbooks against the page's own read, its
+  // Both tools are the registry's, and run in ask/turn/: campaigns.playbooks against the page's own read, its
   // rows, next-run words and counts the page's, saying nothing ran because it was read ("campaigns.playbooks tells who
   // said yes"); propose_campaign.playbook as a card of kind playbook undone by deleting, refusing an honest no-starter and
   // asking for a typed slot's words rather than inventing them ("the proposal builders run against the database in
@@ -605,7 +605,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   // The card commits through POST playbooks and is undone by DELETE playbooks/[id]: executed in ask-commit.test.mjs
   // ("a broadcast and a playbook", "an undo names the decision it reverses"), from the playbook's spec (contracts
   // ask/proposals/campaigns.ts).
-  // Its card's mark and word: executed in ask-palette.test.mjs ("a send's card carries its mark and its word").
+  // Its card's mark and word: executed in ask/palette/ ("a send's card carries its mark and its word").
   assert.equal(
     cardOpenRoute({ kind: "playbook", payload: {} }),
     "campaigns/sequences",

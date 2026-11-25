@@ -101,7 +101,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // through the route in routes/reads-routes.test.mjs ("marking notifications"). Pinned as the route's and the doors'
   // text until 25 Nov 2026.
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
-  // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
+  // route in reads-routes.test.mjs ("reading notifications") and through its reader in ask/readers/.
   const sd = readCode("apps/dashboard/src/bridge/surfaces/notifications.ts");
   assert.ok(
     sd.includes('key: "notifications",') &&
@@ -147,7 +147,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       wa.includes('about: { type: "conversation", id: ing.conversation_id },'),
     "a handoff points at its thread",
   );
-  // The call and deadman bells run: retell-webhook-door.test.mjs and cron-deadman-door.test.mjs.
+  // The call and deadman bells run: voice/calls/retell-door/ and cron-deadman-door.test.mjs.
   // Moved out of fire.ts when a second place could fail a job: the stale-jobs
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.

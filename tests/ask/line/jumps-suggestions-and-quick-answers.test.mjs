@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -1001,7 +1002,7 @@ test("the turn route: a ceiling past the turn's two minutes (the operator: eight
   // Run, not read (25 Nov 2026): the route's policy -- every member's, counted in the `ask` bucket -- is
   // route-policy.json's, held to the declarations by routes/route-policy.test.mjs. The thread kept before the model is
   // asked, the question and the answer its two turns, the JSON lines and their headers, all on the session client, run
-  // through the route in ask-routes.test.mjs ("a question answered"); a service-role read added to the turn is a new
+  // through the route in ask/routes/ ("a question answered"); a service-role read added to the turn is a new
   // offender of check:debt's `service-role` measure.
   const route = await importSrc("apps/dashboard/app/api/v1/ask/route.ts");
   assert.equal(route.maxDuration, 150, "the platform lets the turn run past its own two minutes");
@@ -1026,7 +1027,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
   // The reads as the registry offers them, sorted by name, the fourteen reads before them their actions (D11), and the
   // operator's (15 Oct 2026): the guide, the signals, the ideas, what comes back, the winners, the cold emails.
   // The rest of what this block pinned as text -- the reads go through the pages' own view models, are capped, and
-  // record what a citation may name -- runs in ask-turn.test.mjs: "the fourteen reads, each an action of the nine read
+  // record what a citation may name -- runs in ask/turn/: "the fourteen reads, each an action of the nine read
   // tools" (the shapes and the read set), "the day is read once a turn" (recent is the newest twenty).
   assert.deepEqual(
     READ_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
@@ -1102,7 +1103,7 @@ test("the gateway: the key stays on the edge, AI's tokens have their own event k
     "sized for a workspace's day with its cache writes counted (1.5M before they were); 400k was spent by one day of eval runs",
   );
   // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
-  const { default: vercel } = await import("../../../apps/edge/vercel.json", { with: { type: "json" } });
+  const vercel = createRequire(import.meta.url)("../../../apps/edge/vercel.json");
   assert.equal(
     vercel.builds[0].config.functions["api/admin/llm.ts"]?.maxDuration,
     60,

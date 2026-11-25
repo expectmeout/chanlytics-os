@@ -23,7 +23,7 @@
  * schema of a tool with actions, each action's fields the old tool's (read against the 3.1 fixture through
  * tooling/evals/tool-names.json), the words each description owes, the examples, and the parse, proven by running the
  * registry over the database in memory and watching what reached it. That every action answers what its old tool
- * answered is ask-tool-names.test.mjs. No source text is read here.
+ * answered is ask/tool-names/. No source text is read here.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

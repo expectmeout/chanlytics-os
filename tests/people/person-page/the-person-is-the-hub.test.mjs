@@ -24,7 +24,6 @@ import {
   ZONE,
   cardOf,
   carryingCompose,
-  cells,
   dealRow,
   detail,
   frames,

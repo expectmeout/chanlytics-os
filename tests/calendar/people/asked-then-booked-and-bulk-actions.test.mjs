@@ -118,7 +118,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   // calendar/appointments/the-record-joins-the-feed.test.mjs. The report's line: GET reports, run below. Pinned as
   // parsed-feed.ts's and people-visits.ts's text until 25 Nov 2026.
   // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
-  // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
+  // ask/readers/, its two stages read from the query log and its payload compared key for key.
   // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
   // deals, in that order; People read once, for the line and the deals alike, and the deals read after the line's
   // calendar lookup; a lookup that fails costs the line, said in the log, never the report.
@@ -165,7 +165,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     [{ days: 30 }, null, true],
     "never fatal to the report",
   );
-  // The assistant answers who booked and who never did: people.search runs over a feed in ask-turn.test.mjs, its
+  // The assistant answers who booked and who never did: people.search runs over a feed in ask/turn/, its
   // Booked and Asked, never booked lists judged over the People page's own rows.
   // People's lists are the mapping's (surface-map.ts), run: a calendar list is there only where a calendar reads, a deal
   // list only where deals are on. The Reports surface carries the booking line as the report answered it.
@@ -620,7 +620,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   );
   const ports = readCode("apps/dashboard/src/server/campaigns/ports.ts");
   assert.ok(
-    // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
+    // The pool (audience.ts) is everyone with their appointments; ask/turn/ counts past a thousand through it.
     ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
       ports.includes("(pool ??= getAudiencePool(ctx, tenantId, await zone(), now, "),
     "the enrol path counts what the page counted, every page of it",
@@ -755,7 +755,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
     [["contacts/consent", "opted_in", "in_person", 1]],
     "a yes says how it was given",
   );
-  // A selection never outlives its view is run, in both scopes: people-honest.test.mjs and leads-honest.test.mjs.
+  // A selection never outlives its view is run, in both scopes: people/people-page/ and leads/finder/page/.
   // The file holds the columns the page shows, nothing invented.
   // Who they are and whether they may be messaged lead every file; after them come the table's shown columns that say
   // something in a file, in the table's order (the Name, Phone and Email columns are those first three, never repeated).

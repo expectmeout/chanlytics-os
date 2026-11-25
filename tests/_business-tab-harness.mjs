@@ -2,7 +2,7 @@
  * Settings › Business, the page, as every test of it draws it: the stub React, the app's globals as the bridge publishes
  * them, every file both load lists carry, the bridge installed from its real module, Marisa's record as the
  * settings read hands it over, and the presses a person makes. Not named *.test.mjs, so the runner skips it: the page's
- * own tests (business-tab-page.test.mjs) and each card's (business-tab-open.test.mjs) import it and share one page.
+ * own tests (receptionist/business-tab/page/) and each card's (receptionist/business-tab/open/) import it and share one page.
  *
  * Every claim in those files is something the page drew, or something a press on it sent: no source-text assertions.
  * The page draws from what the settings read hands over, on the seam alone (the record, with the preview the server

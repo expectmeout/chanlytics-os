@@ -5,7 +5,7 @@
  * over the database in memory, the registry dispatching as a turn does. Money stays out (the charter, §7): no billing
  * row, no price, no billing notice, no entry about money (billing's or a partner's share). The activity log is an owner's: refused below one by the registry
  * and again by its handler. The readers themselves are GET setup's, GET notifications' and GET activity's
- * (ask/readers.test.mjs).
+ * (ask/readers/).
  */
 import { test, beforeEach } from "node:test";
 import { rows } from "../_rows.mjs";
@@ -318,7 +318,7 @@ test("workspace.notifications answers the bell's kept rows over GET notification
 /* ------------------------------------------------------------------------------------------------ activity */
 
 /**
- * activity.test.mjs's fixture (ask/readers.test.mjs activityWorld), each event with the category its emitter files it
+ * activity.test.mjs's fixture (ask/readers/ activityWorld), each event with the category its emitter files it
  * under, and beside it two entries about money -- the subscription's and a partner's share -- and a partner's
  * attribution, which is the workspace's and not money.
  */
