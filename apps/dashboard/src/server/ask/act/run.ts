@@ -34,6 +34,7 @@ import {
   type ProposalThen,
   type TenantId,
 } from "@chanlytics/contracts";
+import { fetchFromProvider } from "@chanlytics/channels/shared";
 import { findAskTurnContent, finishAskAction, markAskActionUndone, startAskAction } from "@chanlytics/db/ask";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
@@ -68,8 +69,12 @@ interface Answered {
   details?: unknown;
 }
 
-/** One of a spec's calls, as a request of its own to this app, under the member's own session. */
-async function callRoute(
+/**
+ * One of a spec's calls, as a request of its own to this app, under the member's own session, through the one way out
+ * (channels fetchFromProvider, as `dashboard`): bounded, its time said under `out.dashboard`, always made. Stop
+ * everything's presses ride it too (stop.ts).
+ */
+export async function callRoute(
   req: Request,
   call: ProposalCall,
   extra: { key: string | null; undoOf?: string | null },
@@ -92,20 +97,21 @@ async function callRoute(
   if (extra.undoOf) headers["x-undo-of"] = extra.undoOf;
   const hasBody = call.body !== undefined && method !== "GET";
   if (hasBody) headers["content-type"] = "application/json";
-  const res = await fetch(url, {
+  const res = await fetchFromProvider("dashboard", url.href, {
     method,
     headers,
     ...(hasBody ? { body: JSON.stringify(call.body) } : {}),
-    signal: AbortSignal.timeout(call.waitMs ?? CALL_TIMEOUT_MS),
-  }).catch((e: unknown) => {
-    // Said in the log, and answered as no answer: the press is handed back to the browser (`UNREACHED`).
-    log.error("ask_act_unreached", { route: call.route, error: e });
-    return null;
+    timeoutMs: call.waitMs ?? CALL_TIMEOUT_MS,
+    breaker: "count",
   });
-  if (!res) return { ok: false, status: 0, data: null, code: "unreached", message: "", own: "" };
+  if (res.status === 0) {
+    // Said in the log, and answered as no answer: the press is handed back to the browser (`UNREACHED`).
+    log.error("ask_act_unreached", { route: call.route, error: res.error });
+    return { ok: false, status: 0, data: null, code: "unreached", message: "", own: "" };
+  }
   // A route's answer that is no JSON is an empty one: its status says the rest.
-  const body = recordOrEmpty(await res.json().catch(() => null));
-  if (res.ok && body.ok !== false)
+  const body = recordOrEmpty(res.json);
+  if (res.outcome === "ok" && body.ok !== false)
     return { ok: true, status: res.status, data: body.data, code: "", message: "", own: "" };
   const error = recordOrEmpty(body.error);
   return {

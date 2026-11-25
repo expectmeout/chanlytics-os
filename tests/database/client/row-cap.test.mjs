@@ -52,3 +52,18 @@ test("outside a request it is said too, with no request to name", async () => {
   await namedFetch(answering("0-999/4210"))(`${BASE}/sequence_sends?select=id`);
   assert.deepEqual(lines, [{ event: "db_answer_at_cap", table: "sequence_sends", rows: 1000, request_id: null }]);
 });
+
+test("a read at the cap tells the app's alarm, once a table in a window however often it is read", async () => {
+  const told = [];
+  observeDb({
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    requestId: () => null,
+    atCap: (table) => told.push(table),
+  });
+  const fetch = namedFetch(answering("0-999/*"));
+  await fetch(`${BASE}/lead_places?select=id`);
+  await fetch(`${BASE}/lead_places?select=id`);
+  await fetch(`${BASE}/sequence_replies?select=id`);
+  await namedFetch(answering("0-41/*"))(`${BASE}/notes?select=id`);
+  assert.deepEqual(told, ["lead_places", "sequence_replies"]);
+});

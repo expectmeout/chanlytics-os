@@ -31,6 +31,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  MIN_MS,
+  HOUR_MS,
   OPENING_CHARS_MAX,
   REACH_OUT_CHECKS_AHEAD_PER_DAY,
   REACH_OUT_CHECKS_PER_DAY,
@@ -111,20 +113,20 @@ export const CHECK_PER_WORKSPACE_PER_TICK = 20;
  * How near its time a send is due soon: taken before those further off, and the only kind a model's bad hour holds. A run
  * waiting for its owner is due soon whatever its day, since they may be reading it now. No send waits for this (decision 0098).
  */
-export const CHECK_AHEAD_MS = 2 * 3_600_000;
+export const CHECK_AHEAD_MS = 2 * HOUR_MS;
 /** Sends asked about at once. */
 const CHECK_AT_ONCE = 4;
 
 /** How long a send's tries may fail before it is held check_unavailable for its owner (R4). */
-export const CHECK_GIVE_UP_MS = 60 * 60_000;
+export const CHECK_GIVE_UP_MS = HOUR_MS;
 /** A failed try waits this long before the next, by the try it was: 1, 2, 4, 8, then 15 minutes (R4). */
 export const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
 /** A workspace that may not spend, or has no room, is asked again this much later (R2). */
-export const CHECK_GATE_WAIT_MS = 3_600_000;
+export const CHECK_GATE_WAIT_MS = HOUR_MS;
 /** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
 const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
-export const CHECK_RELEASE_AFTER_MS = 3_600_000;
+export const CHECK_RELEASE_AFTER_MS = HOUR_MS;
 
 /**
  * What a written opening stores, within the columns' bounds (00197), or null when it does not fit them. checkOpening
@@ -149,7 +151,7 @@ export function backoffMs(tries: number): number {
   const i = Math.min(Math.max(tries, 1), CHECK_BACKOFF_MINUTES.length) - 1;
   const minutes = CHECK_BACKOFF_MINUTES[i];
   if (minutes === undefined) throw new RangeError(`no backoff after ${tries} tries`);
-  return minutes * 60_000;
+  return minutes * MIN_MS;
 }
 
 export interface CheckCounts {
@@ -346,7 +348,7 @@ export async function checkSends(params: {
   const rows = await listUncheckedSends(db, {
     limit: CHECK_PER_TICK,
     perWorkspace: CHECK_PER_WORKSPACE_PER_TICK,
-    aheadMinutes: CHECK_AHEAD_MS / 60_000,
+    aheadMinutes: CHECK_AHEAD_MS / MIN_MS,
     tenantId: params.tenantId,
     sendIds: params.sendIds,
   });

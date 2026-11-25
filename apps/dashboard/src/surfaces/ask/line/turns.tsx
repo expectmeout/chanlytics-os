@@ -7,6 +7,9 @@ import { allArrived, photosAsked } from "./attached";
 import { arFailed, arPhone, arRoute } from "./place";
 import { chipOfAnswer } from "./resolved";
 
+/** The breath before an answer that opens a page goes there: its words are on screen first. */
+const GO_AFTER_MS = 250;
+
 /** A phone lets go of the field as a question is asked, and its keyboard: the answer lands to be read, never dimmed (D4). */
 const arLetGo = (el: HTMLElement | null) => {
   if (arPhone() && el && typeof el.blur === "function") el.blur();
@@ -240,7 +243,7 @@ const arTurnLanded = (
       : final.navigate && final.navigate.to
         ? final.navigate
         : null;
-  if (o && o.now) setTimeout(() => nav(o.to), 250);
+  if (o && o.now) setTimeout(() => nav(o.to), GO_AFTER_MS);
 };
 // A question spoken is answered aloud by itself (the spec's §3.5 as amended 4 and 5 Oct): the words Read aloud would
 // read, in Ask's voice, after the line it says while it works (ask/aloud.ts); a typed one stays quiet.

@@ -6,6 +6,7 @@
  *
  * No environment: the origin, the secret and the time limit are the caller's.
  */
+import { fetchFromProvider } from "../shared/provider-fetch";
 import { signEdgeToken } from "./edge-token";
 
 /** What the dashboard answered: its status, or 0 where no answer came in time. */
@@ -14,25 +15,25 @@ export interface DashboardAnswer {
   ok: boolean;
 }
 
-/** POST a declared door of the dashboard, signed for that door, that workspace and that body. */
+/**
+ * POST a declared door of the dashboard, signed for that door, that workspace and that body, through the one way out
+ * (fetchFromProvider, as `dashboard`): always made, its time said under `out.dashboard`.
+ */
 export async function callDashboard(
   at: { origin: string; secret: string; path: string },
   call: { workspace: string; body: unknown; timeoutMs: number },
 ): Promise<DashboardAnswer> {
   const body = JSON.stringify(call.body);
-  try {
-    const res = await fetch(`${at.origin}${at.path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-edge-token": signEdgeToken(at.secret, at.path, { workspace: call.workspace, body }),
-      },
-      body,
-      signal: AbortSignal.timeout(call.timeoutMs),
-    });
-    return { status: res.status, ok: res.ok };
-  } catch {
-    // No answer in time, or none at all: the caller's job is tried again by its ledger.
-    return { status: 0, ok: false };
-  }
+  const res = await fetchFromProvider("dashboard", `${at.origin}${at.path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-edge-token": signEdgeToken(at.secret, at.path, { workspace: call.workspace, body }),
+    },
+    body,
+    timeoutMs: call.timeoutMs,
+    breaker: "count",
+  });
+  // No answer in time, or none at all, is status 0: the caller's job is tried again by its ledger.
+  return { status: res.status, ok: res.outcome === "ok" };
 }

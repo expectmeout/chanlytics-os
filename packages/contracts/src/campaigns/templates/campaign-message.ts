@@ -35,6 +35,7 @@
  *     starter's, else the name made words: not the anchor's alone, so a title written with the first email version stays
  *     when a WhatsApp row with none comes.
  */
+import { DAY_MS } from "../../shared/time";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { purposeOfTemplate, type AskedPurpose } from "../../consent/consent";
 import { TEMPLATE_STATUSES, type TemplateStatus } from "../../shared/enums";
@@ -152,7 +153,7 @@ function whatsappVersionOf(row: CampaignMessageRow): NonNullable<CampaignMessage
  * own word for its longest (WHATSAPP_REVIEW_TAKES). Production's oldest said "Being checked" for eight days (16 Nov 2026).
  * The edge asks WhatsApp again about one in review this long (whatsapp/slow-reviews.ts).
  */
-export const REVIEW_SLOW_MS = 86_400_000;
+export const REVIEW_SLOW_MS = DAY_MS;
 
 /**
  * Since when WhatsApp has been checking a WhatsApp version: its row's last change, for a row in review that WhatsApp

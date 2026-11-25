@@ -1126,7 +1126,7 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
     "the turn and the thread it keeps run on the session client, never the service role",
   );
   const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
-  assert.ok(rate.includes('ask: { limit: 20, windowMs: 60_000, noun: "questions" },'));
+  assert.ok(rate.includes('ask: { limit: 20, windowMs: MIN_MS, noun: "questions" },'));
 });
 
 test("the loop and its reads: several at once, the stable block cached, through the pages' own view models, capped, each recording what an answer may name", () => {
