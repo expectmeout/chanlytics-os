@@ -326,7 +326,7 @@ test("the dial reaches the policy row through the pane and the bridge", async ()
       "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
     ),
   );
-  // The pane's dial, pressed: settings-owner-panes.test.mjs ("F50: ... a dial sends itself alone") sends 75% as
+  // The pane's dial, pressed: workspace/settings-owner-panes/ ("F50: ... a dial sends itself alone") sends 75% as
   // { minConfidence: 0.75 } on the reply row, and no mode.
   const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
   assert.ok(

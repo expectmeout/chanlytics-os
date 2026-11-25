@@ -10,6 +10,8 @@
  * alerts that go to Chanlytics were listed as going to the owner's addresses;
  * "switching a number off … emails you every message" described nothing that
  * exists; and the business form opened on a gate the server's door refuses.
+ *
+ * Each is run, here or in the test named beside it: the pins on the modules' text are gone (25 Nov 2026).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,23 +23,45 @@ import {
   BELL_LINE_KINDS,
   toChannelVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-// Settings' frame is TSX (surfaces/settings/frame, decision 0015 step 11): the page, its tabs and the Business pane.
-const frame = Object.fromEntries(
-  ["page.tsx", "tabs.ts", "workspace.tsx"].map((f) => [f, readRaw(`apps/dashboard/src/surfaces/settings/frame/${f}`)]),
-);
-const verbsBridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-test("F4: a save re-reads the settings surface, so the next save carries the new version", async () => {
-  const start = verbsBridge.indexOf("export async function saveSettings");
-  const end = verbsBridge.indexOf("\nexport ", start + 10);
-  const fn = verbsBridge.slice(start, end === -1 ? undefined : end);
-  assert.ok(
-    fn.includes('(deps.client ?? api())("PUT settings", { body: { config, version }, onAccepted })'),
-    "the save goes through the client, so the map re-reads after it",
-  );
-  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+// The bridge's own client, over a wire that keeps what each request carried: the tab a verb is pressed in.
+globalThis.window ??= globalThis;
+globalThis.location ??= { pathname: "/w/studio", hash: "#/admin" };
+globalThis.document ??= { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+globalThis.window.addEventListener ??= () => {};
+globalThis.window.removeEventListener ??= () => {};
+globalThis.window.dispatchEvent ??= () => true;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
+});
+/** Every request the tab made: `METHOD route` and the body it carried. */
+const wire = [];
+globalThis.window.fetch = async (url, init = {}) => {
+  const route = `${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname.replace("/api/v1/", "")}`;
+  wire.push({ route, body: init.body ? JSON.parse(init.body) : null });
+  return new Response(JSON.stringify({ ok: true, data: { policy: { class: "reply", mode: "auto" } } }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+};
+
+const { setPolicy } = await importSrc("apps/dashboard/src/bridge/inbox-verbs.ts");
+const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+const { SET_TABS } = await importSrc("apps/dashboard/src/surfaces/settings/frame/tabs.ts");
+const workspaces = await importSrc("apps/dashboard/app/api/v1/workspaces/route.ts");
+
+test("F4: a save re-reads the settings surface, so the next save carries the new version", () => {
+  // The save itself -- its body carrying the config and the version, the caller told the moment it lands, and the
+  // surface re-read on a conflict -- runs through the real client in settings-save.test.mjs.
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
     // The postal address saved here is one of the channels' readiness, which People's reach reads too, and the composers, each where
@@ -46,23 +70,14 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
     ["settings", "calendar", "setup", "workspace"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
-  assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
 });
 
 test("F32: a config the parser refuses is its own state, and no form can save over it", () => {
-  // The read's half is RUN: a config the parser refuses answers { config: null, config_broken: true, issues }, never
-  // {} read as "no receptionist yet" -- through the route in settings-routes.test.mjs ("the settings read") and
-  // through its reader in ask/readers/, so the three pins on the route's text are gone.
-  const surface = readCode("apps/dashboard/src/bridge/surfaces/settings.ts");
-  assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
-  const business = frame["workspace.tsx"];
-  assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
-  assert.ok(
-    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real ||"),
-    "the broken branch wins over the record",
-  );
-  // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:
-  // a config the parser refuses closes every notifications write"), since the pane is TSX (surfaces/settings/notifications).
+  // Run, not read: the settings read lands a refused config as `broken` with its issues and no facts
+  // (receptionist/prompt/the-settings-read-lands-the-facts.test.mjs, "a config that would not parse lands no facts"), and
+  // the pane draws the broken card in place of any form (receptionist/business-tab/settings-editor.test.mjs, "the pane
+  // is the record, the card that sets one up, or the broken one -- and never a form"). Every notifications write closes
+  // on it too: workspace/settings-owner-panes/ ("F32: a config the parser refuses closes every notifications write").
   // The parser really does tell the two apart.
   assert.equal(parseTenantConfigResult({}).ok, true, "an empty config is not broken");
   const bad = parseTenantConfigResult({ brain: { business_name: 42 } });
@@ -79,50 +94,17 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
 // business-tab-prompt.test.mjs ("the head says what it is and who reads it, and counts nothing", and "what the
 // receptionist is told says who reads it at rest, with one door, and counts nothing").
 
-test("F35: every pause reads the workspace's own pause_hours, not a hard-coded day", () => {
-  const verbs = readCode("apps/dashboard/src/server/shared/verbs.ts");
-  assert.ok(verbs.includes("export async function pauseMsFor(ctx: RouteContext, tenantId: TenantId): Promise<number>"));
-  // The rule's read is packages/db's (decision 0111).
-  assert.ok(
-    verbs.includes("findReplyLimits(ctx.supabase, tenantId)") &&
-      readCode("packages/db/src/repositories/workspace/scopes.ts").includes('.eq("class", "reply")'),
-  );
-  for (const rel of ["apps/dashboard/src/server/conversations/ports.ts"]) {
-    const src = readCode(rel);
-    assert.ok(src.includes("pauseMsFor(ctx,"), `${rel} reads the limit`);
-    assert.ok(!src.includes("PAUSE_MS"), `${rel}: REGRESSION — Settings said N hours, the verb paused for 24`);
-  }
-  // The acknowledgement (unreadable.ts), the escalating reply (dispatch.ts) and the one closure (ingest.ts).
-  const inbound = ["unreadable", "dispatch", "ingest"]
-    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
-    .join("\n");
-  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
-  // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
-  // the default day when none is set, is run in whatsapp/door/.
-  assert.ok(
-    alerts.includes("AI is paused on this conversation for ${ctx.pausedHours}h."),
-    "and the handoff email states the same number",
-  );
-  // Stated only by a branch that actually paused the thread. The email used to
-  // promise the pause unconditionally, so nine of the eleven handoffs told the
-  // owner the receptionist was out of a thread it was still answering.
-  assert.ok(alerts.includes("(ctx.pausedHours ? `${act.replace"), "and only when this branch paused it");
-  // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
-  // read by its name.
-  assert.ok(
-    /why: "non_text",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
-    "the acknowledgement states it only when it actually acknowledged",
-  );
-  assert.equal(
-    (inbound.match(/\bpausedHours: pauseHours,/g) ?? []).length,
-    3,
-    "and the escalating reply does, held, sent, or kept unsent because its hold could not be written",
-  );
-  assert.ok(
-    inbound.includes("{ said, answered, why, pausedHours = null }: HoldWords"),
-    "and the rest default to promising nothing",
-  );
-});
+// F35, every pause reads the workspace's own pause_hours, not a hard-coded day. Each is run:
+// - a take-over or a reply from the dashboard pauses for what the reply row says, through the one rule
+//   (conversations/state/pause-length.test.mjs);
+// - the WhatsApp-app echo pauses for the workspace's own hours, and for the default day when none is set (whatsapp/door/);
+// - an unreadable message acknowledged pauses for the workspace's hours and the owner's email says that number, and one
+//   whose acknowledgement did not send pauses nothing and promises nothing
+//   (inbound/phases/the-reply-gates-hold-what-may-not-be-answered.test.mjs);
+// - the escalating reply pauses and says so, and a branch that paused nothing promises no pause
+//   (inbound/phases/every-way-out-says-what-the-message-became.test.mjs, "promises a pause only where one happened");
+// - the handler's own email states the hours only beside a pause (conversations/escalations/
+//   a-hold-is-told-in-the-owner-s-words.test.mjs).
 
 test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a number off is described as it is", () => {
   // The topics are contracts' (notification-kinds.ts, decision 0040). The platform's alerts (a switched-off number's
@@ -137,12 +119,8 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   assert.equal(runs.title, "A campaign waits for your approval");
   assert.match(runs.what, /or a campaign couldn't run today/);
   for (const t of ALERT_TOPICS) assert.doesNotMatch(`${t.title} ${t.what}`, /playbook/i, t.title);
-  assert.ok(
-    !Object.values(frame).some((t) => t.includes("emails you every message instead")),
-    "REGRESSION: promised an email nothing sends",
-  );
-  // The channels sentence moved with the pane it belongs to; the alerts
-  // above it are the notifications pane and stay in the settings shell.
+  // The pane's own words are drawn, and promise no email nothing sends: workspace/settings-owner-panes/
+  // ("Notifications: what the workspace is told ...").
   const off = toChannelVM(
     {
       id: "c1",
@@ -160,7 +138,7 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   );
 });
 
-test("F50: gates match doors — the business form is owner-only like PUT /settings; a delay edit sends no mode; an invite has no role menu", () => {
+test("F50: gates match doors — the business form is owner-only like PUT /settings; a delay edit sends no mode; an invite has no role menu", async () => {
   assert.equal(ROLE_PERMS.owner.settings, true);
   assert.equal(
     ROLE_PERMS.operator.settings,
@@ -176,20 +154,22 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   // role cannot save with, or as a refused one where every act should be offered. (Refusing every permission at once,
   // as the viewer test below does, cannot tell those apart.) receptionist/business-tab/open/ reads the sentence on each act.
   // The autonomy matrix keeps its own gate (PUT /policies is operator-or-owner), and a delay edit sends no mode: drawn
-  // in settings-owner-panes.test.mjs ("F50: every dot and dial asks the autonomy gate"), the pane being TSX.
-  const policies = readCode(
-    "apps/dashboard/app/api/v1/policies/route.ts",
-    "apps/dashboard/src/server/campaigns/policy-write.ts",
+  // in workspace/settings-owner-panes/ ("F50: every dot and dial asks the autonomy gate").
+  // On the wire, a dial goes alone: the mode it was drawn beside stays home, so a stale tab never flips the row back.
+  wire.length = 0;
+  await setPolicy("reply", undefined, { pauseHours: 6 });
+  await setPolicy("reply", "veto");
+  assert.deepEqual(
+    wire.map((w) => [w.route, w.body]),
+    [
+      ["PUT policies", { class: "reply", pause_hours: 6 }],
+      ["PUT policies", { class: "reply", mode: "veto" }],
+    ],
   );
-  assert.ok(policies.includes("mode = current.mode;"), "the row keeps the mode it has");
-  assert.ok(
-    verbsBridge.includes(
-      "export async function setPolicy(cls: string, mode: string | undefined, limits: PolicyDials = {})",
-    ),
-  );
-  assert.ok(verbsBridge.includes("...(mode !== undefined ? { mode } : {})"));
+  // And the door keeps the row's mode when a dial comes alone, even one a teammate changed since the tab read it:
+  // campaigns/a-dial-keeps-the-other-dials.test.mjs ("a dial saved while a teammate turns the replies off leaves them off").
   // Invites.
-  // An open invitation has no membership row to change the role on: drawn in settings-owner-panes.test.mjs ("an open
+  // An open invitation has no membership row to change the role on: drawn in workspace/settings-owner-panes/ ("an open
   // invitation's menu offers no role"), the Team card being TSX.
 });
 
@@ -199,40 +179,30 @@ test("Settings is ordered you, then the business, then the people", () => {
   // buried in the Team card underneath a roster of other people. The account
   // menu's "Your name" item navigated there, so the one link that promised you
   // delivered the business.
-  assert.match(
-    frame["tabs.ts"],
-    /\{ id: "profile",\s+label: "Profile",\s+icon: "user",\s+group: "You" \}/,
-    "you come first",
-  );
-  assert.match(
-    frame["tabs.ts"],
-    /\{ id: "workspace",\s+label: "Details",\s+icon: "home",\s+group: "Business" \}/,
+  const tab = (id) => SET_TABS.find((t) => t.id === id);
+  assert.deepEqual(SET_TABS[0], { id: "profile", label: "Profile", icon: "user", group: "You" }, "you come first");
+  assert.deepEqual(
+    tab("workspace"),
+    { id: "workspace", label: "Details", icon: "home", group: "Business" },
     "and the business is called what it is, its details first",
   );
-  assert.match(frame["tabs.ts"], /\{ id: "team",\s+label: "Team",/, "with the people on their own tab");
-  // The route id stays `workspace`: the label is what a person reads, and
-  // renaming the id would break bookmarks, an Ask answer and four e2e specs.
   assert.ok(
-    frame["page.tsx"].includes(
-      '(id === "workspace" || id === "hours" || id === "receptionist" || id === "outreach")',
-    ) && frame["page.tsx"].includes("<PaneWorkspace flash={flash} row={row} part={id} />"),
-    "the old route still lands on the business",
+    SET_TABS.findIndex((t) => t.group === "Business") > SET_TABS.findIndex((t) => t.group === "You"),
+    "you, then the business",
   );
-
-  // Your name left the Team card entirely and is a row on Profile: drawn in settings-owner-panes.test.mjs ("your name is
-  // a row on Profile, never in the Team card"), both panes being TSX.
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/frame/sidebar/sidebar-menus.tsx").includes('go("admin/profile")'),
-    "and the account menu points where it says",
-  );
-
+  assert.equal(tab("team").label, "Team", "with the people on their own tab");
+  // The route id stays `workspace`: the label is what a person reads, and renaming the id would break bookmarks, an Ask
+  // answer and four e2e specs. The old routes land on the business, and Memory is a pane of its own: drawn in
+  // workspace/settings-owner-panes/ ("every address of the business lands on its pane").
+  // Your name left the Team card entirely and is a row on Profile: drawn in workspace/settings-owner-panes/ ("your name
+  // is a row on Profile, never in the Team card"); and the account menu's name opens Profile, pressed in
+  // shell/surfaces/keys-in-the-sheet.test.mjs ("the name opens the profile").
   // Memory is in the rail since it became content (decision 0070): what Ask remembers, beside the workspace's other
-  // records, and every rail item is a pane the page draws.
-  assert.match(frame["tabs.ts"], /\{ id: "memory", label: "Memory", icon: "sparkle", group: "Workspace" \}/);
-  assert.ok(frame["page.tsx"].includes('{id === "memory" && <PaneMemory flash={flash} />}'), "and it becomes content");
+  // records.
+  assert.deepEqual(tab("memory"), { id: "memory", label: "Memory", icon: "sparkle", group: "Workspace" });
 });
 
-test("the workspace timezone is visible and an owner can change it", () => {
+test("the workspace timezone is visible and an owner can change it", async () => {
   // tenants.timezone decided what "today" meant in metrics (00009), which
   // closures were upcoming and the hours the receptionist quoted -- with no
   // write path anywhere, so every workspace sat on 00001's America/New_York
@@ -241,30 +211,41 @@ test("the workspace timezone is visible and an owner can change it", () => {
   // qualifies; it saves through the workspace's own door and not the settings save, and the card a workspace with
   // no receptionist sees draws the same row. All three are drawn: receptionist/business-tab/open/, "the timezone row
   // says the zone and the time there, and saves through the workspace's own door", and business-tab-create.test.mjs.
-
-  const mig = readRaw("supabase/migrations/00084_workspace_timezone.sql");
-  assert.ok(mig.includes("create policy tenants_owner_update on public.tenants"), "RLS is the row floor");
-  assert.ok(
-    mig.includes("revoke update on public.tenants from authenticated, anon;"),
-    "and the column grant is the door",
-  );
-  assert.ok(mig.includes("grant update (timezone) on public.tenants to authenticated;"), "one column, not the row");
-  assert.ok(
-    !/grant update \([^)]*\b(name|slug|status)\b/.test(mig),
-    "a slug is a URL and a status is a billing state; neither is a settings toggle",
-  );
-
-  const route = readCode(
-    "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/list.ts",
-  );
-  assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
-  assert.ok(
-    route.includes("if (!data?.length) throw new AppError"),
-    "a forbidden UPDATE returns success with zero rows here, so the count IS the check",
-  );
-  assert.ok(
-    route.includes("cleanTimezone(body?.timezone)"),
+  // The floor is the column grant behind the row policy: a column UPDATE grant is a fence with no table-wide UPDATE
+  // beside it (database/privileges.db.test.mjs). Who may ask is the route's declaration, held by route-policy.json: the
+  // owner's, or the partner's who set it up (0012).
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const membership = [
+    { user_id: "u1", tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+  ];
+  const tenant = { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" };
+  const ctx = (tenants) => ({
+    supabase: fakeDb({ memberships: membership, tenants }),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const patch = (body) =>
+    new Request(`http://localhost/api/v1/workspaces?workspace=${A}`, { method: "PATCH", body: JSON.stringify(body) });
+  const refused = async (run) => {
+    try {
+      await run;
+    } catch (e) {
+      return [e.code, e.status];
+    }
+    return "answered";
+  };
+  const saved = await workspaces.PATCH.run(patch({ timezone: "America/Chicago" }), ctx([{ ...tenant }]));
+  assert.equal(saved.workspace.timezone, "America/Chicago", "a zone Intl knows is saved and answered");
+  assert.deepEqual(
+    await refused(workspaces.PATCH.run(patch({ timezone: "Mars/Olympus_Mons" }), ctx([{ ...tenant }]))),
+    ["validation", 400],
     "and the zone is validated against Intl, not a list that goes stale",
+  );
+  // A forbidden UPDATE answers success with zero rows, so the count IS the check: no row the session may change.
+  assert.deepEqual(
+    await refused(workspaces.PATCH.run(patch({ timezone: "America/Chicago" }), ctx([]))),
+    ["forbidden", 403],
+    "REGRESSION: an owner whose grant went missing was told the zone was saved",
   );
 });
