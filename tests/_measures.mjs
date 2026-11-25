@@ -761,17 +761,23 @@ const SOURCE_SCAN_SELF = "repo/source-scan-ratchet.test.mjs";
  * cannot run at all is worse than one measuring a slightly wider set.
  */
 function repoTestFiles() {
+  // A test file, or the world a folder of them shares (`<folder>/_<name>.mjs`): since 25 Nov 2026, when the long files
+  // were split by behaviour (layer 14), a helper that reads source may live in its folder's world, and a read moved
+  // there is the same read. The suite's root helpers (tests/_source.mjs, _measures.mjs, _ast.mjs and the rest) are the
+  // reading's own machinery, not a test's reads, and are left out.
+  const counted = (l) => l.endsWith(".test.mjs") || /^[^/]+\/(.+\/)?_[^/]+\.mjs$/.test(l);
   try {
     return execFileSync("git", ["ls-files", TESTS_DIR], { cwd: ROOT, encoding: "utf8" })
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.endsWith(".test.mjs"))
-      .map((l) => l.slice(TESTS_DIR.length + 1));
+      .filter((l) => l.startsWith(`${TESTS_DIR}/`))
+      .map((l) => l.slice(TESTS_DIR.length + 1))
+      .filter(counted);
   } catch {
     return fs
       .readdirSync(path.join(ROOT, TESTS_DIR), { recursive: true })
       .map((f) => String(f).split(path.sep).join("/"))
-      .filter((f) => f.endsWith(".test.mjs"));
+      .filter(counted);
   }
 }
 
