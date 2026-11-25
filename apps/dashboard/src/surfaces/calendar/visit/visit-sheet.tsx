@@ -169,7 +169,7 @@ function VisitPeek(p: OpenVisitProps) {
           size="sm"
           iconOnly
           aria-label={W.close}
-          title={W.close}
+          data-tip={W.close}
           onClick={p.onClose}
           data-testid="cal-panel-close"
         >
