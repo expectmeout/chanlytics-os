@@ -70,7 +70,7 @@ function peekHead(p: PersonPeekProps) {
         variant="quiet"
         id="people-peek-close"
         aria-label={W.close}
-        title={W.close}
+        data-tip={W.close}
         onClick={onClose}
         data-testid="person-peek-close"
       >

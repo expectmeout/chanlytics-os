@@ -31,7 +31,7 @@ export function barMenu(o: {
   );
   if (busy)
     return (
-      <Button size={size} title={hover} data-testid={testid} {...gatedProps(SAVING)}>
+      <Button size={size} data-tip={hover} data-testid={testid} {...gatedProps(SAVING)}>
         {label}
       </Button>
     );
@@ -40,7 +40,7 @@ export function barMenu(o: {
       label={hover}
       groups={groups}
       trigger={
-        <Button size={size} title={hover} data-testid={testid}>
+        <Button size={size} data-tip={hover} data-testid={testid}>
           {label}
         </Button>
       }

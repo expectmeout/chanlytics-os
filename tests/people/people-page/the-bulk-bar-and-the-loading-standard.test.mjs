@@ -430,7 +430,7 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
   assert.ok(!find(cell, (n) => /\bcl-row-meta\b/.test(cls(n))), "REGRESSION: a line of five facts under the name");
   assert.doesNotMatch(textOf(cell), /thread|call|since|on WhatsApp|786/, "none of those facts is left in the cell");
   assert.ok(
-    find(cell, (n) => n.type === "span" && n.props?.title === "zoë on WhatsApp"),
+    find(cell, (n) => n.type === "span" && n.props?.["data-tip"] === "zoë on WhatsApp"),
     "their WhatsApp name, where it differs, is the name's tip",
   );
 

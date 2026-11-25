@@ -78,7 +78,10 @@ test("REGRESSION: the notes card was one box AI read whole, overwritten by every
   // Who suggested it, where it was heard and when, said on its eyebrow on every screen (a phone has no hover); the date
   // with its year is its hover.
   assert.match(textOf(suggested), /^Suggested by AI · after a call · /);
-  assert.match(String(find(suggested, (n) => typeof n.props?.title === "string")?.props.title), /, 20\d\d · /);
+  assert.match(
+    String(find(suggested, (n) => typeof n.props?.["data-tip"] === "string")?.props["data-tip"]),
+    /, 20\d\d · /,
+  );
   const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
   assert.ok(
     rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),

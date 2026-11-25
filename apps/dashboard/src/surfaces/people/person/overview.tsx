@@ -114,7 +114,7 @@ function Rung({
           size="sm"
           onClick={() => run(row)}
           aria-busy={busy === row.id || undefined}
-          title={a.kind === "deal" ? a.act.hint || undefined : undefined}
+          data-tip={a.kind === "deal" ? a.act.hint || undefined : undefined}
           data-testid="person-up-next-act"
         >
           {a.label}

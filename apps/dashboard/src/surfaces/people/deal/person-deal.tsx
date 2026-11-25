@@ -207,7 +207,7 @@ function dealLine(c: DealCardVM, cardWords: typeof DEAL_CARD_WORDS, copy = false
           href={c.link.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={c.link.url}
+          data-tip={c.link.url}
           aria-label={`${cardWords.openLink}: ${c.link.host}`}
           data-testid="person-deal-link"
         >
@@ -252,7 +252,7 @@ function dealActs(p: Pick<PersonVM, "id">, c: DealCardVM, onCompose: ComposeFn, 
         <button
           type="button"
           className="btn btn-sm"
-          title={c.next.hint || undefined}
+          data-tip={c.next.hint || undefined}
           onClick={() => pdRun(p, c.next, c.id, onCompose)}
           data-testid="person-deal-next"
         >
@@ -264,7 +264,7 @@ function dealActs(p: Pick<PersonVM, "id">, c: DealCardVM, onCompose: ComposeFn, 
           key={a.id}
           type="button"
           className="cl-prof-deal-act"
-          title={a.hint || undefined}
+          data-tip={a.hint || undefined}
           onClick={() => pdRun(p, a, c.id, onCompose)}
           data-testid="person-deal-move"
         >
@@ -309,7 +309,7 @@ const PersonDealQuiet = ({
       <button
         type="button"
         className={q.primary ? "btn btn-sm" : "cl-prof-deal-act"}
-        title={q.act.hint || undefined}
+        data-tip={q.act.hint || undefined}
         onClick={() => pdRun(p, q.act, q.dealId, onCompose)}
         data-testid="person-deal-start"
       >

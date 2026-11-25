@@ -32,20 +32,15 @@ function whyTip(s: SavedList, personId: string): string | undefined {
   return why ? `Because: ${why}` : undefined;
 }
 
-/** A chip's title: its rule's line, or where it opens. */
-function whyTitle(s: SavedList, personId: string): string {
-  const tip = whyTip(s, personId);
-  return tip ? `${tip} · open it on People` : `Open ${s.name} on People`;
-}
-
 /** The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People. */
 function smartChipsOf(smart: SmartChip[]): ReactNode[] {
   return smart.map((l) => (
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
       <a
         {...routeDoor(clientSegRoute(l.id))}
-        title={l.why ? `Because: ${l.why} · open it on People` : `${l.label} keeps itself current · open it on People`}
-        data-tip={l.why ? `Because: ${l.why}` : undefined}
+        // One tip, on hover, focus or a tap: why they are on it, or that it keeps itself current. Where it opens is the
+        // link's own to say; its browser title said both, beside a tip that said the first.
+        data-tip={l.why ? `Because: ${l.why}` : `${l.label} keeps itself current`}
       >
         {l.label}
       </a>
@@ -58,19 +53,14 @@ function listChip(s: SavedList, o: { personId: string; canEdit: boolean; busy: b
   const { personId, canEdit, busy, who, change } = o;
   return (
     <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
-      <a
-        {...routeDoor(`clients/list:${s.id}`)}
-        title={whyTitle(s, personId)}
-        data-tip={s.byHand ? undefined : whyTip(s, personId)}
-        data-testid="person-list-open"
-      >
+      <a {...routeDoor(`clients/list:${s.id}`)} data-tip={whyTip(s, personId)} data-testid="person-list-open">
         {s.name}
       </a>
       {canEdit && s.byHand && (
         <button
           type="button"
           className="chip-x"
-          title={`Take ${who} off ${s.name}`}
+          data-tip={`Take ${who} off ${s.name}`}
           aria-label={`Take ${who} off ${s.name}`}
           disabled={busy}
           onClick={() =>
@@ -244,7 +234,7 @@ export function PersonLists({
           variant="quiet"
           size="sm"
           className="cl-prof-rename is-plain cl-prof-list-add"
-          title="Add to a list"
+          data-tip="Add to a list"
           onClick={onPick}
           data-testid="person-list-add"
         >

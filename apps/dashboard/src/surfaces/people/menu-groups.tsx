@@ -127,7 +127,7 @@ export function moreButton(o: {
       variant="quiet"
       size={big ? "md" : "sm"}
       aria-label={title}
-      title={title}
+      data-tip={title}
       data-testid={testid}
       className={className}
     >
