@@ -243,7 +243,13 @@ function askedToPublish(input, posts = []) {
     created_at: "2026-11-01T00:00:00Z",
   };
   setServiceClient(fakeDb({ tenant_channels: [channel], files: [file], events: [], posts: rows }, {}, {}));
-  const ctx = { supabase: fakeDb(tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
+  // Whether Instagram takes a post is read on the member's own session (00717), from the workspace's channels.
+  const ctx = {
+    supabase: fakeDb({ ...tables, tenant_channels: [channel] }, {}, {}),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
   const tc = {
     ...newToolContext(ctx, tenant, "owner", "UTC", new Date()),
     question: "Move the Fridays post to that time.",

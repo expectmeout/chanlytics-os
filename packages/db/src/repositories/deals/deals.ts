@@ -152,3 +152,14 @@ export const pageDealReport = async (db: SupabaseClient<Database>, tenantId: Ten
     .eq("tenant_id", tenantId)
     .order("id")
     .range(from, to);
+
+/** A person's deals, the newest first, each in its page's shape; null where they could not be read (an older database's table or column costs the section, never the page). */
+export async function listPersonDeals(db: Db, tenantId: TenantId, contactId: ContactId) {
+  const { data, error } = await db
+    .from("deals")
+    .select(DEAL_DTO_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: false });
+  return error ? null : data;
+}

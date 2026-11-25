@@ -34,7 +34,7 @@ import type {
 import type { RouteContext } from "../shared/with-route";
 import { log, requestId } from "../shared/log";
 import { recordDecision } from "../shared/verbs";
-import { cancelKindFor } from "../shared/jobs";
+import { cancelKindFor } from "../shared/ledgers/jobs";
 import { archivedListWords, getAudiencePool, findPoolList, type AudiencePool } from "./audience";
 import { getStoredConfig } from "../workspace/config-row";
 import { serviceDb } from "../shared/service-db";
@@ -125,11 +125,11 @@ function assemblePorts(ctx: RouteContext, tenantId: TenantId): AssemblePorts {
       if (created.undoDropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "send_broadcast" });
       return { id: created.id, decisionId: created.decisionId };
     },
-    // The month's allowance, counted before anyone is enrolled (a function only the service role may call, so it is
-    // the route's role check that stands in front of it), and those past it held the moment the run exists (core
-    // campaigns/allowance.ts): the send's own check at the wire stays as the backstop. Counted in the month the run opens
-    // in (`at`), which a broadcast scheduled ahead may not share with the day it is made.
-    monthSent: (channel, at) => recordCampaignMonthSent(serviceDb(), tenantId, channel, at),
+    // The month's allowance, counted before anyone is enrolled (on the member's session: the count's door asks that they
+    // belong, 00717), and those past it held the moment the run exists (core campaigns/allowance.ts): the send's own check
+    // at the wire stays as the backstop. Counted in the month the run opens in (`at`), which a broadcast scheduled ahead
+    // may not share with the day it is made.
+    monthSent: (channel, at) => recordCampaignMonthSent(ctx.supabase, tenantId, channel, at),
     holdRecipients: (broadcastId, contactIds, reason) =>
       holdRecipients(serviceDb(), { tenantId, broadcastId, contactIds, reason }),
   };

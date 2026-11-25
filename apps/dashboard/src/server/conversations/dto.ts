@@ -20,24 +20,10 @@ import type { ContactId } from "@chanlytics/contracts";
  * here reaches every reader, and a reader cannot drift into rendering a
  * field the others do not send.
  *
- * The select strings live beside the mappers so the two cannot disagree. A thread's WhatsApp clock is read through
- * its one accessor, the computed column last_inbound_on_whatsapp (00485, decision 0001 step 5), under the field name
- * the pages read; the column it replaces, conversations.last_wa_inbound_at, is read by nothing (step 7 drops it). Its
- * Instagram clock is its own accessor's, last_inbound_on_instagram (00486, step 8), read as last_ig_inbound_at.
+ * The columns a thread, a message and a call are read with are packages/db's (decision 0111), where the reads are
+ * (conversations/threads.ts, conversations/reads.ts, voice/call-rows.ts): a thread's WhatsApp and Instagram clocks are
+ * read there through their accessors, under the field names these mappers read.
  */
-
-const THREAD_COLUMNS =
-  "id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at";
-const THREAD_PERSON_COLUMNS =
-  "id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, acquired_via, acquired_ref, email_suppressed_at, email_suppressed_reason";
-export const CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts (${THREAD_PERSON_COLUMNS})` as const;
-/** The same, for a list: only the threads whose person passes what the read asks of `contacts` (PostgREST's inner embed). */
-export const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
-
-// The columns a message and a call are read with are packages/db's (decision 0111), where the reads are; the readers
-// that still build their own statements read them here.
-export { MESSAGE_COLUMNS, THREAD_MESSAGE_COLUMNS } from "@chanlytics/db/conversations";
-export { CALL_COLUMNS } from "@chanlytics/db/voice";
 
 interface ConversationRow {
   id: string;

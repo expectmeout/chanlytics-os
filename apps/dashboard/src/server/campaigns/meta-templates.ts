@@ -1,8 +1,7 @@
 import "server-only";
 import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
-import { serviceDb } from "../shared/service-db";
+import { emitWorkspaceEvent } from "../shared/ledgers/events";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -20,7 +19,6 @@ const CREATE_TIMEOUT_MS = 30_000;
  * event is.
  */
 export function recordTemplateEvent(
-  db: ReturnType<typeof serviceDb>,
   tenantId: TenantId,
   kind: "submitted" | "removed",
   template: { id: string; name: string; language: string },
@@ -29,20 +27,20 @@ export function recordTemplateEvent(
   before: string | null = null,
 ): Promise<void> {
   const facts = { name: template.name, language: template.language, by };
-  if (kind === "removed") return emitEvent(db, tenantId, "template.removed", "template", template.id, facts);
-  return emitEvent(db, tenantId, "template.submitted", "template", template.id, {
+  if (kind === "removed") return emitWorkspaceEvent(tenantId, "template.removed", "template", template.id, facts);
+  return emitWorkspaceEvent(tenantId, "template.submitted", "template", template.id, {
     ...facts,
     ...(before ? { before } : {}),
   });
 }
 
-/** A message sent to WhatsApp under a member's hand, on the ledger with the service's key, as every ledger write is. */
+/** A message sent to WhatsApp under a member's hand, on the ledger. */
 const recordSubmitted = (
   tenantId: TenantId,
   template: { id: string; name: string; language: string },
   by: string,
   before: string | null = null,
-): Promise<void> => recordTemplateEvent(serviceDb(), tenantId, "submitted", template, by, before);
+): Promise<void> => recordTemplateEvent(tenantId, "submitted", template, by, before);
 
 /**
  * Ask's new words for WhatsApp's refusal of a message, kept on the ledger (`template.fix_written`) so its editor opens on
@@ -53,7 +51,7 @@ export function recordFixWords(
   templateId: string,
   fix: { words: string; reason: string; by: string },
 ): Promise<void> {
-  return emitEvent(serviceDb(), tenantId, "template.fix_written", "template", templateId, fix);
+  return emitWorkspaceEvent(tenantId, "template.fix_written", "template", templateId, fix);
 }
 
 type SyncOutcome =

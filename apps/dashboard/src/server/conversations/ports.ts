@@ -45,8 +45,7 @@ import {
   replyChannelOf,
   resolveOpenEscalation,
 } from "../shared/verbs";
-import { schedule } from "../shared/jobs";
-import { serviceDb } from "../shared/service-db";
+import { schedule } from "../shared/ledgers/jobs";
 import { takeThreadControl } from "./thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { getStoredConfig } from "../workspace/config-row";
@@ -100,10 +99,10 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
       });
       return decision ? { decision_id: decision } : null;
     },
-    // The platform's door, on the service client as a job's is: the member's own word follows it on their session, and
-    // the route has already proved the thread is their workspace's (conversationScope) and that they may act.
+    // On the member's own session: the door asks that they act in the workspace (00717), and the route has already proved
+    // the thread is their workspace's (conversationScope); the member's own word follows it on the same session.
     setAside: (tenantId, id) =>
-      setConversationAside(serviceDb(), { tenantId, conversationId: id, why: "pitch" }).catch((e: unknown) => {
+      setConversationAside(ctx.supabase, { tenantId, conversationId: id, why: "pitch" }).catch((e: unknown) => {
         throw dbRefusal(e);
       }),
     replyAnyway: async (tenantId, id) => {
@@ -140,7 +139,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
     // Control is written by the service role -- the column grant fences these
     // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
-    takeControl: (tenantId, id, userId, seconds) => takeThreadControl(tenantId, id, userId, seconds),
+    takeControl: (tenantId, id, userId, seconds) => takeThreadControl(ctx.supabase, tenantId, id, userId, seconds),
     withdrawDrafts: (tenantId, id) => cancelPendingAiReply(ctx, { id, tenant_id: tenantId }),
     resolveEscalation: (id, decisionId) => resolveOpenEscalation(ctx, id, decisionId),
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),

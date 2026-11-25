@@ -6,6 +6,7 @@ export {
   findCallRow,
   findLastCallIn,
   listCallRows,
+  listPersonCalls,
   markRecordingOpened,
   pageCallRows,
 } from "./call-rows";

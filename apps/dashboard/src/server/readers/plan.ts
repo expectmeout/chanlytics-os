@@ -92,7 +92,7 @@ async function readWeekMade(rc: ReaderContext, week: WeekPlanDto) {
 /** Whether each place takes a post now: Instagram through the Meta link, Google where a place is bound. */
 async function readWeekPlaces(rc: ReaderContext): Promise<WeekPageDto["places"]> {
   const [instagram, google] = await Promise.all([
-    readInstagramPostable(rc.tenantId),
+    readInstagramPostable(rc.ctx.supabase, rc.tenantId),
     findGoogleConnection(rc.ctx.supabase, rc.tenantId),
   ]);
   return { instagram: instagram === "yes", google: !!google.data?.location_name };

@@ -25,7 +25,14 @@ import { json, refuse } from "../shared/http.js";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead, withdrawQueued } from "@chanlytics/db/conversations";
+import {
+  describeLead,
+  findDraftToSteer,
+  findThreadPhone,
+  readLeadContext,
+  readThreadState,
+  withdrawQueued,
+} from "@chanlytics/db/conversations";
 import { findInstagramId, findOldestActiveChannel } from "@chanlytics/db/channels";
 import type { InboundChannel } from "@chanlytics/core";
 import {
@@ -155,14 +162,6 @@ async function draftAddressOf(
     : null;
 }
 
-function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: TenantId | null) {
-  const draft = db
-    .from("messages")
-    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel, sending_at")
-    .eq("id", messageId);
-  return (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
-}
-
 /**
  * The door's refusal before any draft is read, or null to go on: no model to rewrite with, or a token that names no
  * workspace, refused as the live-call doors refuse it. A knock with the platform's key names none and goes on.
@@ -251,24 +250,18 @@ export async function steerHeldDraft(
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const { data: m, error: mErr } = await draftOf(db, messageId, tokenWorkspace(auth));
+  const { data: m, error: mErr } = await findDraftToSteer(db, messageId, tokenWorkspace(auth));
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   const held = notRewritable(m);
   if (held) return held;
 
-  const { data: conv } = await db
-    .from("conversations")
-    .select("id, contacts (phone_e164)")
-    .eq("id", m.conversation_id)
-    .eq("tenant_id", m.tenant_id)
-    .maybeSingle();
+  const phone = await findThreadPhone(db, m.tenant_id, m.conversation_id);
   // The wire the draft is already on. A held reply to a text is an `sms` row,
   // and looking the tenant up on WhatsApp alone both refused every steer for a
   // texting-only workspace and, where a WhatsApp channel happened to exist,
   // rewrote the reply against the wrong channel. A DM's goes back by DM.
   const channel = draftChannelOf(m.channel);
-  const phone = conv?.contacts?.phone_e164 ?? null;
   const to = await draftAddressOf(db, channel, m, phone);
   if (!to) return refuse(409, "no_phone");
   // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.

@@ -9,15 +9,14 @@ import {
   type MessageDto,
   DbFailure,
 } from "@chanlytics/contracts";
-import { listFailedMessageErrors, searchMessages } from "@chanlytics/db/conversations";
-import { listLastClosedHolds } from "@chanlytics/db/people";
 import {
-  CONVERSATION_COLUMNS,
-  LISTED_CONVERSATION_COLUMNS,
-  groupMessages,
-  messageRowsOf,
-  toConversationDto,
-} from "../conversations/dto";
+  listFailedMessageErrors,
+  listInboxThreads,
+  listNewestMessages,
+  searchMessages,
+} from "@chanlytics/db/conversations";
+import { listLastClosedHolds } from "@chanlytics/db/people";
+import { groupMessages, messageRowsOf, toConversationDto } from "../conversations/dto";
 import { withAds } from "../conversations/from-ads";
 import { stillListed } from "../people/going";
 import { getSeenOfPeople } from "../people/person-seen";
@@ -66,17 +65,12 @@ export const conversations: Reader<
     const { tenantId, userId } = rc;
     const threadIds = said ? await threadsSaying(rc, said) : named;
     if (threadIds && !threadIds.length) return { data: { conversations: [] }, rows: [], stamp: readerStamp() };
-    const threads = () => supabase.from("conversations");
-    const listed = () =>
-      threads()
-        .select(LISTED_CONVERSATION_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .or(stillListed(rc.now.getTime()), { referencedTable: "contacts" });
-    const { data: convs, error } = await (said && threadIds
-      ? listed().in("id", threadIds)
-      : threadIds
-        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", threadIds)
-        : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
+    const { data: convs, error } = await listInboxThreads(supabase, tenantId, {
+      ids: threadIds,
+      searched: !!said,
+      listed: stillListed(rc.now.getTime()),
+      most: THREADS_MAX,
+    });
     if (error) throw new DbFailure(error);
     const ids = (convs ?? []).map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
@@ -85,13 +79,7 @@ export const conversations: Reader<
       // breaking ties, as one list PostgREST's thousand rows do not cut. Paged by OFFSET, this read every message the
       // hundred threads ever had and sorted them for each page, up to four times on every refresh, and one thread with a
       // long history could fill every page and leave the others reading "No messages yet" (I5).
-      const { data, error: merr } = await supabase.rpc("newest_messages", {
-        p_tenant_id: tenantId,
-        p_threads: ids,
-        p_each: LIST_MESSAGES_EACH,
-        p_most: MESSAGES_MAX,
-      });
-      if (merr) throw new Error(merr.message);
+      const data = await listNewestMessages(supabase, tenantId, { ids, each: LIST_MESSAGES_EACH, most: MESSAGES_MAX });
       const grouped = groupMessages(messageRowsOf(data));
       // newest_messages answers twelve columns and messages.error is not one of them: the few failed messages in the
       // answer are asked for theirs, so a failed bubble can say why (contracts sendFailureWords). None failed, no read.

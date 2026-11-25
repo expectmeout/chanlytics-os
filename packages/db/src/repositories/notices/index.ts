@@ -10,14 +10,17 @@ export {
   registerPushDevice,
 } from "./devices";
 export {
+  findNotificationToPush,
   findOwnAddressIn,
   forgetActivityTokens,
   forgetEveryPhone,
+  forgetGonePhones,
   getMemberAlerts,
   getMemberViews,
   keepMemberView,
   listActivityTokens,
   listMembersPushed,
+  listPhonesOf,
   pushNamesFor,
   setMemberPushOff,
   setMemberView,

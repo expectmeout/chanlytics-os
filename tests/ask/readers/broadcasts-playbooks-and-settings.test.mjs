@@ -6,7 +6,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { describeNow } from "@chanlytics/contracts";
 import * as contracts from "@chanlytics/contracts";
-import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 import {
   A,
@@ -73,7 +72,6 @@ import {
   recordApart,
   req,
   selects,
-  setServiceClient,
   settingsReader,
   settingsRoute,
   settingsWorld,
@@ -167,30 +165,20 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {
-  setServiceClient(
-    fakeDb(
-      {},
-      {},
-      {
-        campaign_month_sent: () => {
-          throw new Error("the database is down");
-        },
-      },
-    ),
+  const down = {
+    campaign_month_sent: () => {
+      throw new Error("the database is down");
+    },
+  };
+  const { result, lines } = await logged("campaign_month_failed", () =>
+    broadcastsRoute.GET.run(req(`?workspace=${A}`), worldCtx({ ...bcWorld(), rpcs: { ...bcWorld().rpcs, ...down } })),
   );
-  try {
-    const { result, lines } = await logged("campaign_month_failed", () =>
-      broadcastsRoute.GET.run(req(`?workspace=${A}`), worldCtx(bcWorld())),
-    );
-    assert.equal(result.month_sent, null);
-    assert.equal(result.month_sent_next.sent, null, "nor is the month after a month of nothing");
-    assert.equal(typeof result.month_sent_next.from, "number", "where it begins is the clock's, counted or not");
-    assert.equal(result.broadcasts.length > 0, true, "the page is read all the same");
-    assert.equal(lines.length, 2, "one line for each of the two months' reads");
-    assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
-  } finally {
-    setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
-  }
+  assert.equal(result.month_sent, null);
+  assert.equal(result.month_sent_next.sent, null, "nor is the month after a month of nothing");
+  assert.equal(typeof result.month_sent_next.from, "number", "where it begins is the clock's, counted or not");
+  assert.equal(result.broadcasts.length > 0, true, "the page is read all the same");
+  assert.equal(lines.length, 2, "one line for each of the two months' reads");
+  assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
 });
 
 test("a paused workspace is said by the readiness the composers and the Campaigns home read -- the broadcasts' and the playbooks' -- and by People's reads never: it changes what is sent, not who can hear the business", async () => {
@@ -511,6 +499,9 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows were read here so the page knew a class
     // under `auto`; since 19 Oct 2026 (decision 0064) each playbook's mode is its sequence's, read after the rows.
     want.splice(want.findIndex(([k]) => k === "sequence_steps.select") + 1, 0, ["sequences.select", "id, mode"]);
+    // 25 Nov 2026 (00717): the month's two counts, emails and texts, are made on the member's own session, whose door asks
+    // that they belong, where they were the service role's and left no read here.
+    want.push(["rpc:campaign_month_sent", null], ["rpc:campaign_month_sent", null]);
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();

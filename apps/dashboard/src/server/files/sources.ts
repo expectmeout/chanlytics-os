@@ -42,7 +42,6 @@ import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody 
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
 import type { Member } from "../shared/route";
-import { serviceDb } from "../shared/service-db";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 
 /** The provider a state for a Drive sign-in names: every other sign-in's callback refuses it. */
@@ -382,10 +381,13 @@ export async function disconnectSource(ctx: RouteContext, member: Member): Promi
 /**
  * `GET sources/leaving`: what a stop and a disconnect say before the press: how many photos and videos came from the
  * folder and stay, how many clips are kept in Drive now (they play again only while a folder is watched), and how many
- * a post or a video used. Counted by the service role, for a member the route has admitted.
+ * a post or a video used. Counted on the member's own session: the tally's door asks that they belong (00717).
  */
-export async function readSourceLeaving(member: Member): Promise<{ files: number; away: number; used: number }> {
-  return countSourcedFiles(serviceDb(), member.tenantId);
+export async function readSourceLeaving(
+  ctx: RouteContext,
+  member: Member,
+): Promise<{ files: number; away: number; used: number }> {
+  return countSourcedFiles(ctx.supabase, member.tenantId);
 }
 
 /**

@@ -22,7 +22,10 @@ import { findFreedTimeFacts } from "@chanlytics/db/campaigns";
 import { findEventOfDelivery, isSubscriptionPaused, findDelivery, settleDelivery } from "@chanlytics/db/events";
 import { recordReachOutBookedFrom, stampVisitArrival } from "@chanlytics/db/calendar";
 import {
+  findNotificationToPush,
+  forgetGonePhones,
   listMembersPushed,
+  listPhonesOf,
   pushNamesFor,
   holdFactsOf,
   holdTold,
@@ -131,12 +134,7 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!id) throw new Error("push_send: no notification named");
   const result = must(
     "push_send: cannot read the notification",
-    await ctx.db
-      .from("notifications")
-      .select("id, tenant_id, kind, title, body, route, recipient_user_id, closed_at")
-      .eq("id", id)
-      .eq("tenant_id", job.tenant_id)
-      .maybeSingle(),
+    await findNotificationToPush(ctx.db, job.tenant_id, id),
   );
   // Gone, or closed before this ran (a hold answered within the minute, 00421): nothing to push, quietly.
   if (!result || result.closed_at) return;
@@ -149,11 +147,7 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!readers.length) return;
   // This reader's browsers, where they said yes (D12 of the answers canvas): told beside the phones, and never failing them.
   await tellBrowsers(ctx, readers, { ...result, route: noticeRoute(result.kind, result.route) });
-  const devices =
-    must(
-      "push_send: cannot read the phones",
-      await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers),
-    ) ?? [];
+  const devices = must("push_send: cannot read the phones", await listPhonesOf(ctx.db, readers)) ?? [];
   if (!devices.length) return;
   // Each reader's bell, counted as the page counts it (packages/db getUnreadOfReaders, by contracts unreadFor); and who of
   // them is in more than one workspace, whose phone is told which business, and keeps its icon's number (R11 S8-7).
@@ -180,11 +174,8 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // From here nothing throws: the alert has left, and a throw would have the ledger send it to every phone again.
   const gone = receipts.filter((r) => r.status === "error" && r.error === "DeviceNotRegistered").map((r) => r.to);
   if (gone.length) {
-    try {
-      await ctx.db.from("push_devices").delete().in("token", gone);
-    } catch {
-      // A dead phone not forgotten now is forgotten a send later, by its receipt or its next ticket.
-    }
+    // A dead phone not forgotten now is forgotten a send later, by its receipt or its next ticket.
+    await forgetGonePhones(ctx.db, gone).catch(logAndGoOn("forgetting the phones a send found gone"));
   }
   // A ticket says the service took the message; whether the phone did arrives in its receipt, a quarter of an hour
   // on (00189). One job carries every ticket of this send.
@@ -227,13 +218,7 @@ async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const receipts = await ctx.push.receipts(tickets.map((t) => t.id));
   const gone = tickets.filter((t) => receipts[t.id]?.error === "DeviceNotRegistered").map((t) => t.to);
   if (gone.length) {
-    must(
-      "push_receipts: cannot forget a phone that is gone",
-      await ctx.db
-        .from("push_devices")
-        .delete()
-        .in("token", [...new Set(gone)]),
-    );
+    await forgetGonePhones(ctx.db, gone);
   }
 }
 

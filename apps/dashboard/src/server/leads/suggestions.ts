@@ -104,13 +104,15 @@ interface IdeaStore {
   again: (tenantId: TenantId) => Promise<void>;
 }
 
+/** The service's client, the one place this module takes it. */
+const ideasDb = () => serviceDb();
 const SERVICE_STORE: IdeaStore = {
-  claim: (tenantId, line) => claimIdeas(serviceDb(), tenantId, line),
-  keep: (tenantId, claim, row) => keepIdeas(serviceDb(), tenantId, claim, row),
-  fail: (tenantId, claim) => failIdeas(serviceDb(), tenantId, claim),
-  history: (tenantId) => readIdeaHistory(serviceDb(), tenantId),
-  saveLine: (tenantId, line) => saveIdeasLine(serviceDb(), tenantId, line),
-  again: (tenantId) => askForIdeasAgain(serviceDb(), tenantId),
+  claim: (tenantId, line) => claimIdeas(ideasDb(), tenantId, line),
+  keep: (tenantId, claim, row) => keepIdeas(ideasDb(), tenantId, claim, row),
+  fail: (tenantId, claim) => failIdeas(ideasDb(), tenantId, claim),
+  history: (tenantId) => readIdeaHistory(ideasDb(), tenantId),
+  saveLine: (tenantId, line) => saveIdeasLine(ideasDb(), tenantId, line),
+  again: (tenantId) => askForIdeasAgain(ideasDb(), tenantId),
 };
 /** A test's store: the claim always granted, every keep kept, a failure kept nowhere, and no search found. */
 const TEST_STORE: IdeaStore = {

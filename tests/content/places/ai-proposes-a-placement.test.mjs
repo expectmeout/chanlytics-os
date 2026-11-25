@@ -124,7 +124,13 @@ async function proposed({
   setServiceClient(
     fakeDb({ tenant_channels: [channel], files: [file], events: [], posts: [], pieces: tables.pieces }, {}, {}),
   );
-  const ctx = { supabase: fakeDb(tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
+  // Whether Instagram takes a post is read on the member's own session (00717), from the workspace's channels.
+  const ctx = {
+    supabase: fakeDb({ ...tables, tenant_channels: [channel] }, {}, {}),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
   const tc = { ...newToolContext(ctx, tenant, "owner", "UTC", new Date()), question, askedEarlier: [], language: "en" };
   if (tool === "propose_take_down") return buildProposal(tc, tool, { file: "open-late-on-fridays" });
   return buildProposal(tc, "propose_publish", { file: "open-late-on-fridays", places: ["instagram"], ...input });

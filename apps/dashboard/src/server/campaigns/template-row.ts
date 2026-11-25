@@ -10,7 +10,6 @@ import { z } from "zod";
 import { AppError, DbFailure, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 import { deleteTemplate, recordTemplateEvent } from "@/server/campaigns/meta-templates";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { templateScope } from "@/server/shared/verbs";
 import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
@@ -113,6 +112,6 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
     );
   }
   // Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name.
-  await recordTemplateEvent(serviceDb(), tpl.tenant_id, "removed", tpl, ctx.userId);
+  await recordTemplateEvent(tpl.tenant_id, "removed", tpl, ctx.userId);
   return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: result.atMeta };
 }
