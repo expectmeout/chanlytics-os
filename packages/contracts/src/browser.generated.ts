@@ -578,7 +578,7 @@ export { cleanDisplayName, DISPLAY_NAME_MAX, identityWords, invitationWords, joi
 export { PAGE_SPEED_MIN, PAGE_SPEED_READ, pageSpeedWords } from "./shell/page-speed";
 export { combinedInto, NEEDS_TITLE, PERM_DOING, refusalOf, roleGate, SESSION_ENDED, sessionEnded, waitWords } from "./shell/refusal";
 export { REPORT_KIND_WORDS, REPORT_KINDS, REPORT_LIMITS, REPORT_WORDS, reportKindOf, reportProblemOf } from "./shell/report-problem";
-export { OPEN_READ_PATHS, OPENING_MARK, openReadPathOf, openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
+export { FAILED_WHOLE, OPEN_READ_PATHS, OPENING_MARK, openReadPathOf, openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, routePrefetchScript } from "./shell/route-prefetch";
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";

@@ -43,6 +43,10 @@ read, not a new page.
 - **How long a page takes to be drawn**: for customers, the field data ("See how fast the pages are" in
   [runbook.md](runbook.md)); for the nightly, its own log, one line a page
   (`e2e/production/page-speed-budgets.spec.ts`), held to `tests/baselines/page-speed-budgets.json`.
+- **What a page costs the database**: the nightly's whole suite counts the database calls behind a load of each main
+  page, a minute of a tab left open and a minute of failing reads, on its own stack (`e2e/shell/database-calls.spec.ts`),
+  held to `tests/baselines/database-calls.json`; production says each route's own in its log ("See what a page costs the
+  database" in [runbook.md](runbook.md)).
 
 ## History
 

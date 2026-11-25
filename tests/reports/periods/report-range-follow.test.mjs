@@ -11,7 +11,7 @@
  * by the period kept, read in their place: the page says which days it could not read, and the address takes the
  * period's place, so Back never returns to days that fail. A pick that fails puts back the period kept before it.
  */
-import { after, test } from "node:test";
+import { after, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { reportDaysCount, reportRangeOfKey, shiftKey } from "@chanlytics/contracts";
 import { again, classes, find, fresh, installStubReact, settle, textOf } from "../../_stub-react.mjs";
@@ -34,6 +34,9 @@ const { forgetReports, keepReportPeriod, paintHeldReports, reportsOverride, show
 const { reportsPeopleOverride } = await import(`${S}/surfaces/reports/people-surface.ts`);
 const { setReportRange } = await import(`${S}/surfaces/reports/period.ts`);
 const { refreshSurfaces, startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
+const { api } = await import(`${S}/bridge/api.ts`);
+// Each test is a page of its own: reads one before it failed on purpose are no trouble of the next (client/trouble.ts).
+beforeEach(() => api().standAgain());
 const { getSurfaceStatuses } = await import(`${S}/bridge/surface-status.ts`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);

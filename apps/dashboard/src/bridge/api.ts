@@ -89,6 +89,12 @@ async function endSession(win: Window): Promise<void> {
   win.location.assign(signInHref(win.location));
 }
 
+/**
+ * Whether a person has just pressed something, as the browser says it (`navigator.userActivation`, a few seconds from
+ * a press, a tap or a key): a read asked then is their own. False where the browser has no word for it.
+ */
+const justPressed = (): boolean => typeof navigator !== "undefined" && navigator.userActivation?.isActive === true;
+
 /** When this page began to load: the head's reads began at it or after, so an answer of theirs is no newer (S2-4). */
 const pageBegan = (): number =>
   typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin) ? performance.timeOrigin : Date.now();
@@ -227,6 +233,7 @@ export function api(): Api {
     prefetchedFrom: pageBegan,
     // The rest of a load's reads, as one (GET open/rest): what the boot gathers as it starts the pages not on screen.
     together: restOverWindow(),
+    pressed: justPressed,
     workspace: getActiveWorkspace,
     onSignedOut: () => toSignIn(window),
     onSessionEnded: () => void endSession(window),

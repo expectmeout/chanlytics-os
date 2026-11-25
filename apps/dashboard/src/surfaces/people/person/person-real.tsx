@@ -50,7 +50,7 @@ import { whatTheyGet } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
-import { seePerson, useSeeOpen } from "../../seen";
+import { owesVisitMark, seePerson, useSeeOpen, type VisitMark } from "../../seen";
 import { usePartShown } from "../../use-surface";
 import { plReading } from "../cells/columns";
 
@@ -611,15 +611,20 @@ function useLookedAt(id: string, row: PersonRowVM | null): LookedAt | null {
   const heardAtMs = row ? (row.askedMs ?? 0) : 0;
   const markAtMs = row ? row.markAtMs : 0;
   const unseen = row ? row.unseen : false;
+  // Once a visit, and again only when they say something new while the page is open (seen.ts owesVisitMark says why): the
+  // mark's own answer moves the row's stamp, and this ran again for it. What the row says now is read as the dwell ends.
+  const reading = useRef({ unseen, heardAtMs, markAtMs });
+  reading.current = { unseen, heardAtMs, markAtMs };
+  const marked = useRef<VisitMark | null>(null);
   useEffect(() => {
-    if (!ready) return undefined;
+    if (!ready || !owesVisitMark(marked.current, id, heardAtMs)) return undefined;
     // After a dwell: stepping through a list past someone (‹ 4 of 24 ›) does not mark them looked at.
-    const t = setTimeout(
-      () => seePerson({ personId: id, conversationId }, { unseen, heardAtMs, markAtMs }),
-      SEEN_DWELL_MS,
-    );
+    const t = setTimeout(() => {
+      marked.current = { id, upTo: heardAtMs };
+      seePerson({ personId: id, conversationId }, reading.current);
+    }, SEEN_DWELL_MS);
     return () => clearTimeout(t);
-  }, [id, ready, conversationId, unseen, heardAtMs, markAtMs]);
+  }, [id, ready, conversationId, heardAtMs]);
   return looked;
 }
 
