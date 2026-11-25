@@ -2,7 +2,7 @@
 import type { AskProposalOutcome, AskThreadVM } from "@chanlytics/contracts";
 import type { Conversation, Line } from "./types";
 import { navigate } from "../shell";
-import { arPhone } from "./place";
+import { AR_FOCUS_MS, arPhone } from "./place";
 
 /** Going somewhere, a question back in the field, leaving the turn in flight, Clear, a card's outcome, a conversation opened or deleted, and Stop. */
 export const arActs = (ln: Line) => {
@@ -52,7 +52,7 @@ export const arActs = (ln: Line) => {
   const editWords = (text?: unknown) => {
     const last = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
     setQuery(typeof text === "string" ? text : last ? last.text : "");
-    setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
+    setTimeout(() => inputRef.current && inputRef.current.focus(), AR_FOCUS_MS);
   };
   // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
   // the answer). Every turn checks it is still the current one (turnSeq) before it writes.

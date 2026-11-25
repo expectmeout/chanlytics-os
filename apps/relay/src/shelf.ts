@@ -90,10 +90,12 @@ const VIDEO_TYPE = "video/mp4";
 const VIDEO_BYTES_MAX = 500_000_000;
 /** How much of a pull's request is read: an address, and nothing else. */
 const PULL_BODY_CHARS_MAX = 4_096;
+/** A second, in ms: the relay imports nothing of ours, so contracts' SECOND_MS is not reached from here. */
+const SECOND_MS = 1_000;
 /** How long the place a file is pulled from has to begin its answer. */
 const SOURCE_TRY_MS = 30_000;
 /** How long a pull may run in all: its pipe is cut then, so no put ends later than this after it began. */
-const PULL_MOST_MS = 60_000;
+const PULL_MOST_MS = 60 * SECOND_MS;
 /** An allowed start for a pull: https, a whole host, and at least the path's first "/". */
 const HOST_AND_PATH = /^https:\/\/[^/?#\s]+\//;
 /** R2's own code for bytes that are not the ones their checksum names, at the end of its error's message. */

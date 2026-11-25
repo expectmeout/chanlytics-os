@@ -55,7 +55,7 @@ export interface OpeningsView {
 export { readLines };
 
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
-const TURN_MS = 300_000;
+const TURN_MS = 5 * MIN_MS;
 
 /**
  * What the Line says of a turn whose stream broke before its answer, in the question's language: the wait run out

@@ -6,7 +6,8 @@
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { breakerOf, breakerStates, fetchFromProvider, resetBreakers } from "@chanlytics/channels/shared";
-import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+import { requestTimings, withRequestId } from "@chanlytics/log";
+import { fieldsOf, linesOf, logLineOf } from "../_log-lines.mjs";
 
 beforeEach(() => resetBreakers());
 
@@ -242,4 +243,47 @@ test("a breaker opens and closes in the log, once each, naming the provider; the
     after.filter((b) => b.provider !== "retell").every((b) => !b.open && b.failures === 0 && b.opened === 0),
     "every other provider untouched",
   );
+});
+
+test("each call's time is said under its name in the request it serves, and a call that took half its bound or more says so", async () => {
+  const c = clock();
+  const after = (ms) => async () => {
+    c.pass(ms);
+    return new Response("{}", { status: 200 });
+  };
+  const { result: timings, lines } = await linesOf(() =>
+    withRequestId("req-out-1", async () => {
+      await fetchFromProvider(
+        "meta",
+        "https://graph.example.com/a",
+        { timeoutMs: 5_000 },
+        { ...c, fetch: after(3_000) },
+      );
+      await fetchFromProvider("meta", "https://graph.example.com/b", { timeoutMs: 5_000 }, { ...c, fetch: after(100) });
+      await fetchFromProvider(
+        "edge",
+        "https://edge.example.com/x",
+        { timeoutMs: 5_000, breaker: "count" },
+        { ...c, fetch: after(40) },
+      );
+      return Object.fromEntries(requestTimings());
+    }),
+  );
+  assert.deepEqual(timings, { "out.meta": { ms: 3_100, n: 2 }, "out.edge": { ms: 40, n: 1 } });
+  assert.deepEqual(
+    lines.map((l) => [l.event, fieldsOf(l)]),
+    [["outside_call_slow", { provider: "meta", ms: 3_000, timeout_ms: 5_000, status: 200, outcome: "ok", tries: 1 }]],
+  );
+});
+
+test("a call the breaker held went nowhere and notes no time", async () => {
+  const c = clock();
+  const dead = provider(503);
+  for (let i = 0; i < 5; i++) await fetchFromProvider("google", "u", { timeoutMs: 1_000 }, { ...c, fetch: dead.fetch });
+  const timings = await withRequestId("req-out-2", async () => {
+    const held = await fetchFromProvider("google", "u", { timeoutMs: 1_000 }, { ...c, fetch: dead.fetch });
+    assert.equal(held.error, "breaker_open");
+    return Object.fromEntries(requestTimings());
+  });
+  assert.deepEqual(timings, {});
 });

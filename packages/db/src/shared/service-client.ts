@@ -31,15 +31,17 @@ export interface ServiceClientConfig {
  * size, and its caller bounds it. A caller's own signal still aborts first when it is sooner.
  *
  * A request given up on is said as an abort, which is never asked again (read-again.ts): another wait of the bound
- * would outlast every function that calls it.
+ * would outlast every function that calls it. Without a `base`, the process's fetch as it is at the call, so a test that
+ * stubs it later is heard.
  */
-export function boundedFetch(ms: number, base: typeof fetch): typeof fetch {
+export function boundedFetch(ms: number, base?: typeof fetch): typeof fetch {
   return async (input, init) => {
+    const send = base ?? globalThis.fetch;
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (!url.includes("/rest/v1/")) return base(input, init);
+    if (!url.includes("/rest/v1/")) return send(input, init);
     const bound = AbortSignal.timeout(ms);
     try {
-      return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
+      return await send(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
     } catch (e) {
       if (!bound.aborted || init?.signal?.aborted) throw e;
       const timeout = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });

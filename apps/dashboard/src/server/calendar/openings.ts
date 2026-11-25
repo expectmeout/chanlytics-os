@@ -1,5 +1,5 @@
 import "server-only";
-import { roomOf, type BookRoom } from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, roomOf, type BookRoom } from "@chanlytics/contracts";
 import {
   BOOKING_DEFAULTS,
   bookingToolName,
@@ -59,9 +59,9 @@ async function grantFeedText(tenantId: TenantId): Promise<string> {
  * and never sent to the browser.
  */
 
-const FEED_TTL_MS = 5 * 60 * 1000;
+const FEED_TTL_MS = 5 * MIN_MS;
 /** A failed read is remembered for a minute: one broken feed must not cost eight seconds on every page that reads it. */
-const FEED_FAIL_TTL_MS = 60 * 1000;
+const FEED_FAIL_TTL_MS = MIN_MS;
 /**
  * The least time between two fetches an owner's Refresh can force (C2): pressed twice in a row, the calendar is asked
  * once. Past it, a fresh read skips the caches above -- the board's only way to see a change was to wait them out.
@@ -72,7 +72,9 @@ const FEED_FRESH_FLOOR_MS = 15 * 1000;
  * goes on behind it for whoever asks next: a person's page, whose next visit waited on the calendar's own server every
  * five minutes. Past this, that reader waits for the fetch like anyone else.
  */
-const FEED_STALE_MAX_MS = 30 * 60 * 1000;
+const FEED_STALE_MAX_MS = 30 * MIN_MS;
+/** How long one read of a feed may take: what a broken feed costs, once a minute at most (FEED_FAIL_TTL_MS). */
+const FEED_READ_MS = 8 * SECOND_MS;
 
 interface FeedEntry {
   /**
@@ -183,7 +185,7 @@ async function fetchInto(tenantId: TenantId, url: string, hit: FeedEntry | undef
     try {
       // Every hop judged by the address rule (fetchPublic), not only the first.
       const result = await fetchPublic(publicFetcher(), safe, {
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(FEED_READ_MS),
         headers: { accept: "text/calendar, */*" },
       });
       if (!result) throw new FeedRefused("address");

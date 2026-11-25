@@ -18,5 +18,12 @@ export {
   readNumberDrift,
   readSweepHealth,
 } from "./health";
-export { findOperatorPage, listOperatorPages, saveOperatorPage, stampOperatorPage } from "./pages";
+export {
+  AT_CAP_PAGE,
+  findOperatorPage,
+  listOperatorPages,
+  noteAnswerAtCap,
+  saveOperatorPage,
+  stampOperatorPage,
+} from "./pages";
 export { getCronSweepKey } from "./sweeps";

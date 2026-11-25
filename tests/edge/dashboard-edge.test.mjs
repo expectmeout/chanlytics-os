@@ -15,7 +15,7 @@ const SECRET = "edge-secret-for-this-file";
 const KEY = "diag-key-for-this-file";
 const AUD = "/api/admin/lines";
 
-const { edgeHeaders, edgeConfigured, edgeUrl, callEdge, edgeAnswered } = await importSrc(
+const { edgeHeaders, edgeConfigured, edgeUrl, callEdge, edgeAnswered, streamEdge } = await importSrc(
   "apps/dashboard/src/server/shared/edge.ts",
 );
 
@@ -139,7 +139,7 @@ test("every call to the edge is bounded and never throws: the door's answer as i
     const read = await callEdge("/api/admin/whatsapp/signup-config", null, {
       method: "GET",
       fetch: async (_u, init) => {
-        assert.equal("body" in init, false, "a read carries no body");
+        assert.equal(init.body, undefined, "a read carries no body");
         return new Response(JSON.stringify([1]), { status: 200 });
       },
     });
@@ -201,5 +201,72 @@ test("a request's name: the caller's only where it is trusted to give one, else 
     const h = edgeHeaders(AUD);
     assert.equal("x-request-id" in h, false, "no request, no name");
     assert.equal(verifyEdgeToken(SECRET, h["x-edge-token"], AUD).claims.rid, null, "nor a signed one");
+  });
+});
+
+test("a streamed call to the edge: the door's token and a bound, a yes's body handed back unread, a no read as it came, no answer said; its time under out.edge", async () => {
+  const { withRequestId } = await importSrc("apps/dashboard/src/server/shared/log.ts");
+  const { requestTimings } = await import("@chanlytics/log");
+  await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
+    const calls = [];
+    const streamed = () =>
+      new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode('{"t":"step"}\n'));
+          c.close();
+        },
+      });
+    const yes = await withRequestId("req-stream-1", async () => {
+      const answer = await streamEdge(
+        AUD,
+        { tenant_id: "ws-1" },
+        {
+          workspace: "ws-1",
+          user: "u-1",
+          timeoutMs: 5_000,
+          fetch: async (url, init) => {
+            calls.push({ url, init });
+            return new Response(streamed(), { status: 200, headers: { "content-type": "application/x-ndjson" } });
+          },
+        },
+      );
+      return { answer, out: requestTimings().get("out.edge") };
+    });
+    assert.deepEqual([yes.answer.status, yes.answer.json, yes.answer.error], [200, null, null]);
+    assert.equal(await new Response(yes.answer.body).text(), '{"t":"step"}\n', "the body as it streamed, unread");
+    assert.equal(yes.answer.headers.get("content-type"), "application/x-ndjson");
+    assert.equal(yes.out.n, 1, "its time is the request's, under out.edge");
+    assert.equal(calls[0].url, "https://edge.test/api/admin/lines");
+    assert.equal(calls[0].init.method, "POST");
+    assert.equal(calls[0].init.body, JSON.stringify({ tenant_id: "ws-1" }));
+    assert.ok(calls[0].init.signal instanceof AbortSignal, "a bound rides every call");
+    const v = verifyEdgeToken(SECRET, calls[0].init.headers["x-edge-token"], AUD);
+    assert.deepEqual([v.ok, v.claims.ws, v.claims.user], [true, "ws-1", "u-1"]);
+
+    const no = await streamEdge(
+      AUD,
+      {},
+      {
+        workspace: null,
+        user: null,
+        timeoutMs: 5_000,
+        fetch: async () => new Response(JSON.stringify({ ok: false, error: "preview" }), { status: 409 }),
+      },
+    );
+    assert.deepEqual([no.status, no.body, no.json], [409, null, { ok: false, error: "preview" }]);
+
+    const none = await streamEdge(
+      AUD,
+      {},
+      {
+        workspace: null,
+        user: null,
+        timeoutMs: 5_000,
+        fetch: async () => {
+          throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+        },
+      },
+    );
+    assert.deepEqual([none.status, none.error, none.body], [0, "timeout", null]);
   });
 });

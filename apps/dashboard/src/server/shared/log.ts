@@ -1,5 +1,7 @@
 import "server-only";
+import { DbFailure } from "@chanlytics/contracts";
 import {
+  logAndGoOn,
   logger,
   noteTenant,
   noteTiming,
@@ -9,7 +11,9 @@ import {
   withRequestId,
   type Logger,
 } from "@chanlytics/log";
+import { noteAnswerAtCap } from "@chanlytics/db/ops";
 import { observeDb } from "@chanlytics/db/shared";
+import { serviceDb } from "./service-db";
 
 /**
  * The dashboard's server logs through the platform's one logger (packages/log), the edge's too: one JSON
@@ -323,11 +327,25 @@ export { withRequestId, requestId, noteTenant };
 // packages/db writes its lines through the one logger and names the request it writes for from the same store, and says
 // how long each of its calls took, which the request's answer says in Server-Timing as `db` (with-route.ts, decision 0053),
 // and what each touched, which a sample of answered lines says (with-route.ts touchedLine; decision 0058, lane R7). And a
-// request that answers several reads as one (GET open says so, page-open.ts) has its identical reads answered once.
+// request that answers several reads as one (GET open says so, page-open.ts) has its identical reads answered once. And
+// a read that stopped at the row cap is noted in the pager's memory, which Health shows and the edge's health sweep pages.
 observeDb({
   log: logger(),
   requestId,
   timed: (ms) => noteTiming("db", ms),
   touched: (table, how) => noteTouch(table, how),
   sharedReads,
+  atCap: noteAtCap,
 });
+
+/**
+ * A read that stopped at PostgREST's row cap, noted in the pager's memory (layer 12): a platform row, the service
+ * role's alone, which no member's session may write. Its failure is said and gone on past: the line is said already.
+ */
+function noteAtCap(table: string): void {
+  void noteAnswerAtCap(serviceDb(), table, new Date().toISOString())
+    .then(({ error }) => {
+      if (error) throw new DbFailure(error, "note a read at the row cap");
+    })
+    .catch(logAndGoOn("note a read at the row cap"));
+}
