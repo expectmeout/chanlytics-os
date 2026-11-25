@@ -59,6 +59,7 @@ import {
   postPrepare,
   postPublish,
   postReconcile,
+  postsRead,
   postTakeDown,
 } from "./posts";
 
@@ -608,6 +609,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   content_week_go: contentWeekGo,
   content_week_make: contentWeekMake,
   post_observe: postObserve,
+  posts_read: postsRead,
   comment_reply: commentReply,
   piece_make: pieceMake,
   campaign_moments: campaignMoments,

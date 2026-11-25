@@ -80,6 +80,22 @@ const WEEK_ON_ITS_OWN: KindPolicy = {
   never: [],
 };
 
+/**
+ * A workspace's recurring work, handed out by a clock and run as one job a workspace (decision 0115): it puts no words
+ * on a wire, asks what is due when it runs, is tried twice more, and a job that fails for good is the platform's to
+ * mend, since the clock's next turn hands the workspace another.
+ */
+const HANDED_OUT: KindPolicy = {
+  speaks: false,
+  retryWaitsMs: TWICE,
+  told: "platform",
+  settles: "nothing",
+  wires: false,
+  longestCallMs: 10 * SECOND_MS,
+  ids: [],
+  never: [],
+};
+
 export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // A reply, a member's or the receptionist's: the send claims its row before the wire, and a run that died may have sent.
   outbound_send: {
@@ -495,6 +511,11 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "step"],
     never: [],
   },
+  // A workspace's places asked which of its posts they still hold, once a day (the content status review's piece 4).
+  // It only reads; a post found gone is moved by a compare-and-set that rings once, so a second run repeats nothing. A
+  // place that cannot be read is said on its line and asked again tomorrow: a job throws only when the workspace's own
+  // posts cannot be read, which is ours to mend, and the clock's next turn hands the workspace another.
+  posts_read: { ...HANDED_OUT, longestCallMs: 20 * SECOND_MS },
   // A public answer to a comment (00699; the content loop PRD's 12.4). Its send puts the business's words in public, so
   // it is never run again after a claim that did not report back: the answer then says Instagram did not say, and the
   // owner looks before sending again (settle-comment.ts). Its draft is a model call nobody sees until it is kept.
@@ -511,59 +532,14 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
   // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.
-  campaign_moments: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "platform",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 10 * SECOND_MS,
-    ids: [],
-    never: [],
-  },
-  reach_out_steps: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "platform",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 10 * SECOND_MS,
-    ids: [],
-    never: [],
-  },
+  campaign_moments: HANDED_OUT,
+  reach_out_steps: HANDED_OUT,
   // A workspace's occasions whose time has come, handed out each minute by the sequences' clock (00598, decision 0119).
   // Nothing here puts words on a wire: a person's step schedules its send. Each row is settled as it is run, so a second
   // try runs only what the first did not, and what is left waiting is handed out again the next minute anyway.
-  sequence_occasions: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "platform",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 10 * SECOND_MS,
-    ids: [],
-    never: [],
-  },
-  calendar_read: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "platform",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 10 * SECOND_MS,
-    ids: [],
-    never: [],
-  },
-  google_read: {
-    speaks: false,
-    retryWaitsMs: TWICE,
-    told: "platform",
-    settles: "nothing",
-    wires: false,
-    longestCallMs: 10 * SECOND_MS,
-    ids: [],
-    never: [],
-  },
+  sequence_occasions: HANDED_OUT,
+  calendar_read: HANDED_OUT,
+  google_read: HANDED_OUT,
   // A workspace's lines' texts read from the provider every ten minutes (00605): each one the door never heard is knocked on
   // the door again, whose replay gate keeps a second knock a no-op, so a run that died is run again; the answer is its own job.
   texts_read: {

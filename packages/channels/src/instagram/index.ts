@@ -45,6 +45,8 @@ export {
   parseMetaAssignedAccounts,
 } from "./meta";
 export type { MetaAccount } from "./meta";
+export { metaMediaSinceRequest, parseMetaListedPage } from "./meta-listed";
+export type { MetaListedPage, MetaListedPost } from "./meta-listed";
 export {
   metaContainerErrorOf,
   metaContainerFields,

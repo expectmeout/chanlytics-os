@@ -289,6 +289,29 @@ test(
   },
 );
 
+test(
+  "a workspace with a picture or a reel up is due its daily read of what its places hold, once a day, and only the service asks",
+  { skip },
+  async () => {
+    // A holds a reel that is up, and stories, which never count; B holds no post.
+    const due = async () => ok(await db.rpc("posts_read_due", { p_limit: 1000 }), "who is due").map((d) => d.tenant_id);
+    const first = await due();
+    assert.ok(first.includes(A), "a reel up within a year");
+    assert.ok(!first.includes(B), "no post, no read");
+    // The clock hands it one job: while that waits, and for a day after, the workspace is not due again.
+    const handOut = () => db.rpc("jobs_hand_out", { p_kind: "posts_read", p_tenants: [A], p_spread_seconds: 300 });
+    assert.equal(ok(await handOut(), "handed"), 1);
+    assert.equal(ok(await handOut(), "a second knock"), 0);
+    assert.ok(!(await due()).includes(A), "its read is on the ledger");
+    // A read that failed is not the day's read: the clock's next turn hands the workspace another.
+    ok(await db.from("jobs").update({ state: "failed" }).eq("tenant_id", A).eq("kind", "posts_read"), "it failed");
+    assert.ok((await due()).includes(A), "due again");
+    ok(await db.from("jobs").delete().eq("tenant_id", A).eq("kind", "posts_read"), "tidied");
+    for (const who of [as.owner, as.viewer, as.stranger])
+      assert.ok((await who.client.rpc("posts_read_due", { p_limit: 10 })).error, "no member may ask");
+  },
+);
+
 test("a post's link is one, made by a member who may act, and an open counts", { skip }, async () => {
   const made = ok(await as.owner.client.rpc("post_link_make", { p_tenant_id: A, p_post_id: REEL }), "made");
   const again = ok(await as.owner.client.rpc("post_link_make", { p_tenant_id: A, p_post_id: REEL }), "again");

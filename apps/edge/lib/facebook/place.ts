@@ -33,6 +33,7 @@ import {
   pagePostRequest,
   pagePostSentBy,
   pagePostsRequest,
+  pagePostsSinceRequest,
   pageReelFetchRequest,
   pageReelFinishRequest,
   pageReelStartRequest,
@@ -44,6 +45,7 @@ import {
   pageTokenRequest,
   pageVideoStatusRequest,
   parsePageIds,
+  parsePageListedPage,
   parsePageMade,
   parsePagePost,
   parsePagePosts,
@@ -57,9 +59,13 @@ import {
   type PagePoster,
   type PageReel,
 } from "@chanlytics/channels/facebook";
+import { listedPageOfMeta, type ListedPage } from "../content/place-listing.js";
 
 /** One request to a Page, as the wire builds it. */
 type PageRequest = Parameters<typeof callFacebook>[0];
+
+/** Where a list's next page begins, as the wire names it. */
+type MetaNextPage = NonNullable<Parameters<typeof pagePostsSinceRequest>[1]["next"]>;
 
 /** The longest one call to a Page waits (KIND_POLICY longestCallMs is 20 s). */
 export const FACEBOOK_CALL_MS = 15_000;
@@ -319,18 +325,46 @@ async function takeDownOn(h: PageHands, post: SentPlacement): Promise<TakeDownAn
   return { outcome: "needs_person", said: ON_FACEBOOK.takeDown.byHand, kept };
 }
 
-/** Facebook's adapter, over the Page the Meta link keeps and the link's token. */
-export function facebookPlace(poster: PagePoster, deps: FacebookPlaceDeps = {}): PlaceAdapter {
+/* ------------------------------------------------------------------ the Page's own list */
+
+/**
+ * One page of the Page's own posts since a time (the daily read's list, content/posts-read.ts), through the Page's token.
+ * A token that could not be asked for says nothing of any post, as a refused page does.
+ */
+async function listedOn(h: PageHands, since: Date, next: MetaNextPage | null): Promise<ListedPage<MetaNextPage>> {
+  const got = await h.hand();
+  if (got.is === "refused") return { is: "refused", said: `${got.refusal.code ?? "-"}/${got.refusal.subcode ?? "-"}` };
+  if (got.is === "unknown") return { is: "unknown", said: String(got.kept.status ?? 0) };
+  return listedPageOfMeta(await h.call(pagePostsSinceRequest(got.hand, { since, next })), parsePageListedPage);
+}
+
+/** What every ask of one Page shares: its one bounded call, and its token asked for once. */
+function handsOf(poster: PagePoster, deps: FacebookPlaceDeps): PageHands {
   const call = (request: PageRequest) => callFacebook(request, { timeoutMs: FACEBOOK_CALL_MS }, deps);
   let asked: Promise<HandOrNot> | null = null;
-  const hands: PageHands = { call, deps, hand: () => (asked ??= askPageToken(poster, call)) };
+  return { call, deps, hand: () => (asked ??= askPageToken(poster, call)) };
+}
+
+const placeOver = (hands: PageHands): PlaceAdapter => ({
+  place: "facebook",
+  capabilities: PLACE_CAPABILITIES.facebook,
+  prepare: (post) => prepareOn(hands, post),
+  preparedState: (ref, kind) => preparedStateOn(hands, ref, kind),
+  publish: (post, ref) => publishOn(hands, post, ref),
+  status: (post) => statusOn(hands, post),
+  takeDown: (post) => takeDownOn(hands, post),
+});
+
+/** Facebook's adapter, over the Page the Meta link keeps and the link's token. */
+export function facebookPlace(poster: PagePoster, deps: FacebookPlaceDeps = {}): PlaceAdapter {
+  return placeOver(handsOf(poster, deps));
+}
+
+/** The same adapter, and the Page's own list of posts a page at a time, both through one ask for the Page's token. */
+export function facebookPlaceListed(poster: PagePoster, deps: FacebookPlaceDeps = {}) {
+  const hands = handsOf(poster, deps);
   return {
-    place: "facebook",
-    capabilities: PLACE_CAPABILITIES.facebook,
-    prepare: (post) => prepareOn(hands, post),
-    preparedState: (ref, kind) => preparedStateOn(hands, ref, kind),
-    publish: (post, ref) => publishOn(hands, post, ref),
-    status: (post) => statusOn(hands, post),
-    takeDown: (post) => takeDownOn(hands, post),
+    place: placeOver(hands),
+    listed: (since: Date, next: MetaNextPage | null) => listedOn(hands, since, next),
   };
 }

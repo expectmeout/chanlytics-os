@@ -32223,6 +32223,35 @@ COMMENT ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) IS 'A
 
 
 --
+-- Name: posts_read_due(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.posts_read_due(p_limit integer DEFAULT 200) RETURNS TABLE(tenant_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select t.id
+    from public.tenants t
+   where exists (select 1 from public.posts p
+                  where p.tenant_id = t.id and p.status = 'published' and p.external_id is not null
+                    and p.kind <> 'story' and p.place in ('instagram', 'google', 'facebook')
+                    and p.published_at > now() - interval '365 days')
+     and not exists (select 1 from public.jobs j
+                      where j.tenant_id = t.id and j.kind = 'posts_read' and j.state <> 'failed'
+                        and j.created_at > now() - interval '23 hours')
+   order by t.id
+   limit greatest(1, least(coalesce(p_limit, 200), 1000));
+$$;
+
+
+--
+-- Name: FUNCTION posts_read_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.posts_read_due(p_limit integer) IS 'The workspaces due their daily read of what their places hold (the content status review of 24 November 2026, piece 4): each with a picture or a reel up at Instagram, Google or a Facebook Page, with the place''s own id for it, that went up within a year, and no posts_read job written in the last 23 hours, a failed one aside. A story is never counted: no place lists one, and it ends by itself in a day. The health sweep hands each a posts_read job (jobs_hand_out), which asks each place for its own list of posts and takes down here what the place no longer holds. The service role''s.';
+
+
+--
 -- Name: posts_take_down_start(uuid, uuid, text, text, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -73339,6 +73368,14 @@ GRANT ALL ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome t
 
 REVOKE ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) TO service_role;
+
+
+--
+-- Name: FUNCTION posts_read_due(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.posts_read_due(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.posts_read_due(p_limit integer) TO service_role;
 
 
 --

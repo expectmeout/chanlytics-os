@@ -279,6 +279,13 @@ export const JOB_KINDS = [
    * and written to be run again: every write is once an ad and once a day.
    */
   "ad_read",
+  /**
+   * A workspace's places asked which of its posts they still hold (the content status review's piece 4), handed out by
+   * the health sweep once a day a workspace (posts_read_due), one a workspace while one waits or runs, in the bulk lane.
+   * Each place's own list is held against the posts Chanlytics calls up there, and one the place no longer holds is
+   * taken down here and its owner told once. Payload {}, or { dry: "yes" } for a read that moves nothing.
+   */
+  "posts_read",
   "booking_lapse", // a time asked for that ran out: AI tells the customer and it closes (0061 as amended, 00679)
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;

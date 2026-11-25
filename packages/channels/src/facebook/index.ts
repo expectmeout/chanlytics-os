@@ -6,6 +6,7 @@ export {
   pageRefusalLosesConnection,
   pageRefusalOf,
   parsePageIds,
+  parsePageListedPage,
   parsePageMade,
   parsePagePost,
   parsePagePosts,
@@ -14,7 +15,7 @@ export {
   parsePageSuccess,
   parsePageToken,
 } from "./answers";
-export type { PagePost, PageReel, PageStory, ReelState } from "./answers";
+export type { PageListedPage, PagePost, PageReel, PageStory, ReelState } from "./answers";
 export { linkedPageRequest, parseLinkedPage, postablePageIdsOf, readLinkedPage } from "./linked";
 export {
   callFacebook,
@@ -24,6 +25,7 @@ export {
   pagePostReadRequest,
   pagePostRequest,
   pagePostsRequest,
+  pagePostsSinceRequest,
   pageReelFetchRequest,
   pageReelFinishRequest,
   pageReelsRequest,

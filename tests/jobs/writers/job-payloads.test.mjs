@@ -123,6 +123,7 @@ test("the shapes writers hand over are what their kind says", () => {
     source_walk: { source_id: "s", run: "2", step: "0", walk: "reconcile" },
     source_read: { source_id: "s" },
     ad_read: { account_id: "a" },
+    posts_read: { dry: "yes" },
     booking_lapse: { appointment_id: "v" },
     canary: {},
   };

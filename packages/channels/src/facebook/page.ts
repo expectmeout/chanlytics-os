@@ -15,7 +15,8 @@
  * its `appsecret_proof` beside it on the Graph; a write's fields go in its body, so words never ride in an address a log
  * may keep.
  */
-import { META_GRAPH, metaAppSecretProof, type MetaRequest } from "../meta/client";
+import { SECOND_MS } from "@chanlytics/contracts";
+import { META_GRAPH, metaAppSecretProof, type MetaNextPage, type MetaRequest } from "../meta/client";
 import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 
 /** What asks for the Page's token: the Meta link's token, the app's secret its proof is made with, and the Page. */
@@ -140,6 +141,28 @@ export function pagePostsRequest(hand: PageHand): MetaRequest {
   return readFrom(
     `${page(hand)}/published_posts`,
     { fields: "id,message,created_time,permalink_url", limit: "10" },
+    hand,
+  );
+}
+
+/** The most posts one page of the Page's list is asked for (Meta's Page Feed: "a maximum of 100 feed posts"). */
+const PAGE_LISTED_PAGE = 100;
+
+/**
+ * One page of the Page's own posts made since `since`, each by its id and its time: what the daily read holds against the
+ * posts Chanlytics calls up there. Meta's page for this list names no parameters, so the time range is asked and never
+ * leaned on: the reader stops where a page reaches back past it.
+ */
+export function pagePostsSinceRequest(hand: PageHand, at: { since: Date; next?: MetaNextPage | null }): MetaRequest {
+  return readFrom(
+    `${page(hand)}/published_posts`,
+    {
+      fields: "id,created_time",
+      limit: String(PAGE_LISTED_PAGE),
+      since: String(Math.floor(at.since.getTime() / SECOND_MS)),
+      ...(at.next?.after ? { after: at.next.after } : {}),
+      ...(at.next?.until ? { until: at.next.until } : {}),
+    },
     hand,
   );
 }

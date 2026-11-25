@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FILE_WORDS, PLACE_CAPABILITIES, type PlaceAdapter, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
-import { postOnProfile, unpostOnProfile } from "./local-posts.js";
+import { findOnProfile, postOnProfile, unpostOnProfile } from "./local-posts.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,4 +65,13 @@ export function googlePlace(db: Db, at: { tenantId: TenantId; fileId: string; by
       };
     },
   };
+}
+
+/**
+ * Google's adapter as the daily read asks it (content/posts-read.ts): the same, and able to say whether the profile
+ * still holds a post, by Google's own name for it. Only that read is handed this one: a take-down's "I deleted it" goes
+ * on taking the owner's word on Google (content/take-down.ts), so the adapter every other job gets has no `status`.
+ */
+export function googlePlaceAsked(db: Db, at: { tenantId: TenantId; fileId: string; by: string | null }): PlaceAdapter {
+  return { ...googlePlace(db, at), status: (post) => findOnProfile(db, at.tenantId, post.externalId) };
 }

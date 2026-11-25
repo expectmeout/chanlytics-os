@@ -7,7 +7,8 @@
  * its take-down just before the place is asked (keepLastNumbers).
  *
  * A read that gave no number asks the place whether it still holds the post: one removed on the place itself (by its
- * owner there, or by the place) is taken down here too, and its owner told once (settleGone).
+ * owner there, or by the place) is taken down here too, and its owner told once (settleGone). The daily read of what an
+ * account holds (posts-read.ts) asks the same question the same way, for the posts its own list no longer names.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -68,7 +69,7 @@ const noNumberCame = (rows: readonly Observation[]): boolean =>
  * could find it, too little to call it gone), and a story past its day, which ended by itself. A read that fails says
  * nothing, and the next step asks again.
  */
-async function askWhetherGone(place: PlaceAdapter, post: PostRow, nowMs: number): Promise<boolean> {
+export async function askWhetherGone(place: PlaceAdapter, post: PostRow, nowMs: number): Promise<boolean> {
   if (!post.external_id || !place.status) return false;
   if (post.kind === "story" && (!post.published_at || nowMs - Date.parse(post.published_at) >= DAY_MS)) return false;
   const state = await place
@@ -80,17 +81,24 @@ async function askWhetherGone(place: PlaceAdapter, post: PostRow, nowMs: number)
 /**
  * A post its place no longer holds: taken down, as the place shows, and its owner told once, as a take-down that came
  * through is. Moved from published only, so two reads never both move it nor both ring. A take-down still asking is
- * left to settle it, and to ring once.
+ * left to settle it, and to ring once. `step` says which read found it: one of the clock's steps for a read of its
+ * numbers, or `list` for the daily read of what its account holds (posts-read.ts). Answers whether this call moved it.
  */
-async function settleGone(db: Db, tenantId: TenantId, post: PostRow, step: ObserveStep): Promise<void> {
+export async function settleGone(
+  db: Db,
+  tenantId: TenantId,
+  post: PostRow,
+  step: ObserveStep | "list",
+): Promise<boolean> {
   const log = logger({ tenant_id: tenantId });
   if (await isPostTakeDownAsking(db, tenantId, post.id)) {
     log.info("post_gone", { post_id: post.id, place: post.place, step, moved: false, take_down: "asking" });
-    return;
+    return false;
   }
   const moved = await movePost(db, { postId: post.id, from: ["published"], to: "taken_down" });
   log.info("post_gone", { post_id: post.id, place: post.place, step, moved });
   if (moved) await tellPostGone(db, post);
+  return moved;
 }
 
 /** post_observe: one read of one post's numbers, kept; where none came, and the place no longer holds it, taken down. */
