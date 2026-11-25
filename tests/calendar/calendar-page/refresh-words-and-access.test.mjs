@@ -1037,7 +1037,7 @@ test("REGRESSION: the Calendar draws no key -- its legend said ← → move · T
     "and Hours and rules says it under its name",
   );
   assert.deepEqual(
-    ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props.title),
+    ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props["data-tip"]),
     ["Previous", undefined, "Next"],
     "the arrows' tips name them, and Today says Today already",
   );
