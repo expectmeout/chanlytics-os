@@ -27,7 +27,7 @@ import {
   replaceRejectedCampaign,
 } from "../../apps/edge/lib/lines/a2p-refile.ts";
 import { listFilingProblems } from "../../apps/edge/lib/lines/a2p-register.ts";
-import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
+import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord, platformLineActions } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -249,10 +249,8 @@ test("a question we could not ask is never reported as an answer", () => {
   // quiet week, so it fails the request (503 no_registration_readable) and
   // sweep_health turns it red; some readable is still a 200, those rows carrying
   // their own reason. Run in cron-doors-b.test.mjs, heal included.
-  assert.ok(
-    readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
-    "and something is watching this sweep to receive that 503",
-  );
+  // And something is watching this sweep to receive that 503: the registration sweep is in the register of clocks and
+  // scheduled (ops/sweep-registry.db.test.mjs), pinned as 00086's text until 25 Nov 2026.
 });
 
 test("a rejection is answered by CORRECTING the campaign, not paying for a new one", async () => {
@@ -428,11 +426,18 @@ test("a rejection reaches every person who can act on it, in words about what ha
   const bridge = readCode("apps/dashboard/src/bridge/platform.ts");
   assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
   assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
-  const act = readCode("packages/contracts/src/workspace/platform.ts");
+  // The button says it refuses rather than that it sends whatever is there: the act Support is offered on a rejected
+  // line, as contracts words it.
+  const refile = platformLineActions({
+    e164: "+13055550100",
+    voice_state: "active",
+    sms_state: "rejected",
+    reg_mock: false,
+    state_since: "2026-09-01T00:00:00Z",
+  }).find((a) => a.action === "refile");
   assert.match(
-    act,
-    /It refuses, with the reason, if the record or the workspace's name still would not pass review\./,
-    "the button says it refuses rather than that it sends whatever is there",
+    refile.sentence,
+    /It refuses, with the reason, if the record or the workspace's name still would not pass review./,
   );
 });
 

@@ -215,23 +215,11 @@ test("the calendar speaks when nothing else does: the next visit, else the last"
 });
 
 test("the wiring: the door carries the summary, the surface carries the rows, and each row says its own words", () => {
-  const mig = readRaw("supabase/migrations/00060_people_list_call_summary.sql");
-  assert.ok(
-    mig.includes("  last_inbound_call_summary text,") &&
-      mig.includes("    lks.summary,") &&
-      mig.includes("and k.direction = 'inbound'") &&
-      mig.includes("and k.summary is not null"),
-  );
-  assert.ok(
-    mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"),
-    "the grants are re-stated after the drop",
-  );
-  assert.ok(
-    ["packages/contracts/src/people/person-row/row-facts.ts", "packages/contracts/src/people/person-row/row-vm.ts"]
-      .map((p) => readCode(p))
-      .join("\n")
-      .includes("callSummary: person.last_inbound_call_summary?.trim() || null,"),
-  );
+  // people_list carries the inbound call's summary: the function, redefined since 00060 through 00680, is read on the
+  // stack by every suite that lists People (consent/consent-channels.db, consent/email-offers.db). The row says it, run:
+  const said = toPersonRowVM(dto({ last_inbound_call_summary: "  Wants to move Saturday.  " }), ZONE, NOW);
+  assert.equal(said.callSummary, "Wants to move Saturday.", "the call's own words, trimmed");
+  assert.equal(toPersonRowVM(dto({ last_inbound_call_summary: "   " }), ZONE, NOW).callSummary, null);
   // Run, not read: the surface's mapping (surface-map.ts, over the sample's people) carries each row's attention row.
   const surface = peopleSample(NOW);
   assert.ok(surface.rows.length > 0);

@@ -819,20 +819,13 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   assert.ok(businessRecordLine(null).includes("two minutes"));
   assert.ok(businessRecordLine(filled).startsWith("Harbor Moving LLC"));
 
-  const route = readCode(
-    "apps/dashboard/app/api/v1/business-record/route.ts",
-    "apps/dashboard/src/server/connections/business-record.ts",
-  );
-  assert.ok(
-    route.includes('role: "partner",') && route.includes("businessRecordProblems(record, path, { ourNumbers:"),
-    "checked here, in the owner's words, before anything leaves for a provider",
-  );
-  assert.ok(!route.includes("service"), "it goes through the edge like every other provider write");
+  // The record is the partner's or the owner's, checked in their words before anything leaves for a provider: run
+  // through the route in workspace/settings-routes.test.mjs ("the fourteen declare their policy", and the record's
+  // refusals); a service-role read added there is a new offender of check:debt's service-role measure. Filing costs the
+  // workspace's money, so lines/register is an owner's or the partner's (0012), rate-limited and declared to spend:
+  // route-policy.json, held to the route's own declaration by routes/route-policy.test.mjs. Pinned as the routes' text
+  // until 25 Nov 2026.
   const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.ok(
-    reg.includes('role: "partner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"),
-    "filing costs the workspace's money, so it is an owner's or the partner's (0012), it is rate-limited, and it declares the spend",
-  );
   assert.ok(
     !/mock:\s*(true|body)/.test(reg),
     "the free test registry is never reachable from the dashboard: an owner's filing is always the real one",
@@ -869,22 +862,11 @@ test("the wiring: filed under our own profile, the table and the row, and the sw
     lib.includes("primaryProfileSid: primary,"),
     "our own profile is referenced by sid, which is the whole declaration that this business is ours",
   );
-  const sql = readRaw("supabase/migrations/00075_registration.sql");
-  assert.ok(sql.includes("create table public.business_records") && sql.includes("business_records_member_select"));
-  assert.ok(
-    sql.includes("reg_mock") && sql.includes("brand_sid"),
-    "the row says which registration it is and what it made",
-  );
-  assert.ok(readRaw("apps/edge/.env.example").includes("TWILIO_PRIMARY_PROFILE_SID="));
-  // The wait must end without anyone pressing anything. The sweep's half --
-  // both waiting states asked about (filtering on 'registering' alone once
-  // stopped sweeping a line the moment it was approved, so it could never
-  // become active), and the campaign the carriers were holding filed once the
-  // brand is through -- runs in cron-doors-b.test.mjs.
-  assert.ok(
-    readRaw("supabase/migrations/00077_registration_truth.sql").includes("cron.schedule('registration-sweep'"),
-    "REGRESSION: nothing called the status check, so 'waiting on carriers' was a state nothing ever left",
-  );
+  // The business's record is a member's to read and the row says which registration it is and what it made: the table
+  // and its policies on the stack (database/tenancy.db.test.mjs); TWILIO_PRIMARY_PROFILE_SID is declared where the edge
+  // reads it (repo/env-manifest.test.mjs); and the registration sweep is registered and scheduled
+  // (ops/sweep-registry.db.test.mjs), its two waiting states run in cron/doors-b/. Pinned as 00075's, the example env's
+  // and 00077's text until 25 Nov 2026.
 });
 
 test("a refusal keeps the carriers' own reasons, from the side that was actually refused", () => {

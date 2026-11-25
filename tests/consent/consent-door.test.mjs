@@ -44,31 +44,11 @@ const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
 
-test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
-  const m = readRaw("supabase/migrations/00043_consent_door.sql");
-  assert.ok(m.includes("create or replace function public.set_contact_consent("));
-  assert.ok(m.includes("security definer"));
-  assert.ok(m.includes("v_user   uuid := auth.uid();"), "the caller is auth.uid(), never a parameter");
-  assert.ok(
-    m.includes("if v_tenant is null or not public.is_acting_member(v_tenant) then"),
-    "viewers and strangers read as not found",
-  );
-  assert.ok(
-    m.includes("set consent = p_consent, dnc = v_dnc,"),
-    "consent and dnc move together, as the ingest moves them",
-  );
-  assert.ok(m.includes("'contact.consent_changed'"), "the same event the ingest writes");
-  assert.ok(
-    m.includes("revoke execute on function public.set_contact_consent(uuid, text, text, text) from public, anon;"),
-  );
-  assert.ok(
-    m.includes("grant execute on function public.set_contact_consent(uuid, text, text, text) to authenticated;"),
-  );
-  assert.ok(
-    m.includes("'consent_change'") && DECISION_VERBS.includes("consent_change"),
-    "the ledger knows the verb on both sides",
-  );
-});
+// The door: owner or operator, the three columns together, the ingest's own event, nothing for anon. set_contact_consent
+// was redefined since 00043 (through 00634): what it does today is run on the stack (consent/consent-paths.db.test.mjs:
+// a member's one call records the answer, its event and the line in the person's history; no member writes consent
+// except through a door; the definer doors that write it are the answer doors, the erasure and the merge), and the
+// ledger's verb is DECISION_VERBS' (contracts). Pinned as 00043's text until 25 Nov 2026.
 
 test("sources: four a person can pick, one reset that is never offered, words for each", () => {
   assert.deepEqual(

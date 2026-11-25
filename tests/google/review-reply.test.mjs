@@ -238,22 +238,9 @@ test("the words beside the source, and the view model carrying the mode", () => 
 });
 
 test("the wiring: the migration, the edge, the routes, the bridge, the pane and the composer", () => {
-  const sql = readRaw("supabase/migrations/00071_review_replies.sql");
-  assert.ok(sql.includes("check (class in ('reply','booking','faq','reengage','campaign','money','reviews'))"));
-  assert.ok(
-    sql.includes("select t.id, 'reviews', 'ask', '{}'::jsonb") &&
-      sql.includes("on conflict (tenant_id, class, subject_type, subject_id) do nothing;"),
-    "every workspace on record starts at ask",
-  );
-  assert.ok(
-    sql.includes("create or replace function public.provision_tenant(p_tenant_id uuid)") &&
-      sql.includes("('reengage','ask'), ('campaign','ask'), ('reviews','ask'), ('money','never')"),
-    "and every new one",
-  );
-  assert.ok(
-    sql.includes("pg_get_constraintdef(oid) like 'CHECK ((class = ANY%'"),
-    "the constraint is found by what it says",
-  );
+  // Every workspace on record, and every new one, starts at ask for reviews: provision_tenant and the policies' classes,
+  // redefined since 00071 (through 00714), run on the stack by every suite that makes a workspace
+  // (leads/lead-caps.db.test.mjs and the rest). Pinned as 00071's text until 25 Nov 2026.
 
   // The answers (review-answers.ts) and the sync that calls them (profile-sync.ts).
   const lib = ["review-answers", "profile-sync"].map((m) => readCode(`apps/edge/lib/google/${m}.ts`)).join("\n");

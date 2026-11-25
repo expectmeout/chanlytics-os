@@ -226,21 +226,9 @@ test("the page asks twice, and neither ask claims the other's messages", () => {
 });
 
 test("the database records the two answers apart, and neither writer reaches across", () => {
-  const m = readRaw("supabase/migrations/00095_marketing_consent_is_its_own_answer.sql");
-  assert.match(m, /add column if not exists marketing_consent text not null default 'unknown'/);
-  assert.match(m, /check \(marketing_consent in \('unknown', 'opted_in', 'opted_out'\)\)/);
-  // `dnc` is the all-traffic stop and this door must never set it: saying no to
-  // offers is not a request to stop hearing about your own appointment.
-  const fn = m.slice(m.indexOf("create or replace function public.set_marketing_consent"));
-  assert.ok(
-    !/set\s+dnc|dnc\s*=/.test(fn.slice(0, fn.indexOf("$$;"))),
-    "REGRESSION: the offers door touching the all-traffic stop",
-  );
-  assert.match(fn, /'purpose', 'marketing'/, "the ledger says which question was answered");
-  assert.match(
-    m,
-    /revoke execute on function public\.set_marketing_consent\(uuid, uuid, text, text, text\) from public, anon;/,
-  );
+  // The two answers apart, the offers door never touching the all-traffic stop, the ledger saying which question was
+  // answered: set_marketing_consent, redefined since 00095 through 00634, run on the stack (consent/consent-paths.db,
+  // consent/consent-channels.db, consent/consent-evidence.db). Pinned as 00095's text until 25 Nov 2026.
 
   // The yes rides its message (00592): ingest_inbound keeps it in the transaction that keeps the message, once the stop
   // this message may carry is read back, and the edge writes it through no second door.
@@ -251,10 +239,8 @@ test("the database records the two answers apart, and neither writer reaches acr
   );
   // That the repository makes no second call is run: consent-history.test.mjs (one call, the ingest's).
 
-  // people_list carries both, or no page can compute an audience.
-  const pl = readRaw("supabase/migrations/00096_people_carry_both_answers.sql");
-  assert.match(pl, /marketing_consent {12}text,/, "declared in the returns table, aligned with its neighbours");
-  assert.match(pl, /c\.marketing_consent, c\.marketing_consent_source, c\.marketing_consent_updated_at,/);
+  // people_list carries both, or no page can compute an audience: the function, redefined since 00096 through 00680,
+  // is read on the stack by every suite that lists People (consent/consent-channels.db, consent/email-offers.db).
 });
 
 /** What a workspace files, run rather than sliced out of the source. */

@@ -14,31 +14,11 @@ import assert from "node:assert/strict";
 import { toReportVM, pointsDelta, toTodayVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
-const sql = readRaw("supabase/migrations/00035_metrics_truth.sql");
-
-test("one definition of who answered, shared by both functions, timed from the send", () => {
-  assert.ok(sql.includes("create or replace function public.first_replies(p_tenant_id uuid, p_start timestamptz)"));
-  assert.equal(
-    (sql.match(/from public\.first_replies\(p_tenant_id, v_start\)/g) ?? []).length,
-    2,
-    "metrics_summary AND report_series call it",
-  );
-  assert.ok(sql.includes("e.kind = 'message.sent'"), "the send moment, not the draft");
-  assert.ok(
-    sql.includes("when ai_at is not null and (human_at is null or ai_at <= human_at) then 'ai'"),
-    "first replier wins",
-  );
-  assert.ok(!sql.includes("where ai_at is not null),"), "the non-exclusive count is gone");
-  assert.ok(sql.includes("(select count(*) from replies where who = 'ai')"));
-});
-
-test("metrics_summary has the guards its sibling had, and a DST-safe window", () => {
-  const fn = sql.slice(sql.indexOf("create or replace function public.metrics_summary"));
-  assert.ok(fn.includes("set search_path = public"));
-  assert.ok(fn.includes("revoke all on function public.metrics_summary(uuid, integer) from public, anon;"));
-  assert.ok(fn.includes("((((now() at time zone v_tz)::date) - (v_days - 1))::timestamp) at time zone v_tz"));
-  assert.ok(!fn.includes("make_interval(days => v_days - 1)"));
-});
+// One definition of who answered, shared by both functions and timed from the send, and metrics_summary's guards and
+// DST-safe window: first_replies (redefined since 00035 through 00464) and metrics_summary (through 00379) are run on
+// the stack (reports/headline/metrics-replies.db.test.mjs, console/back-office/platform-metrics.db.test.mjs,
+// database/reads-go-through-their-own-rows.db.test.mjs); privileges.db holds every function's search_path and that
+// anon executes none. Pinned as 00035's text until 25 Nov 2026, which no longer said what the database does.
 
 /* ------------------------------- Reports ---------------------------------- */
 
