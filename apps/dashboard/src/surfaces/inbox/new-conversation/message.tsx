@@ -103,7 +103,7 @@ function wordsPart(s: SheetState, reach: PersonReachDto, way: WriteWay) {
         </p>
       ) : null}
       {signed ? (
-        <p className="ix-new-said" data-testid="ix-new-signed" title={signed}>
+        <p className="ix-new-said" data-testid="ix-new-signed" data-tip={signed}>
           {emailSignedLine(signed)}
         </p>
       ) : null}

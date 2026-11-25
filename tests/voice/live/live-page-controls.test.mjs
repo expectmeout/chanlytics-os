@@ -112,7 +112,7 @@ test("with a call on the line the page offers the two controls, and the hand-ove
   assert.ok(byTestId(tree, "live-controls"), "REGRESSION: the controls are on the panel for a live call");
   const hand = byTestId(tree, "live-hand-over");
   assert.ok(hand && !hand.props.disabled, "a workspace with a line can pass the call");
-  assert.ok(hand.props.title.includes(LINE), "the button says what it rings");
+  assert.ok(hand.props["data-tip"].includes(LINE), "the button says what it rings");
   assert.ok(byTestId(tree, "live-end"), "and the end is offered, unarmed");
   assert.equal(byTestId(tree, "live-end-yes"), null, "nothing ends on one click");
   assert.ok(byTestId(tree, "live-whisper"), "the whisper is still there beside them");
@@ -175,7 +175,7 @@ test("a workspace with no line is told the fix on the button itself, and the but
     const tree = mount();
     const hand = byTestId(tree, "live-hand-over");
     assert.equal(hand.props.disabled, true);
-    assert.ok(hand.props.title.includes("Settings"), hand.props.title);
+    assert.ok(hand.props["data-tip"].includes("Settings"), hand.props["data-tip"]);
   } finally {
     withFacts({ handoff_number: { value: LINE } });
   }
