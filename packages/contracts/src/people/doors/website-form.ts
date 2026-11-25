@@ -18,7 +18,7 @@ import type { JobNews } from "../../today/notifications/feed-input";
 const WEBSITE_FORMS = ["signup", "request"] as const;
 export type WebsiteForm = (typeof WEBSITE_FORMS)[number];
 
-const line = (max: number) => z.optional(z.string().trim().max(max));
+const textLine = (max: number) => z.optional(z.string().trim().max(max));
 
 /**
  * What the site posts (POST /api/website-form): the workspace and its key (one of the workspace's own, or the first key
@@ -31,13 +31,13 @@ export const WebsiteFormBody = z.object({
   workspace: z.uuid(),
   key: z.string().min(20).max(100),
   form: z.enum(WEBSITE_FORMS),
-  name: line(120),
+  name: textLine(120),
   email: z.optional(z.email().max(254)),
-  phone: line(40),
-  about: line(200),
-  note: line(1000),
-  page: line(200),
-  lang: line(10),
+  phone: textLine(40),
+  about: textLine(200),
+  note: textLine(1000),
+  page: textLine(200),
+  lang: textLine(10),
   at: z.optional(z.iso.datetime({ offset: true })),
   entry_id: z.optional(z.string().trim().min(1).max(100)),
   // Where the visitor came from, as the site's snippet read it off its own address (the Ads tracking plan's T4):
@@ -47,7 +47,7 @@ export const WebsiteFormBody = z.object({
   // Which of the site's forms it is (00709; Ruben's call 5 of 23 Nov 2026): the site's own id for the form, which never
   // changes ("colour-consultation"), and its name, which may. A site that sends neither has one form of each kind.
   form_ref: z.optional(z.string().trim().min(1).max(100)),
-  form_name: line(120),
+  form_name: textLine(120),
   // A test from the site's developer: kept as a test, it tells nobody, sends nothing, counts nowhere and goes in 7 days.
   test: z.optional(z.boolean()),
 });

@@ -3,9 +3,11 @@
 # and cost one CI run; a major arrives on its own, because a major is a
 # decision. Security updates are the repository setting beside this file.
 #
-# The updater runs pnpm 11, which reads pnpm's settings only from
-# pnpm-workspace.yaml; repo/settings/pnpm-settings.test.mjs keeps them there, and the
-# catalog manual, so the lockfile it writes is one CI's pnpm installs frozen.
+# The updater ran pnpm 11 when this was measured (29 Sep 2026), and pnpm 11 reads pnpm's
+# settings only from pnpm-workspace.yaml; repo/settings/pnpm-settings.test.mjs keeps them
+# there, and the catalog manual, so the lockfile it writes is one CI's pnpm installs frozen.
+# Its lockfiles since (#2532, #2536) are in pnpm 10's form: a pnpm 11 lockfile and CI's
+# pnpm 10 cannot share the patch in pnpm-workspace.yaml (its note there).
 version: 2
 updates:
   - package-ecosystem: "npm"

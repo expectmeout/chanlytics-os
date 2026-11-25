@@ -45,7 +45,7 @@ const draftHearers = new Set<() => void>();
 const tellDrafts = () => draftHearers.forEach((l) => l());
 
 /** The kept row for a want: the newest of what the page read with its own and what this tab was answered. */
-function keptOf(w: Pick<DraftWant, "conversationId" | "kind">): ReplyDraftDto | undefined {
+function draftKeptFor(w: Pick<DraftWant, "conversationId" | "kind">): ReplyDraftDto | undefined {
   const newest = surfaceValue("reply_drafts")?.drafts.find(
     (d) => d.conversation_id === w.conversationId && d.kind === w.kind,
   );
@@ -60,7 +60,7 @@ const views = new Map<string, { said: string; view: ReplyDraftView }>();
 /** A thread's draft now: what every row draws, and what a row with no hook of its own asks. */
 export function draftViewNow(w: DraftWant): ReplyDraftView {
   const key = draftKeyOf(w);
-  const kept = keptOf(w);
+  const kept = draftKeptFor(w);
   const view: ReplyDraftView = rewriting.has(key)
     ? { state: "writing" }
     : draftViewOf(kept, {
@@ -95,7 +95,7 @@ const postDraft = (w: DraftAsked, instruction?: string, given?: string) =>
  * The edge asked, with the row saying it is being written while it answers. Refused, the row says what it said before, and
  * the refusal is answered for the page to say.
  */
-async function askAgain(
+async function askDraftAgain(
   want: Pick<DraftWant, "conversationId" | "kind">,
   instruction?: string,
   given?: string,
@@ -118,10 +118,10 @@ async function askAgain(
 
 /** What is said to Ask about a draft, with the words on the screen: the new words stand in every row that reads it. */
 export const rewriteDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction: string, given?: string) =>
-  askAgain(w, instruction, given);
+  askDraftAgain(w, instruction, given);
 
 /** A draft that could not be written, asked for again. */
-export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => askAgain(w);
+export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => askDraftAgain(w);
 
 /**
  * The note a step arrives with (decision 0120, D7): its thread's kept draft of kind `step`, ready, written for this step.
@@ -129,7 +129,7 @@ export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => 
  */
 export function stepNoteNow(conversationId: string | null, stepId: string | null | undefined): ReplyDraftDto | null {
   if (!conversationId || !stepId) return null;
-  const kept = keptOf({ conversationId, kind: "step" });
+  const kept = draftKeptFor({ conversationId, kind: "step" });
   return kept && kept.state === "ready" && kept.words.step === stepId && kept.words.text.trim() ? kept : null;
 }
 
@@ -140,7 +140,7 @@ export function stepNoteNow(conversationId: string | null, stepId: string | null
 export async function wantDrafts(wants: readonly DraftWant[]): Promise<void> {
   if (surfaceValue("reply_drafts")?.complete) return;
   const askedKey = (w: DraftWant) => `${draftKeyOf(w)}:${w.forMessageId ?? ""}`;
-  const unread = wants.filter((w) => !keptOf(w) && !askedRows.has(askedKey(w))).slice(0, REPLY_DRAFTS_IDS_MAX);
+  const unread = wants.filter((w) => !draftKeptFor(w) && !askedRows.has(askedKey(w))).slice(0, REPLY_DRAFTS_IDS_MAX);
   if (!unread.length) return;
   for (const w of unread) askedRows.add(askedKey(w));
   const ids = [...new Set(unread.map((w) => w.conversationId))];

@@ -55,9 +55,9 @@ const channelOpens = (c: "whatsapp" | "voice"): string => {
  * all; one has a detector on both channels; two are lines in a prompt, and
  * `policy.ts` says in its own header that an instruction is not an enforcement.
  */
-export type RuleStrength = "structural" | "checked" | "instructed" | "power";
+type RuleStrength = "structural" | "checked" | "instructed" | "power";
 
-export interface RuleStrengthVM {
+interface RuleStrengthVM {
   strength: RuleStrength;
   /** The chip beside the rule's name. */
   chip: string;
@@ -170,7 +170,7 @@ export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
  */
 const CANNOT_BOOK_WORDS = "Cannot book anything";
 
-export interface RulesKeptInputs {
+interface RulesKeptInputs {
   /** The four, as the fold opens them: `guardrailsInForce` over the stored record, never the raw guardrails. */
   rules: GuardrailsInForce;
   /** Whether the record's details compose anything at all (config.ts `hasProfile`). */

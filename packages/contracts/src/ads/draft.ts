@@ -3,8 +3,7 @@
  * picture it shows, the area, the amount and the day it ends, and what would stop any of them before Turn on. Rules
  * with tests and no model: the words alone are the ad writer's (ask/skills/ad), and it decides none of this.
  *
- * Every rule here leans on what Meta's own pages showed on 19 November 2026
- * (docs/plans/2026-11-18-ads-meta-checks.md):
+ * Every rule here leans on what Meta's own pages showed on 19 November 2026:
  *
  *  - Meta's least is set for a day and holds for a total too, so a total is never under the account's least for a day
  *    times every calendar day the run touches (seen on the paused-ad check, 20 November 2026). No page names a

@@ -9,7 +9,7 @@ import type { FeedItem } from "@chanlytics/contracts";
 import { extractContacts, type OwnAddresses } from "@chanlytics/contracts";
 
 /** One address or number an appointment carries, and when it starts (ISO). A type, not an interface, so it is JSON to the rpc. */
-export type BookedSeen = {
+type BookedSeen = {
   email?: string;
   phone?: string;
   start: string;

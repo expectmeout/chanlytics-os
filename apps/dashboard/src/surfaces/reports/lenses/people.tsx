@@ -215,17 +215,17 @@ function bookRow(v: PeopleReportVM) {
 }
 
 /** The lens's own read held and current: the strip and the window's cards with the book's, or the kept cards and the book's where no window was read. */
-function mixRows(R: ReportsSurface, v: PeopleReportVM, ads: (() => void) | null) {
+function mixRows(reportsSurface: ReportsSurface, v: PeopleReportVM, ads: (() => void) | null) {
   if (v.windowAvailable)
     return (
       <>
         <RptStrip tiles={v.strip} className="quad" testid="people-strip" />
-        {windowRows(R, v, ads)}
+        {windowRows(reportsSurface, v, ads)}
       </>
     );
   return (
     <>
-      {keptRow(R)}
+      {keptRow(reportsSurface)}
       {bookRow(v)}
     </>
   );

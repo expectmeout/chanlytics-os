@@ -227,7 +227,7 @@ function leaveDetail(p: TeamPerson, ask: TeamAsk): string {
 }
 
 /** The question a row asks on itself, under it. */
-function askOf(p: TeamPerson, ask: TeamAsk, k: RowActs): ReactNode {
+function teamAskOf(p: TeamPerson, ask: TeamAsk, k: RowActs): ReactNode {
   if (ask.kind === "remove") return removeAsk(p, ask, k);
   const says =
     ask.kind === "revoke"
@@ -287,7 +287,7 @@ export function memberRow(m: TeamPerson, k: RowActs): ReactNode {
       <span className="set-team-role">{roleOf(m, k)}</span>
       <span className="set-team-acts">{moreOf(m, k)}</span>
       {personDoor(m, k)}
-      {asking && askOf(m, asking, k)}
+      {asking && teamAskOf(m, asking, k)}
     </div>
   );
 }
@@ -346,7 +346,7 @@ export function inviteRow(i: TeamPerson, k: RowActs): ReactNode {
         )}
       </span>
       {k.canManage && personDoor(i, k)}
-      {asking && askOf(i, asking, k)}
+      {asking && teamAskOf(i, asking, k)}
     </div>
   );
 }

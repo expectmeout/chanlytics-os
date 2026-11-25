@@ -19,7 +19,7 @@ export const ALL_FILES: FilesView = { shelf: "all", kind: null, about: null };
 
 type KindTab = "all" | "photos" | "videos";
 
-const tabOf = (view: FilesView): KindTab =>
+const kindTabOf = (view: FilesView): KindTab =>
   view.kind === "image" ? "photos" : view.kind === "video" ? "videos" : "all";
 
 /** All, Photos, Videos, each with how many: drawn where both kinds are kept, since one alone is all of it. */
@@ -32,7 +32,7 @@ export function KindTabs({ tally, view, go }: { tally: FilesTally; view: FilesVi
       <Segmented
         className="files-shelves-row"
         label={W.title}
-        value={tabOf(view)}
+        value={kindTabOf(view)}
         onValueChange={(tab: KindTab) =>
           go({ ...view, kind: tab === "photos" ? "image" : tab === "videos" ? "video" : null })
         }

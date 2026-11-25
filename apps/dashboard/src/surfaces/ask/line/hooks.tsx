@@ -207,6 +207,15 @@ function arFlipFromButton(to: HTMLElement | null): void {
     );
 }
 
+/** Open, and the language changing while it is open: what the AI noticed, read in that language. */
+const useArNotices = ({ lang, open, A, setNoticeWaits }: Pick<Line, "lang" | "open" | "A" | "setNoticeWaits">) => {
+  useEffect(() => {
+    if (!open || !A?.readNotices) return;
+    const noticeLang = lang ?? "en";
+    return arNoticeWait(A.readNotices(noticeLang), A.holdsNotice(noticeLang), setNoticeWaits);
+  }, [open, A, lang, setNoticeWaits]);
+};
+
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
 export const useArOpen = ({
   lang,
@@ -232,11 +241,6 @@ export const useArOpen = ({
       return list;
     });
     if (A.readFollowUps) void A.readFollowUps();
-    let stopWaiting = (): void => {};
-    if (A.readNotices) {
-      const noticeLang = lang ?? "en";
-      stopWaiting = arNoticeWait(A.readNotices(noticeLang), A.holdsNotice(noticeLang), setNoticeWaits);
-    }
     const bump = () => setTick((n) => n + 1);
     const evs = [
       "surface:inbox",
@@ -248,11 +252,10 @@ export const useArOpen = ({
       "ask:follow-ups",
     ];
     evs.forEach((e) => window.addEventListener(e, bump));
-    return () => {
-      evs.forEach((e) => window.removeEventListener(e, bump));
-      stopWaiting();
-    };
-  }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick, setNoticeWaits]);
+    return () => evs.forEach((e) => window.removeEventListener(e, bump));
+  }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick]);
+
+  useArNotices({ lang, open, A, setNoticeWaits });
 
   // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; bridge/ask/api.ts),
   // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it

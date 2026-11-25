@@ -27,7 +27,7 @@ import { logAndGoOn } from "@chanlytics/log";
 type Db = SupabaseClient<Database>;
 
 /** Emails written for a send before it is given up on: the door sent it back this often, it is not going. */
-export const REPLAN_MAX_ATTEMPTS = 10;
+const REPLAN_MAX_ATTEMPTS = 10;
 /** How long a send may wait for room before it is given up on: a reach-out two weeks late is not the one approved. */
 export const REPLAN_GIVE_UP_MS = 14 * DAY_MS;
 

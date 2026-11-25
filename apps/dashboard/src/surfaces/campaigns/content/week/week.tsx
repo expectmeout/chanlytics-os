@@ -129,7 +129,7 @@ function WeekFirstOpen() {
  * picked (planned.tsx) and set by onTime; Try again and a made reel's Approve are the row's own presses, made for each
  * of its places.
  */
-export function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: WeekRow) => void) {
+function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: WeekRow) => void) {
   const [busy, setBusy] = useState(false);
   const tell = (answer: { ok: boolean; message?: string }, done?: string) => {
     if (!answer.ok) flash({ tone: "danger", msg: <>{answer.message}</> });

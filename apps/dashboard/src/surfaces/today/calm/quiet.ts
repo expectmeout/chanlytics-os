@@ -50,7 +50,7 @@ const READS_OF = {
 } as const satisfies Record<string, readonly SurfaceKey[]>;
 
 /** Which part asks: the head, over the count, or the page's end. */
-export type QuietOf = keyof typeof READS_OF;
+type QuietOf = keyof typeof READS_OF;
 
 /** The worst standing first: a failure says more than a wait, a wait more than an old copy, an old copy more than none. */
 const WORST_FIRST: readonly ReadStanding[] = ["failed", "checking", "behind", "kept", "live"];

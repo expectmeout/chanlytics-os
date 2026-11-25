@@ -1,5 +1,5 @@
 /**
- * The booking emails held for a person (docs/plans/2026-10-07-bookings-arrive-by-email.md, refinement C): each with its
+ * The booking emails held for a person: each with its
  * subject, its tool and when it came, why it was held, and its two presses. One list, from the Calendar's read, drawn by
  * the Calendar's card ("Look at them" opens it in the kit's sheet, calendar/board-parts.tsx heldEmailsSheet) and by
  * Settings' Booking tool fold, whatever that fold says the business books with (Ruben, 20 Oct 2026: the card's door

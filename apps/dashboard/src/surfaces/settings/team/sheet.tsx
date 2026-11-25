@@ -67,7 +67,7 @@ export function PersonSheet({ person: p, k, onClose }: { person: TeamPerson; k: 
       {mayRole ? (
         <Segmented
           label="Role"
-          value={role as TeamRole}
+          value={role}
           onValueChange={setRole}
           options={TEAM_ROLES.map((r) => ({ value: r, label: roleSays(r).label, hint: roleSays(r).short }))}
         />

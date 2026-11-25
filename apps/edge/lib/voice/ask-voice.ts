@@ -1,5 +1,5 @@
 /**
- * Ask, spoken, on the edge (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): what the two doors
+ * Ask, spoken, on the edge: what the two doors
  * call, so each door holds no provider client and no repository of its own (a route file is a door: route-doors).
  * The key, the agent's id and the webhook's secret are this edge's (lib/shared/env.ts), as every provider's are.
  *

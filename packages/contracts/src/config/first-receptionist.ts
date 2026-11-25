@@ -1,5 +1,5 @@
 /**
- * The receptionist a workspace starts with (the first run's Check, docs/superpowers/specs/2026-09-24-first-run-design.md):
+ * The receptionist a workspace starts with (the first run's Check):
  * built from what is known, so the owner checks it rather than types it. The dashboard's first-receptionist route writes
  * it where none is set up, and fills what Google says into one that states none of it; the owner changes any of it in
  * the Business tab's own rows.

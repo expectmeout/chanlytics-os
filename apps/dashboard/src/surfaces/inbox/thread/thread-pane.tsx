@@ -1,6 +1,5 @@
 /**
- * ThreadPane — the conversation, wherever it opens (moved from pages/thread-pane.jsx, decision 0015;
- * docs/plans/2026-09-21-one-thread.md).
+ * ThreadPane — the conversation, wherever it opens (moved from pages/thread-pane.jsx, decision 0015).
  *
  * The Inbox drew a conversation with InboxThread and Conversations drew the same one with CvViewer: two headers, two
  * sets of bubbles, two sets of actions. Every fix landed once -- #746 split an email's quoted chain in one of them and

@@ -38,7 +38,7 @@ interface LoadFacts {
 }
 
 /** The most reports a load holds: a tab left open all week sends what it has and lets go of the oldest it sent. */
-const HELD_MAX = 1000;
+const FIELD_HELD_MAX = 1000;
 /** The order the card says the metrics in: the browser's five, then the shell's two. */
 const METRIC_RANK: ReadonlyMap<string, number> = new Map(PAGE_METRICS.map((m, i) => [m, i]));
 
@@ -73,7 +73,7 @@ export function createFieldData(
   const said = (r: PageVitalReportDto) => `${r.value}|${JSON.stringify(r.detail ?? null)}`;
   const letGo = () => {
     for (const id of latest.keys()) {
-      if (latest.size <= HELD_MAX) return;
+      if (latest.size <= FIELD_HELD_MAX) return;
       const r = latest.get(id);
       if (r && sent.get(id) === said(r)) {
         latest.delete(id);
@@ -85,14 +85,14 @@ export function createFieldData(
     note(report) {
       if (!checkNow) {
         // Held as the reports after it are, up to the same ceiling: a check that never comes costs no more than they do.
-        if (early.length >= HELD_MAX) early.shift();
+        if (early.length >= FIELD_HELD_MAX) early.shift();
         early.push(report);
         return;
       }
       const r = checkNow(report);
       if (!r) return;
       latest.set(r.id, r);
-      if (latest.size > HELD_MAX) letGo();
+      if (latest.size > FIELD_HELD_MAX) letGo();
       // A beacon's worth waiting: sent now, so a tab never put away still says what it measured.
       let waiting = 0;
       for (const [id, x] of latest) if (sent.get(id) !== said(x)) waiting += 1;

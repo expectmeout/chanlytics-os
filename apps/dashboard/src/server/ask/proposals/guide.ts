@@ -10,7 +10,7 @@ import { ADS_ROUTE, CONTENT_ROUTE, FORMS_ROUTE, SEQUENCES_ROUTE } from "@chanlyt
 
 type Kind = AskProposal["kind"];
 
-export interface GuidePage {
+interface GuidePage {
   /** The page's name as the sidebar says it. */
   page: string;
   /** Its address in the workspace (the route a card's Open and the Line's jump take). */

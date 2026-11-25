@@ -62,7 +62,7 @@ async function personOnCard(toolContext: ToolContext, contactId: string): Promis
   noteRow(toolContext, "person", id, contactName, addressOf({ kind: "person", id }));
   return { id, who: contactName, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
-const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
+const isRefusedOutcome = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
 
 async function proposePersonMode(
   toolContext: ToolContext,
@@ -73,7 +73,7 @@ async function proposePersonMode(
   const mode = str(input.mode, 10);
   if (!["inherit", ...PERSON_MODES].includes(mode)) return refuse("mode must be auto, ask, never or inherit");
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   const { data: pol, error: polErr } = await findPersonReplyModeRow(
     toolContext.ctx.supabase,
     toolContext.tenantId,
@@ -121,7 +121,7 @@ async function proposePersonNote(
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
   if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be receptionist or team");
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   return propose({
     kind: "note",
     title: `Note on ${person.who}`,
@@ -183,7 +183,7 @@ async function proposePersonStep(
   const forMe = input.step_for === "me";
   if (forMe && !toolContext.ctx.userId) return refuse("for me needs the member asking; give anyone");
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   const deal = await stepDeal(toolContext, person.id, str(input.service, 80) || null);
   if (deal && "result" in deal) return deal;
   const words = STEP_SHEET_WORDS;
@@ -218,7 +218,7 @@ async function proposePersonDetails(
   const email = typed === undefined ? undefined : normalizeEmail(typed);
   if (typed !== undefined && !email) return refuse(whyNotAnEmail(typed) ?? "That is not an email address.");
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   // Only what would change: a field that already says it is left out, and a card that changes nothing is none.
   const fields = { name, email: email ?? undefined };
   const changed = (["name", "email"] as const).filter((k) => fields[k] !== undefined && fields[k] !== person[k]);
@@ -282,7 +282,7 @@ async function proposeAnswer(
     if (own) return refuse(own);
   }
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   const how = source ? (CONSENT_SOURCES.find((x) => x.id === source)?.label ?? source) : null;
   return propose({
     kind: "answer",
@@ -327,9 +327,9 @@ async function proposeMerge(
   if (!offeredTo(mergeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_merge"));
   if (str(input.contact_id, 40) === str(input.other_id, 40)) return refuse("they are the same record");
   const kept = await personOnCard(toolContext, input.contact_id);
-  if (refused(kept)) return kept;
+  if (isRefusedOutcome(kept)) return kept;
   const other = await personOnCard(toolContext, input.other_id);
-  if (refused(other)) return other;
+  if (isRefusedOutcome(other)) return other;
   return propose({
     kind: "person_merge",
     title: MERGE_WORDS.question(kept.who, other.who),
@@ -375,7 +375,7 @@ function carried(
 
 async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
   const person = await personOnCard(toolContext, input.contact_id);
-  if (refused(person)) return person;
+  if (isRefusedOutcome(person)) return person;
   const read = await readUnlessNotFound(load(toolContext.rc, personReach, { id: person.id }));
   if (!read) return refuse("no such person in this workspace");
   const reach = read.data.reach;

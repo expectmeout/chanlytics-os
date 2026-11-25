@@ -1,6 +1,5 @@
 /**
- * The reading of a booking tool's notice, as the job runner is handed it (docs/plans/2026-10-07-bookings-arrive-by-email.md,
- * step 3): the three things the booking_read job needs from the edge, where the model's key, the spend and the
+ * The reading of a booking tool's notice, as the job runner is handed it: the three things the booking_read job needs from the edge, where the model's key, the spend and the
  * person-making rules are. The shape is contracts' (booking-notice.ts) and the verb is core's (readBookingNotice); this
  * asks and matches.
  *

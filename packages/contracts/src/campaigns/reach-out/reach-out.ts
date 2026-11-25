@@ -1,7 +1,6 @@
 /**
  * Reach out's words that more than one layer says: where a lead was found, the tag a campaign's email carries, and the
- * unsubscribe page. The foot every campaign email carries is campaigns/templates/email-foot.ts, one builder for every kind. Pure
- * (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.3, §4.8).
+ * unsubscribe page. The foot every campaign email carries is campaigns/templates/email-foot.ts, one builder for every kind. Pure.
  */
 
 /** Why a business the finder found is hearing from this one: the first line of the foot. */

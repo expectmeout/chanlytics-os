@@ -66,7 +66,7 @@ interface AdsPressBody {
 }
 
 /** A press its door did not keep, as the refusal the dashboard words. */
-function refusalOf(kept: AdPressKept): Response {
+function refusedPressAnswer(kept: AdPressKept): Response {
   if (kept.outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
   if (kept.outcome === "not_found") return refuse(404, "not_found");
   if (kept.outcome === "stale") return refuse(409, "ad_stale");
@@ -183,7 +183,7 @@ async function pressOne(
   const kept = await setAdIntent(db, { tenantId, userId }, { adId, version, intent });
   if (kept.outcome === "same")
     return json(200, { ok: true, outcome: kept.pending ? "soon" : "same", version: kept.version ?? version });
-  if (kept.outcome !== "asked") return refusalOf(kept);
+  if (kept.outcome !== "asked") return refusedPressAnswer(kept);
   if (!kept.tell) {
     logger({ tenant_id: tenantId, ad_id: adId }).info("ads_pressed", { asked: intent, outcome: "took_back" });
     return json(200, { ok: true, outcome: "took_back", version: kept.version ?? version });

@@ -583,31 +583,44 @@ export function pgSink(
       on && inboundMessage.media
         ? runPgSafe("media_fetch", async () => {
             const ref = inboundMessage.media;
-            if (!ref) return;
-            const result = isLinkedMedia(ref)
-              ? await fetchLinkedMedia(ref.url, publicFetcher())
-              : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });
-            const mediaOut = { ...ref };
-            if (result) {
-              const ext = MIME_EXT[result.mime || ""] || "bin";
-              const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
-              const { error } = await storeMedia(db, path, result.bytes, result.mime || "application/octet-stream");
-              if (error) throw new DbFailure(error);
-              mediaOut.fetch_state = "stored";
-              mediaOut.storage_path = path;
-              mediaOut.mime_type = result.mime;
-            } else {
-              mediaOut.fetch_state = "failed";
-            }
-            // Checked, like the upload two lines above. A discarded error here
-            // resolves as if everything worked while the row keeps
-            // `fetch_state: "pending"` forever: the bytes are in storage, the
-            // Inbox shows an attachment that is still downloading, and no
-            // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await saveMessageMedia(db, tenantId, ing.message_id, jsonCopyOf(mediaOut));
-            if (rowErr) throw new Error(rowErr.message);
-            return result;
+            return ref ? keepInboundMedia(db, tenantId, ing, rt, ref) : undefined;
           })
         : Promise.resolve(null),
   };
+}
+
+/**
+ * A message's media kept: downloaded from Meta, uploaded to storage, and where it went recorded on its row. Resolves to the
+ * bytes when they were fetched (a photo the receptionist looks at reads them), and to nothing when they were not.
+ */
+async function keepInboundMedia(
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  ing: IngestResult,
+  rt: TenantRuntime | null | undefined,
+  ref: NonNullable<InboundMessage["media"]>,
+) {
+  const result = isLinkedMedia(ref)
+    ? await fetchLinkedMedia(ref.url, publicFetcher())
+    : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });
+  const mediaOut = { ...ref };
+  if (result) {
+    const ext = MIME_EXT[result.mime || ""] || "bin";
+    const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
+    const { error } = await storeMedia(db, path, result.bytes, result.mime || "application/octet-stream");
+    if (error) throw new DbFailure(error);
+    mediaOut.fetch_state = "stored";
+    mediaOut.storage_path = path;
+    mediaOut.mime_type = result.mime;
+  } else {
+    mediaOut.fetch_state = "failed";
+  }
+  // Checked, like the upload two lines above. A discarded error here
+  // resolves as if everything worked while the row keeps
+  // `fetch_state: "pending"` forever: the bytes are in storage, the
+  // Inbox shows an attachment that is still downloading, and no
+  // reconciliation can tell it from a genuinely in-flight fetch.
+  const { error: rowErr } = await saveMessageMedia(db, tenantId, ing.message_id, jsonCopyOf(mediaOut));
+  if (rowErr) throw new Error(rowErr.message);
+  return result;
 }

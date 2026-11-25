@@ -112,7 +112,7 @@ async function othersOf(
 type WhatsAppHeld = "whatsapp_wait_ended" | "template_not_approved";
 
 /** How a run's message stands with WhatsApp as one batch reads it, once, and who that batch sends to. */
-export interface WhatsAppStand {
+interface WhatsAppStand {
   /** The message's rows on every channel, as the port answered them: an email's and a text's words are read out of them. */
   rows: Awaited<ReturnType<BroadcastBatchPorts["message"]>>;
   /** The message they make (contracts campaignMessageOf); null where the workspace holds no row of it now. */

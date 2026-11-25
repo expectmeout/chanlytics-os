@@ -1,5 +1,5 @@
 /**
- * The first run's last step, Live (docs/superpowers/plans/2026-09-24-first-run-5-try-live.md, 5b; canvas R9, P8, C2):
+ * The first run's last step, Live (canvas R9, P8, C2):
  * what the receptionist answers, who it puts callers through to, where it emails the owner and what it knows, the
  * greeting every caller hears, and the "you're live" email Finish sends. "It will / Not yet" is the Business tab's own
  * card (the Business tab's), drawn as it is there. Every sentence is here; the page and the edge compose.

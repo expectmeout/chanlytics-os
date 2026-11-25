@@ -351,6 +351,31 @@ export async function planRehearsalStart(
 type CallerThread = Pick<CallStart, "conversationId" | "refused">;
 const NO_THREAD: CallerThread = { conversationId: null, refused: false };
 
+/** What the receptionist is told of a caller it knows: who they are, their visits, their recent words, and their thread. */
+function knownCallerOf(
+  lead: NonNullable<Awaited<ReturnType<typeof readLeadContext>>>,
+  visitsR: PromiseSettledResult<string | null>,
+  now: Date,
+  timezone: string,
+): { context: string; thread: CallerThread; memory: MemoryOutcome } {
+  const parts = [describeLead(lead, now, timezone, "voice")];
+  // The caller's appointments ride with who they are: "when am I booked?" is answered from the calendar.
+  const visits = settledOrThrow(visitsR);
+  if (visits) parts.push(visits);
+  const lines = lead.history.map(
+    (h) => `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`,
+  );
+  if (lines.length) {
+    parts.push("Recent interactions on this number (calls and messages):");
+    parts.push(lines.join("\n"));
+  }
+  return {
+    context: parts.join("\n"),
+    thread: { conversationId: lead.conversationId, refused: lead.notACustomer === true },
+    memory: lead.contactId ? "known" : "new",
+  };
+}
+
 async function planCallStart(callStartInput: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = callStartInput.now ?? new Date();
   const phone = normalizePhone(callStartInput.from);
@@ -448,23 +473,8 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
           memory = "unread";
           fail(leadR.reason);
         } else if (leadR.value) {
-          const lead = leadR.value;
-          const parts = [describeLead(lead, now, rt?.timezone ?? "UTC", "voice")];
-          // The caller's appointments ride with who they are: "when am I booked?" is answered from the calendar.
-          const visits = settledOrThrow(visitsR);
-          if (visits) parts.push(visits);
-          const lines = lead.history.map(
-            (h) => `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`,
-          );
-          if (lines.length) {
-            parts.push("Recent interactions on this number (calls and messages):");
-            parts.push(lines.join("\n"));
-          }
-          context = parts.join("\n");
-          thread = { conversationId: lead.conversationId, refused: lead.notACustomer === true };
-          // Said last, once the whole of it is built: a memory that threw
-          // halfway is told as none, never as half.
-          memory = lead.contactId ? "known" : "new";
+          // Said once the whole of it is built: a memory that threw halfway is told as none, never as half.
+          ({ context, thread, memory } = knownCallerOf(leadR.value, visitsR, now, rt?.timezone ?? "UTC"));
         }
       }
     }

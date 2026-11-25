@@ -112,9 +112,13 @@ const useBtoFeedRead = (stored: boolean) => {
     };
     const timer = window.setTimeout(btoReadExpires, at + ms - Date.now());
     return () => window.clearTimeout(timer);
-  }, [stored, at, keeps.refreshMs]);
+  }, [stored, fresh, at, keeps.refreshMs]);
+  // Asked once each time the read goes stale where it can be asked for, as the draw that saw it stale would ask: a read
+  // that fails is not asked again until one of these moves.
+  const askNow = useRef(ask);
+  askNow.current = ask;
   useEffect(() => {
-    if (stored && !fresh && !before && canAsk && visible) ask();
+    if (stored && !fresh && !before && canAsk && visible) askNow.current();
   }, [stored, fresh, before, canAsk, visible]);
   return { flight, keeps, C, fresh, canAsk, before, ask };
 };
@@ -345,7 +349,7 @@ const useBtoFeedCheck = (url: string, stored: string) => {
       live = false;
       clearTimeout(t);
     };
-  }, [url]);
+  }, [url, stored]);
   return check;
 };
 

@@ -76,7 +76,7 @@ function timeOf(text: string): { min: number; meridiem: "am" | "pm" | null } | n
 const withMeridiem = (min: number, meridiem: "am" | "pm") => (meridiem === "pm" ? min + 12 * 60 : min);
 
 /** One range: "9 AM to 6 PM", "8 to 11 AM", "6 PM–2 AM". Null when it is not one. */
-function rangeOf(text: string): OpenWindow | null {
+function openWindowOf(text: string): OpenWindow | null {
   const parts = text.split(/\s*(?:to|–|—|-)\s*/i);
   if (parts.length !== 2) return null;
   const time = timeOf(parts[0] ?? "");
@@ -92,14 +92,14 @@ function rangeOf(text: string): OpenWindow | null {
 }
 
 /** One day's words: every range, or all day, or closed. A note in brackets is not hours. Null when it does not read. */
-function dayOf(words: string): OpenWindow[] | null {
+function dayWindowsOf(words: string): OpenWindow[] | null {
   const w = words
     .replace(/\([^)]*\)/g, "")
     .trim()
     .toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
-  const ranges = w.split(/\s*,\s*/).map(rangeOf);
+  const ranges = w.split(/\s*,\s*/).map(openWindowOf);
   return ranges.every((r): r is OpenWindow => r !== null) && ranges.length > 0 ? ranges : null;
 }
 
@@ -112,7 +112,7 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
     const day = e && typeof e === "object" ? dayNameOf((e as { day?: unknown }).day) : null;
     if (!day) return { week: DEFAULT_WEEK, read: false };
     const sentence = (e as { hours?: unknown }).hours;
-    const windows = typeof sentence === "string" ? dayOf(sentence) : null;
+    const windows = typeof sentence === "string" ? dayWindowsOf(sentence) : null;
     // A day whose words do not read keeps the default week's hours for it: a guess of nine to five, never a day closed.
     week[day] = windows ?? DEFAULT_WEEK[day];
     if (windows !== null) readAny = true;
@@ -141,7 +141,7 @@ export function listingPeriodsOf(hours: unknown): GooglePeriod[] | null {
     if (!e || typeof e !== "object") return null;
     const day = dayNameOf((e as { day?: unknown }).day);
     const words = (e as { hours?: unknown }).hours;
-    const windows = day && typeof words === "string" ? dayOf(words) : null;
+    const windows = day && typeof words === "string" ? dayWindowsOf(words) : null;
     if (!day || !windows) return null;
     byDay.set(day, windows);
   }
@@ -199,7 +199,7 @@ function saidWeekOf(hours: unknown): SaidDay[] | null {
     if (!e || typeof e !== "object") return null;
     const day = dayNameOf((e as { day?: unknown }).day);
     const words = (e as { hours?: unknown }).hours;
-    const saidDay = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
+    const saidDay = day && typeof words === "string" ? saidDayOf(dayWindowsOf(words)) : null;
     if (!day || !saidDay) return null;
     byDay.set(day, saidDay);
   }

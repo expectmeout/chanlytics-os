@@ -36,8 +36,11 @@ fails until it is done and names what is left.
 
 **pnpm's settings** (the hoisted linker the edge's functions need, the
 overrides, the patched packages) are in `pnpm-workspace.yaml` and nowhere
-else: Dependabot's pnpm 11 reads no other place
-(`tests/repo/settings/pnpm-settings.test.mjs`).
+else: pnpm 11 reads no other place, and Dependabot's updater ran pnpm 11 when
+that was measured (`tests/repo/settings/pnpm-settings.test.mjs`). The
+lockfile is pnpm 10's (`packageManager`): pnpm 11.25 writes a patch's entry in
+a form pnpm 10 refuses at `--frozen-lockfile`, so a move to pnpm 11 moves the
+lockfile and CI together.
 
 **The dashboard.** Copy `apps/dashboard/.env.example` to
 `apps/dashboard/.env.local` and fill in the Supabase URL and keys (a local

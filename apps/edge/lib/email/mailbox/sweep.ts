@@ -42,7 +42,7 @@ import type { SweepTick } from "../../ops/sweep-door.js";
 const MAX_DUE = 200;
 
 /** How many are tended at once: each is a few provider reads, on that mailbox's own quota. */
-const AT_ONCE = 4;
+const MAILBOXES_AT_ONCE = 4;
 
 /**
  * No batch, and no provider or DNS read of any mailbox's, starts after this, counted from the door's first line: the
@@ -128,9 +128,9 @@ export async function sweepMailboxes(tick: SweepTick): Promise<Response> {
     page,
   });
   const counts: Counts = { tended: 0, synced: 0, replies: 0, bounced: 0, settled: 0, held: 0, failed: 0 };
-  for (let i = 0; i < rows.length; i += AT_ONCE) {
+  for (let i = 0; i < rows.length; i += MAILBOXES_AT_ONCE) {
     if (Date.now() - started > READS_UNTIL_MS) break;
-    const batch = rows.slice(i, i + AT_ONCE);
+    const batch = rows.slice(i, i + MAILBOXES_AT_ONCE);
     counts.tended += batch.length;
     await Promise.all(batch.map((row) => tend(tick, row, counts)));
   }

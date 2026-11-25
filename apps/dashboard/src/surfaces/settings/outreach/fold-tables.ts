@@ -36,7 +36,7 @@ const ENDING_KEYS = ["signed_by", "signature", "phone"] as const satisfies reado
 const isReachOutFold = (fold: string): fold is ReachOutFoldName =>
   fold === "ending" || Object.hasOwn(REACH_OUT_FOLD_KEYS, fold);
 
-const listOf = (value: unknown): string[] => (Array.isArray(value) ? value.map(textOrEmpty) : []);
+const textsOf = (value: unknown): string[] => (Array.isArray(value) ? value.map(textOrEmpty) : []);
 const reachOutKey = (config: Config, fold: ReachOutKeyFold): unknown => config.reach_out?.[REACH_OUT_FOLD_KEYS[fold]];
 const textFold = (fold: ReachOutKeyFold) => (_profile: unknown, _brain: unknown, config: Config) =>
   textOrEmpty(reachOutKey(config, fold));
@@ -52,7 +52,7 @@ const DRAFT_OF: {
   offer: textFold("offer"),
   who_for: textFold("who_for"),
   fixes: textFold("fixes"),
-  proof: (_profile, _brain, config) => listOf(reachOutKey(config, "proof")),
+  proof: (_profile, _brain, config) => textsOf(reachOutKey(config, "proof")),
   sound: textFold("sound"),
   ending: (_profile, _brain, config) => ({
     signed_by: textOrEmpty(config.reach_out?.signed_by),
@@ -64,7 +64,7 @@ const DRAFT_OF: {
 
 /** How each writes its draft into the section: through the one writer of a key of it, which Ask's cards write through too. */
 const writeFold = (fold: ReachOutKeyFold) => (next: Config, draft: unknown) =>
-  writeReachOutKey(next, REACH_OUT_FOLD_KEYS[fold], Array.isArray(draft) ? listOf(draft) : textOrEmpty(draft));
+  writeReachOutKey(next, REACH_OUT_FOLD_KEYS[fold], Array.isArray(draft) ? textsOf(draft) : textOrEmpty(draft));
 const WRITE: { [F in ReachOutFoldName]: (next: Config, draft: unknown) => void } = {
   offer: writeFold("offer"),
   who_for: writeFold("who_for"),
@@ -85,7 +85,7 @@ const WRITE: { [F in ReachOutFoldName]: (next: Config, draft: unknown) => void }
 const fieldOf = (fold: ReachOutFoldName, path: (string | number)[], draft: unknown): string => {
   if (fold === "ending") return String(path[1]);
   if (fold !== "proof" || typeof path[2] !== "number") return fold;
-  const written = listOf(draft).flatMap((claim, row) => (trimmed(claim) ? [row] : []));
+  const written = textsOf(draft).flatMap((claim, row) => (trimmed(claim) ? [row] : []));
   return `claim-${written.at(path[2]) ?? path[2]}`;
 };
 

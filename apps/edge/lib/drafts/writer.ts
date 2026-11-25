@@ -139,7 +139,7 @@ async function gateOf(db: Db, tenantId: TenantId, rt: TenantRuntime, source: Rep
 }
 
 /** Who they are, as the receptionist reads them, and why it waits on the owner. Nothing when they cannot be read. */
-async function noteOf(
+async function readPersonNote(
   db: Db,
   tenantId: TenantId,
   rt: TenantRuntime,
@@ -162,7 +162,7 @@ async function noteOf(
 }
 
 /** A member's change: the words they keep, as data, what they asked, and what is open, so "offer my next two" can be done. */
-const changeOf = (given: string | null, frame: string, open: string | null): string =>
+const askedChangeOf = (given: string | null, frame: string, open: string | null): string =>
   [given ? `Your last draft said:\n${fenced("reply", given)}` : null, frame, open].filter(Boolean).join("\n\n");
 
 /** How long a change waits on the calendar before it is written without its open times. */
@@ -171,7 +171,7 @@ const OPENINGS_MS = 4 * SECOND_MS;
 /** What is open on the calendar as a change is asked (his call D9, 9 Nov 2026); nothing where it cannot say in time. */
 async function openingsForChange(rt: TenantRuntime, at: Date, tenantId: TenantId): Promise<string | null> {
   try {
-    const open = await inTime(findOpenings(rt, "chat", at), OPENINGS_MS);
+    const open = await writtenInTime(findOpenings(rt, "chat", at), OPENINGS_MS);
     return open ? `What is open on the business's calendar right now, if they ask you to offer times:\n${open}` : null;
   } catch (e) {
     logger({ tenant_id: tenantId }).warn("reply_draft", { openings: "unavailable", error: errField(e) });
@@ -221,7 +221,7 @@ function moneyRefused(
 }
 
 /** One answer of the brain, inside the job's deadline. */
-function inTime<T>(ran: Promise<T>, ms: number): Promise<T> {
+function writtenInTime<T>(ran: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     ran,
@@ -274,7 +274,7 @@ async function changeAsked(
   if (!instruction) return { change: undefined, given: null };
   const open = ask.instruction ? await openingsForChange(rt, at, tenantId) : null;
   const frame = ask.instruction ? frameDraftChange(ask.instruction) : frameSteer(instruction);
-  return { change: changeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
+  return { change: askedChangeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
 }
 
 async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten> {
@@ -291,7 +291,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const lastUser = [...thread.history].reverse().find((t) => t.role === "user");
   const theirs = ask.theirWords ? replyTextOf(ask.theirWords) : (lastUser?.content ?? "");
   if (!theirs.trim()) return said("not_drafted");
-  const { note, notes } = ask.note ? { note: ask.note, notes: false } : await noteOf(db, tenantId, rt, ask);
+  const { note, notes } = ask.note ? { note: ask.note, notes: false } : await readPersonNote(db, tenantId, rt, ask);
   const at = new Date(now());
   const wire: PromptWire = ask.wire;
   const system = resolveSystemPrompt(brainConfig, wire, rt.timezone, at, rt.policy, rt.known, "draft");
@@ -299,7 +299,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const askBrain = async (steer: string | undefined) => {
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");
-    const timed = await inTime(
+    const timed = await writtenInTime(
       brain({
         history: thread.history,
         userText: theirs,

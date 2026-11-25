@@ -29,13 +29,13 @@ interface ReportsHeads {
 
 export function useReportsStanding(
   lens: LensId,
-  R: ReportsSurface | null,
+  reportsSurface: ReportsSurface | null,
   heads: ReportsHeads,
   act: ReactNode = null,
 ): void {
   useStanding({
     title: "Reports",
-    sentence: R ? lensAnswerOf(lens, { ...R, ...heads }) : undefined,
+    sentence: reportsSurface ? lensAnswerOf(lens, { ...reportsSurface, ...heads }) : undefined,
     act: act ?? undefined,
     back: null,
   });

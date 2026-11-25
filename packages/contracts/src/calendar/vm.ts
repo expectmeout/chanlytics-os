@@ -53,7 +53,7 @@ export interface CalendarBlockVM {
   /** The consult-first service its title names, as Settings spells it, or null: what a proposal after it is for. */
   consultService: string | null;
   /**
-   * A booking that arrived by email (docs/plans/2026-10-07-bookings-arrive-by-email.md): which tool's word it is, as
+   * A booking that arrived by email: which tool's word it is, as
    * the product says it ("Booksy"), who it is with and what it costs, as the notice stated them. All null for a feed's
    * event, whose words are its title.
    */
@@ -170,7 +170,7 @@ export interface CalendarVM {
     /** Those two explained, when a read that landed left anything out. */
     notes: CalendarFeedNoteVM[];
     /**
-     * The bookings that arrived by email (docs/plans/2026-10-07-bookings-arrive-by-email.md): the tool the latest came
+     * The bookings that arrived by email: the tool the latest came
      * from, as the product says it; when; how many are drawn over the span; how many a person must look at; and the
      * line that says it whole ("Bookings arrive by email from Booksy · last 2h ago"), "" when none has ever arrived.
      */

@@ -170,7 +170,7 @@ export function sayAsDrawn(say: { headline?: unknown; detail?: unknown }): { hea
   };
 }
 
-const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
+const finiteOrNaN = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
 /** Every id in what the model spelled: global, so a route that carries two is read whole (groundRef takes the last). */
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -288,8 +288,8 @@ export function normalizeAnswer(
   const obj = recordOrEmpty(show.breakdown);
   const parts = asArr(obj.parts)
     .map(recordOrEmpty)
-    .map((p) => ({ label: words(p.label, C.label), value: num(p.value), warn: p.warn === true }));
-  const total = num(obj.total);
+    .map((p) => ({ label: words(p.label, C.label), value: finiteOrNaN(p.value), warn: p.warn === true }));
+  const total = finiteOrNaN(obj.total);
   const whole = words(obj.label, C.label);
   const adds =
     !!whole &&

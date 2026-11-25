@@ -183,8 +183,10 @@ function useBtRowEditor<D>(r: BtRowR<D>) {
     setProblem(null);
     ask.disarm();
   };
+  const resetNow = useRef(reset);
+  resetNow.current = reset;
   useEffect(() => {
-    if (!open) reset();
+    if (!open) resetNow.current();
   }, [open]);
 
   // Nothing is typed into a save that is out: the box is read-only then, and this is the same rule for whatever else

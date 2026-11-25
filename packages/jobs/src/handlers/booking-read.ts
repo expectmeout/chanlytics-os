@@ -1,5 +1,5 @@
 /**
- * booking_read (docs/plans/2026-10-07-bookings-arrive-by-email.md, step 3): core's readBookingNotice, over the rows the
+ * booking_read: core's readBookingNotice, over the rows the
  * database keeps and the reader, the spend and the person-making the edge injects (ctx.bookings). payload:
  * { received_id, mailbox_id } -- the delivery the intake recognised as a booking tool's notice. The email is fetched
  * again here (the intake kept no row of it: a notice is never a conversation), read once, and written as a visit or

@@ -56,7 +56,7 @@ export const profileCode = codeOnce(() =>
 );
 
 export function personDetail(id: string): Promise<PersonVM | null> {
-  return people().through(id, async () => {
+  return personRead().through(id, async () => {
     // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
     // And the shaping's own code, fetched beside both the first time (person-shape.ts).
     const [r, tz, shape] = await Promise.all([
@@ -75,7 +75,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
     // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there. Combined
     // into someone since (0028): the record kept is noted, for the page to open them instead (personMovedTo).
     if (r.status === 404) {
-      people().forget(id);
+      personRead().forget(id);
       if (r.movedTo) movedTo.set(id, r.movedTo);
       else movedTo.delete(id);
       return null;
@@ -94,7 +94,7 @@ export function personMovedTo(id: string): string | null {
 
 /** The person this tab already read, if it has. Synchronous: what the page paints first. */
 export function peekPerson(id: string): PersonVM | null {
-  return people().peek(id);
+  return personRead().peek(id);
 }
 
 /**
@@ -103,7 +103,7 @@ export function peekPerson(id: string): PersonVM | null {
  * "Loading..." over the page while it did.
  */
 export function warmPerson(id: string): Promise<PersonVM | null> | null {
-  return people().warm(id, () => personDetail(id));
+  return personRead().warm(id, () => personDetail(id));
 }
 
 /** How old a person's page may be while it is on screen: its visits, steps and waits are said by the clock. */
@@ -123,7 +123,7 @@ let ahead: string[] = [];
  */
 export function warmPeople(ids: string[]): void {
   if (!getActiveWorkspace()) return;
-  ahead = [...new Set(ids)].slice(0, AHEAD).filter((id) => !people().peek(id));
+  ahead = [...new Set(ids)].slice(0, AHEAD).filter((id) => !personRead().peek(id));
   if (!ahead.length) return;
   // Asked a step later: on a reload a list draws from the tab before the shell starts the boot (a child's effects run
   // before its parent's), and asked at once, afterBoot answered for no boot at all.
@@ -136,7 +136,7 @@ function readAhead(): void {
   // Asked as one (GET open/rest, "Pages that open at once" piece 8), which the server answers a few at a time: two at a
   // time, the twelve were a request each on every load of People. Nothing waits on them: each lands in the tab's people
   // as it comes, and one that fails is read as its row is pressed.
-  const ids = ahead.splice(0).filter((id) => !people().peek(id));
+  const ids = ahead.splice(0).filter((id) => !personRead().peek(id));
   if (ids.length) void Promise.all(api().gather(() => ids.map((id) => personDetail(id).catch(() => null))));
 }
 
@@ -253,12 +253,12 @@ function verbAnswer<O>(r: VerbResult): ApiResult<O> {
  * read-cache.ts's imports, where its registry is not yet made.
  */
 let personCache: ReturnType<typeof readCache<PersonVM | null>> | undefined;
-const people = () => (personCache ??= readCache<PersonVM | null>("person", (vm) => vm !== null, { tab: true }));
+const personRead = () => (personCache ??= readCache<PersonVM | null>("person", (vm) => vm !== null, { tab: true }));
 
 export async function deletePerson(id: string): Promise<DeleteResult> {
   const r = await api()("DELETE contacts/[id]", { params: { id } });
   if (r.ok) {
-    people().forget(id);
+    personRead().forget(id);
     deletedHere.add(id);
   }
   return r;
@@ -271,7 +271,7 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
 export async function notAPerson(id: string, scope: "address" | "domain"): Promise<DeleteResult> {
   const r = await api()("POST contacts/[id]/not-a-person", { params: { id }, body: { scope } });
   if (r.ok) {
-    people().forget(id);
+    personRead().forget(id);
     deletedHere.add(id);
   }
   return r;
@@ -298,7 +298,7 @@ export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): P
   const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo }, refresh: "behind" });
   if (!r.ok) return { ok: false, going: [], failed: [], skipped: [], message: r.message };
   for (const id of r.data.going) {
-    people().forget(id);
+    personRead().forget(id);
     deletedHere.add(id);
   }
   peopleGoing(r.data.going, erasedBehind);
@@ -334,7 +334,7 @@ export function personDeletedHere(id: string): boolean {
 export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
   const r = verbAnswer<unknown>(await commitVerb("person_merge", { contact_id: keep, merge }));
   // Combine (0052) keeps the person, whichever was named to keep: the record the door merged away is the one let go.
-  if (r.ok) people().forget(keptOf(r.data, keep) === keep ? merge : keep);
+  if (r.ok) personRead().forget(keptOf(r.data, keep) === keep ? merge : keep);
   return r;
 }
 

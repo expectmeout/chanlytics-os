@@ -35,11 +35,11 @@ interface AdsReadiness {
 }
 const NOT_OFFERED: AdsReadiness = { offered: false, presses: false, app: null };
 /** The edge's word per workspace, kept READY_TTL_MS: the Ads page asks it on every open. */
-const readyCache = new Map<TenantId, { at: number; value: AdsReadiness }>();
+const adsReadyCache = new Map<TenantId, { at: number; value: AdsReadiness }>();
 
 /** The edge's word for a workspace: asked at most once in READY_TTL_MS, and "not offered" where the edge does not say yes. */
 export async function readAdsReadiness(tenantId: TenantId, now = Date.now()): Promise<AdsReadiness> {
-  const kept = readyCache.get(tenantId);
+  const kept = adsReadyCache.get(tenantId);
   if (kept && now - kept.at < READY_TTL_MS) return kept.value;
   const answer = await callAdsEdge({ op: "status", tenant_id: tenantId }, 4_000);
   const body = answer.body ?? {};
@@ -58,13 +58,13 @@ export async function readAdsReadiness(tenantId: TenantId, now = Date.now()): Pr
           app: { client_id: app.client_id, config_id: app.config_id, redirect_uri: app.redirect_uri },
         }
       : NOT_OFFERED;
-  readyCache.set(tenantId, { at: now, value });
+  adsReadyCache.set(tenantId, { at: now, value });
   return value;
 }
 
 /** The edge's word let go for a workspace, so the next ask reads it again: its ad account was just disconnected. */
 export function forgetAdsReadiness(tenantId: TenantId): void {
-  readyCache.delete(tenantId);
+  adsReadyCache.delete(tenantId);
 }
 
 /** Whether Connect is offered in this workspace here: the card's reader asks it. */

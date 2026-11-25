@@ -78,7 +78,7 @@ export function enforcementActionsOf(raw: unknown): EnforcementAction[] {
     }));
 }
 
-const REASON_WORDS: Record<EnforcementReason, string> = {
+const ENFORCEMENT_REASON_WORDS: Record<EnforcementReason, string> = {
   unsupported_region: "an unsupported region",
   fraud_or_abuse: "fraud or abuse",
   high_harm: "high harm",
@@ -90,7 +90,9 @@ const REASON_WORDS: Record<EnforcementReason, string> = {
 /** What Anthropic said of a profile it acted on, as the platform reads it (Health, and the page): never a customer's words. */
 export function enforcementWords(status: AnthropicEnforcementStatus, actions: EnforcementAction[]): string {
   const sentence = status === "banned" ? "Banned" : status === "pending" ? "Identity check under review" : "Restricted";
-  const reason = [...new Set(actions.map((a) => REASON_WORDS[a.reason]))].join(", ") || REASON_WORDS.unspecified;
+  const reason =
+    [...new Set(actions.map((a) => ENFORCEMENT_REASON_WORDS[a.reason]))].join(", ") ||
+    ENFORCEMENT_REASON_WORDS.unspecified;
   const next = actions.some((a) => a.action === "verify") ? " They can clear it with an identity check." : "";
   return `${sentence}: ${reason}.${next}`;
 }

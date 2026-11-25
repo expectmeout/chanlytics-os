@@ -65,7 +65,7 @@ async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>
 }
 
 /** A read's rows, or its error thrown: a read that failed is not an answer. */
-function rowsOf<T>(r: { data: T[] | null; error: { message: string } | null }): T[] {
+function rowsOrThrow<T>(r: { data: T[] | null; error: { message: string } | null }): T[] {
   if (r.error) throw new DbFailure(r.error);
   return r.data ?? [];
 }
@@ -86,22 +86,22 @@ async function sweepRows(
     // and only the sweep carries it on (00140's trigger_leads_sweep).
     listOpenRounds(db),
   ]);
-  const rounds = rowsOf(open);
+  const rounds = rowsOrThrow(open);
   const roundIds = rounds.map((r) => r.id);
-  const ofRounds = await inChunks(roundIds, async (part) => rowsOf(await listRunsOfRounds(db, part)));
+  const ofRounds = await inChunks(roundIds, async (part) => rowsOrThrow(await listRunsOfRounds(db, part)));
   const byId = new Map<string, RunRead>();
-  for (const r of [...rowsOf(live), ...rowsOf(leased), ...ofRounds]) byId.set(r.id, r);
+  for (const r of [...rowsOrThrow(live), ...rowsOrThrow(leased), ...ofRounds]) byId.set(r.id, r);
   // These runs' collects, coming, failed for good (a failed row is kept 90 days, 00215) or the sweep's own carry-ons,
   // read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
   // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
   const collectsOf = (states: SchemaSet<"jobs.state">[], part: string[], carriesOnly: boolean) =>
     listCollectJobs(db, part, states, carriesOnly);
   const collects = await inChunks([...byId.keys()], async (part) => [
-    ...rowsOf(await collectsOf(["scheduled", "fired", "failed"], part, false)),
-    ...rowsOf(await collectsOf(["done"], part, true)),
+    ...rowsOrThrow(await collectsOf(["scheduled", "fired", "failed"], part, false)),
+    ...rowsOrThrow(await collectsOf(["done"], part, true)),
   ]);
   const roundJobsRead = await inChunks(roundIds, async (part) =>
-    rowsOf(await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])),
+    rowsOrThrow(await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])),
   );
   return assemble([...byId.values()], rounds, collects, roundJobsRead);
 }
@@ -163,7 +163,7 @@ async function assemble(
  * never told its round (its collect decides what that end should have), or its checks. Marked as the sweep's own
  * (`carry_on`, a collect's `r` sequence), so the next tick counts what it has tried since the round last moved.
  */
-async function carryOn(db: SweepTick["db"], carryAction: CarryAction): Promise<void> {
+async function carryActionOn(db: SweepTick["db"], carryAction: CarryAction): Promise<void> {
   const job =
     carryAction.kind === "carry_start"
       ? {
@@ -285,6 +285,93 @@ async function watchPlatformDay(
   }
 }
 
+type SweepCount =
+  | "collected"
+  | "aborted"
+  | "given_up"
+  | "marked_unknown"
+  | "released"
+  | "questions_ended"
+  | "carried_on"
+  | "rounds_ended";
+
+/** One action the plan asked for, done: what it adds to the tick's counts, or nothing. A reconcile only gathers its row. */
+async function runSweepAction(
+  db: SweepTick["db"],
+  ledger: ReturnType<typeof leadDb>,
+  wires: ReturnType<typeof leadWires>,
+  action: ReturnType<typeof planLeadSweep>[number],
+  unknown: LeadRunRow[],
+): Promise<SweepCount | null> {
+  switch (action.kind) {
+    case "collect":
+      await scheduleJobOnce(db, {
+        tenantId: action.tenantId,
+        kind: "lead_collect",
+        dueAt: new Date(),
+        payload: { run_id: action.runId, seq: action.seq },
+      });
+      return "collected";
+    case "abort":
+      if (wires) await wires.apify.abortRun(action.apifyRunId);
+      await scheduleJobOnce(db, {
+        tenantId: action.tenantId,
+        kind: "lead_collect",
+        dueAt: new Date(),
+        payload: { run_id: action.runId, seq: action.seq },
+      });
+      return "aborted";
+    case "give_up": {
+      // Stopped at the provider first, since nothing reads it again once it is failed in our books; a provider
+      // that cannot be reached does not keep it alive, as each run ends there by its own timeout.
+      if (wires) await wires.apify.abortRun(action.apifyRunId).catch(() => undefined);
+      const out = await giveUpRun({ db: ledger }, action.runId, action.owner);
+      return out.kind === "given_up" ? "given_up" : null;
+    }
+    case "mark_unknown": {
+      const { error } = await markLeadRunUnknown(db, action.runId, action.owner);
+      if (error) throw new DbFailure(error);
+      return "marked_unknown";
+    }
+    case "release_lease": {
+      const { error } = await releaseLeadRun(db, action.runId, action.owner, action.gen);
+      if (error) throw new DbFailure(error);
+      return "released";
+    }
+    case "end_question": {
+      const { error } = await endLeadRound(db, action.roundId, "question_unanswered");
+      if (error) throw new DbFailure(error);
+      return "questions_ended";
+    }
+    case "carry_start":
+    case "carry_collect":
+    case "carry_check":
+      await carryActionOn(db, action);
+      return "carried_on";
+    case "end_stuck": {
+      // Nothing can carry it on: the door looks again under its own lock and ends it with the ending it had pending,
+      // giving back its allowance and its share of the day's cap (00140's lead_round_end).
+      const { error } = await endStuckLeadRound(db, action.roundId, action.since, action.ending);
+      if (error) throw new DbFailure(error);
+      return "rounds_ended";
+    }
+    case "orphan": {
+      // A row nobody claimed in an hour: the sweep claims it and marks it unknown, and the next tick reconciles it.
+      const claimed = await claimLeadRun(db, action.runId, action.owner);
+      if (claimed.error) throw new DbFailure(claimed.error);
+      const marked = await markLeadRunUnknown(db, action.runId, action.owner);
+      if (marked.error) throw new DbFailure(marked.error);
+      return "marked_unknown";
+    }
+    case "reconcile": {
+      if (unknown.length >= RECONCILE_PER_TICK) return null;
+      const row = await ledger.run(action.runId);
+      if (row) unknown.push(row);
+      return null;
+    }
+  }
+}
+
 export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   const now = Date.now();
   let runs: SweepRunRow[];
@@ -322,82 +409,8 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
 
   for (const action of actions) {
     try {
-      switch (action.kind) {
-        case "collect":
-          await scheduleJobOnce(db, {
-            tenantId: action.tenantId,
-            kind: "lead_collect",
-            dueAt: new Date(),
-            payload: { run_id: action.runId, seq: action.seq },
-          });
-          counts.collected += 1;
-          break;
-        case "abort":
-          if (wires) await wires.apify.abortRun(action.apifyRunId);
-          await scheduleJobOnce(db, {
-            tenantId: action.tenantId,
-            kind: "lead_collect",
-            dueAt: new Date(),
-            payload: { run_id: action.runId, seq: action.seq },
-          });
-          counts.aborted += 1;
-          break;
-        case "give_up": {
-          // Stopped at the provider first, since nothing reads it again once it is failed in our books; a provider
-          // that cannot be reached does not keep it alive, as each run ends there by its own timeout.
-          if (wires) await wires.apify.abortRun(action.apifyRunId).catch(() => undefined);
-          const out = await giveUpRun({ db: ledger }, action.runId, action.owner);
-          if (out.kind === "given_up") counts.given_up += 1;
-          break;
-        }
-        case "mark_unknown": {
-          const { error } = await markLeadRunUnknown(db, action.runId, action.owner);
-          if (error) throw new DbFailure(error);
-          counts.marked_unknown += 1;
-          break;
-        }
-        case "release_lease": {
-          const { error } = await releaseLeadRun(db, action.runId, action.owner, action.gen);
-          if (error) throw new DbFailure(error);
-          counts.released += 1;
-          break;
-        }
-        case "end_question": {
-          const { error } = await endLeadRound(db, action.roundId, "question_unanswered");
-          if (error) throw new DbFailure(error);
-          counts.questions_ended += 1;
-          break;
-        }
-        case "carry_start":
-        case "carry_collect":
-        case "carry_check":
-          await carryOn(db, action);
-          counts.carried_on += 1;
-          break;
-        case "end_stuck": {
-          // Nothing can carry it on: the door looks again under its own lock and ends it with the ending it had pending,
-          // giving back its allowance and its share of the day's cap (00140's lead_round_end).
-          const { error } = await endStuckLeadRound(db, action.roundId, action.since, action.ending);
-          if (error) throw new DbFailure(error);
-          counts.rounds_ended += 1;
-          break;
-        }
-        case "orphan": {
-          // A row nobody claimed in an hour: the sweep claims it and marks it unknown, and the next tick reconciles it.
-          const claimed = await claimLeadRun(db, action.runId, action.owner);
-          if (claimed.error) throw new DbFailure(claimed.error);
-          const marked = await markLeadRunUnknown(db, action.runId, action.owner);
-          if (marked.error) throw new DbFailure(marked.error);
-          counts.marked_unknown += 1;
-          break;
-        }
-        case "reconcile": {
-          if (unknown.length >= RECONCILE_PER_TICK) break;
-          const row = await ledger.run(action.runId);
-          if (row) unknown.push(row);
-          break;
-        }
-      }
+      const counted = await runSweepAction(db, ledger, wires, action, unknown);
+      if (counted) counts[counted] += 1;
     } catch (e) {
       counts.failed += 1;
       L.error("leads_sweep_action_failed", { kind: action.kind, error: errField(e) });

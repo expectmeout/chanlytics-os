@@ -38,7 +38,7 @@ const FAULT_OF: Partial<Record<AdIssueCode, AdWordsFault>> = {
   before_after: "before_after",
   pressure: "pressure",
 };
-const faultOf = (issues: readonly AdIssue[]): AdWordsFault | null => {
+const wordsFaultOf = (issues: readonly AdIssue[]): AdWordsFault | null => {
   const [first] = issues;
   return first ? (FAULT_OF[first.code] ?? "other") : null;
 };
@@ -145,7 +145,7 @@ async function changeDraft(caller: AdWordsAsking, facts: AdDraftFacts, draft: Ad
   if (!written.wrote) {
     // Words that would trip a check are a change not made, said with the rule they met; anything else is no answer.
     if (written.kept === "checks")
-      return { ...judged, changed: { kind: "none" as const, fault: faultOf(written.issues) } };
+      return { ...judged, changed: { kind: "none" as const, fault: wordsFaultOf(written.issues) } };
     return { ...judged, wrote: { ok: false as const, why: noWordsOf(written.kept) } };
   }
   const change = adChangeOf(written.answer, brief);
@@ -158,7 +158,7 @@ async function changeDraft(caller: AdWordsAsking, facts: AdDraftFacts, draft: Ad
   if (!change || !next) return { ...judged, changed: { kind: "none" as const, fault: null } };
   // Changed words are judged once more against the draft's own brief, as every change is.
   const faults = change.kind === "words" ? adWordIssues(next.versions, adDraftBrief(facts, facts.account, next)) : [];
-  if (faults.length) return { ...judged, changed: { kind: "none" as const, fault: faultOf(faults) } };
+  if (faults.length) return { ...judged, changed: { kind: "none" as const, fault: wordsFaultOf(faults) } };
   return { ...adDraftAnswer(facts, next), changed: { kind: change.kind === "place" ? "area" : change.kind } };
 }
 
