@@ -483,6 +483,7 @@ const inboxPage = (
           rowOf: needsYou.rowOf,
         }}
         aside={aside}
+        away={takeover}
       />
       {/* A request someone sent through a form stands where a conversation would (request/slot.tsx). */}
       <RequestSlot request={request} flash={ppFlash} />
