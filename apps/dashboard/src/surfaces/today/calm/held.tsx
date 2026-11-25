@@ -49,7 +49,7 @@ function tellHeld(next: HeldActs | null): void {
 }
 
 /** Let the held line go: its sheet shuts. */
-export const letHeldGo = (): void => tellHeld(null);
+const letHeldGo = (): void => tellHeld(null);
 
 function hearHeld(fn: () => void): () => void {
   heldHearers.add(fn);
