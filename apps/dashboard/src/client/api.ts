@@ -170,6 +170,12 @@ interface ApiDeps {
   };
   /** The tab's standing while its reads fail (trouble.ts): a test's own; one made for the client otherwise. */
   trouble?: Trouble;
+  /**
+   * Whether a person has just pressed something, by the browser's own word where it has one (bridge/api.ts): a read
+   * asked then is theirs, a page's Retry or a pick among them, and it reaches the server at once whatever the tab holds
+   * (trouble.ts lookNow). Absent, no read is known to be a press.
+   */
+  pressed?: () => boolean;
 }
 
 /**
@@ -208,8 +214,9 @@ function unanswered(e: unknown, write: boolean): ApiRefusal {
 
 /** One request as the client is about to send it. */
 interface Leaving {
-  /** Its route's key: the address a failing read is counted under. */
+  /** Its route's key, which a failing read is counted under, and its own address, its query with it. */
   key: string;
+  url: string;
   isRead: boolean;
   /** The caller's own signal, where it gave one: a read it called off says nothing of the server. */
   signal: AbortSignal | undefined;
@@ -449,7 +456,7 @@ async function answerTo(
       return { refusal: unanswered(e, true) };
     }
   }
-  const standing = (): Standing | Promise<Standing> => trouble.before(leaving.key);
+  const standing = (): Standing | Promise<Standing> => trouble.before(leaving.url, leaving.key);
   let entry = standing();
   let gate = entry instanceof Promise ? await entry : entry;
   if (leaving.ahead) {
@@ -505,6 +512,8 @@ export function createApi(deps: ApiDeps) {
       const hit = inFlight.get(url);
       if (hit && sharedAt(hit, now())) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
+    // A person's press is never answered here: the wait ends, and this read looks (trouble.ts).
+    if (isRead && deps.pressed?.()) trouble.lookNow();
     // The head's answer, else the gathered reads', else its own fetch; one that failed or was not carried, asked alone.
     // A read asked for while the server is not answering this tab joins no gathered request: it is answered here.
     const { early, before } = answeredAhead(deps, gathered, url, isRead && !trouble.waiting());
@@ -512,7 +521,7 @@ export function createApi(deps: ApiDeps) {
       // A request that never left changed nothing; one that timed out may still be doing its work on the server, and a
       // write must not be told otherwise (unanswered).
       const own = () => deps.fetch(url, initFor(key, sent));
-      const answered = await answerTo(trouble, now, { key, isRead, signal: opts.signal, ahead: before, own });
+      const answered = await answerTo(trouble, now, { key, url, isRead, signal: opts.signal, ahead: before, own });
       if ("refusal" in answered) return answered.refusal;
       const { res } = answered;
       lead.note(res);
@@ -620,11 +629,13 @@ export function createApi(deps: ApiDeps) {
 
 /**
  * The tab's standing while its reads fail (trouble.ts), as the client hands it on: a person's press ends the wait
- * (`lookNow`), the runner hears the wait come due (`onReadsDue`), and `readsHeld` says whether reads are held now.
+ * (`lookNow`), a page's boot begins standing (`standAgain`), the runner hears the wait come due (`onReadsDue`), and
+ * `readsHeld` says whether reads are held now.
  */
 function standingOf(trouble: Trouble) {
   return {
     lookNow: () => trouble.lookNow(),
+    standAgain: () => trouble.standAgain(),
     onReadsDue: (fn: () => void) => trouble.onDue(fn),
     readsHeld: () => trouble.waiting(),
   };

@@ -47,6 +47,7 @@ console.error = () => {};
 const { reportsCampaigns, reportsCampaignsOverride } = await importSrc(
   "apps/dashboard/src/surfaces/reports/campaigns-surface.ts",
 );
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
 const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { keepReportPeriod, shownReportPeriod, reportsOverride } = await importSrc(
   "apps/dashboard/src/surfaces/reports/surface.ts",
@@ -423,8 +424,10 @@ test("all three reads failing is three nulls in a value that is held, not a fail
   assert.deepEqual(lines.map((l) => l[0]).sort(), READS.map((r) => r[3]).sort(), "each logged by its own name");
   assert.equal(followState("reports_campaigns"), "current");
   assert.equal(reportsCampaigns.isStale(), false, "held for the period");
-  // Read again, with the routes back: the whole value is replaced.
+  // Read again, with the routes back: the whole value is replaced. Retry is a person's press, which reaches the server
+  // whatever the tab holds of the three reads that failed (client/trouble.ts).
   failing.clear();
+  api().lookNow();
   await reportsCampaignsOverride.apply();
   assert.deepEqual(surfaceValue("reports_campaigns").campaigns, campaignsFor({ days: 30 }));
   assert.deepEqual(surfaceValue("reports_campaigns").ledger, ledgerFor({ days: 30 }));

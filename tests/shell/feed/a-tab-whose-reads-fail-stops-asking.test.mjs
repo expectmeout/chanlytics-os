@@ -242,6 +242,51 @@ test("a person's press ends the wait at once, and a read its caller called off s
   assert.equal(fresh.trouble.waiting(), false);
 });
 
+test("a route that fails for one question and answers another holds the other back for nothing: its own address is what failed", async () => {
+  // Reports over ninety days fails, with its lens beside it: the hold trips. The same route over thirty days is another
+  // address, which has not failed: it is the witness, and its answer ends the hold.
+  const s = standing();
+  const ask = async (address, route) => {
+    const gate = await s.trouble.before(address, route);
+    return gate.held === null ? gate.settled : { held: gate.held };
+  };
+  (await ask("reports?period=90d", "GET reports"))("fault");
+  (await ask("reports/people?period=90d", "GET reports/people"))("fault");
+  (await ask("reports?period=90d", "GET reports"))("fault");
+  assert.equal(s.trouble.waiting(), true);
+  assert.deepEqual(await ask("reports?period=90d", "GET reports"), { held: 5 }, "what failed is held");
+  const other = await ask("reports?period=30d", "GET reports");
+  assert.ok(leaves(other), "the same route, another question: it reaches the server");
+  other("answered");
+  assert.equal(s.trouble.waiting(), false);
+});
+
+test("three failures on one route alone are not trouble, however many questions it was asked", async () => {
+  const s = standing();
+  for (const period of ["7d", "30d", "90d", "month"]) {
+    const gate = await s.trouble.before(`reports?period=${period}`, "GET reports");
+    gate.settled("fault");
+  }
+  assert.equal(s.trouble.waiting(), false, "one route failing is that route's fault");
+});
+
+test("a page's boot begins standing: what an earlier page left held, and reads waiting on its looks, are let go", async () => {
+  const s = standing();
+  await s.trip();
+  s.pass(5_000);
+  const look = await s.read("GET today");
+  let waited = "waiting";
+  const waiting = s.read("GET calendar").then((answer) => (waited = answer));
+  s.trouble.standAgain();
+  assert.equal(s.trouble.waiting(), false);
+  assert.ok(leaves(await waiting), "what waited on the look leaves");
+  look("fault");
+  assert.equal(s.trouble.waiting(), false, "and the look of the page before says nothing to this one");
+  const gate = s.trouble.before("GET today");
+  assert.equal(gate instanceof Promise, false, "a read leaves in the turn it is asked in: nothing is mending");
+  assert.equal(waited !== "waiting", true);
+});
+
 test("the wait coming due is said, so the runner's own reads look; a wait ended early says nothing", async () => {
   const s = standing();
   let due = 0;
@@ -309,7 +354,7 @@ test("a read leaves in the turn it is asked in while the tab stands", () => {
   assert.deepEqual(c.sent, ["GET /api/v1/views"], "sent before the caller's next line, as it always was");
 });
 
-test("with every read failing, a pass of twenty-five reads and its retries reach the server six times", async () => {
+test("with every read failing, a pass of twenty-five reads and its retries reach the server eight times", async () => {
   const c = client(() => failed());
   const READS = ["GET views", "GET calls", "GET channels", "GET segments", "GET team"];
   // A pass: twenty-five reads of five addresses, one after another.
@@ -319,7 +364,7 @@ test("with every read failing, a pass of twenty-five reads and its retries reach
   assert.equal(held.ok, false);
   assert.equal(held.code, "unavailable");
   assert.equal(held.retryAfterS, 5, "answered here, with how long is left: a surface's own retry waits it out");
-  // Each surface's own retries, 0.8 s, 2 s and 10 s later: none reaches the server but the one look.
+  // Each surface's own retries, 0.8 s, 2 s and 10 s later: none reaches the server but the looks.
   c.pass(800);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
   c.pass(2_000);
@@ -327,7 +372,7 @@ test("with every read failing, a pass of twenty-five reads and its retries reach
   assert.equal(c.sent.length, 5);
   c.pass(10_000);
   for (let i = 0; i < 25; i += 1) await c.api(READS[i % READS.length], { query: { n: String(i) } });
-  assert.equal(c.sent.length, 6, "one look, where seventy-five more requests left");
+  assert.equal(c.sent.length, 8, "three look together once the wait is over, where seventy-five more requests left");
 });
 
 test("two reads broken by a fault of their own hold nothing healthy back: a read of another address ends the hold", async () => {
@@ -355,6 +400,32 @@ test("the server's own word for how long to wait is kept, and a write is never h
   assert.equal(wrote.ok, true);
   await c.api("GET segments");
   assert.equal(c.sent.at(-1), "GET /api/v1/segments", "and its answer says the server answers: reads leave again");
+});
+
+test("a person's press is never answered here: a read asked right after one ends the wait and reaches the server", async () => {
+  const sent = [];
+  let pressed = false;
+  const api = createApi({
+    fetch: async (url, init) => {
+      sent.push(`${init.method} ${url.replace(/\?.*$/, "")}`);
+      return failed(503);
+    },
+    workspace: () => A,
+    onSignedOut: () => {},
+    refresh: async () => {},
+    pressed: () => pressed,
+  });
+  for (const key of ["GET views", "GET calls", "GET views"]) await api(key);
+  assert.equal(api.readsHeld(), true);
+  await api("GET views");
+  assert.equal(sent.length, 3, "a retry nobody pressed is answered here");
+  // A page's Retry: the same read, asked by a person.
+  pressed = true;
+  await api("GET views");
+  assert.equal(sent.length, 4, "it reaches the server, the wait unspent");
+  pressed = false;
+  await api("GET views");
+  assert.equal(sent.length, 4, "and the tab holds again once it failed");
 });
 
 test("a refusal that is no fault holds nothing back: not there, not allowed, too many at once", async () => {
