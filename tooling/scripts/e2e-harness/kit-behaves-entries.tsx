@@ -500,7 +500,9 @@ function SheetKitFit() {
           {SHEET_SERVICES.map(([name, long]) => (
             <div key={name} className="rec-row" data-empty="false">
               <span className="rec-row-key">{name}</span>
-              <div className="rec-row-val">{long}</div>
+              <div className="rec-row-val">
+                <span className="rec-row-value">{long}</span>
+              </div>
             </div>
           ))}
         </div>
