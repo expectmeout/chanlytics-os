@@ -92,16 +92,15 @@ function missingFrom(listing: Extract<PlaceListing, { is: "read" }>, posts: read
  * more are missing than one read asks about, each day begins where the day before left off, so none waits for ever.
  */
 async function settleMissing(turn: ReadTurn, held: HeldPlace, missing: readonly PostRow[]) {
-  let asked = 0;
-  let gone = 0;
+  const counts = { asked: 0, gone: 0 };
   const from = missing.length > ASKS_A_READ ? (Math.floor(turn.nowMs / DAY_MS) * ASKS_A_READ) % missing.length : 0;
   for (const post of [...missing.slice(from), ...missing.slice(0, from)].slice(0, ASKS_A_READ)) {
     if (Date.now() > turn.deadline) break;
-    asked += 1;
+    counts.asked += 1;
     if (!(await askWhetherGone(held.placeOf(post), post, turn.nowMs))) continue;
-    if (turn.dry || (await settleGone(turn.db, turn.tenantId, post, "list"))) gone += 1;
+    if (turn.dry || (await settleGone(turn.db, turn.tenantId, post, "list"))) counts.gone += 1;
   }
-  return { asked, gone };
+  return counts;
 }
 
 /** One place asked: which it is, how its account is found, and the workspace's posts Chanlytics calls up there. */

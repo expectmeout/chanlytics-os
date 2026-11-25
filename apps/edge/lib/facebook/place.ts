@@ -332,10 +332,11 @@ async function takeDownOn(h: PageHands, post: SentPlacement): Promise<TakeDownAn
  * A token that could not be asked for says nothing of any post, as a refused page does.
  */
 async function listedOn(h: PageHands, since: Date, next: MetaNextPage | null): Promise<ListedPage<MetaNextPage>> {
-  const got = await h.hand();
-  if (got.is === "refused") return { is: "refused", said: `${got.refusal.code ?? "-"}/${got.refusal.subcode ?? "-"}` };
-  if (got.is === "unknown") return { is: "unknown", said: String(got.kept.status ?? 0) };
-  return listedPageOfMeta(await h.call(pagePostsSinceRequest(got.hand, { since, next })), parsePageListedPage);
+  const token = await h.hand();
+  if (token.is === "refused")
+    return { is: "refused", said: `${token.refusal.code ?? "-"}/${token.refusal.subcode ?? "-"}` };
+  if (token.is === "unknown") return { is: "unknown", said: String(token.kept.status ?? 0) };
+  return listedPageOfMeta(await h.call(pagePostsSinceRequest(token.hand, { since, next })), parsePageListedPage);
 }
 
 /** What every ask of one Page shares: its one bounded call, and its token asked for once. */

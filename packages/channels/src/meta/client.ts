@@ -151,15 +151,15 @@ export interface MetaNextPage {
 export function metaNextPageOf(json: unknown): MetaNextPage | null {
   const next = metaText(valueAt(metaObject(valueAt(metaObject(json), "paging")), "next"));
   if (!next) return null;
-  let asked: URLSearchParams;
+  let query: URLSearchParams;
   try {
-    asked = new URL(next).searchParams;
+    query = new URL(next).searchParams;
   } catch {
     // Not an address: the list did not end, and it cannot be gone on with.
     return {};
   }
-  const after = asked.get("after");
-  const until = asked.get("until");
+  const after = query.get("after");
+  const until = query.get("until");
   return { ...(after ? { after } : {}), ...(until ? { until } : {}) };
 }
 

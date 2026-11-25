@@ -59,8 +59,8 @@ import {
   postPrepare,
   postPublish,
   postReconcile,
-  postsRead,
   postTakeDown,
+  readPosts,
 } from "./posts";
 
 export type { PushReceipt, PushPort, WebPushPort, JobContext, ClaimedJob } from "../runner/context";
@@ -609,7 +609,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   content_week_go: contentWeekGo,
   content_week_make: contentWeekMake,
   post_observe: postObserve,
-  posts_read: postsRead,
+  posts_read: readPosts,
   comment_reply: commentReply,
   piece_make: pieceMake,
   campaign_moments: campaignMoments,

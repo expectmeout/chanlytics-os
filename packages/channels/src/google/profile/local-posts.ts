@@ -38,9 +38,9 @@ function localPostOf(raw: unknown): GbpLocalPost | null {
 }
 
 function localPostsRequest(token: string, parent: string, pageToken: string | null): PlacesRequest {
-  const asked = new URLSearchParams({ pageSize: String(GBP_POSTS_PAGE), ...(pageToken ? { pageToken } : {}) });
+  const query = new URLSearchParams({ pageSize: String(GBP_POSTS_PAGE), ...(pageToken ? { pageToken } : {}) });
   return {
-    url: `${GBP_V4_BASE}/${parent}/localPosts?${asked.toString()}`,
+    url: `${GBP_V4_BASE}/${parent}/localPosts?${query.toString()}`,
     method: "GET",
     headers: bearer(token, true),
   };

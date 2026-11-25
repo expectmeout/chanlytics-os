@@ -50,7 +50,7 @@ export async function postObserve(ctx: JobContext, job: ClaimedJob): Promise<voi
 }
 
 /** posts_read: a workspace's places asked which of its posts they still hold, once a day. payload: {} or { dry } */
-export async function postsRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+export async function readPosts(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts?.held) throw new Error("posts_read: this runtime asks no place what it holds");
   const answer = await ctx.posts.held(job, ctx.deadline);
   return "skipped" in answer ? answer : undefined;
