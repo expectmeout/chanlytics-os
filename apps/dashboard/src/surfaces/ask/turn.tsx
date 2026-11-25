@@ -73,11 +73,11 @@ const atAsked = (s: string | null | undefined) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-export const freshNext = (A: AskApi, drawn: DrawnAnswer, turns: LineTurn[]): DrawnAnswer => {
+export const freshNext = (askApi: AskApi, drawn: DrawnAnswer, turns: LineTurn[]): DrawnAnswer => {
   const seen = new Set<string>();
   turns.forEach((tn, k) => {
     if (tn.q) seen.add(atAsked(tn.q.text));
-    if (tn.a && k < turns.length - 1) for (const q of A.answer(tn.a).answer.do.next) seen.add(atAsked(q));
+    if (tn.a && k < turns.length - 1) for (const q of askApi.answer(tn.a).answer.do.next) seen.add(atAsked(q));
   });
   const next = drawn.answer.do.next.filter((q) => !seen.has(atAsked(q)));
   return next.length === drawn.answer.do.next.length

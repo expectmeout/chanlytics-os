@@ -71,12 +71,12 @@ function keptDraft(personId: string): NoteDraft {
 const FOR_CHOICES_MAX = 4;
 
 /** For's choices: Anyone, then you, then the rest of the team as the page lists them. */
-function forChoices(team: PersonVM["noteTeam"], W: Words) {
+function forChoices(team: PersonVM["noteTeam"], noteWords: Words) {
   const me = team.filter((m) => m.me);
   const rest = team.filter((m) => !m.me);
   return [
-    { value: "", label: W.anyone },
-    ...me.map((m) => ({ value: m.id, label: W.me })),
+    { value: "", label: noteWords.anyone },
+    ...me.map((m) => ({ value: m.id, label: noteWords.me })),
     ...rest.map((m) => ({ value: m.id, label: m.name })),
   ];
 }

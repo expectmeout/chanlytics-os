@@ -117,7 +117,7 @@ const LlImportPreview = ({
 );
 
 /** The import's own state: what was read, the list's name and who they are, and what came back. */
-function useImportState(L: Lists) {
+function useImportState(lists: Lists) {
   const [text, setText] = useState("");
   const [file, setFile] = useState<string | null>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
@@ -127,7 +127,7 @@ function useImportState(L: Lists) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReturnType<Lists["importAnswerWords"]> | null>(null);
   // Filtered once for each reading of the file, not on every draw of the sheet.
-  const ready = useMemo(() => (plan ? plan.rows.filter(L.ready) : []), [plan, L]);
+  const ready = useMemo(() => (plan ? plan.rows.filter(lists.ready) : []), [plan, lists]);
   return {
     text,
     setText,

@@ -131,9 +131,9 @@ function viewKey(v: LeadsView): string {
 }
 
 /** What a row's words are made from: the clock, and its own search (D5): a review row names what it waits on in the queue's words. */
-function rowsMadeBy(L: LeadsLoaded | null, now: Date) {
-  const searches = new Map((L?.searches ?? []).map((s) => [s.id, s]));
-  return { tz: L?.tz ?? "UTC", now, searchOf: (id: string) => searches.get(id) ?? null };
+function rowsMadeBy(leadsLoaded: LeadsLoaded | null, now: Date) {
+  const searches = new Map((leadsLoaded?.searches ?? []).map((s) => [s.id, s]));
+  return { tz: leadsLoaded?.tz ?? "UTC", now, searchOf: (id: string) => searches.get(id) ?? null };
 }
 
 function publishLeads(failed = false): void {

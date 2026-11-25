@@ -85,14 +85,14 @@ function readsAWorkspace() {
  * What is said of a range that failed to load, on a row over the body: the page keeps the one it shows. A period is said
  * by its name ("90 days"), days a member picked by their dates, on both sides of the sentence.
  */
-function failedRow(failed: ReportRange | null, R: ReportsSurface) {
+function failedRow(failed: ReportRange | null, reportsSurface: ReportsSurface) {
   if (!failed) return null;
-  const tried = reportWindowOf(failed, R.vm.today);
+  const tried = reportWindowOf(failed, reportsSurface.vm.today);
   return (
     <div className="rpt-head">
       <span className="rpt-failed" role="status" aria-live="polite">
         Couldn't load {tried.period ? tried.short : tried.dates}. Still showing{" "}
-        {R.vm.live ? R.vm.rangeLabel : R.vm.period.now}.
+        {reportsSurface.vm.live ? reportsSurface.vm.rangeLabel : reportsSurface.vm.period.now}.
       </span>
     </div>
   );

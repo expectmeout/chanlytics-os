@@ -110,9 +110,9 @@ export const onFileOf = (g: TemplateGroup): TemplateRow[] => g.rows.filter((r) =
 export function listingOf(
   templates: TemplateDto[],
   messages: readonly CampaignMessage[],
-  S: StarterLibrary,
+  starterLibrary: StarterLibrary,
 ): TemplateListing {
-  const langs: readonly TplLang[] = S.languages;
+  const langs: readonly TplLang[] = starterLibrary.languages;
   const list = templates.filter((t) => !isLibrarySample(t.name));
   const held = messages.filter((m) => !isLibrarySample(m.name));
   const rowFor = (name: string, lang: string) => list.find((t) => t.name === name && t.language === lang) || null;
@@ -143,7 +143,7 @@ export function listingOf(
   // The starters in the library's order, each with the set's languages -- on file
   // or not -- and then any other language the workspace has written it in; then
   // what the workspace wrote or synced, by name; then a fold for what it hid.
-  const starters: StarterGroup[] = S.list.map((s) => ({
+  const starters: StarterGroup[] = starterLibrary.list.map((s) => ({
     key: s.key,
     title: s.title,
     purpose: s.purpose,

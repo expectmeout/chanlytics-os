@@ -126,14 +126,18 @@ function useOne(parts: OneParts | null, id: string | null, from: string, again: 
  * The scope the address says and what it draws: every campaign, or one sequence over the days shown. Narrowing replaces the
  * entry, as Ads' does: a scope is a setting of the page, and the days stay.
  */
-export function useCampaignsScope(lens: LensId, at: ReportsParts, R: ReportsSurface | null): CampaignsScopeHere {
-  const on = lens === "campaigns" && R !== null;
+export function useCampaignsScope(
+  lens: LensId,
+  at: ReportsParts,
+  reportsSurface: ReportsSurface | null,
+): CampaignsScopeHere {
+  const on = lens === "campaigns" && reportsSurface !== null;
   const parts = useOneParts(on);
   const scope: CampaignScope = at.scope && at.scope.kind === "sequence" ? at.scope : CAMPAIGN_SCOPE_ALL;
   const id = on && scope.kind === "sequence" ? scope.id : null;
   const [asked, warm] = useReducer(() => true, false);
   const rows = useRows(parts, asked);
-  const window = R ? reportWindowOf(R.range, R.vm.today) : null;
+  const window = reportsSurface ? reportWindowOf(reportsSurface.range, reportsSurface.vm.today) : null;
   const [again, retry] = useReducer((n: number) => n + 1, 0);
   const read = useOne(parts, id, window?.from ?? "", again);
   const onScope = (next: CampaignScope) =>

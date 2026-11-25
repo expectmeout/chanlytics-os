@@ -8,7 +8,7 @@ import type { AskedSeed, Conversation, LineState, LiveTurn, QuickTurn } from "./
 import { useAskToast } from "../shell";
 
 /** The state of one Line: the words, the conversations, the turn in flight, where the keys stand, and the refs its effects and handlers share. */
-export const useArLine = (A: AskApi | undefined): LineState => {
+export const useArLine = (askApi: AskApi | undefined): LineState => {
   const [query, setQuery] = useState("");
   const [attached, setAttached] = useState<AttachedPhoto[]>([]); // the photos beside the field, on their way or there (attached.tsx)
   const [threads, setThreads] = useState<AskThreadVM[]>([]);
@@ -18,7 +18,7 @@ export const useArLine = (A: AskApi | undefined): LineState => {
   const [scope, setScope] = useState<AskScope | null>(null);
   const [sel, setSel] = useState(0); // the row the keys stand on
   const [move, setMove] = useState(-1); // the answer's move they stand on, none at first
-  const [lang, setLang] = useState<AskLanguage>(() => (A ? A.language() : "en"));
+  const [lang, setLang] = useState<AskLanguage>(() => (askApi ? askApi.language() : "en"));
   const [tick, setTick] = useState(0);
   const [view, setView] = useState("rows"); // "rows", or "earlier": every conversation
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
@@ -32,7 +32,7 @@ export const useArLine = (A: AskApi | undefined): LineState => {
   const [noticeWaits, setNoticeWaits] = useState(false);
   // Where the field and the three stood as the field was focused (ahSlideFrom), until the slide has run.
   const slideFrom = useRef<ReturnType<typeof ahSlideFrom>>(null);
-  const speech = useAskSpeech(A);
+  const speech = useAskSpeech(askApi);
   const [toastNode, flash] = useAskToast();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const faceRef = useRef<HTMLSpanElement>(null);
