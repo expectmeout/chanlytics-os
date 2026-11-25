@@ -98,7 +98,11 @@ export function usePhoneChoice(
     keepPhoneChoice(c);
     setPhoneChoiceState(c);
   };
+  // Stripe's answer is read on arrival alone: the first draw's.
+  const unread = useRef(true);
   useEffect(() => {
+    if (!unread.current) return;
+    unread.current = false;
     const out = billingVerbs.outcome();
     const kept = phoneChoiceKept();
     // Back with a card: Stripe returns to the first run, and the step it left is Go live, which stays on screen once its
@@ -111,7 +115,7 @@ export function usePhoneChoice(
       if (kept) setPhoneChoice({ ...kept, pending: false, sent: false, returnedAt: null });
       flash({ msg: <>{FIRST_RUN_HELPERS.phoneWords.cancelled}</> });
     }
-  }, []);
+  }, [param, replace, flash]);
   return [phoneChoice, setPhoneChoice];
 }
 
