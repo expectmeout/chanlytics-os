@@ -257,7 +257,7 @@
      open the screen does not either, where a short page or the strip handed the pull to it (iOS bounced the screen,
      Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
   .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
-  html.frame-on:has(.settings), html.frame-on:has(.settings) body { overscroll-behavior-y: none; }
+  html.frame-on[data-settings-page], html.frame-on[data-settings-page] body { overscroll-behavior-y: none; }
   /* Nor does the page draw a pull of its own at its top (kit motion/page-give.ts reads this off the page). */
   .settings { overscroll-behavior-y: none; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
@@ -512,7 +512,7 @@
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
-  :root:has(.tbn-pop:not([data-leaving])) .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
+  :root[data-bell-open][data-bell-open] .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
@@ -746,17 +746,20 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
      frame's head and strip of views, the tab bar and the room kept for it leave. The bar is named by its class under a
      :has(), never its test id: a :has() over an attribute had every element with a test id styled again each time the
-     page under the strip changed (the strips review, 18 Oct 2026: 12 to 17 ms a swap on a phone's CPU). */
+     page under the strip changed (the strips review, 18 Oct 2026: 12 to 17 ms a swap on a phone's CPU). What the whole
+     page holds is a flag on the root, stamped where it is set (kit/motion/root-flags.ts: data-taken-over, -thread-open,
+     -dock-frame, -over-page...), never a :has() on the root, which every change anywhere had the browser read again (25
+     Nov 2026). Each flag is written as often as the :has() it stands for weighed, so every rule weighs what it did. */
   :root:not([data-carrying]) .main:has(> .main-scroll > [data-takeover]) .pg-slot,
-  :root:not([data-carrying]) .app-root:has([data-takeover]) .phone-places {
+  :root:not([data-carrying])[data-taken-over] .app-root .phone-places {
     display: none;
   }
   /* An open thread is headed by its own person: the page's date and the bell over its capsule stand down too, 44px given
      back to the conversation (the phone thread's canvas). So does a Campaigns pane open (a sequence, a run): its own
      capsule heads it, Back and More its only two glyphs (the Sequences phone canvas, 16 Oct 2026). A person's page keeps the bar, which holds its way back. The
      shell's status line and a call's bar are not the bar's, and stay. */
-  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .topbar,
-  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .pg-dateline-slot {
+  :root:not([data-carrying])[data-thread-open][data-thread-open] .app-root .topbar,
+  :root:not([data-carrying])[data-thread-open][data-thread-open] .app-root .pg-dateline-slot {
     display: none;
   }
   .main-scroll:has(> [data-takeover]) {
@@ -780,8 +783,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       translate var(--duration-fast) var(--ease-out),
       visibility 0s linear 0s;
   }
-  :root:not([data-carrying]) .app-root:has([data-dock]:not([data-leaving])) .phone-places,
-  body:has(:is(.cmh-host-over, .over-page):not([data-leaving])) .phone-places {
+  :root:not([data-carrying])[data-dock-frame][data-dock-frame] .app-root .phone-places,
+  :where(:root)[data-over-page][data-over-page] body .phone-places {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;
@@ -793,8 +796,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   @media (prefers-reduced-motion: reduce) {
     [data-testid="phone-tabs"],
-    :root:not([data-carrying]) .app-root:has([data-dock]:not([data-leaving])) .phone-places,
-    body:has(:is(.cmh-host-over, .over-page):not([data-leaving])) .phone-places {
+    :root:not([data-carrying])[data-dock-frame][data-dock-frame] .app-root .phone-places,
+    :where(:root)[data-over-page][data-over-page] body .phone-places {
       transition: none;
     }
   }
@@ -807,7 +810,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      comes in. The ground the page slides over stops short of the window's foot (components.css .carry-ground), and the
      bar's lower edge showed beneath the thread in that strip until it had landed (Ruben's iPhone recording, 23 Oct
      2026). A thumb carrying the page back still draws it under it, as the list has it (data-carrying alone). */
-  :root[data-pushing] .app-root:has([data-takeover]) .phone-places {
+  :root[data-pushing][data-taken-over] .app-root .phone-places {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;
@@ -925,7 +928,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      The page's light stands still as the page moves over it: a layer fixed to the window (the desk's, without the
      desk's drift, components.css .pg-light), no longer the root's paint, since the root is now the page's whole length.
      The body and the root let it through to it. */
-  html:has(.app-root) body,
+  html[data-frame] body,
   .app-root {
     background: transparent;
   }
@@ -951,7 +954,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      Safari's toolbar, where only the document is drawn, the canvas's copy shows, so the toolbar is glass over the light
      on every page, not the flat paper it stood on where a page held nothing under it (a thread; Ruben, 22 Oct 2026).
      The canvas's own colour stays the paper, which Safari reads for its bar over the clock. */
-  html:has(.app-root),
+  html[data-frame],
   .pg-light,
   .frame-top::before,
   .frame-top::after,
@@ -1043,14 +1046,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .ix-sending-strip {
     z-index: 201;
   }
-  :root:has([aria-modal="true"]) .ix-sending-strip {
+  :root[data-modal-open] .ix-sending-strip {
     visibility: hidden;
   }
   /* While something stands over the page (a dialog that holds the page inert, the drawer), the page holds still under
      it: a thumb on the wash scrolled the window behind it. The kit's sheets and menus lock it themselves (Base UI). The
      document's root alone: a body held too becomes a box that scrolls of its own, and the frame's top, stuck to the
      window, went up the page with everything else. */
-  html.frame-on:has(:is([aria-modal="true"], .side-wrap.open)) {
+  html.frame-on:is([data-modal-open], [data-drawer-open][data-drawer-open]) {
     overflow: hidden;
   }
   /* The page's ends: the screen's own band (kit motion/page-give.ts). A glide that reaches the page's top or foot, and a
@@ -1082,11 +1085,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      no band to carry the screen on and no pull to refresh, in the browser and on the home screen alike. Only the
      conversation moves, in its own box (Ruben, 2 Nov 2026: "only thread content can be dragged up and down"). Locked on
      the root only, as a drawer locks it (above): a locked body becomes a scroller of its own. */
-  html.frame-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]) {
+  html.frame-on[data-thread-pane][data-thread-pane][data-thread-pane][data-thread-pane] {
     overflow: hidden;
   }
-  html.frame-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]),
-  html.frame-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]) body {
+  html.frame-on[data-thread-pane][data-thread-pane][data-thread-pane][data-thread-pane],
+  html.frame-on[data-thread-pane][data-thread-pane][data-thread-pane][data-thread-pane] body {
     overscroll-behavior-y: none;
   }
   [data-give] {
@@ -1454,8 +1457,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      top as well: a pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts
      asks the root's band). Settings holds still here as anywhere, and an open thread holds its head and reply box
      (above). */
-  html.frame-on:is([data-thumb-down], [data-page-top]):not(:has(.settings)),
-  html.frame-on:is([data-thumb-down], [data-page-top]):not(:has(.settings)) body {
+  html.frame-on:is([data-thumb-down], [data-page-top]):not([data-settings-page]),
+  html.frame-on:is([data-thumb-down], [data-page-top]):not([data-settings-page]) body {
     overscroll-behavior-y: contain;
   }
 }

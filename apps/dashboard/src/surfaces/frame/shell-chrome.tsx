@@ -373,6 +373,7 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
         {s.routeLoading && !s.readsInPlace ? (
           // A page that draws its own head (a person's) takes the screen over as it reads, as it will once it is in
           // (mobile.css data-takeover): the frame's head and the phone's tab bar left as it came, and the page moved up.
+          // The shell says so on the document's root as it draws this (app-shell.tsx, kit/motion/root-flags.ts).
           <div className="route-reading" role="status" data-takeover={s.ownHead ? "" : undefined}>
             Reading…
           </div>

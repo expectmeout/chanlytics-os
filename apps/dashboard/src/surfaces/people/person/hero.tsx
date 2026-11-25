@@ -30,6 +30,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { Wash } from "../../kit/motion/wash";
 import { Picker } from "../../kit/picker/picker";
 import { RecordDisclosure } from "../../kit/record/disclosure";
@@ -743,6 +744,9 @@ export function PhoneDock({ c }: { c: PageCtx }) {
     watch.observe(acts);
     return () => watch.disconnect();
   }, [c.phone, page]);
+  // Docked on the body, outside the frame's root: AI's circle stands down for it, the tab bar does not (it has left with
+  // the page's takeover). Said on the document's root as it stands (kit/motion/root-flags.ts).
+  useRootFlag("dockUp", c.phone && away);
   if (!c.phone || !away) return null;
   const cta = threadCtaOf(c);
   const more = moreGroups(c, c.compose);

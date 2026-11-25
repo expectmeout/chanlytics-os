@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { focusAsDrawn, leaving, type GateProps } from "../../frame-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PERSON_ABOUT_WORDS } from "@chanlytics/contracts";
@@ -366,6 +367,33 @@ function dockActs(b: BulkCtx, a: BulkActs) {
   );
 }
 
+/**
+ * A selection's bar docked at a phone's foot, People's or Leads': the tab bar and AI's circle stand down for it, and a
+ * toast rises over it (data-dock, mobile.css; .cl-bulk.pp-bulk, clients.css). It says so on the document's root while it
+ * stands (kit/motion/root-flags.ts), and goes the way it came as it is let go of (`leaves`, the leaving's key).
+ */
+export function SelectionDock(props: {
+  className: string;
+  leaves: string;
+  label: string;
+  testid: string;
+  children: ReactNode;
+}) {
+  useRootFlag(["dockInFrame", "dockUp", "bulkDocked"], true);
+  return (
+    <div
+      className={props.className}
+      ref={leaving(props.leaves)}
+      data-dock
+      role="toolbar"
+      aria-label={props.label}
+      data-testid={props.testid}
+    >
+      {props.children}
+    </div>
+  );
+}
+
 export function phoneBulk(b: BulkCtx, a: BulkActs) {
   const { st, sheet, onSheet, ids } = b;
   const { setName, setSlips, setSlipsNote } = st;
@@ -402,16 +430,14 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
   const step = n > 0 && sheet ? steps[sheet] : null;
   return (
     <>
-      <div
+      <SelectionDock
         className="cl-bulk pp-bulk capsule"
-        ref={leaving("people-dock")}
-        data-dock
-        role="toolbar"
-        aria-label={n ? `${n} ${n === 1 ? "person" : "people"} selected` : "Select people"}
-        data-testid="bulk-bar"
+        leaves="people-dock"
+        label={n ? `${n} ${n === 1 ? "person" : "people"} selected` : "Select people"}
+        testid="bulk-bar"
       >
         <div className="pp-bulk-acts">{dockActs(b, a)}</div>
-      </div>
+      </SelectionDock>
       <Sheet
         backCloses
         open={!!step}

@@ -13,6 +13,7 @@ import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf, type VisitSheetOutcome }
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { onAPhone } from "../../frame-verbs";
 import type { CalendarFrame } from "../types";
 import { calendar } from "../verbs";
@@ -186,6 +187,8 @@ function VisitPeek(p: OpenVisitProps) {
 /** The phone's sheet: the kit's, its title the visit's, the when line under it, the body, and the foot that holds still. */
 function VisitSheetPhone(p: OpenVisitProps) {
   const c = useVisitCtx(p);
+  // Open over the page (`.over-page`): the tab bar stands down while it is, said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("overPage", !!p.over);
   return (
     <Sheet
       open
