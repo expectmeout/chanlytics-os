@@ -112,7 +112,7 @@ const standsWithin = (node: Element, within: (typeof ROOT_FLAGS)[RootFlag]["with
  * let go of them all at once.
  */
 function holdMet(node: Element, mark: string | null): () => void {
-  const readable = typeof node.matches === "function" && typeof node.querySelector === "function";
+  const readable = typeof node.matches === "function" && "querySelector" in node;
   if (!readable || typeof node.closest !== "function" || !node.isConnected) return () => {};
   const lets: (() => void)[] = [];
   for (const flag of Object.keys(ROOT_FLAGS) as RootFlag[]) {
