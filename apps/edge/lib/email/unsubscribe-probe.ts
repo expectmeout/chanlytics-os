@@ -22,9 +22,10 @@
  * nothing is probed.
  */
 import { heldContactId, heldTenantId } from "@chanlytics/contracts";
+import { fetchFromProvider } from "@chanlytics/channels/shared";
 import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
 import { UNSUBSCRIBE_PAGE_HEADER } from "@chanlytics/contracts";
-import { errField, type Logger } from "../shared/log.js";
+import type { Logger } from "../shared/log.js";
 
 const UNSUBSCRIBE_PROBE_PAGE = "email_unsubscribe_links_broken";
 /** How long each ask waits. Both asks and the pause between them count in the sweep's time budget. */
@@ -47,18 +48,22 @@ interface ProbePorts {
 /** One ask: the page's own answer, or what came back instead ("no answer" when nothing did). */
 type Answer = { outcome: Exclude<ProbeOutcome, "no_secret" | "unreachable">; status: number } | { seen: string };
 
+/** One ask of the page, as a mail client's would be, through the one way out (channels fetchFromProvider, as `dashboard`). */
 async function ask(url: string, log: Logger): Promise<Answer> {
-  let res: Response;
-  try {
-    res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-  } catch (e) {
-    log.warn("unsubscribe_probe_unreadable", { error: errField(e) });
+  const res = await fetchFromProvider("dashboard", url, {
+    redirect: "manual",
+    timeoutMs: PROBE_TIMEOUT_MS,
+    breaker: "count",
+    stream: true,
+  });
+  if (res.status === 0) {
+    log.warn("unsubscribe_probe_unreadable", { error: res.error ?? "no answer" });
     return { seen: "no answer" };
   }
   // Closing what this is done with: nothing to do if that fails.
   await res.body?.cancel().catch(() => {});
   const { status } = res;
-  const view = res.headers.get(UNSUBSCRIBE_PAGE_HEADER);
+  const view = res.headers?.get(UNSUBSCRIBE_PAGE_HEADER) ?? null;
   if (status >= 300 && status < 400) return { outcome: "redirects", status };
   if (status === 200 && view === "ask") return { outcome: "opens", status };
   if (status === 404 && view === "bad_link") return { outcome: "key_differs", status };

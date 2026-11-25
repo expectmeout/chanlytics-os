@@ -13,6 +13,9 @@ import type { LineWords } from "../words";
 // A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
 export const AR_LIFT_MS = 400;
 
+/** The breath before the field takes the focus after its words were set: the draw that holds them has run. */
+export const AR_FOCUS_MS = 20;
+
 export const arRoute = (): LineRoute => {
   const [page, ...rest] = routeNow().split("/");
   return { page: page || "today", param: rest.length ? rest.join("/") : null };

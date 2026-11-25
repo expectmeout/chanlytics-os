@@ -103,7 +103,7 @@ test("the wiring: the stamp door, its grant, and the ten-minute backstop", () =>
     assert.ok(mig.includes(s), s);
   assert.ok(mig.includes("grant execute on function public.runtime_stamp(uuid) to service_role;"));
   const src = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  assert.ok(src.includes("const TTL_MS = 10 * 60 * 1000;"), "the backstop for what the stamp does not see");
+  assert.ok(src.includes("const TTL_MS = 10 * MIN_MS;"), "the backstop for what the stamp does not see");
   assert.ok(
     src.includes("if (stamp === null || stamp === hit.stamp) return hit.v;"),
     "a warm cache is checked, not trusted",

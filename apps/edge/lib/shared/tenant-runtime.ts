@@ -12,6 +12,7 @@ import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig, ReplyOffer, T
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import {
+  MIN_MS,
   bookingTemplate,
   parseTenantConfigResult,
   type TenantConfig,
@@ -136,7 +137,7 @@ function configState(
 }
 
 /** The backstop for what the stamp does not see: credentials in Vault, a channel row. */
-const TTL_MS = 10 * 60 * 1000;
+const TTL_MS = 10 * MIN_MS;
 const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | null }>();
 
 /**

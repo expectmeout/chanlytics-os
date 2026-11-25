@@ -34,7 +34,7 @@ import type { Database } from "@chanlytics/db/types";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./auth/bearer";
 import { isRetryableAuthError } from "./auth/errors";
-import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
+import { outsideCalls, serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels/tokens";
 import { errField, requestId, requestTimings, requestTouches } from "@chanlytics/log";
 import { log, noteTenant, withRequestId } from "./log";
@@ -255,6 +255,8 @@ function answerOf<T>(
         ms: Date.now() - started,
         db_n: calls?.n ?? 0,
         db_ms: Math.round(calls?.ms ?? 0),
+        // What each call out took, by what it called (decision 0149): the edge, a provider, the bucket.
+        out: outsideCalls(requestTimings()),
         ...touchedFields(req),
       });
       // A handler that built its own Response — a file to download — passes

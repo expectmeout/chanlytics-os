@@ -3,6 +3,7 @@
  * the occurrences an override moved or cancelled; with the shapes a read returns (BusyBlock, FeedItem, ParsedFeed).
  * The text is read line by line in ics-text.ts; the open times are worked out from the result in availability.ts.
  */
+import { DAY_MS } from "../shared/time";
 import { dayNumber, localToUtcMs } from "../shared/zone/math";
 import { durationMs, localPartsOf, splitLine, toMs, unescapeText, unfold } from "./ics-text";
 
@@ -106,7 +107,7 @@ function parseRule(value: string, fallbackTz: string): Rule | null {
   let until: number | null = null;
   if (parts.UNTIL) {
     until = toMs(parts.UNTIL, {}, fallbackTz);
-    if (until !== null && /^\d{8}$/.test(parts.UNTIL)) until += 86400000 - 1; // a date UNTIL includes that day
+    if (until !== null && /^\d{8}$/.test(parts.UNTIL)) until += DAY_MS - 1; // a date UNTIL includes that day
   }
   let byday: number[] | null = null;
   if (parts.BYDAY) {
@@ -141,13 +142,13 @@ function occurrences(
 ): BusyBlock[] {
   const out: BusyBlock[] = [];
   const first = dayNumber(start.y, start.m, start.d);
-  const firstDate = new Date(first * 86400000);
+  const firstDate = new Date(first * DAY_MS);
   const firstWeek = Math.floor((first - ((firstDate.getUTCDay() + 6) % 7)) / 7); // Monday-based week index
   const wanted = rule.byday ?? [firstDate.getUTCDay()];
   let produced = 0;
   for (let count = 0; count < 20000; count++) {
     const day = first + count;
-    const at = new Date(day * 86400000);
+    const at = new Date(day * DAY_MS);
     const uTCFullYear = at.getUTCFullYear(),
       uTCMonth = at.getUTCMonth() + 1,
       uTCDate = at.getUTCDate();
@@ -214,7 +215,7 @@ function dueAt(rid: { params: Record<string, string>; value: string } | undefine
 }
 
 export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
-  const horizon = opts.horizon ?? { from: Date.now() - 86400000, to: Date.now() + 90 * 86400000 };
+  const horizon = opts.horizon ?? { from: Date.now() - DAY_MS, to: Date.now() + 90 * DAY_MS };
   const busy: BusyBlock[] = [];
   const items: FeedItem[] = [];
   let events = 0;
@@ -288,7 +289,7 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     } else if (start !== null) {
       // No end: an all-day event takes the day; a timed one takes nothing we can name.
       end =
-        props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim()) ? start + 86400000 : start;
+        props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim()) ? start + DAY_MS : start;
     }
     if (start === null || end === null || end <= start) continue;
     const title = unescapeText(props.SUMMARY?.value ?? "");

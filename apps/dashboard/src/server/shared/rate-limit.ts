@@ -114,7 +114,7 @@ export const RATE = {
   person_mode: { limit: 60, windowMs: MIN_MS, noun: "changes to how AI treats a person" },
   consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" },
   lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" },
-  broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" },
+  broadcast: { limit: 10, windowMs: MIN_MS, noun: "broadcasts" },
   playbook: { limit: 30, windowMs: MIN_MS, noun: "campaign changes" },
   /** A person added by hand — from an appointment, before they ever write. */
   person_create: { limit: 60, windowMs: HOUR_MS, noun: "people added" },
@@ -190,9 +190,9 @@ export const RATE = {
    * A partner sets a workspace up for a business, or sends its handover again (0016): each writes to a person who has
    * not asked for anything yet, so the ceiling is a working session's, not a loop's.
    */
-  partner_handover: { limit: 20, windowMs: 3_600_000, noun: "workspaces handed over" },
+  partner_handover: { limit: 20, windowMs: HOUR_MS, noun: "workspaces handed over" },
   /** The owner's answer to a handover (0016): accept or decline, pressed by hand. */
-  handover_answer: { limit: 30, windowMs: 3_600_000, noun: "handover answers" },
+  handover_answer: { limit: 30, windowMs: HOUR_MS, noun: "handover answers" },
   /** An owner asks a partner to join, or takes it back (0020): each writes to a partner, so the ceiling is a working session's. */
   partner_invite: { limit: 20, windowMs: HOUR_MS, noun: "partner invitations" },
   /** A partner's answer to a workspace that asked (0020): join or decline, pressed by hand. */
@@ -335,7 +335,7 @@ export const RATE = {
   /** The owner's own business line, saved (PUT lead-suggestions): no model, a few saves while it is rewritten. */
   lead_line: { limit: 30, windowMs: HOUR_MS, noun: "business line saves" },
   /** A question to the workspace assistant: a model turn, tools and all. */
-  ask: { limit: 20, windowMs: 60_000, noun: "questions" },
+  ask: { limit: 20, windowMs: MIN_MS, noun: "questions" },
 } as const satisfies Record<string, RateRule>;
 
 export type RateBucket = keyof typeof RATE;

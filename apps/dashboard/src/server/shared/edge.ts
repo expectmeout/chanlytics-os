@@ -17,6 +17,7 @@
  * or not at all.
  */
 import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels/tokens";
+import { fetchFromProvider, type ProviderReply } from "@chanlytics/channels/shared";
 import {
   MIN_MS,
   ADS_ACCOUNT_DOOR,
@@ -269,9 +270,46 @@ export function readEdgeAnswer<A extends EdgeDoorPath>(aud: A, status: number, c
   return { status, body: kept };
 }
 
+/** What a call to the edge says beside its door's body: who it is for, its bound, and a test's own fetch. */
+interface EdgeCallOpts {
+  /** The workspace the call is for, or null said out loud for a call about none (a readiness probe, a search). */
+  workspace: string | null;
+  /** The person behind the call, or null said out loud for a call nobody is behind (a webhook's follow-up). */
+  user: string | null;
+  timeoutMs?: number;
+  fetch?: typeof fetch;
+}
+
+/**
+ * One knock on an edge door through the one way out (channels fetchFromProvider, as `edge`): the door's token, the
+ * request's name, its bound, and its time under `out.edge`. Always made (`breaker: "count"`): a fault of the edge's is
+ * counted, never held, as no call to the edge ever was.
+ */
+function knock(
+  aud: EdgeDoorPath,
+  sent: string | undefined,
+  opts: EdgeCallOpts & { method: "GET" | "POST"; timeoutMs: number; signal?: AbortSignal; stream?: boolean },
+): Promise<ProviderReply> {
+  return fetchFromProvider(
+    "edge",
+    `${edgeUrl()}${aud}`,
+    {
+      method: opts.method,
+      headers: edgeHeaders(aud, { workspace: opts.workspace, user: opts.user, body: sent }),
+      ...(sent === undefined ? {} : { body: sent }),
+      cache: "no-store",
+      timeoutMs: opts.timeoutMs,
+      breaker: "count",
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.stream ? { stream: true } : {}),
+    },
+    opts.fetch ? { fetch: opts.fetch } : {},
+  );
+}
+
 /**
  * One call to an edge door: the token for that door (`aud`, its path), a JSON body, and a bound on the wait. Every
- * JSON call the dashboard makes to the edge goes through here (Ask's streamed gateway aside, shared/model/gateway.ts), so none
+ * JSON call the dashboard makes to the edge goes through here, and every streamed one through `streamEdge`, so none
  * waits for ever: nine did, and one hung connection held a member's request until the platform killed it. Never
  * throws: a door that did not answer in time, or could not be reached, is a 503 as it always was, named
  * `edge_timeout` or `edge_unreachable`, with the network's words in `detail`, read by the caller like any refusal.
@@ -279,36 +317,33 @@ export function readEdgeAnswer<A extends EdgeDoorPath>(aud: A, status: number, c
 export async function callEdge<A extends EdgeDoorPath>(
   aud: A,
   body: EdgeBody<A>,
-  opts: {
-    /** The workspace the call is for, or null said out loud for a call about none (a readiness probe, a search). */
-    workspace: string | null;
-    /** The person behind the call, or null said out loud for a call nobody is behind (a webhook's follow-up). */
-    user: string | null;
-    timeoutMs?: number;
-    method?: "GET" | "POST";
-    fetch?: typeof fetch;
-  },
+  opts: EdgeCallOpts & { method?: "GET" | "POST" },
 ): Promise<EdgeAnswer<EdgeRead<A>>> {
   const method = opts.method ?? "POST";
   const sent = method === "POST" ? JSON.stringify(body ?? {}) : undefined;
-  try {
-    const result = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
-      method,
-      headers: edgeHeaders(aud, { workspace: opts.workspace, user: opts.user, body: sent }),
-      ...(sent === undefined ? {} : { body: sent }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
-    });
-    // An answer that is not JSON is none: its status says the rest.
-    const parsed: unknown = await result.json().catch(() => null);
-    return readEdgeAnswer(aud, result.status, parsed);
-  } catch (error) {
-    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+  const reply = await knock(aud, sent, { ...opts, method, timeoutMs: opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS });
+  if (reply.status === 0) {
     const refused: EdgeAnswerBody = {
       ok: false,
-      error: timedOut ? "edge_timeout" : "edge_unreachable",
-      detail: error instanceof Error ? error.message : String(error),
+      error: reply.error === "timeout" ? "edge_timeout" : "edge_unreachable",
+      detail: reply.error ?? "no answer",
     };
     return readEdgeAnswer(aud, 503, refused);
   }
+  // An answer that is not JSON is none: its status says the rest.
+  return readEdgeAnswer(aud, reply.status, reply.json);
+}
+
+/**
+ * One call to an edge door whose answer streams back as it is made (Ask's speech, Reach out's pressed check, a model
+ * round): the same token, name and bound as callEdge, a 2xx's body handed back unread (`body`), any other answer read
+ * (`status`, `json`), and no answer said (`status` 0, `error`: "timeout" or the network's words). The bound ends the
+ * body too, and `signal` is the caller's own end (a page that let go). Never throws.
+ */
+export function streamEdge<A extends EdgeDoorPath>(
+  aud: A,
+  body: EdgeBody<A>,
+  opts: EdgeCallOpts & { timeoutMs: number; signal?: AbortSignal },
+): Promise<ProviderReply> {
+  return knock(aud, JSON.stringify(body ?? {}), { ...opts, method: "POST", stream: true });
 }

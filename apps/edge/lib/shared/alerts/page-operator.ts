@@ -33,13 +33,14 @@
  * such through pageStates(), which /api/diag shows -- so a broken alarm
  * channel is at least visible from the one door that does not depend on it.
  */
+import { HOUR_MS } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { post, platformFrom, platformTo } from "./notify.js";
 import { logger, errField } from "../log.js";
 import { findOperatorPage, saveOperatorPage, stampOperatorPage } from "@chanlytics/db/ops";
 
-export const PAGE_WINDOW_MS = 6 * 3600_000;
+export const PAGE_WINDOW_MS = 6 * HOUR_MS;
 
 export type PageOutcome = "sent" | "suppressed" | "unaddressed" | "failed";
 

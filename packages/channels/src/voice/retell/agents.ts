@@ -1,7 +1,7 @@
 /** Retell: agents. */
 
 import crypto from "node:crypto";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import { answerObject } from "../../shared/provider-fetch";
 import { answered, retell, type RetellConfig } from "./calls";
 
@@ -306,6 +306,9 @@ export async function fetchRecording(url: string, opts: { timeoutMs?: number } =
 
 /* --------------------------------- crypto -------------------------------- */
 
+/** How far a signed webhook's time may stand from ours before its signature is refused: a replay window. */
+const SIGNATURE_AGE_MAX_MS = 5 * MIN_MS;
+
 /** Retell webhook signature: `v={ts},d={hmac}` over rawBody+ts, keyed by the API key. */
 export function verifyRetellSignature(
   rawBody: string,
@@ -316,7 +319,7 @@ export function verifyRetellSignature(
   const match = /v=(\d+),d=([0-9a-f]+)/i.exec(String(header));
   if (!match) return false;
   const [, ts = "", digest = ""] = match;
-  if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
+  if (Math.abs(Date.now() - Number(ts)) > SIGNATURE_AGE_MAX_MS) return false;
   const expected = crypto
     .createHmac("sha256", apiKey)
     .update(rawBody + ts)

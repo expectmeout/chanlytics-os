@@ -5,6 +5,7 @@
  */
 import { SECOND_MS, type PreviewHeardDto, type PreviewTurnVM } from "@chanlytics/contracts";
 import type { CallStarted } from "@/bridge/rehearse/call";
+import { askOwnRoute } from "@/client/own-route";
 
 /**
  * A door's answer: what it said, or its refusal in the page's own words, with the seconds a limit says it lifts in
@@ -15,24 +16,24 @@ type PreviewAsked<T> = { ok: true; data: T } | { ok: false; message: string | nu
 /** The longest a message waits out the door's pace before it is sent again: the pace's own seconds, never a network's hour. */
 const PACE_WAIT_MAX_S = 10;
 
+/** What a door answers: its envelope, the data the page asked for or its refusal. */
+interface PreviewEnvelope<T> {
+  ok?: boolean;
+  data?: T;
+  error?: { message?: string; details?: { retry_after_s?: unknown } };
+}
+
+/** One knock on a door, through the page's own-route client: no answer reads as a refusal with no words. */
 async function post<T>(token: string, door: string, body: Record<string, unknown>): Promise<PreviewAsked<T>> {
-  try {
-    const res = await fetch(`/api/v1/previews/${encodeURIComponent(token)}/${door}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = (await res.json().catch(() => null)) as {
-      ok?: boolean;
-      data?: T;
-      error?: { message?: string; details?: { retry_after_s?: unknown } };
-    } | null;
-    if (res.ok && j?.ok) return { ok: true, data: j.data as T };
-    const wait = j?.error?.details?.retry_after_s;
-    return { ok: false, message: j?.error?.message ?? null, waitS: typeof wait === "number" ? wait : null };
-  } catch {
-    return { ok: false, message: null, waitS: null };
-  }
+  const res = await askOwnRoute<PreviewEnvelope<T>>(`/api/v1/previews/${encodeURIComponent(token)}/${door}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = res.json;
+  if (res.ok && j?.ok) return { ok: true, data: j.data as T };
+  const wait = j?.error?.details?.retry_after_s;
+  return { ok: false, message: j?.error?.message ?? null, waitS: typeof wait === "number" ? wait : null };
 }
 
 /**

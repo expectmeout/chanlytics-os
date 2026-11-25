@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import type { FoldedTurn, Line, LineTaken } from "./types";
 import { buildLineRows, flatRows, ownAsksOf, type LineRow } from "../home";
 import { answerMoves, freshNext } from "../turn";
-import { arEscape } from "./place";
+import { AR_FOCUS_MS, arEscape } from "./place";
 
 /** The conversation's turns, whether the rows show (and are drawn: not while a phone's field is in use), the rows, and the answer drawn with its moves and words. */
 export const arUnder = ({
@@ -126,7 +126,7 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
     }
     if (it.compose) {
       setQuery(it.q as string);
-      setTimeout(() => inputRef.current && inputRef.current.focus(), 20);
+      setTimeout(() => inputRef.current && inputRef.current.focus(), AR_FOCUS_MS);
       return;
     }
     void submit(it.q, undefined, it.following ? { following: it.following } : undefined); // a follow-up come due: its id rides with it

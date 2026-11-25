@@ -32,6 +32,7 @@ import {
   type FileLookRead,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
+import { fetchFromProvider } from "@chanlytics/channels/shared";
 import { imageHeaderOf } from "@chanlytics/core";
 import { findFileForWork, keepFileLook, filesBucket, keepClaudeCopy, type FileRow } from "@chanlytics/db/files";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
@@ -95,11 +96,16 @@ export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy |
     logger({ tenant_id: row.tenant_id }).warn("file_copy_failed", { file: row.id, why: "sign" });
     return null;
   }
-  const res = await fetch(signed.data.signedUrl, {
+  // Through the one way out (channels fetchFromProvider, as `storage`), always made; no answer fails the work, as a fetch
+  // that threw always did, and its job is tried again.
+  const res = await fetchFromProvider("storage", signed.data.signedUrl, {
     headers: row.kind === "video" ? {} : { accept: "image/webp" },
-    signal: AbortSignal.timeout(COPY_READ_MS),
+    timeoutMs: COPY_READ_MS,
+    breaker: "count",
+    stream: true,
   });
-  const bytes = res.ok ? new Uint8Array(await res.arrayBuffer()) : null;
+  if (res.status === 0) throw new Error(`Storage did not answer the file's copy: ${res.error ?? "no answer"}`);
+  const bytes = res.body ? new Uint8Array(await new Response(res.body).arrayBuffer()) : null;
   const head = bytes ? imageHeaderOf(bytes) : null;
   if (!bytes || !head) {
     logger({ tenant_id: row.tenant_id }).warn("file_copy_failed", { file: row.id, why: "read", status: res.status });

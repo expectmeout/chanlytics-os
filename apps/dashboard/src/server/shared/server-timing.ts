@@ -2,8 +2,8 @@
  * What a route's answer says about its own time, for the browser's timing panel and for field data: the
  * Server-Timing header (one `name;dur=<ms>` per part, in the order given). The wrapper writes the session check and
  * the handler apart, so a slow answer says which of the two it was, and then where the handler's time went (decision
- * 0053): its database calls (`db`, and how many in `desc`) and each reader it read through (`read.<name>`), the
- * longest first. The shell reads them back from the browser's own timing of the read (page-speed.ts), so a page that
+ * 0053): its database calls (`db`, and how many in `desc`), each reader it read through (`read.<name>`) and each
+ * service it called out to (`out.<name>`, channels fetchFromProvider: decision 0149), the longest first. The shell reads them back from the browser's own timing of the read (page-speed.ts), so a page that
  * waited on a read can say how much of the wait was the server's. Durations and counts only: never a value from the
  * request.
  */
@@ -32,6 +32,19 @@ export function serverTimingHeader(
     .slice(0, SHARES_SAID)
     .map(([name, s]) => `${token(name)};dur=${rounded(s.ms)};desc="${Math.max(0, Math.round(s.n))}"`);
   return [...metrics, ...spent].join(", ");
+}
+
+/** The prefix of a call out's share: the name after it is what it called (channels fetchFromProvider, decision 0149). */
+const OUT = "out.";
+
+/**
+ * What a request's calls out took, by what each called, for its answered line: `{ edge: { n: 1, ms: 412 } }`. Nothing
+ * for a request that called nothing out, so a line that has nothing to say says nothing.
+ */
+export function outsideCalls(shares: ReadonlyMap<string, Share>): Record<string, Share> | undefined {
+  const out = [...shares].filter(([name]) => name.startsWith(OUT));
+  if (!out.length) return undefined;
+  return Object.fromEntries(out.map(([name, s]) => [name.slice(OUT.length), { n: s.n, ms: rounded(s.ms) }]));
 }
 
 /** One request in this many says what its database calls touched and the page it was asked from (touchedLine). */
