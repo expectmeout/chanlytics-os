@@ -5,9 +5,9 @@
 .ads-live .ads-live-notice {
   margin-bottom: var(--space-3);
 }
-/* AI's one line and who from an ad needs you (lines.tsx), above the ads: each a press the width of the column, its
-   mark, its words, and a chevron that says it opens. AI's floats on the page as the canvas draws it; who needs you is
-   amber, as every Needs you is. */
+/* AI's one line and who from an ad needs you (lines.tsx), above the ads: each a slim press the width of the column, its
+   mark, its words on one line where they fit, and a chevron that says it opens (Ruben, 25 Nov 2026: compact). AI's floats on
+   the page as the canvas draws it; who needs you is amber, as every Needs you is. */
 .ads-lines {
   display: flex;
   flex-direction: column;
@@ -26,21 +26,20 @@
   text-decoration: none;
   cursor: pointer;
 }
+/* AI's line, on the page's own ground: its mark at the column's edge where the figures' words start, no fill and no float. */
 .ads-ai-line {
-  padding: var(--space-3) var(--space-4);
+  padding: 0 var(--space-1);
   border: 0;
-  border-radius: var(--radius-2xl);
-  background-color: var(--surface-control-fill);
-  background-image: var(--surface-control-sheen);
-  box-shadow: var(--surface-float-depth);
+  border-radius: var(--radius-md);
+  background: none;
   font: inherit;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   line-height: var(--leading-snug);
   color: var(--ink);
 }
 .ads-needs-line {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--warn-line);
   border-radius: var(--radius-2xl);
   background: var(--warn-soft);
@@ -63,19 +62,41 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-.ads-live-list-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+/* The ads under the headings every list wears (kit/head/group-head.tsx), each group's rows right under its hairline. The
+   first heading's own room over it stands in for the page's gap, so it sits as close under AI's line as under the bar. */
+.ads-groups {
+  margin-top: calc(var(--space-2) * -1);
 }
-.ads-live-list-head span {
-  color: var(--ink-dim);
+/* An ad's row starts at the list's own edge, as Made's rows do (content.css .cnv-line-open), a hairline between two rows,
+   and the whole row opens its drawer. */
+.ads-live-line {
+  --row-pad-x: 2px;
+  /* Its picture, the kit's largest face as a tile: the first column is as wide. */
+  --row-face: 48px;
+  cursor: pointer;
+}
+.ads-live-row + .ads-live-row > .ads-live-line {
+  border-top: 1px solid var(--line);
+}
+/* Its name over two lines at most, so a long one is read whole before it is cut. */
+.ads-live-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  text-align: left;
 }
 .ads-live-row .ads-phone-end {
   display: grid;
   justify-items: end;
   gap: var(--space-1);
+}
+/* The ad account's card says the one thing missing: on a phone it stands first, over the ads it stops. */
+@container cm-list (max-width: 900px) {
+  .ads-live[data-card-first] > .ads-hero-side {
+    order: -1;
+  }
 }
 .ads-live-said {
   font-size: var(--text-sm);
@@ -84,27 +105,126 @@
 .ads-live-figures {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-4);
+  margin-top: var(--space-2);
   font-size: var(--text-sm);
 }
-.ads-live-people {
+/* An ad's numbers, read and not pressed: the kit's compact figures side by side, as the page's top draws them. */
+.ads-live-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+}
+/* An ad's drawer (ad-sheet.tsx): its parts, a hairline between two, room inside each. */
+.ads-live-sheet {
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.ads-sheet-part {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.ads-sheet-part + .ads-sheet-part {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+/* Where it shows, under what people read on it: quiet, its own line. */
+.ads-seen-where {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* The drawer's door into Meta: its words in the middle of the foot, the glyph that says it opens Meta's own page after them. */
+.ads-live-door {
+  justify-content: center;
+}
+/* What people see of the ad, at the drawer's top: the business's own picture whole, as wide as the drawer; Meta's small
+   picture of an ad made in Meta as a tile beside its words. */
+.ads-seen {
   display: grid;
   gap: var(--space-2);
+  align-items: start;
+}
+.ads-seen-picture {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+}
+.ads-seen[data-small] {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.ads-seen[data-small] > .ads-seen-picture {
+  width: 72px;
+  height: 72px;
+  max-height: none;
+  object-fit: cover;
+}
+.ads-seen-said {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  min-width: 0;
+}
+.ads-seen-words {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  white-space: pre-line;
+  color: var(--ink-muted);
+}
+/* What its total has spent, over its bar, its days at the line's end. */
+.ads-live-money {
+  display: grid;
+  gap: var(--space-2);
+}
+.ads-live-money-said {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ads-live-money-said > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* Where an ad stands, under its name in the drawer's head: as its row says it. */
+.ads-live-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+}
+.ads-live-state-facts {
+  color: var(--ink-muted);
+}
+/* The people it brought: rows of their own, a hairline between two. */
+.ads-live-people {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ads-live-people li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-}
-.ads-live-when {
-  margin-left: auto;
-  color: var(--ink-dim);
+.ads-live-people > li + li > .ads-live-person {
+  border-top: 1px solid var(--line);
 }
 .ads-live-booked {
+  font-size: var(--text-sm);
   color: var(--ok-ink);
 }
 /* A tapped word's box in an ad's drawer (change-sentence.tsx): the box on its own line, its press and Keep it under. */

@@ -400,7 +400,11 @@ test("a video AI made leads with Post where Instagram takes a reel, and with Sav
     assert.match(html, /aria-label="Sound on"[^>]*data-testid="cnv-sound"/, "muted until asked");
     assert.equal(count(html, "cnv-status"), 0, "a video that goes nowhere has no row of places");
     assert.equal(count(html, "cnv-change"), 0, "what AI made is changed by the line to AI at its foot");
-    assert.equal(count(html, "cnv-ask-line"), 1);
+    assert.equal(
+      count(html, "cnv-ask-line") + count(html, "cnv-tell"),
+      1,
+      "AI is asked from its foot: the line on a desk, its round press on a phone",
+    );
   }
   assert.match(desk({ kind: "video" }), /<kbd>Space<\/kbd>Sound/, "Space turns the sound on a desk");
   assert.doesNotMatch(desk({}), /<kbd>Space<\/kbd>/, "a picture has no sound to turn");
@@ -465,7 +469,9 @@ test("on a desk the pane has no head: its Close and its name are the piece's own
   assert.equal(count(html, "cnv-close"), 1);
   assert.match(html, /<section[^>]*aria-label="Saturdays fill first"[^>]*class="[^"]*cnv-desk/);
   assert.match(html, /\?shape=portrait/, "a made post at the shape it is drawn in");
-  assert.match(html, /class="cnv-viewer-blur"/, "over its own copy blurred to the stage's edges");
+  // A picture stands on the stage alone, at its own shape, with no blurred copy of itself behind it.
+  assert.doesNotMatch(html, /cnv-viewer-blur/);
+  assert.match(html, /<img class="cnv-viewer-fit"[^>]*width="1080" height="1350"/);
 });
 
 /** The list's state, as usePostBoth hands it to what draws it: a place switched on is one it is being sent to. */
@@ -1035,10 +1041,12 @@ test("the two after the open piece are read ahead, each once", () => {
 });
 
 test("a video Ask made is marked as posted by its owner in one press, and once said it says so with its door", () => {
-  for (const html of both({ kind: "video" })) {
-    assert.equal(saysOf(html, "cnv-byhand-say"), "I posted it", "nothing posts a video from here: its owner says so");
-    assert.equal(count(html, "cnv-byhand"), 0);
-  }
+  const [atDesk, onPhone] = both({ kind: "video" });
+  assert.equal(saysOf(atDesk, "cnv-byhand-say"), "I posted it", "nothing posts a video from here: its owner says so");
+  // On a phone it is More's first item, so the foot keeps its two lines.
+  assert.equal(count(onPhone, "cnv-byhand-say"), 0);
+  assert.equal(count(onPhone, "cnv-more"), 1);
+  for (const html of [atDesk, onPhone]) assert.equal(count(html, "cnv-byhand"), 0);
   const said = { id: "h-1", at: agoIso(DAY), link: null };
   for (const html of both({ kind: "video", byHand: said })) {
     assert.equal(count(html, "cnv-byhand-say"), 0, "said once");
@@ -1130,10 +1138,14 @@ test("Take down rides the acts while something is up, and only then; a take-down
 });
 
 test("More holds what is left of the piece's acts: Save and, where it can be changed by hand, Change it", () => {
-  for (const html of both({ acts: { onChange: noop } })) {
+  const [atDesk, onPhone] = both({ acts: { onChange: noop } });
+  for (const html of [atDesk, onPhone]) {
     assert.equal(count(html, "cnv-more"), 1);
     assert.equal(count(html, "cnv-change"), 0, "the pen is gone: the line to AI is the foot's");
-    assert.equal(count(html, "cnv-ask-line"), 1);
-    assert.match(html, /placeholder="Tell AI what to change"/);
   }
+  assert.equal(count(atDesk, "cnv-ask-line"), 1);
+  assert.match(atDesk, /placeholder="Tell AI what to change"/);
+  // On a phone the line is AI's round press beside the acts, which opens it.
+  assert.equal(count(onPhone, "cnv-ask-line"), 0);
+  assert.equal(count(onPhone, "cnv-tell"), 1);
 });

@@ -25,6 +25,7 @@ import {
   OUTCOME,
   OUTCOME_OTHER,
   QUESTION,
+  REACH,
   UNSETTLED,
   needOf,
   whatsAppLine,
@@ -48,9 +49,16 @@ export interface NeedVM {
 export interface CheckVM {
   id: AdCardCheckId;
   label: string;
-  neededFor: string;
   /** ok, missing, or not known yet: the card is still checking, or Meta has not said yet (its dot turns). */
   state: "ok" | "missing" | "unknown";
+}
+
+/** A fact of the card: what and which, a door into Meta where it has one, and a word under it where it has one. */
+export interface CardFactVM {
+  label: string;
+  value: string;
+  door: { words: string; href: string } | null;
+  note?: string | null;
 }
 
 export interface ConnectCardVM {
@@ -60,7 +68,9 @@ export interface ConnectCardVM {
   /** What connecting does and who is charged, while nothing is connected. */
   says: { text: string; strong: boolean }[];
   /** Who Meta charges, the Page, and Meta's own limit, once an account is connected. */
-  facts: { label: string; value: string; door: { words: string; href: string } | null }[];
+  facts: CardFactVM[];
+  /** Where the people an ad brings reach the business (REACH), once an account is connected: the opened card's last rows. */
+  reach: CardFactVM[];
   /** "2 of 3 ready", where a check is not met. */
   ready: string | null;
   need: NeedVM | null;
@@ -134,8 +144,26 @@ const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
     return { id, ...CHECK[id], state: ok === null ? "unknown" : ok ? "ok" : "missing" };
   });
 
+/**
+ * Where the people an ad brings reach the business: the number AI answers on WhatsApp, with what is known of the Page's
+ * link to it, and the Page's Instagram account where Chanlytics may read it.
+ */
+function reachOf(card: AdAccountCard): CardFactVM[] {
+  const number = formatPhoneDisplay(card.ai_number);
+  const whatsapp =
+    card.whatsapp_link === "no_number" || number === null
+      ? { value: REACH.noNumber, note: REACH.connectFirst }
+      : { value: number, note: card.whatsapp_link === "ai_number" ? REACH.linked : REACH.metaChecks };
+  const instagram =
+    card.instagram_handle !== null ? `@${card.instagram_handle}` : card.reads_instagram ? REACH.noInstagram : null;
+  return [
+    { label: REACH.whatsapp, ...whatsapp, door: null },
+    ...(instagram === null ? [] : [{ label: REACH.instagram, value: instagram, door: null }]),
+  ];
+}
+
 /** Who Meta charges, the Page, and Meta's own limit. */
-function cardFactsOf(card: AdAccountCard): ConnectCardVM["facts"] {
+function cardFactsOf(card: AdAccountCard): CardFactVM[] {
   const currency = card.currency ?? "";
   const limit =
     card.spend_limit_minor === null
@@ -161,6 +189,7 @@ interface CardMoment {
 const BASE = {
   says: [],
   facts: [],
+  reach: [],
   ready: null,
   need: null,
   question: null,
@@ -206,6 +235,7 @@ function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMomen
     state: "connected",
     word: CARD.connected,
     facts: cardFactsOf(card),
+    reach: reachOf(card),
     ready: met === card.checks.length ? null : CARD.ready(met, card.checks.length),
     need,
     checks: checksOf(card, false),

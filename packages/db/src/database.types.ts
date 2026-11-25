@@ -140,6 +140,7 @@ export type Database = {
           ad_id: string
           clicks: number
           day: string
+          engaged: Json | null
           impressions: number
           platform_results: number | null
           read_at: string
@@ -151,6 +152,7 @@ export type Database = {
           ad_id: string
           clicks?: number
           day: string
+          engaged?: Json | null
           impressions?: number
           platform_results?: number | null
           read_at?: string
@@ -162,6 +164,7 @@ export type Database = {
           ad_id?: string
           clicks?: number
           day?: string
+          engaged?: Json | null
           impressions?: number
           platform_results?: number | null
           read_at?: string
@@ -14191,6 +14194,7 @@ export type Database = {
       post_comment_keep: {
         Args: {
           p_account: string
+          p_ad_id?: string
           p_at: string
           p_comment_id: string
           p_from: string

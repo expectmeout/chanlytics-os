@@ -28,26 +28,24 @@ export const CARD = {
   charges: "Meta charges your card, never Chanlytics.",
   ownerOnly: "Only the owner can connect an ad account.",
   notHere: "Connecting an ad account isn't available in this workspace yet.",
-  later: "Google and TikTok come later.",
   checkingLine: "A few seconds. It goes on by itself.",
-  metaCharges: "Meta charges",
-  runsAs: "Runs as",
-  limit: "Meta's limit",
+  /** The account's facts, a row each (Ruben, 25 Nov 2026: the opened card says what is which, and nothing more). */
+  metaCharges: "Ad account",
+  runsAs: "Page",
+  limit: "Spending limit",
   noLimit: "None",
-  setLimit: "Set one in Meta",
+  setLimit: "Set in Meta",
   noPage: "No Page yet",
   ready: (ok: number, of: number) => `${ok} of ${of} ready`,
-  /** The opened card's head over its checks, where every one is met. */
-  allReady: "Ready",
+  /** The opened card's one line where every check is met. */
+  allReady: "Ready to run ads",
   account: (name: string, currency: string) => `${name} · ${currency}`,
   connectedOn: (day: string) => `Connected ${day}`,
-  checks: "Checks",
-  neededFor: "Needed for",
   /** The opened card's quiet line: what needs no check, and the Instagram account, which stops nothing. */
   needsOnly: "Reading your ads and Pause need only the connection.",
   noInstagram: "No Instagram account is linked to your Page, and nothing here stops for it.",
   instagram: (handle: string) => `Your Page is linked to @${handle} on Instagram.`,
-  change: "Change the ad account or the Page",
+  change: "Change account or Page",
   disconnect: "Disconnect",
   couldntUpdate: (when: string) => `Couldn't update · Updated ${when}`,
 } as const;
@@ -55,12 +53,27 @@ export const CARD = {
 /** The coral button, by where the connection stands. */
 export const CONNECT = { connect: "Connect", again: "Connect again" } as const;
 
-/** What each check is called on the card, and what it is needed for. */
-export const CHECK: Record<AdCardCheckId, { label: string; neededFor: string }> = {
-  "account-active": { label: "Ad account is active", neededFor: "Turn on, Resume" },
-  payment: { label: "Payment method in Meta", neededFor: "Turn on, Resume" },
-  "page-linked": { label: "Page", neededFor: "A new ad" },
+/** What each check is called on the card. */
+export const CHECK: Record<AdCardCheckId, { label: string }> = {
+  "account-active": { label: "Ad account is active" },
+  payment: { label: "Payment method in Meta" },
+  "page-linked": { label: "Page" },
 };
+
+/**
+ * Where the people an ad brings reach the business, as the opened card's last rows: the number AI answers on WhatsApp,
+ * with what is known of the Page's link to it (Meta shares it only when an ad is made: whatsAppLine), and the Page's
+ * Instagram account where Chanlytics may read it.
+ */
+export const REACH = {
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  linked: "Linked to your Page",
+  metaChecks: "Meta checks it's linked when an ad is made",
+  noNumber: "None yet",
+  connectFirst: "Connect one before making an ad",
+  noInstagram: "None linked",
+} as const;
 
 /**
  * The Page's link to the number AI answers: a quiet line under the checks, never one of them, since Meta shares a

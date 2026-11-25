@@ -3,9 +3,10 @@
  * "Made's five views": All, Needs you, Being made, Scheduled, Posted) and the Library's kinds (All, Photos, Videos), each with
  * how many it holds, as one caret pill on a phone and one row on a desk (ViewsPill, ViewsRow); Needs you is marked amber while
  * it holds anything. Then Made or Library, and the Squares or List both are drawn as, kept on this device for the person who
- * chose it.
+ * chose it. Where the workspace runs ads, Ads is the third list (Ruben, 25 Nov 2026), its own filter drawn by the same pill and
+ * row (ads/content-bar.tsx).
  */
-import { Fragment, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   ADS_WORDS,
   CONTENT_VIEWS,
@@ -35,26 +36,12 @@ const LAYOUT_LABEL = `${VIEW_SAYS.grid} or ${VIEW_SAYS.list}`;
 const Owed = ({ on }: { on: boolean }) => (on ? <span className="cnv-owed" aria-hidden="true" /> : null);
 
 /** One way of looking at a list, with how many it holds; `owed` marks one that holds something that needs the owner. */
-interface ViewChoice<V extends string> {
+export interface ViewChoice<V extends string> {
   value: V;
   label: string;
   count: number | null;
   owed?: boolean;
-  /** The paid view (Ads), set apart from the rest under its word: drawn last, after a hairline on a desk. */
-  paid?: boolean;
 }
-
-/** Made's views, and Ads where it is on: the paid view, drawn in Made's place (three tabs, 23 Nov 2026). */
-export type MadeView = ContentView | "ads";
-
-/** Ads among Made's views, where Ads is on: whether an ad needs the owner, which marks it amber. */
-export interface AdsChoice {
-  owed: boolean;
-}
-
-/** Ads as the last of Made's views: no count (how many ads is the Ads read's, never Content's), amber while one needs you. */
-const adsChoiceOf = (ads: AdsChoice | null): ViewChoice<MadeView>[] =>
-  ads ? [{ value: "ads", label: ADS_WORDS.adsTab, count: null, owed: ads.owed, paid: true }] : [];
 
 /** What a views pill or row is told: its name, its choices (the first is all of it), the one picked, and what a press does. */
 interface ViewsProps<V extends string> {
@@ -117,7 +104,7 @@ const ChoiceWords = <V extends string>({ choice }: { choice: ViewChoice<V> }) =>
  * chosen is Chanlytics' coral), and a small card under it of them all (the kit's Popover: the canvas draws a card hanging from
  * the pill, never a sheet). Made's views and the Library's kinds are this one pill.
  */
-function ViewsPill<V extends string>({
+export function ViewsPill<V extends string>({
   label,
   choices,
   value,
@@ -145,22 +132,20 @@ function ViewsPill<V extends string>({
     >
       <div className="cnv-views" role="group" aria-label={label}>
         {choices.map((choice) => (
-          <Fragment key={choice.value}>
-            {choice.paid ? <span className="cnv-views-paid">{VIEW_SAYS.paid}</span> : null}
-            <Button
-              size="touch"
-              variant="quiet"
-              className="cnv-view"
-              aria-pressed={choice.value === value}
-              onClick={() => {
-                setOpen(false);
-                onChoose(choice.value);
-              }}
-              data-testid={`${choiceTestid}-${choice.value}`}
-            >
-              <ChoiceWords choice={choice} />
-            </Button>
-          </Fragment>
+          <Button
+            key={choice.value}
+            size="touch"
+            variant="quiet"
+            className="cnv-view"
+            aria-pressed={choice.value === value}
+            onClick={() => {
+              setOpen(false);
+              onChoose(choice.value);
+            }}
+            data-testid={`${choiceTestid}-${choice.value}`}
+          >
+            <ChoiceWords choice={choice} />
+          </Button>
         ))}
       </div>
       {layout ? <LayoutRows layout={layout} close={() => setOpen(false)} /> : null}
@@ -169,23 +154,20 @@ function ViewsPill<V extends string>({
 }
 
 /** The views on a desk, which has the room the pill saves a phone: all of them in one row, the one picked on the soft coral. */
-function ViewsRow<V extends string>({ label, choices, value, onChoose, testid, choiceTestid }: ViewsProps<V>) {
+export function ViewsRow<V extends string>({ label, choices, value, onChoose, testid, choiceTestid }: ViewsProps<V>) {
   return (
     <div className="cnv-view-row" role="group" aria-label={label} data-testid={testid}>
       {choices.map((choice) => (
-        <Fragment key={choice.value}>
-          {choice.paid ? <span className="cnv-view-row-paid" aria-hidden="true" /> : null}
-          <Button
-            size="sm"
-            variant="quiet"
-            aria-pressed={choice.value === value}
-            aria-label={choice.paid ? `${choice.label}, ${VIEW_SAYS.paid.toLowerCase()}` : undefined}
-            onClick={() => onChoose(choice.value)}
-            data-testid={`${choiceTestid}-${choice.value}`}
-          >
-            <ChoiceWords choice={choice} />
-          </Button>
-        </Fragment>
+        <Button
+          key={choice.value}
+          size="sm"
+          variant="quiet"
+          aria-pressed={choice.value === value}
+          onClick={() => onChoose(choice.value)}
+          data-testid={`${choiceTestid}-${choice.value}`}
+        >
+          <ChoiceWords choice={choice} />
+        </Button>
       ))}
     </div>
   );
@@ -210,24 +192,20 @@ export function ContentViews({
   onView,
   layout = null,
   planned = false,
-  ads = null,
 }: {
-  view: MadeView;
+  view: ContentView;
   tally: ContentTally | null;
-  onView: (view: MadeView) => void;
+  onView: (view: ContentView) => void;
   layout?: LayoutHeld | null;
   planned?: boolean;
-  /** Ads, the last of the views, where Ads is on (null where it is off). */
-  ads?: AdsChoice | null;
 }) {
   // Set aside is no view of the five: it is named in the pill while it is shown, so the pill says where the list is.
-  const aside: ViewChoice<MadeView>[] =
+  const aside: ViewChoice<ContentView>[] =
     view === "aside" ? [{ value: "aside", label: VIEW_SAYS.name.aside, count: tally ? tally.aside : null }] : [];
-  const choices: ViewChoice<MadeView>[] = [...madeChoicesOf(tally, planned), ...aside, ...adsChoiceOf(ads)];
   return (
     <ViewsPill
       label={VIEW_SAYS.label}
-      choices={choices}
+      choices={[...madeChoicesOf(tally, planned), ...aside]}
       value={view}
       onChoose={onView}
       testid="cnv-views"
@@ -243,19 +221,16 @@ export function ContentViewRow({
   tally,
   onView,
   planned = false,
-  ads = null,
 }: {
-  view: MadeView;
+  view: ContentView;
   tally: ContentTally | null;
-  onView: (view: MadeView) => void;
+  onView: (view: ContentView) => void;
   planned?: boolean;
-  /** Ads, the last of the views, where Ads is on (null where it is off). */
-  ads?: AdsChoice | null;
 }) {
   return (
     <ViewsRow
       label={VIEW_SAYS.label}
-      choices={[...madeChoicesOf(tally, planned), ...adsChoiceOf(ads)]}
+      choices={madeChoicesOf(tally, planned)}
       value={view}
       onChoose={onView}
       testid="cnv-view-row"
@@ -317,6 +292,18 @@ const listsOf = (planned: boolean): readonly ContentList[] =>
   planned ? ["week", "made", "library"] : ["made", "library"];
 
 /**
+ * Ads, the third list where the workspace runs ads (Ruben, 25 Nov 2026: beside Made and the Library, where it stands still
+ * on every list): lit on Ads, how many ads its list holds as the Ads page last read them (none before), amber while one
+ * needs the owner. Ads is a page of its own at its own address (`campaigns/ads`), so its press goes there.
+ */
+export interface AdsTab {
+  on: boolean;
+  count: number | null;
+  owed: boolean;
+  onPress: () => void;
+}
+
+/**
  * Content's two lists (the content redesign's stage 2): what Ask made, and the library it makes them from, which was Settings ›
  * Files, each with how many it holds ("Made 8 · Library 41", the content canvas). The kit's sub-tabs, words on a line with the
  * one shown underlined, as the Inbox's buckets stand under its strip: a second capsule under Campaigns' read as more of the
@@ -327,12 +314,15 @@ export function ContentLists({
   tally,
   onList,
   week = null,
+  ads = null,
 }: {
   list: ContentList;
   tally: ContentTally | null;
   onList: (list: ContentList) => void;
   /** Where the workspace plans its weeks: how many the Week holds, once read (null before). */
   week?: { count: number | null } | null;
+  /** Ads, where the workspace runs ads (null where it does not). */
+  ads?: AdsTab | null;
 }) {
   const listSays = CONTENT_WORDS.lists;
   const countOf = (each: ContentList) =>
@@ -349,15 +339,30 @@ export function ContentLists({
     <SubTabs
       label={listSays.label}
       className="cnv-lists"
-      value={list}
-      onSelect={(id) => onList(id === "library" ? "library" : id === "week" ? "week" : "made")}
-      tabs={listsOf(!!week).map((each) => ({
-        id: each,
-        label: listSays[each],
-        count: countOf(each),
-        need: needOf(each),
-        testid: `cnv-list-${each}`,
-      }))}
+      value={ads?.on ? "ads" : list}
+      onSelect={(id) =>
+        id === "ads" ? ads?.onPress() : onList(id === "library" ? "library" : id === "week" ? "week" : "made")
+      }
+      tabs={[
+        ...listsOf(!!week).map((each) => ({
+          id: each,
+          label: listSays[each],
+          count: countOf(each),
+          need: needOf(each),
+          testid: `cnv-list-${each}`,
+        })),
+        ...(ads
+          ? [
+              {
+                id: "ads",
+                label: ADS_WORDS.adsTab,
+                count: ads.count ?? undefined,
+                need: ads.owed ? listSays.adsNeeds : undefined,
+                testid: "cnv-list-ads",
+              },
+            ]
+          : []),
+      ]}
     />
   );
 }

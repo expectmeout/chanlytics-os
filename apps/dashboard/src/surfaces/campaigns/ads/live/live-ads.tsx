@@ -6,11 +6,12 @@
  * each open by the address, so Back closes it. While AI is stopped with ads still on, the page says so at its top, with
  * the owner's press that pauses them all (stop-notice.tsx; the Ads plan's G17).
  */
-import { ADS_WORDS, AD_PAGE_DAYS, adRoute, newAdRoute } from "@chanlytics/contracts";
+import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
+import { Figure } from "../../../kit/figure/figure";
 import { Icon } from "../../../kit/icon/icon";
 import { ActWords } from "../../../kit/head/act-words";
 import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
@@ -18,9 +19,11 @@ import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import { AdsBar } from "../content-bar";
 import { CmSplit, type CmView } from "../../parts/split";
-import type { NeedVM } from "../connect/card-model";
+import { CardAt } from "../connect/card";
+import type { ConnectCardVM, NeedVM } from "../connect/card-model";
+import { CARD } from "../connect/words";
 import { rememberAdNames } from "../crumb-names";
-import { adsNeedingOf, noteAdsNeeding } from "../needs-you";
+import { adsNeedingOf, noteAdsListed, noteAdsNeeding } from "../needs-you";
 import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
 import { NewAd } from "../new/sheet";
@@ -41,8 +44,10 @@ interface LiveAdsProps {
   phone: boolean;
   /** The workspace's zone, where the account names none. */
   timezone: string;
-  /** The ad account's card, and its word for the coral button where an owner may press it. */
+  /** The ad account's card where it has something to say; null where the page's top says where the account stands. */
   card: ReactNode;
+  /** Where the account stands, said at the figures' end, with the press that opens its card and what that opens. */
+  account: { vm: ConnectCardVM; open: () => void; sheets: ReactNode } | null;
   connect: { word: string | null; press: () => void };
   /** The ad account's own need, as its card says it: New ad says the same line for a card check not met. */
   need: NeedVM | null;
@@ -69,17 +74,20 @@ export function LiveAds(p: LiveAdsProps) {
   });
   // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
   useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
-  // What needs the owner here, kept for Content's tab on the strip and Made's views to say amber (ads/needs-you.ts).
+  // What needs the owner here, kept for Content's tab on the strip and the Ads tab to say amber, and how many ads the list
+  // holds, for the Ads tab's figure on Made and the Library (ads/needs-you.ts).
   const needing = adsNeedingOf(dto);
   useEffect(() => noteAdsNeeding(needing), [needing]);
+  const listed = vm.rows.length;
+  useEffect(() => noteAdsListed(listed), [listed]);
   const sentence = (
     <>
       {vm.head.strong ? <b>{vm.head.strong}</b> : null}
       {vm.head.rest}
     </>
   );
-  // Drawn in Content's own split and list (Campaigns in three tabs: Ads is the last of Made's views), so Made's bar stands
-  // where it stands on Content's other views and a press between them moves nothing.
+  // Drawn in Content's own split and list (Ads is the third of Content's lists), so the bar stands where it stands on Made
+  // and the Library and a press between them moves nothing.
   return (
     <CmSplit
       className="cnv ads"
@@ -125,24 +133,36 @@ export function LiveAds(p: LiveAdsProps) {
               </>
             }
           />
-          {/* Ads is the last of Made's views (Campaigns in three tabs): Content's bar, with Ads lit and amber while an ad or the
-          account needs the owner, then what is paid for and its days, then the page's sentence. */}
-          <AdsBar phone={phone} owed={needing > 0} />
-          <p className="ads-paid" data-testid="ads-paid">
-            {HEAD.paid(AD_PAGE_DAYS)}
-          </p>
-          {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
-          {vm.empty === null ? (
-            <p className="ads-lead" data-testid="ads-lead">
-              {sentence}
-            </p>
-          ) : null}
-          <p className="ads-money" data-testid="ads-money">
-            {vm.line}
-          </p>
+          {/* Content's bar, with Ads lit (amber while an ad or the account needs the owner) and its own filter, then the page's
+          figures in one compact strip (Ruben, 25 Nov 2026), or, where it says a state instead, its sentence and quiet line. */}
+          <AdsBar phone={phone} shown={p.view?.shown !== false} rows={vm.rows} />
+          <div className="ads-top" data-testid="ads-top">
+            {vm.figures ? (
+              <dl className="ads-figures" data-testid="ads-figures">
+                {vm.figures.map((figure) => (
+                  <Figure key={figure.label} look="compact" {...figure} />
+                ))}
+              </dl>
+            ) : (
+              <div className="ads-sum" data-testid="ads-sum">
+                {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
+                {vm.empty === null ? (
+                  <p className="ads-lead" data-testid="ads-lead">
+                    {sentence}
+                  </p>
+                ) : null}
+                <p className="ads-money" data-testid="ads-money">
+                  {vm.line}
+                </p>
+              </div>
+            )}
+            {p.account ? <CardAt vm={p.account.vm} title={CARD.name} onOpen={p.account.open} /> : null}
+          </div>
+          {p.account?.sheets}
           <LiveBody
             vm={vm}
             card={p.card}
+            cardFirst={p.need !== null}
             stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
             onOpen={p.nav.push}
             onPause={presses.pause}
@@ -153,7 +173,6 @@ export function LiveAds(p: LiveAdsProps) {
             acts={{ ...presses, ...changes }}
             onClose={p.nav.close}
             onGo={p.nav.push}
-            phone={phone}
           />
           <NewAd
             open={address.compose !== null}

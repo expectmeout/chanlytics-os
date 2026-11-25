@@ -250,6 +250,7 @@ The platform's day for one ad, in the account's own zone (decision 0049 call 3, 
 | `platform_results` | bigint | yes |  |  |
 | `read_at` | timestamp with time zone | no | `now()` |  |
 | `settled` | boolean | no | `false` | Whether the platform's numbers for the day have stopped moving. A platform keeps correcting a day for about two weeks, so a figure with an unsettled day in it says "so far" (contracts adCostRule). |
+| `engaged` | jsonb | yes |  | What the day of the ad did as the platform counts it (00719): {plays, engaged, comments, reactions, saves, shares}, each a whole number, a part the platform gave none of left out; null where the read gave none. Theirs, labelled as theirs: never added to Chanlytics' count of people. |
 
 Foreign keys:
 
@@ -5268,7 +5269,7 @@ A known person's reply, comment, reply to a story or coded first message, about 
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `subject_type` | text | no |  |  |
+| `subject_type` | text | no |  | What was touched: a post Chanlytics sent, a link, or an ad this workspace holds (00719: a comment Meta says was left on an ad). A message that came from an ad lives in ad_entries, a form's entry in form_entries. |
 | `subject_id` | uuid | no |  |  |
 | `kind` | text | no |  |  |
 | `contact_id` | uuid | yes |  |  |

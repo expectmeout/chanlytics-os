@@ -15,6 +15,7 @@ import {
   parseTenantConfigResult,
   adStateOfRow,
   adWayClosedOf,
+  isObjectRecord,
   metaAdConfigOf,
   personName,
   zoneDayKey,
@@ -34,10 +35,14 @@ import {
   listAdsLeftParts,
   listAdsOfAccount,
   readAdChatsKept,
+  readAdCommenters,
   readAdPeopleBack,
+  readAdsEngaged,
   readAdsPageCounts,
   type AdAccountRow,
   type AdChatsKeptRow,
+  type AdCommenter,
+  type AdEngagedSum,
   type AdPeopleBack,
   type AdRow,
   type AdsPageCounts,
@@ -206,11 +211,90 @@ function madeFromOf(row: AdRow, pictures: PictureNames): AdLiveDto["made_from"] 
   return fileId === null || pictures === null ? null : { file_id: fileId, name: pictures.get(fileId) ?? null };
 }
 
+/** A part of what the platform said of an ad (ads.said, 00648): a string that says something, or none. */
+function saidPart(said: unknown, part: string): string | null {
+  if (!isObjectRecord(said)) return null;
+  const value = said[part];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/**
+ * What an ad shows people: the piece it was made from, else the platform's own small picture of it (an https address the
+ * read kept), and its words, its body else its headline.
+ */
+function seenOf(row: AdRow): Pick<AdLiveDto, "picture" | "words" | "post_url"> {
+  const fileId = adPictureFileOf(row.approved);
+  const https = (part: string) => {
+    const said = saidPart(row.said, part);
+    return said && /^https:\/\//.test(said) ? said : null;
+  };
+  // The business's own file first; else Meta's whole image where the ad is one, else its small picture (64px).
+  const image = https("image");
+  const thumbnail = https("thumbnail");
+  const picture = fileId
+    ? { file_id: fileId }
+    : image
+      ? { url: image }
+      : thumbnail
+        ? { url: thumbnail, small: true }
+        : null;
+  return {
+    picture,
+    words: (saidPart(row.said, "body") ?? saidPart(row.said, "headline"))?.slice(0, 600) ?? null,
+    post_url: https("permalink"),
+  };
+}
+
+/** Who commented on an ad, as the page names them: their name, the moment of their latest comment. */
+const commentersOf = (
+  kept: { count: number; people: AdCommenter[] } | undefined,
+): NonNullable<AdLiveDto["commenters"]> =>
+  kept
+    ? { count: kept.count, people: kept.people.map((p) => ({ id: p.id, name: personName(p.contact), at: p.at })) }
+    : { count: 0, people: [] };
+
+/**
+ * Why an ad can't be paused or turned on from here, where it can't, so its drawer says the true reason (Ruben, 25 Nov 2026: an
+ * owner was told only an owner could): this member may not run ads; turning ads on from here is not switched on for the
+ * workspace yet; or Meta has not let Chanlytics change them. Null where it can, and on an account that is not connected.
+ */
+function pressOffOf(at: {
+  status: AdsLiveDto["account"]["status"];
+  role: boolean;
+  presses: boolean;
+  config: Parameters<typeof metaAdConfigOf>[0];
+}): AdsLiveDto["press_off"] {
+  if (at.status !== "connected") return null;
+  if (!at.role) return "role";
+  if (!at.presses) return "off";
+  return metaAdConfigOf(at.config).scopes.includes("ads_management") ? null : "meta";
+}
+
+/**
+ * The ad in Meta Ads Manager, opened at it: the account's id (without Meta's `act_`) and the ad's own, where both are held; Ads
+ * Manager's list of ads otherwise.
+ */
+function metaPageOf(accountId: string | null, adId: string | null): string {
+  const base = "https://adsmanager.facebook.com/adsmanager/manage/ads";
+  if (!accountId || !adId) return base;
+  const params = new URLSearchParams({ act: accountId.replace(/^act_/, ""), selected_ad_ids: adId });
+  return `${base}?${params.toString()}`;
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
 function adOf(
   row: AdRow,
   counts: AdsPageCounts | null,
-  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]>; beside: Beside; pictures: PictureNames },
+  at: ReadAt & {
+    left: ReadonlyMap<string, AdLaunchLive["left"]>;
+    beside: Beside;
+    pictures: PictureNames;
+    /** The ad account's own id at Meta, where it is held: an ad's door into Ads Manager opens at it. */
+    accountId: string | null;
+    /** What each ad did and who commented on it (00719); null from a database a deploy behind. */
+    engaged: ReadonlyMap<string, AdEngagedSum> | null;
+    commenters: ReadonlyMap<string, { count: number; people: AdCommenter[] }> | null;
+  },
 ): AdLiveDto {
   const people = counts?.people.get(row.id) ?? { people: 0, booked: 0 };
   const spend = counts?.spend.get(row.id);
@@ -228,6 +312,11 @@ function adOf(
     needs: needsOf(state, row, at.nowMs),
     issue: row.platform_issue,
     ends_at: row.ends_at,
+    starts_at: row.starts_at,
+    ...seenOf(row),
+    meta_page: metaPageOf(at.accountId, row.platform_ad_id),
+    ...(at.engaged ? { engaged: at.engaged.get(row.id) ?? {} } : {}),
+    ...(at.commenters ? { commenters: commentersOf(at.commenters.get(row.id)) } : {}),
     budget:
       row.budget_kind === null || row.budget_minor === null
         ? null
@@ -374,18 +463,24 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
-    // What a launch that stopped part way left at Meta, read only for those and said in their drawers; and beside it the
-    // pieces of Content the ads made here show, named for their Made from.
-    const [left, pictures] = await Promise.all([
+    const timezone = account.timezone ?? "UTC";
+    const today = zoneDayKey(nowMs, timezone);
+    const from = counts?.from ?? today;
+    // What a launch that stopped part way left at Meta, read only for those and said in their drawers; beside it the
+    // pieces of Content the ads made here show, named for their Made from; and what each ad did and who commented on it
+    // over the page's days (00719), each said where it was read and left unsaid where it was not.
+    const [left, pictures, engaged, commenters] = await Promise.all([
       listAdsLeftParts(
         supabase,
         rc.tenantId,
         rows.filter((row) => row.origin === "chanlytics" && row.status === "failed").map((row) => row.id),
       ),
       namePictures(rows, (ids) => listFilesByIds(supabase, rc.tenantId, ids)),
+      readAdsEngaged(supabase, rc.tenantId, from).catch(logAndGoOn("the ads' engagement", null)),
+      readAdCommenters(supabase, rc.tenantId, new Date(`${from}T00:00:00Z`).toISOString()).catch(
+        logAndGoOn("who commented on the ads", null),
+      ),
     ]);
-    const timezone = account.timezone ?? "UTC";
-    const today = zoneDayKey(nowMs, timezone);
     const data: AdsLiveDto = {
       account: {
         status,
@@ -402,11 +497,24 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
-      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left, beside, pictures })),
+      ads: rows.map((row) =>
+        adOf(row, counts, {
+          today,
+          timezone,
+          nowMs,
+          left,
+          beside,
+          pictures,
+          accountId: account.external_id,
+          engaged,
+          commenters,
+        }),
+      ),
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
       ...(beside.back ? { back: beside.back.all } : {}),
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
+      press_off: pressOffOf({ status, role: ROLE_PERMS[rc.role].ads, presses, config: account.config }),
       stopped_at: aiStoppedAt(settings),
       needs_you: needsYouOf(waiting, nowMs),
     };

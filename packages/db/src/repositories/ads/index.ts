@@ -53,6 +53,8 @@ export {
   readAdsPageCounts,
 } from "./page";
 export type { AdChatsKeptRow, AdPeopleBack, AdPersonRow, AdRow, AdsPageCounts } from "./page";
+export { readAdCommenters, readAdsEngaged } from "./engaged";
+export type { AdCommenter, AdEngagedSum } from "./engaged";
 export {
   adSwitchIdOf,
   askAdTell,

@@ -33,6 +33,7 @@ import { GroupHead } from "../../kit/head/group-head";
 import { copyRowLineOf, leavesOn, rowReasonOf } from "../../files/footage/copy-words";
 import { heldFootage } from "../../files/footage/use-footage";
 import { Picture, rowPictureOf } from "../../files/photo";
+import { readRecordAhead } from "../../files/post-record";
 import { tileShapeOf } from "./model/tiles";
 import { aheadDayOf, postedWhenOf, tileDayOf } from "./model/tile-day";
 
@@ -187,7 +188,12 @@ export function PieceLines({
         const mark = contentPieceMarkOf(piece, now, reels);
         return (
           <div key={piece.file.id} className="cnv-line" data-testid="cnv-line">
-            <Press className="cnv-line-open" onClick={() => onOpen(piece.file.id)}>
+            {/* Its record read from the first touch, so the piece opens with it (files/post-record.ts readRecordAhead). */}
+            <Press
+              className="cnv-line-open"
+              onPointerDown={() => readRecordAhead(piece.file, piece.posts)}
+              onClick={() => onOpen(piece.file.id)}
+            >
               <Thumb file={piece.file} />
               <span className="cnv-line-words">
                 <b>{fileSaidOf(piece.file.name)}</b>

@@ -47,6 +47,7 @@ import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { AskLooking } from "../../files/looking";
 import { Photo, Picture } from "../../files/photo";
+import { readRecordAhead } from "../../files/post-record";
 import { GroupHead } from "../../kit/head/group-head";
 import { ContentLines, NeedsRows, PieceLines } from "./lines";
 import { QuietMore } from "./heads";
@@ -162,6 +163,8 @@ function MadeTile({
       data-open={open || undefined}
       data-tile={made.file.id}
       data-version-making={making ? true : undefined}
+      // Its record read from the first touch, so the piece opens with it (files/post-record.ts readRecordAhead).
+      onPointerDown={() => readRecordAhead(made.file, made.posts)}
       data-testid="cnv-tile"
     >
       <Photo

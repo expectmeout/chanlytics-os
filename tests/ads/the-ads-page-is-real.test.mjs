@@ -19,8 +19,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { firstReadOf, lensModel, liveModel, sheetModel } = await import(
+const { firstReadOf, liveModel, sheetModel } = await import(
   at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts")
+);
+const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/lens-model.ts"));
+const { AD_FIND_FROM, adFilterChoicesOf, adFilterOf, adGroupsOf } = await import(
+  at("apps/dashboard/src/surfaces/campaigns/ads/live/ad-list.ts")
 );
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
 
@@ -180,12 +184,10 @@ test("the head counts everyone an ad brought, the unnamed among them, and says w
   const vm = liveModel(RUNNING, SAID);
   assert.deepEqual(vm.head, { strong: "26 of 114", rest: " new people from your ads have booked." });
   // Spent is every ad's; the cost is the counted ads' spend over the people who booked from them: (414 + 0 + 357) / 25.
-  assert.equal(vm.line, "$867 spent · $31 for each person who booked so far");
+  assert.equal(vm.line, "Paid · $867 spent in the last 30 days · $31 for each person who booked so far");
   const named = RUNNING.ads.reduce((sum, one) => sum + one.people, 0);
   assert.equal(named + RUNNING.unnamed.people, 114, "the ads' people and the unnamed line are the head's total");
   assert.deepEqual(vm.notes, [
-    "An ad made in Meta can be paused here. It turns back on here when Meta holds a total and an end date for it.",
-    "An ad that opens your website shows what Meta spent. Its people are counted only when they write to AI.",
     "3 people came from an ad you run in Meta that Chanlytics can't name yet, and 1 of them has booked.",
   ]);
   assert.deepEqual([vm.notice, vm.stale, vm.again], [null, null, null]);
@@ -193,47 +195,53 @@ test("the head counts everyone an ad brought, the unnamed among them, and says w
 
 test("each row says where the ad stands and what it brought, and an uncounted one what Meta spent", () => {
   const { rows } = liveModel(RUNNING, SAID);
+  // In the list's order: what runs (or is on its way to), what spent most first; then what is paused.
   assert.deepEqual(
     rows.map((row) => [row.name, row.line, row.badge, row.endTop, row.endSub]),
     [
       ["Spring offer", "On · ends Tue 8 Dec · $308 left", null, "23 booked", "$18 each"],
+      ["Autumn offer", "On · ends Tue 8 Dec · $308 left", null, "$96 spent", null],
       ["Weekend offer", "Meta is checking it, usually within a day", "In review", "2 booked", null],
-      ["Old boosted post", "Paused · made in Meta", null, "0 booked", null],
-      ["Autumn offer", "On · made in Meta · opens your website", null, "$96 spent", "People not counted"],
+      ["Old boosted post", "Paused · ends Tue 8 Dec · $308 left", null, "0 booked", null],
     ],
   );
   assert.deepEqual(
-    rows.map((row) => row.tone),
-    ["ok", "plain", "plain", "ok"],
+    rows.map((row) => [row.tone, row.group]),
+    [
+      ["ok", "on"],
+      ["ok", "on"],
+      ["plain", "on"],
+      ["plain", "paused"],
+    ],
   );
   assert.equal(rows[0].open, "campaigns/ads:ad:spring", "a row opens its drawer by Chanlytics' own id");
 });
 
 test("the cost for each person who booked waits for five, and says so far only while Meta's days still move", () => {
   const few = page({ ads: [ad("a", { people: 12, booked: 4, spend_minor: 9000 })] });
-  assert.equal(liveModel(few, SAID).line, "$90 spent", "under five booked no cost is said");
+  assert.equal(liveModel(few, SAID).line, "Paid · $90 spent in the last 30 days", "under five booked no cost is said");
   const five = page({ ads: [ad("a", { people: 12, booked: 5, spend_minor: 9000 })] });
-  assert.equal(liveModel(five, SAID).line, "$90 spent · $18 for each person who booked");
+  assert.equal(liveModel(five, SAID).line, "Paid · $90 spent in the last 30 days · $18 for each person who booked");
   const moving = page({ ads: [ad("a", { people: 12, booked: 5, spend_minor: 9000, settling: true })] });
-  assert.equal(liveModel(moving, SAID).line, "$90 spent · $18 for each person who booked so far");
+  assert.equal(
+    liveModel(moving, SAID).line,
+    "Paid · $90 spent in the last 30 days · $18 for each person who booked so far",
+  );
   // A website ad's spend is in Spent, and out of the cost of a person: its people are nobody Chanlytics counted.
   const mixed = page({
     ads: [ad("a", { people: 12, booked: 5, spend_minor: 9000 }), ad("w", { opens: "website", spend_minor: 5000 })],
   });
-  assert.equal(liveModel(mixed, SAID).line, "$140 spent · $18 for each person who booked");
+  assert.equal(liveModel(mixed, SAID).line, "Paid · $140 spent in the last 30 days · $18 for each person who booked");
 });
 
 test("before anyone has written from an ad the page says how many ads there are, and who is charged", () => {
   const ready = page({ ads: [ad("a", { name: "Spring colour offer" }), ad("b", { state: "paused" })] });
   const vm = liveModel(ready, SAID);
   assert.deepEqual(vm.head, { strong: "2 ads", rest: " are in your Meta account." });
-  assert.equal(
-    vm.line,
-    "Charged to your card by Meta, never through Chanlytics. Pause an ad and it stops. Meta still bills what it already showed.",
-  );
+  assert.equal(vm.line, "Paid · Meta charges your card, never Chanlytics");
   assert.deepEqual(
     vm.rows.map((row) => row.line),
-    ["On · made in Meta", "Paused · made in Meta"],
+    ["On · ends Tue 8 Dec · $308 left", "Paused · ends Tue 8 Dec · $308 left"],
   );
   assert.deepEqual(liveModel(page(), SAID).head, { strong: null, rest: "Meta shows no ads in this ad account yet." });
   // Before its first read nothing is known of an account's ads, so the page never says Meta shows none: it says it is
@@ -305,7 +313,7 @@ test("signed out: the page says when, which ad was on, and what each ad was doin
     body: "Spring colour offer was on then, and Meta charges while it runs. Chanlytics can't read or pause it until you connect again.",
     door: null,
   });
-  assert.equal(vm.line, "$212 spent · Updated Sat 14 Nov");
+  assert.equal(vm.line, "Paid · $212 spent in the last 30 days · Updated Sat 14 Nov");
   assert.deepEqual(
     vm.rows.map((row) => [row.line, row.tone]),
     [
@@ -330,12 +338,12 @@ test("after a disconnect an ad left running is said at the top, with Meta as the
   const vm = liveModel(left, SAID);
   assert.deepEqual(vm.notice, {
     title: "Spring colour offer was on when you disconnected",
-    body: "That was Wed 18 Nov. Meta charges while it runs. It can only be paused in Meta now.",
+    body: "That was today. Meta charges while it runs. It can only be paused in Meta now.",
     door: "Open Meta",
   });
   assert.deepEqual(
     vm.rows.map((row) => row.line),
-    ["Left in Meta · was on Wed 18 Nov", "Left in Meta · was paused"],
+    ["Left in Meta · was on today", "Left in Meta · was paused"],
   );
   assert.equal(vm.again, "Connect to read and pause them here again.");
   // With nothing left running there is nothing to warn of.
@@ -385,21 +393,25 @@ test("an ad made in Meta turns back on from here only with a total, an end date 
 test("the drawer of an ad made in Meta: Pause while it runs, and its two halves each labelled as whose it is", () => {
   const vm = sheetModel(RUNNING, "spring", SAID);
   assert.deepEqual(
-    [vm.over, vm.name, vm.line],
-    ["Facebook and Instagram · WhatsApp", "Spring offer", "On · ends Tue 8 Dec · $308 left"],
+    [vm.where, vm.name, vm.line],
+    ["Shows on Facebook and Instagram · Opens WhatsApp", "Spring offer", "On · ends Tue 8 Dec"],
   );
   // Where it shows is what Meta holds: an ad shown on Facebook alone says so, and one not read yet names Meta alone.
-  const only = (shownOn) => sheetModel(page({ ads: [ad("one", { shown_on: shownOn })] }), "one", SAID).over;
-  assert.equal(only(["facebook"]), "Facebook · WhatsApp");
-  assert.equal(only(null), "Meta · WhatsApp");
-  assert.equal(vm.made, null, "an ad made here does not say it was made in Meta");
+  const only = (shownOn) => sheetModel(page({ ads: [ad("one", { shown_on: shownOn })] }), "one", SAID).where;
+  assert.equal(only(["facebook"]), "Shows on Facebook · Opens WhatsApp");
+  assert.equal(only(null), "Shows on Meta · Opens WhatsApp");
+  // A total is said whole, over its bar: what it spent of it, and its days; Spent is then no figure of its own.
+  // Its total less what is left ($720 - $308); no start read yet, so no days are said.
+  assert.deepEqual(
+    [vm.spent?.said, Math.round((vm.spent?.share ?? 0) * 100), vm.days],
+    ["$412 of $720 spent", 57, null],
+  );
   assert.deepEqual(vm.ours, [
     { label: "Wrote to AI", value: "100" },
     { label: "Booked", value: "23" },
     { label: "For each who booked", value: "$18 so far" },
   ]);
   assert.deepEqual(vm.theirs, [
-    { label: "Spent", value: "$414" },
     { label: "Times shown", value: "9,000" },
     { label: "Taps", value: "300" },
     { label: "Chats Meta counted", value: "120" },
@@ -409,8 +421,8 @@ test("the drawer of an ad made in Meta: Pause while it runs, and its two halves 
 
   const website = sheetModel(RUNNING, "autumn", SAID);
   assert.deepEqual(
-    [website.counted, website.ours, website.made],
-    [false, [], "Made in Meta Ads Manager. Change it in Meta."],
+    [website.counted, website.ours, website.where],
+    [false, [], "Shows on Facebook and Instagram · Opens your website"],
   );
 });
 
@@ -434,7 +446,7 @@ test("turning one back on is a question that names what is left and until when; 
     ],
   });
   const old = sheetModel(paused, "old", SAID);
-  assert.equal(old.line, "Paused · it still ends Mon 30 Nov · $180 left");
+  assert.equal(old.line, "Paused · it still ends Mon 30 Nov");
   assert.deepEqual(old.foot, {
     kind: "resume",
     ask: "Turn Old boosted post back on?",
@@ -450,7 +462,7 @@ test("turning one back on is a question that names what is left and until when; 
   });
   // Anyone but the owner reads the same drawer, with no press.
   const viewer = sheetModel({ ...paused, can_press: false }, "old", SAID);
-  assert.deepEqual(viewer.foot, { kind: "none", line: "Only the owner can pause an ad or turn one back on." });
+  assert.deepEqual(viewer.foot, { kind: "meta", line: "Only the owner can pause an ad or turn one back on." });
 });
 
 test("Meta's own words for an ad it will not run are quoted, and one that never ran says nothing was charged", () => {
@@ -465,7 +477,7 @@ test("Meta's own words for an ad it will not run are quoted, and one that never 
     ],
   });
   const vm = sheetModel(refused, "w", SAID);
-  assert.equal(vm.line, "Not approved by Meta · ends Tue 8 Dec · $308 left");
+  assert.equal(vm.line, "Not approved by Meta · ends Tue 8 Dec");
   assert.deepEqual(vm.reason, {
     label: "Meta's reason",
     words: "Ads can't say or imply things about the person reading them.",
@@ -476,7 +488,6 @@ test("Meta's own words for an ad it will not run are quoted, and one that never 
 /* -------------------------------------------------------------- Reports › Ads */
 
 test("Reports › Ads says the page's own numbers: Chanlytics' count in its columns, Meta's spend in its own", async () => {
-  const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
   const vm = lensModel(RUNNING, SAID);
   assert.equal(vm.head, "26 of 114 new people from your ads have booked.");
   assert.deepEqual(vm.figures, [
@@ -588,4 +599,179 @@ test("the page's read lists the connected account's ads and counts the people of
   // Everyone the counts hold is on the page: the equation with Reports › People holds whichever account an ad is of.
   const everyone = counts.ads.reduce((sum, one) => sum + one.people, 0) + counts.unnamed.people;
   assert.equal(liveModel(data, SAID).head.strong, `3 of ${everyone}`);
+});
+
+test("a post's ad shows its picture, its post, what Meta counted it did and who commented, the people it can name", () => {
+  const boost = ad("boost", {
+    name: "Boost: first visit",
+    opens: "other",
+    starts_at: "2026-11-15T15:00:00Z",
+    ends_at: "2026-11-18T23:00:00Z",
+    budget: { kind: "total", minor: 500, left_minor: 39, shared: false },
+    spend_minor: 461,
+    theirs: { impressions: 1820, clicks: 6, results: null },
+    picture: { url: "https://scontent.example.com/t.jpg", small: true },
+    words: "First visit? 20% off your colour.",
+    post_url: "https://www.instagram.com/p/example/",
+    meta_page: "https://adsmanager.facebook.com/adsmanager/manage/ads?act=1&selected_ad_ids=boost",
+    engaged: { plays: 940, engaged: 61, comments: 3 },
+    commenters: {
+      count: 2,
+      people: [
+        { id: "p1", name: "Dana Reyes", at: "2026-11-18T17:00:00Z" },
+        { id: "p2", name: "@lena.k", at: "2026-11-17T12:00:00Z" },
+      ],
+    },
+  });
+  const read = page({ ads: [boost] });
+  const [row] = liveModel(read, SAID).rows;
+  // Its row: what it spent, and under it who commented, the people it can name.
+  assert.deepEqual([row.endTop, row.endSub], ["$4.61 spent", "2 commented"]);
+  const vm = sheetModel(read, "boost", SAID);
+  // A post's ad opens its post, which is what it shows: it says where alone.
+  assert.equal(vm.where, "Shows on Facebook and Instagram");
+  assert.deepEqual(vm.seen, {
+    picture: "https://scontent.example.com/t.jpg",
+    small: true,
+    words: "First visit? 20% off your colour.",
+  });
+  assert.equal(vm.postUrl, "https://www.instagram.com/p/example/");
+  assert.equal(vm.metaPage, "https://adsmanager.facebook.com/adsmanager/manage/ads?act=1&selected_ad_ids=boost");
+  // Its total whole, over its bar, and its days: it started inside the page's window, so Meta's numbers are all of it.
+  assert.deepEqual(
+    [vm.spent?.said, vm.days, vm.theirsLabel],
+    ["$4.61 of $5 spent", "15 Nov – today", "Meta's numbers"],
+  );
+  assert.deepEqual(vm.theirs, [
+    { label: "Times shown", value: "1,820" },
+    { label: "Plays", value: "940" },
+    { label: "Engagement", value: "61" },
+    { label: "Taps", value: "6" },
+  ]);
+  assert.deepEqual(vm.commenters, boost.commenters);
+  // No one has commented: nothing is said of them.
+  const quiet = sheetModel(page({ ads: [{ ...boost, commenters: { count: 0, people: [] } }] }), "boost", SAID);
+  assert.equal(quiet.commenters, null);
+  // A post's ad with no taps says none it never had; an ad that opens a chat says its taps, none among them.
+  const untapped = { ...boost, theirs: { impressions: 195, clicks: 0, results: null } };
+  assert.deepEqual(
+    sheetModel(page({ ads: [untapped] }), "boost", SAID).theirs.map((figure) => figure.label),
+    ["Times shown", "Plays", "Engagement"],
+  );
+  const chat = { ...untapped, id: "chat", opens: "whatsapp", engaged: undefined };
+  assert.ok(sheetModel(page({ ads: [chat] }), "chat", SAID).theirs.some((figure) => figure.label === "Taps"));
+});
+
+test("Ads reads as a list: Needs you, On, Paused and Ended under their headings, Ended folded under the rest", () => {
+  const spent = (minor) => ({ spend_minor: minor });
+  const read = page({
+    ads: [
+      ad("old-a", { state: "ended", ends_at: "2026-11-01T22:00:00Z", ...spent(5000) }),
+      ad("small", { ...spent(1000) }),
+      ad("refused", { state: "needs-you", needs: "refused", issue: "x" }),
+      ad("big", { ...spent(9000) }),
+      ad("old-b", { state: "ended", ends_at: "2026-11-10T22:00:00Z", ...spent(500) }),
+      ad("rest", { state: "paused", ...spent(200) }),
+    ],
+  });
+  const { rows } = liveModel(read, SAID);
+  // Needs you first; then what runs, what spent most first; then what is paused; then what ended, the latest first.
+  assert.deepEqual(
+    rows.map((row) => [row.id, row.group]),
+    [
+      ["refused", "needs"],
+      ["big", "on"],
+      ["small", "on"],
+      ["rest", "paused"],
+      ["old-b", "ended"],
+      ["old-a", "ended"],
+    ],
+  );
+  const all = adGroupsOf(rows, { filter: "all", about: null });
+  assert.deepEqual(
+    all.map((group) => [group.label, group.rows.length, group.folds]),
+    [
+      ["Needs you", 1, false],
+      ["On", 2, false],
+      ["Paused", 1, false],
+      ["Ended", 2, true],
+    ],
+  );
+  // Ended alone is not folded: there is nothing over it to read first.
+  const endedOnly = liveModel(page({ ads: [ad("e", { state: "ended", ...spent(461) })] }), SAID).rows;
+  assert.deepEqual(
+    adGroupsOf(endedOnly, { filter: "all", about: null }).map((group) => [group.key, group.folds]),
+    [["ended", false]],
+  );
+  // The filter: All, then each group that holds an ad, with how many, Needs you amber.
+  assert.deepEqual(adFilterChoicesOf(rows), [
+    { value: "all", label: "All", count: 6, owed: false },
+    { value: "needs", label: "Needs you", count: 1, owed: true },
+    { value: "on", label: "On", count: 2, owed: false },
+    { value: "paused", label: "Paused", count: 1, owed: false },
+    { value: "ended", label: "Ended", count: 2, owed: false },
+  ]);
+  const ended = adGroupsOf(rows, { filter: "ended", about: null });
+  assert.deepEqual(
+    ended.map((group) => [group.key, group.rows.length, group.folds]),
+    [["ended", 2, false]],
+  );
+  // A filter whose group holds nothing any more shows all.
+  const noNeeds = rows.filter((row) => row.group !== "needs");
+  assert.equal(adFilterOf(noNeeds, "needs"), "all");
+  assert.equal(adGroupsOf(noNeeds, { filter: "needs", about: null }).length, 3);
+});
+
+test("a long list of ads has a find line: an ad is found by its name, in its group, open", () => {
+  const many = Array.from({ length: AD_FIND_FROM }, (_, n) =>
+    ad(`a${n}`, {
+      name: n === 7 ? "Spring colour offer" : `Ad ${n}`,
+      state: n < 15 ? "ended" : "on",
+      spend_minor: n + 1,
+    }),
+  );
+  // Each spent something: an ended ad with no numbers is not listed.
+  const { rows } = liveModel(page({ ads: many }), SAID);
+  assert.equal(rows.length, AD_FIND_FROM);
+  const found = adGroupsOf(rows, { filter: "all", about: "  spring COLOUR " });
+  assert.deepEqual(
+    found.map((group) => [group.key, group.rows.map((row) => row.name), group.folds]),
+    [["ended", ["Spring colour offer"], false]],
+  );
+  assert.deepEqual(adGroupsOf(rows, { filter: "all", about: "nobody" }), [], "nothing found: the page says so");
+  // Under twenty ads there is no find line, so words kept from before narrow nothing.
+  const few = rows.slice(0, AD_FIND_FROM - 1);
+  assert.equal(
+    adGroupsOf(few, { filter: "all", about: "spring" }).reduce((n, group) => n + group.rows.length, 0),
+    few.length,
+  );
+});
+
+test("the page's figures: what was spent, who booked of who came and what each cost, and who commented on a boost", () => {
+  const figures = (read, said = SAID) => liveModel(read, said).figures;
+  // Ads, nobody counted: what was spent alone.
+  const boost = ad("boost", { opens: "other", spend_minor: 461 });
+  assert.deepEqual(figures(page({ ads: [boost] })), [{ label: "Spent · last 30 days", value: "$4.61", meta: null }]);
+  // Who commented on an ad that opens no chat, once the comments are kept (00719).
+  const commented = { ...boost, commenters: { count: 3, people: [] } };
+  assert.deepEqual(figures(page({ ads: [commented] }))[1], { label: "Commented on ads", value: "3" });
+  // People counted: who booked of who came, and what each cost from five booked.
+  assert.deepEqual(figures(RUNNING), [
+    { label: "Spent · last 30 days", value: "$867", meta: null },
+    { label: "Booked from ads", value: "26", meta: "of 114" },
+    { label: "For each who booked", value: "$31", meta: "so far" },
+  ]);
+  // No ads: the head's sentence says the state, and no figure stands.
+  assert.equal(figures(page()), null);
+  // Signed out: what was spent, and the day it was last read.
+  const out = page({
+    ads: [ad("a", { spend_minor: 21200 })],
+    account: {
+      ...page().account,
+      status: "revoked",
+      revoked_at: "2026-11-14T15:00:00Z",
+      read_at: "2026-11-14T15:00:00Z",
+    },
+  });
+  assert.deepEqual(figures(out)[0], { label: "Spent · last 30 days", value: "$212", meta: "Updated Sat 14 Nov" });
 });
