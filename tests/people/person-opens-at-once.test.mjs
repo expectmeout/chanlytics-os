@@ -10,6 +10,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 const WROTE = "2026-09-06T16:30:00Z";
@@ -34,10 +35,17 @@ globalThis.CustomEvent = class CustomEvent {
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: "ws-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
+      activeWorkspaceId: "ws-harbor",
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "ws-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "ws-harbor",
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},

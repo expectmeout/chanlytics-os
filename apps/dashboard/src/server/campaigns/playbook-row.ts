@@ -32,7 +32,6 @@ import {
   wallClockAt,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
-import { emitEvent } from "@chanlytics/db/events";
 import { findPlaybookForChange, listRunningStepsOn, listRunningTwins } from "@chanlytics/db/campaigns";
 import {
   findWorkspaceZoneStatus,
@@ -43,7 +42,6 @@ import {
   writePlaybookChange,
 } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
-import { serviceDb } from "@/server/shared/service-db";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { recordDecision, type playbookScope } from "@/server/shared/verbs";
 import {
@@ -60,6 +58,7 @@ import { refuseWhenNoMailboxSends } from "@/server/campaigns/reach-outs/mailbox-
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
@@ -429,7 +428,7 @@ async function rewritePlaybook(ctx: RouteContext, body: Record<string, unknown>,
  * channels), and who by; never the words. As the service role: a session may not insert into events.
  */
 async function playbookEdited(ctx: RouteContext, p: PlaybookRow, name: string, fields: string[]): Promise<void> {
-  await emitEvent(serviceDb(), p.tenant_id, "playbook.changed", "playbook", p.id, { name, by: ctx.userId, fields });
+  await emitWorkspaceEvent(p.tenant_id, "playbook.changed", "playbook", p.id, { name, by: ctx.userId, fields });
 }
 
 export async function deletePlaybook(ctx: RouteContext, playbook: PlaybookRow) {

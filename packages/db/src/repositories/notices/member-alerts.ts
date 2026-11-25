@@ -229,3 +229,29 @@ export async function findOwnAddressIn(db: Db, params: { tenantId: TenantId; use
   if (error) throw new DbFailure(error, "cannot read who is in the workspace");
   return data ? findMemberEmail(db, params.userId) : null;
 }
+
+/** The notification a push_send job names, in its workspace: what the phones are told, and whether it closed meanwhile. */
+export const findNotificationToPush = async (db: Db, tenantId: TenantId, notificationId: string) =>
+  db
+    .from("notifications")
+    .select("id, tenant_id, kind, title, body, route, recipient_user_id, closed_at")
+    .eq("id", notificationId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+/** The phones of these readers, each with its token. */
+export const listPhonesOf = async (db: Db, userIds: readonly string[]) =>
+  db
+    .from("push_devices")
+    .select("token, user_id")
+    .in("user_id", [...userIds]);
+
+/** Phones the push service says are gone, forgotten, so no later send tries them; a write that fails throws. */
+export async function forgetGonePhones(db: Db, tokens: readonly string[]): Promise<void> {
+  if (!tokens.length) return;
+  const { error } = await db
+    .from("push_devices")
+    .delete()
+    .in("token", [...new Set(tokens)]);
+  if (error) throw new DbFailure(error, "cannot forget the phones that are gone");
+}

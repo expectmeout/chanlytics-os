@@ -20,7 +20,8 @@ import {
 } from "@chanlytics/contracts";
 import type { ReportFactVM } from "./model/facts";
 import { metricWordsOf } from "@chanlytics/contracts/report-lens";
-import { listRoute, openBookingTool, routeDoor } from "../frame-verbs";
+import { openBookingTool, routeDoor } from "../frame-verbs";
+import { plListRoute } from "../people/words";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Figure } from "../kit/figure/figure";
@@ -61,7 +62,7 @@ export function RptSection({
 }
 
 /** The page's own phone, under which it draws the meters smaller; and the frame's, under which the strip has no act beside it. */
-const RPT_PHONE_QUERY = "(max-width: 760px)";
+const RPT_PHONE_QUERY = "(max-width: 900px)";
 const FRAME_PHONE_QUERY = "(max-width: 900px)";
 
 const widthQuery = (query: string) => (typeof window.matchMedia === "function" ? window.matchMedia(query) : null);
@@ -232,12 +233,12 @@ function bookedRest(bk: BookingReportVM) {
       <span>
         {bk.rest}
         {/* People already keeps a list of its own for these people, so the door is that list and not the page of
-            everyone: listRoute lands on it, or on People itself where the lists have not loaded. The door wears
+            everyone: plListRoute lands on it, or on People itself where the lists have not loaded. The door wears
             the list's name rather than "See them", because the list counts its own month and this card counts the
             period above: the same people, near enough to go and look, not the same set to the person. */}
         {bk.unbooked > 0 && (
           <Tooltip tip="People's own list of who wrote or called this month and has never been on the calendar">
-            <LinkButton {...routeDoor(listRoute("asked_never_booked"))} data-testid="booked-rest-door">
+            <LinkButton {...routeDoor(plListRoute("asked_never_booked"))} data-testid="booked-rest-door">
               Asked, never booked
             </LinkButton>
           </Tooltip>

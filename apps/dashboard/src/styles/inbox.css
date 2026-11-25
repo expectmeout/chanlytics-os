@@ -4155,3 +4155,9 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
     margin: calc(var(--space-1) * -1) 0 calc(var(--space-3) * -1);
   }
 }
+
+/* Small marks in the faint ink, written on the element until 25 Nov 2026: a step's arrow to whom (approval.tsx) and a
+   pinned thread's pin (header.tsx). AI's face in a thread's timeline, a step under the face's own size (timeline.tsx). */
+.icon.ix-appr-to { margin-left: 5px; color: var(--ink-faint); }
+.icon.ix-th-pin { color: var(--ink-faint); }
+.ix-tl-who { width: 18px; height: 18px; font-size: var(--text-2xs); }

@@ -1,7 +1,7 @@
 /**
  * The replies to a workspace's reach-outs, as the shell's pages read them (Reach out Part 5, PR 7): the readings of the
- * last thirty days as `__REPLIES`, and `__replies`, the undo and the words the Inbox draws them in (contracts
- * reach-out/reply-words.ts). Its own surface, so the moments' read
+ * last thirty days, held with the bridge's reads (held-reads.ts), and `replies`, the undo and the words the Inbox draws them in (contracts
+ * reach-out/reply-words.ts), provided for the thread (provided.ts). Its own surface, so the moments' read
  * (surface-data.ts) takes nothing more; it is read again when a reading is kept, drafted or undone.
  */
 import {
@@ -16,16 +16,25 @@ import {
 import { api, read } from "../api";
 import type { SurfaceOverride } from "../surface-data";
 import { declareReads } from "../surface-registry";
+import { provide, provided } from "../provided";
+import { heldRead, holdRead } from "../held-reads";
 
-type WithReplies = Window & { __REPLIES?: ReachOutRepliesDto | null };
+declare module "../provided" {
+  interface BridgeParts {
+    /** A sent message's reply from a lead, as a thread shows it. */
+    replies: RepliesApi;
+  }
+}
 
 /**
- * The readings as `__REPLIES` ({ replies, mailbox }), set the moment they are read, newest first. Null when they could
- * not be read: the Inbox then draws the thread without them, never a reading it did not read.
+ * The readings ({ replies, mailbox }), held the moment they are read, newest first (held-reads.ts). Null when they could
+ * not be read: the Inbox then draws the thread without them, never a reading it did not read. Undefined before the first.
  */
+const repliesHeld = (): ReachOutRepliesDto | null | undefined => heldRead("reach_out_replies");
+
 export const repliesOverride: SurfaceOverride = {
   key: "reach_out_replies",
-  globals: ["__REPLIES"],
+  held: true,
   events: ["surface:reach_out_replies"],
   // And the mailbox a reply came to, which the strip names (decision 0056): a mailbox connected, renamed or paused, a few a year.
   ...declareReads("reach_out_replies", {
@@ -39,11 +48,10 @@ export const repliesOverride: SurfaceOverride = {
     ],
   }),
   apply: async () => {
-    const w = window as WithReplies;
     try {
-      w.__REPLIES = await read("GET reach-out-replies");
+      holdRead("reach_out_replies", await read("GET reach-out-replies"));
     } catch (e) {
-      w.__REPLIES = null;
+      holdRead("reach_out_replies", null);
       window.dispatchEvent(new CustomEvent("surface:reach_out_replies"));
       throw e;
     }
@@ -55,7 +63,7 @@ const conversationOf = (threadId: string): string => String(threadId).replace(/^
 
 /** The newest reading on a thread, from the surface as last read; null when it has none, or none could be read. */
 function readingOf(threadId: string): ReachOutReplyDto | null {
-  const all = (window as WithReplies).__REPLIES;
+  const all = repliesHeld();
   const id = conversationOf(threadId);
   return all ? (all.replies.find((r) => r.conversation_id === id) ?? null) : null;
 }
@@ -67,7 +75,7 @@ interface StripThread {
 }
 
 /** The business's zone, as the shell's clock holds it. */
-const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
+const businessZone = (): string => provided("clock")?.zone() ?? "UTC";
 
 export const replies = {
   /** "Read as no · undo": the door's answer, `{ ok }` or its refusal in contracts' words. */
@@ -86,7 +94,7 @@ export const replies = {
   chipStateOf: replyChipStateOf,
   /** The composer's line for a thread: where an answer goes out from, or null. */
   fromLineOf: (threadId: string): string | null => {
-    const all = (window as WithReplies).__REPLIES;
+    const all = repliesHeld();
     const r = readingOf(threadId);
     return all && r ? replyFromLineOf(r.reply_from, all.mailbox) : null;
   },
@@ -101,7 +109,7 @@ export const replies = {
     const timeline = thread.timeline ?? [];
     const at = timeline.findIndex((e) => e.messageId === r.message_id);
     if (at >= 0 && timeline.slice(at + 1).some((e) => e.byYou)) return null;
-    const all = (window as WithReplies).__REPLIES;
+    const all = repliesHeld();
     return {
       reading: r,
       strip: replyStripOf(r, Date.now(), businessZone()),
@@ -110,12 +118,9 @@ export const replies = {
   },
 };
 
-declare global {
-  interface Window {
-    __replies?: typeof replies;
-  }
-}
+/** What a thread reaches of the readings without carrying this module (provided.ts). */
+type RepliesApi = typeof replies;
 
 export function installReplies(): void {
-  window.__replies = replies;
+  provide("replies", replies);
 }

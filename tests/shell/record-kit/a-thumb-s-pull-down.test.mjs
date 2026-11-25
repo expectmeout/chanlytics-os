@@ -3,8 +3,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { unmount, all, find, byTestId, textOf, classes, press, atWidth } from "../../_stub-react.mjs";
-import { W, asPhone, bookingRules, dialogOf, draw, drawFold, inRoots, offer, redraw, thumb } from "./_record-kit.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
+import { W, bookingRules, dialogOf, draw, drawFold, fakeNode, offer, popupOf, redraw, thumb } from "./_record-kit.mjs";
 
 test("touchSwipe reads one way from a thumb's travel: across when it went further across, down only from a scroller's top", () => {
   const went = [];
@@ -35,134 +35,36 @@ test("touchSwipe reads one way from a thumb's travel: across when it went furthe
   assert.deepEqual(gated, ["left"]);
 });
 
-test("on a phone a pull down on a sheet from its top is its Close; beside a desktop page it is not", () => {
+test("on a phone a pull down on a sheet from its top is its Close, not while its save is out; beside a desktop page it is not", () => {
   const closed = [];
-  const sheetOf = (props = {}) =>
-    find(draw(W.RecordSheet, offer({ onClose: () => closed.push(1), ...props })), (n) =>
-      classes(n).includes("rec-sheet"),
-    );
-  asPhone(() => {
-    thumb(sheetOf().props, 4, 120);
+  const popup = (props = {}) => popupOf(draw(W.RecordSheet, offer({ onClose: () => closed.push(1), ...props }))).props;
+  const kitPhone = (fn) => {
+    const was = W.matchMedia;
+    W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+    try {
+      fn();
+    } finally {
+      W.matchMedia = was;
+    }
+  };
+  kitPhone(() => {
+    thumb(popup(), 4, 120);
     assert.deepEqual(closed, [1], "the sheet rose from the bottom, and goes back the way it came");
-    thumb(sheetOf({ saving: true }).props, 4, 120);
+    thumb(popup({ saving: true }), 4, 120);
     assert.deepEqual(closed, [1], "not while its save is out");
-    thumb(sheetOf().props, 4, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 80, parentElement: null });
+    thumb(popup(), 4, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 80, parentElement: null });
     assert.deepEqual(closed, [1], "a pull through a scrolled body is a scroll");
   });
-  thumb(sheetOf().props, 4, 120);
+  thumb(popup(), 4, 120);
   assert.deepEqual(closed, [1], "beside a desktop page the sheet is not pulled");
   // The fold's sheet, the same way: the pull is its Cancel.
   const cancelled = [];
-  asPhone(() => {
+  kitPhone(() => {
     thumb(dialogOf(drawFold(bookingRules({ onCancel: () => cancelled.push(1) }))).props, 0, 100);
     assert.deepEqual(cancelled, [1]);
     thumb(dialogOf(drawFold(bookingRules({ saving: true, onCancel: () => cancelled.push(1) }))).props, 0, 100);
     assert.deepEqual(cancelled, [1], "and nothing cancels a save on its way");
   });
-});
-
-test("Tab stays inside a sheet, and wraps round both ways", () => {
-  const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
-  const focused = [];
-  const control = (name, over = {}) => ({
-    name,
-    tabIndex: 0,
-    disabled: false,
-    getClientRects: () => [{}],
-    focus: () => focused.push(name),
-    ...over,
-  });
-  const [first, middle, last] = ["first", "middle", "last"].map((name) => control(name));
-  // Last in the sheet, and never a tab stop: a radiogroup's unchosen option (tabindex -1), and a closed fold's button,
-  // which has no box on screen. A trap that counted them took them for its last stop, and Tab walked out of the sheet.
-  const unchosen = control("unchosen", { tabIndex: -1 });
-  const folded = control("folded", { getClientRects: () => [] });
-  const box = { querySelectorAll: () => [first, middle, last, unchosen, folded] };
-  const doc = globalThis.document;
-  const was = doc.activeElement;
-  const tabFrom = (at, shiftKey) => {
-    doc.activeElement = at;
-    const e = {
-      key: "Tab",
-      shiftKey,
-      currentTarget: box,
-      defaultPrevented: false,
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
-    };
-    sheet.props.onKeyDown(e);
-    return e.defaultPrevented;
-  };
-  try {
-    assert.equal(tabFrom(last, false), true, "Tab from the last control goes round to the first");
-    assert.equal(tabFrom(first, true), true, "Shift+Tab from the first goes round to the last");
-    assert.equal(tabFrom(box, true), true, "and from the sheet itself, where focus lands as it opens, to the last too");
-    assert.equal(tabFrom(middle, false), false, "between the ends, the browser moves focus as ever");
-  } finally {
-    doc.activeElement = was;
-  }
-  assert.deepEqual(focused, ["first", "last", "last"]);
-});
-
-test("a sheet takes focus as it opens, gives it back to what opened it, and opens inside the app", () => {
-  const focused = [];
-  const opener = { focus: () => focused.push("opener") };
-  // An element as the sheet reads it as it mounts: what it focuses, and its data attributes (a steady sheet, #1762).
-  const panel = { focus: () => focused.push("sheet"), dataset: {} };
-  const appRoot = { app: "root" };
-  const portals = [];
-  const doc = globalThis.document;
-  const was = {
-    activeElement: doc.activeElement,
-    querySelector: doc.querySelector,
-    createPortal: W.ReactDOM.createPortal,
-  };
-  Object.assign(doc, { activeElement: opener, querySelector: (sel) => (inRoots(sel, ".app-root") ? appRoot : null) });
-  W.ReactDOM.createPortal = (node, into) => {
-    portals.push(into);
-    return node;
-  };
-  try {
-    const tree = draw(W.RecordSheet, offer());
-    const sheet = find(tree, (n) => classes(n).includes("rec-sheet"));
-    assert.equal(sheet.props.tabIndex, -1, "the sheet itself can take focus, so a screen reader names it");
-    // React calls a callback ref with the element as it mounts and with null as it goes; the stub calls neither.
-    sheet.props.ref(panel);
-    sheet.props.ref(null);
-  } finally {
-    Object.assign(doc, { activeElement: was.activeElement, querySelector: was.querySelector });
-    W.ReactDOM.createPortal = was.createPortal;
-  }
-  assert.deepEqual(focused, ["sheet", "opener"]);
-  assert.deepEqual(
-    portals,
-    [appRoot],
-    "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout",
-  );
-});
-
-test("on the first run, drawn in place of the app's chrome, a sheet and a fold's sheet open in its own shell", () => {
-  const shell = { first: "run" };
-  const portals = [];
-  const doc = globalThis.document;
-  const was = { querySelector: doc.querySelector, createPortal: W.ReactDOM.createPortal };
-  // The first run draws no .app-root (surfaces/frame/shell-chrome.tsx): its shell is the root there.
-  doc.querySelector = (sel) => (inRoots(sel, ".fr-shell") ? shell : null);
-  W.ReactDOM.createPortal = (node, into) => {
-    portals.push(into);
-    return node;
-  };
-  const width = atWidth(false);
-  try {
-    draw(W.RecordSheet, offer());
-    draw(W.RecordFold, { id: "hours", label: "Hours", frame: "sheet", onSave: () => {}, onCancel: () => {} });
-  } finally {
-    doc.querySelector = was.querySelector;
-    W.ReactDOM.createPortal = was.createPortal;
-    width.put();
-  }
-  assert.deepEqual(portals, [shell, shell]);
 });
 
 test("a sheet gives focus back as a fold does: to the field the person was in when what held it goes, and to a row the page names", () => {
@@ -216,9 +118,11 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   try {
     doc.activeElement = { name: "opener" };
     let tree = draw(W.RecordSheet, offer());
-    const sheet = () => find(tree, (n) => classes(n).includes("rec-sheet"));
-    // React calls a callback ref with the element as it mounts; the stub calls none, so this is that moment.
+    const sheet = () => popupOf(tree);
+    // React calls a callback ref with the element as it mounts; the stub calls none, so this is that moment. Base UI
+    // focuses the sheet itself as it opens (the kit's Sheet, initialFocus).
     sheet().props.ref(panel);
+    panel.focus();
     assert.deepEqual(focused, ["sheet"], "as it opens, focus is on the dialog, so a screen reader names it");
     doc.activeElement = panel;
     // The person is in Service 3's name, removes the row, and focus is put on the Undo left in its place; the toast's
@@ -298,7 +202,7 @@ test("a sheet given a Save draws the fold's own foot, and the ask in its place w
   press(byTestId(foot(), "rec-sheet-save-services"));
   press(byTestId(foot(), "rec-sheet-cancel-services"));
   assert.deepEqual([saves.length, cancels.length], [1, 1], "Save saves, and Cancel is the sheet's close, with its ask");
-  const sheet = () => find(tree, (n) => classes(n).includes("rec-sheet"));
+  const sheet = () => popupOf(tree);
   const key = (over) => ({
     key: "Enter",
     defaultPrevented: false,
@@ -424,23 +328,35 @@ test("a row of chips caps itself, and says how many it cut in the words it was g
   assert.equal(rowOf(given), "rec-chips", "names stay chips");
 });
 
-test("a sheet React lets go of leaves the way it came, with the wash that stood behind it", async () => {
-  const kept = W.leaveOverlay;
-  const left = [];
-  W.leaveOverlay = (n, w) => left.push([n, w]);
+test("a sheet its page lets go of while it is open leaves the way it came, with its wash, from still copies on the body", async () => {
+  // The kit's Sheet (useLeavesWhenLetGo): most pages draw a sheet only while it is open, and Base UI's portal goes with
+  // it in the same commit, so the copies that play its leaving go on the document's body.
+  const doc = globalThis.document;
+  const was = doc.body;
+  const put = [];
+  doc.body = { appendChild: (n) => put.push(n) };
+  const wash = fakeNode("div", { class: "sheet-backdrop" });
+  const el = fakeNode("section", { class: "sheet" });
+  el.parentElement = { querySelector: (sel) => (sel === ".sheet-backdrop" ? wash : null) };
+  el.style = { setProperty() {} };
+  el.dataset = {};
   try {
-    const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
-    const wash = { className: "rec-sheet-backdrop" };
-    const el = { previousElementSibling: wash, focus() {}, dataset: {} };
-    sheet.props.ref(el);
-    sheet.props.ref(null);
-    assert.deepEqual(left, [], "not from a frame mounted and let go of at once (StrictMode's check)");
-    sheet.props.ref(el);
+    popupOf(draw(W.RecordSheet, offer())).props.ref(el);
+    unmount();
+    assert.deepEqual(put, [], "not from a frame mounted and let go of at once (StrictMode's check)");
+    popupOf(draw(W.RecordSheet, offer())).props.ref(el);
     await new Promise((r) => setTimeout(r, 70));
-    sheet.props.ref(null);
-    assert.deepEqual(left, [[el, wash]], "React takes the wash first, so the one held as it opened goes with it");
+    unmount();
+    assert.deepEqual(
+      put.map((n) => [n.attrs.class, n.attrs["data-leaving"], n.attrs["aria-hidden"]]),
+      [
+        ["sheet-backdrop", "true", "true"],
+        ["sheet", "true", "true"],
+      ],
+      "its wash and the sheet, each a still copy playing its leaving",
+    );
   } finally {
-    W.leaveOverlay = kept;
+    doc.body = was;
   }
 });
 

@@ -11,10 +11,11 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import { installStubReact, fresh, again, settle, quiet, redrawWanted } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -86,6 +87,7 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 /* -------------------------------- a browser -------------------------------- */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
   location: {
     pathname: "/w/marisas",
@@ -95,10 +97,7 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -197,7 +196,7 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   const standing = find(pane, byTestId("ix-th-standing"));
   assert.equal(textOf(standing), "Needs you40mWaiting 40m");
   const meta = find(standing, hasClass("ix-th-standing-meta"));
-  assert.equal(meta.props.title, "Waiting 40m", "the wait, named on a hover");
+  assert.equal(meta.props["data-tip"], "Waiting 40m", "the wait, named on a hover");
   // The figure is the eye's; a screen reader is told the whole of it, where "40m" alone read as a length of nothing.
   assert.equal(meta.props["aria-hidden"], true);
   assert.equal(textOf(find(standing, hasClass("ix-wait-said"))), "Waiting 40m");

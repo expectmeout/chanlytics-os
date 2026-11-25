@@ -36,6 +36,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode } from "../_source.mjs";
 import { personRow } from "./_person-row.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // People's table, from the code the page draws it with (surfaces/people/cells/columns.tsx), not a scan of it.
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -165,10 +166,14 @@ test("TWO lists, because there are two answers: one for messages, one for offers
     "cl-row-offers cl-row-offers-held",
     "marked as held, in the page's own name",
   );
-  assert.match(unsent.td.props.title, /No phone number on file/, "the reason is the send's own (contracts heldWords)");
+  assert.match(
+    unsent.td.props["data-tip"],
+    /No phone number on file/,
+    "the reason is the send's own (contracts heldWords)",
+  );
   const yes = drawn("unknown", "opted_in");
   assert.equal(yes.td.props["data-testid"], "row-offers");
-  assert.equal(yes.td.props.title, yes.p.consent.marketingSub, "and its tooltip is that answer's own history");
+  assert.equal(yes.td.props["data-tip"], yes.p.consent.marketingSub, "and its tip is that answer's own history");
 });
 
 test("the front desk's consent changes take one bucket: sixty a minute", () => {
@@ -196,17 +201,22 @@ test("the front desk's consent changes take one bucket: sixty a minute", () => {
  * one line that mattered wrote `contacts.consent`. Only running it and watching
  * where the write goes catches that.
  * -------------------------------------------------------------------------- */
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 const W = globalThis;
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 const BRIDGE = "../../apps/dashboard/src/bridge";
 // What the shell still provides around a person's page: who is signed in, the workspace's name (the desk's script says
 // it), the shell's toast, and the role store the gates ask (the frame's, completed by the bridge).
 const toasts = [];
+bridgeHolds({
+  who: {
+    me: { role: "operator", id: "u-me" },
+    workspaces: [{ id: "t-1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t-1",
+  },
+});
 Object.assign(W, {
-  __ME: { role: "operator", id: "u-me" },
-  __WORKSPACES: [{ id: "t-1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t-1",
   CHANLY: { nav() {} },
   usePPToast: () => [null, (t) => toasts.push(t)],
 });

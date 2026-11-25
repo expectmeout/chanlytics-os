@@ -37,6 +37,7 @@ import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";
 import { templatesRead } from "../../tooling/scripts/e2e-harness/templates-read.mjs";
 import { NOBODY_ONCE } from "../../e2e/campaigns/nobody-once.ts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -51,6 +52,12 @@ const NOW = Date.parse("2026-09-22T09:00:00Z");
 // The page's window is the stub React's (installStubReact: window IS globalThis), with the harness's workspace in it, as
 // the bridge publishes it, and the shell's doors the TSX pages reach through the bridge's verbs.
 const toasts = [];
+bridgeHolds({
+  who: {
+    workspaces: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active" }],
+    activeWorkspaceId: WORKSPACE.id,
+  },
+});
 installStubReact({
   location: {
     pathname: `/w/${WORKSPACE.slug}/`,
@@ -60,8 +67,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: WORKSPACE.id, slug: WORKSPACE.slug, name: WORKSPACE.name, status: "active" }],
-  __ACTIVE_WORKSPACE: WORKSPACE.id,
   setInterval: () => 1,
   clearInterval() {},
 });
@@ -69,20 +74,20 @@ const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
+bridgeHolds({
+  who: { me: { role: "owner" } },
+  parts: { chrome: { state: contracts.stateOf }, surfaceState: () => "live" },
+});
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   appNavigate() {},
-  __chrome: { state: contracts.stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __surfaceState: () => "live",
   // The role store: who is acting (an owner), and the policies a chip reads, each at its default.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner", get: (key, def) => def, set() {} },
-  __roleGate: contracts.roleGate,
 });
 const quiet = console.error;
 console.error = () => {};
@@ -283,6 +288,8 @@ const newPane = (record, draft) => {
 };
 /** The host element a testid names (a kit Button is its own node and the host button it draws, both carrying the id). */
 const hostOf = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
+/** A sheet by the test id the page hands the kit's Sheet: what it holds, open or shut (shut, Base UI draws none of it). */
+const sheetNamed = (tree, testid) => find(tree, (n) => n.props?.testid === testid);
 
 test("New's one-off that reaches nobody holds Send now back and says why, with the yes it needs as its door, as the spec expects, over every record", () => {
   for (const [name, record] of WORKSPACES) {
@@ -336,12 +343,12 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   );
   // The message sheet offers both, each a press.
   assert.deepEqual(
-    held.map((m) => !!hostOf(byTestId(pane, "sq-nw-message"), `sq-nw-message-${m.template_id}`)),
+    held.map((m) => !!hostOf(sheetNamed(pane, "sq-nw-message"), `sq-nw-message-${m.template_id}`)),
     [true, true],
     "both, in the sheet that picks the message",
   );
   // How it goes, each channel's row saying why it can't be ticked: no WhatsApp version, no text line. No number is asked for.
-  const channels = byTestId(pane, "sq-nw-channels");
+  const channels = sheetNamed(pane, "sq-nw-channels");
   const rowOf = (name) => find(channels, (n) => n.props?.className === "sq-nw-switchrow" && textOf(n).startsWith(name));
   for (const [name, why] of [
     [W.channels.whatsapp, contracts.noVersionWords("whatsapp")],

@@ -23,7 +23,9 @@ export const JOB_WRITERS = {
     clock: "deadman",
     why: "a throw withdraws the email; a death leaves a queued email the sweep fails",
   },
-  "apps/dashboard/src/server/shared/jobs.ts|*": { passes: "schedule(), for the dashboard's two sends" },
+  "apps/dashboard/src/server/shared/ledgers/jobs.ts|*": {
+    passes: "schedule() and scheduleOnce(), for the dashboard's two sends and a held booking notice read again",
+  },
   "apps/edge/lib/campaigns/reach-out/sender/lanes.ts|outbound_send": {
     clock: "reach_out",
     why: "adopt: a queued email with no job is given one, once",

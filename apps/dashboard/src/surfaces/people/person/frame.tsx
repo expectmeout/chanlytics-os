@@ -18,7 +18,7 @@ export function PersonProfileFrame({ onBack, children }: { onBack: () => void; c
       <div className="cl-prof-page">
         <div className="cl-prof-hero">
           <Button variant="quiet" size="sm" className="cl-prof-back" onClick={onBack} aria-label="Back to People">
-            <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
+            <Icon name="chevron" size={11} className="cl-prof-back-turn" />
             <span className="cl-prof-back-word">People</span>
           </Button>
           {children}
@@ -55,7 +55,7 @@ export function PersonWalkNav({
         size="sm"
         iconOnly
         aria-label={W.previous}
-        title={W.previous}
+        data-tip={W.previous}
         disabled={!w.prev}
         onClick={go(w.prev)}
         data-testid="person-walk-prev"
@@ -68,7 +68,7 @@ export function PersonWalkNav({
         size="sm"
         iconOnly
         aria-label={W.next}
-        title={W.next}
+        data-tip={W.next}
         disabled={!w.next}
         onClick={go(w.next)}
         data-testid="person-walk-next"

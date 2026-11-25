@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/bridge/policy-store";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { choiceAct } from "../choice-act";
 import { Press } from "../../kit/press";
 import { RecordTip } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
@@ -86,10 +86,11 @@ function PolModeHead({ m }: { m: UiMode }) {
 }
 
 /**
- * Whether the pane is a phone's, at Settings' own breakpoint (mobile.css, 640px), kept current as the window changes
- * size, as the record kit reads its own. Read whatever the pane draws, so a pane holds the same hooks at either width.
+ * Whether the pane is a phone's, at the product's phone (tokens.css --bp-phone, 720px; Settings' own 640px until 25 Nov
+ * 2026), kept current as the window changes size, as the record kit reads its own. Read whatever the pane draws, so a
+ * pane holds the same hooks at either width.
  */
-const SET_PHONE_QUERY = "(max-width: 640px)";
+const SET_PHONE_QUERY = "(max-width: 720px)";
 const phoneQuery = () => (typeof window.matchMedia === "function" ? window.matchMedia(SET_PHONE_QUERY) : null);
 export function useSetPhone(): boolean {
   const [phone, setPhone] = useState(() => {
@@ -107,8 +108,9 @@ export function useSetPhone(): boolean {
 }
 
 /**
- * One action class as a line: its mode as a word that opens a menu of the modes the class takes, each saying what it
- * does. The phone's matrix is these lines, and Replies is one on every width (its card holds its hold window and its
+ * One action class as a line: its mode as the row's value, and the row's act a menu of the modes the class takes, each
+ * saying what it does (../choice-act.tsx: the phone change list's B3, where the mode was a word with a caret inside it).
+ * The phone's matrix is these lines, and Replies is one on every width (its card holds its hold window and its
  * confidence dial under it, pane.tsx).
  */
 export function PolModeRow({
@@ -135,28 +137,23 @@ export function PolModeRow({
           {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
         </>
       }
-      value={
-        <MoreMenu
-          // The sheet says which kind it sets, over each mode with what it does under its name (MoreMenu puts a
-          // sentence under the words on a phone): the sentence was cut at the line's end.
-          items={[
-            { header: r.label },
-            ...UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
-              label: polMode(m).head,
-              hint: (r.hints && r.hints[m]) || polMode(m).does,
-              checked: r.mode === m,
-              onClick: () => put(r, m.toLowerCase()),
-            })),
-          ]}
-          label={polMode(r.mode).head}
-          title={`${r.label}: ${String(polMode(r.mode).head)}`}
-          btnClass="bt-link pol-phone-mode"
-          align="right"
-          escape
-          gated={gated}
-          testid={`pol-phone-mode-${r.id}`}
-        />
-      }
+      value={polMode(r.mode).head}
+      act={choiceAct({
+        // The sheet says which kind it sets, over each mode with what it does under its name (MoreMenu puts a sentence
+        // under the words on a phone): the sentence was cut at the line's end.
+        items: [
+          { header: r.label },
+          ...UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+            label: polMode(m).head,
+            hint: (r.hints && r.hints[m]) || polMode(m).does,
+            checked: r.mode === m,
+            onClick: () => put(r, m.toLowerCase()),
+          })),
+        ],
+        name: `${r.label}: ${String(polMode(r.mode).head)}`,
+        gated,
+        testid: `pol-phone-mode-${r.id}`,
+      })}
     />
   );
 }

@@ -14,7 +14,6 @@ import assert from "node:assert/strict";
 import {
   toInboxThreadVM,
   stateOf,
-  memberWords,
   dealMenuActs,
   DEAL_ACT_WORDS,
   NOTE_WORDS,
@@ -24,12 +23,20 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf }, surfaceState: () => "live", href: (route, p) => `${route}|${p.id}` },
+});
 installStubReact({
   location: {
     pathname: "/w/marisas",
@@ -39,18 +46,12 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: {
     nav() {},
     R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
     IX_NOW: "12:04",
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
-  __surfaceState: () => "live",
-  __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
   setTimeout: () => 1,
@@ -477,7 +478,7 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   // round (inbox.css .ix-th-more), 44px under a thumb.
   const trigger = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === Menu).props.trigger;
   assert.ok(trigger.props.iconOnly && trigger.props.className === "ix-th-more", "a glyph alone, on its round");
-  assert.equal(trigger.props.title, "More");
+  assert.equal(trigger.props["data-tip"], "More");
   assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
   // Three dots, never a caret: beside a reply box that folds, a caret read as its fold (2 Nov 2026).
   assert.ok(
@@ -802,7 +803,7 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
     assert.equal(textOf(door(tree)).trim(), "Tue, Sep 8 · 2:00 PM", "the visit's own words");
     assert.ok(hasClass("ahead")(door(tree)));
     // Its tip says the workspace's word for one (visitWordHere), never "visit" written in.
-    assert.equal(door(tree).props.title, "Open their appointment");
+    assert.equal(door(tree).props["data-tip"], "Open their appointment");
     // The fact under the name says it for a phone, whose head has no room beside it; a desk hides it, so it is said once.
     assert.equal(textOf(said(tree)), "Next appointment Tue, Sep 8 2:00 PM", "the words under the name are the phone's");
     // A visit with no page of its own (a line People could not tie to a visit) is words alone, wherever it is drawn.
@@ -836,23 +837,28 @@ test("a step due under the head: what, and when it was due, with Done outside th
   // The surfaces read again (frame-verbs refreshSurface, through the runner's door).
   const readAgain = [];
   const w = globalThis.window;
-  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate, __refreshSurface: w.__refreshSurface };
-  Object.assign(w, {
-    __refreshSurface: (key) => {
-      readAgain.push(key);
-      return Promise.resolve();
-    },
-    __clock: { zone: () => ZONE },
-    __personNotes: {
-      dayOf: stepDayOf,
-      dueDay: dueStepDay,
-      words: NOTE_WORDS,
-      done: async (...a) => {
-        pressed.push(a);
-        if (hold) await hold;
-        return answer;
+  bridgeHolds({ parts: { refreshSurface: provided("refreshSurface") } });
+  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
+  bridgeHolds({
+    parts: {
+      refreshSurface: (key) => {
+        readAgain.push(key);
+        return Promise.resolve();
+      },
+      clock: { zone: () => ZONE },
+      personNotes: {
+        dayOf: stepDayOf,
+        dueDay: dueStepDay,
+        words: NOTE_WORDS,
+        done: async (...a) => {
+          pressed.push(a);
+          if (hold) await hold;
+          return answer;
+        },
       },
     },
+  });
+  Object.assign(w, {
     dispatchEvent: (e) => {
       events.push([e.type, e.detail]);
       return true;
@@ -966,8 +972,8 @@ test("a step due under the head: what, and when it was due, with Done outside th
   } finally {
     Object.assign(w, keep);
     peopleAre(undefined);
-    delete w.__personNotes;
-    delete w.__clock;
+    bridgeHolds({ parts: { personNotes: undefined } });
+    bridgeHolds({ parts: { clock: undefined } });
     delete w.openStepSheet;
   }
 });
@@ -976,12 +982,12 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const itemsOf = (tree) => itemsIn(find(tree, (n) => n.type === Menu));
   const shape = (tree) => menuShape(find(tree, (n) => n.type === Menu));
-  const was = { deal: globalThis.window.__deal, open: globalThis.window.openDealSheet };
+  const was = { deal: provided("deal"), open: globalThis.window.openDealSheet };
   const opened = [];
   // What happens, in order: the Actions button taking focus, and the sheet asked for.
   const order = [];
   // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
-  globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
+  bridgeHolds({ parts: { deal: { menu: dealMenuActs, actWords: DEAL_ACT_WORDS } } });
   globalThis.window.openDealSheet = (ask) => {
     opened.push(ask);
     order.push("sheet");
@@ -1062,7 +1068,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   } finally {
     peopleAre(undefined);
     delete globalThis.document.querySelector;
-    globalThis.window.__deal = was.deal;
+    bridgeHolds({ parts: { deal: was.deal } });
     globalThis.window.openDealSheet = was.open;
   }
 });
@@ -1295,9 +1301,9 @@ test("where a thread was held for a person is a quiet mark between the words, it
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const mark = find(tree, byTestId("tl-held"));
   assert.ok(mark, "the mark");
-  // "Waits for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it waits is the dock's line, and the mark's title.
+  // "Waits for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it waits is the dock's line, and the mark's tip.
   assert.match(textOf(mark), /^Waits for you· \d{1,2}:\d{2} [AP]M$/);
-  assert.match(mark.props.title, /asked for a person/);
+  assert.match(mark.props["data-tip"], /asked for a person/);
   assert.ok(!textOf(tree).includes("Flagged for a human"), "REGRESSION: the flag's label, said over the dock's");
 });
 
@@ -1410,7 +1416,7 @@ test("an automatic email from their address does not move the reply to email: th
 
 test("the conversations read carries the stop into the thread, and one predicate says it for the reply route, the send door and the box", async () => {
   const { toConversationDto } = await import("../../../apps/dashboard/src/server/conversations/dto.ts");
-  const { CONVERSATION_COLUMNS } = await import("../../../apps/dashboard/src/server/conversations/dto.ts");
+  const { CONVERSATION_COLUMNS } = await import("../../../packages/db/src/repositories/conversations/threads.ts");
   const { isEmailStopped } = await import("@chanlytics/contracts");
   assert.match(
     CONVERSATION_COLUMNS,

@@ -50,6 +50,9 @@ import { passesOf, type Passes } from "./hearing/passes";
 import { catchUpOn, QUIET_LOOKBACK_MS, type CatchUp } from "./hearing/catch-up";
 import { BOOT_LANES, runInLanes } from "./hearing/lanes";
 import { watchTheMend } from "./hearing/mend";
+import { provided } from "./provided";
+import { whoIsLooking } from "./who";
+import { pageReport } from "@/client/page-report";
 
 export type { CatchUp, CaughtUpNotice } from "./hearing/catch-up";
 
@@ -91,8 +94,7 @@ const RETRY_AFTER_MS = [2_000, 10_000] as const;
 const READ_WHILE_HIDDEN: ReadonlySet<string> = new Set(["workspace", "inbox", "live", "notifications"]);
 
 /** How long the page on screen may hold the rest of the boot back (hearing/page-waits.ts): the route's wait. */
-const routeWaitOf = (win: Window): number =>
-  (win as Window & { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
+const routeWaitOf = (): number => provided("routeWaitMs") ?? ROUTE_WAIT_MS;
 
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
@@ -257,10 +259,10 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
 
 // The cache is keyed on this, so it must be the workspace actually being
 // viewed — the one the server resolved — or nothing. Keyed on
-// `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
+// the list's first workspace it was constant for a member of two workspaces, and the
 // guard that exists to stop one tenant's rows being restored under
 // another's name would never have fired.
-const viewedWorkspace = () => (window as Window & { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
+const viewedWorkspace = () => whoIsLooking().activeWorkspaceId;
 
 function signOutOnUnauthorized(run: SurfaceRun): void {
   // Cached customer data must never outlive the session allowed to see it, and a read landing before the page unloads
@@ -271,7 +273,7 @@ function signOutOnUnauthorized(run: SurfaceRun): void {
 }
 
 function persistSurface(o: SurfaceOverride): void {
-  if (o.globals?.length || o.value) snapshotSurface(o.key, o.globals ?? [], viewedWorkspace(), o.trimSnapshot, o.value);
+  snapshotSurface(o.key, viewedWorkspace(), o.trimSnapshot, o.value, o.held === true);
 }
 
 /**
@@ -562,7 +564,7 @@ interface SurfaceBoot {
 function bootInPasses(run: SurfaceRun, catchUp: CatchUp | undefined): SurfaceBoot {
   const { overrides } = run;
   // Who is looking, known: the workspace surface's boot settled, which says the workspace on screen
-  // (__ACTIVE_WORKSPACE), the topic the live feed is joined on.
+  // (who.ts), the topic the live feed is joined on.
   let knowWho = () => {};
   const whoIsLooking = new Promise<void>((r) => (knowWho = r));
   const boot = (o: SurfaceOverride) => {
@@ -616,13 +618,13 @@ function bootInPasses(run: SurfaceRun, catchUp: CatchUp | undefined): SurfaceBoo
     const next = routeRank(route);
     strangers.sort((x, y) => next(x) - next(y));
   });
-  const pageIn = firstPass.then(() => (run.cancelled ? undefined : pageReadsIn(routeWaitOf(window))));
+  const pageIn = firstPass.then(() => (run.cancelled ? undefined : pageReadsIn(routeWaitOf())));
   // The page first (piece 3 of "Pages that open at once"): the rest wait for the page on screen to be drawn too, not only
   // for its reads, which were in while a first open's code still loaded; for the route's wait at most.
   const pageOnScreen = pageIn.then(() => {
     // The page's own reads are in: what the document's head started for them and they did not take is nobody's.
     dropPrefetched(window);
-    return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
+    return run.cancelled ? undefined : pageDrawnIn(routeWaitOf());
   });
   // What the device holds of the pages not on screen, and the workspace's topic says has not changed since, is not read
   // again (hearing/kept.ts): asked as the boot begins, so the answer is in by the time the page on screen is drawn. A
@@ -701,7 +703,7 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
     {
       tenantId: ws ? heldTenantId(ws) : undefined,
       onStatus: (status) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") pageReport.warn("realtime_status", ws, status);
         // What a rejoin catches up from: the first word of trouble since the feed was last heard joined.
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") run.quietSince ??= Date.now();
         feed.onStatus(status);

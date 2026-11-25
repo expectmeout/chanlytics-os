@@ -41,6 +41,11 @@ const NOW = Date.now();
 const WINDOW = { from: NOW - 180 * DAY_MS, to: NOW + 60 * DAY_MS };
 /** An instant a whole number of hours from now, as both providers write one. */
 const hoursOn = (h) => new Date(Math.floor(NOW / HOUR_MS) * HOUR_MS + h * HOUR_MS);
+/**
+ * A day in New York a whole number of days from today there, as Google writes an all-day event's ("2026-11-28"). The
+ * holiday was written as 26 Nov 2026 and turned from coming to past at that midnight, so the count went with the clock.
+ */
+const nyDayOn = (days) => new Date(NOW + days * DAY_MS).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 /** The world: the mailbox, its token, the settings naming its calendar, and what a read of the calendar writes. */
 function world({ provider = "google", box = {}, credentials = liveCredentials("ya29.sam"), grant = true } = {}) {
@@ -142,8 +147,8 @@ const GOOGLE = {
         googleEvent({
           id: "closed",
           summary: "Closed for the holiday",
-          start: { date: "2026-11-26" },
-          end: { date: "2026-11-27" },
+          start: { date: nyDayOn(3) },
+          end: { date: nyDayOn(4) },
         }),
         googleEvent({
           id: "lunch",

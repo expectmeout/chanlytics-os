@@ -10,7 +10,6 @@
  * approved). A draft is a read and refreshes nothing. Owner or operator on
  * the server; a viewer's click returns the server's refusal.
  */
-import type { Workspace } from "@/bridge/surface-data";
 import { api } from "@/bridge/api";
 import { fileStarters, syncWhatsAppList } from "@/bridge/verbs/templates";
 import {
@@ -198,14 +197,6 @@ export interface StarterLibrary {
   footer: typeof templateFooter;
   /** What a composer may offer, and one sentence for what it may not. */
   sendable: typeof sendableTemplates;
-}
-
-declare global {
-  interface Window {
-    /** The workspaces, each with its zone and word (identity.ts keeps them). */
-    __WORKSPACES?: Workspace[];
-    __ACTIVE_WORKSPACE?: string;
-  }
 }
 
 /** The starters offered here, by whether the listing keeps a review link (every workspace has the proposal follow-up's). */

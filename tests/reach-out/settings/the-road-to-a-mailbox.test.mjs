@@ -69,18 +69,24 @@ const page = () => drawTab({ part: "outreach", config: {} });
 /** A member the door admits, over the workspace in memory (its role is what route-policy pins). */
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const EVENTS = [];
-const WORLD = fakeDb({
-  memberships: [
-    {
-      user_id: "u1",
-      tenant_id: TENANT,
-      role: "owner",
-      tenants: { slug: "harbor" },
-      created_at: "2026-01-01T00:00:00Z",
-    },
-  ],
-  events: EVENTS,
-});
+/** What reached Tell us's door (mailbox_provider_wanted, 00718), which writes the ask's event itself. */
+const WANTED = [];
+const WORLD = fakeDb(
+  {
+    memberships: [
+      {
+        user_id: "u1",
+        tenant_id: TENANT,
+        role: "owner",
+        tenants: { slug: "harbor" },
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    events: EVENTS,
+  },
+  {},
+  { mailbox_provider_wanted: (args) => void WANTED.push(args) },
+);
 setServiceClient(WORLD);
 const CTX = {
   supabase: WORLD,
@@ -199,10 +205,10 @@ test("Tell us takes a name that says something, and keeps it on the ledger with 
     (e) => e,
   );
   assert.match(String(refused?.message), /Say which you use/);
-  assert.deepEqual(EVENTS, [], "nothing said, nothing kept");
+  assert.deepEqual(WANTED, [], "nothing said, nothing kept: the door is never asked");
   assert.deepEqual(await ask("Microsoft 365"), { told: true });
-  assert.equal(EVENTS.length, 1);
-  assert.equal(EVENTS[0].kind, "mailbox_connection.provider_wanted");
-  assert.equal(EVENTS[0].tenant_id, TENANT);
-  assert.deepEqual(EVENTS[0].data, { provider: "Microsoft 365", by: "u1" });
+  // The ask is the door's whole write, its event with who asked (mailbox_connection.provider_wanted), on the member's
+  // own session: the route writes nothing of its own.
+  assert.deepEqual(WANTED, [{ p_tenant_id: TENANT, p_provider: "Microsoft 365" }]);
+  assert.deepEqual(EVENTS, [], "REGRESSION: the route wrote the ask's event beside the door's");
 });

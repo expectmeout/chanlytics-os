@@ -17,7 +17,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_OWN_EMAIL_WORDS } from "@chanlytics/contracts";
-import { roleGate } from "../../../packages/contracts/src/shell/refusal.ts";
 import { stateOf } from "../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/dock.ts";
@@ -26,6 +25,7 @@ import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -158,10 +158,8 @@ globalThis.window = {
       },
     },
   },
-  __roleGate: roleGate,
-  // The one colour vocabulary, as the app publishes it: the fit's pill takes its tone from here.
-  __chrome: { state: stateOf },
 };
+bridgeHolds({ parts: { chrome: { state: stateOf } } }, { fresh: true });
 // The shell's helpers the sheet still asks of the window by way of frame-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();

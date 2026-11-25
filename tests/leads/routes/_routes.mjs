@@ -379,6 +379,8 @@ export function doors(over = {}) {
       "lead_search_undo",
       over.lead_search_undo ?? (() => ({ removed: 3, credited: 2, op_id: OP, version: 1 })),
     ),
+    // The never-again list, asked on the member's own session (00717): nobody on it unless a test says so.
+    lead_addresses_suppressed: over.lead_addresses_suppressed ?? (() => []),
   };
 }
 

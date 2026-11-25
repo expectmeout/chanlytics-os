@@ -690,11 +690,6 @@ html.frame-on .tpl-fresh {
    the numbers are chosen inside the sentence that says them, and nothing on it
    changes height as it is filled in: a slot typed over keeps its row's height,
    a number picked keeps its select's width. */
-@media (min-width: 761px) {
-  .rec-sheet.pb-sheet {
-    width: min(580px, 94vw);
-  }
-}
 .pb-compose {
   display: flex;
   flex-direction: column;
@@ -994,10 +989,7 @@ html.frame-on .tpl-fresh {
   padding: 0 15px;
   border-radius: var(--radius-md);
 }
-@media (max-width: 760px) {
-  .pb-sheet .rec-sheet-sub {
-    display: none;
-  }
+@media (max-width: 720px) {
   .pb-compose {
     gap: 20px;
     padding-top: 16px;

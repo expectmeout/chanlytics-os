@@ -143,7 +143,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
         variant="primary"
         size={footSize(c)}
         className="pipe-deal-lead-act"
-        title={lead?.act.hint || undefined}
+        data-tip={lead?.act.hint || undefined}
         onClick={press}
         data-testid="pipeline-peek-bar-act"
         {...(lead ? DEAL_GATE : gate("approve", NEW_CONVERSATION_WORDS.gate))}
@@ -212,7 +212,7 @@ export function dealFoot(c: DealSheetCtx, call: CallCtx, passing: boolean, endPa
           variant="quiet"
           className="pipe-deal-circle"
           aria-label={S.message}
-          title={S.message}
+          data-tip={S.message}
           onClick={() => messageThem(c)}
           data-testid="pipeline-peek-message"
           {...gate("approve", NEW_CONVERSATION_WORDS.gate)}

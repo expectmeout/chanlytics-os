@@ -8,7 +8,6 @@ import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared
 
 /** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */
 const STEER_TIMEOUT_MS = MIN_MS;
-import { serviceDb } from "../shared/service-db";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -16,19 +15,21 @@ import type { TenantId } from "@chanlytics/contracts";
  * their reply. A take-over takes it inside its own door, and a hand-back lets
  * it go inside its own (00386), so neither is here.
  *
- * On the service client for the same reason a job is: the column grant fences
- * these columns off from a member's own session, so the claim is the database's
- * to make and not PostgREST's. A person's hold is never refused -- it outranks
- * a call's and is not blocked by a colleague's -- so this answers with nothing,
- * and a failure throws rather than being read as a hold we do not have.
+ * The column grant fences these columns off from a member's own session, so the
+ * claim is the database's to make and not PostgREST's: claim_conversation_control,
+ * on the member's session, which lets a member who acts take their own hold and
+ * no one else's (00717). A person's hold is never refused -- it outranks a call's
+ * and is not blocked by a colleague's -- so this answers with nothing, and a
+ * failure throws rather than being read as a hold we do not have.
  */
 export async function takeThreadControl(
+  db: RouteContext["supabase"],
   tenantId: TenantId,
   conversationId: string,
   userId: string,
   seconds: number,
 ): Promise<void> {
-  const outcome = await claimControl(serviceDb(), {
+  const outcome = await claimControl(db, {
     tenantId,
     conversationId,
     holder: { kind: "person", userId },

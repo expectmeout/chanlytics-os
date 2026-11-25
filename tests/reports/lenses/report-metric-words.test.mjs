@@ -18,8 +18,10 @@ import {
   dtoWith as ledgerWith,
   held as campaignsHeld,
 } from "../campaigns/_campaign-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
 const S = "../../../apps/dashboard/src";
@@ -165,18 +167,22 @@ const GOOGLE = {
 };
 
 const workspace = () => {
-  globalThis.__WORKSPACES = [
-    {
-      id: "w1",
-      slug: "harbor",
-      name: "Harbor Studio",
-      status: "active",
-      timezone: "America/New_York",
-      appointment_word: "meeting",
-      role: "owner",
+  bridgeHolds({
+    who: {
+      workspaces: [
+        {
+          id: "w1",
+          slug: "harbor",
+          name: "Harbor Studio",
+          status: "active",
+          timezone: "America/New_York",
+          appointment_word: "meeting",
+          role: "owner",
+        },
+      ],
     },
-  ];
-  globalThis.__ACTIVE_WORKSPACE = "w1";
+  });
+  bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 };
 const held = reviewsHeld;
 /** Google's public listing alone: the five reviews it shows, the Business Profile not connected, and so no ledger. */

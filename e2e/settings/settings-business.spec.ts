@@ -430,62 +430,67 @@ async function expectFingerSized(page: Page, selector: string, where: string): P
   expect(small, `${where}: a control shorter than a finger`).toEqual([]);
 }
 
-/** The pages whose settings read answers what the stand-in took (standInSave), each routed once. */
-const answeredAsSaved = new WeakSet<Page>();
+/** What the stand-in took for each page (standInSave): every settings PUT the page sent, in order. Routed once a page. */
+const tookBy = new WeakMap<Page, { config: unknown; version: number }[]>();
 
 /**
- * The settings door, stood in for on the page, so a Save a test presses never reaches the workspace this spec shares
- * (its rule, above): it takes what the page sends, answers as the bridge does when the server takes it (onSaved, then
- * the read again, which is what the page draws its rows from), and keeps what it was sent. Tagged, so a test can say
- * the door is still this one at the moment it saves. Answers the config the page read, for the comparison.
+ * The settings door, stood in for in the browser's traffic, so a Save a test presses never reaches the workspace this spec
+ * shares (its rule, above): the page's own save is made (the bridge's verb, through its client), and its PUT is answered
+ * here as the server answers one it takes (the config sent, the version after the one it was sent on), and kept. The
+ * client then reads the settings again (the refresh map), and that read's answer is the server's with the config and
+ * version taken laid over it: the page draws its rows from that surface alone. Answers the config the page read, for the
+ * comparison. Nothing of it reaches the workspace: the PUT is never made, and the GET is only read.
  *
- * The read again is the app's own (the settings surface, read once more), and its answer is the server's with the config
- * and version the stand-in took laid over it, here in the browser's traffic: the page draws its rows from that surface
- * alone, which nothing on the window can write (the record was a global, `__SETTINGS`, until 12 Nov 2026, and this wrote
- * the taken config there). Nothing of it reaches the workspace: the PUT is never made, and the GET is only read.
+ * It stood in for the bridge's save on the page's window until 25 Nov 2026 (decision 0151: the bridge's verbs are held in
+ * its bundle now, where no script can replace them), and so stood in for less: the client's own answer and re-read ran
+ * nowhere.
  */
 async function standInSave(page: Page): Promise<any> {
-  if (!answeredAsSaved.has(page)) {
-    answeredAsSaved.add(page);
+  const known = tookBy.get(page);
+  if (known) known.length = 0;
+  else {
+    const took: { config: unknown; version: number }[] = [];
+    tookBy.set(page, took);
     await page.route(
       (url) => url.pathname === "/api/v1/settings",
       async (route) => {
-        const took = await page.evaluate(
-          () => (window as unknown as { __e2eTook?: { config: unknown; version: number }[] }).__e2eTook?.at(-1) ?? null,
-        );
-        if (route.request().method() !== "GET" || !took) return route.fallback();
+        const request = route.request();
+        if (request.method() === "PUT") {
+          const sent = request.postDataJSON() as { config: unknown; version: number };
+          took.push({ config: sent.config, version: sent.version });
+          return route.fulfill({ json: { ok: true, data: { config: sent.config, version: sent.version + 1 } } });
+        }
+        const last = took.at(-1);
+        if (request.method() !== "GET" || !last) return route.fallback();
         const response = await route.fetch();
         const body = (await response.json()) as { data: Record<string, unknown> };
         await route.fulfill({
           response,
-          json: { ...body, data: { ...body.data, config: took.config, version: took.version + 1 } },
+          json: { ...body, data: { ...body.data, config: last.config, version: last.version + 1 } },
         });
       },
     );
   }
-  await page.evaluate(() => {
-    const w = window as unknown as Record<string, any>;
-    w.__e2eTook = [];
-    w.__saveSettings = (config: unknown, version: number, onSaved: (s: unknown) => void) => {
-      const saved = { config: JSON.parse(JSON.stringify(config)), version: version + 1 };
-      w.__e2eTook.push({ config: saved.config, version });
-      onSaved(saved);
-      // The read again, as the bridge's save makes it: the page settles when it has landed.
-      return Promise.resolve(w.__refreshSurface?.("settings")).then(() => ({ ok: true }));
-    };
-    w.__saveSettings.__e2e = true;
-  });
   return ((await readConfig(page)) as { config: unknown }).config;
 }
 /**
- * The door the page will call is still the stand-in: a bridge that installed its verbs again since would send a real
- * PUT to the shared workspace before a test's own check of what was sent could fail.
+ * The door the page will call is still the stand-in: the settings route is answered here for this page, so a Save cannot
+ * send a real PUT to the shared workspace before a test's own check of what was sent could fail.
  */
 async function expectStandIn(page: Page): Promise<void> {
-  expect(
-    await page.evaluate(() => (window as unknown as { __saveSettings?: { __e2e?: boolean } }).__saveSettings?.__e2e),
-    "the settings door is no longer the stand-in",
-  ).toBe(true);
+  expect(tookBy.has(page), "the settings door is no longer the stand-in").toBe(true);
+}
+
+/** What the stand-in took for this page, in order (standInSave). */
+const tookOn = (page: Page): { config: any; version: number }[] => tookBy.get(page) ?? [];
+
+/** The settings surface read once more, as the network coming back reads it (hearing/passes.ts): answers once it has landed. */
+async function readSettingsAgain(page: Page): Promise<void> {
+  const landed = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/v1/settings" && r.request().method() === "GET",
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await landed;
 }
 
 /** Every motion running on the elements `selector` finds, as the browser runs it: what moves, for how long, how. */
@@ -511,7 +516,6 @@ async function motionsOn(page: Page, selector: string): Promise<Motion[][]> {
 /** The house's easings, as tokens.css spells them and the browser hands them back. */
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.7, 0, 0.84, 0)";
-const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 /**
  * Wait out whatever is moving, so the next step starts from rest: every motion that ends. The frame's pools drift on a
  * desk and Ask's dot breathes on a phone for ever (components.css), and a wait on those never finished.
@@ -589,7 +593,7 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
   const fold = '[role="dialog"][data-testid="rec-fold-escalate_when"]';
   await expect(page.locator(fold)).toBeVisible();
   const sheetIn = await motionsOn(page, fold);
-  const washIn = await motionsOn(page, ".rec-sheet-backdrop[data-fold]");
+  const washIn = await motionsOn(page, ".sheet-backdrop");
   if (reduced) {
     none(sheetIn, "the sheet arriving");
     none(washIn, "the sheet's wash");
@@ -633,16 +637,16 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
     else expect(washing[i], `${where}: "${l.text.slice(0, 40)}" washes`).toEqual([]);
   });
 
-  // 4. It leaves by its edge as it closes (side-out, faster, on --ease-in), by a still copy React no longer holds
-  // (record-fold.jsx recSheetLeaves): the fold is closed and focus is back on the row's act at once, nothing in what
-  // leaves can be found or pressed, it is gone as its slide ends, and the card behind holds still throughout.
+  // 4. It leaves by its edge as it closes (side-out, faster, on --ease-in): the kit's one sheet in its leaving state
+  // (data-leaving, Base UI's closing): the fold is closed and focus is back on the row's act at once, nothing in what
+  // leaves takes a press, it is gone as its slide ends, and the card behind holds still throughout.
   await settled(page);
   await page.getByTestId("rec-fold-cancel-escalate_when").click();
   await page.getByTestId("rec-fold-escalate_when-cancel-yes").click();
   const closing = await page.evaluate(async () => {
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
-    const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+    const wash = document.querySelector('.sheet-backdrop[data-leaving="true"]');
     const moving = (el: Element | null) =>
       el
         ? el.getAnimations().map((a) => ({
@@ -652,11 +656,11 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
           }))
         : null;
     return {
-      dialogs: document.querySelectorAll('[role="dialog"]').length,
+      dialogs: document.querySelectorAll('[role="dialog"]:not([data-leaving])').length,
       focus: document.activeElement?.getAttribute("data-testid"),
       copy: moving(copy),
       wash: moving(wash),
-      named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
+      pressed: copy ? getComputedStyle(copy).pointerEvents !== "none" : false,
     };
   });
   expect(closing.dialogs, "the fold is closed the moment it is").toBe(0);
@@ -667,7 +671,7 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
       { prop: "side-out", ms: 180, easing: EASE_IN },
     ]);
     expect(closing.wash, "its wash fading with it").toEqual([{ prop: "wash-out", ms: 160, easing: EASE_IN }]);
-    expect(closing.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
+    expect(closing.pressed, "and nothing in what leaves takes a press").toBe(false);
   }
   await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);
   await expect(page.locator(fold)).toHaveCount(0);
@@ -835,16 +839,14 @@ test.describe("Settings › Business on a real workspace", () => {
     expect(
       await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? null, beside),
       "what lies over the page beside the sheet is not its wash",
-    ).toBe("rec-sheet-backdrop");
+    ).toBe("sheet-backdrop");
     await page.mouse.click(beside.x, beside.y);
     await expect(foldOf(page, "tone")).toBeHidden();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     await expect(actOf(page, "tone")).toBeFocused();
 
     // A redraw meanwhile opens nothing: the settings surface being read once more, which the page draws from.
-    await page.evaluate(() =>
-      (window as unknown as { __refreshSurface: (key: string) => Promise<void> }).__refreshSurface("settings"),
-    );
+    await readSettingsAgain(page);
     await expect(openFolds(page)).toHaveCount(0);
     await expectRecordUnchanged(page, before);
   });
@@ -937,7 +939,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(toastUndo).toBeInViewport({ ratio: 1 });
     await toastUndo.focus();
     await toastUndo.click();
-    await expectFocusInside(page, ".rec-sheet", "the toast's Undo left focus outside the sheet");
+    await expectFocusInside(page, ".sheet", "the toast's Undo left focus outside the sheet");
 
     // Escape with something typed asks rather than throwing it away, and Keep editing brings focus back in.
     await page.keyboard.press("Escape");
@@ -945,7 +947,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(ask).toBeVisible();
     await page.getByTestId("rec-sheet-services-cancel-no").click();
     await expect(ask).toHaveCount(0);
-    await expectFocusInside(page, ".rec-sheet", 'the sheet dropped focus on "Keep editing"');
+    await expectFocusInside(page, ".sheet", 'the sheet dropped focus on "Keep editing"');
 
     await discard(page, "services", "sheet");
     // As the sheet closes, focus goes back to the act that opened it.
@@ -1433,7 +1435,7 @@ test.describe("Settings › Business on a real workspace", () => {
       expect(
         await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? null, above!),
         "what lies over the other row is not the wash",
-      ).toBe("rec-sheet-backdrop");
+      ).toBe("sheet-backdrop");
       await page.mouse.move(above!.x, above!.y);
       await page.mouse.wheel(0, 400);
       await page.mouse.move(195, grown.y + 30);
@@ -1463,7 +1465,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
       await expect(actOf(page, "tone"), "focus did not come back to the row's act").toBeFocused();
       await expect(page.getByTestId("rec-row-tone")).toContainText(words);
-      const took = await page.evaluate(() => (window as unknown as { __e2eTook: { config: any }[] }).__e2eTook);
+      const took = tookOn(page);
       expect(took, "one save, sent once").toHaveLength(1);
       const expected = JSON.parse(JSON.stringify(read));
       expected.brain.profile = { ...(expected.brain.profile ?? {}), tone: words };
@@ -1546,48 +1548,43 @@ test.describe("Settings › Business on a real workspace", () => {
         const tone = '[role="dialog"][data-testid="rec-fold-tone"]';
         await expect(page.locator(tone)).toBeVisible();
         const rising = await motionsOn(page, tone);
-        // Its cut rises with it (kit.css --sheet-down, #1806): nothing of it stands lower than its rest as it comes up.
+        // The kit's one sheet: it rises on sheet-in, its cut with it (kit.css --sheet-down, #1806), so nothing of it
+        // stands lower than its rest as it comes up.
         if (reduced) expect(rising.flat(), `${where}: the sheet rises`).toEqual([]);
         else
-          expect(rising, "the sheet rises on --ease-out").toEqual([
-            [
-              { prop: "--sheet-down", ms: 200, easing: EASE_OUT },
-              { prop: "transform", ms: 200, easing: EASE_OUT },
-            ],
-          ]);
+          expect(rising, "the sheet rises on --ease-out").toEqual([[{ prop: "sheet-in", ms: 260, easing: EASE_OUT }]]);
         await settled(page);
         expect(await still(), `${where}: the card behind the open sheet moved`).toBe(at);
         const leaving = await page.evaluate(async () => {
-          (document.querySelector('[data-testid="rec-fold-close-tone"]') as HTMLElement).click();
+          (document.querySelector('[data-testid="rec-fold-tone-close"]') as HTMLElement).click();
           await new Promise((r) => requestAnimationFrame(() => r(null)));
           const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
-          const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+          const wash = document.querySelector('.sheet-backdrop[data-leaving="true"]');
           const moving = (el: Element | null) =>
             el
               ? el.getAnimations().map((a) => ({
-                  prop: (a as unknown as { transitionProperty: string }).transitionProperty,
+                  prop: (a as unknown as { animationName: string }).animationName,
                   ms: Number((a.effect as KeyframeEffect).getComputedTiming().duration),
-                  easing: String((a.effect as KeyframeEffect).getTiming().easing),
+                  easing: String((a.effect as KeyframeEffect).getKeyframes()[0]?.easing),
                 }))
               : null;
           return {
-            dialogs: document.querySelectorAll('[role="dialog"]').length,
+            dialogs: document.querySelectorAll('[role="dialog"]:not([data-leaving])').length,
             focus: document.activeElement?.getAttribute("data-testid") ?? null,
             copy: moving(copy),
             wash: moving(wash),
-            named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
+            pressed: copy ? getComputedStyle(copy).pointerEvents !== "none" : false,
           };
         });
         expect(leaving.dialogs, `${where}: the fold is closed the moment it is`).toBe(0);
         expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
         if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
         else {
-          expect(leaving.copy, "the sheet goes down on --ease-in-out, its cut with it").toEqual([
-            { prop: "--sheet-down", ms: 200, easing: EASE_IN_OUT },
-            { prop: "transform", ms: 200, easing: EASE_IN_OUT },
+          expect(leaving.copy, "the sheet goes down on sheet-out, its cut with it").toEqual([
+            { prop: "sheet-out", ms: 180, easing: EASE_IN },
           ]);
-          expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "opacity", ms: 200, easing: EASE_IN_OUT }]);
-          expect(leaving.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
+          expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "wash-out", ms: 160, easing: EASE_IN }]);
+          expect(leaving.pressed, "and nothing in what leaves takes a press").toBe(false);
         }
         expect(await still(), `${where}: the card behind the leaving sheet moved`).toBe(at);
         await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);

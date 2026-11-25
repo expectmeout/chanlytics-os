@@ -32,7 +32,6 @@ import {
   findFile,
   deleteFileRow,
   restoreFileRow,
-  filesBucket,
   listFilePosts,
   pullPost,
   type FileMemberRow,
@@ -41,8 +40,8 @@ import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
 import { row, type Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import { writeDoorRefusal, type RouteContext } from "@/server/shared/with-route";
+import { filesStore } from "../shared/storage";
 
 /**
  * How long a picture's address lasts, and a little less for how long a browser keeps being sent to it. Storage's CDN keeps a
@@ -70,7 +69,7 @@ export function fileDoorRefusal(error: { code?: string; message: string }): AppE
   return new AppError("internal", W.notSaved, 500);
 }
 
-export const bucket = () => filesBucket(serviceDb());
+export const bucket = filesStore;
 
 /** A file the caller may see (RLS), or a 404. */
 export const fileScope = row(async (ctx: RouteContext, params): Promise<FileMemberRow> => {

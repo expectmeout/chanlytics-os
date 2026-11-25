@@ -19,6 +19,7 @@ import { again, all, fresh, textOf, unmount } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
 import { headline, weekSeen } from "../_headline.mjs";
 import { W, ZONE, answerWith, dayWith, json, row } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // The phone's width, which the page asks once (phone.ts): one answer, turned per test.
 const phoneWidth = { matches: false, addEventListener() {}, removeEventListener() {} };
@@ -134,7 +135,7 @@ beforeEach(() => {
   unmount();
   clearReadCaches();
   for (const key of ["today", "setup", "ask_morning", "reports_headline"]) setSurfaceValue(key, undefined);
-  delete W.__PEOPLE;
+  bridgeHolds({ values: { people: undefined } });
   phoneWidth.matches = false;
 });
 
@@ -190,7 +191,7 @@ test("a quiet desk whose checks find something: the first draw holds AI found, i
   );
   assert.ok(first.found?.rows.length, "AI found stands in the first draw");
   assert.equal(first.card, "found", "nobody waits: what AI found holds the card");
-  W.__PEOPLE = bookOf(page);
+  bridgeHolds({ values: { people: bookOf(page) } });
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
 
@@ -208,7 +209,7 @@ test("a quiet day whose one to-do is a step due: it holds the card, AI found sta
     first.found?.rows.every((r) => r.startsWith("today-found-")),
     "someone's step waits: AI found's are lines under the day, never the card then moved",
   );
-  W.__PEOPLE = bookOf(page);
+  bridgeHolds({ values: { people: bookOf(page) } });
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
 
@@ -306,7 +307,7 @@ test("someone waiting: they hold the card and AI found stands under the day from
     first.found?.rows.length && first.found.rows.every((r) => r.startsWith("today-found-")),
     "AI found's are lines",
   );
-  W.__PEOPLE = bookOf(page);
+  bridgeHolds({ values: { people: bookOf(page) } });
   assert.deepEqual(shapeOf(draw()), first);
 });
 
@@ -321,6 +322,6 @@ test("on a phone: AI found and To do's step stand in the first draw, and People'
   assert.equal(first.phone, true);
   assert.ok(first.found?.rows.length, "REGRESSION (13 Nov 2026): 393 px of AI found came 0.4 to 1.3 s after the page");
   assert.equal(first.todo?.length, 1);
-  W.__PEOPLE = bookOf(page);
+  bridgeHolds({ values: { people: bookOf(page) } });
   assert.deepEqual(shapeOf(draw()), first);
 });

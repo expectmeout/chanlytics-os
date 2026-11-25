@@ -14,6 +14,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
@@ -32,9 +33,11 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 
 const json = (status, body) =>
@@ -328,12 +331,12 @@ test("naming yourself is a write the workspace and the Team list are re-read aft
         user: { id: "u1", email: "dana@example.com", role: "owner", display_name: "Dana Ortiz" },
       },
     };
-    globalThis.__ME = { id: "u1", email: "dana@example.com", role: "owner", display_name: "Dana" };
+    bridgeHolds({ who: { me: { id: "u1", email: "dana@example.com", role: "owner", display_name: "Dana" } } });
     told.length = 0;
     const r = await meVerbs.setName("Dana Ortiz");
     assert.deepEqual([r.ok, r.name], [true, "Dana Ortiz"]);
     assert.equal(
-      globalThis.__ME.display_name,
+      whoIsLooking().me.display_name,
       "Dana Ortiz",
       "who is looking is the workspace read's, landed before the save is over",
     );
@@ -343,7 +346,7 @@ test("naming yourself is a write the workspace and the Team list are re-read aft
     assert.ok(wire.includes("GET workspaces"));
   } finally {
     stop();
-    delete globalThis.__ME;
+    bridgeHolds({ who: { me: undefined } });
   }
 });
 

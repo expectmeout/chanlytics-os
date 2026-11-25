@@ -141,12 +141,11 @@ export const touchesRoute = await import(at("apps/dashboard/app/api/v1/broadcast
 
 /**
  * 3 Oct 2026: what a workspace's campaigns have sent by email and by text this calendar month, which the Campaigns head
- * and the composers say (`month_sent`, server/campaigns/month-sent.ts): a function only the service role may call, so the
- * readers reach it through the service client, here a double that counts 1,240 emails and 12 texts.
+ * and the composers say (`month_sent`, server/campaigns/month-sent.ts): counted on the member's own session, whose door
+ * asks that they belong (00717); every world here counts 1,240 emails and 12 texts unless it says otherwise.
  */
 export const MONTH_SENT = { email: 1240, sms: 12 };
-
-setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+const MONTH_DOORS = { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] };
 
 export const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
 
@@ -777,7 +776,7 @@ export const dealsWorld = () => ({
 
 /** A request's database over a world, `faults` failing a read the way PostgREST fails. */
 export const worldCtx = (w, faults = {}) => ({
-  supabase: fakeDb(w.tables, faults, w.rpcs),
+  supabase: fakeDb(w.tables, faults, { ...MONTH_DOORS, ...w.rpcs }),
   userId: USER,
   email: "ada@example.com",
   params: {},

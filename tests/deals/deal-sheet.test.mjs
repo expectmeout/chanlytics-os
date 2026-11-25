@@ -17,6 +17,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
 import { dealSheetBody, dealSheetRefusal } from "../../apps/dashboard/src/surfaces/people/deal-sheet/body.ts";
 import { pipelinePeekOf, pipelineSheetOf } from "../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const {
   DEAL_ACT_HINTS,
@@ -1002,14 +1003,19 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+});
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   canDo: () => true,
   gate: () => ({}),
-  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
 });
 const SRC = "../../apps/dashboard/src";
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";

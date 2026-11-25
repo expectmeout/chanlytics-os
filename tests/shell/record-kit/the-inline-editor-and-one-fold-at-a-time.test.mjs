@@ -3,9 +3,33 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
+import {
+  again,
+  unmount,
+  remount,
+  settle,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  escapeSheet,
+} from "../../_stub-react.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { W, bookingRules, byId, draw, drawInline, numbers, offer, redraw, website } from "./_record-kit.mjs";
+import {
+  W,
+  bookingRules,
+  byId,
+  draw,
+  drawInline,
+  kitSheetOf,
+  numbers,
+  offer,
+  popupOf,
+  redraw,
+  website,
+} from "./_record-kit.mjs";
 
 test("an inline editor is the row's label and its field, what saving writes, and Save and Cancel", () => {
   const saved = [];
@@ -823,17 +847,16 @@ test("the registry tells whoever listens each time it changes", () => {
   folds.reset();
 });
 
-test("a sheet is a dialog with a name, a close and a foot that holds still", () => {
+test("a sheet is the kit's one sheet: its name, the line under it, its round Close, its tools, rows and a foot that holds still", () => {
   const closed = [];
   const tree = draw(W.RecordSheet, offer({ onClose: () => closed.push(1) }));
-  const sheet = find(tree, (n) => classes(n).includes("rec-sheet"));
-  assert.equal(sheet.props.role, "dialog");
-  assert.equal(sheet.props["aria-modal"], true);
-  assert.ok(sheet.props["aria-label"] === "What you offer" || sheet.props["aria-labelledby"]);
-  const close = find(tree, (n) => n.props?.["aria-label"] === "Close");
-  assert.equal(close.type, "button");
+  const sheet = kitSheetOf(tree);
+  assert.ok(sheet, "drawn by the kit's Sheet, Base UI's Dialog: modal, named by its title and described by its line");
+  assert.deepEqual([sheet.props.open, sheet.props.title, sheet.props.sub], [true, "What you offer", offer().sub]);
+  const close = find(tree, (n) => classes(n).includes("rec-sheet-close"));
+  assert.equal(close.props["aria-label"], "Close");
   press(close);
-  assert.equal(closed.length, 1);
+  assert.equal(closed.length, 1, "its round Close is the sheet's close");
 
   const saveAll = W.React.createElement("button", { type: "button", onClick: () => {} }, "Save 33 services");
   unmount();
@@ -844,18 +867,7 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
     "row one",
     "row two",
   );
-  const named = find(full, (n) => classes(n).includes("rec-sheet"));
-  assert.equal(named.props["data-testid"], "rec-sheet-services");
-  assert.equal(
-    textOf(byId(full, named.props["aria-labelledby"])),
-    "What you offer",
-    "with an id, the sheet is named by its heading",
-  );
-  assert.match(
-    textOf(byId(full, named.props["aria-describedby"])),
-    /rough timings/,
-    "and described by the line under it",
-  );
+  assert.equal(popupOf(full).props["data-testid"], "rec-sheet-services");
   const foot = find(full, (n) => classes(n).includes("rec-sheet-foot"));
   assert.ok(
     find(foot, (n) => n === saveAll),
@@ -873,53 +885,23 @@ test("a sheet is a dialog with a name, a close and a foot that holds still", () 
   assert.equal(textOf(find(full, (n) => classes(n).includes("rec-sheet-tools"))), "search");
 });
 
-test("Escape closes a sheet, once, unless something in it took the key", () => {
+test("Escape and a press on the wash ask the sheet's close, unless something in it took the key; nothing while its save is out", () => {
+  // Base UI hears both on the document and asks the kit's Sheet (kit/sheet/sheet.tsx), which asks the page.
   const closed = [];
   const tree = draw(W.RecordSheet, offer({ onClose: () => closed.push(1) }));
-  const esc = (over = {}) => ({
-    type: "keydown",
-    key: "Escape",
-    defaultPrevented: false,
-    preventDefault() {
-      this.defaultPrevented = true;
-    },
-    ...over,
+  assert.equal(escapeSheet(tree), false);
+  assert.equal(closed.length, 1, "Escape asks the page, as its Close does");
+  assert.equal(escapeSheet(tree, { taken: true }), true, "a key a combobox inside already took is its own");
+  assert.equal(closed.length, 1);
+  find(tree, (n) => typeof n.props?.onOpenChange === "function").props.onOpenChange(false, {
+    reason: "outside-press",
+    event: {},
+    cancel() {},
   });
-  const inside = esc();
-  find(tree, (n) => classes(n).includes("rec-sheet")).props.onKeyDown(inside);
-  assert.deepEqual(
-    [closed.length, inside.defaultPrevented],
-    [1, true],
-    "from inside the sheet, and taken, so a fold around it does not cancel too",
-  );
-  W.dispatchEvent(inside);
-  assert.equal(closed.length, 1, "the same key reaching the window does not close it twice");
-  W.dispatchEvent(esc());
-  assert.equal(closed.length, 2, "with focus outside it, the window hears the key");
-  W.dispatchEvent(esc({ defaultPrevented: true }));
-  assert.equal(closed.length, 2, "a key a combobox inside already took is not the sheet's");
-});
-
-test("a press on the wash behind a sheet keeps focus where it was, and is the sheet's Close -- not while its save is out", () => {
-  const closed = [];
-  const wash = find(draw(W.RecordSheet, offer({ onClose: () => closed.push(1) })), (n) =>
-    classes(n).includes("rec-sheet-backdrop"),
-  );
-  let prevented = false;
-  wash.props.onMouseDown({
-    preventDefault() {
-      prevented = true;
-    },
-  });
-  // A mousedown's default moves focus to what was pressed, here the page's body, and Shift+Tab would then walk the
-  // page behind the modal.
-  assert.equal(prevented, true);
-  press(wash);
-  assert.deepEqual(closed, [1], "REGRESSION: the wash took the press and did nothing, so the X was the only way out");
-  press(
-    find(draw(W.RecordSheet, offer({ saving: true, onClose: () => closed.push(1) })), (n) =>
-      classes(n).includes("rec-sheet-backdrop"),
-    ),
-  );
-  assert.deepEqual(closed, [1], "the save is on its way, and nothing throws it away");
+  assert.equal(closed.length, 2, "a press on the wash is the sheet's Close (REGRESSION: the X was the only way out)");
+  const saving = draw(W.RecordSheet, offer({ saving: true, onClose: () => closed.push(1) }));
+  escapeSheet(saving);
+  press(find(saving, (n) => classes(n).includes("rec-sheet-close")));
+  assert.equal(closed.length, 2, "the save is on its way, and nothing throws it away");
+  assert.equal(find(saving, (n) => classes(n).includes("rec-sheet-close")).props["aria-disabled"], true);
 });

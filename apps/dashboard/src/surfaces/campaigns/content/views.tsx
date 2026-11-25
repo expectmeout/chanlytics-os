@@ -6,7 +6,7 @@
  * chose it. Where the workspace runs ads, Ads is the third list (Ruben, 25 Nov 2026), its own filter drawn by the same pill and
  * row (ads/content-bar.tsx).
  */
-import { useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import {
   ADS_WORDS,
   CONTENT_VIEWS,
@@ -20,7 +20,7 @@ import {
 import { canDo } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { Popover } from "../../kit/popover/popover";
+import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { showFiles, type FilesView } from "../../files/surface";
 import { useSurface } from "../../use-surface";
@@ -65,91 +65,79 @@ interface LayoutHeld {
   choose: (layout: ContentLayout) => void;
 }
 
-/** Squares or List as rows of the pill's card, after the views, each its glyph and word, the one chosen pressed. */
-function LayoutRows({ layout, close }: { layout: LayoutHeld; close: () => void }) {
-  return (
-    <div className="cnv-views cnv-views-layout" role="group" aria-label={LAYOUT_LABEL}>
-      {LAYOUTS.map((choice) => (
-        <Button
-          key={choice}
-          size="touch"
-          variant="quiet"
-          className="cnv-view"
-          aria-pressed={choice === layout.value}
-          onClick={() => {
-            close();
-            layout.choose(choice);
-          }}
-          data-testid={`cnv-layout-${choice}`}
-        >
-          <Icon name={choice} size={15} />
-          {VIEW_SAYS[choice]}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
 /** A choice as a press: its words, Needs you's amber, and how many it holds. */
 const ChoiceWords = <V extends string>({ choice }: { choice: ViewChoice<V> }) => (
   <>
     {choice.label}
+    <ChoiceEnd choice={choice} />
+  </>
+);
+
+/** What a choice says after its words: Needs you's amber while it holds anything, and how many it holds. */
+const ChoiceEnd = <V extends string>({ choice }: { choice: ViewChoice<V> }) => (
+  <>
     <Owed on={!!choice.owed} />
     {choice.count === null ? null : <span className="cnv-count">{choice.count}</span>}
   </>
 );
 
+/** The tick beside the one chosen in the pill's menu (the kit Menu's `tick`). */
+const VIEW_TICK = <Icon name="check" size={13} />;
+
+/** A set of the pill's menu: its options, the one chosen, and what choosing one does. */
+const choiceGroup = <V extends string>(
+  choices: readonly ViewChoice<V>[],
+  value: V,
+  onChoose: (value: V) => void,
+  header?: string,
+): MenuGroup => ({
+  ...(header === undefined ? {} : { header }),
+  choose: {
+    value,
+    // The menu hands back the value of an option it was given, which is one of these.
+    onChoose: (next) => {
+      const picked = choices.find((c) => c.value === next);
+      if (picked) onChoose(picked.value);
+    },
+    tick: VIEW_TICK,
+    options: choices.map((c) => ({
+      value: c.value,
+      label: c.label,
+      hint: c.owed || c.count !== null ? <ChoiceEnd choice={c} /> : undefined,
+    })),
+  },
+});
+
+/** Squares or List, the last set of the pill's menu, after the views. */
+const layoutGroup = (layout: LayoutHeld): MenuGroup =>
+  choiceGroup(
+    LAYOUTS.map((l) => ({ value: l, label: VIEW_SAYS[l], count: null })),
+    layout.value,
+    layout.choose,
+  );
+
 /**
- * The views on a phone: one caret pill naming the one picked, on the accent's soft fill while it narrows the list (what is
- * chosen is Chanlytics' coral), and a small card under it of them all (the kit's Popover: the canvas draws a card hanging from
- * the pill, never a sheet). Made's views and the Library's kinds are this one pill.
+ * The views on a phone: one caret pill naming the one picked, on the pick's lilac while it narrows the list, which opens the
+ * kit's menu of them all: the phone's sheet, its name and the one Close over the views, each with its count, the one chosen on
+ * the pick's lilac with its tick, then Squares or List (the phone change list's A4 and B1, 25 Nov 2026:
+ * a card hung from the pill with the pick in coral, where Campaigns raises the kit's sheet for the same kind of choice).
+ * Made's views and the Library's kinds are this one pill.
  */
-export function ViewsPill<V extends string>({
-  label,
-  choices,
-  value,
-  onChoose,
-  testid,
-  choiceTestid,
-  layout = null,
-}: ViewsProps<V>) {
-  const [open, setOpen] = useState(false);
+export function ViewsPill<V extends string>({ label, choices, value, onChoose, testid, layout = null }: ViewsProps<V>) {
   const picked = choices.find((c) => c.value === value) ?? choices[0];
+  const groups: MenuGroup[] = [choiceGroup(choices, value, onChoose), ...(layout ? [layoutGroup(layout)] : [])];
   return (
-    <Popover
+    <Menu
       label={label}
-      open={open}
-      onOpenChange={setOpen}
       align="end"
-      size="flush"
-      className="cnv-views-open"
+      groups={groups}
       trigger={
         <Button size="sm" variant="glass" data-narrowed={value !== choices[0]?.value || undefined} data-testid={testid}>
           {picked?.label}
           <Icon name="chevron-down" size={12} />
         </Button>
       }
-    >
-      <div className="cnv-views" role="group" aria-label={label}>
-        {choices.map((choice) => (
-          <Button
-            key={choice.value}
-            size="touch"
-            variant="quiet"
-            className="cnv-view"
-            aria-pressed={choice.value === value}
-            onClick={() => {
-              setOpen(false);
-              onChoose(choice.value);
-            }}
-            data-testid={`${choiceTestid}-${choice.value}`}
-          >
-            <ChoiceWords choice={choice} />
-          </Button>
-        ))}
-      </div>
-      {layout ? <LayoutRows layout={layout} close={() => setOpen(false)} /> : null}
-    </Popover>
+    />
   );
 }
 

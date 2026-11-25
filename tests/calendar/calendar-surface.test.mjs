@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
 import { all, fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -23,10 +24,11 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
-globalThis.__ACTIVE_WORKSPACE = "t-salon";
+bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
@@ -58,7 +60,7 @@ test("the Calendar's read is one typed value in the seam, and nothing of it is o
 
 test("the tab's cache gives the Calendar's value back before React draws, so a reload paints the last read", () => {
   values.setSurfaceValue("calendar", CALENDAR);
-  cache.snapshotSurface("calendar", [], "t-salon", undefined, "calendar");
+  cache.snapshotSurface("calendar", "t-salon", undefined, "calendar");
   cache.flushSurfaceCache();
   // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
   const valueOf = ({ $kept, ...rest }) => (assert.deepEqual(Object.keys($kept).sort(), ["at", "build", "shape"]), rest);
@@ -333,12 +335,12 @@ test("each visit opens a sheet of its own: the cancel's question asked of one is
 });
 
 test("the Business tab's calendar row still finds the Calendar's verbs by their old name, and imports the page's two words", () => {
-  const was = globalThis.__calendar;
-  delete globalThis.__calendar;
+  const was = provided("calendar");
+  bridgeHolds({ parts: { calendar: undefined } });
   installCalendar();
-  assert.equal(typeof globalThis.__calendar.refresh, "function", "the Business tab asks for a read");
-  assert.equal(typeof globalThis.__calendar.previewFeed, "function", "and checks a pasted address");
+  assert.equal(typeof provided("calendar").refresh, "function", "the Business tab asks for a read");
+  assert.equal(typeof provided("calendar").previewFeed, "function", "and checks a pasted address");
   assert.equal(globalThis.__calendarPage, undefined, "the words are imported (words.ts), never published");
   assert.equal(CALENDAR_PAGE.refreshMs, 5 * 60 * 1000, "the row keeps a read for as long as the board does");
-  globalThis.__calendar = was;
+  bridgeHolds({ parts: { calendar: was } });
 });

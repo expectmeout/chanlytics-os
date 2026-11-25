@@ -18,6 +18,7 @@ import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
 import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -108,10 +109,6 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
-  __chrome: { state: stateOf },
-  __refreshSurface: async (key) => {
-    calls.refresh.push(key);
-  },
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   gate: () => ({ "data-gated": "" }),
   location: {
@@ -130,6 +127,17 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds(
+  {
+    parts: {
+      chrome: { state: stateOf },
+      refreshSurface: async (key) => {
+        calls.refresh.push(key);
+      },
+    },
+  },
+  { fresh: true },
+);
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
 Object.assign(globalThis.window, kitPages);
@@ -492,16 +500,8 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 
 /* -------------------- Settings › Team, with a failed read ---------------- */
 
-Object.assign(globalThis.window, {
-  __ME: { email: "ruben@rjcapital.example", role: "owner" },
-  __identity: {
-    member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (n, e) =>
-      String(n || e)
-        .slice(0, 2)
-        .toUpperCase(),
-  },
-});
+bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
+Object.assign(globalThis.window, {});
 // The card is TSX (surfaces/settings/team, decision 0015 step 11), over the seam's settings value: a team read that failed.
 // Its hooks are this stub's (the kit's TSX imports them from "react"), and the seam's value is read as it draws.
 globalThis.React.useSyncExternalStore = (subscribe, snapshot) => snapshot();

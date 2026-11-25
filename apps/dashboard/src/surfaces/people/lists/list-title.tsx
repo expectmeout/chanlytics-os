@@ -33,8 +33,7 @@ export function DeleteListButton({ list, onDeleted }: { list: SavedList; onDelet
   if (!arm) {
     return (
       <button
-        className="cl-bucket-link danger"
-        style={{ marginLeft: 8 }}
+        className="cl-bucket-link danger cl-list-del"
         onClick={() => {
           setError(null);
           setArm(true);
@@ -46,7 +45,7 @@ export function DeleteListButton({ list, onDeleted }: { list: SavedList; onDelet
     );
   }
   return (
-    <span style={{ marginLeft: 8 }}>
+    <span className="cl-list-del">
       <Confirm
         question={`Delete “${list.name}”?`}
         detail="The people stay."

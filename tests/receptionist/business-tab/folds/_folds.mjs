@@ -20,6 +20,7 @@
 import assert from "node:assert/strict";
 import { newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
 import { installStubReact } from "../../../_stub-react.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 // The folds import what a new receptionist starts with, what the instructions box opens with, the product's wording for
 // the three messages, the names in a message nothing fills in and the web-address normalizer (contracts'), so a test
@@ -296,18 +297,22 @@ export const settle = () => new Promise((r) => setImmediate(r));
 /** The door the saver sends through, held open: each send waits to be accepted or refused by the test. */
 export const door = () => {
   const sent = [];
-  W.__saveSettings = (config, version, onAccepted) => {
-    const call = { config, version };
-    sent.push(call);
-    return new Promise((resolve) => {
-      call.accept = () => {
-        landSettings({ config, version: version + 1 });
-        onAccepted({ config, version: version + 1 });
-        resolve({ ok: true });
-      };
-      call.refuse = (message) => resolve({ ok: false, message });
-    });
-  };
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, onAccepted) => {
+        const call = { config, version };
+        sent.push(call);
+        return new Promise((resolve) => {
+          call.accept = () => {
+            landSettings({ config, version: version + 1 });
+            onAccepted({ config, version: version + 1 });
+            resolve({ ok: true });
+          };
+          call.refuse = (message) => resolve({ ok: false, message });
+        });
+      },
+    },
+  });
   return sent;
 };
 

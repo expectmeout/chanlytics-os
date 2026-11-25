@@ -15,6 +15,7 @@ import {
   type NotificationsDto,
 } from "@chanlytics/contracts";
 import type { ApiResult, Input, Output } from "../../client/api";
+import { heldRead } from "../held-reads";
 
 /** What the bell's marks are written with, and what the server answers one. */
 export type MarkBody = Input<"PUT notifications">;
@@ -46,7 +47,7 @@ export const markAttempt =
   };
 
 /** The window a tab's read-through is held on: the bell's kept rows, and the event that says they were read again. */
-type BellWindow = Pick<Window, "addEventListener"> & { __NOTIFICATIONS?: { dto: NotificationsDto } | null };
+type BellWindow = Pick<Window, "addEventListener">;
 
 /** No kept rows read yet: what a press made before the bell's first read rides on. */
 const NO_KEPT_ROWS: NotificationsDto = { notifications: [], seen_at: null };
@@ -67,7 +68,7 @@ export function readThroughOf(win: BellWindow) {
     held: (): boolean => pressed !== null,
     /** The kept rows as the server holds them, read through the press this tab just made where one is on its way. */
     kept: (): NotificationsDto | null | undefined => {
-      const dto = win.__NOTIFICATIONS?.dto;
+      const dto = heldRead("notifications")?.dto;
       if (!pressed) return dto;
       return { ...(dto ?? NO_KEPT_ROWS), read_through_at: new Date(pressed.at).toISOString() };
     },

@@ -51,7 +51,7 @@ words AI is told to use.
 | What | Where |
 | --- | --- |
 | The tokens | `apps/dashboard/src/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
-| The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
+| The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Three primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. The sheet stands once: `RecordSheet` and a fold's sheet are drawn by the kit's `Sheet` (25 Nov 2026). Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
 | Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `PersonPick` (who a sheet is for: New proposal's and New conversation's first step), `Meter`, `Figure`, `LinePress` and `LineField` (what a conversation is pressed and typed through, Ask's Line), `DayRangePicker` (a range of days picked on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `usePPToast` in `apps/dashboard/src/surfaces/frame/flash.tsx`, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/frame/frame-globals.ts`). (`SurfaceTabs` is the frame's adapter over the kit's `ViewTabs`, `apps/dashboard/src/surfaces/kit/view-tabs/`, which a surface imports.) `StatePill`, `MoreMenu`, `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
@@ -215,6 +215,15 @@ month. An option under a pointer or a key is a lozenge in `--accent-soft`, as a 
 lifts to `--selected-fill` under a pointer and while its list is open. Both fall back to the solid where the browser
 draws no blur or less transparency is asked for (`tokens.css`).
 
+The current pick is one look wherever a choice is made: the one chosen of a set stands on the pick's lilac
+(`--selected-fill` with `--selected-depth`) with its tick, in a menu's set, a picker's or a select's list, a chip, a
+segment, a narrowed pill and a desk's row of views alike; never the accent's coral, which is for live and now, and never
+a tick alone. It stays lilac under a pointer and as its list opens (kit.css, "The current pick"). Something on or off is
+the kit's switch (`RecordSwitch` on a shell page), one kept on drawn on and dimmed (`readOnly`), never a lock or a tick
+of a page's own. A setting whose answer is one of a few is its row's value, and the row's act opens the answers
+(`apps/dashboard/src/surfaces/settings/choice-act.tsx`), never a word with a caret inside it (the phone change list's B1
+to B3, 25 Nov 2026).
+
 A list on a page that loads no Base UI popup (Settings) is the house's `MoreMenu` under the kit's box
 (`btnClass="rec-input rec-select"`, each item `checked` or not), never the kit's Select: the Select, Combobox and date
 picker stand on Base UI, and a page that newly imports them pays for it twice. Imported with Settings' Activity pane
@@ -237,7 +246,7 @@ TSX (Draw with the kit, step 2).
 | segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a shell page |
 | a number, what it counts and the period before | `Figure`, in the `dl` the page draws (Reports' strip, Google's four) |
 | switch | `Switch` (`.rec-switch`); `RecordSwitch` on a shell page |
-| sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a shell page |
+| sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` on a shell page, which draws through it (one head, the round Close, one foot: on a phone the foot's one act across its width, a Cancel beside it marked `data-foot-cancel` and not drawn) |
 | menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a shell page |
 | select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a shell page |
 | face, initials | `Face` (`.face`); a person is its `person` prop (their name and initials), which contracts' `personFaceOf` reads: initials for a name, the phone glyph for a number, the mail glyph for an address, on every page that names a person, so no page keeps its own avatar or its own test of a name |
@@ -266,7 +275,7 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
 
 | Component | Base UI's part | What it draws |
 | --- | --- | --- |
-| `Sheet` | Dialog, modal | `.sheet-backdrop`, and `.sheet` with its handle and the record sheet's head, tools, rows and foot, or a job's short head (`.sheet-job-*`: a step's way back, its title, a word to close it) over the job; Base UI's closing state is the kit's `data-leaving`, and on a phone a pull down closes it (data-bits `touchSwipe`) |
+| `Sheet` | Dialog, modal | `.sheet-backdrop`, and `.sheet` with its handle and the record sheet's head, tools, rows and foot, or a job's short head (`.sheet-job-*`: a step's way back, its title, its round Close named by the job's word) over the job; every sheet has the one round Close (no `footCloses`, no `close={null}`), and a sheet let go of while open plays its leaving from a still copy; Base UI's closing state is the kit's `data-leaving`, and on a phone a pull down closes it (data-bits `touchSwipe`) |
 | `Menu` | Menu | `.more-menu` on its positioner (`.pop-place`): `.more-item` (a link where it opens a page, `danger` where it destroys), `.more-header` over a group, `.more-divider` between two, a set to choose one of as radio items |
 | `Popover` | Popover | the panel's pop (`Panel`, `variant="pop"`) on `.pop-place` |
 | `DatePicker` | Popover | the same pop holding a month in the ARIA grid (`.date-pick*`): one tab stop, the arrows, Page Up and Down, Home and End, Today; a day is the page's "YYYY-MM-DD" and the page says which is today. Base UI has no calendar, so the grid (`datepicker/days.ts`) is the kit's |
@@ -293,7 +302,7 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
 - A glyph is the page's: a component that draws one (the sheet's Close, the select's chevron, the combobox's glass, a
   field's problem, a toast's tone and its ×, a menu item's and a set's tick) takes it as a prop, the Icon at the
   house's size, as the Button and the Face do, until the Icon moves into the kit (the plan's Phase 3).
-- A shell page keeps the house's component (`RecordSheet`, `MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
+- A shell page keeps the house's component (`MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
   until its surface's Phase 4 step swaps it for the kit's. The swap is a listed difference, not a byte-equal move (the
   plan's step 2.5 lists what each draws and does otherwise): it deletes the surface's hand-written behaviour in the same
   change, and the first Base UI component a surface draws raises the workspace route's JS budget there, with the

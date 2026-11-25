@@ -34,7 +34,7 @@ const Linked = ({ text }: { text?: string | null }) => {
         href={m[0]}
         target="_blank"
         rel="noopener noreferrer nofollow"
-        title={m[0]}
+        data-tip={m[0]}
       >
         {m[0]}
       </a>,
@@ -57,7 +57,7 @@ const TlMsgQuote = ({ quoted }: { quoted: string }) => {
         className="tl-msg-quote-toggle"
         aria-expanded={open}
         aria-label={open ? "Hide quoted text" : "Show quoted text"}
-        title={open ? "Hide quoted text" : "Show quoted text"}
+        data-tip={open ? "Hide quoted text" : "Show quoted text"}
         onClick={() => setOpen((v) => !v)}
         data-testid="tl-msg-quote-toggle"
       >
@@ -198,9 +198,7 @@ export const TimelineEntry = ({
     return (
       <div className={`tl-agent ${isDecision ? "decision" : "thinking"}`}>
         <span className="tl-agent-glyph">
-          <span className="agent-avatar" style={{ width: 18, height: 18, fontSize: 9 }}>
-            {thread.agent.glyph}
-          </span>
+          <span className="agent-avatar ix-tl-who">{thread.agent.glyph}</span>
         </span>
         <div className="tl-agent-body">
           <div className="tl-agent-head">
@@ -220,7 +218,7 @@ export const TimelineEntry = ({
   if (entry.type === "event" && thread.real && entry.kind === "flag") {
     // "Held for you · 10:31 AM": the spark, the words and the time; why it was held is the dock's line, and a pointer's.
     return (
-      <div className="tl-event tl-held" title={entry.body} data-testid="tl-held">
+      <div className="tl-event tl-held" data-tip={entry.body} data-testid="tl-held">
         <Icon name="spark" size={12} className="tl-held-spark" />
         <span className="tl-event-text">{THREAD_PANE_WORDS.heldForYou}</span>
         <span className="tl-event-time tabular">· {entry.at}</span>
@@ -336,31 +334,31 @@ function metaLine(p: TlMsgEntryProps, named: boolean) {
 
 /** What became of words of ours, as a glyph in the bubble's corner: sent, delivered, read, failed, waiting to go. */
 function statusGlyph(entry: MsgEntry) {
-  const said = entry.statusLabel || undefined;
-  switch (entry.status) {
+  const [said, status] = [entry.statusLabel || undefined, entry.status];
+  switch (status) {
     case "read":
     case "delivered":
       return (
-        <span className={`tl-ticks${entry.status === "read" ? " read" : ""}`} role="img" aria-label={said} title={said}>
+        <span className={`tl-ticks${status === "read" ? " read" : ""}`} role="img" aria-label={said} data-tip={said}>
           <Icon name="check" size={11} />
           <Icon name="check" size={11} />
         </span>
       );
     case "sent":
       return (
-        <span className="tl-ticks" role="img" aria-label="Sent" title="Sent">
+        <span className="tl-ticks" role="img" aria-label="Sent" data-tip="Sent">
           <Icon name="check" size={11} />
         </span>
       );
     case "queued":
       return (
-        <span role="img" aria-label={said} title={said}>
+        <span role="img" aria-label={said} data-tip={said}>
           <Icon name="clock" size={11} />
         </span>
       );
     case "failed":
       return (
-        <span className="tl-stamp-failed" role="img" aria-label={said} title={said}>
+        <span className="tl-stamp-failed" role="img" aria-label={said} data-tip={said}>
           <Icon name="alert" size={11} />
         </span>
       );
@@ -402,7 +400,7 @@ function bubbleCorner(
       {author && <span className="tl-stamp-words">{author}</span>}
       {fromAd && <span className="tl-stamp-words">{fromAd}</span>}
       {wire && (
-        <span role="img" aria-label={channelLabels[entry.channel]} title={channelLabels[entry.channel]}>
+        <span role="img" aria-label={channelLabels[entry.channel]} data-tip={channelLabels[entry.channel]}>
           <Icon name={channelIcon(entry.channel)} size={10} />
         </span>
       )}
@@ -426,7 +424,7 @@ function bubbleCorner(
   return (
     <span
       className="tl-stamp"
-      title={
+      data-tip={
         receptionist ? `Sent by ${entry.agentName || thread.agent.name}` : author ? `Sent by ${signed}` : undefined
       }
     >
@@ -595,7 +593,7 @@ function EmailFolds({ entry }: { entry: MsgEntry }) {
         {files > 0 && (
           <span
             className="tl-email-files"
-            title={entry.leftOut ? `${W.filesNotKeptWhy} ${entry.leftOut}` : W.filesNotKeptWhy}
+            data-tip={entry.leftOut ? `${W.filesNotKeptWhy} ${entry.leftOut}` : W.filesNotKeptWhy}
             data-testid="tl-msg-left-out"
           >
             <Icon name="clip" size={12} />

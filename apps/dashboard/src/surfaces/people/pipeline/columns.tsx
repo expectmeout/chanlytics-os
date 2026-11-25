@@ -91,7 +91,7 @@ const pipeColumns = (): PipelineColumn[] => {
           key="next"
           className="pipe-next"
           data-due={r.next ? r.next.due : undefined}
-          title={r.next ? [r.next.words, r.next.forWho].filter(Boolean).join(" · ") : undefined}
+          data-tip={r.next ? [r.next.words, r.next.forWho].filter(Boolean).join(" · ") : undefined}
           data-testid="pipe-next"
         >
           {r.next ? (

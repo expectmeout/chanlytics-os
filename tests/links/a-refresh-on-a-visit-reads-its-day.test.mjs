@@ -6,8 +6,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { windowFor } from "@chanlytics/contracts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const asked = [];
+bridgeHolds(
+  { who: { workspaces: [{ id: "t1", timezone: "America/New_York" }], activeWorkspaceId: "t1" } },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/harbor",
@@ -16,8 +21,6 @@ globalThis.window = {
     assign() {},
     replace() {},
   },
-  __WORKSPACES: [{ id: "t1", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {

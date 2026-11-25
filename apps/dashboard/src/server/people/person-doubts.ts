@@ -8,8 +8,6 @@
  */
 import { AppError, DOUBT_WORDS } from "@chanlytics/contracts";
 import { dismissPersonDoubt, findDoubtOn } from "@chanlytics/db/people";
-import { emitEvent } from "@chanlytics/db/events";
-import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
@@ -17,13 +15,9 @@ export async function settleDoubtApart(ctx: RouteContext, tenantId: TenantId, co
   const doubt = await findDoubtOn(ctx.supabase, tenantId, contactId, doubtId);
   if (!doubt) throw new AppError("not_found", DOUBT_WORDS.notFound, 404);
   try {
-    const settled = await dismissPersonDoubt(ctx.supabase, doubtId);
-    // The answer to "is this one person?" is a member's, and the doubt's own row is where it was kept alone.
-    await emitEvent(serviceDb(), tenantId, "contact.kept_apart", "contact", contactId, {
-      by: ctx.userId,
-      doubt_id: doubtId,
-    });
-    return settled;
+    // The answer to "is this one person?" is a member's: the door keeps it on the doubt's own row and writes its event
+    // on this person's record (contact.kept_apart, 00718).
+    return await dismissPersonDoubt(ctx.supabase, doubtId, contactId);
   } catch (e) {
     throw dbRefusal(e);
   }

@@ -6,6 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -27,6 +28,15 @@ globalThis.document = {
   querySelector: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: "t-studio", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "t-studio",
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -43,8 +53,6 @@ globalThis.window = {
   dispatchEvent: () => true,
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  __WORKSPACES: [{ id: "t-studio", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t-studio",
 };
 
 /** GET contacts over `total` people, a thousand a page; `next` is said only when `cursors` (a database with 00276). */

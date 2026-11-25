@@ -84,7 +84,7 @@ export const IxWho = (p: IxWhoProps) => {
       </div>
     );
   return (
-    <a className="ix-th-who" {...routeDoor(to, go)} title={`Open ${who} in People`} data-testid="ix-th-person">
+    <a className="ix-th-who" {...routeDoor(to, go)} data-tip={`Open ${who} in People`} data-testid="ix-th-person">
       {face}
       <div className="ix-th-id">{children}</div>
     </a>
@@ -178,7 +178,7 @@ function whereItStands(
       {standing.meta && (
         <span
           className={standing.words ? "ix-th-standing-meta ix-th-standing-words" : "ix-th-standing-meta tabular"}
-          title={standing.title}
+          data-tip={standing.title}
           aria-hidden={standing.title ? true : undefined}
         >
           {standing.meta}
@@ -209,7 +209,7 @@ export function wireBadge(thread: Thread, labels: Record<string, string>) {
   if (!glyph || personFaceOf(thread.who).glyph === glyph) return null;
   const said = ixWires(thread, labels);
   return (
-    <span className="ix-th-wire" role="img" aria-label={said} title={said} data-testid="ix-th-wire">
+    <span className="ix-th-wire" role="img" aria-label={said} data-tip={said} data-testid="ix-th-wire">
       <Icon name={glyph} size={11} />
     </span>
   );

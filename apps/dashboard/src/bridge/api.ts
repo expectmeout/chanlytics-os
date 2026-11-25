@@ -19,6 +19,7 @@ import {
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_STAFF_PATH,
 } from "@chanlytics/contracts";
+import { pageReport } from "@/client/page-report";
 
 let instance: Api | null = null;
 
@@ -37,7 +38,7 @@ function forgetWorkspaceAndReboot(win: Window): void {
   clearReadCaches();
   try {
     if (win.sessionStorage.getItem(REBOOTED)) {
-      console.error("choose_workspace_after_reboot");
+      pageReport.error("choose_workspace_after_reboot");
       return;
     }
     win.sessionStorage.setItem(REBOOTED, "1");

@@ -12,8 +12,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "demo" });
+bridgeHolds({ parts: { surfaceState: () => "demo" } });
+installStubReact({});
 // The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 Object.assign(globalThis, { drawRoute });

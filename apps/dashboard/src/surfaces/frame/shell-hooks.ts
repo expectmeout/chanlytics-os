@@ -8,7 +8,10 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
 import type { watchKeyboard } from "../kit/motion/keyboard";
 import { isDocumentScroller, scrollerOf } from "../kit/motion/page-scroll";
-import { frameChrome, frameShell, frameSurfaceState, fromWindow } from "./frame-window";
+import { provided } from "@/bridge/provided";
+import { whoIsLooking } from "@/bridge/who";
+import { surfaceValue } from "../surface-values";
+import { frameChrome, frameShell, fromWindow } from "./frame-window";
 import { parseRoute, routeFailed, routeReady, shellAddress, type RouteAt, type ShellRoute } from "./shell-routes";
 import { stripPlace, stripSlide } from "./surface-tabs";
 
@@ -90,13 +93,14 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
     let w: ReturnType<typeof setTimeout> | null = null;
     const armWait = () => {
       if (w === null && routeReady(page, param, true))
-        w = setTimeout(() => setWaitedOutKey(routeKey), window.__routeWaitMs || ROUTE_WAIT_FALLBACK_MS);
+        w = setTimeout(() => setWaitedOutKey(routeKey), provided("routeWaitMs") || ROUTE_WAIT_FALLBACK_MS);
     };
     // Drawn again when this route's readiness changes, and only then; the render below reads the truth.
     const readiness = () => `${routeReady(page, param)}|${routeReady(page, param, true)}|${routeFailed(page, param)}`;
     let was = readiness();
-    const off = window.__onSurfaceReady
-      ? window.__onSurfaceReady(() => {
+    const onReady = provided("onSurfaceReady");
+    const off = onReady
+      ? onReady(() => {
           const now = readiness();
           if (now !== was) {
             was = now;
@@ -122,7 +126,7 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
   const surfaceReady = useSurfaceReady({ page, param, routeKey }, routeWaitedOut);
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || timedOutKey === routeKey);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
-  const surfaceState = frameSurfaceState();
+  const surfaceState = provided("surfaceState");
   const demoGated = !!surfaceState && surfaceState(page, param) === "demo";
   return { demoGated, routeLoading, surfaceUnavailable, arm, setReadyTick };
 }
@@ -203,11 +207,11 @@ export function useShellRouting({
   // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come from
   // their row: drawn again when the rows do, once. Asked with what this draw saw, so rows that landed between the draw and
   // this effect draw it again too.
-  const peopleAtDraw = !!window.__PEOPLE;
+  const peopleAtDraw = !!surfaceValue("people");
   useEffect(() => {
     if (route.page !== "clients" || !route.param || peopleAtDraw) return undefined;
     const again = () => setReadyTick((n) => n + 1);
-    if (window.__PEOPLE) {
+    if (surfaceValue("people")) {
       again();
       return undefined;
     }
@@ -232,7 +236,7 @@ const railAndWorkspaceKey =
     }
     const n = Number(e.key);
     if (n >= 1 && n <= 9) {
-      const all = window.__WORKSPACES || [];
+      const all = whoIsLooking().workspaces ?? [];
       const shell = frameShell();
       const ws = all.at(n - 1);
       if (all.length > 1 && ws && shell) {

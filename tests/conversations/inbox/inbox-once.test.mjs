@@ -13,9 +13,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -94,12 +95,14 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -109,8 +112,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
@@ -520,7 +521,7 @@ test("an email in the thread is drawn as one: its subject said once over the fir
   // Counted on a fold of its own under the words, its name and why on a pointer (the thread canvas, 1 Nov 2026).
   const leftOut = find(withFile, byTestId("tl-msg-left-out"));
   assert.equal(textOf(leftOut).trim(), "1 file not kept");
-  assert.match(leftOut.props.title, /1 attachment was not kept: floorplan\.pdf\./);
+  assert.match(leftOut.props["data-tip"], /1 attachment was not kept: floorplan\.pdf\./);
   // They wrote last by email, so that is where a reply goes, and the reply box says so: no window, no templates.
   const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
   assert.equal(

@@ -18,7 +18,6 @@ import {
   type ReachOutSearchLinesDto,
   type ReachOutStopDto,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import {
   findLeadReplyFacts,
   findReachOutRoot,
@@ -107,8 +106,7 @@ export async function stopLead(
 ): Promise<ReachOutStopDto> {
   const { data, error } = await stopReachOutLead(ctx.supabase, lead.id);
   if (error) throw reachOutRefusal(error);
-  // On the ledger: a business stops hearing from the workspace because a member said so, and nothing recorded who.
-  await emitEvent(serviceDb(), lead.tenant_id, "reach_out.lead_stopped", "lead", lead.id, { by: ctx.userId });
+  // The door wrote who stopped them beside the stop (reach_out.lead_stopped, 00718), once: a second press writes none.
   return dtoOf<ReachOutStopDto>(data);
 }
 

@@ -12,7 +12,7 @@ import {
   appointmentWordVM,
 } from "@chanlytics/contracts";
 import { bookingRulesWords } from "../../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
-import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";
+import { unmount, settle, all, find, byTestId, textOf, classes, press, escapeSheet } from "../../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   cancelFoldOf,
@@ -55,9 +55,13 @@ import {
   typeHeard,
   undoFor,
 } from "./_offer.mjs";
+import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
+/** The word for a booking the row says: its value, which the row's act opens the five of (settings/choice-act.tsx). */
+const wordShown = (tree) =>
+  textOf(find(byTestId(tree, "rec-row-appointment_word"), (n) => n.props?.className === "rec-row-value")).trim();
 test("the services row counts them and names the first three, and says nothing of how they are priced", () => {
   const row = byTestId(drawTab({ profile: many }), "rec-row-services");
   assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-value"))), "33", "the count alone");
@@ -217,7 +221,7 @@ test("each act of What you offer is gated as a change to the settings, and named
     return {};
   };
   // The word is offered only where there is a courier to save it through, as the zone is.
-  W.__workspace = { patch: async () => ({ ok: true, workspace: {}, message: "" }) };
+  bridgeHolds({ parts: { workspace: { patch: async () => ({ ok: true, workspace: {}, message: "" }) } } });
   try {
     const tree = drawTab();
     const mine = asked.filter(([, doing]) => /call a booking|services|booking rules|consult/.test(doing));
@@ -238,7 +242,7 @@ test("each act of What you offer is gated as a change to the settings, and named
     assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
   } finally {
     W.gate = was;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -246,7 +250,11 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
   W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
   // A courier to save the answer through, so that only the role stops it.
   const patched = [];
-  W.__workspace = { patch: async (fields) => (patched.push(fields), { ok: true, workspace: fields, message: "" }) };
+  bridgeHolds({
+    parts: {
+      workspace: { patch: async (fields) => (patched.push(fields), { ok: true, workspace: fields, message: "" }) },
+    },
+  });
   try {
     const sent = saving();
     const tree = drawTab({ profile: many, word: "meeting" });
@@ -277,7 +285,7 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
     assert.deepEqual(patched, [], "and nothing goes to the workspace's courier");
   } finally {
     delete W.ST_STORE;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -288,7 +296,7 @@ test("What you call a booking states the workspace's word, and its menu offers t
     const row = byTestId(tree, "rec-row-appointment_word");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-key"))), "What you call a booking");
     // Never picked: an appointment, as everywhere a workspace has said nothing.
-    assert.equal(textOf(byTestId(tree, "appointment_word-menu")).trim(), "Appointment");
+    assert.equal(wordShown(tree), "Appointment");
     press(byTestId(redrawTab(), "appointment_word-menu"));
     const items = all(redrawTab(), (n) => n.props?.role === "menuitemradio");
     const vm = appointmentWordVM("appointment");
@@ -300,10 +308,10 @@ test("What you call a booking states the workspace's word, and its menu offers t
     assert.equal(vm.choices.length, APPOINTMENT_WORDS.length);
     assert.equal(vm.choices[2].hint, "Next meeting · Meeting reminder");
     // A word stored is the row's answer.
-    assert.equal(textOf(byTestId(drawTab({ word: "session" }), "appointment_word-menu")).trim(), "Session");
+    assert.equal(wordShown(drawTab({ word: "session" })), "Session");
     assert.deepEqual(c.sent, [], "reading sends nothing");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -319,13 +327,9 @@ test("a word picked goes through the workspace's courier as { appointment_word }
     assert.equal(sent.length, 0, "never the settings save");
     assert.deepEqual(told(flashes.at(-1)), ["ok", appointmentWordSaved("session")]);
     assert.equal(told(flashes.at(-1))[1], "Saved · it says “session” now.");
-    assert.equal(
-      textOf(byTestId(redrawTab(flash), "appointment_word-menu")).trim(),
-      "Session",
-      "and the page follows it",
-    );
+    assert.equal(wordShown(redrawTab(flash)), "Session", "and the page follows it");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -338,9 +342,9 @@ test("a word refused says the server's words, and the row keeps the word it had"
     await pickWord("Lesson", flash);
     assert.deepEqual(c.sent, [{ appointment_word: "lesson" }]);
     assert.deepEqual(told(flashes.at(-1)), ["danger", "That workspace's word could not be changed."]);
-    assert.equal(textOf(byTestId(redrawTab(flash), "appointment_word-menu")).trim(), "Appointment");
+    assert.equal(wordShown(redrawTab(flash)), "Appointment");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -353,7 +357,7 @@ test("only a role that may change the business is offered the word's menu: an op
     assert.match(textOf(byTestId(tree, "rec-row-appointment_word")), /Meeting/);
   } finally {
     delete W.ST_STORE;
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -688,13 +692,17 @@ test("what stops a save is said under its box, and nothing is sent", () => {
 
 test("while the sheet saves its boxes take nothing, and a press that would add or remove refuses the way Save does", () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise(() => {
-      sent.push({
-        config: structuredClone(config),
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise(() => {
+          sent.push({
+            config: structuredClone(config),
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+          });
+        }),
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ profile: many, flash });
@@ -758,14 +766,8 @@ test("Escape and Close are the sheet's Cancel: with changes they ask first, and 
   tree = openSheet(tree);
   typeAt(tree, "Service 1 price", "varies");
   tree = redrawTab();
-  const esc = {
-    key: "Escape",
-    defaultPrevented: false,
-    preventDefault() {
-      this.defaultPrevented = true;
-    },
-  };
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(esc);
+  // Escape, as Base UI hears it on the document and asks the kit's sheet.
+  escapeSheet(tree);
   tree = redrawTab();
   assert.ok(sheetOf(tree), "typed in: it stays open");
   assert.match(

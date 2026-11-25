@@ -20,7 +20,6 @@ import {
 } from "@chanlytics/contracts";
 import { findFile, findPiecePlanOfFile, getFileMade, listFilesByIds } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 
 type Db = RouteContext["supabase"];
@@ -68,7 +67,7 @@ const PIECE_GONE =
  * gone the plan names none, and says it cannot be made again.
  */
 async function postMadeAs(db: Db, tenantId: TenantId, fileId: string): Promise<MadeAs | null> {
-  const created = recordOrNull(await getFileMade(serviceDb(), tenantId, fileId));
+  const created = recordOrNull(await getFileMade(db, tenantId, fileId));
   if (!created) return null;
   const from = typeof created.from === "string" ? await findFile(db, created.from) : null;
   const plan = postPlanOf(recordOrNull(created.plan) ?? {});
@@ -162,7 +161,7 @@ async function pieceMadeAs(db: Db, tenantId: TenantId, fileId: string): Promise<
  */
 export async function readKeptWords(db: Db, tenantId: TenantId, fileId: string): Promise<string> {
   const read = async (): Promise<string[]> => {
-    const created = recordOrNull(await getFileMade(serviceDb(), tenantId, fileId));
+    const created = recordOrNull(await getFileMade(db, tenantId, fileId));
     if (created) {
       const plan = postPlanOf(recordOrNull(created.plan) ?? {});
       return [plan.line, plan.over ?? "", plan.under ?? ""];

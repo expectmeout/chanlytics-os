@@ -1039,8 +1039,8 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   );
   assert.deepEqual(went, [`inbox/${talking.threadId}`]);
   assert.equal(byTestId(cellOf("actions", talking, { bookingLink: null, drop: null }), "row-booking-link"), null);
-  // The exact time is on hover, by the business's clock.
-  const at = cellOf("last", talking).props.title;
+  // The exact time is in the cell's tip, by the business's clock.
+  const at = cellOf("last", talking).props["data-tip"];
   assert.equal(at, plWhen(talking.lastContact.at), "the exact time on hover");
   assert.match(at, /^[A-Z][a-z]{2} \d{1,2}, 2026 · \d{1,2}:\d{2} [AP]M$/);
   // A row no longer counts threads and calls ("no messages yet" was that count at zero): the profile has them.

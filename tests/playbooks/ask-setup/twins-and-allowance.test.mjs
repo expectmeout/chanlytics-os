@@ -239,8 +239,8 @@ const asSequence = (input) =>
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);
   const count = typeof monthSent === "function" ? monthSent : (a) => monthSent[a.p_channel] ?? 0;
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
-  const supabase = fakeDb(rows, {}, { people_list: () => people });
+  // The month's count is made on the member's own session (00717).
+  const supabase = fakeDb(rows, {}, { people_list: () => people, campaign_month_sent: count });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, now);
   return buildProposal(t, ...asSequence(input));
 };

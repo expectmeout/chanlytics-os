@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const W = globalThis.window;
@@ -120,12 +121,18 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
     "the refresh map names the surfaces the workspace's own fields ride on, where they are drawn",
   );
 
-  const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
+  const was = {
+    fetch: W.fetch,
+    settings: settingsHeld(),
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
+  };
   const srv = server("America/New_York");
+  bridgeHolds({
+    who: { workspaces: [{ id: "t-marisa", timezone: "America/New_York" }], activeWorkspaceId: "t-marisa" },
+  });
   Object.assign(W, {
     fetch: srv.fetch,
-    __WORKSPACES: [{ id: "t-marisa", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   // The save's own rules, which the tab asks for as it mounts: what a fold will say is judged by them.
@@ -140,7 +147,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
       assert.match(told(), /America\/New_York/);
 
       srv.asked.length = 0;
-      const r = await W.__workspace.setTimezone("America/Chicago");
+      const r = await provided("workspace").setTimezone("America/Chicago");
       assert.deepEqual([r.ok, r.tz], [true, "America/Chicago"]);
       assert.ok(
         srv.asked.indexOf("GET settings") > srv.asked.indexOf("PATCH workspaces"),
@@ -157,29 +164,41 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
         "so the hours fold names the zone the receptionist will state the times in",
       );
       assert.doesNotMatch(told(), /America\/New_York/);
-      assert.equal(W.__WORKSPACES[0].timezone, "America/Chicago", "and the page's own clock follows, as it did");
+      assert.equal(
+        whoIsLooking().workspaces[0].timezone,
+        "America/Chicago",
+        "and the page's own clock follows, as it did",
+      );
     });
   } finally {
     stop();
     landSettings(was.settings);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(W, {
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });
 
 test("what it calls a booking is saved through the workspace's own route: only what was said goes, the page's list keeps it, and the pages that say it are read again", async () => {
-  const was = { fetch: W.fetch, settings: settingsHeld(), ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
+  const was = {
+    fetch: W.fetch,
+    settings: settingsHeld(),
+    ws: whoIsLooking().workspaces,
+    active: whoIsLooking().activeWorkspaceId,
+  };
   const srv = server("America/New_York");
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "t-marisa", timezone: "America/New_York", appointment_word: null },
+        { id: "t-other", timezone: "Europe/London", appointment_word: null },
+      ],
+      activeWorkspaceId: "t-marisa",
+    },
+  });
   Object.assign(W, {
     fetch: srv.fetch,
-    __WORKSPACES: [
-      { id: "t-marisa", timezone: "America/New_York", appointment_word: null },
-      { id: "t-other", timezone: "Europe/London", appointment_word: null },
-    ],
-    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   const heard = [];
@@ -190,11 +209,11 @@ test("what it calls a booking is saved through the workspace's own route: only w
     await quiet(async () => {
       for (let i = 0; i < 40 && !(settingsHeld() && settingsHeld().prompt); i += 1) await pause();
       srv.asked.length = 0;
-      const r = await W.__workspace.patch({ appointment_word: "session" });
+      const r = await provided("workspace").patch({ appointment_word: "session" });
       assert.deepEqual(r, { ok: true, workspace: { appointment_word: "session" }, message: "" });
       assert.deepEqual(srv.bodies, [{ appointment_word: "session" }], "the word alone: the zone is not sent again");
       assert.deepEqual(
-        W.__WORKSPACES.map((t) => [t.id, t.timezone, t.appointment_word]),
+        whoIsLooking().workspaces.map((t) => [t.id, t.timezone, t.appointment_word]),
         [
           ["t-marisa", "America/New_York", "session"],
           ["t-other", "Europe/London", null],
@@ -209,19 +228,22 @@ test("what it calls a booking is saved through the workspace's own route: only w
         assert.ok(srv.asked.indexOf(read) > patched, `${read} after the save: ${srv.asked.join(", ")}`);
       // The zone's own door is the same courier, for the zone alone.
       srv.bodies.length = 0;
-      const tz = await W.__workspace.setTimezone("America/Chicago");
+      const tz = await provided("workspace").setTimezone("America/Chicago");
       assert.deepEqual(tz, { ok: true, tz: "America/Chicago", message: "" });
       assert.deepEqual(srv.bodies, [{ timezone: "America/Chicago" }]);
-      assert.equal(W.__WORKSPACES[0].appointment_word, "session", "a zone saved leaves the word where it was");
+      assert.equal(
+        whoIsLooking().workspaces[0].appointment_word,
+        "session",
+        "a zone saved leaves the word where it was",
+      );
     });
   } finally {
     stop();
     W.removeEventListener?.("workspace:changed", onChange);
     landSettings(was.settings);
+    bridgeHolds({ who: { workspaces: was.ws, activeWorkspaceId: was.active } });
     Object.assign(W, {
       fetch: was.fetch,
-      __WORKSPACES: was.ws,
-      __ACTIVE_WORKSPACE: was.active,
     });
   }
 });

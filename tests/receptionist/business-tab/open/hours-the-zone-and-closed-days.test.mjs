@@ -46,6 +46,7 @@ import {
   written,
 } from "../../../_business-tab-harness.mjs";
 import { NEW_YEAR, XMAS, copyTo, place, summaryOf } from "./_open.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("When you're open draws three rows in the spec's order, under a line contracts wrote", () => {
   const tree = drawTab();
@@ -118,7 +119,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
 test("the hours fold is the week on one scale: a switch, the bars and the times for each day, in the zone AI states them in", () => {
   let tree = drawTab();
   assert.deepEqual(openFolds(tree), []);
-  assert.equal(foldOf(tree, "hours").props.hidden, true, "drawn, and hidden until it is asked for");
+  assert.equal(foldOf(tree, "hours"), null, "its sheet shut until it is asked for");
   openFold(tree, "hours");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["hours"]);
@@ -128,7 +129,6 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   assert.equal(fold.props.role, "dialog", "a sheet, not a fold under the row");
   assert.equal(byTestId(fold, "rec-row-hours"), null, "the row is not inside the sheet");
   assert.ok(byTestId(tree, "rec-row-hours"), "and still in its card behind it");
-  assert.equal(fold.props["data-wide"], "true", "its own grid names each day");
   // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
   // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
   assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-sheet-sub"))), hoursZoneWords("America/New_York"));
@@ -163,9 +163,11 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   assert.equal(labelled(fold, "Sunday opens"), null, "a closed day offers no boxes");
   // The zone is the one the settings read resolved the prompt in.
   tree = drawTab({ zone: "America/Chicago" });
+  openFold(tree, "hours");
+  tree = redrawTab();
   assert.equal(
-    // Drawn afresh the fold is closed and hidden whole, in the row's frame: its hint is the head's, not a sheet's.
-    textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
+    // Opened afresh: the sheet's line under its title says the zone.
+    textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-sheet-sub"))),
     hoursZoneWords("America/Chicago"),
   );
   assert.equal(hoursZoneWords("America/Chicago"), "In Chicago time");
@@ -437,7 +439,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
     ["warn", "Not put back · the editor it was in has closed. Open it again to change it."],
   );
   // And one pressed while the fold's save is out: nothing is typed into a save on its way, and that is said too.
-  W.__saveSettings = () => new Promise(() => {});
+  bridgeHolds({ parts: { saveSettings: () => new Promise(() => {}) } });
   tree = drawTab({ flash });
   openFold(tree, "hours");
   tree = redrawTab(flash);
@@ -567,13 +569,17 @@ test("the gap line's hours door opens the fold, and the fold asks before its cha
 
 test("while the week saves its boxes and switches take nothing, and what is asked of it waits for the save's answer", () => {
   const sent = [];
-  W.__saveSettings = (config, version, accepted) =>
-    new Promise(() => {
-      sent.push({
-        config: structuredClone(config),
-        accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
-      });
-    });
+  bridgeHolds({
+    parts: {
+      saveSettings: (config, version, accepted) =>
+        new Promise(() => {
+          sent.push({
+            config: structuredClone(config),
+            accept: () => accepted({ config: structuredClone(config), version: version + 1 }),
+          });
+        }),
+    },
+  });
   const flashes = [];
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
@@ -621,7 +627,7 @@ test("while the week saves its boxes and switches take nothing, and what is aske
     [openFolds(tree), openRows(tree), byTestId(tree, "rec-fold-hours-ask-confirm")],
     [["hours"], [], null],
   );
-  press(byTestId(tree, "rec-fold-close-hours"));
+  press(byTestId(tree, "rec-fold-hours-close"));
   tree = redrawTab(flash);
   assert.deepEqual(openFolds(tree), ["hours"], "Close is Cancel, and nothing cancels a save that is out");
   sent[0].accept();
@@ -637,13 +643,17 @@ test("the timezone row says the zone and the time there, and saves through the w
   const asked = [];
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  W.__workspace = {
-    setTimezone: async (tz) => {
-      asked.push(tz);
-      W.__WORKSPACES = W.__WORKSPACES.map((t) => ({ ...t, timezone: tz }));
-      return { ok: true, tz, message: "" };
+  bridgeHolds({
+    parts: {
+      workspace: {
+        setTimezone: async (tz) => {
+          asked.push(tz);
+          bridgeHolds({ who: { workspaces: whoIsLooking().workspaces.map((t) => ({ ...t, timezone: tz })) } });
+          return { ok: true, tz, message: "" };
+        },
+      },
     },
-  };
+  });
   try {
     let tree = drawTab({ flash });
     const row = byTestId(tree, "rec-row-timezone");
@@ -718,7 +728,11 @@ test("the timezone row says the zone and the time there, and saves through the w
     await settle();
     tree = redrawTab(flash);
     assert.deepEqual([asked.length, openRows(tree)], [1, []]);
-    W.__workspace.setTimezone = async () => ({ ok: false, tz: "", message: "Only the owner can change the timezone." });
+    provided("workspace").setTimezone = async () => ({
+      ok: false,
+      tz: "",
+      message: "Only the owner can change the timezone.",
+    });
     openFold(tree, "timezone");
     tree = redrawTab(flash);
     press(byTestId(tree, "rec-inline-timezone-device") || { props: { onClick() {} } });
@@ -740,7 +754,7 @@ test("the timezone row says the zone and the time there, and saves through the w
     assert.equal(byTestId(tree, "rec-inline-timezone-cancel-confirm"), null);
     assert.deepEqual(openRows(tree), []);
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 

@@ -56,10 +56,11 @@
   font-size: var(--text-read);
   color: var(--ink);
 }
+/* A time in the text face, its digits in columns (.tabular), as every time an owner reads is (the phone change list's D2,
+   25 Nov 2026: in mono it pushed a name to four lines). */
 .calm-wait {
   margin-left: auto;
   flex: none;
-  font-family: var(--font-mono);
   font-size: var(--text-label);
   white-space: nowrap;
   color: var(--ink-dim);
@@ -208,8 +209,13 @@
 .calm-lines ~ .calm-lines > .calm-line:first-child {
   border-top-color: var(--line);
 }
+/* A name runs to two lines at most, the rest cut with "…" (the phone change list's D4, 25 Nov 2026: four lines beside
+   a time). */
 .calm-name {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   white-space: normal;

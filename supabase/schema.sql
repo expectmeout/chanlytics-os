@@ -5520,9 +5520,22 @@ COMMENT ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_e
 --
 
 CREATE FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone DEFAULT now()) RETURNS integer
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   with zone as (
     select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
       from public.tenants t where t.id = p_tenant_id
@@ -5538,14 +5551,15 @@ CREATE FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_a
      and (public.email_left(m.status, m.error)
           or m.status = 'queued'
           or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
-$$;
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) IS 'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00298; reach_out_month_sent counts the cold emails the same way). Service role only.';
+COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) IS 'The campaign messages (a broadcast''s or a playbook run''s: meta.source broadcast) a workspace sent on a channel this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance on that channel has spent (00298; reach_out_month_sent counts the cold emails the same way). A member of the workspace, or the service role (00717).';
 
 
 --
@@ -6250,6 +6264,9 @@ CREATE FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversati
     SET search_path TO 'public'
     AS $$
 declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_kind  text;
   v_by    uuid;
   v_ref   text;
@@ -6257,6 +6274,14 @@ declare
   v_same  boolean;
   v_live  boolean;
 begin
+  if v_member then
+    if p_kind is distinct from 'person' or p_by is distinct from auth.uid()
+       or p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   if p_kind not in ('person', 'call') then
     raise exception 'control kind must be person or call' using errcode = '22023';
   end if;
@@ -6310,7 +6335,7 @@ end $$;
 -- Name: FUNCTION claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) IS 'Take the live hold on a thread, or renew one this holder already has. A person takes it from anyone; a call never takes one somebody else holds. Returns claimed, renewed, held or gone. Atomic: the row is locked, so two claimants cannot both be told the thread was free.';
+COMMENT ON FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) IS 'Take the live hold on a thread, or renew one this holder already has. A person takes it from anyone; a call never takes one somebody else holds. Returns claimed, renewed, held or gone. Atomic: the row is locked, so two claimants cannot both be told the thread was free. A member who acts takes their own hold as a person (p_kind person, p_by themself); a call''s is the service role''s (00717).';
 
 
 SET default_tablespace = '';
@@ -8042,8 +8067,18 @@ CREATE FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_i
     SET search_path TO 'public'
     AS $$
 declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_id uuid;
 begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   if p_why is null or p_why not in ('pitch', 'notice') then
     raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
   end if;
@@ -8068,7 +8103,7 @@ end $$;
 -- Name: FUNCTION conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) IS 'A thread set aside as not a customer''s, in one transaction (00539, decision 0093): archived, said so, its open hold resolved. False where someone has the thread. The service role''s.';
+COMMENT ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) IS 'A thread set aside as not a customer''s, in one transaction (00539, decision 0093): archived, said so, its open hold resolved. False where someone has the thread. A member who acts (is_acting_member), or the service role (00717).';
 
 
 --
@@ -13039,8 +13074,18 @@ CREATE FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) RETURN
     SET search_path TO 'public'
     AS $$
 declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_held integer;
 begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   update public.form_entries
      set state = 'held', held_why = 'member'
    where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
@@ -13053,7 +13098,7 @@ end $$;
 -- Name: FUNCTION form_entry_hold(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) IS 'A request a member says is not a real one, held (00680): it leaves every count and waits in its form''s held pile, where form_entry_let_through brings it back. Answers whether one was held. The service role''s alone; the route that calls it asks the member''s role.';
+COMMENT ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) IS 'A request a member says is not a real one, held (00680): it leaves every count and waits in its form''s held pile, where form_entry_let_through brings it back. Answers whether one was held. A member who acts (is_acting_member), or the service role (00717).';
 
 
 --
@@ -13065,11 +13110,21 @@ CREATE FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid)
     SET search_path TO 'public'
     AS $$
 declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_entry   public.form_entries%rowtype;
   v_person  jsonb;
   v_contact uuid;
   v_owed    text[] := array['note', 'notice'];
 begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   select * into v_entry from public.form_entries e
    where e.tenant_id = p_tenant_id and e.id = p_entry_id and e.state = 'held'
    for update;
@@ -13112,7 +13167,7 @@ end $$;
 -- Name: FUNCTION form_entry_let_through(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) IS 'A held form entry let through (00680): one held with no person has its person resolved now and its form_entry.accepted written now, so its note and its notice start then; one a member had set aside is a request again, and tells nobody twice. Answers {outcome: accepted|back|forgotten|gone, entry_id, contact_id}: a forgotten person''s entry is deleted. The service role''s alone; the route that calls it asks the member''s role.';
+COMMENT ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) IS 'A held form entry let through (00680): one held with no person has its person resolved now and its form_entry.accepted written now, so its note and its notice start then; one a member had set aside is a request again, and tells nobody twice. Answers {outcome: accepted|back|forgotten|gone, entry_id, contact_id}: a forgotten person''s entry is deleted. A member who acts (is_acting_member), or the service role (00717).';
 
 
 --
@@ -16113,7 +16168,18 @@ CREATE FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses t
     SET search_path TO 'public'
     SET plan_cache_mode TO 'force_generic_plan'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   return query
     with asked as (
       select distinct lower(btrim(a)) as address
@@ -16137,7 +16203,7 @@ end $$;
 -- Name: FUNCTION lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) IS 'The never-again list for addresses (Reach out Part 5, G9): each asked address, lower-cased and trimmed, that an email row holds, or whose domain (after its last "@") a domain row holds. The one predicate the send door''s facts, the audience and the finder ask. Service role only.';
+COMMENT ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) IS 'The never-again list for addresses (Reach out Part 5, G9): each asked address, lower-cased and trimmed, that an email row holds, or whose domain (after its last "@") a domain row holds. The one predicate the send door''s facts, the audience and the finder ask. A member of the workspace, or the service role (00717).';
 
 
 --
@@ -17636,9 +17702,22 @@ COMMENT ON FUNCTION public.lead_list_counts(p_tenant_id uuid) IS 'The six number
 --
 
 CREATE FUNCTION public.lead_member_exclude(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'exclude') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'exclude');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.excluded', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -17653,9 +17732,22 @@ COMMENT ON FUNCTION public.lead_member_exclude(p_search_id uuid, p_lead_id uuid)
 --
 
 CREATE FUNCTION public.lead_member_keep(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'keep') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'keep');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.kept', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -17855,9 +17947,22 @@ COMMENT ON FUNCTION public.lead_member_of(p_tenant_id uuid, p_lead_id uuid, p_se
 --
 
 CREATE FUNCTION public.lead_member_put_back(p_search_id uuid, p_lead_id uuid) RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ select public.lead_member_move(p_search_id, p_lead_id, 'put_back') $$;
+    AS $$
+declare
+  v_answer jsonb := public.lead_member_move(p_search_id, p_lead_id, 'put_back');
+begin
+  -- A member's word on a place, with its operation row (lead_member_move): who, and in which search. A refusal writes
+  -- nothing. lead_bulk moves many through lead_member_move and writes one event for its act, so the event is here.
+  if not v_answer ? 'error' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'lead.put_back', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid(), 'search_id', p_search_id)
+      from public.lead_searches s
+     where s.id = p_search_id;
+  end if;
+  return v_answer;
+end $$;
 
 
 --
@@ -20160,6 +20265,7 @@ declare
   run     record;
   v_ids   uuid[];
   v_op    uuid;
+  v_kept  integer;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -20194,6 +20300,12 @@ begin
   insert into public.lead_operations (tenant_id, kind, search_id, lead_ids, before, after, version, by)
   values (s.tenant_id, 'undo_search', p_search_id, v_ids, jsonb_build_object('removed_at', null), jsonb_build_object('removed_at', now()), 1, v_user)
   returning id into v_op;
+  -- A search and the leads nobody worked are gone on a member's word: whose, and what it kept and set aside.
+  select count(*) into v_kept from public.lead_search_members where search_id = p_search_id and blanked_at is null;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead.search_removed', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('name', s.name, 'kept', v_kept, 'archived', coalesce(array_length(v_ids, 1), 0),
+                             'by', v_user));
   return jsonb_build_object('op_id', v_op, 'version', 1, 'blanked', coalesce(array_length(v_ids, 1), 0));
 end $$;
 
@@ -20229,6 +20341,9 @@ begin
     raise exception 'Search not found.' using errcode = 'P0002';
   end if;
   update public.lead_searches set name = v_name where id = p_search_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead.search_renamed', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('name', v_name, 'by', v_user));
   return jsonb_build_object('search_id', p_search_id, 'name', v_name);
 end $$;
 
@@ -21889,6 +22004,10 @@ begin
        set e164 = p_number, forwarding_state = 'instructed', state_since = now(), facts = v_facts, last_error = null
      where id = v_id;
   end if;
+  -- Where a business's calls go changed on a member's word: who and which calls, never the number.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_set', 'setup', 'line', v_id,
+          jsonb_build_object('carrier', p_carrier, 'mode', p_mode, 'by', auth.uid()));
   return v_id;
 end $_$;
 
@@ -22153,9 +22272,22 @@ COMMENT ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email text
 --
 
 CREATE FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if not coalesce(public.may_read_workspace((select b.tenant_id from public.mailbox_connections b where b.id = p_mailbox_id)), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   with b as (
     select id, tenant_id, state, clean_since, resting_until, daily_cap, customer_domain
       from public.mailbox_connections where id = p_mailbox_id
@@ -22201,14 +22333,15 @@ CREATE FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with t
                  union all select at from planned) x), '[]'::jsonb),
     'last_sent_at', (select max(g.at) from gone g where g.at <= p_at)
   ) from b
-$$;
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) IS 'A connected mailbox''s day (00424): its state, rest, cap and customer domain; sent_days (the UTC days it sent on since clean_since, before today''s: the ramp''s step, D15); sent_today and used (what left in the last day, and that plus what is written or claimed and not gone); recent (every moment it spends, planned included, epoch ms); last_sent_at. From its reach-out sends. Service role only.';
+COMMENT ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) IS 'A connected mailbox''s day (00424): its state, rest, cap and customer domain; sent_days (the UTC days it sent on since clean_since, before today''s: the ramp''s step, D15); sent_today and used (what left in the last day, and that plus what is written or claimed and not gone); recent (every moment it spends, planned included, epoch ms); last_sent_at. From its reach-out sends. A member of the mailbox''s workspace, or the service role (00717).';
 
 
 --
@@ -22270,9 +22403,22 @@ COMMENT ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_i
 --
 
 CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if not coalesce(public.may_read_workspace((select b.tenant_id from public.mailbox_connections b where b.id = p_mailbox_id)), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   with ours as (
     select m.id, m.status, m.error, m.meta, m.created_at, s.tenant_id
       from public.sequence_sends s
@@ -22317,14 +22463,15 @@ CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since time
     'unsubscribed', (select count(distinct subject_id) from noes where source = 'unsubscribe'),
     'said_no', (select count(distinct n.subject_id) from noes n where n.source = 'reply'
                   and not exists (select 1 from noes u where u.subject_id = n.subject_id and u.source = 'unsubscribe')))
-$$;
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
+COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'What one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes. The mailboxes clock (the service role) and Setup''s read (a member of the mailbox''s workspace, 00717).';
 
 
 --
@@ -22472,6 +22619,40 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) IS 'An email the owner sent from their connected mailbox, not through Chanlytics (00482): kept in the thread of the one person it went to when the workspace knows them (the email identity, else the address on a living record; nobody is made), once by the provider''s id, outbound by a person; and the open holds on that thread that wait on a person (p_reasons) and opened before it was sent, resolved by one resolve decision with no member, via mailbox. Returns kept, why (not_known, already) when not kept, message_id, conversation_id, resolved, and decision_id when it resolved any. Service role only.';
+
+
+--
+-- Name: mailbox_provider_wanted(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_provider text := nullif(btrim(coalesce(p_provider, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_provider is null or char_length(v_provider) > 60 then
+    raise exception 'Say which you use, in 60 characters or fewer.' using errcode = '22023';
+  end if;
+  -- Which mailbox a workspace that can't connect would use, with who asked: the ask is the whole write.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.provider_wanted', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('provider', v_provider, 'by', auth.uid()));
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_provider_wanted(p_tenant_id uuid, p_provider text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) IS 'Cold email''s Tell us (00718): which mailbox a workspace that can''t connect one would use, kept on the ledger with who asked (mailbox_connection.provider_wanted), so Microsoft is built when the asks justify it and they can be told. An owner''s or a partner''s (permission settings), as its route asks.';
 
 
 --
@@ -27428,10 +27609,10 @@ COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text,
 
 
 --
--- Name: person_doubt_dismiss(uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: person_doubt_dismiss(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) RETURNS jsonb
+CREATE FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -27454,6 +27635,11 @@ begin
        set settled_at = now(), settled_as = 'not_the_same', settled_by = v_user
      where id = p_doubt_id
      returning * into v_row;
+    -- The answer to "is this one person?" is a member's: on the record they answered from, either side of the pair.
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'contact.kept_apart', 'contact', 'contact',
+            case when p_contact_id in (v_row.contact_id, v_row.other_id) then p_contact_id else v_row.contact_id end,
+            jsonb_build_object('by', v_user, 'doubt_id', v_row.id));
   end if;
   return jsonb_build_object('doubt_id', v_row.id, 'contact_id', v_row.contact_id, 'other_id', v_row.other_id,
                             'settled_as', v_row.settled_as, 'settled_at', v_row.settled_at);
@@ -27461,10 +27647,10 @@ end $$;
 
 
 --
--- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) IS 'Not the same (decision 0034, step 4): a member settles a doubt, and the pair is never raised again by the next arrival. Twice is once; a pair the merge settled is refused in words.';
+COMMENT ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) IS 'Not the same (decision 0034, step 4): a member settles a doubt, and the pair is never raised again by the next arrival, with its event (contact.kept_apart, 00718) on the record it was answered from (p_contact_id, either side; the doubt''s own contact where none is named). Twice is once, and writes no second event; a pair the merge settled is refused in words.';
 
 
 --
@@ -33786,9 +33972,22 @@ COMMENT ON FUNCTION public.reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dr
 --
 
 CREATE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer DEFAULT 90) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   -- Who this sequence would try again, and from when (00608, decision 0120): the businesses its first email wrote to that
   -- reach_out_comes_back would let back once their last email is p_days old (its rules, the age aside), and the moment
   -- the first of them comes back. {count, first_at}.
@@ -33808,14 +34007,15 @@ CREATE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p
            'count', count(*),
            'first_at', min(b.last_at) + make_interval(days => greatest(coalesce(p_days, 90), 0)))
     from back b
-$$;
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00608, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
+COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00608, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. A member of the workspace, or the service role (00717).';
 
 
 --
@@ -34556,9 +34756,22 @@ COMMENT ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id uui
 --
 
 CREATE FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid, p_run_id uuid DEFAULT NULL::uuid, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, tenant_id uuid, lead_id uuid, broadcast_id uuid, drafted_at timestamp with time zone, facts jsonb)
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return query
   select s.id, s.tenant_id, s.lead_id, s.batch_id as broadcast_id, s.drafted_at,
          public.reach_out_draft_facts(s.tenant_id, s.lead_id)
     from public.sequence_sends s
@@ -34567,15 +34780,15 @@ CREATE FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uui
      and (p_run_id is null or s.batch_id = p_run_id)
      and (p_after_at is null or (s.drafted_at, s.id) > (p_after_at, p_after_id)))
    order by s.drafted_at, s.id
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
+   limit greatest(coalesce(p_limit, 0), 0);
+end $$;
 
 
 --
 -- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
+COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). A member names their own workspace; every workspace at once is the service role''s alone (00717).';
 
 
 --
@@ -34831,6 +35044,9 @@ begin
     return jsonb_build_object('stopped', false, 'already', true, 'skipped', 0, 'leaving', 0, 'left', 0);
   end if;
   update public.leads set reach_out_stopped_at = now() where id = p_lead_id;
+  -- A business stops hearing from the workspace because a member said so: who.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'reach_out.lead_stopped', 'lead', 'lead', p_lead_id, jsonb_build_object('by', auth.uid()));
   with skipped as (
     update public.sequence_sends s
        set state = 'skipped', reason = 'owner_stopped'
@@ -35154,9 +35370,22 @@ end $$;
 --
 
 CREATE FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) RETURNS integer
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   with zone as (
     select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz
       from public.tenants t where t.id = p_tenant_id
@@ -35172,14 +35401,15 @@ CREATE FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp wit
      and (public.email_left(m.status, m.error)
           or m.status = 'queued'
           or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
-$$;
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) IS 'The cold emails a workspace wrote this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance has spent (00187). Service role only.';
+COMMENT ON FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) IS 'The cold emails a workspace wrote this calendar month in its own zone that left, may have left, or wait to go: what its month''s allowance has spent (00187). A member of the workspace, or the service role (00717).';
 
 
 --
@@ -37103,6 +37333,10 @@ begin
     else
       raise exception 'Include, rewrite, skip or not a fit.' using errcode = '22023';
   end case;
+  -- What a member decided of an email the check held, on the run it belongs to.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_send.tenant_id, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+          jsonb_build_object('decision', p_decision, 'by', auth.uid()));
   return jsonb_build_object('send_id', p_send_id, 'decision', p_decision);
 end $$;
 
@@ -37158,6 +37392,9 @@ begin
          check_tries = 0, check_first_at = null,
          rewrite_asked = null
    where sequence_sends.lead_id is not null and ( id = p_send_id);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_send.tenant_id, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+          jsonb_build_object('decision', 'rewrite_undone', 'by', auth.uid()));
   return jsonb_build_object('send_id', p_send_id, 'opening', v_was->>'opening',
                             'state', case when v_was->>'state' = 'held' then 'held' else 'planned' end);
 end $$;
@@ -37218,6 +37455,10 @@ begin
     update public.sequence_sends
        set state = 'skipped', reason = v_why, said_at = v_at, said_by = v_user
      where sequence_sends.lead_id is not null and ( id = p_send_id);
+    -- A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is.
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'reach_out.send_decided', 'lead', 'broadcast', v_send.batch_id,
+            jsonb_build_object('decision', 'skip', 'by', v_user));
     return jsonb_build_object('said', true, 'state', 'skipped', 'reason', v_why);
   end if;
 
@@ -40970,6 +41211,13 @@ begin
        where s.id = v_send.id;
     end if;
   end if;
+  -- A lead's own email typed on their sheet, or the step's words put back: who, never the words. Putting back what is
+  -- back changed nothing, and writes nothing.
+  if p_body is not null or v_was.step_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_step.tenant_id, 'reach_out.lead_words_changed', 'lead', 'lead', p_lead_id,
+            jsonb_build_object('step_id', p_step_id, 'kept', p_body is not null, 'by', v_user));
+  end if;
   return jsonb_build_object(
     'step_id', p_step_id,
     'lead_id', p_lead_id,
@@ -44601,23 +44849,37 @@ COMMENT ON FUNCTION public.source_files_remove(p_tenant_id uuid) IS 'A member wh
 --
 
 CREATE FUNCTION public.source_files_tally(p_tenant_id uuid) RETURNS jsonb
-    LANGUAGE sql STABLE
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (
   select jsonb_build_object(
     'files', count(*),
     'away', count(*) filter (where f.kind = 'video' and f.copy_state <> 'here'),
     'used', count(*) filter (where public.file_was_used(f.tenant_id, f.id)))
     from public.files f
-   where f.tenant_id = p_tenant_id and public.file_road_is_watched(f.source) and f.removed_at is null;
-$$;
+   where f.tenant_id = p_tenant_id and public.file_road_is_watched(f.source) and f.removed_at is null
+  );
+end $$;
 
 
 --
 -- Name: FUNCTION source_files_tally(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_files_tally(p_tenant_id uuid) IS 'What came from a workspace''s watched folders and is still in its Library (00655): files (how many), away (clips whose copy is not at the video platform now, so they play only while a folder is watched), used (those a post or a video used, which stay whatever becomes of their folder). What a stop and a disconnect say before the press. The service role''s.';
+COMMENT ON FUNCTION public.source_files_tally(p_tenant_id uuid) IS 'What came from a workspace''s watched folders and is still in its Library (00655): files (how many), away (clips whose copy is not at the video platform now, so they play only while a folder is watched), used (those a post or a video used, which stay whatever becomes of their folder). What a stop and a disconnect say before the press. A member of the workspace, or the service role (00717).';
 
 
 --
@@ -50236,7 +50498,7 @@ COMMENT ON COLUMN public.files.removed_at IS 'A person removed it: hidden at onc
 -- Name: COLUMN files.made; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.made IS 'How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role.';
+COMMENT ON COLUMN public.files.made IS 'How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the workspace''s members (00717), as the rest of its row is.';
 
 
 --
@@ -68996,6 +69258,7 @@ GRANT ALL ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p
 
 REVOKE ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone) TO authenticated;
 
 
 --
@@ -69083,6 +69346,7 @@ GRANT ALL ON FUNCTION public.channel_keep_standing(p_tenant_id uuid, p_channel_i
 
 REVOKE ALL ON FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) TO service_role;
+GRANT ALL ON FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) TO authenticated;
 
 
 --
@@ -69422,6 +69686,7 @@ GRANT ALL ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_con
 
 REVOKE ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) TO service_role;
+GRANT ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) TO authenticated;
 
 
 --
@@ -70393,6 +70658,7 @@ GRANT ALL ON FUNCTION public.form_entries_purge() TO service_role;
 
 REVOKE ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) TO authenticated;
 
 
 --
@@ -70401,6 +70667,7 @@ GRANT ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) 
 
 REVOKE ALL ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) TO authenticated;
 
 
 --
@@ -70899,6 +71166,7 @@ GRANT ALL ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person inte
 
 REVOKE ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) TO service_role;
+GRANT ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) TO authenticated;
 
 
 --
@@ -71791,6 +72059,7 @@ GRANT ALL ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email te
 
 REVOKE ALL ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) TO authenticated;
 
 
 --
@@ -71807,6 +72076,7 @@ GRANT ALL ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user
 
 REVOKE ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) TO authenticated;
 
 
 --
@@ -71831,6 +72101,15 @@ GRANT ALL ON FUNCTION public.mailbox_left_note(p_tenant_id uuid, p_address text,
 
 REVOKE ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_provider_wanted(p_tenant_id uuid, p_provider text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) TO authenticated;
+GRANT ALL ON FUNCTION public.mailbox_provider_wanted(p_tenant_id uuid, p_provider text) TO service_role;
 
 
 --
@@ -72609,12 +72888,12 @@ GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome tex
 
 
 --
--- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid, p_contact_id uuid) TO service_role;
 
 
 --
@@ -73760,6 +74039,7 @@ GRANT ALL ON FUNCTION public.reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_
 
 REVOKE ALL ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) TO service_role;
+GRANT ALL ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) TO authenticated;
 
 
 --
@@ -73876,6 +74156,7 @@ GRANT ALL ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id u
 
 REVOKE ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) TO authenticated;
 
 
 --
@@ -73960,6 +74241,7 @@ GRANT ALL ON FUNCTION public.reach_out_list_for(p_tenant_id uuid, p_name text, p
 
 REVOKE ALL ON FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) TO service_role;
+GRANT ALL ON FUNCTION public.reach_out_month_sent(p_tenant_id uuid, p_at timestamp with time zone) TO authenticated;
 
 
 --
@@ -75297,6 +75579,7 @@ GRANT ALL ON FUNCTION public.source_files_remove(p_tenant_id uuid) TO service_ro
 
 REVOKE ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) TO authenticated;
 
 
 --
@@ -76961,6 +77244,13 @@ GRANT SELECT(created_at) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(updated_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.made; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(made) ON TABLE public.files TO authenticated;
 
 
 --

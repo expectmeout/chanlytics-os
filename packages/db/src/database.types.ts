@@ -13072,6 +13072,10 @@ export type Database = {
         }
         Returns: Json
       }
+      mailbox_provider_wanted: {
+        Args: { p_provider: string; p_tenant_id: string }
+        Returns: undefined
+      }
       mailbox_sender_sort: {
         Args: { p_sender: string; p_tenant_id: string; p_verdict: string }
         Returns: Json
@@ -13697,7 +13701,10 @@ export type Database = {
         }
         Returns: Json
       }
-      person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
+      person_doubt_dismiss: {
+        Args: { p_contact_id?: string; p_doubt_id: string }
+        Returns: Json
+      }
       person_join_lead: {
         Args: { p_contact_id: string; p_lead_id: string }
         Returns: Json

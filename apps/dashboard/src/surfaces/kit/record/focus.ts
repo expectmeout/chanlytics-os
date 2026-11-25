@@ -45,13 +45,26 @@ export interface FocusOn {
   row: string;
 }
 
-const recFocusIn = (el: HTMLElement | null, inner: string, fallback: string | null = null) => {
-  if (!el || !can(el, "querySelector")) return;
+/**
+ * The first thing in a gesture to type into or press, past its tips and its foot, else `fallback` (its Close): what
+ * focus goes to as it opens. The kit's sheet asks it for a fold's sheet (fold.tsx), as Base UI places focus there.
+ */
+export const recFirstIn = (
+  el: HTMLElement | null,
+  inner: string,
+  fallback: string | null = null,
+): HTMLElement | null => {
+  if (!el || !can(el, "querySelector")) return null;
   const within = pick(el, inner);
   const stops = within ? tabStops(within) : [];
-  const first =
+  return (
     stops.find((c) => !c.classList.contains("rec-tip") && !c.closest(".rec-foot")) ||
-    (fallback ? pick(el, fallback) : null);
+    (fallback ? pick(el, fallback) : null)
+  );
+};
+
+const recFocusIn = (el: HTMLElement | null, inner: string, fallback: string | null = null) => {
+  const first = recFirstIn(el, inner, fallback);
   if (!first || !first.focus) return;
   first.focus();
   const field = first as HTMLInputElement;
@@ -183,10 +196,10 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
 // given way to another, before it goes is no longer the open one, and leaves it alone.
 export const useRecDrawn = (id: FoldId) => useEffect(() => recFolds.drawn(id), [id]);
 
-// Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 760px`, read as Reports reads it
+// Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 900px` (760px until 25 Nov 2026)
 // and kept current as the window changes size.
-const REC_PHONE_QUERY = "(max-width: 760px)";
-export const recPhoneQuery = () => mediaQuery(REC_PHONE_QUERY);
+const REC_PHONE_QUERY = "(max-width: 900px)";
+const recPhoneQuery = () => mediaQuery(REC_PHONE_QUERY);
 export function useRecPhone() {
   const [phone, setPhone] = useState(() => {
     const q = recPhoneQuery();

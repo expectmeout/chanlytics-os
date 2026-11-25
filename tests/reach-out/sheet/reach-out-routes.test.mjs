@@ -621,7 +621,7 @@ test("POST reach-out-sends/[id]/decide: the email is the row; each answer passes
   const sends = [{ id: SEND, tenant_id: A, broadcast_id: RUN, state: "held", reason: "chain" }];
   const decided = [];
   const rpcs = { reach_out_send_decide: (a) => (decided.push(a), { send_id: a.p_send_id, decision: a.p_decision }) };
-  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  // The service role, stood in and read below: a decision writes nothing of its own on it.
   const ledger = { events: [] };
   setServiceClient(fakeDb(ledger));
 
@@ -637,16 +637,9 @@ test("POST reach-out-sends/[id]/decide: the email is the row; each answer passes
     decided.map((d) => d.p_decision),
     ["include", "rewrite", "skip", "not_a_fit"],
   );
-  assert.deepEqual(
-    ledger.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
-    ["include", "rewrite", "skip", "not_a_fit"].map((decision) => [
-      "reach_out.send_decided",
-      "broadcast",
-      RUN,
-      { decision, by: USER },
-    ]),
-    "REGRESSION: an email went out, or did not, on a member's word, and the ledger said neither: each on its run",
-  );
+  // The door writes each decision's event on its run, beside the decision (reach_out.send_decided: 00718): a route
+  // writing one too would be two.
+  assert.deepEqual(ledger.events, [], "REGRESSION: the route wrote a decision's event after the door");
   await refused(
     decide.POST.run(
       send("POST", { decision: "archive" }),

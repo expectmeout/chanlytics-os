@@ -59,7 +59,6 @@ function RowChildren({ item, active, onNavigate }: Pick<RowProps, "item" | "acti
         <div
           key={c.id}
           className={`nav-item nav-sub ${active === c.id ? "active" : ""}`}
-          style={{ paddingLeft: 38 }}
           onClick={() => onNavigate(c.id)}
         >
           <span>{c.label}</span>
@@ -111,12 +110,7 @@ function SidebarRow({
           <Glyph
             name="chevron"
             size={11}
-            style={{
-              marginLeft: badge ? 4 : "auto",
-              transform: expanded ? "rotate(90deg)" : "none",
-              transition: "transform 160ms",
-              color: "var(--ink-faint)",
-            }}
+            className={`nav-chev${badge ? " nav-chev-after" : ""}${expanded ? " nav-chev-open" : ""}`}
           />
         )}
       </a>
@@ -248,7 +242,7 @@ function SidebarWorkspace({ collapsed, onNavigate }: { collapsed: boolean; onNav
           <div className="sb-team-name">{sbWorkspaceName()}</div>
           {sbTeamSub()}
         </div>
-        <Glyph name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
+        <Glyph name="chevrons" size={14} className="sb-team-chev" />
       </button>
       <SbMenu menu={wsMenu} side="down" label="Workspaces" testid="sb-workspace-menu">
         <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />

@@ -23,9 +23,11 @@ import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 import { dtoWith, held as peopleHeld } from "../people/_people-world.mjs";
 import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/_campaign-world.mjs";
 import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const reads = [];
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 globalThis.window.fetch = async (url) => {
   reads.push(String(url));
   return new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), {
@@ -46,17 +48,21 @@ after(() => forgetStanding());
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
 /** The workspace list the shell holds. */
 const workspace = () => {
-  globalThis.__WORKSPACES = [
-    {
-      id: "w1",
-      slug: "harbor",
-      name: "Harbor Studio",
-      status: "active",
-      timezone: "America/New_York",
-      role: "owner",
+  bridgeHolds({
+    who: {
+      workspaces: [
+        {
+          id: "w1",
+          slug: "harbor",
+          name: "Harbor Studio",
+          status: "active",
+          timezone: "America/New_York",
+          role: "owner",
+        },
+      ],
     },
-  ];
-  globalThis.__ACTIVE_WORKSPACE = "w1";
+  });
+  bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 };
 const held = reviewsHeld;
 const NOTHING_LINKED = { listing: null, connection: null, reviews: [], days: [] };
@@ -422,8 +428,8 @@ test("Reviews draws nothing while its own read is out: a read still out is not '
 });
 
 test("the Pipeline lens waits on nothing of the workspace list (0008, amended 18 Oct 2026): before it is held, its empty or its cards, as the report says, and the Overview stands", () => {
-  delete globalThis.__WORKSPACES;
-  delete globalThis.__ACTIVE_WORKSPACE;
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   const pipeline = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
   assert.ok(byTestId(pipeline, "lens-empty"), "no deal on file: the lens says so");
   assert.equal(byTestId(pipeline, "rpt-deals"), null);

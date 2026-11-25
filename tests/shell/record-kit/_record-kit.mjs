@@ -12,12 +12,14 @@
  * page cannot break these.
  */
 import { stateOf } from "@chanlytics/contracts";
-import { installStubReact, again, unmount, all, find } from "../../_stub-react.mjs";
+import { installStubReact, again, unmount, all, find, classes } from "../../_stub-react.mjs";
 import { KIT_GLOBALS } from "../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
-// The app's chrome bridge publishes contracts' stateOf as __chrome.state (bridge/shell.ts). Without it every
+// The app's chrome bridge provides contracts' stateOf as chrome.state (bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 
 export const SRC = "../../../apps/dashboard/src";
 
@@ -38,13 +40,6 @@ export const isIcon = (n) => n.type === KIT_GLOBALS.Icon;
 /** A component the tree draws that is not a glyph: what asks React for a hook or a name. */
 export const components = (tree) => all(tree, (n) => typeof n.type === "function" && !isIcon(n));
 
-/** Whether a selector list asks for this root, as document.querySelector reads ".app-root, .fr-shell". */
-export const inRoots = (sel, root) =>
-  String(sel)
-    .split(",")
-    .map((x) => x.trim())
-    .includes(root);
-
 /**
  * A new tree, drawn as today/page/ draws one, over the last one unmounted as React replaces a tree: its effects
  * clean up (a fold's hold on the registry among them), its cells are forgotten, and the component is created.
@@ -58,6 +53,11 @@ export const draw = (Comp, props = {}) => {
 export const redraw = (Comp, props = {}) => again(() => W.React.createElement(Comp, props));
 
 export const byId = (tree, id) => find(tree, (n) => n.props?.id === id);
+/** The kit's one sheet, which the record kit's sheets draw through (kit/sheet/sheet.tsx). */
+const { Sheet } = await import(`${SRC}/surfaces/kit/sheet/sheet.tsx`);
+export const kitSheetOf = (tree) => find(tree, (n) => n.type === Sheet);
+/** What Base UI's popup is handed: the sheet as it stands, its classes, its keys, its focus, its pull. */
+export const popupOf = (tree) => find(tree, (n) => classes(n).includes("sheet"));
 
 export const numbers = {
   label: "The number to publish",
@@ -84,7 +84,8 @@ export const bookingRules = (over = {}) => ({
 
 /* ------------------------------------ the fold on a phone ------------------------------------ */
 
-export const dialogOf = (tree) => find(tree, (n) => n.props?.role === "dialog");
+/** A fold drawn as a sheet: the kit's popup, open (Base UI's Dialog draws it while open). */
+export const dialogOf = (tree) => (kitSheetOf(tree)?.props.open ? popupOf(tree) : null);
 
 /** A fold as a page draws one, with a field of its own in it. */
 export const drawFold = (props, field = W.React.createElement("input", { className: "rec-input", id: "bt-lead" })) => {
@@ -160,14 +161,4 @@ export const thumb = (handlers, dx, dy, target = null) => {
   const el = { dataset: {} };
   handlers.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target });
   handlers.onTouchEnd({ changedTouches: [{ clientX: 200 + dx, clientY: 300 + dy }], currentTarget: el });
-};
-
-export const asPhone = (fn) => {
-  const was = W.matchMedia;
-  W.matchMedia = (q) => ({ matches: q === "(max-width: 760px)" });
-  try {
-    fn();
-  } finally {
-    W.matchMedia = was;
-  }
 };

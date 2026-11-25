@@ -253,7 +253,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     };
     const spoken = wordsOn({});
     assert.equal(spoken.el.props.children[0], `“${spoken.said.sentence}”`, "every row reads its own attention row");
-    assert.equal(spoken.el.props.title, spoken.el.props.children[0], "and says their words on it");
+    assert.equal(spoken.el.props["data-tip"], spoken.el.props.children[0], "and says their words in its tip");
     const phoned = wordsOn({
       display_name: null,
       wa_profile_name: null,

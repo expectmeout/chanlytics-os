@@ -23,23 +23,25 @@ import {
 } from "@chanlytics/contracts";
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import type { FileMemberRow } from "@chanlytics/db/files";
-import { getTenantConfig } from "@chanlytics/db/workspace";
 import { readMetaSwitch } from "@/server/connections/meta";
 import { postDtoOf, type MemberPostRead } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements } from "./approve";
+import { getStoredConfig } from "@/server/workspace/config-row";
 
 /**
  * Whether this workspace's Page takes a post now; null where Facebook is not offered here at all (the Meta link off, or
- * the place not switched on), so nothing is said of it.
+ * the place not switched on), so nothing is said of it. Read on the member's own session: the workspace's settings as the
+ * member's read keeps them (workspace/config-row.ts), and its channels, which every member reads.
  */
-export async function readFacebookPostable(tenantId: TenantId): Promise<InstagramPostable | null> {
+export async function readFacebookPostable(
+  db: RouteContext["supabase"],
+  tenantId: TenantId,
+): Promise<InstagramPostable | null> {
   if (!(await readMetaSwitch(tenantId))) return null;
-  const workspace = await getTenantConfig(serviceDb(), tenantId);
-  if (!placeSwitchedOn(workspace?.config, "facebook")) return null;
-  return pagePostableOf(await findMetaInstagramRow(serviceDb(), tenantId));
+  if (!placeSwitchedOn(await getStoredConfig(db, tenantId), "facebook")) return null;
+  return pagePostableOf(await findMetaInstagramRow(db, tenantId));
 }
 
 /** A file's posts on Facebook, newest first, of the file's posts read under the member's session. */
@@ -66,7 +68,7 @@ export async function postFileToFacebook(
   input: FacebookPress,
 ): Promise<{ post_id: string; status: "queued" }> {
   if (row.source !== "made") throw new AppError("validation", ON_FACEBOOK.wrongKind);
-  const postable = await readFacebookPostable(member.tenantId);
+  const postable = await readFacebookPostable(ctx.supabase, member.tenantId);
   if (postable === null || postable === "not_connected") throw new AppError("conflict", ON_FACEBOOK.notConnected, 409);
   if (postable === "line_off") throw new AppError("conflict", ON_FACEBOOK.lineOff, 409);
   // A story shows no caption, so none is kept for one.

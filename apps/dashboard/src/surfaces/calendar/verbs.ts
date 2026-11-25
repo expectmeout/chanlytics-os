@@ -1,7 +1,7 @@
 /**
  * Calendar, the verbs and the arithmetic (moved from bridge/calendar.ts, decision 0015: the amendment takes a
- * surface's bridge modules with it). The page imports `calendar`; the Business tab reads it as `window.__calendar`
- * (installCalendar below), and imports the page's two words (words.ts CALENDAR_PAGE).
+ * surface's bridge modules with it). The page imports `calendar`; the Business tab reaches it as `calendar` in the
+ * bridge's store (installCalendar below), and imports the page's two words (words.ts CALENDAR_PAGE).
  *
  * The page keeps one loaded WINDOW of days (nine weeks around the day it looks at) and derives every view from it — a
  * week, a day, six weeks for a month, two weeks for the agenda — so switching views is a slice, never a fetch. Only a
@@ -35,6 +35,14 @@ import {
 } from "./surface";
 import { calendarRunsOverride, paintHeldRuns, runsWanted } from "./runs-surface";
 import { windowsToWarm } from "./warm";
+import { provide } from "@/bridge/provided";
+
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** The Calendar's verbs the Business tab's calendar row presses. */
+    calendar: CalendarVerbs;
+  }
+}
 
 /**
  * Load `days` days starting on `from` (a day key); a null `from` is the window around today. `runs`: whether the
@@ -145,11 +153,13 @@ export const calendar = {
   durationLabel,
 };
 
+/** The Calendar's verbs, as the Business tab's calendar row reaches them without carrying this module (provided.ts). */
+type CalendarVerbs = typeof calendar;
+
 /**
- * The Calendar's verbs under the name the Business tab's calendar row reads them by: it asks for a read
- * (`__calendar.refresh`) and checks a pasted address (`previewFeed`). A line to delete when the tab imports them (the
- * one-system plan, step 9).
+ * The Calendar's verbs as the Business tab's calendar row reaches them: it asks for a read (`calendar.refresh`) and checks a
+ * pasted address (`previewFeed`).
  */
 export function installCalendar(): void {
-  Object.assign(window, { __calendar: calendar });
+  provide("calendar", calendar);
 }

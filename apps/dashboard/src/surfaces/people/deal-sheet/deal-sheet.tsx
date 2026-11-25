@@ -44,6 +44,7 @@ import { hasThreadVerbs, hear, saidBy, announce, threadVerbs, usePersonToast } f
 import type { FlashFn, PersonFlash } from "../person-verbs";
 import { DealSheetFieldsGlass, loadDayPick } from "./fields";
 import { SayItLine } from "./say-it";
+import { pageReport } from "@/client/page-report";
 
 const DEAL_SHEET_ID = "deal-sheet";
 
@@ -111,7 +112,7 @@ function worked<T>(fn: () => T): T | null {
   try {
     return fn();
   } catch (err) {
-    console.error("The deal sheet could not work this out.", err);
+    pageReport.error("The deal sheet could not work this out.", err);
     return null;
   }
 }

@@ -93,7 +93,11 @@ function world({
     supabase: fakeDb(
       {
         memberships: [member(role)],
-        files: rows,
+        // How a piece was made is read on the member's own session (00717): each row with what `kept` says of it.
+        files: rows.map((r) => {
+          const record = kept.find((k) => k.id === r.id);
+          return record && !("made" in r) ? { ...r, made: record.made } : r;
+        }),
         tenants: [
           {
             id: A,

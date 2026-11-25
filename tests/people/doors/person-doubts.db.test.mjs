@@ -164,6 +164,20 @@ test(
     assert.deepEqual([row.settled_as, row.settled_by], ["not_the_same", operator.id], "settled, by whom");
     const again = ok(await dismiss(owner.client, doubtId), "twice");
     assert.deepEqual([again.settled_as, again.settled_at], ["not_the_same", first.settled_at], "twice is once");
+    // Its event is the door's own, in the settling's transaction (00718): once however often it is pressed, by whom,
+    // on the doubt's own record where the press names none.
+    assert.deepEqual(
+      ok(
+        await db
+          .from("events")
+          .select("subject_type, subject_id, data")
+          .eq("tenant_id", A)
+          .eq("kind", "contact.kept_apart")
+          .eq("data->>doubt_id", doubtId),
+        "its event",
+      ),
+      [{ subject_type: "contact", subject_id: pair(a, b)[0], data: { by: operator.id, doubt_id: doubtId } }],
+    );
     // The same arrival, again: the pair is still named in the answer, and the queue is not reopened.
     const next = await resolved({ p_phone: number, p_email: email, p_source: "calendar", p_assurance: "found" });
     assert.deepEqual(

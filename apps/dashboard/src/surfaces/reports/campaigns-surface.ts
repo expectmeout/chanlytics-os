@@ -44,6 +44,7 @@ import {
 } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";
+import { pageReport } from "@/client/page-report";
 
 /** What the lens draws from: each read as its route gave it (null where that read failed; the reach-outs absent in the demo) and the range it is of. */
 export interface CampaignsSurface {
@@ -93,9 +94,9 @@ export const reportsCampaigns = periodSurface({
       read("GET reports/campaigns/ledger", { query }).catch((e: unknown) => e as Error),
       read("GET reports/reach-outs", { query }).catch((e: unknown) => e as Error),
     ]);
-    if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
-    if (ledger instanceof Error) console.error("reports_campaigns_ledger_fetch_failed", ledger.message);
-    if (reachOuts instanceof Error) console.error("reports_campaigns_reach_outs_fetch_failed", reachOuts.message);
+    if (campaigns instanceof Error) pageReport.error("reports_campaigns_fetch_failed", campaigns.message);
+    if (ledger instanceof Error) pageReport.error("reports_campaigns_ledger_fetch_failed", ledger.message);
+    if (reachOuts instanceof Error) pageReport.error("reports_campaigns_reach_outs_fetch_failed", reachOuts.message);
     return {
       campaigns: campaigns instanceof Error ? null : campaigns.report,
       ledger: ledger instanceof Error ? null : ledger,

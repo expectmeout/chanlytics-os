@@ -56,7 +56,8 @@
 .ck-svg { display: block; overflow: visible; }
 .ck-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 .ck-base { stroke: var(--line-strong); stroke-width: 1; shape-rendering: crispEdges; }
-.ck-tick { font-family: var(--font-mono); font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* An axis's ticks in the text face, their digits in columns (the phone change list's D2, 25 Nov 2026: in mono). */
+.ck-tick { font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ck-bar { transition: opacity var(--duration-fast) var(--ease-out); }
 .ck-col.dim .ck-bar { opacity: 0.42; }
 .ck-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -66,7 +67,7 @@
 .ck-dot { stroke: var(--bg-raised); stroke-width: 2; }
 .ck-dot.prior { fill: var(--chart-prior); }
 .ck-ref line { stroke: var(--ink-faint); stroke-width: 1; shape-rendering: crispEdges; }
-.ck-ref text { font-family: var(--font-mono); font-size: 10.5px; fill: var(--ink-dim); }
+.ck-ref text { font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ck-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ---------- keys, legend, tooltip ---------- */
@@ -153,7 +154,7 @@
 .ck-dotplot-dot.dim { fill-opacity: 0.35; }
 /* The reference's label, a caption above the plot's svg with a swatch of the line it names (the dots meet the line, so the
    words are not drawn on it). */
-.ck-dotplot-ref { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-dim); }
+.ck-dotplot-ref { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: var(--text-2xs); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .ck-dotplot-ref-line { flex: none; width: 12px; height: 1px; background: var(--ink-faint); }
 
 /* ---------- segment bar: one bar in its parts, a legend under it ---------- */

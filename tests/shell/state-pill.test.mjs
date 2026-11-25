@@ -31,6 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_stub-react.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -287,15 +288,14 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  __chrome: { state: stateOf },
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
-  __surfaceState: () => "live",
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
 const { StatePill } = kitPages;
@@ -417,7 +417,7 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
   const wait = byClass(tree, "ix-thread-wait");
   assert.ok(wait, "REGRESSION: the wait chip was gated the same way");
   assert.match(textOf(wait), /^\d+m$/);
-  assert.match(wait.props.title, /^Waiting \d+m$/, "the bare figure, named on a hover");
+  assert.match(wait.props["data-tip"], /^Waiting \d+m$/, "the bare figure, named on a hover");
   // What waits on you is the coral line under their words (the thread canvas's list, 1 Nov 2026), not a tone on the wait.
   assert.equal(textOf(byTestId(tree, "thread-todo")), "Reply");
 });

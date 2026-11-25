@@ -13,12 +13,14 @@ import * as contracts from "@chanlytics/contracts";
 import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { CAMPAIGNS, dtoWith } from "../../reports/campaigns/_campaign-world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
 const NOW = Date.parse("2026-09-28T18:00:00.000Z");
 Date.now = () => NOW;
-installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 const SRC = "../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
@@ -33,13 +35,13 @@ const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const went = [];
 const flashed = [];
 const role = { may: true };
+bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
 Object.assign(W, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   usePPToast: () => [null, (m) => flashed.push(m)],
   canDo: () => role.may,
   gate: () => ({}),
   refusalToast: (r) => ({ tone: "danger", msg: r && r.message }),
-  __clock: { zone: () => "America/Chicago" },
 });
 
 /* ------------------------------------------------------------------------ Reports -- */

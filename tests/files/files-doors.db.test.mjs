@@ -589,24 +589,29 @@ test("a name already taken takes the next free one, as an upload's does", { skip
   assert.equal((await rowOf(two)).name, "fall-special-2");
 });
 
-test("only the service role keeps what Ask made: a member's session is refused the door", { skip }, async () => {
-  const id = randomUUID();
-  const refused = await as.owner.client.rpc("file_made", {
-    p_tenant_id: A,
-    p_id: id,
-    p_name: "mine",
-    p_bytes: 1,
-    p_fingerprint: `fp-${id}`,
-    p_width: 1,
-    p_height: 1,
-    p_look: {},
-    p_who_in_it: "not_asked",
-    p_made: {},
-  });
-  assert.ok(refused.error, "not theirs to call");
-  const seen = await as.owner.client.from("files").select("made").limit(1);
-  assert.ok(seen.error, "and how it was made is the service role's to read");
-});
+test(
+  "only the service role keeps what Ask made: a member's session is refused the door, and reads how it was made",
+  { skip },
+  async () => {
+    const id = randomUUID();
+    const refused = await as.owner.client.rpc("file_made", {
+      p_tenant_id: A,
+      p_id: id,
+      p_name: "mine",
+      p_bytes: 1,
+      p_fingerprint: `fp-${id}`,
+      p_width: 1,
+      p_height: 1,
+      p_look: {},
+      p_who_in_it: "not_asked",
+      p_made: {},
+    });
+    assert.ok(refused.error, "not theirs to call");
+    // 00717: how a piece was made is read by the workspace's members, as the rest of its row is.
+    const seen = await as.owner.client.from("files").select("made").limit(1);
+    assert.equal(seen.error, null, "and how it was made is theirs to read");
+  },
+);
 
 test("the bucket is private and takes only the kinds and the size we keep", { skip }, async () => {
   const bucket = ok(await db.storage.getBucket("files"), "the bucket");

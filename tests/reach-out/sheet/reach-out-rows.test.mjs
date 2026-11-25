@@ -18,18 +18,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 const went = [];
 const toasts = [];
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 Object.assign(W, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
   // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  __roleGate: contracts.roleGate,
-  __surfaceState: () => "live",
   useHotkey: () => {},
 });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.

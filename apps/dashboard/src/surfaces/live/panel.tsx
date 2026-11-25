@@ -27,7 +27,7 @@ const LrTranscript = ({ c }: { c: LiveCallVM }) => {
   }, [c.callId, c.transcript.length]);
   return (
     <>
-      <div className="lm-transcript-label" title="As the phone provider sends it">
+      <div className="lm-transcript-label" data-tip="As the phone provider sends it">
         Live transcript
       </div>
       <div className="lm-scroll" ref={scrollRef}>
@@ -133,7 +133,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
               <a
                 className="lm-head-who"
                 {...routeDoor(`clients/${c.clientId}`)}
-                title={`Open ${c.who} in People`}
+                data-tip={`Open ${c.who} in People`}
                 data-testid="lm-head-person"
               >
                 {c.who}
@@ -161,7 +161,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
               <a
                 className="tabular lm-head-tel"
                 href={`tel:${String(c.number).replace(/[^\d+]/g, "")}`}
-                title={`Call ${c.number}`}
+                data-tip={`Call ${c.number}`}
               >
                 {c.number}
               </a>
@@ -185,7 +185,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
           <a
             className="lm-head-door"
             {...routeDoor(`clients/${c.clientId}`)}
-            title={`Open ${c.who} in People`}
+            data-tip={`Open ${c.who} in People`}
             aria-label={`Open ${c.who}'s profile`}
             data-testid="lm-head-avatar"
           >
@@ -204,7 +204,7 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
       </header>
       {c.live && (
         <div className="lm-head-actions">
-          <span className="lm-live-note" title="AI is handling this call on its own.">
+          <span className="lm-live-note" data-tip="AI is handling this call on its own.">
             <span className="live-dot lm-pulse" aria-hidden="true" />
             {quietS >= 15 ? `Last heard ${quietS} s ago` : "Handling it"}
           </span>
@@ -351,7 +351,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
 
       {c.live && c.checking && (
         <div className="lm-banner" data-testid="live-checking">
-          <span className="live-dot" style={{ width: 6, height: 6, background: "var(--warn)" }} />
+          <span className="live-dot lm-dot lm-dot-warn" />
           Still marked live · {c.checkingWhy}. It is checked with the phone provider within five minutes.
         </div>
       )}

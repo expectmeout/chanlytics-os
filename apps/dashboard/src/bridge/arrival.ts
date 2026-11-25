@@ -17,6 +17,7 @@ import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
 import { FOLLOW_UPS_EVENT } from "./ask/follow-ups";
 import { afterBoot, hearAddress, routeOnScreen } from "./workspace";
+import { provided } from "./provided";
 
 /**
  * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (surfaces/ask/line/
@@ -35,10 +36,6 @@ const STANDING_EVENTS = [
   FOLLOW_UPS_EVENT,
 ];
 
-type Globals = {
-  __notifs?: { unread?: () => number; onChange?: (cb: () => void) => () => void };
-};
-
 /** Whether something needs you: people, runs or searches, as Ask says it, a follow-up of Ask's come due, or a notification not read yet. */
 export const needsYouNow = (): boolean => {
   const A = askCalls();
@@ -47,7 +44,7 @@ export const needsYouNow = (): boolean => {
     if (p.people || p.runs || p.searches) return true;
   }
   if (A && typeof A.followUpsDue === "function" && A.followUpsDue().length) return true;
-  const bell = (window as Window & Globals).__notifs;
+  const bell = provided("bell");
   return !!bell && typeof bell.unread === "function" && bell.unread() > 0;
 };
 
@@ -75,7 +72,7 @@ export function installArrival(): () => void {
   for (const ev of STANDING_EVENTS) window.addEventListener(ev, onStanding);
   document.addEventListener("visibilitychange", onVisible);
   // the bell moving (Mark all read, a note read where it stands) says so at once, before any surface lands
-  const bell = (window as Window & Globals).__notifs;
+  const bell = provided("bell");
   const offBell = bell && typeof bell.onChange === "function" ? bell.onChange(onStanding) : null;
   // Ask's door, as it opens and closes: the light goes and comes back
   const door =

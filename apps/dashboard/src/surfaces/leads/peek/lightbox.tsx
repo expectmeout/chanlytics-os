@@ -1,16 +1,35 @@
 /**
  * The photo, expanded (moved from legacy/pages/leads-peek.jsx, decision 0015; D5): the one photo the listing gave (or the
  * tile), and beside it what is about the place -- where it sits, the week's hours as bars, and the listing's facts. The
- * page's own overlay (.pl-peek), so Esc reaches the page's one listener and closes this first.
+ * page's own overlay (.pl-peek), so Esc reaches the page's one listener and closes this first. A viewer, not a sheet: on
+ * a phone the photo takes the whole screen. With no photo, a phone raises what is about the place as the kit's one
+ * sheet, as tall as it, its name and its Close in the sheet's head (the one-sheet move, 25 Nov 2026).
  */
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { Sheet } from "../../kit/sheet/sheet";
 import { keepTouch, leaving, onAPhone, touchSwipe } from "../../frame-verbs";
 
 interface LightboxProps {
   vm: LeadPeekVM;
   onClose: () => void;
+}
+
+/** Open in Maps, where the listing has one. */
+function mapsLink(vm: LeadPeekVM) {
+  return vm.links.maps ? (
+    <a
+      className="btn btn-ghost btn-sm"
+      href={vm.links.maps.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid="lightbox-maps"
+    >
+      <Icon name="pin" size={12} />
+      {W.openMaps}
+    </a>
+  ) : null;
 }
 
 /** The lightbox's title row: the name and its sub-line, Open in Maps where the listing has one, and Close. */
@@ -22,18 +41,7 @@ function lightboxHead({ vm, onClose }: LightboxProps) {
         <div className="ld-lb-sub">{vm.sub}</div>
       </div>
       <span className="sp" />
-      {vm.links.maps ? (
-        <a
-          className="btn btn-ghost btn-sm"
-          href={vm.links.maps.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="lightbox-maps"
-        >
-          <Icon name="pin" size={12} />
-          {W.openMaps}
-        </a>
-      ) : null}
+      {mapsLink(vm)}
       <button type="button" className="pk-x" aria-label={W.closePhotos} data-testid="lightbox-close" onClick={onClose}>
         <Icon name="x" size={16} />
       </button>
@@ -105,26 +113,46 @@ function lightboxSide(vm: LeadPeekVM) {
   );
 }
 
-export const LeadLightbox = ({ vm, onClose }: LightboxProps) => (
-  <>
-    <div className="ld-lightbox-backdrop" role="presentation" onClick={onClose} />
-    <div
-      className="ld-lightbox pl-peek"
-      role="dialog"
-      aria-label={`${W.photos}: ${vm.name}`}
-      data-testid="lead-lightbox"
-      // With no photo it is what is about the place, which a phone raises as a sheet as tall as it (leads.css).
-      data-photo={vm.tile.band ? undefined : "none"}
-      ref={leaving("lead-lightbox")}
-      // On a phone the photos take the whole screen, and a pull down from the top lets them go, as the peek under them
-      // does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.
-      {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
-    >
-      {lightboxHead({ vm, onClose })}
-      <div className="ld-lb-body">
-        {lightboxPhoto(vm)}
-        {lightboxSide(vm)}
-      </div>
+/** On a phone, a place with no photo: what is about it, in the kit's one sheet. */
+const NoPhotoSheet = ({ vm, onClose }: LightboxProps) => (
+  <Sheet
+    open
+    onClose={onClose}
+    title={vm.name}
+    sub={vm.sub}
+    close={{ label: W.closePhotos, glyph: <Icon name="x" size={13} /> }}
+    tools={mapsLink(vm) ?? undefined}
+    toolsInLine
+    testid="lead-lightbox"
+  >
+    <div className="ld-lb-body">
+      {lightboxPhoto(vm)}
+      {lightboxSide(vm)}
     </div>
-  </>
+  </Sheet>
 );
+
+export const LeadLightbox = ({ vm, onClose }: LightboxProps) =>
+  !vm.tile.band && onAPhone() ? (
+    <NoPhotoSheet vm={vm} onClose={onClose} />
+  ) : (
+    <>
+      <div className="ld-lightbox-backdrop" role="presentation" onClick={onClose} />
+      <div
+        className="ld-lightbox pl-peek"
+        role="dialog"
+        aria-label={`${W.photos}: ${vm.name}`}
+        data-testid="lead-lightbox"
+        ref={leaving("lead-lightbox")}
+        // On a phone the photos take the whole screen, and a pull down from the top lets them go, as the peek under them
+        // does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.
+        {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
+      >
+        {lightboxHead({ vm, onClose })}
+        <div className="ld-lb-body">
+          {lightboxPhoto(vm)}
+          {lightboxSide(vm)}
+        </div>
+      </div>
+    </>
+  );

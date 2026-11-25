@@ -41,7 +41,6 @@ import {
   saveReachOutChain,
   sendSaid,
 } from "@chanlytics/db/campaigns";
-import { emitEvent } from "@chanlytics/db/events";
 import { wordsSeenByMember } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
 import type { MailboxConnectionRow } from "@chanlytics/db/email";
@@ -56,6 +55,7 @@ import { log } from "@/server/shared/log";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { TenantId } from "@chanlytics/contracts";
 import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 export const PREVIEW_TIMEOUT_MS = 35_000;
@@ -216,7 +216,7 @@ export async function saveChain(
   if (saved.undo_dropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "start_playbook" });
   if (rootId) {
     // A chain edited: a new one is start_playbook, below, and an edit left nothing on the ledger.
-    await emitEvent(serviceDb(), member.tenantId, "playbook.changed", "playbook", saved.root_id, {
+    await emitWorkspaceEvent(member.tenantId, "playbook.changed", "playbook", saved.root_id, {
       name: input.name,
       by: ctx.userId,
       fields: ["steps"],
@@ -277,12 +277,7 @@ export async function decideSend(
   const { decision } = input;
   const result = await decideSendDoor(ctx.supabase, { sendId: send.id, decision, change: input.change || null });
   if (result.error) throw reachOutRefusal(result.error);
-  // What a member decided of an email the check held, on the run it belongs to: an email went out, or did not, on
-  // their word, and the ledger said neither.
-  await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
-    decision,
-    by: ctx.userId,
-  });
+  // The door wrote what was decided, on the run it belongs to, beside the decision (reach_out.send_decided, 00718).
   return { send_id: send.id, decision };
 }
 
@@ -299,12 +294,8 @@ export async function saySend(
 ): Promise<ReachOutSaidDto> {
   const result = await sendSaid(ctx.supabase, { sendId: send.id, outcome, reason: null });
   if (result.error) throw reachOutRefusal(result.error);
-  // A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is.
-  if (result.data.said && outcome === "not_sent")
-    await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
-      decision: "skip",
-      by: ctx.userId,
-    });
+  // A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is: the door
+  // wrote it beside the skip (reach_out.send_decided, 00718).
   return {
     send_id: send.id,
     said: result.data.said,

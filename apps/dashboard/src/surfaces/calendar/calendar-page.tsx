@@ -53,6 +53,7 @@ import {
 import { calendar } from "./verbs";
 import { OpenVisit, walkFrom } from "./visit/visit-sheet";
 import { CR_VIEWS, crStep } from "./words";
+import { provided } from "@/bridge/provided";
 
 /** The views in the strip's order: a view arrives from the side its tab stands on. */
 const VIEW_ORDER: readonly string[] = CR_VIEWS.map(([id]) => id);
@@ -146,7 +147,7 @@ function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): b
   useEffect(() => {
     if (!holding) return undefined;
     // The route's wait as the shell is told it (surface-registry installRouteGate), as the shell's own gate reads it.
-    const t = setTimeout(() => setWaited(true), window.__routeWaitMs ?? ROUTE_WAIT_MS);
+    const t = setTimeout(() => setWaited(true), provided("routeWaitMs") ?? ROUTE_WAIT_MS);
     return () => clearTimeout(t);
   }, [holding]);
   return holding;

@@ -26,9 +26,11 @@ import { todayLeaks } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
 import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
 import { readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const { TODAY_HELPERS } = await import("../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { DayCameTo } = await import("../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
@@ -472,19 +474,19 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     draft: "Thank you for writing.",
     draft_state: "written",
   };
-  delete globalThis.__REPLIES;
+  bridgeHolds({ reads: { reach_out_replies: undefined } });
   assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), [handoff], "no readings read, no row changed");
-  globalThis.__REPLIES = { replies: [reading] };
+  bridgeHolds({ reads: { reach_out_replies: { replies: [reading] } } });
   assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), withReplies([handoff], [reading]));
   assert.equal(TODAY_HELPERS.withReplies([handoff])[0].kind, "reply", "the reading is the surface's, read when asked");
   // And so is who waits with nothing back, less a wrong person: laid over by the same readings, none when unread.
   const waiting = [{ conversationId: "cv1", who: "Brightwater & Co.", sinceMs: 0, to: "inbox/th-cv1" }];
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a reading of another intent leaves them");
-  globalThis.__REPLIES = { replies: [{ ...reading, intent: "wrong_person" }] };
+  bridgeHolds({ reads: { reach_out_replies: { replies: [{ ...reading, intent: "wrong_person" }] } } });
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), [], "a wrong person is nobody waiting");
-  globalThis.__REPLIES = null;
+  bridgeHolds({ reads: { reach_out_replies: null } });
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a read that failed takes nobody for gone");
-  delete globalThis.__REPLIES;
+  bridgeHolds({ reads: { reach_out_replies: undefined } });
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
   // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
   assert.equal(globalThis.__today, undefined, "no window name for the helpers");

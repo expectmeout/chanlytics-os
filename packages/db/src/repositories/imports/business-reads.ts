@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
+import { patchGoogleListing } from "../google/listing";
 import {
   BUSINESS_READ_SOURCES,
   businessReadFactsOf,
@@ -91,14 +92,14 @@ export async function findListingFactsStored(db: Db, tenantId: TenantId): Promis
 /**
  * The workspace's listing row changed with what a read of it says: the public listing's (the edge's listing-check.ts: its
  * rating, its count, its facts, or why it could not be read) and the owner's own profile's details where they are
- * connected (profile-details.ts). Service role.
+ * connected (profile-details.ts). Through the listing's own writer (google/listing.ts), so the row has one. Service role.
  */
 export async function patchListing(
   db: Db,
   tenantId: TenantId,
   patch: Database["public"]["Tables"]["google_listings"]["Update"],
 ): Promise<void> {
-  const { error } = await tenantDb(db, tenantId).from("google_listings").update(patch);
+  const { error } = await patchGoogleListing(db, tenantId, patch);
   if (error) throw new DbFailure(error, "google_listings");
 }
 

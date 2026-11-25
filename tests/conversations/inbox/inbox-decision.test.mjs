@@ -15,8 +15,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -150,7 +151,8 @@ test("the customer's own words ride with the decision: what they last wrote, quo
 
 /* ------------------------------ the pages, drawn ------------------------------ */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
@@ -180,9 +182,8 @@ const rosterIs = (team) =>
       : undefined,
   );
 
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis, {
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
@@ -247,7 +248,7 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   const rosaRow = rowOf(tree, "Rosa Díaz");
   const wait = find(rosaRow, hasClass("ix-thread-wait"));
   assert.equal(textOf(wait), "8d", "REGRESSION: it read waiting 10869m");
-  assert.equal(wait.props.title, "Waiting 8d", "what the bare figure is, on a hover");
+  assert.equal(wait.props["data-tip"], "Waiting 8d", "what the bare figure is, on a hover");
   // The figure is the eye's; the row's name, which a screen reader reads, says it whole.
   assert.equal(wait.props["aria-hidden"], "true");
   assert.equal(textOf(find(rosaRow, hasClass("ix-wait-said"))), "Waiting 8d");
@@ -363,7 +364,7 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
   // The draft is drawn once, as the next bubble, its line over it saying when it sends (the thread canvas, 1 Nov 2026).
   const says = find(paneOf(vm), byTestId("ix-held-says"));
   assert.equal(
-    says.props.title,
+    says.props["data-tip"],
     "This draft sends itself at zero unless you press Edit or Hold, or start typing. Send now lets it go.",
   );
 });

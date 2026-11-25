@@ -20,6 +20,7 @@ import { Combobox as BaseCombobox } from "@base-ui/react/combobox";
 import type { ReactElement, Ref } from "react";
 import { useMemo, useRef } from "react";
 import { chosen } from "../chosen";
+import { Icon } from "../icon/icon";
 import { Panel } from "../panel/panel";
 import type { SelectOption } from "../select/select";
 import { cx } from "../variants";
@@ -104,6 +105,9 @@ export function Combobox<V extends string>(props: ComboboxProps<V>) {
                 >
                   <span className="rec-combo-label">{option.label}</span>
                   {option.meta ? <span className="rec-combo-meta">{option.meta}</span> : null}
+                  <span className="rec-combo-tick" aria-hidden="true">
+                    <Icon name="check" size={13} />
+                  </span>
                 </BaseCombobox.Item>
               )}
             </BaseCombobox.List>

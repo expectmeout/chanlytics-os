@@ -10,9 +10,11 @@ import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, find, all, byTestId, textOf, classes, kitParts } from "../_stub-react.mjs";
 import { KIT_GLOBALS } from "../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // The chrome's words for a fact's source, as the app's bridge publishes them (bridge/shell.ts).
-installStubReact({ __chrome: { state: stateOf } });
+bridgeHolds({ parts: { chrome: { state: stateOf } } });
+installStubReact({});
 const { Confirm } = KIT_GLOBALS;
 const { FieldError, RecordRow, RecordChips } = kitParts;
 const draw = (Comp, props = {}) => {

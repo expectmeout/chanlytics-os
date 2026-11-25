@@ -45,7 +45,6 @@ import { listMailboxConnectionsOf, type MailboxConnectionRow } from "@chanlytics
 import { mailboxSignatureOf } from "@chanlytics/channels/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import { deployment } from "@/server/shared/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason, type EdgeBody } from "@/server/shared/edge";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -305,7 +304,7 @@ export async function findReachOutRun(
       signsWith: root.signs_with,
       mailboxes: boxes,
     }),
-    draftsRefusedOf(tenantId, run.id, rows),
+    draftsRefusedOf(ctx.supabase, tenantId, run.id, rows),
   ]);
   const mailboxes = boxes.map(mailboxFactsOf);
   return {
@@ -373,11 +372,16 @@ export async function findReachOutRun(
 /**
  * The run's drafts the send door would refuse now (00429 reach_out_drafts_waiting, contracts draftRefusalOf): its lead
  * said no, closed, was stopped, went on the never-again list or became a customer since the draft was handed. Read on the
- * service role (the route checked the member), only for a run with drafts.
+ * member's own session (its door asks that they belong, 00717), only for a run with drafts.
  */
-async function draftsRefusedOf(tenantId: TenantId, runId: string, rows: readonly SendRow[]): Promise<Set<string>> {
+async function draftsRefusedOf(
+  db: RouteContext["supabase"],
+  tenantId: TenantId,
+  runId: string,
+  rows: readonly SendRow[],
+): Promise<Set<string>> {
   if (!rows.some((s) => s.state === "drafted")) return new Set();
-  const waiting = await listDraftsWaiting(serviceDb(), { limit: 500, tenantId, runId });
+  const waiting = await listDraftsWaiting(db, { limit: 500, tenantId, runId });
   return new Set(waiting.filter((d) => draftRefusalOf(d.facts) !== null).map((d) => d.id));
 }
 

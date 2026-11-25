@@ -16,6 +16,7 @@ import { firstRunKicker } from "@/surfaces/setup/first-run/model/view";
 import { claimPreviewNow } from "@/auth/preview-claim";
 import { api } from "./api";
 import { joinWaitlistFrom, loadWaitlistRule } from "./waitlist";
+import { provided } from "./provided";
 
 /**
  * The first screen of an account that belongs to nowhere — and, from the
@@ -300,7 +301,7 @@ function leaveLinks() {
       <button
         className="cw-link"
         type="button"
-        onClick={() => window.__shell?.signOut()}
+        onClick={() => provided("shell")?.signOut()}
         data-testid="create-workspace-signout"
       >
         Sign out

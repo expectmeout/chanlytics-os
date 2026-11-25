@@ -41,11 +41,10 @@
 .cl-rail-section + .cl-rail-section {
   border-top: 1px solid var(--line);
 }
+/* A group's name in sentence case, in the text face (the phone change list's D1, 25 Nov 2026: JOURNEY, DEALS). */
 .cl-rail-label {
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--ink-dim);
   margin-bottom: 8px;
   display: flex;
@@ -53,6 +52,9 @@
   gap: 6px;
 }
 .cl-rail-label .icon { color: var(--ink-faint); }
+/* A list's Delete and its question stand 8px after its title (list-title.tsx); a person's Back points back. */
+.cl-list-del { margin-left: 8px; }
+.icon.cl-prof-back-turn { transform: rotate(180deg); }
 
 .cl-rail-row {
   display: flex;
@@ -1932,7 +1934,7 @@
 
 /* ---- The rail in three groups; the next step under a list; the next visit on the row ---- */
 .cl-rail-group + .cl-rail-group { margin-top: 10px; }
-.cl-rail-group-label { padding: 2px 10px 4px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.cl-rail-group-label { padding: 2px 10px 4px; font-size: var(--text-2xs); color: var(--ink-faint); }
 .cl-list-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
 .cl-list-action-text { font-size: var(--text-sm); color: var(--ink-dim); }
 /* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
@@ -2022,8 +2024,6 @@
 .pl-add-pick-row > span:first-child { overflow: hidden; font-size: var(--text-base); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .pl-add-pick-count { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .pl-add .pl-add-make { justify-content: flex-start; gap: 8px; margin-top: 12px; }
-.pl-add-pick-title { display: inline-flex; align-items: center; gap: 10px; }
-.pl-add-back { rotate: 180deg; }
 /* What a list came to: how many went in, said once, and the three numbers beside it; the lines that did not, by line. */
 .pl-add .pl-import-summary { gap: 12px; padding: 16px; border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-xl); background: var(--surface-inset-fill); }
 .pl-import-total { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); }
@@ -2790,10 +2790,8 @@
   .main-scroll :is(.cl-rail-label, .cl-rail-group-label) {
     margin: 0;
     padding: 0 10px 6px;
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-regular);
-    letter-spacing: 0.08em;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
     color: var(--ink-dim);
   }
   /* The canvases' rail (P1, L1) opens with its rows under their groups' names: the one label with a glyph before it

@@ -17,7 +17,6 @@ import {
   recordOrEmpty,
   DbFailure,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { asJson } from "@chanlytics/db/shared";
 import type { Json } from "@chanlytics/db/types";
 import {
@@ -37,7 +36,6 @@ import {
 import { answerOf, refusalOf } from "./answers";
 import { findLeadTimeline } from "../campaigns/reach-out-leads";
 import { requireUuid } from "../shared/request-guards";
-import { serviceDb } from "../shared/service-db";
 import { type Params, row } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -375,7 +373,7 @@ export async function getSearches(
 /* --------------------------------------------------------- a search, kept */
 
 export async function renameSearch(
-  ctx: Pick<RouteContext, "supabase" | "userId">,
+  ctx: Pick<RouteContext, "supabase">,
   leadSearchScope: LeadSearchScopeRow,
   name: string,
 ): Promise<{ name: string }> {
@@ -384,12 +382,8 @@ export async function renameSearch(
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
-  const now = answer.name ?? name;
-  await emitEvent(serviceDb(), leadSearchScope.tenant_id, "lead.search_renamed", "lead_search", leadSearchScope.id, {
-    name: now,
-    by: ctx.userId,
-  });
-  return { name: now };
+  // The door wrote the rename's event beside it (lead.search_renamed, 00718).
+  return { name: answer.name ?? name };
 }
 
 /**
@@ -398,7 +392,7 @@ export async function renameSearch(
  * database's and never the page's guess.
  */
 export async function removeSearch(
-  ctx: Pick<RouteContext, "supabase" | "userId">,
+  ctx: Pick<RouteContext, "supabase">,
   leadSearchScope: LeadSearchScopeRow,
 ): Promise<{ archived: number; kept: number; toast: string }> {
   const { data, error } = await removeLeadSearch(ctx.supabase, leadSearchScope.id);
@@ -409,13 +403,7 @@ export async function removeSearch(
   const { count, error: kept } = await countKeptMembers(ctx.supabase, leadSearchScope.id);
   if (kept) throw new Error(kept.message);
   const keptN = count ?? 0;
-  // A search and the leads nobody worked are gone on a member's word: the ledger says whose, and what was kept.
-  await emitEvent(serviceDb(), leadSearchScope.tenant_id, "lead.search_removed", "lead_search", leadSearchScope.id, {
-    name: leadSearchScope.name,
-    kept: keptN,
-    archived: answer.blanked ?? 0,
-    by: ctx.userId,
-  });
+  // The door wrote the removal's event beside it (lead.search_removed, 00718): whose, and what was kept.
   return {
     archived: answer.blanked ?? 0,
     kept: keptN,

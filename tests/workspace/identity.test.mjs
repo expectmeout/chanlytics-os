@@ -122,20 +122,21 @@ test("the wiring: one profile row per account, written by its owner only, read b
   );
 
   const bridge = readCode("apps/dashboard/src/bridge/identity.ts");
-  assert.match(
-    bridge,
-    /win\.__identity = \{\s*words: identityWords,\s*member: memberWords,\s*initials: personInitials,\s*workspace: workspaceInitials,?\s*\};/,
-  );
+  // The words are contracts', imported where they are said (decision 0151): the bridge publishes none of them.
+  assert.ok(!bridge.includes("__identity"), "no window name for the words");
   // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads (refresh-map.ts "PUT me"),
   // and the bridge patches nothing ahead of them: shell/hearing/channels-billing-and-rules-are-heard.test.mjs runs it.
   assert.ok(!bridge.includes("me:changed"), "the bridge no longer announces a name of its own");
   assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installIdentity();"));
-  assert.ok(readCode("apps/dashboard/src/bridge/surface-data.ts").includes("display_name?: string | null"));
+  assert.ok(
+    readCode("apps/dashboard/src/bridge/who.ts").includes("display_name?: string | null"),
+    "who is looking carries the name",
+  );
 
   const sidebar = ["sidebar", "sidebar-who"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
     .join("\n");
-  assert.ok(sidebar.includes("window.__identity.words(me)"), "the chip reads the same words");
+  assert.ok(sidebar.includes("identityWords(me)"), "the chip reads the same words");
   assert.ok(
     sidebar.includes('window.addEventListener("surface:workspace", bump);'),
     "the chip redraws as who is looking is read",

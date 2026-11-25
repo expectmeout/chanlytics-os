@@ -143,7 +143,7 @@ function NoteTeam({
 }) {
   const teamId = useId();
   return (
-    <span className="cl-prof-note-team" title={lockTeam ? W.stepTeamOnly : W.teamOnlyHint}>
+    <span className="cl-prof-note-team" data-tip={lockTeam ? W.stepTeamOnly : W.teamOnlyHint}>
       <RecordSwitch
         on={!!teamOnly || lockTeam}
         onChange={onTeamOnly}
@@ -505,11 +505,11 @@ function noteRow(c: Card, n: Note, acts: Acts) {
           </span>
         ) : null}
         <span className="cl-prof-note-who">{n.who}</span>
-        <span title={n.whenFull}>{n.when}</span>
+        <span data-tip={n.whenFull}>{n.when}</span>
         {n.edited && <span>{W.edited}</span>}
         {n.forWho && <span className="cl-prof-note-for-who">{n.forWho}</span>}
         {n.teamOnly && !step && (
-          <span className="cl-prof-note-lock" title={W.teamOnlyHint}>
+          <span className="cl-prof-note-lock" data-tip={W.teamOnlyHint}>
             <Icon name="lock" size={10} /> {W.teamOnly}
           </span>
         )}
@@ -609,7 +609,7 @@ function suggestions(c: Card, waiting: Note[], acts: Acts) {
     <ul className="cl-prof-sugs">
       {waiting.map((n) => (
         <li key={n.id} className="cl-prof-sug" data-testid="person-note-suggested">
-          <div className="cl-prof-sug-words" title={n.whenFull}>
+          <div className="cl-prof-sug-words" data-tip={n.whenFull}>
             <span className="cl-prof-sug-from">{W.suggestedLine(n.from, n.when)}</span>
             <span className="cl-prof-sug-text">{n.body}</span>
           </div>
@@ -652,7 +652,7 @@ function latestNote(c: Card, n: Note, acts: Acts) {
   return (
     <div className="cl-prof-note-latest" data-testid="person-note">
       <div className="cl-prof-note-eyebrow">
-        <span title={n.whenFull}>
+        <span data-tip={n.whenFull}>
           {step ? W.stepEyebrow(n.who, (step.done ? step.doneWords : step.words) ?? "") : W.eyebrow(n.who, n.when)}
         </span>
         {menu.has && c.asking !== n.id && (

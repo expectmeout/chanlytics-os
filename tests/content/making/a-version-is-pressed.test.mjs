@@ -189,17 +189,32 @@ function world({ role = "owner", posts = [{}], drawing = null, intent = null, mo
     },
     piece_words_keep: () => ({ revision: 2, followed: 0 }),
   };
+  const channels = [
+    {
+      id: `cccccccc-cccc-4ccc-8ccc-${String(seq).padStart(12, "0")}`,
+      tenant_id: tenant,
+      kind: "instagram",
+      external_id: "17841400000000001",
+      status: "active",
+      credentials_ref: "ref",
+      config: { login: "meta", scopes: ["instagram_basic", "instagram_manage_messages", "instagram_content_publish"] },
+      created_at: "2026-11-01T00:00:00Z",
+    },
+  ];
+  const made = { plan: { blocks: [] }, caption: null };
   const ctx = {
     supabase: fakeDb(
       {
         memberships: [
           { user_id: USER, tenant_id: tenant, role, tenants: { slug: `w${seq}` }, created_at: "2026-01-01T00:00:00Z" },
         ],
+        // How each version was made, and the workspace's channels, are read on the member's own session (00717).
         files: [
           fileRow(tenant),
           fileRow(tenant, { id: V1, created_at: "2026-11-30T11:00:00Z" }),
           fileRow(tenant, { id: PHOTO, source: "upload", kind: "image", mime: "image/jpeg", name: "storefront" }),
-        ],
+        ].map((r) => (r.source === "made" ? { made, ...r } : r)),
+        tenant_channels: channels,
         tenants: [{ id: tenant, name: "Harbor", slug: `w${seq}`, timezone: "UTC", status: "active" }],
         google_connections: [],
         posts: rows,
@@ -225,19 +240,6 @@ function world({ role = "owner", posts = [{}], drawing = null, intent = null, mo
     email: "ada@example.com",
     params: { id: V2 },
   };
-  const channels = [
-    {
-      id: `cccccccc-cccc-4ccc-8ccc-${String(seq).padStart(12, "0")}`,
-      tenant_id: tenant,
-      kind: "instagram",
-      external_id: "17841400000000001",
-      status: "active",
-      credentials_ref: "ref",
-      config: { login: "meta", scopes: ["instagram_basic", "instagram_manage_messages", "instagram_content_publish"] },
-      created_at: "2026-11-01T00:00:00Z",
-    },
-  ];
-  const made = { plan: { blocks: [] }, caption: null };
   const kept = [V1, V2].map((id) => ({ id, tenant_id: tenant, source: "made", made, removed_at: null }));
   const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows, pieces }, {}, {});
   // Each version's own MP4, as the bucket holds it: read, measured and summed for the press.

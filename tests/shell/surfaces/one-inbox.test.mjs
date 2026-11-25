@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 /* -------------------------------- a browser -------------------------------- */
 
@@ -201,7 +202,7 @@ test("the other merged surfaces keep their own item", () => {
 /* ------------------------------- the tab strip ------------------------------- */
 
 test("the Inbox strip offers the three views, and says which one you are on", () => {
-  win.INBOX_DATA = { THREADS: [] };
+  bridgeHolds({ values: { inbox: { THREADS: [] } } });
   const labels = ["Inbox", "Conversations", "Live"];
   assert.deepEqual(
     strip("inbox").map((t) => t.label),
@@ -236,7 +237,7 @@ test("the Inbox strip offers the three views, and says which one you are on", ()
 test("the strip's badge is the count that already exists, not a second reading of it", () => {
   // The one number every surface says (surfaces/needs-you.ts, published as `window.useNeedsYou`): the strip is handed it and
   // counts nothing of its own, so no row of INBOX_DATA can make it say another.
-  win.INBOX_DATA = { THREADS: [{ id: "c1", real: true, needsYou: true }] };
+  bridgeHolds({ values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] } } });
   win.useNeedsYou = () => 2;
   assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
   assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");

@@ -323,7 +323,7 @@ export async function getAllowanceHeld(
   const words = heldBackOfOneRun(
     reading,
     run,
-    await readMonthSentOrNull(toolContext.tenantId, toolContext.now),
+    await readMonthSentOrNull(toolContext.ctx.supabase, toolContext.tenantId, toolContext.now),
     purpose,
   );
   return words ? `${words} · ` : "";

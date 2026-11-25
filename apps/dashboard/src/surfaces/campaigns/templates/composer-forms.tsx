@@ -293,7 +293,7 @@ function newRows(c: ComposerCtx, made: Made) {
     <>
       <div className="tpl-row">
         <span className="bc-row-label">From</span>
-        <div className="bc-chips" style={{ alignItems: "center" }}>
+        <div className="bc-chips bc-mid">
           {(c.reviewLink === undefined ? starters.list : starters.offered(c.reviewLink)).map((s) => (
             <Button
               key={s.key}

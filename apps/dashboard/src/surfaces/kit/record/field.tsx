@@ -266,6 +266,8 @@ interface RecordSwitchProps {
 // `describedBy` points at the sentence under the switch's label, where a page has one: the name says WHICH switch and
 // the description says what it does, which is what a page whose sentence is not drawn at every width needs (the
 // Business tab's rules fold hides its sentences under 761px and keeps them here).
+// `readOnly` (a save that is out, a switch the page keeps on) takes no press and says so as the kit's Switch does,
+// aria-readonly, which kit.css dims, so it does not look like one waiting for a press.
 export function RecordSwitch({
   on,
   onChange,
@@ -286,6 +288,7 @@ export function RecordSwitch({
       aria-labelledby={labelledBy || undefined}
       aria-describedby={describedBy || undefined}
       aria-disabled={readOnly || undefined}
+      aria-readonly={readOnly || undefined}
       data-testid={testid || undefined}
       onClick={() => {
         if (!readOnly && onChange) onChange(!on);

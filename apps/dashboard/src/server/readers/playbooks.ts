@@ -88,7 +88,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       // Whether each channel can send now: the pools are counted against it, and the composer draws its ticks from it.
       findChannelsReadyOrNull(ctx, tenantId, { withPause: true }),
       // The month's emails and texts already sent, which the composer says before a send and the head from half used.
-      readMonthSentOrNull(tenantId, now),
+      readMonthSentOrNull(ctx.supabase, tenantId, now),
     ]);
     const dealt = shape.hasDeals;
     const { pools, calendar, lists, people } = await triggerPools(

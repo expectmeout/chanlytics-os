@@ -61,15 +61,17 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       });
     }
     // A reply counting down to send waits on you while it can still be stopped: the Inbox's own rule (replyWaitsOnYou).
-    if (item.veto && replyWaitsOnYou({ endsAtMs: item.veto.endsAtMs }, now)) {
+    // A veto with no end is no countdown (replyWaitsOnYou answers no for it).
+    const veto = item.veto;
+    if (veto?.endsAtMs !== undefined && replyWaitsOnYou({ endsAtMs: veto.endsAtMs }, now)) {
       const held =
-        item.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
+        veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
       items.push({
-        key: `draft:${item.veto.messageId}`,
+        key: `draft:${String(veto.messageId)}`,
         kind: "held_draft",
-        at: item.veto.endsAtMs - item.veto.window * 1000,
+        at: veto.endsAtMs - veto.window * 1000,
         title: `A reply to ${item.who} is waiting for you`,
-        message: `${held} · “${item.veto.draft.slice(0, 90)}${item.veto.draft.length > 90 ? "…" : ""}”`,
+        message: `${held} · “${veto.draft.slice(0, 90)}${veto.draft.length > 90 ? "…" : ""}”`,
         to: `inbox/${item.id}`,
         icon: "clock",
         tone: "",

@@ -10,7 +10,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { promptBlocks, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "@chanlytics/contracts";
-import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press, escapeSheet } from "../../_stub-react.mjs";
 import {
   composedPrompt,
   composePromptPreview,
@@ -214,7 +214,7 @@ test("the told section's door opens the sheet, and its Close, Escape and foot al
   // Escape.
   press(byTestId(redrawTab(), "rec-prompt-open"));
   tree = redrawTab();
-  sheetOf(tree).props.onKeyDown({ key: "Escape", defaultPrevented: false, preventDefault() {} });
+  escapeSheet(tree);
   assert.equal(sheetOf(redrawTab()), null);
   // The foot's Done: there is nothing to save, so it is the foot's one button.
   press(byTestId(redrawTab(), "rec-prompt-open"));

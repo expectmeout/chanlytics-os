@@ -18,8 +18,11 @@
  * Each name is a line to delete on the day its last reader moves (decision 0015, step 13: the frame itself).
  */
 import type { AskScope } from "@chanlytics/contracts";
-// A type only, which a bundle drops: this module imports nothing at run time, so the kit and every surface can import it.
+// A type only, which a bundle drops: this module imports only the bridge's store and the report seam at run time (which
+// import nothing), so the kit and every surface can import it.
 import type { GoOptions } from "@/bridge/workspace";
+import { provided } from "@/bridge/provided";
+import { pageReport } from "@/client/page-report";
 
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
 interface AskAbout {
@@ -75,7 +78,7 @@ const warnedDoors = new Set<DoorName>();
 function missing(door: DoorName): void {
   if (warnedDoors.has(door)) return;
   warnedDoors.add(door);
-  console.warn("door_missing", door);
+  pageReport.warn("door_missing", door);
 }
 
 /** The frame fills the registry as it renders. Idempotent: its two callbacks keep their identity, and a render fills it again. */
@@ -213,7 +216,6 @@ type DoorWindow = Window & {
     nav?: (route: string) => void;
     address?: { href?: (route: string) => string; warm?: (route: string) => void };
   };
-  __warmPerson?: (id: string) => void;
 };
 
 /** The props of a link to `to` (see above). */
@@ -222,7 +224,7 @@ export const routeDoor = (to: string, go: ((to: string) => void) | null = null):
   const person = RD_PERSON.exec(to);
   const a = win.CHANLY && win.CHANLY.address;
   const warm = () => {
-    if (person && win.__warmPerson) win.__warmPerson(person[1] ?? "");
+    if (person) provided("warmPerson")?.(person[1] ?? "");
     if (a && a.warm) a.warm(to);
   };
   return {

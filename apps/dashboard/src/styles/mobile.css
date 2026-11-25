@@ -424,7 +424,7 @@
      .tq (Setup) is not a settings card and never had it. */
   .set-card:has(table) { overflow-x: auto; }
   /* 104px a column now the headings are words, not filing labels. Only the back
-     office reaches this rule: under 640px the matrix is a list, not a table. */
+     office reaches this rule: under 720px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
   .fl-escalate-route { white-space: normal; }

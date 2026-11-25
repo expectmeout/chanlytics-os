@@ -32,6 +32,7 @@ import {
   byTestId,
   textOf,
 } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const { toBroadcastVM, stateOf, numberHealth } = contracts;
 
@@ -188,6 +189,12 @@ export const went = [];
 
 export const toasts = [];
 
+bridgeHolds({
+  who: {
+    workspaces: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+    activeWorkspaceId: TID,
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/studio",
@@ -197,8 +204,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   // The ledger's minute ticker (a run under an hour away counts down) is a timer this file never lets tick: nothing
   // here unmounts a page, and a real interval would keep the process alive.
   setInterval: () => 1,
@@ -217,17 +222,15 @@ installClock();
 
 Object.assign(globalThis.window, kitPages);
 
+bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __surfaceState: () => "live",
 });
 
 export const { BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);

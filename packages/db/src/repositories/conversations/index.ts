@@ -64,6 +64,16 @@ export {
 } from "./thread/messages";
 export type { MessageHit, MessageSender } from "./thread/messages";
 export {
+  CONVERSATION_COLUMNS,
+  findDraftToSteer,
+  findThreadPhone,
+  listHoldsOfThreads,
+  listInboxThreads,
+  listNewestMessages,
+  listPersonThreads,
+  pageNewestMessagesOfThreads,
+} from "./threads";
+export {
   failQueuedReply,
   listDeadmanCandidates,
   listQueuedReplies,

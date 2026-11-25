@@ -134,14 +134,14 @@ export async function readWordsToKeep(
   return trimmed;
 }
 
-/** The caption a made post keeps, with the posts it was read from: its posts under the caller's RLS, how it was made by the service role. */
+/** The caption a made post keeps, with the posts it was read from: both under the caller's RLS. */
 async function readCaptionKept(
   ctx: RouteContext,
   tenantId: TenantId,
   fileId: string,
 ): Promise<{ caption: string | null; posts: MemberPostRow[] }> {
   const [kept, posts] = await Promise.all([
-    getFileMade(serviceDb(), tenantId, fileId),
+    getFileMade(ctx.supabase, tenantId, fileId),
     listFilePosts(ctx.supabase, tenantId, fileId),
   ]);
   const created = recordOrNull(kept);

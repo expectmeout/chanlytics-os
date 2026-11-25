@@ -50,6 +50,7 @@ import {
   withDeals,
   withRuns,
 } from "./_person-page.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("a person's page names the runs that reached them and what came of each -- it said nothing of what a playbook or a broadcast had sent them", () => {
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
@@ -339,7 +340,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
   assert.ok(smartRow, "the smart list is on the rail, marked");
   assert.ok(textOf(smartRow).includes("WhatsApp people") && textOf(smartRow).includes("1"), textOf(smartRow));
   assert.equal(smartRow.props["data-tip"], "Keeps itself current: Reaches you by WhatsApp");
-  const saved = globalThis.window.__PEOPLE.saved.find((s) => s.id === "s2");
+  const saved = surfaceValue("people").saved.find((s) => s.id === "s2");
   assert.deepEqual(
     [saved.ids, saved.rule],
     [["p1"], ["Reaches you by WhatsApp"]],
@@ -521,7 +522,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   assert.ok(labels(tree).includes("Start a proposal"), "a proposal is started, in the sheet");
 
   // A viewer sends nothing, and may still call them from their own phone.
-  globalThis.window.__ME = { role: "viewer" };
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     tree = (await profile(vm))();
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
@@ -530,7 +531,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
       byTestId(tree, "person-call") ?? find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "person-call");
     assert.ok(call, "the head's own Call, beside More (0052)");
   } finally {
-    globalThis.window.__ME = { role: "owner" };
+    bridgeHolds({ who: { me: { role: "owner" } } });
   }
 
   // Someone who said stop: never the send.
@@ -695,14 +696,14 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(asked, [{ personId: "p1", mode: "again", dealId: "d1" }]);
 
     // A viewer reads the card and presses nothing.
-    globalThis.window.__ME = { role: "viewer" };
+    bridgeHolds({ who: { me: { role: "viewer" } } });
     try {
       tree = (await profile(vm))();
       assert.ok(cardOf(tree));
       assert.equal(nextActOf(tree), null);
       assert.deepEqual(movesOf(tree), []);
     } finally {
-      globalThis.window.__ME = { role: "owner" };
+      bridgeHolds({ who: { me: { role: "owner" } } });
     }
   } finally {
     delete globalThis.window.openDealSheet;
@@ -750,7 +751,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
     const vm = quiet();
     const tree = await openedRow(vm);
     const next = nextActOf(tree);
-    assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
+    assert.deepEqual([textOf(next), next.props["data-tip"]], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
     assert.deepEqual(went, [vm.openThread], "their conversation, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");

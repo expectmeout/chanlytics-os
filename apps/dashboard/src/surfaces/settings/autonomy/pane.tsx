@@ -32,7 +32,7 @@ import { RecordRow } from "../../kit/record/row";
 import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
-import { SetDial, SetRow } from "./controls";
+import { SetDial, SetRow, dialAct } from "./controls";
 import { contentGroupOf } from "./content-rows";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
@@ -156,33 +156,32 @@ interface DialRow {
   testid?: string;
 }
 
+/** A dial as its row: the segmented control on a desk; on a phone its value, and the row's act a menu of its steps. */
 function dialRow(
   d: DialRow,
   phone: boolean,
   reply: UiRow | undefined,
   put: (r: UiRow, m: undefined, d: PolicyDials) => void,
 ) {
+  const dial = {
+    gate: gate("autonomy"),
+    value: d.value,
+    options: stepWords(d.steps),
+    onChange: (v: string) => {
+      const s = d.steps.find((x) => x[0] === v);
+      if (s && reply) put(reply, undefined, d.save(s[1]));
+    },
+  };
   return (
     <SetRow
       key={d.label}
       label={d.label}
       note={d.note}
       hint={d.hint}
-      control={(id) => (
-        <SetDial
-          aria-labelledby={id}
-          phone={phone}
-          label={d.label}
-          gate={gate("autonomy")}
-          value={d.value}
-          options={stepWords(d.steps)}
-          onChange={(v) => {
-            const s = d.steps.find((x) => x[0] === v);
-            if (s && reply) put(reply, undefined, d.save(s[1]));
-          }}
-          {...(d.testid ? { "data-testid": d.testid } : {})}
-        />
-      )}
+      control={(id) =>
+        phone ? d.value : <SetDial aria-labelledby={id} {...dial} {...(d.testid ? { "data-testid": d.testid } : {})} />
+      }
+      act={phone ? dialAct({ label: d.label, testid: d.testid, ...dial }) : null}
     />
   );
 }

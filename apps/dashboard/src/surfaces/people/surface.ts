@@ -21,6 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import type { AttentionRowVM } from "./person/model/attention";
 import { resnapshotHere } from "@/bridge/surface-cache";
+import { whoIsLooking } from "@/bridge/who";
 import { read } from "@/bridge/api";
 import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
@@ -30,10 +31,8 @@ import { DEAR_READ_LONGEST_WAIT_MS, ERASURES_LONGEST_WAIT_MS, isLiveCallTurn } f
 import { holderName } from "../holder-names";
 import { carriesMark } from "../seen-carry";
 import type { PeopleLoaded } from "./surface-map";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
-
-// Today, Ask, the Calendar, Leads and the pages that have not moved still read this under its old name.
-declareSurfaceValue("people", "__PEOPLE");
+import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
+import { pageReport } from "@/client/page-report";
 
 /* ------------------------------- People ---------------------------------- */
 
@@ -145,7 +144,7 @@ export const warmPeopleMap = (): void => peopleMap.warm();
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
-  return (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
+  return whoIsLooking().me?.id ?? null;
 }
 
 /**
@@ -262,7 +261,7 @@ export function keepSavedView(page: string, view: Record<string, unknown>): () =
   // The published copy can be an earlier read's, equal and kept as it was (publishPeople, shareUnchanged): it takes it too.
   if (shown && shown !== views) shown[page] = view;
   // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
-  resnapshotHere(peopleOverride.key, peopleOverride.globals ?? [], "people");
+  resnapshotHere(peopleOverride.key, "people");
   return landed;
 }
 
@@ -533,7 +532,7 @@ export const peopleOverride: SurfaceOverride = {
       // How the rows are made, fetched beside the read the first time (peopleMap).
       peopleMap(),
     ]);
-    if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
+    if (savedData instanceof Error) pageReport.error("people_lists_fetch_failed", savedData.message);
     // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.
     const everyone = await everyPerson(data);
     heardGone();

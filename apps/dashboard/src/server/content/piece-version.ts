@@ -72,8 +72,8 @@ async function approveVersion(
   const waiting = posts.filter((p) => isOneOf(STILL_SET_TO_GO, p.status) && p.place !== "hand");
   if (waiting.length === 0) throw new AppError("validation", VERSION_REFUSED.nothingWaits);
   const [instagram, facebook] = await Promise.all([
-    readInstagramPostable(member.tenantId),
-    readFacebookPostable(member.tenantId),
+    readInstagramPostable(ctx.supabase, member.tenantId),
+    readFacebookPostable(ctx.supabase, member.tenantId),
   ]);
   const connections: Partial<Record<PostPlace, NonNullable<typeof instagram>>> = {};
   if (instagram) connections.instagram = instagram;

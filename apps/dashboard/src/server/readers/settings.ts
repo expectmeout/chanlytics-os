@@ -468,7 +468,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
           tenantId,
           null,
         ),
-        readReachOutMonthOrNull(tenantId, rc.now),
+        readReachOutMonthOrNull(db, tenantId, rc.now),
         partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
         partOrElse<ReachOutChainDto[] | null>(listChains(rc.ctx, tenantId), "chains", tenantId, null),
         partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),

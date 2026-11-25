@@ -84,9 +84,6 @@ export async function findDealPace(
   }
 }
 
-/** The columns a deal is read with (contracts DealDto) are packages/db's, where its reads are; the person reader reads them here. */
-export { DEAL_DTO_COLUMNS } from "@chanlytics/db/deals";
-
 /**
  * The deal a person's People row shows now, by people_list's own rule (contracts pickCurrentDeal: an open one first,
  * then the newest). The deal door answers with it, so a page moves the row to it as the door answers (0008), and a

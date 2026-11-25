@@ -5,11 +5,11 @@
  */
 import "server-only";
 import { AppError } from "@chanlytics/contracts";
-import { scheduleJobOnce } from "@chanlytics/jobs";
 import { findAppointmentNoticeById, dismissAppointmentNotice } from "@chanlytics/db/calendar";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import { serviceDb } from "@/server/shared/service-db";
+import { scheduleOnce } from "@/server/shared/ledgers/jobs";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** The held notice this workspace holds under `id`; refused when there is none, or it is not held any more. */
@@ -32,11 +32,10 @@ export async function readNoticeAgain(
   const notice = await heldNotice(ctx, tenantId, id);
   const mailbox = await findMailboxOfTenant(ctx.supabase, tenantId);
   if (!mailbox) throw new AppError("conflict", "The workspace has no email address to read from.", 409);
-  const scheduled = await scheduleJobOnce(serviceDb(), {
-    tenantId,
-    kind: "booking_read",
-    dueAt: new Date(),
-    payload: { received_id: notice.notice_id, mailbox_id: mailbox.id, tool: notice.tool },
+  const scheduled = await scheduleOnce(tenantId, "booking_read", new Date(), {
+    received_id: notice.notice_id,
+    mailbox_id: mailbox.id,
+    tool: notice.tool,
   });
   return { scheduled };
 }

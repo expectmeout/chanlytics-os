@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -42,6 +43,12 @@ const DAY = 86_400_000;
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
 // The page's window is the stub React's (window IS globalThis), with the workspace in it, as the shell publishes it.
+bridgeHolds({
+  who: {
+    workspaces: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
+    activeWorkspaceId: A,
+  },
+});
 installStubReact({
   location: {
     pathname: "/w/harbor/",
@@ -51,8 +58,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
-  __ACTIVE_WORKSPACE: A,
   setInterval: () => 1,
   clearInterval() {},
 });
@@ -243,8 +248,15 @@ afterEach(() => setServiceClient(null));
  */
 async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   const rows = tables(db);
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: (a) => (a.p_channel === "email" ? emailsSent : 0) }));
-  const supabase = fakeDb(rows, {}, { people_list: () => PEOPLE });
+  // The month's count is made on the member's own session (00717).
+  const supabase = fakeDb(
+    rows,
+    {},
+    {
+      people_list: () => PEOPLE,
+      campaign_month_sent: (a) => (a.p_channel === "email" ? emailsSent : 0),
+    },
+  );
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
   const rc = readerContext(ctx, { tenantId: A, role: "owner" }, NOW);
   const pb = JSON.parse(JSON.stringify((await load(rc, playbooksReader, undefined)).data));
@@ -368,11 +380,10 @@ test("the week's breath: a person a campaign reached this week is held on the ca
 test("the week's touches could not be read: the card declines in its words, and never counts without the week's breath", async () => {
   // The read the week's breath is made of (listTouchesSince, over every send of the week) fails; every other read answers.
   const rows = tables();
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
   const supabase = fakeDb(
     rows,
     { "sequence_batches.select": { message: "the read failed" } },
-    { people_list: () => PEOPLE },
+    { people_list: () => PEOPLE, campaign_month_sent: () => 0 },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const r = await buildProposal(t, "propose_sequence", {
@@ -399,8 +410,11 @@ test("the autonomy modes could not be read: the card declines in its words, and 
   const rows = tables({
     policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, limits: null }],
   });
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
-  const supabase = fakeDb(rows, { "policies.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
+  const supabase = fakeDb(
+    rows,
+    { "policies.select": { message: "the read failed" } },
+    { people_list: () => PEOPLE, campaign_month_sent: () => 0 },
+  );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const r = await buildProposal(t, "propose_sequence", {
     action: "moment",

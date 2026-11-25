@@ -137,7 +137,7 @@ async function placeRefusal(toolContext: ToolContext, place: PostPlace): Promise
       ? null
       : "Google is not connected. Say so: Settings › Connections connects it, and the post can go to Instagram meanwhile";
   }
-  const can = await readInstagramPostable(toolContext.tenantId);
+  const can = await readInstagramPostable(toolContext.ctx.supabase, toolContext.tenantId);
   if (can === "yes") return null;
   return can === null
     ? "Instagram is not offered to this workspace yet. Say so, and offer Google"

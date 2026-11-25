@@ -3,7 +3,7 @@
  *
  * Leads kept both in two slots of its own, and every other page kept nothing: a refresh, or a trip to another page,
  * lost the Inbox's search, a list's scroll, a reply half-written. This is the one store for any page with a place or
- * a draft worth keeping (the loading standard's F and G), published as `window.__tabMemory` before the pages mount.
+ * a draft worth keeping (the loading standard's F and G), provided as `tabMemory` (provided.ts) before the pages mount.
  *
  * - The TAB's storage (sessionStorage), never the device's: a front desk's computer is shared, and the next person
  *   on it must not inherit the last one's words. A refresh and a trip to another page keep it; closing the tab and
@@ -17,6 +17,14 @@
  */
 import { pathWorkspace } from "./workspace";
 import { HOUR_MS } from "@chanlytics/contracts";
+import { provide } from "./provided";
+
+declare module "./provided" {
+  interface BridgeParts {
+    /** The tab's memory of a page's place and its work half-done. */
+    tabMemory: TabMemory;
+  }
+}
 
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
@@ -48,7 +56,7 @@ interface StorageLike {
   setItem(k: string, v: string): void;
   removeItem(k: string): void;
 }
-type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLike; __tabMemory?: TabMemory };
+type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLike };
 
 const readAll = <T>(s: StorageLike | undefined, slot: string): Record<string, T> => {
   try {
@@ -111,9 +119,9 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
   };
 }
 
-/** The pages' one store, on the window they read it from. */
+/** The pages' one store, provided for them and for the record kit (provided.ts). */
 export function installTabMemory(win: WindowLike = window, opts: { now?: () => number } = {}): void {
-  win.__tabMemory = tabMemoryFor(win, opts);
+  provide("tabMemory", tabMemoryFor(win, opts));
 }
 
 /** Everything the tab kept for its pages: at sign-out, with the surface cache (surface-cache.ts clearSurfaceCache). */
@@ -124,11 +132,5 @@ export function clearTabMemory(
     if (s) for (const slot of TAB_SLOTS) s.removeItem(slot);
   } catch {
     /* nothing to clear */
-  }
-}
-
-declare global {
-  interface Window {
-    __tabMemory?: TabMemory;
   }
 }

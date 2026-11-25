@@ -23,24 +23,29 @@ import { SMS_FOOTER } from "@chanlytics/channels/lines";
 import {
   openDoubtsOf,
   findKeptPerson,
+  findPersonAddedRow,
+  findPersonOwnColumns,
+  findReplyPolicyMode,
   listPeopleAtLead,
+  listPersonConsentChanges,
   listPersonDecisions,
+  listPersonIdentities,
   findPersonRow,
   listSigners,
 } from "@chanlytics/db/people";
+import { listPersonCalls } from "@chanlytics/db/voice";
+import { listPersonDeals } from "@chanlytics/db/deals";
 import { readAdNamed } from "@chanlytics/db/ads";
 import { findPersonReplyMode } from "@chanlytics/db/workspace";
 import { readAllRows } from "@chanlytics/db/shared";
 import { listSequencesOfPerson } from "@chanlytics/db/campaigns";
-import { wasTextReached } from "@chanlytics/db/conversations";
 import {
-  CALL_COLUMNS,
-  CONVERSATION_COLUMNS,
-  MESSAGE_COLUMNS,
-  groupMessages,
-  toCallDto,
-  toConversationDto,
-} from "../conversations/dto";
+  listHoldsOfThreads,
+  listPersonThreads,
+  pageNewestMessagesOfThreads,
+  wasTextReached,
+} from "@chanlytics/db/conversations";
+import { groupMessages, toCallDto, toConversationDto } from "../conversations/dto";
 import { personLike } from "../calendar/week/items";
 import { getSignedByThread, findSignedFirst } from "../connections/email";
 import { findPersonVisits } from "../calendar/person-visits";
@@ -48,7 +53,7 @@ import { listPersonRuns } from "../campaigns/broadcasts/broadcasts";
 import { findLeadOfPerson } from "../leads/leads";
 import { getLeadOne } from "../leads/page-read";
 import { getPersonNotes, stepFor } from "../people/person-notes";
-import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
+import { findDealPace } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
@@ -69,14 +74,7 @@ const PERSON_MESSAGES = 2000;
 function personMessages(rc: ReaderContext, convIds: string[]) {
   return readAllRows(
     "person messages",
-    (from, to) =>
-      rc.ctx.supabase
-        .from("messages")
-        .select(MESSAGE_COLUMNS)
-        .in("conversation_id", convIds)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(from, to),
+    (from, to) => pageNewestMessagesOfThreads(rc.ctx.supabase, convIds, from, to),
     "part",
     PERSON_MESSAGES,
   ).then(({ rows }) => [...new Map(rows.map((m) => [m.id, m])).values()]);
@@ -118,11 +116,7 @@ function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
  * came through one.
  */
 async function ownRowOf(sb: ReaderContext["ctx"]["supabase"], tenantId: TenantId, id: ContactId) {
-  const own = await sb
-    .from("contacts")
-    .select("notes, proposal_url, before, acquired_via, acquired_ref")
-    .eq("id", id)
-    .maybeSingle();
+  const own = await findPersonOwnColumns(sb, id);
   if (own.error || own.data?.acquired_via !== "ad") return { ...own, firstAd: null };
   const unnamed = { platform: null, name: null };
   const firstAd = await readAdNamed(sb, tenantId, own.data.acquired_ref).catch(logAndGoOn("person ad name", unnamed));
@@ -236,14 +230,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     // The row the list shows, read as the list reads it (packages/db personRow: every open deal in its shape, 0029).
     const rowRead = findPersonRow(sb, tenantId, id);
     // A query builder runs again each time it is awaited: the conversations are read once and handed to both readers.
-    const convsRead = Promise.resolve(
-      sb
-        .from("conversations")
-        .select(CONVERSATION_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", id)
-        .order("last_message_at", { ascending: false, nullsFirst: false }),
-    );
+    const convsRead = listPersonThreads(sb, tenantId, id);
     // Their messages, escalations and the decisions on them and on their threads (a person with no thread still has
     // their own: the receptionist paused for them is recorded against them): the one read that waits, for the threads' ids.
     const threadRead = convsRead.then(async (convs) => {
@@ -257,11 +244,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       }
       const [msgs, escs, decided] = await Promise.all([
         personMessages(rc, convIds),
-        sb
-          .from("escalations")
-          .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
-          .in("conversation_id", convIds)
-          .order("created_at", { ascending: false }),
+        listHoldsOfThreads(sb, convIds),
         listPersonDecisions(sb, tenantId, id, convIds),
       ]);
       if (escs.error) throw new DbFailure(escs.error);
@@ -307,43 +290,15 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       work,
     ] = await Promise.all([
       rowRead,
-      sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
+      listPersonIdentities(sb, id),
       convsRead,
-      sb
-        .from("calls")
-        .select(CALL_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", id)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .limit(200),
+      listPersonCalls(sb, tenantId, id),
       // This person's own receptionist mode, and the workspace's, for the rail.
-      sb
-        .from("policies")
-        .select("mode")
-        .eq("tenant_id", tenantId)
-        .eq("class", "reply")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .maybeSingle(),
-      sb
-        .from("policies")
-        .select("mode")
-        .eq("tenant_id", tenantId)
-        .eq("class", "reply")
-        .is("subject_type", null)
-        .maybeSingle(),
+      findReplyPolicyMode(sb, tenantId, id),
+      findReplyPolicyMode(sb, tenantId, null),
       // Where they came from, when it was not a message or a call: the
       // calendar sweep records the appointment that named them.
-      sb
-        .from("events")
-        .select("data, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.added")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .order("created_at")
-        .limit(1)
-        .maybeSingle(),
+      findPersonAddedRow(sb, tenantId, id),
       // The owner's notes, their proposal link (00154) and what came before Chanlytics (00477), not in people_list.
       ownRowOf(sb, tenantId, id),
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
@@ -354,15 +309,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       ),
       // Every change to either answer: the ledger rows the doors write, which
       // the timeline shows as evidence. Newest first, two hundred at most.
-      sb
-        .from("events")
-        .select("id, subject_id, created_at, data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.consent_changed")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .order("created_at", { ascending: false })
-        .limit(200),
+      listPersonConsentChanges(sb, tenantId, id),
       // The runs that named them and the sequences they are in, and the lead they were found as: what a playbook or a
       // broadcast sent them, what is still to come, and the way back to where the finder found them.
       campaignsOfPerson(rc, id),
@@ -370,13 +317,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and what the
       // workspace calls an appointment, which every card says. Each is safe on an older database: a table or a column
       // that is not there costs the section, never the profile.
-      sb
-        .from("deals")
-        .select(DEAL_DTO_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", id)
-        .order("created_at", { ascending: false })
-        .then((r) => (r.error ? null : (r.data ?? []))),
+      listPersonDeals(sb, tenantId, id),
       load(rc, facts.appointmentWord, undefined).then((r) => r.data),
       threadRead,
       visitsRead,

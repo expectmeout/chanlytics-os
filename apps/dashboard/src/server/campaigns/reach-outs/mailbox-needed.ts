@@ -13,9 +13,7 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { findStepRow } from "@chanlytics/db/campaigns";
-import { recordEvent } from "@chanlytics/db/events";
-import { listMailboxConnectionsOf } from "@chanlytics/db/email";
-import { serviceDb } from "@/server/shared/service-db";
+import { keepMailboxProviderWanted, listMailboxConnectionsOf } from "@chanlytics/db/email";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /**
@@ -55,20 +53,14 @@ export async function refuseTurningToHand(
 
 /**
  * Which mailbox a workspace that can't connect would use: on the ledger with who asked, so Microsoft is built when the asks
- * justify the work, and the "We'll tell you when it's ready" the sheet says can be kept. The ask is the whole write, so
- * one the ledger did not keep fails, and the sheet never says told for nothing.
+ * justify the work, and the "We'll tell you when it's ready" the sheet says can be kept. The ask is the whole write, its
+ * door's (mailbox_provider_wanted, 00718), on the member's own session: one the ledger did not keep fails, and the sheet
+ * never says told for nothing.
  */
-export async function recordProviderWanted(tenantId: TenantId, userId: string, provider: string): Promise<void> {
-  const { error } = await recordEvent(
-    serviceDb(),
-    tenantId,
-    "mailbox_connection.provider_wanted",
-    "workspace",
-    tenantId,
-    {
-      provider,
-      by: userId,
-    },
-  );
-  if (error) throw new DbFailure({ message: error }, "cannot keep which mailbox they use");
+export async function recordProviderWanted(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  provider: string,
+): Promise<void> {
+  await keepMailboxProviderWanted(ctx.supabase, tenantId, provider);
 }

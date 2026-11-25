@@ -14,6 +14,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const { recordTemplateEvent } = await import("../../apps/dashboard/src/server/campaigns/meta-templates.ts");
+const { setServiceClient } = await import("../../apps/dashboard/src/server/shared/service-db.ts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TP = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
@@ -21,10 +22,11 @@ const USER = "11111111-1111-4111-8111-111111111111";
 
 test("a template sent to WhatsApp and one deleted are written on the template, with its name in the data", async () => {
   const world = { events: [] };
-  const db = fakeDb(world);
+  setServiceClient(fakeDb(world));
   const made = { id: TP, name: "spring_offer", language: "en" };
-  await recordTemplateEvent(db, A, "submitted", made, USER);
-  await recordTemplateEvent(db, A, "removed", made, USER);
+  await recordTemplateEvent(A, "submitted", made, USER);
+  await recordTemplateEvent(A, "removed", made, USER);
+  setServiceClient(null);
   assert.deepEqual(
     world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
     [

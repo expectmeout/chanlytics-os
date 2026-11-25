@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
+import { activeWorkspace } from "../workspace";
 
 /**
  * A second workspace from the workspace menu: the create screen on demand,
@@ -36,9 +37,7 @@ test.describe("creating another workspace", () => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("today-queue")).toBeVisible();
-    const homeId = await page.evaluate(
-      () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
-    );
+    const homeId = await activeWorkspace(page);
     expect(homeId).not.toBeNull();
     const name = `E2E probe ${Date.now()}`;
     let createdId: string | null = null;
@@ -46,7 +45,7 @@ test.describe("creating another workspace", () => {
       await page.getByTestId("sb-workspace").click();
       const menu = page.getByTestId("sb-workspace-menu");
       // toBeVisible FIRST: count() is the one Playwright read that does not
-      // retry, and the menu draws from window.__WORKSPACES with a [] fallback
+      // retry, and the menu draws from the workspace read's list with a [] fallback
       // and so a bare count() here returns 0, turning a deterministic
       // assertion into an intermittent one.
       await expect(menu.getByTestId("sb-ws-item").first()).toBeVisible();
@@ -63,9 +62,7 @@ test.describe("creating another workspace", () => {
       // The first run is drawn in place of the shell's chrome (#968), so there is no workspace switch to read there:
       // the page names the new workspace itself, on the receptionist card beside the step.
       await expect(page.getByTestId("first-run")).toContainText(name, { timeout: 20000 });
-      createdId = await page.evaluate(
-        () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
-      );
+      createdId = await activeWorkspace(page);
       expect(createdId).not.toBeNull();
       expect(createdId).not.toBe(homeId);
       // Both are listed where the switch is drawn: the first run's own Later leaves for Today, which has the sidebar.

@@ -41,15 +41,15 @@ const AT_ONCE = 5;
 /** A notice is not said again for this long. */
 const NOT_AGAIN_DAYS = 7;
 
-/** One business's morning, read as its owner would see it, with the service role. */
+/** One business's morning, read as its owner would see it, with the clock's own client. */
 async function lookAt(
+  db: RouteContext["supabase"],
   tenantId: TenantId,
   timezone: string,
   ownerId: string,
   role: MembershipRole,
   now: Date,
 ): Promise<string | null> {
-  const db = serviceDb();
   const ctx = { supabase: db, userId: ownerId } as unknown as RouteContext;
   const member = { tenantId, role } as unknown as Member;
   const rc = readerContext(ctx, member);
@@ -69,7 +69,11 @@ async function lookAt(
   return first?.key ?? null;
 }
 
-/** The clock's one tick: the businesses whose morning it is, not yet looked at today, a few a run. */
+/**
+ * The clock's one tick: the businesses whose morning it is, not yet looked at today, a few a run.
+ * A clock with no member, across every business whose morning it is: the one place this module takes the service role,
+ * and each business's look names its workspace.
+ */
 export async function runMorningSweep(now: Date): Promise<{ looked: number; told: number }> {
   const db = serviceDb();
   const businesses = await listBusinessesForMorning(db);
@@ -84,7 +88,7 @@ export async function runMorningSweep(now: Date): Promise<{ looked: number; told
           const owner = (await listOwnerSeats(db, b.id as TenantId)).at(0);
           if (!owner) return;
           looked++;
-          if (await lookAt(b.id as TenantId, b.timezone, owner.user_id, owner.role as MembershipRole, now)) told++;
+          if (await lookAt(db, b.id as TenantId, b.timezone, owner.user_id, owner.role as MembershipRole, now)) told++;
         } catch (e) {
           log.error("ask_morning_sweep_failed", { tenant_id: b.id, error: e });
         }

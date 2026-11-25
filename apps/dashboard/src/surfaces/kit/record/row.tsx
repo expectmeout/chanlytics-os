@@ -55,7 +55,7 @@ import { factWords, pageSelection } from "./shell-verbs";
 type Gate = Record<string, unknown>;
 
 /** A row's one act. */
-interface RecordAct {
+export interface RecordAct {
   label: ReactNode;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   gate?: Gate | null;

@@ -595,10 +595,9 @@ function SheetKitKicker() {
         title="Turn on"
         close={{ label: "Close", glyph: glyph("x", 13) }}
         kicker
-        footCloses
         foot={
           <div data-foot-pair="">
-            <Button variant="quiet" size="sm" onClick={() => setOpen(false)}>
+            <Button variant="quiet" size="sm" onClick={() => setOpen(false)} data-foot-cancel="">
               Cancel
             </Button>
             <Button variant="primary" size="sm" onClick={() => setOpen(false)}>

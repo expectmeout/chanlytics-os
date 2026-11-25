@@ -124,6 +124,7 @@
   color: var(--ink-dim);
   padding-top: 5px;
   padding-bottom: 5px;
+  padding-left: 38px;
 }
 .nav-item.nav-sub.active { color: var(--ink); }
 
@@ -282,6 +283,12 @@
   color: var(--ink-dim);
 }
 .nav-item.active .icon { color: var(--ink); }
+/* A row's chevron that opens its children (sidebar.tsx): at the row's end, or just after its count; turned while open;
+   faint whether its row or its parent is the page shown or not, as it was drawn: its class twice outranks the rows' own
+   ink (.nav-item.active .icon, .nav-item.parent-active .icon). */
+.nav-item .icon.nav-chev.nav-chev { margin-left: auto; color: var(--ink-faint); transition: transform 160ms; }
+.nav-item .icon.nav-chev-after { margin-left: 4px; }
+.nav-item .icon.nav-chev-open { transform: rotate(90deg); }
 
 .sidebar-foot {
   margin-top: auto;
@@ -942,8 +949,7 @@
     stroke-dashoffset: 0 !important;
   }
   .rp-revbar, .rp-mix-fill, .conf-meter-fill,
-  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint, .rec-fold,
-  .rec-sheet.rec-fold-sheet[data-leaving="true"], .rec-sheet-backdrop[data-leaving="true"] { transition: none !important; }
+  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint, .rec-fold { transition: none !important; }
 }
 
 /* ============================================================
@@ -1136,34 +1142,13 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   .tbn-slot[data-going="true"] .tbn-item { translate: -100% 0; }
 }
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
-/* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
-   standing over the page with no wash, pulled down to close (frame/topbar/notif-popover.tsx NotifPopover, kit/motion/swipe.ts touchSwipe), rising and leaving
-   as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
-.tbn-handle { display: none; }
+/* On a phone the notes are the kit's one sheet (frame/topbar/notif-popover.tsx NotifPopover, kit/sheet/sheet.tsx), as every
+   sheet there is: its handle, its title, Mark all read on the title's line and the one round Close, pulled down to close.
+   It was a 568px popover hung from the top bar, as far from the thumb as the screen allows, and then a sheet of its own
+   with no Close (the phone change list's E-01, 25 Nov 2026). The sheet moves under a pull at the top, not its list, and
+   the list has no rubber band at either end (#1063). */
 @media (max-width: 720px) {
-  /* Behind the notes the page wears the phone's one veil, the drawer's (tokens.css --surface-veil; Ruben, 7 Oct 2026:
-     every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
-     2 Oct: no fade, no lightening). A tap on it closes the sheet. */
-  .tbn-backdrop { bottom: var(--foot-clear, 0px); background: var(--surface-veil); mask-image: var(--foot-fade, none); }
-  /* The glass of every sheet and menu (kit.css, "What pops over the page"; the popover's own panel-pop), at the corners
-     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. It floats
-     clear of the sides and the foot, and is cut at its rest's line as it rises, drops and is pulled, as every phone
-     sheet is (tokens.css --sheet-float and --sheet-foot, kit.css --sheet-down). */
-  .tbn-pop {
-    top: auto; right: var(--sheet-float, 0px); bottom: var(--sheet-foot, 0px); left: var(--sheet-float, 0px); max-width: none; max-height: 82vh; max-height: 82dvh;
-    border-radius: var(--radius-sheet);
-    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)); overscroll-behavior-y: none;
-    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
-    animation: sheet-in 260ms var(--ease-out);
-    --tbn-out: sheet-out;
-    --tbn-out-ms: 180ms;
-  }
-  .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
-  .tbn-head { padding: 6px 16px 10px; }
-  .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
-  /* The sheet moves under a pull at the top, not its list, and the list has no rubber band at either end (#1063). */
   .tbn-list { overscroll-behavior: none; }
-  .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
 /* A day's head stands over the notes scrolling under it on the pop's solid, at every width. A blur of its own inside the
    popover's glass read nothing (a backdrop-filter nested in another's), so on a desk the first note's words stood
@@ -1320,6 +1305,8 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 .ct-week-foot .icon { color: var(--ink-faint); flex-shrink: 0; }
 
 .bc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+/* A line of them that holds a press too, its items centred on it (composer-forms.tsx). */
+.bc-mid { align-items: center; }
 @media (max-width: 900px) {
   .ct-drafts { grid-template-columns: 1fr; }
   .ct-week { width: max-content; }
@@ -1849,10 +1836,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
 
 /* Coming in. Ask's palette and the Calendar's dialog (.ask-overlay, .ask-modal) have their own fade and slide
    (dashboard-a-v2.css, and Ask's in ask.css); here they gain their leaving.
-   A rule that tells the kit's sheets apart keeps its specificity at one class (:where), so the reduced-motion block at
-   the end, later and equal, wins: written as :not(), it outranked that block and the sheet slid in under reduced motion
-   (the Business journey caught it, 24 Sep). */
-.sb-sheet-backdrop, .rec-sheet-backdrop:where(:not([data-fold])), .ld-lightbox-backdrop, .nav-backdrop {
+   Every sheet is the kit's (kit.css, ".sheet"), which comes and goes by its own rules. */
+.sb-sheet-backdrop, .ld-lightbox-backdrop, .nav-backdrop {
   animation: wash-in var(--duration-base) var(--ease-out);
 }
 .sb-sheet, .ld-lightbox { animation: modal-in 240ms var(--ease-out); }
@@ -1862,23 +1847,11 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
 
 /* Going out: a still copy, played once and removed (kit/motion/leaving.ts leaveOverlay). Nothing in it takes a press. */
 [data-leaving="true"] { pointer-events: none; }
-.ask-overlay[data-leaving="true"], .sb-sheet-backdrop[data-leaving="true"],
-.rec-sheet-backdrop[data-leaving="true"]:not([data-fold]), .ld-lightbox-backdrop[data-leaving="true"] {
+.ask-overlay[data-leaving="true"], .sb-sheet-backdrop[data-leaving="true"], .ld-lightbox-backdrop[data-leaving="true"] {
   animation: wash-out 160ms var(--ease-in) forwards;
 }
 .ask-overlay[data-leaving="true"] .ask-modal, .sb-sheet[data-leaving="true"], .ld-lightbox[data-leaving="true"] {
   animation: modal-out 160ms var(--ease-in) forwards;
-}
-
-/* A fold drawn as a sheet beside a desktop page (record-fold.jsx `frame`, Settings › Business) is a side sheet, and
-   comes and goes as one: its own transitions are the phone's (record.css), where it rises from the bottom.
-   This and the 760px block below are the record kit's, and stay here: the kit's one breakpoint is 900px (kit.css), and
-   the record kit turns at 760px until People's step of Phase 4 takes it to 900px. */
-@media (min-width: 761px) {
-  .rec-sheet:where(.rec-fold-sheet) { animation: side-in 260ms var(--ease-out); }
-  .rec-sheet-backdrop:where([data-fold]) { animation: wash-in var(--duration-base) var(--ease-out); }
-  .rec-sheet.rec-fold-sheet[data-leaving="true"] { animation: side-out 180ms var(--ease-in) forwards; }
-  .rec-sheet-backdrop[data-fold][data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
 
 /* On a phone a sheet sits on the bottom edge, so it rises from there and drops back to it. A tall one (the kit's
@@ -1890,10 +1863,6 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   .sb-sheet.pl-plan[data-leaving="true"] {
     animation: sheet-out 180ms var(--ease-in) forwards;
   }
-}
-@media (max-width: 760px) {
-  .rec-sheet:where(:not(.rec-fold-sheet)) { animation: sheet-rise 300ms var(--ease-out); }
-  .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
 }
 @media (max-width: 720px) {
   /* A sheet pulled by the finger moves, not its list: a list at its top does not stretch under the pull. The record
@@ -1963,7 +1932,7 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
 .tl-arrived { animation: nudge-in 260ms var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ask-overlay, .ask-modal, .sb-sheet, .sb-sheet-backdrop, .rec-sheet, .rec-sheet-backdrop, .ld-lightbox,
+  .ask-overlay, .ask-modal, .sb-sheet, .sb-sheet-backdrop, .ld-lightbox,
   .ld-lightbox-backdrop, .nav-backdrop, .cl-health-pop, .confirm, .confirm-block, .tc-receipt, .tl-arrived,
   .tbn-pop, .tbn-backdrop, [data-leaving="true"] { animation: none; }
   .tbn-slot { transition: none; }
@@ -2132,6 +2101,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
+/* The workspace's chevrons, beside its name, in the dim ink (sidebar.tsx). */
+.icon.sb-team-chev { color: var(--ink-dim); }
 .sb-team-plan {
   margin-top: 1px;
   font-size: var(--text-xs);

@@ -15,6 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/a", hash: "#/today" };
@@ -29,9 +30,11 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-Object.assign(globalThis, {
-  __WORKSPACES: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t1",
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "a", name: "A", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
 });
 
 const json = (status, body) =>
@@ -287,17 +290,16 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   const replaced = [];
   const was = globalThis.location.replace;
   globalThis.location.replace = (to) => replaced.push(to);
-  const w = globalThis;
   const ws = (slug) => ({ id: `id-${slug}`, slug, name: slug, status: "active", timezone: "UTC" });
   const user = { id: "u1", email: "member@example.com" };
   try {
     // The tab's first read: it holds no list yet, and the one it brings holds the workspace it shows. Nothing is sent anywhere.
-    w.__WORKSPACES = undefined;
-    w.__ACTIVE_WORKSPACE = undefined;
+    bridgeHolds({ who: { workspaces: undefined } });
+    bridgeHolds({ who: { activeWorkspaceId: undefined } });
     answers.workspaces = { workspaces: [ws("a"), ws("b")], activeWorkspaceId: "id-a", user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, [], "the first read has no seat to have lost");
-    assert.equal(w.__ACTIVE_WORKSPACE, "id-a");
+    assert.equal(whoIsLooking().activeWorkspaceId, "id-a");
 
     // A teammate removes their seat in A: the memberships notice makes the next read, and the list no longer holds A.
     answers.workspaces = { workspaces: [ws("b")], activeWorkspaceId: "id-b", user };
@@ -306,16 +308,16 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
 
     // A member of nothing else: the front door, which shows them none.
     replaced.length = 0;
-    w.__WORKSPACES = [ws("a"), ws("b")];
-    w.__ACTIVE_WORKSPACE = "id-a";
+    bridgeHolds({ who: { workspaces: [ws("a"), ws("b")] } });
+    bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
     answers.workspaces = { workspaces: [], activeWorkspaceId: null, user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, ["/"]);
 
     // A role changed, the seat kept: the read lands, the tab stays, and it is told the new role.
     replaced.length = 0;
-    w.__WORKSPACES = [ws("a"), ws("b")];
-    w.__ACTIVE_WORKSPACE = "id-a";
+    bridgeHolds({ who: { workspaces: [ws("a"), ws("b")] } });
+    bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
     answers.workspaces = {
       workspaces: [ws("a"), ws("b")],
       activeWorkspaceId: "id-a",
@@ -323,7 +325,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, [], "a seat that stands is no reason to leave");
-    assert.equal(w.__ME.role, "viewer");
+    assert.equal(whoIsLooking().me.role, "viewer");
   } finally {
     globalThis.location.replace = was;
     await flush();

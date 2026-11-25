@@ -308,7 +308,7 @@ export function doubtRows(c: PageCtx) {
           fact={d.sentence}
           act={
             isOwner ? (
-              <Button size="sm" title={DOUBT_WORDS.mergeHint} onClick={() => mergeWith(d)} data-testid="doubt-merge">
+              <Button size="sm" data-tip={DOUBT_WORDS.mergeHint} onClick={() => mergeWith(d)} data-testid="doubt-merge">
                 {DOUBT_WORDS.merge}
               </Button>
             ) : null
@@ -593,7 +593,7 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
               variant="primary"
               className="cl-prof-lead-more"
               aria-label={`More for ${who}`}
-              title="More"
+              data-tip="More"
               data-testid="person-more"
             >
               <Icon name="chevron-down" size={c.phone ? 16 : 14} />
@@ -629,7 +629,7 @@ function noteAct(c: PageCtx) {
       size="touch"
       variant="glass"
       aria-label="Note"
-      title="Note"
+      data-tip="Note"
       onClick={() => toTheNote(c)}
       data-testid="person-note-act"
     >
@@ -666,7 +666,6 @@ export function hero(c: PageCtx) {
         title={PERSON_DELETE_WORDS.title}
         close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
         foot={del?.foot}
-        footCloses
         testid="person-delete-sheet"
       >
         {del?.body}
@@ -681,7 +680,6 @@ export function hero(c: PageCtx) {
         sub={combine?.sub}
         close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
         foot={merge?.foot}
-        footCloses
         testid="person-merge-sheet"
       >
         {merge?.body}

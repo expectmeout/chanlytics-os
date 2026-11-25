@@ -16,8 +16,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
+import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberMetaOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
+import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -341,7 +342,15 @@ test("an email intake that died leaves the email flagged for a person, and marks
 
 /* ------------------------------- the bridge's read ------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",
@@ -351,10 +360,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
 });
 globalThis.document.visibilityState = "hidden";
@@ -398,7 +403,7 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
     if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: waiting } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
     if (u.pathname === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
   };
   await quiet(() => inboxOverride.apply());

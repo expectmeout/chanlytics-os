@@ -267,15 +267,12 @@ test("the door's refusals are said in its own words, and move nothing", async ()
   assert.deepEqual(ledger.events, [], "a refused save is no change");
 });
 
-test("the event says who and for whom, never the words", async () => {
+test("the event is the door's: the route writes none of its own, kept or put back", async () => {
+  // sequence_lead_words_set writes reach_out.lead_words_changed beside the words (who and for whom, never the words:
+  // 00718), and tests/reach-out/sheet/lead-words.db.test.mjs reads it: a route writing one too would be two.
   await press({ lead_id: LEAD, words: TYPED });
   await press({ lead_id: LEAD, words: null });
-  const said = ledger.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]);
-  assert.deepEqual(said, [
-    ["reach_out.lead_words_changed", "lead", LEAD, { step_id: ROOT_ID, kept: true, by: USER }],
-    ["reach_out.lead_words_changed", "lead", LEAD, { step_id: ROOT_ID, kept: false, by: USER }],
-  ]);
-  assert.equal(JSON.stringify(ledger.events).includes("booked out"), false);
+  assert.deepEqual(ledger.events, [], "REGRESSION: the route wrote the change's event after the door");
 });
 
 const read = (route, params, world) =>

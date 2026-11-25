@@ -36,6 +36,7 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
+import { surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("their next step on the page: a column after Stage that sorts by its day, in the warn ink once it has come; the phone's card and the board's say it, and Steps due holds only theirs", async () => {
   const now = Date.now();
@@ -67,7 +68,11 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.equal(cell("wes").props["data-due"], "past", "the warn ink is the stylesheet's, keyed on this");
   assert.equal(cell("nia").props["data-due"], "ahead");
   assert.equal(textOf(cell("cat")), "", "no step: an empty cell, never a word for nothing");
-  assert.equal(cell("wes").props.title, "Send the revised quote", "the words whole, where the cell cuts them");
+  assert.equal(
+    cell("wes").props["data-tip"],
+    "Send the revised quote",
+    "the words whole in its tip, where the cell cuts them",
+  );
   // The heading sorts by the day, within each group, and the member's view keeps it.
   const nextHead = (t) => find(t, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Next step"));
   click(nextHead(tree));
@@ -173,7 +178,7 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
   // eight-day pace and a fifth (ten days) only Wes does.
   await fresh({ dealPace: { median_days: 8, yeses: 6 } });
   let tree = draw();
-  assert.deepEqual(globalThis.window.__PEOPLE.dealPace, {
+  assert.deepEqual(surfaceValue("people").dealPace, {
     medianDays: 8,
     yeses: 6,
     waitDays: 10,
@@ -247,7 +252,11 @@ test("the sheet says the follow-up has them where their row does (0006): the day
     },
   });
   const W = globalThis.window;
-  assert.equal(W.__PEOPLE.rows.find((r) => r.id === "wes").followUp?.kind, "will", "their row: in a run to come");
+  assert.equal(
+    surfaceValue("people").rows.find((r) => r.id === "wes").followUp?.kind,
+    "will",
+    "their row: in a run to come",
+  );
   // Their thread carries the proposal that went, eleven days ago.
   seen.person = (id) => {
     const d = detailOf(seen.rawOf(id));

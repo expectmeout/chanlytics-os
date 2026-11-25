@@ -39,17 +39,25 @@ export function PeopleListActSheet({
   rule?: ListRule | null;
   flash?: Flash;
 }) {
-  // Its own button is the way out of these two: no word in the head.
+  // Its own button finishes these two, and the round Close every sheet has is in the head beside it (kit.css, "One
+  // Close for every sheet").
   if (act === "rule") {
     return (
-      <Sheet open={open} shape="job" title="Who is on it" close={null} onClose={onClose} testid="list-act-sheet">
+      <Sheet open={open} shape="job" title="Who is on it" close={JOB_CANCEL} onClose={onClose} testid="list-act-sheet">
         <RuleEditor list={list as SavedList} flash={flash} onDone={onClose} />
       </Sheet>
     );
   }
   if (act === "delete") {
     return (
-      <Sheet open={open} shape="job" title="Delete the list" close={null} onClose={onClose} testid="list-act-sheet">
+      <Sheet
+        open={open}
+        shape="job"
+        title="Delete the list"
+        close={JOB_CANCEL}
+        onClose={onClose}
+        testid="list-act-sheet"
+      >
         <Confirm
           block
           question={`Delete “${(list as SavedList).name}”?`}

@@ -12,13 +12,12 @@ import { isUuid, leadMonth, LeadSearchPlanSchema, DbFailure } from "@chanlytics/
 import { logAndGoOn } from "@chanlytics/log";
 import { readMonthUsed, renewsOnOf } from "@/server/leads/allowance";
 import { getTenantFacts } from "@/server/shared/tenant";
-import { recordActivation } from "@chanlytics/db/events";
-import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import { startLeadSearch } from "@chanlytics/db/leads";
 import { asJson } from "@chanlytics/db/shared";
+import { recordWorkspaceActivation } from "@/server/shared/ledgers/events";
 
 export const CreateSchema = z.intersection(LeadSearchPlanSchema, z.object({ thread_id: z.unknown().optional() }));
 
@@ -62,7 +61,7 @@ export async function createLeadSearch(ctx: RouteContext, member: Member, input:
   // The workspace's first search: the funnel's third milestone, written as the service role (the ledger's writer). An
   // analytics row never costs a search: nothing here may throw.
   try {
-    await recordActivation(serviceDb(), member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
+    await recordWorkspaceActivation(member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
   } catch {
     /* the milestone is written by the next search */
   }

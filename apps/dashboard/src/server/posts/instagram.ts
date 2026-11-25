@@ -27,9 +27,9 @@ export const instagramPostsOf = (rows: readonly MemberPostRead[]): PostDto[] =>
   rows.filter((r) => r.place === "instagram").map(postDtoOf);
 
 /** What the press refuses before anything is read or written, in words: only a post or a video made here goes. */
-async function refusalBefore(member: Member, row: FileMemberRow): Promise<AppError | null> {
+async function refusalBefore(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<AppError | null> {
   if (row.source !== "made") return new AppError("validation", ON_INSTAGRAM.notAPost);
-  const postable = await readInstagramPostable(member.tenantId);
+  const postable = await readInstagramPostable(ctx.supabase, member.tenantId);
   if (postable === null || postable === "not_connected")
     return new AppError("conflict", ON_INSTAGRAM.notConnected, 409);
   if (postable === "line_off") return new AppError("conflict", ON_INSTAGRAM.lineOff, 409);
@@ -47,12 +47,12 @@ interface InstagramPress {
 
 /** What Instagram is asked for, as the approval takes it, after the place's own refusals: a person's press, or AI under the rung. */
 async function instagramAsked<Via extends "press" | "rung">(
+  ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  input: InstagramPress,
-  via: Via,
+  { input, via }: { input: InstagramPress; via: Via },
 ) {
-  const refused = await refusalBefore(member, row);
+  const refused = await refusalBefore(ctx, member, row);
   if (refused) throw refused;
   // A story shows no caption, so none is kept for one. The words that go are kept on the piece by the approval, once its
   // checks have passed (posts/approve.ts).
@@ -71,7 +71,7 @@ async function instagramAsked<Via extends "press" | "rung">(
  * places it takes what this answers: the 8:00 approval's for a slot readied overnight, plan_slot_place's after.
  */
 export async function prepareOnInstagram(ctx: RouteContext, member: Member, row: FileMemberRow, input: InstagramPress) {
-  return prepareApproval(ctx, member, row, await instagramAsked(member, row, input, "rung"));
+  return prepareApproval(ctx, member, row, await instagramAsked(ctx, member, row, { input, via: "rung" }));
 }
 
 /**
@@ -84,7 +84,12 @@ export async function postFileToInstagram(
   row: FileMemberRow,
   input: InstagramPress,
 ): Promise<{ post_id: string; status: "queued" }> {
-  const approved = await approvePlacements(ctx, member, row, await instagramAsked(member, row, input, "press"));
+  const approved = await approvePlacements(
+    ctx,
+    member,
+    row,
+    await instagramAsked(ctx, member, row, { input, via: "press" }),
+  );
   const postId = approved.posts[0]?.post_id;
   if (!postId) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   return { post_id: postId, status: "queued" };

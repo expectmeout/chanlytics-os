@@ -137,7 +137,7 @@ export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl
 function ClosesBack({ on, onChange, busy }: { on: boolean; onChange: (on: boolean) => void; busy: boolean }) {
   const id = useId();
   return (
-    <div className="cl-prof-call-tell" title={W.closesCallBackHint}>
+    <div className="cl-prof-call-tell" data-tip={W.closesCallBackHint}>
       <span id={id}>{W.closesCallBack}</span>
       <RecordSwitch on={on} onChange={onChange} labelledBy={id} readOnly={busy} testid="person-call-closes-back" />
     </div>
@@ -252,7 +252,7 @@ function CallAsk({ c, vm, onDone }: { c: CallCtx; vm: PersonCallVM; onDone: () =
       {/* The phone's sheet asks whether the receptionist should know; the desk's popover logs a team-only note (canvas A,
           M4), its foot saying so. */}
       {c.phone ? (
-        <div className="cl-prof-call-tell" title={W.tellHint}>
+        <div className="cl-prof-call-tell" data-tip={W.tellHint}>
           <span id={tellId}>{W.tell}</span>
           <RecordSwitch on={tell} onChange={setTell} labelledBy={tellId} readOnly={busy} testid="person-call-tell" />
         </div>
@@ -327,7 +327,7 @@ export function CallAct({
         variant={dock ? "quiet" : "glass"}
         className={className}
         aria-label={W.call}
-        title={W.call}
+        data-tip={W.call}
         href={vm.tel}
         onClick={c.canRecord ? c.call.dialled : undefined}
         data-testid={dock ? undefined : "person-call"}
@@ -344,7 +344,7 @@ export function CallAct({
       variant="quiet"
       className={className}
       aria-label={W.call}
-      title={W.call}
+      data-tip={W.call}
       data-testid="person-call"
     >
       <Icon name="phone" size={16} />

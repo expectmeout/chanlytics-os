@@ -8,11 +8,9 @@ import "server-only";
 import { checkedWordsOf } from "@chanlytics/channels/email";
 import { AppError, leadWordsProblem, wordsNeedOpening, type LeadEmailText } from "@chanlytics/contracts";
 import { findEmailWords, findLeadSlots, setLeadWords, type LeadWordsAnswer } from "@chanlytics/db/campaigns";
-import { emitEvent } from "@chanlytics/db/events";
 import { findBusiness, reachOutRefusal } from "../reach-outs/chain-acts";
 import { listChains } from "../reach-outs/reach-outs";
 import { requireUuid } from "../../shared/request-guards";
-import { serviceDb } from "../../shared/service-db";
 import type { RouteContext } from "../../shared/with-route";
 import { stepOfSequence } from "./doors";
 import type { TenantId } from "@chanlytics/contracts";
@@ -54,10 +52,6 @@ export async function saveLeadWords(
     needsLine: wordsNeedOpening(standing),
   });
   if (result.error) throw reachOutRefusal(result.error);
-  await emitEvent(serviceDb(), seq.tenant_id, "reach_out.lead_words_changed", "lead", leadId, {
-    step_id: step.id,
-    kept: words !== null,
-    by: ctx.userId,
-  });
+  // The door wrote the change's event beside it (reach_out.lead_words_changed, 00718): who, never the words.
   return result.data;
 }
