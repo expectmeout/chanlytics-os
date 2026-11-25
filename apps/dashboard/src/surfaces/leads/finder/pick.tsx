@@ -38,7 +38,7 @@ export const LeadPick = ({
       type="button"
       className={`tok ${cls || ""} ${open ? "open" : ""}`}
       data-testid={`plan-${id}`}
-      title={title || label}
+      data-tip={title || label}
       aria-haspopup="listbox"
       aria-expanded={!!open}
       onClick={() => onOpen(open ? null : id)}
