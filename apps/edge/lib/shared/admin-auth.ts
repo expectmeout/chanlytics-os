@@ -38,7 +38,7 @@
  * names one is believed over the body, and a body that names another is
  * refused.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, isTenantId } from "@chanlytics/contracts";
 import crypto from "node:crypto";
 import { json, refuse } from "./http.js";
 import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
@@ -168,6 +168,23 @@ export function workspaceFor(
 export function personFor(auth: Admitted, bodyUser: unknown): string | null {
   const fromBody = typeof bodyUser === "string" && UUID.test(bodyUser.trim()) ? bodyUser.trim() : null;
   return auth.user ?? fromBody;
+}
+
+/**
+ * The workspace and the person a door acts for, both required (the voice session and speech doors): each as
+ * `workspaceFor` and `personFor` read it, and a knock that names either not at all is a 400.
+ */
+export function workspaceAndPersonFor(
+  auth: Admitted,
+  body: { tenant_id?: unknown; user_id?: unknown },
+): { ok: true; tenantId: TenantId; userId: string } | { ok: false; response: Response } {
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws;
+  const tenantId = ws.tenantId ?? "";
+  const userId = personFor(auth, body.user_id) ?? "";
+  if (!isTenantId(tenantId) || !UUID.test(userId))
+    return { ok: false, response: refuse(400, "bad_request", "tenant_id and user_id required") };
+  return { ok: true, tenantId, userId };
 }
 
 /**

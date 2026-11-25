@@ -70,6 +70,7 @@ import { listPlatformOverview } from "./platform";
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
+import { NOT_SAVED } from "@/server/console/words";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -452,8 +453,7 @@ export async function moveSupport(office: BackOffice, id: string, kind: ReportKi
     },
     async () => {
       const moved = await setReportKind(office.db, data.id, kind);
-      if (moved.error || !moved.data)
-        throw new AppError("unavailable", "Couldn't save that just now. Try again in a moment.");
+      if (moved.error || !moved.data) throw new AppError("unavailable", NOT_SAVED);
       return { kind };
     },
   );

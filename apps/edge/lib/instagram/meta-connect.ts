@@ -129,7 +129,7 @@ async function tokenThroughMeta(
     parseMetaDebugToken,
   );
   if (metaRefused(facts)) return refuse(502, "exchange_failed", facts.refused);
-  if (!facts.valid) return refuse(502, "exchange_failed", "Meta says the sign-in is no longer valid. Connect again.");
+  if (!facts.valid) return refuse(502, "exchange_failed", "Meta's sign-in ended. Connect again.");
   if (!NEEDED.every((p) => facts.scopes.includes(p))) {
     log.info("ig_connect_messages_not_granted", { login: "meta" });
     return refuse(403, "instagram_messages_not_granted", "The business did not allow its account and its messages.");

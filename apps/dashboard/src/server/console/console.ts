@@ -46,6 +46,7 @@ import { listConsoleActs } from "./acts";
 import { listAsksSince, listReportsSince, readSupportDueBook } from "./support";
 import { log } from "@/server/shared/log";
 import { claimsNow } from "@/server/console/support";
+import { NOT_SAVED } from "@/server/console/words";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** Who is asking, as the Console's frame draws them. */
@@ -77,7 +78,7 @@ export async function readSide<T>(text: string, read: () => Promise<T>): Promise
 export async function claimConsole(office: BackOffice, tenantId: TenantId, take: boolean): Promise<ClaimDto | null> {
   if (!take) {
     const { error } = await letClaimGo(office.db, tenantId, office.userId);
-    if (error) throw new AppError("unavailable", "Couldn't save that just now. Try again in a moment.");
+    if (error) throw new AppError("unavailable", NOT_SAVED);
     return null;
   }
   const now = Date.now();
@@ -94,7 +95,7 @@ export async function claimConsole(office: BackOffice, tenantId: TenantId, take:
     throw new AppError("conflict", `${staffName(held.data?.email ?? null)} is on it already.`, 409);
   }
   if (error?.code === "23503") throw new AppError("not_found", "No such workspace.", 404);
-  if (error || !data) throw new AppError("unavailable", "Couldn't save that just now. Try again in a moment.");
+  if (error || !data) throw new AppError("unavailable", NOT_SAVED);
   return data;
 }
 

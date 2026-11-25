@@ -337,8 +337,11 @@ export async function setProposalOutcome(
   return settled;
 }
 
+/** What a member is told of an AI conversation they cannot read or delete: not theirs, or already deleted. */
+export const CONVERSATION_GONE = "That conversation is not yours or is already gone.";
+
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
   const { data, error } = await deleteAskThread(ctx.supabase, id);
   if (error) throw new DbFailure(error);
-  if (!data?.length) throw new AppError("not_found", "That conversation is not yours or is already gone.", 404);
+  if (!data?.length) throw new AppError("not_found", CONVERSATION_GONE, 404);
 }
