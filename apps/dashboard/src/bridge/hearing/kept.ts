@@ -58,6 +58,14 @@ function standsOn(o: SurfaceOverride, ask: KeptAsk): number | null {
   return at;
 }
 
+/**
+ * Whether the boot holds any copy it may stand on. Where it holds none (a first load, a runner given no record to ask),
+ * it asks nothing and waits for nothing: such a load runs as it always did, to the turn.
+ */
+export function anyKept(strangers: readonly SurfaceOverride[], ask: KeptAsk): boolean {
+  return !!ask.catchUp && strangers.some((surface) => standsOn(surface, ask) !== null);
+}
+
 /** A notice read back, as the surfaces' own rule reads a live one (hearing/catch-up.ts): one change a status it left. */
 function changesOf(notice: CaughtUpNotice, tenant: string): RealtimeChange[] {
   return (notice.statuses?.length ? notice.statuses : [undefined]).map((status) => ({

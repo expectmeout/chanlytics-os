@@ -42,7 +42,7 @@ import {
 import { bootStarted, getActiveWorkspace, onRouteAsked, routeOnScreen, signInHref } from "./workspace";
 import { pageDrawnIn, pageFirst, pageReadsIn } from "./hearing/page-waits";
 import { watchTheClock } from "./hearing/clock";
-import { keptUnchanged } from "./hearing/kept";
+import { anyKept, keptUnchanged } from "./hearing/kept";
 import { keptAskHere, standOnKeptCopies } from "./hearing/kept-here";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
@@ -625,14 +625,16 @@ function bootInPasses(run: SurfaceRun, catchUp: CatchUp | undefined): SurfaceBoo
     return run.cancelled ? undefined : pageDrawnIn(routeWaitOf(window));
   });
   // What the device holds of the pages not on screen, and the workspace's topic says has not changed since, is not read
-  // again (hearing/kept.ts): asked as the boot begins, so the answer is in by the time the page on screen is drawn.
-  const unchanged = keptUnchanged(
-    strangers,
-    keptAskHere(catchUp, () => viewedWorkspace() ?? ""),
-  );
-  const booted = pageOnScreen.then(async () => {
-    if (!run.cancelled) await standOnKeptCopies(strangers, unchanged, (o, at) => run.readFrom.set(readSlot(o), at));
-    return run.cancelled ? undefined : bootTogether(strangers, boot);
+  // again (hearing/kept.ts): asked as the boot begins, so the answer is in by the time the page on screen is drawn. A
+  // device that holds nothing asks nothing, and its boot runs as it always did.
+  const kept = keptAskHere(catchUp, () => viewedWorkspace() ?? "");
+  const unchanged = anyKept(strangers, kept) ? keptUnchanged(strangers, kept) : null;
+  const booted = pageOnScreen.then(() => {
+    if (run.cancelled) return undefined;
+    if (!unchanged) return bootTogether(strangers, boot);
+    return standOnKeptCopies(strangers, unchanged, (o, at) => run.readFrom.set(readSlot(o), at)).then(() =>
+      run.cancelled ? undefined : bootTogether(strangers, boot),
+    );
   });
   void booted.then(stopFollowing, stopFollowing);
   // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this

@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { keptUnchanged } = await import(at("apps/dashboard/src/bridge/hearing/kept.ts"));
+const { anyKept, keptUnchanged } = await import(at("apps/dashboard/src/bridge/hearing/kept.ts"));
 
 const NOON = Date.parse("2026-11-24T17:00:00Z");
 const MIN = 60_000;
@@ -122,6 +122,10 @@ test("a copy stands only where an open tab's read would", async () => {
   const none = asking({ kept: {} });
   assert.deepEqual(await keptUnchanged([inbox], none.ask), []);
   assert.deepEqual(none.asked, [], "and the feed's record is not asked for nothing");
+  // Such a boot waits for nothing either (anyKept): it runs as it always did, to the turn. So does one given no record.
+  assert.equal(anyKept([inbox], none.ask), false);
+  assert.equal(anyKept([inbox, calendar], asking({ kept: { inbox: 5 }, catchUp: null }).ask), false);
+  assert.equal(anyKept([inbox, calendar], asking({ kept: { inbox: 5 } }).ask), true);
   // A surface the feed tells nothing: read at the boot, its only word of a change made elsewhere.
   const ownChange = surface("views", [], { fresh: "own-change", refreshOnTables: undefined });
   const aged = surface("activity", ["events"], { fresh: { aged: 5 } });
