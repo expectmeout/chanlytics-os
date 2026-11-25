@@ -9,14 +9,15 @@
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
-    "@supabase/supabase-js": "^2.119.2"
+    "@supabase/supabase-js": "catalog:"
   },
   "devDependencies": {
-    "esbuild": "0.28.2",
-    "next": "^16.4.6",
-    "react": "^19.3.1",
-    "stripe": "22.6.2",
+    "@anthropic-ai/sdk": "0.131.0",
+    "@elevenlabs/client": "catalog:",
+    "@supabase/ssr": "catalog:",
+    "esbuild": "catalog:",
+    "react": "catalog:",
     "typescript": "catalog:",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   }
 }
