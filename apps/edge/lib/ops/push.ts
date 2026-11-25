@@ -18,7 +18,7 @@
  * belong to more than one app (PUSH_TOO_MANY_EXPERIENCE_IDS) is sent again, one request per app: this app's tokens get
  * through, and a phone whose token is another app's is forgotten by its receipt like any other dead one.
  */
-import { recordOrEmpty, type PushMessage } from "@chanlytics/contracts";
+import { recordOrEmpty, type PushMessage, listOrEmpty, valueAt } from "@chanlytics/contracts";
 import type { PushPort, PushReceipt } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
@@ -59,11 +59,12 @@ const refused = (batch: PushMessage[], reason: string): PushReceipt[] =>
  */
 function experienceGroups(detail: string): Set<string>[] {
   try {
-    const body = JSON.parse(detail) as { errors?: { details?: unknown }[] };
+    const errors = listOrEmpty(valueAt(JSON.parse(detail), "errors"));
     const groups: Set<string>[] = [];
-    for (const e of body.errors ?? []) {
-      if (!e.details || typeof e.details !== "object") continue;
-      for (const tokens of Object.values(recordOrEmpty(e.details))) {
+    for (const e of errors) {
+      const details = valueAt(e, "details");
+      if (!details || typeof details !== "object") continue;
+      for (const tokens of Object.values(recordOrEmpty(details))) {
         if (Array.isArray(tokens) && tokens.every((t) => typeof t === "string")) groups.push(new Set(tokens));
       }
     }

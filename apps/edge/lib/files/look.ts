@@ -30,6 +30,7 @@ import {
   soundTurnSaidOf,
   videoSheetPlanOf,
   type FileLookRead,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
 import { fetchFromProvider } from "@chanlytics/channels/shared";
@@ -70,11 +71,16 @@ interface ClaudeCopy {
 }
 
 function heldCopyOf(row: FileRow, nowMs: number): ClaudeCopy | null {
-  const c = row.claude_copy as Partial<ClaudeCopy> | null;
+  const c = recordOrNull(row.claude_copy);
   if (!c || typeof c.id !== "string" || typeof c.width !== "number" || typeof c.height !== "number") return null;
   // A day short of its end: a read must not start on a copy about to go.
   if (typeof c.expires_at === "string" && Date.parse(c.expires_at) - nowMs < DAY_MS) return null;
-  return { id: c.id, expires_at: c.expires_at ?? null, width: c.width, height: c.height };
+  return {
+    id: c.id,
+    expires_at: typeof c.expires_at === "string" ? c.expires_at : null,
+    width: c.width,
+    height: c.height,
+  };
 }
 
 /**

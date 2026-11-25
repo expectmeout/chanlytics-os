@@ -12,7 +12,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "@chanlytics/channels/google";
-import { MIN_MS, type EdgeRefusal, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { MIN_MS, type EdgeRefusal, recordOrEmpty, DbFailure, recordOrNull } from "@chanlytics/contracts";
 import { profileClient } from "./config.js";
 import { http } from "./places.js";
 import type { Db } from "./rows.js";
@@ -62,13 +62,13 @@ async function storeCredentials(
 async function readCredentials(db: Db, tenantId: TenantId): Promise<StoredCredentials | null> {
   const { data, error } = await getGoogleCredentials(db, tenantId);
   if (error) throw new DbFailure(error, "credentials");
-  const storedCredentials = data as Partial<StoredCredentials> | null;
+  const storedCredentials = recordOrNull(data);
   return storedCredentials && typeof storedCredentials.refresh_token === "string"
     ? {
         refresh_token: storedCredentials.refresh_token,
-        access_token: storedCredentials.access_token ?? null,
+        access_token: typeof storedCredentials.access_token === "string" ? storedCredentials.access_token : null,
         expires_at: typeof storedCredentials.expires_at === "number" ? storedCredentials.expires_at : null,
-        scope: storedCredentials.scope ?? null,
+        scope: typeof storedCredentials.scope === "string" ? storedCredentials.scope : null,
       }
     : null;
 }
