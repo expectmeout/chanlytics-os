@@ -359,6 +359,20 @@ test("never judged: a story, a post with no id there, one up under an hour, one 
   assert.deepEqual(new Set(w.statuses()), new Set(["published"]));
 });
 
+test("more posts missing than one read asks about: twenty are asked by id, and the rest wait for the days after", async () => {
+  meta[LIST] = listOf("17900000000000001");
+  const posts = Array.from({ length: 25 }, (_, i) =>
+    upPost({ id: `p-${i}`, externalId: `179000000000005${String(i).padStart(2, "0")}`, upFor: (10 + i) * DAY_MS }),
+  );
+  // Each one's own id still reads: the list left them out, and none is gone.
+  for (const post of posts) meta[`GET /${post.external_id}`] = [200, { id: post.external_id }];
+  const w = world(posts);
+  const read = readOf(await w.run(), "instagram");
+  assert.deepEqual([read.held, read.missing, read.asked, read.gone], [25, 25, 20, 0]);
+  assert.equal(calls.length, 21, "the list, and twenty posts by their own id");
+  assert.deepEqual(new Set(w.statuses()), new Set(["published"]));
+});
+
 test("a take-down still asking is left to settle it: found gone, the post is not moved here and nothing rings", async () => {
   meta[LIST] = listOf();
   meta[`GET /${MEDIA}`] = BY_ID_GONE;

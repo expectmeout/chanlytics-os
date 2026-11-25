@@ -33,7 +33,7 @@ export const POSTS_WATCHED_MS = 365 * DAY_MS;
 /** A post up for less than this is left to its first read of numbers: its place may not list it yet. */
 const POSTS_SETTLED_MS = HOUR_MS;
 
-/** The most posts one read asks a place about by their own id; the rest are asked tomorrow. */
+/** The most posts one read asks a place about by their own id; the rest are asked on the days after. */
 const ASKS_A_READ = 20;
 
 /** How far back a dry read asks the list of a place where nothing is held. */
@@ -87,11 +87,15 @@ function missingFrom(listing: Extract<PlaceListing, { is: "read" }>, posts: read
   });
 }
 
-/** Each missing post asked about by its own id; one the place no longer holds is taken down, and its owner told. */
+/**
+ * Each missing post asked about by its own id; one the place no longer holds is taken down, and its owner told. Where
+ * more are missing than one read asks about, each day begins where the day before left off, so none waits for ever.
+ */
 async function settleMissing(turn: ReadTurn, held: HeldPlace, missing: readonly PostRow[]) {
   let asked = 0;
   let gone = 0;
-  for (const post of missing.slice(0, ASKS_A_READ)) {
+  const from = missing.length > ASKS_A_READ ? (Math.floor(turn.nowMs / DAY_MS) * ASKS_A_READ) % missing.length : 0;
+  for (const post of [...missing.slice(from), ...missing.slice(0, from)].slice(0, ASKS_A_READ)) {
     if (Date.now() > turn.deadline) break;
     asked += 1;
     if (!(await askWhetherGone(held.placeOf(post), post, turn.nowMs))) continue;
