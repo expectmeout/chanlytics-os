@@ -25,9 +25,9 @@ function buckets(): { files: Bucket; logos: Bucket } {
   const db = storageDb();
   const held = bucketsOf.get(db);
   if (held) return held;
-  const made = { files: filesBucket(db), logos: db.storage.from(WORKSPACE_LOGOS_BUCKET) };
-  bucketsOf.set(db, made);
-  return made;
+  const both = { files: filesBucket(db), logos: db.storage.from(WORKSPACE_LOGOS_BUCKET) };
+  bucketsOf.set(db, both);
+  return both;
 }
 
 /** The Library's bucket: a workspace's photos, videos' frames and what was made, each under its workspace's folder. */
