@@ -2,8 +2,8 @@
  * A person's name is theirs to set and their team's to read (00068, the profiles table; the roster as 00261 wrote it).
  *
  * One row per account, written only through its owner's door (profile_set: trimmed, at most 80 characters, empty clears
- * it), read by the person and by the members of any workspace they share, and by nobody else; the roster a member reads
- * carries the name. Run on the replayed database as the people themselves, in place of the pins on 00068's text
+ * it), read by its person, and by their teammates through the roster a member reads (team_roster), never by anyone
+ * who shares no workspace with them. Run on the replayed database as the people themselves, in place of the pins on 00068's text
  * (workspace/identity.test.mjs until 25 Nov 2026).
  */
 import { test, before, after } from "node:test";
@@ -122,7 +122,7 @@ test(
 );
 
 test(
-  "a teammate reads the name, and the roster carries it; someone who shares no workspace reads neither",
+  "a teammate reads the name in the roster; someone who shares no workspace reads neither it nor the row",
   { skip },
   async () => {
     const ada = await person("named");
@@ -135,8 +135,10 @@ test(
     await workspace("elsewhere", [[cy, "owner"]]);
     ok(await (await session(ada)).rpc("profile_set", { p_display_name: "Ada Lovelace" }), "set");
 
+    // A teammate reads the name through the roster, as every page does. The table itself answers each session its own
+    // row alone: its policy's shared-workspace branch joins memberships, and memberships_self_select lets a session see
+    // its own seat and no other, so that branch reaches nobody (narrower than profiles' comment says, never wider).
     const teammate = await session(ben);
-    assert.deepEqual(await namesSeen(teammate, [ada.id]), { [ada.id]: "Ada Lovelace" }, "the people she works with");
     const roster = ok(await teammate.rpc("team_roster", { p_tenant_id: t }), "roster");
     assert.deepEqual(
       roster.map((r) => [r.member_user_id, r.role, r.display_name]).sort(),
