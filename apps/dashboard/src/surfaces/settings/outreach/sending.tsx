@@ -72,7 +72,7 @@ function SendMoreSheet({ host }: { host: string | null }) {
       onClose={fold.close}
       foot={
         <span data-foot-pair>
-          <Button size="sm" onClick={fold.close} data-testid="rec-send-more-later">
+          <Button size="sm" onClick={fold.close} data-foot-cancel="" data-testid="rec-send-more-later">
             {MORE_WORDS.later}
           </Button>
           <Button

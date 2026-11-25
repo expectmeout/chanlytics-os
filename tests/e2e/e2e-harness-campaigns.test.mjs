@@ -283,6 +283,8 @@ const newPane = (record, draft) => {
 };
 /** The host element a testid names (a kit Button is its own node and the host button it draws, both carrying the id). */
 const hostOf = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
+/** A sheet by the test id the page hands the kit's Sheet: what it holds, open or shut (shut, Base UI draws none of it). */
+const sheetNamed = (tree, testid) => find(tree, (n) => n.props?.testid === testid);
 
 test("New's one-off that reaches nobody holds Send now back and says why, with the yes it needs as its door, as the spec expects, over every record", () => {
   for (const [name, record] of WORKSPACES) {
@@ -336,12 +338,12 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   );
   // The message sheet offers both, each a press.
   assert.deepEqual(
-    held.map((m) => !!hostOf(byTestId(pane, "sq-nw-message"), `sq-nw-message-${m.template_id}`)),
+    held.map((m) => !!hostOf(sheetNamed(pane, "sq-nw-message"), `sq-nw-message-${m.template_id}`)),
     [true, true],
     "both, in the sheet that picks the message",
   );
   // How it goes, each channel's row saying why it can't be ticked: no WhatsApp version, no text line. No number is asked for.
-  const channels = byTestId(pane, "sq-nw-channels");
+  const channels = sheetNamed(pane, "sq-nw-channels");
   const rowOf = (name) => find(channels, (n) => n.props?.className === "sq-nw-switchrow" && textOf(n).startsWith(name));
   for (const [name, why] of [
     [W.channels.whatsapp, contracts.noVersionWords("whatsapp")],

@@ -479,10 +479,10 @@ test("+ Other's editor, opened over languages the record has, closes on a Save w
   let tree = draw({ profile: { ...HARBOR, languages: ["English", "X"] } });
   press(byTestId(tree, "fr-chip-other-language"));
   tree = redraw();
-  assert.equal(byTestId(tree, "rec-fold-languages").props["data-open"], "true");
+  assert.ok(byTestId(tree, "rec-fold-languages"), "its sheet is open");
   press(byTestId(tree, "rec-fold-save-languages"));
   tree = redraw();
-  assert.equal(byTestId(tree, "rec-fold-languages").props["data-open"], "false", "closed");
+  assert.equal(byTestId(tree, "rec-fold-languages"), null, "closed: its sheet is shut");
   assert.equal(sent.length, 0);
 });
 

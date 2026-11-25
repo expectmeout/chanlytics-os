@@ -647,10 +647,11 @@ values, the third tier, are declared on its class in `kit.css`
 own rules, on classes of its own: the buttons, the badges, the fields and the
 record kit's controls, the menu, Confirm, the empty states, the toast, the
 tooltip, the tab strip, the panel, the face, the list row, the meter and the
-sheet, with one phone breakpoint, 900px. Four primitives stand in it twice by
-design until Phase 4 takes the house's out: `.avatar` beside `.face`,
-`.rec-sheet` beside `.sheet`, and the surfaces of `.rec-card-tip` and
-`.confirm-block` beside `.panel-pop` and `.panel-inset`. `classes.json` is its
+sheet, with one phone breakpoint, 900px. Three primitives stand in it twice by
+design until Phase 4 takes the house's out: `.avatar` beside `.face`, and the
+surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and
+`.panel-inset`. The sheet stands once: the record kit's sheet and a fold's sheet
+are drawn by the kit's `Sheet` (25 Nov 2026). `classes.json` is its
 registry: the house's own names, with no prefix, which the measures read, so
 a listed class declared in any other stylesheet is a primitive outside the
 kit. Each component is a folder of its own, the module that renders those

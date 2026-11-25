@@ -47,7 +47,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
       onClose={fold.close}
       foot={
         <span data-foot-pair>
-          <Button size="sm" onClick={fold.close} data-testid="rec-connect-cancel">
+          <Button size="sm" onClick={fold.close} data-foot-cancel="" data-testid="rec-connect-cancel">
             {CONNECT_SHEET.cancel}
           </Button>
           <Button
@@ -104,7 +104,7 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
       onClose={fold.close}
       foot={
         <span data-foot-pair>
-          <Button size="sm" onClick={fold.close} data-testid="rec-connect-free-later">
+          <Button size="sm" onClick={fold.close} data-foot-cancel="" data-testid="rec-connect-free-later">
             {CONNECT_SHEET.free.later}
           </Button>
           <Button

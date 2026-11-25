@@ -7,7 +7,7 @@
  * never a leaving; put it on the sheet (or the palette), and its wash is found as the sibling before it as it opens. React
  * takes the wash away before the sheet, so the wash's copy is made from the one it held. Nothing leaves under reduced
  * motion, nor from a frame React mounted and let go of at once (StrictMode's check in development, a draw that never
- * showed). The fold's sheet has its own (the record kit's `recSheetLeaves`).
+ * showed). A record sheet let go of while open leaves by it too, its copies on the body (record/sheet.tsx).
  */
 import { takenOutLater } from "./root-flags";
 import { motionReduced, washBehind } from "./swipe";
@@ -15,8 +15,8 @@ import { motionReduced, washBehind } from "./swipe";
 const STILL_ATTRIBUTES = ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"];
 /** How long a still copy may play before it is removed whatever its animation said. */
 const LEAVE_FALLBACK_MS = 420;
-/** A frame shown for less than this was never seen, and does not leave. */
-const SEEN_MS = 60;
+/** A frame shown for less than this was never seen, and does not leave (the kit's Sheet reads it too). */
+export const SEEN_MS = 60;
 
 /**
  * A picture of a node as it stands, drawn in its place by whoever asks: no id, no test id, no role, inert, hidden from a
@@ -68,18 +68,25 @@ const playOut = (copy: Element) => {
   setTimeout(go, LEAVE_FALLBACK_MS);
 };
 
-/** Play a node and its wash out from where the node still stands: called as React lets go of the node. */
-export const leaveOverlay = (node: Element | null | undefined, wash: Element | null = null): void => {
+/**
+ * Play a node and its wash out from where the node still stands: called as React lets go of the node. `into` puts the
+ * copies at the end of another element instead (the document's body), for a node whose parent React takes away with it
+ * (a Base UI portal's own box, which goes in the same commit: kit/sheet/sheet.tsx useLeavesWhenLetGo).
+ */
+export const leaveOverlay = (
+  node: Element | null | undefined,
+  wash: Element | null = null,
+  into: Element | null = null,
+): void => {
   const parent = node && node.parentNode;
-  if (!node || !parent || typeof node.cloneNode !== "function" || motionReduced()) return;
-  if (wash && typeof wash.cloneNode === "function") {
-    const w = stillCopy(wash);
-    parent.insertBefore(w, node);
-    playOut(w);
-  }
-  const copy = stillCopy(node);
-  parent.insertBefore(copy, node.nextSibling);
-  playOut(copy);
+  if (!node || !(into || parent) || typeof node.cloneNode !== "function" || motionReduced()) return;
+  const put = (copy: Element, before: Node | null) => {
+    if (into) into.appendChild(copy);
+    else parent?.insertBefore(copy, before);
+    playOut(copy);
+  };
+  if (wash && typeof wash.cloneNode === "function") put(stillCopy(wash), node);
+  put(stillCopy(node), node.nextSibling);
 };
 
 /**

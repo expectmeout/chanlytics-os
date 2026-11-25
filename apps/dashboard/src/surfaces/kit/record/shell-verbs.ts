@@ -3,20 +3,14 @@
  * the window's own where it is and does what the JSX did where it is not (the standalone mockup, a test's stand-in
  * window). The kit's TSX reads no `window` name itself; it imports these, as a surface imports `frame-verbs.ts`.
  *
- * The frame owns every one of them: `touchSwipe`, `trapTab`, `tabStops` and `leaveOverlay` are the frame's (the pull that
- * closes a sheet, Tab kept inside a dialog, the tab stops of a part, a sheet's still copy leaving), `__tip` the app's one
- * tooltip, `__chrome` the chrome's words, `__tabMemory` the tab's kept work, `ReactDOM` the page's portal, and the rest
- * are the browser's own (`matchMedia`, the window's listeners, `getSelection`, the console). Each line is deleted on the
+ * The frame owns every one of them: `tabStops` is the frame's (the tab stops of a part), `__tip` the app's one tooltip,
+ * `__chrome` the chrome's words, `__tabMemory` the tab's kept work, and the rest are the browser's own (`matchMedia`, the window's listeners, `getSelection`, the console). Each line is deleted on the
  * day its owner moves. They read the window as they are called, never when this loads, since the app publishes what the
  * frame owns after the kit loads and a test builds its window after that.
  */
-import type { KeyboardEvent, ReactNode } from "react";
-
 declare global {
   interface Window {
     tabStops?: (root: Element) => HTMLElement[];
-    trapTab?: (e: KeyboardEvent, root: Element | null) => void;
-    leaveOverlay?: (sheet: Element, wash: Element | null) => void;
   }
 }
 
@@ -35,24 +29,9 @@ export function tabStops(root: Element): HTMLElement[] {
   return window.tabStops ? window.tabStops(root) : [];
 }
 
-/** Tab and Shift+Tab kept inside a dialog (kit/focus/trap.ts `trapTab`). */
-export function trapTab(e: KeyboardEvent, root: Element | null): void {
-  window.trapTab?.(e, root);
-}
-
-/** A sheet that React has let go of, played out from a still copy (kit/motion/leaving.ts `leaveOverlay`). */
-export function leaveOverlay(sheet: Element, wash: Element | null): void {
-  window.leaveOverlay?.(sheet, wash);
-}
-
 /** The tab's memory of a page's work half-done (`__tabMemory`): nothing where the tab keeps none (the standalone mockup). */
 export function tabMemory(): NonNullable<Window["__tabMemory"]> | undefined {
   return window.__tabMemory;
-}
-
-/** Draw `node` into `root` (the page's `ReactDOM.createPortal`), or in place where there is no root or no portal. */
-export function portal(node: ReactNode, root: Element | null): ReactNode {
-  return root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
 }
 
 /** The browser's media query, or none where the window cannot answer one. */

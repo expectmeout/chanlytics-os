@@ -8,7 +8,7 @@ import {
   BOOKING_RULE_HINTS,
   bookingRuleRefusal,
 } from "../../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
-import { unmount, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press, escapeSheet } from "../../../_stub-react.mjs";
 import {
   cancelFoldOf,
   drawTab,
@@ -585,7 +585,7 @@ test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
   typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab();
   const box = labelled(tree, "Service 3 takes (min)");
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown({
+  sheetOf(tree).props.onKeyDown({
     key: "Enter",
     ctrlKey: true,
     defaultPrevented: false,
@@ -717,7 +717,7 @@ test("Escape in a search with words in it clears the search first, and the next 
   const second = esc();
   box().props.onKeyDown(second);
   assert.equal(second.stopped, false);
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(second);
+  escapeSheet(tree, { taken: second.defaultPrevented });
   assert.equal(sheetOf(redrawTab()), null, "nothing typed: it closes");
 });
 

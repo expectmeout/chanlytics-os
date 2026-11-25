@@ -31,6 +31,7 @@ import type { ReactElement, ReactNode, Ref } from "react";
 import { Fragment, useState } from "react";
 import { keepTouch, onAPhone, touchSwipe } from "../../frame-verbs";
 import { CopiedWords, useCopied } from "../copy-button/copy-button";
+import { Icon } from "../icon/icon";
 import { cx, variants } from "../variants";
 import { longWords } from "./long-words";
 
@@ -137,7 +138,10 @@ export type MenuGroup = { header?: string; caption?: string; tiles?: boolean } &
  * A menu's name drawn at its top (the Inbox's template picker: "Reopen the chat with Fern"): on a desk a quiet line; on a
  * phone the sheet's one head, the name as a kicker's and the kit's one Close, where every sheet's stands (kit.css, "One
  * Close for every sheet"). The Close is the page's glyph (the Icon's `x`, at 13px); a screen reader is told the name as
- * the menu's, and closes it with Escape.
+ * the menu's, and closes it with Escape. A menu raised as a phone's sheet with no head of the page's has one all the same,
+ * there alone: its name (`label`) and the kit's one Close, since every sheet a phone raises says what it is about and
+ * closes by the one × (the phone change list's A1 and A3, 25 Nov 2026: Sort, Calendar settings and a piece's More
+ * opened on a bare list). A card kept at its control (`anchored`) has none.
  */
 export type MenuHead = { title: string; close: ReactElement };
 
@@ -341,9 +345,9 @@ function Group({ group }: { group: MenuGroup }) {
  * closes it there, so the head is drawn for the eye and the finger alone: out of the menu's items and out of a key's
  * walk through them.
  */
-function Head({ head, onClose }: { head: MenuHead; onClose: () => void }) {
+function Head({ head, onClose, phoneOnly }: { head: MenuHead; onClose: () => void; phoneOnly: boolean }) {
   return (
-    <div className="more-head" aria-hidden="true">
+    <div className="more-head" aria-hidden="true" data-phone-only={phoneOnly ? "" : undefined}>
       <p className="more-head-title">{head.title}</p>
       <button type="button" tabIndex={-1} className="rec-sheet-close" onClick={onClose}>
         {head.close}
@@ -371,6 +375,9 @@ function MenuPopup({
   const lines = groups.some((group) => group.choose !== undefined && saysLines(group.choose));
   // A card kept at its control says so on each part, so the phone's sheet (kit.css) passes it by; it has no pull to let go.
   const card = anchored ? { "data-anchored": "" } : {};
+  // Its head: the page's, or on a phone its name and the one Close (MenuHead says why), drawn at every width so the menu
+  // is one element tree, and seen on a phone alone (kit.css, `.more-head[data-phone-only]`).
+  const titled = head ?? (anchored || !label ? null : { title: label, close: <Icon name="x" size={13} /> });
   return (
     <BaseMenu.Portal>
       <BaseMenu.Backdrop className="more-backdrop" data-theme={dark ? "dark" : undefined} {...card} />
@@ -378,12 +385,12 @@ function MenuPopup({
         <BaseMenu.Popup
           ref={ref}
           data-theme={dark ? "dark" : undefined}
-          className={cx(menuClasses({ align }), lines && "more-menu-lines", head && "more-menu-titled", className)}
+          className={cx(menuClasses({ align }), lines && "more-menu-lines", titled && "more-menu-titled", className)}
           aria-label={label ?? head?.title}
           {...card}
           {...(anchored ? {} : keepTouch(touchSwipe({ onDown: onClose, when: onAPhone })))}
         >
-          {head ? <Head head={head} onClose={onClose} /> : null}
+          {titled ? <Head head={titled} onClose={onClose} phoneOnly={!head} /> : null}
           {groups.map((group, at) => (
             <Fragment key={at}>
               {at > 0 ? <BaseMenu.Separator className="more-divider" /> : null}

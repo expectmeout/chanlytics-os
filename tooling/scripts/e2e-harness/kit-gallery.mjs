@@ -214,13 +214,13 @@ const dangerAsk = () =>
   `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`;
 
 /**
- * A record sheet over its wash; `leaving` draws the still copies that play its leaving (kit/motion/leaving.ts leaving), and
- * `asking` a question that destroys in its foot.
+ * A record sheet (RecordSheet, kit/record/sheet.tsx) as the kit's one sheet draws it, over its wash: its handle, head,
+ * tools, rows and the fold's foot; `asking` a question that destroys in its foot, in Save's and Cancel's place.
  */
-const recSheet = (leaving = false, asking = false, phone = false) =>
-  `<div class="rec-sheet-backdrop" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
-  `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
-  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true"' : ""}>` +
+const recSheet = (asking = false) =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
   recSheetHead("Services", "What you offer, and how long each takes.") +
   `<div class="rec-sheet-tools">${recCombo({ label: "Find a service", placeholder: "Find a service" })}` +
   `<span class="rec-sr" role="status" aria-live="polite">3 services</span></div>` +
@@ -238,24 +238,22 @@ const discardAsk = () =>
   `<button type="button" class="btn btn-sm">Keep editing</button></span></span>`;
 
 /**
- * A fold drawn as a sheet (RecordFold's `frame`), its row behind it; `leaving` draws the copies that go, and `asking`
- * the question in its foot, in Save's and Cancel's place.
+ * A fold drawn as a sheet (RecordFold's `frame`, the kit's one sheet), its row behind it; `asking` the question in its
+ * foot, in Save's and Cancel's place; `folded` what saving writes, folded behind one line, as a sheet says it.
  */
-const recFoldSheet = (leaving = false, asking = false, phone = false) =>
-  (leaving
-    ? ""
-    : `<div class="rec-fold-behind" aria-hidden="true" inert><section class="rec-card">` +
-      `<div class="rec-row" data-empty="false" data-act="true"><span class="rec-row-key">Hours</span>` +
-      `<div class="rec-row-val"><span class="rec-row-value">Monday to Friday, 9:30 to 6</span></div>` +
-      `${recAct("Change")}</div></section></div>`) +
-  `<div class="rec-sheet-backdrop" data-fold="true" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
-  `<section class="rec-sheet rec-fold-sheet" role="dialog" aria-modal="true" aria-label="Hours" data-open="true"` +
-  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true"' : ""}>` +
+const recFoldSheet = (asking = false, folded = false) =>
+  `<div class="rec-fold-behind" aria-hidden="true" inert><section class="rec-card">` +
+  `<div class="rec-row" data-empty="false" data-act="true"><span class="rec-row-key">Hours</span>` +
+  `<div class="rec-row-val"><span class="rec-row-value">Monday to Friday, 9:30 to 6</span></div>` +
+  `${recAct("Change")}</div></section></div>` +
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet rec-fold-sheet" role="dialog" aria-modal="true" aria-label="Hours" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
   recSheetHead("Hours", "When you are open, each day.") +
   `<div class="rec-sheet-body"><div class="rec-fold-inner">` +
   recField("Monday opens", "09:30") +
   recField("Monday closes", "18:00") +
-  (phone ? recSaysFolded({ mark: "Changed" }) : "") +
+  (folded ? recSaysFolded({ mark: "Changed" }) : "") +
   `</div></div>` +
   (asking
     ? `<footer class="rec-sheet-foot" data-asking="true">${discardAsk()}</footer></section>`
@@ -271,9 +269,9 @@ const fieldRow = (label, box) =>
  * for a problem said of it, the second's last row a press (the lists to put them on, none picked yet).
  */
 const recSheetSteady = () =>
-  `<div class="rec-sheet-backdrop" aria-hidden="true"></div>` +
-  `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Add people" tabindex="-1"` +
-  ` data-phone="true" data-steady="true">` +
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Add people" tabindex="-1" data-steady="true">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Add people</h2></div>` +
   `<div class="rec-sheet-line">${recSeg("Add", ["One person", "A list"], "One person")}</div>` +
   `<button type="button" class="rec-sheet-close" aria-label="Close">${icon("x", 13)}</button></header>` +
@@ -291,6 +289,22 @@ const recSheetSteady = () =>
   ) +
   `</div></div>` +
   `<footer class="rec-sheet-foot">${recFoot()}</footer></section>`;
+
+/**
+ * Add people's lists, a step of the sheet (RecordSheet's `back`, the kit's Sheet's): the kit's own back before the title,
+ * the title, and the round Close; the lists to put them on, and the step's one act across the foot.
+ */
+const recSheetBack = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Put them on" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><button type="button" class="sheet-job-back" aria-label="Back to their details">` +
+  `${icon("chevron", 18)}</button>` +
+  `<div class="rec-sheet-heading"><h2 class="rec-sheet-title">Put them on</h2></div>` +
+  `<button type="button" class="rec-sheet-close" aria-label="Close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${SERVICE_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
+  `<button type="button" class="btn btn-sm btn-primary">Done, 2 lists</button></div></footer></section>`;
 
 /** Rows in a card (the record's card). */
 const recCard = (rows, head = "") => `<section class="rec-card">${head}${rows}</section>`;
@@ -613,18 +627,13 @@ const SHEET_PARTS =
 const going = (leaving) => (leaving ? ' data-leaving="true"' : "");
 /**
  * The kit's sheet over its wash, the composer inside; `handle` draws the handle a phone shows (a desk hides it, and the
- * record sheet, a desk's twin, has none), `leaving` the still copies that play its leaving, `fit` Sheet's `fit`.
+ * desk's pane has none), `leaving` the still copies that play its leaving, `fit` Sheet's `fit`.
  */
 const sheet = ({ handle = true, leaving = false, fit = false } = {}) =>
   `<div class="sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
   `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
   `${fit ? ' data-fit="true"' : ""}${going(leaving)}>` +
   (handle ? `<div class="sheet-handle" aria-hidden="true"></div>` : "") +
-  `${SHEET_PARTS}</section>`;
-/** The same composer in RecordSheet's frame (surfaces/kit/record/sheet.tsx), a desk's twin. */
-const recSheetFrame = (leaving = false) =>
-  `<div class="rec-sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
-  `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   `${SHEET_PARTS}</section>`;
 /** A sheet whose title is a kicker, its tools under it, and a foot of a page's own pair of acts under a line. */
 const kickerToolsSheet = () =>
@@ -792,18 +801,18 @@ const kitOpensSheet = () =>
 /**
  * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
  * its end and no rule under it, over one pane of rows that carry their own name, which the body's column gives way under
- * the cap, and a foot that closes it (`footCloses`: its Cancel), where on a phone the corner's Close steps out of sight.
+ * the cap, and a foot whose Cancel a phone does not draw (`data-foot-cancel`), the corner's Close doing what it did.
  */
 const kitKickerSheet = () =>
   `<button type="button" class="btn">Turn on Win-back</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1" data-foot-closes="true">` +
+  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Turn on</h2></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
   `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
   `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
-  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost" data-foot-cancel="">Cancel</button>` +
   `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
 
 /**
@@ -895,7 +904,9 @@ const kitMenuShared = () =>
   `Call Ortega Fitness</button>` +
   `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
-  `<div class="more-menu align-right" role="menu" tabindex="-1" aria-label="Call Ortega Fitness">` +
+  `<div class="more-menu align-right more-menu-titled" role="menu" tabindex="-1" aria-label="Call Ortega Fitness">` +
+  `<div class="more-head" aria-hidden="true" data-phone-only=""><p class="more-head-title">Call Ortega Fitness</p>` +
+  `<button type="button" tabindex="-1" class="rec-sheet-close">${icon("x", 13)}</button></div>` +
   `<div role="group"><div class="more-header" aria-hidden="true">(512) 555-0177</div>` +
   kitItem("phone", "Call from your phone") +
   `</div></div></div>`;
@@ -962,7 +973,9 @@ const kitMenuSwitches = () =>
   `${icon("eye", 12)} Columns</button>` +
   `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
-  `<div class="more-menu align-right" role="menu" tabindex="-1" aria-label="Columns">` +
+  `<div class="more-menu align-right more-menu-titled" role="menu" tabindex="-1" aria-label="Columns">` +
+  `<div class="more-head" aria-hidden="true" data-phone-only=""><p class="more-head-title">Columns</p>` +
+  `<button type="button" tabindex="-1" class="rec-sheet-close">${icon("x", 13)}</button></div>` +
   `<div role="group"><div class="more-header" aria-hidden="true">Show on the table</div><div class="more-chips">` +
   [
     ["Person", true, "Always"],
@@ -2015,7 +2028,7 @@ export const FAMILIES = [
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
       "none with a ×: a press besides a toast takes it. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
-      "a phone (record.css and kit.css, data-record-open and data-sheet-open on the root). Its place with none open is " +
+      "a phone (kit.css, data-sheet-open on the root). Its place with none open is " +
       "drawn by the style-equality recorder's toast scene, not here.",
     entries: [
       {
@@ -2604,17 +2617,16 @@ export const FAMILIES = [
   {
     family: "Record sheet",
     about:
-      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; the still copies that play each one's leaving; and each as a phone draws it from the bottom (data-phone: its grabber, its Close out of sight beside a foot that closes, the list fitted to what it holds).",
+      "RecordSheet and a fold drawn as a sheet, which the kit's one sheet draws (the one-sheet move, 25 Nov 2026): its handle, its head with the round Close, its tools, rows and the fold's foot; a fold's sheet with its row behind it, and with the question a discard asks in its foot; on a phone the foot's one act across its width, its Cancel not drawn, a steady sheet's height, and a step's way back before the title.",
     entries: [
       { id: "rec-sheet", stage: "sheet", html: recSheet() },
-      { id: "rec-sheet-leaving", stage: "sheet", html: recSheet(true) },
-      { id: "rec-sheet-asking", stage: "sheet", html: recSheet(false, true) },
+      { id: "rec-sheet-asking", stage: "sheet", html: recSheet(true) },
       { id: "rec-fold-sheet", stage: "sheet", html: recFoldSheet() },
-      { id: "rec-fold-sheet-asking", stage: "sheet", html: recFoldSheet(false, true) },
-      { id: "rec-fold-sheet-leaving", stage: "sheet", html: recFoldSheet(true) },
-      { id: "rec-sheet-phone", stage: "sheet", html: recSheet(false, false, true) },
-      { id: "rec-fold-sheet-phone", stage: "sheet", html: recFoldSheet(false, false, true) },
-      { id: "rec-sheet-steady", stage: "sheet", html: recSheetSteady() },
+      { id: "rec-fold-sheet-asking", stage: "sheet", html: recFoldSheet(true) },
+      { id: "rec-sheet-phone", stage: "sheet", width: "phone", html: recSheet() },
+      { id: "rec-fold-sheet-phone", stage: "sheet", width: "phone", html: recFoldSheet(false, true) },
+      { id: "rec-sheet-steady", stage: "sheet", width: "phone", html: recSheetSteady() },
+      { id: "rec-sheet-back", stage: "sheet", width: "phone", html: recSheetBack() },
     ],
   },
   {
@@ -3035,35 +3047,15 @@ export const FAMILIES = [
       "phone from the bottom edge, as tall as what it holds, a handle over its head and the ink's wash behind it; a " +
       "column at both widths, so the composer's foot stays at its foot. A toast raised while it is open stands clear " +
       "of that foot, beside the sheet on a desk and above it on a phone, which the spec checks at both widths. At " +
-      "a desk's width beside the record sheet it reproduces, open and leaving, which the spec holds it equal to, and " +
+      "a desk's width, open and leaving (the house's record sheet it reproduced is drawn by it since 25 Nov 2026), and " +
       "fitted, as tall as what it holds. On " +
-      "a phone also in a small job's shape: a step's way back, the title and a word to close it, then the job. " +
+      "a phone also in a small job's shape: a step's way back, the title and its round Close, then the job. " +
       "People's phone sheet drew those until 5 Oct 2026, when twins held the kit's equal to it before it went.",
     entries: [
       { id: "sheet", stage: "sheet", html: sheet() + SHEET_TOAST },
       { id: "sheet-leaving", stage: "sheet", html: sheet({ leaving: true }) },
-      { id: "sheet-desk", stage: "sheet", width: "desk", html: sheet({ handle: false }), twin: "src-rec-sheet" },
-      {
-        id: "src-rec-sheet",
-        stage: "sheet",
-        width: "desk",
-        source: "surfaces/kit/kit.css:1739",
-        html: recSheetFrame(),
-      },
-      {
-        id: "sheet-desk-leaving",
-        stage: "sheet",
-        width: "desk",
-        html: sheet({ handle: false, leaving: true }),
-        twin: "src-rec-sheet-leaving",
-      },
-      {
-        id: "src-rec-sheet-leaving",
-        stage: "sheet",
-        width: "desk",
-        source: "surfaces/kit/kit.css:1139, styles/components.css:3050",
-        html: recSheetFrame(true),
-      },
+      { id: "sheet-desk", stage: "sheet", width: "desk", html: sheet({ handle: false }) },
+      { id: "sheet-desk-leaving", stage: "sheet", width: "desk", html: sheet({ handle: false, leaving: true }) },
       // Fitted (Sheet's `fit`: the Calendar's Hours and rules): on a desk as tall as what it holds, from its top edge.
       { id: "sheet-desk-fit", stage: "sheet", width: "desk", html: sheet({ fit: true }) },
       { id: "sheet-phone", stage: "sheet", width: "phone", html: sheet() },

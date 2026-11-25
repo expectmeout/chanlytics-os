@@ -12,7 +12,7 @@ import {
   appointmentWordVM,
 } from "@chanlytics/contracts";
 import { bookingRulesWords } from "../../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
-import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../../_stub-react.mjs";
+import { unmount, settle, all, find, byTestId, textOf, classes, press, escapeSheet } from "../../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   cancelFoldOf,
@@ -758,14 +758,8 @@ test("Escape and Close are the sheet's Cancel: with changes they ask first, and 
   tree = openSheet(tree);
   typeAt(tree, "Service 1 price", "varies");
   tree = redrawTab();
-  const esc = {
-    key: "Escape",
-    defaultPrevented: false,
-    preventDefault() {
-      this.defaultPrevented = true;
-    },
-  };
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(esc);
+  // Escape, as Base UI hears it on the document and asks the kit's sheet.
+  escapeSheet(tree);
   tree = redrawTab();
   assert.ok(sheetOf(tree), "typed in: it stays open");
   assert.match(

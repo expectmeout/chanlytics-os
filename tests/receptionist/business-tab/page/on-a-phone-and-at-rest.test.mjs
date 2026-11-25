@@ -32,10 +32,12 @@ test("on a phone a row opens as a sheet from the bottom, asks there, and its sav
     openFold(tree, "tone");
     tree = redrawTab();
     const sheet = foldOf(tree, "tone");
-    assert.deepEqual(
-      [sheet.props.role, sheet.props["aria-modal"], sheet.props["aria-labelledby"]],
-      ["dialog", true, "rec-fold-tone-label"],
-      "a modal dialog, named by the row's label",
+    // The kit's one sheet, a modal dialog on Base UI's, named by its title, which carries the row's label and its id.
+    assert.equal(sheet.props.role, "dialog", "a modal dialog");
+    assert.equal(
+      textOf(find(tree, (n) => n.props?.id === "rec-fold-tone-label")),
+      "Its voice",
+      "named by the row's label",
     );
     assert.equal(voiceBox(tree).props["aria-labelledby"], "rec-fold-tone-label", "and the box is named by it too");
     assert.deepEqual(openFolds(tree), ["tone"]);

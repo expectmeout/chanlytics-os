@@ -52,7 +52,11 @@ const redrawCreate = (flash = () => {}) => again(() => W.React.createElement(W.B
 
 /** Press "Set up the receptionist", which is what opens the fold. */
 const setUp = (tree) => press(byTestId(tree, "rec-create-open"));
-const foldOpen = (tree) => !byTestId(tree, "rec-fold-receptionist").props.hidden;
+// The fold is a sheet (the kit's), drawn while it is open: shut, nothing of it stands.
+const foldOpen = (tree) => {
+  const fold = byTestId(tree, "rec-fold-receptionist");
+  return !!fold && !fold.props.hidden;
+};
 /** A box of the fold, and typing into it the way a person does. */
 const boxIn = (tree, testid) => find(byTestId(tree, testid), (n) => n.type === "input" || n.type === "textarea");
 const typeIn = (tree, testid, text) => boxIn(tree, testid).props.onChange({ target: { value: text } });

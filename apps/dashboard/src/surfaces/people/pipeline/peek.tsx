@@ -218,6 +218,25 @@ export function PipelinePeek(props: PipelinePeekProps) {
   if (!vm) return null;
   const sheet = sheetOf(row, person);
   if (!row || !sheet) {
+    const failedRead = (
+      <FailedRead kind="card" what={P.words.peek.what} onRetry={props.onRetry} testid="pipeline-peek-failed" />
+    );
+    // On a phone it is the kit's one sheet all the same, its name and its Close over what could not be read: the desk's
+    // pane stood bare at the page's foot there (the one-sheet move, 25 Nov 2026).
+    if (phone) {
+      return (
+        <Sheet
+          open={!away && back}
+          onClose={props.onClose}
+          title={nameOf(vm)}
+          close={{ label: P.words.peek.close, glyph: <Icon name="x" size={13} /> }}
+          className="pipe-deal"
+          testid="pipeline-peek"
+        >
+          {failedRead}
+        </Sheet>
+      );
+    }
     return (
       <aside
         ref={props.asideRef}
@@ -226,7 +245,7 @@ export function PipelinePeek(props: PipelinePeekProps) {
         aria-label={vm.name}
         data-testid="pipeline-peek"
       >
-        <FailedRead kind="card" what={P.words.peek.what} onRetry={props.onRetry} testid="pipeline-peek-failed" />
+        {failedRead}
       </aside>
     );
   }

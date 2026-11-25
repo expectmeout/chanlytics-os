@@ -402,20 +402,19 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
   assert.equal(said(draw(NewWho, { s: stateOfPick({ reading: true }) }), "ix-new-who-none"), W.reading);
 });
 
-test("the corner's ✕ steps aside where the foot holds Cancel, as a record sheet's does on a phone, and stays where nothing else closes it", () => {
+test("the corner's round Close is the sheet's one way out at every step; the foot's Cancel is one a phone does not draw", () => {
   // The census of 13 Oct 2026: writing to someone, the sheet showed a ✕ in its head and Cancel in its foot, two ways out.
+  // One design (Ruben, 25 Nov 2026): the round Close stays, and the Cancel beside Send is marked so a phone leaves it out
+  // (kit.css, "One design for every sheet on a phone"), the Close asking first as Cancel did.
   const sheetOf = (tree) => all(tree, (n) => n.type === Sheet)[0];
   const opened = (personId) => ({ open: true, personId, onClose() {}, flash() {} });
-  assert.equal(
-    sheetOf(draw(NewConversationSheet, opened(null))).props.footCloses,
-    false,
-    "choosing who: no foot, the ✕ is the way out",
-  );
-  assert.equal(
-    sheetOf(draw(NewConversationSheet, opened("k1"))).props.footCloses,
-    true,
-    "writing to them: the foot's Cancel",
-  );
+  const choosing = sheetOf(draw(NewConversationSheet, opened(null)));
+  assert.equal(choosing.props.footCloses, undefined, "choosing who: the Close is the way out, no foot");
+  const writing = sheetOf(draw(NewConversationSheet, opened("k1")));
+  assert.equal(writing.props.footCloses, undefined, "writing to them: the Close stays in its corner");
+  const cancel = byTestId(writing.props.foot, "ix-new-cancel");
+  assert.ok(cancel, "the foot still holds Cancel for a desk");
+  assert.equal(cancel.props["data-foot-cancel"], "", "and marks it, so a phone does not draw it");
 });
 
 test("on a phone, who it is for is a job in the kit's sheet, as New proposal's is; the words it is written in are the record's", () => {
@@ -432,12 +431,15 @@ test("on a phone, who it is for is a job in the kit's sheet, as New proposal's i
   try {
     const pick = sheetOf(draw(NewConversationSheet, opened(null)));
     assert.equal(pick.props.shape, "job", "the pick is a phone's small job");
-    assert.deepEqual(pick.props.close, { word: W.cancel }, "its head's way out is the word, as New proposal's is");
+    assert.deepEqual(
+      pick.props.close,
+      { word: W.cancel },
+      "its round Close is named by the word, as New proposal's is",
+    );
     assert.equal(pick.props.foot, undefined, "and a job has no foot");
     assert.ok(byTestId(pick, "ix-new-who-search"), "the kit's person pick is what it holds");
     const writing = sheetOf(draw(NewConversationSheet, opened("k1")));
     assert.equal(writing.props.shape, undefined, "writing to them is the record's composer, its acts in its foot");
-    assert.equal(writing.props.footCloses, true);
   } finally {
     globalThis.matchMedia = media;
   }
