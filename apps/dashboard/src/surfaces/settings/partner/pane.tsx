@@ -151,9 +151,10 @@ function PartnerAccount({
         <div className="set-row" data-testid="partner-link-row">
           <div className="set-row-info">
             <span className="set-row-label">{W.linkLabel}</span>
-            <code className="set-row-value" data-testid="partner-link">
+            {/* A link a partner shares, in the app's own type: mono is for code (the phone change list's D2, 25 Nov 2026). */}
+            <span className="set-row-value" data-testid="partner-link">
               {vm.link}
-            </code>
+            </span>
           </div>
           <Button size="sm" onClick={() => void copy()} data-testid="partner-copy">
             <Icon name="copy" size={13} /> {copied ? W.copied : W.copy}
