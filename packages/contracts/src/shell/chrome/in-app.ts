@@ -65,11 +65,11 @@ const OUTLINE_SEARCH_ATTR = "data-outline-search";
 
 /**
  * The `<html>` attribute that says the app's frame is drawn, or its outline (the dashboard's kit/motion/root-flags.ts
- * `frame`): the page's ground is then the document's. Stamped here on every address the frame draws its outline at, a
+ * `frame`, which spells it again; theme-boot.test.mjs holds the two to one word): the page's ground is then the document's. Stamped here on every address the frame draws its outline at, a
  * workspace's and the home, before first paint; the frame holds it from there, and lets it go where it draws a page full
  * screen (the first run, a shared page).
  */
-export const FRAME_DRAWN_ATTR = "data-frame";
+const FRAME_DRAWN_ATTR = "data-frame";
 
 /**
  * What the outline knows of an address's route, from the frame's own places (surfaces/frame/places.ts OUTLINE_ROUTES):

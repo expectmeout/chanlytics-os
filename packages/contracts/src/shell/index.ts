@@ -64,7 +64,6 @@ export type {
 export {
   APP_KEYS_RESIZE_CLASS,
   DEFAULT_SIDEBAR_PREF,
-  FRAME_DRAWN_ATTR,
   IN_APP_CLASS,
   IN_APP_UA_RE,
   inAppBootScript,

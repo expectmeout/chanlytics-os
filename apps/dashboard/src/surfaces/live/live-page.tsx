@@ -97,8 +97,8 @@ const LiveMonitorReal = ({ initialCallId = null }: LivePageProps) => {
 
   // Each call opened, timed from the press that opened it: a move inside the page (client/page-speed.ts).
   usePartShown("live", "call", !!L, activeId ?? L?.now[0]?.callId ?? null);
-  // A call open takes the screen over, and says so on the document's root (kit/motion/root-flags.ts).
-  useRootFlag("takenOver", !!L && detail);
+  // A call open takes the screen over, and says so on the document's root (kit/motion/root-flags.ts); none with no read.
+  useRootFlag("takenOver", detail);
   if (!L) return null;
   const line = L.line;
   const goBack = () => {

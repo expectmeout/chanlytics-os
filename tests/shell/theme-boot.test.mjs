@@ -32,7 +32,8 @@ import {
   THEME_COLORS,
   LOOK_THEME_COLORS,
 } from "../../packages/contracts/src/shell/chrome/theme.ts";
-import { FRAME_DRAWN_ATTR, outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-app.ts";
+import { outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-app.ts";
+import { ROOT_FLAGS } from "../../apps/dashboard/src/surfaces/kit/motion/root-flags.ts";
 import { routeOfAddress, routeOfPath } from "../../packages/contracts/src/shell/address.ts";
 import { FIRST_RUN_ROUTE } from "../../packages/contracts/src/setup/first-run-route.ts";
 import { paintThemeColor } from "../../apps/dashboard/src/bridge/theme-color.ts";
@@ -458,7 +459,7 @@ const outlineBoot = ({ stored = null, storageThrows = false, pathname = "/w/acme
     bare: BARE_ATTR in attrs,
     lit: attrs["data-outline-lit"] ?? null,
     search: "data-outline-search" in attrs,
-    frame: FRAME_DRAWN_ATTR in attrs,
+    frame: ROOT_FLAGS.frame.attr in attrs,
     threw,
   };
 };

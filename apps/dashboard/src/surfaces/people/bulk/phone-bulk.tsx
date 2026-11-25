@@ -372,7 +372,7 @@ function dockActs(b: BulkCtx, a: BulkActs) {
  * toast rises over it (data-dock, mobile.css; .cl-bulk.pp-bulk, clients.css). It says so on the document's root while it
  * stands (kit/motion/root-flags.ts), and goes the way it came as it is let go of (`leaves`, the leaving's key).
  */
-export function SelectionDock(p: {
+export function SelectionDock(props: {
   className: string;
   leaves: string;
   label: string;
@@ -382,14 +382,14 @@ export function SelectionDock(p: {
   useRootFlag(["dockInFrame", "dockUp", "bulkDocked"], true);
   return (
     <div
-      className={p.className}
-      ref={leaving(p.leaves)}
+      className={props.className}
+      ref={leaving(props.leaves)}
       data-dock
       role="toolbar"
-      aria-label={p.label}
-      data-testid={p.testid}
+      aria-label={props.label}
+      data-testid={props.testid}
     >
-      {p.children}
+      {props.children}
     </div>
   );
 }

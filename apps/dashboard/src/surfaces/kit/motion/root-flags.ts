@@ -18,10 +18,9 @@
  * kit/motion/leaving.ts and the record kit's) holds what it pictures until it is gone (`holdPictured`), read once by the
  * very selector the rule's `:has()` held; and a page marked outside React (a thumb's carry, `data-going`) holds what the
  * mark makes it while the mark stands (`holdWhileMarked`). The frame's own flag is the document's before any code runs
- * (contracts outlineBootScript, FRAME_DRAWN_ATTR), as the outline it stands for is drawn before any code runs.
+ * (contracts outlineBootScript, held to this word by theme-boot.test.mjs), as the outline it stands for is drawn first.
  */
 import { useInsertionEffect } from "react";
-import { FRAME_DRAWN_ATTR } from "@chanlytics/contracts";
 
 /**
  * Each flag: its attribute on `<html>`, what of the page the rule's `:has()` asked (`picture`, the argument as it was
@@ -30,7 +29,7 @@ import { FRAME_DRAWN_ATTR } from "@chanlytics/contracts";
  */
 export const ROOT_FLAGS = {
   /** The app's frame is drawn, or its outline (was `html:has(.app-root)`): the page's ground is the document's. */
-  frame: { attr: FRAME_DRAWN_ATTR, picture: ".app-root", within: "document" },
+  frame: { attr: "data-frame", picture: ".app-root", within: "document" },
   /** A page takes the screen over (a thread, a call, a person: `data-takeover` on its root): the frame's chrome leaves. */
   takenOver: { attr: "data-taken-over", picture: "[data-takeover]", within: "body" },
   /** A conversation or a Campaigns pane takes it over: the frame's top gives way to its own head. */
