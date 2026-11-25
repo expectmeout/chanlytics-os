@@ -138,7 +138,7 @@ async function adPieceOf(
 async function piecePostsSaid(toolContext: ToolContext, piece: AdPiece): Promise<string | null> {
   const { data } = await load(toolContext.rc, pieceResults, { file: piece.id });
   if (data.posts.length === 0) return null;
-  const sentences = pieceResultsSaid(data, "UTC");
+  const sentences = pieceResultsSaid(data, "UTC", Date.now());
   return AD_REFUSED.results(piece.name, [
     ...sentences.howItDid.lines,
     ...sentences.howItDid.missing,

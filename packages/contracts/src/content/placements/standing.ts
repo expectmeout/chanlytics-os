@@ -41,8 +41,11 @@ export type PlacementStanding =
   | { is: "up"; at: string | null }
   /** A story that ran its day and ended by itself: when it ended. */
   | { is: "ended"; at: string }
-  /** It came down, taken down from here or removed at its place: when, where its take-down kept that. */
-  | { is: "came_down"; at: string | null }
+  /**
+   * It came down: when, as its take-down kept it, else when its record moved. `there`: removed at its place itself (by
+   * its owner there, or by the place), with no take-down asked from here.
+   */
+  | { is: "came_down"; at: string | null; there: boolean }
   /** Held before its send, or refused by its place: it waits for its owner, with why where that was said. */
   | { is: "stopped"; why: string | null }
   /** Let go before it went: by its owner, or (`late`) because its day passed. */
@@ -61,6 +64,8 @@ export type StandingPost = Pick<
   | "held_reason"
   | "held_why"
   | "error"
+  | "updated_at"
+  | "removed_there"
 >;
 
 /** A post its place holds, or took: up, or sent and not yet seen there. */
@@ -86,7 +91,12 @@ export function placementStandingOf(
   nowMs: number,
 ): PlacementStanding {
   // Down is down, whatever a take-down still says: found gone at its place while one waited on its owner or the place.
-  if (post.status === "taken_down") return { is: "came_down", at: postCameDownAt(post, takeDown) };
+  if (post.status === "taken_down")
+    return {
+      is: "came_down",
+      at: postCameDownAt(post, takeDown) ?? post.updated_at ?? null,
+      there: post.removed_there === true,
+    };
   if (post.status === "pulled") return { is: "let_go", late: post.held_why === "late" };
   if (post.status === "held" || post.status === "failed") return { is: "stopped", why: postStoppedWhyOf(post) };
   if (post.status === "published") return upStandingOf(post, nowMs);

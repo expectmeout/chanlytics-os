@@ -10,6 +10,7 @@ import {
   CONTENT_WORDS,
   FILE_WORDS,
   MIN_MS,
+  STANDING_WORDS,
   clockDate,
   clockNear,
   clockOf,
@@ -114,13 +115,18 @@ function viewerLineOf(
  * post, when one that waits goes up, or, where it is no longer there, Story ended Sunday or Taken down Tuesday.
  */
 export function viewerStandsSaid(stands: PieceStandsAt, clock: ViewerClock): string {
-  const words = CONTENT_WORDS.piece.stands;
-  if (stands.is === "up" && stands.at && Date.now() - Date.parse(stands.at) < JUST_NOW_MS) return words.justNow;
-  if (stands.is === "up") return words.up(stands.at ? clock.day(stands.at) : null);
+  // The one table's `row` column (contracts standing-words.ts): the place is already named beside these words.
+  const says = STANDING_WORDS;
+  const day = "at" in stands && stands.at ? clock.day(stands.at) : null;
+  if (stands.is === "up" && stands.at && Date.now() - Date.parse(stands.at) < JUST_NOW_MS) return says.up.rowJustNow;
+  if (stands.is === "up") return says.up.row(day);
   if (stands.is === "timed") return clock.ahead(stands.at);
-  if (stands.is === "ended") return words.ended(stands.at ? clock.day(stands.at) : null);
-  if (stands.is === "down") return words.down(stands.at ? clock.day(stands.at) : null);
-  return words[stands.is];
+  if (stands.is === "ended") return says.ended.row(day);
+  if (stands.is === "down") return stands.there ? says.removed.row(day) : says.came_down.row(day);
+  if (stands.is === "going") return says.going_up.row;
+  if (stands.is === "stuck") return says.stopped.row;
+  if (stands.is === "unsure") return says.unconfirmed.row;
+  return says.never.row;
 }
 
 /** What the viewer reads of the piece's record. */

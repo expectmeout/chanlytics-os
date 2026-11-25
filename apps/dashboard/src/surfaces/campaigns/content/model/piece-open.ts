@@ -142,7 +142,8 @@ export type PieceStandsAt =
   | { is: "unsure" }
   /** No longer there: a story that ran its day, or a post that came down, and when. */
   | { is: "ended"; at: string | null }
-  | { is: "down"; at: string | null };
+  /** `there`: removed at its place itself, not taken down from here. */
+  | { is: "down"; at: string | null; there: boolean };
 
 /** What leads among a place's placements (contracts leadOf), as a place's row and cell say it. */
 export function standsAtOf(lead: PieceLead): PieceStandsAt {
@@ -153,7 +154,9 @@ export function standsAtOf(lead: PieceLead): PieceStandsAt {
   if (lead.is === "going_up") return { is: "going" };
   if (lead.is === "waiting") return { is: "timed", at: lead.when };
   if (lead.is === "up") return { is: "up", at: lead.when };
-  return { is: lead.is === "ended" ? "ended" : "down", at: lead.when };
+  if (lead.is === "ended") return { is: "ended", at: lead.when };
+  const { standing } = lead.at;
+  return { is: "down", at: lead.when, there: standing.is === "came_down" && standing.there };
 }
 
 /**

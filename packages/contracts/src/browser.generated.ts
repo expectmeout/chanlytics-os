@@ -289,6 +289,7 @@ export { contentMarkOf, contentMarkSaid, contentMarkToneOf, contentMoving, conte
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./content/placements/places";
 export { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS, RENDITION_SHAPES, REVISION_MADE_BY } from "./content/placements/sets";
 export { leadOf, pieceStandingOf, placementIsOut, placementStandingOf, standingIsOut, standingOnItsWay, videoIsSavedOnly } from "./content/placements/standing";
+export { STANDING_WORDS } from "./content/placements/standing-words";
 export { storyRanItsDay } from "./content/placements/story-day";
 export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_DOWN_WORDS } from "./content/placements/take-down";
 export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./content/placements/take-down-late";

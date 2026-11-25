@@ -233,9 +233,9 @@ export async function listPostAttempts(db: Db, tenantId: TenantId, postId: strin
   return data;
 }
 
-/** The columns a member reads of a post (00611's grant): never its container. */
+/** The columns a member reads of a post (00611's grant): never its container. When it last moved says when it came down. */
 export const MEMBER_POST_COLUMNS =
-  "id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
+  "id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at, updated_at";
 
 export type MemberPostRow = Pick<
   PostRow,
@@ -254,6 +254,7 @@ export type MemberPostRow = Pick<
   | "error"
   | "external_id"
   | "created_at"
+  | "updated_at"
 >;
 
 /** A file's posts, newest first, under the caller's RLS: the sheet's read. Ten is more than a sheet shows. */
@@ -271,7 +272,7 @@ export async function listFilePosts(db: Db, tenantId: TenantId, fileId: string):
 
 /** The member's columns of a post and the file it is of: what a page of files reads of its posts in one read. */
 const MEMBER_FILE_POST_COLUMNS =
-  "id, file_id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
+  "id, file_id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at, updated_at";
 
 export type MemberFilePostRow = MemberPostRow & Pick<PostRow, "file_id">;
 

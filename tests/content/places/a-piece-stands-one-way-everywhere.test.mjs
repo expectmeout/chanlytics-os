@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  STANDING_WORDS,
   contentMarkSaid,
   contentMarkToneOf,
   contentPieceMarkOf,
@@ -38,6 +39,11 @@ const H = 3_600_000;
 const D = 24 * H;
 const iso = (ms) => new Date(ms).toISOString();
 const SAT = NOW - 3 * D;
+/** When a post that came down last moved: Monday evening, which is when it came down, or was noticed gone. */
+const MON = NOW - D;
+/** A post that came down on Monday: by a take-down from here, or, with `removed_there`, at its place itself. */
+const cameDown = { status: "taken_down", updated_at: iso(MON) };
+const removedThere = { ...cameDown, removed_there: true };
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const day = (at) => DAYS[new Date(at).getUTCDay()];
@@ -114,7 +120,7 @@ const CASES = [
     went: true,
     says: {
       tile: "Story ended · Sunday",
-      status: "Was on Instagram for a day · Sat 23:00",
+      status: "Story ended · Sun 23:00",
       button: "again",
       instagram: "Story ended Sunday",
     },
@@ -122,18 +128,29 @@ const CASES = [
   {
     name: "5 a story that ended, and a post removed on Instagram itself (production's piece)",
     file: picture,
-    posts: [post({ kind: "story", created_at: iso(SAT + 60_000) }), post({ status: "taken_down" })],
+    posts: [post({ kind: "story", created_at: iso(SAT + 60_000) }), post(removedThere)],
     out: [],
     went: true,
-    says: { tile: "Taken down", status: "Taken down", button: "again", instagram: "Taken down" },
+    // Nobody took it down from here, and no screen says so: where it was removed, and when that was noticed.
+    says: {
+      tile: "Removed on Instagram · Monday",
+      status: "Removed on Instagram · noticed Mon 23:00",
+      button: "again",
+      instagram: "Removed there Monday",
+    },
   },
   {
     name: "6 a post taken down, alone",
     file: picture,
-    posts: [post({ status: "taken_down" })],
+    posts: [post(cameDown)],
     out: [],
     went: true,
-    says: { tile: "Taken down", status: "Taken down", button: "again", instagram: "Taken down" },
+    says: {
+      tile: "Taken down · Monday",
+      status: "Taken down · Mon 23:00",
+      button: "again",
+      instagram: "Taken down Monday",
+    },
   },
   {
     name: "7 a second post removed on Instagram, the first still up",
@@ -209,14 +226,14 @@ const CASES = [
   {
     name: "13 up on Google, removed on Instagram",
     file: picture,
-    posts: [post({ status: "taken_down" }), post({ place: "google", created_at: iso(NOW - 4 * D) })],
+    posts: [post(removedThere), post({ place: "google", created_at: iso(NOW - 4 * D) })],
     out: ["google picture"],
     went: true,
     says: {
       tile: "On Google · Saturday",
       status: "On Google · Sat 23:00",
       button: "post_to instagram",
-      instagram: "Taken down",
+      instagram: "Removed there Monday",
     },
   },
   {
@@ -418,6 +435,115 @@ for (const each of CASES) {
     assert.deepEqual(new Set(up.filter((at) => at.standing.is === "up").map(keyOf)), out);
   });
 }
+
+test("a post removed at its place says so on every screen, and never that it was taken down (the review's A12)", () => {
+  const says = STANDING_WORDS.removed;
+  const read = readersOf({ file: picture, posts: [post(removedThere)] });
+  const [line] = read.lines;
+  const instagram = read.places.find((at) => at.place === "instagram");
+  const every = {
+    tile: read.tile,
+    line: line.said,
+    note: line.note,
+    row: viewerStandsSaid(instagram.stands, clock),
+    week: read.week.line,
+    bell: `${says.bell.title("instagram", "The finish")} ${says.bell.body("instagram")}`,
+  };
+  assert.deepEqual(every, {
+    tile: "Removed on Instagram · Monday",
+    line: "Removed on Instagram · noticed Mon 23:00",
+    note: "Chanlytics didn't take it down. It was deleted on Instagram itself.",
+    row: "Removed there Monday",
+    week: "Removed on Instagram",
+    bell: "Removed on Instagram · The finish Chanlytics didn't take it down. It was deleted on Instagram itself.",
+  });
+  for (const [screen, words] of Object.entries(every)) assert.doesNotMatch(words, /Taken down/, screen);
+  // Grey, with nothing to press but Post again: it is not up, and nothing waits for its owner.
+  assert.deepEqual([read.tileTone, line.tone, read.button, read.offered], ["ready", "gone", "again", false]);
+  // The same post taken down from here says that, on the same screens, and never "Removed".
+  const ours = readersOf({ file: picture, posts: [post(cameDown)] });
+  const oursSaid = [ours.tile, ours.lines[0].said, ours.week.line];
+  assert.deepEqual(oursSaid, ["Taken down · Monday", "Taken down · Mon 23:00", "Taken down"]);
+  assert.equal(ours.lines[0].note ?? null, null, "a take-down from here needs no second sentence");
+  // A piece's take-down, where it kept when its place said it was gone, is the time said: never when the row moved.
+  const asked = {
+    cause: "owner_removed",
+    asked_at: iso(MON - 2 * H),
+    finished_at: iso(MON - H),
+    actions: [
+      {
+        id: "a1",
+        target: "post",
+        target_id: "post-kept",
+        act: "take_down",
+        outcome: "done",
+        said: null,
+        started_at: iso(MON - 2 * H),
+        finished_at: iso(MON - H),
+        left_up_by: null,
+        name: null,
+      },
+    ],
+  };
+  const kept = post({ ...cameDown, id: "post-kept" });
+  assert.deepEqual(placementStandingOf(kept, asked, NOW), { is: "came_down", at: iso(MON - H), there: false });
+});
+
+test("the words of each standing are the one table's: what a tile, a line, a row and the Week say (the review's C5)", () => {
+  const says = STANDING_WORDS;
+  // Each case's words above are literal, so a change to the table is seen there. Here: every reader of one standing
+  // takes its words from the same row of the table, column by column.
+  const up = readersOf({ file: picture, posts: [post()] });
+  const instagram = (read) => viewerStandsSaid(read.places.find((at) => at.place === "instagram").stands, clock);
+  assert.deepEqual(
+    [up.tile, up.lines[0].said, instagram(up), up.week.line],
+    [
+      says.up.tile(["instagram"], "Saturday"),
+      says.up.line("instagram", "Sat 23:00"),
+      says.up.row("Saturday"),
+      says.up.week(["instagram"], up.week.line.split(" · ")[1]),
+    ],
+  );
+  const ended = readersOf({ file: picture, posts: [post({ kind: "story" })] });
+  assert.deepEqual(
+    [ended.tile, ended.lines[0].said, instagram(ended), ended.week.line],
+    [says.ended.tile("Sunday"), says.ended.line("Sun 23:00"), says.ended.row("Sunday"), says.ended.week],
+  );
+  const refused = post({ ...never, status: "failed", error: "Instagram did not take the post." });
+  const stopped = readersOf({ file: picture, posts: [refused] });
+  assert.deepEqual(
+    [stopped.tile, stopped.statusSaid, instagram(stopped)],
+    [says.stopped.tile, says.stopped.status("instagram"), says.stopped.row],
+  );
+  assert.ok(stopped.lines[0].said.startsWith(says.stopped.line(null)), stopped.lines[0].said);
+  assert.ok(stopped.week.line.startsWith(says.stopped.status("instagram")), stopped.week.line);
+  const unsure = readersOf({
+    file: picture,
+    posts: [post({ ...never, published_at: iso(NOW - 3 * H), created_at: iso(NOW - 3 * H) })],
+  });
+  assert.deepEqual(
+    [unsure.tile, unsure.lines[0].said, instagram(unsure), unsure.week.line],
+    [
+      says.unconfirmed.tile("instagram"),
+      says.unconfirmed.line("instagram"),
+      says.unconfirmed.row,
+      says.unconfirmed.week("instagram"),
+    ],
+  );
+  // What AI is told of each standing is a clause of its own in the same row: none is empty, none ends a sentence.
+  for (const [standing, row] of Object.entries(says)) {
+    const clause = typeof row.ai === "function" ? row.ai("instagram", "Monday") : row.ai;
+    assert.match(clause, /^[a-z].*[^.]$/, `${standing}: ${clause}`);
+  }
+  // "Ready to post" is said of a piece that never went out, and by no other row.
+  const tiles = Object.entries(says).flatMap(([standing, row]) =>
+    "tile" in row ? [[standing, typeof row.tile === "function" ? row.tile("instagram", "Monday") : row.tile]] : [],
+  );
+  assert.deepEqual(
+    tiles.filter(([, words]) => words === "Ready to post").map(([standing]) => standing),
+    ["never"],
+  );
+});
 
 test("a video with no road from here is saved on its tile and in its open piece alike; with one, both say Ready to post", () => {
   const takesNone = pieceTakesOf([], { instagram: false, google: false, onGoogle: false, fileKind: "video" });

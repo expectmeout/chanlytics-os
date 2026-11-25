@@ -167,6 +167,16 @@ export interface PostDto {
   good_until: string | null;
   error: string | null;
   created_at: string;
+  /**
+   * When its record last moved (posts.updated_at): for a post that came down with no take-down's record, when that was
+   * noticed. Absent from an older build's answer.
+   */
+  updated_at?: string;
+  /**
+   * It came down with no take-down asked from here: removed at its place itself, by its owner there or by the place.
+   * Said only of a post that came down; absent otherwise, and from an older build's answer.
+   */
+  removed_there?: boolean;
 }
 
 /**
@@ -208,17 +218,8 @@ export const ON_INSTAGRAM = {
   /** Change time, too late: Instagram is already making it ready, or it is being sent (00621 post_move). */
   moveLate: "It is already being made ready to go, so its time can't change now.",
   tryAgain: "Post again",
-  status: {
-    queued: "Waiting to go on Instagram",
-    preparing: "Instagram is getting it ready",
-    publishing: "Posting on Instagram",
-    checking: "Checking with Instagram whether it went up",
-    published: "On Instagram",
-    held: "Held, not posted",
-    failed: "Not posted",
-    pulled: "Not posted: you said not to",
-    taken_down: "Taken down",
-  } satisfies Record<PostStatus, string>,
+  /** A held post that kept no reason. Where a post stands is said by the one table (placements/standing-words.ts). */
+  heldNoReason: "Held, not posted",
   kind: { picture: "a post", story: "a story", reel: "a reel" } satisfies Record<PostKind, string>,
   /** Why the recheck right before the send stopped it (00611 held_reason). */
   held: {

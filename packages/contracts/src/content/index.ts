@@ -173,6 +173,7 @@ export {
   videoIsSavedOnly,
 } from "./placements/standing";
 export type { PieceLead, PlacementStanding, PlacementStands, PostStands } from "./placements/standing";
+export { STANDING_WORDS } from "./placements/standing-words";
 export { storyRanItsDay } from "./placements/story-day";
 export {
   placementSaid,

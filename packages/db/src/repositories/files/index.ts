@@ -252,6 +252,7 @@ export {
   findTakeDownAction,
   isPostTakeDownAsking,
   keepPostUp,
+  listPostsRemovedThere,
   listTakeDownsOpen,
   markPostDeletedByHand,
   settlePostTakeDown,

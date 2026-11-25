@@ -211,23 +211,37 @@ over, and adds nothing it does not know.
 ### Where a post stands
 
 A made piece says where it stands once, and every screen says the same: its tile, its open status, its button, its
-list of places, Posted, the Week and Today all read one answer (contracts' `pieceStandingOf`, 24 November 2026). The
-unit is a place and a kind: an Instagram post and an Instagram story are two.
+list of places, Posted, the Week, the bell and what AI is told all read one answer (contracts' `pieceStandingOf`, 24
+November 2026), in one table's words (contracts' `STANDING_WORDS`, a column for each screen; no other module writes
+these sentences). The unit is a place and a kind: an Instagram post and an Instagram story are two.
 
-| Where it stands                            | Its tile says                      | Its button              |
-| ------------------------------------------ | ---------------------------------- | ----------------------- |
-| It never went out                          | Ready to post                      | Post                    |
-| Set for its time                           | Set for Saturday                   | None: it goes by itself |
-| Going up                                   | Posting to Instagram               | None                    |
-| Up                                         | On Instagram · Monday              | Post to Google          |
-| Held or refused                            | Didn't post                        | Post again              |
-| Sent, and the place never said it holds it | Couldn't confirm it's on Instagram | None yet                |
-| Nothing of it is up: its story ran its day | Story ended · Sunday, in grey      | Post again              |
-| Nothing of it is up: its post came down    | Taken down · Tuesday, in grey      | Post again              |
+| Where it stands                            | Its tile                                | Its line in the open piece                  | Its button              |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------- | ----------------------- |
+| It never went out                          | Ready to post                           | None                                        | Post                    |
+| Set for its time                           | Set for Saturday                        | Goes up Sat, 9:00 AM                        | None: it goes by itself |
+| Going up                                   | Posting to Instagram                    | Posting to Instagram                        | None                    |
+| Up                                         | On Instagram · Monday                   | On Instagram · Mon, 9:02 AM                 | Post to Google          |
+| Held or refused                            | Didn't post                             | Didn't post · and why                       | Post again              |
+| Sent, and the place never said it holds it | Couldn't confirm it's on Instagram      | Instagram did not say whether this went up  | None yet                |
+| Its story ran its day                      | Story ended · Sunday, in grey           | Story ended · Sun, 9:02 AM                  | Post again              |
+| Taken down from here                       | Taken down · Tuesday, in grey           | Taken down · Tue, 4:10 PM                   | Post again              |
+| Removed on the place itself                | Removed on Instagram · Tuesday, in grey | Removed on Instagram · noticed Tue, 4:10 PM | Post again              |
 
-"Ready to post" is only for a piece that never went out. A story is up for a day: after it, no screen says it is up.
-Posted lists what is up and the stories that ran their day, each of those marked ("Instagram · Saturday · Story
-ended"), and its count counts the same rows; a post that was taken down, or whose piece was deleted, is in neither.
+"Ready to post" is only for a piece that never went out. A story is up for a day: after it, no screen says it is up,
+and its line says when it ended. Posted lists what is up and the stories that ran their day, each of those marked
+("Instagram · Saturday · Story ended"), and its count counts the same rows; a post that came down, or whose piece was
+deleted, is in neither.
+
+**"Taken down" is the owner's own press.** A post deleted on Instagram or a Facebook Page itself, by the owner there or
+by the place, is "Removed on Instagram", with when Chanlytics noticed, and one quiet sentence under its line:
+"Chanlytics didn't take it down. It was deleted on Instagram itself." Its bell line says the same: "Removed on
+Instagram · The finish" over that sentence, never "Taken down". A Google post that came down says "Taken down"
+either way for now: the older Remove from Google press keeps nothing that tells the two apart.
+
+**A piece's numbers say whether more are coming.** While a later read comes: "Reel: couldn't be read this time" and
+"Next at 3 days." Once none will (it came down, its story's day ended, or its last read is past), the same facts are
+said for good: "Story: its numbers couldn't be read before it ended", "Read before the story ended.", "Its numbers
+weren't read while it was up." Never "this time", and never a next read that will not come.
 
 ### A problem, said right
 

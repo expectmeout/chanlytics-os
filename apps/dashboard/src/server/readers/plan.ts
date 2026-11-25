@@ -39,7 +39,7 @@ import { readBrandKit } from "../workspace/brand-kit";
 import { findConfigRow } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { fileDtoOf } from "./files";
-import { sentPostsOf } from "./content";
+import { sentPostsOf, withRemovedThere } from "./content";
 import { readReviewAsk, weekAsHeld } from "./week-today";
 
 /**
@@ -74,7 +74,7 @@ async function readWeekMade(rc: ReaderContext, week: WeekPlanDto) {
   const postIds = week.slots.flatMap((s) => (s.post_id ? [s.post_id] : []));
   const pieceIds = [...new Set(week.slots.flatMap((s) => (s.piece_id ? [s.piece_id] : [])))];
   const [posts, pieces] = await Promise.all([
-    listPostsByIds(db, rc.tenantId, postIds),
+    listPostsByIds(db, rc.tenantId, postIds).then((rows) => withRemovedThere(db, rc.tenantId, rows)),
     Promise.all(pieceIds.map((id) => findPiece(db, id))),
   ]);
   const read = pieces.flatMap((p) => (p ? [{ id: p.id, status: p.status, file_id: p.file_id }] : []));

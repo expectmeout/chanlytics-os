@@ -132,7 +132,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   video_ready: ["video ready", "videos ready"],
   post_up: ["post that went up", "posts that went up"],
   post_stopped: ["post that didn't go", "posts that didn't go"],
-  post_down: ["post taken down", "posts taken down"],
+  post_down: ["post came down", "posts came down"],
   post_by_hand: ["post to delete yourself", "posts to delete yourself"],
   plan_ready: ["week of posts ready", "weeks of posts ready"],
   footage_ask: ["ask to film", "asks to film"],
