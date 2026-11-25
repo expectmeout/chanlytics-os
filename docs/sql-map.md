@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 230 | 230 |
+| door | 232 | 232 |
 | reader | 98 | 0 |
 | the server's | 454 | 384 |
 | computed column | 3 | 0 |
 | trigger | 125 | 91 |
-| all | 910 | 705 |
+| all | 912 | 707 |
 
 ## Called by nothing
 
@@ -137,7 +137,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 38 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 40 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -613,6 +613,7 @@ being read is dropped by a migration.
 | `plan_slot_place` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_approve` | A slot of a week AI approved placed (00714), by the service: |
 | `plan_slot_prepared` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A slot of a held week prepared ahead (00714), by the service: |
 | `plan_slot_set` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | One slot of a week, by a member with the settings permission (00706): |
+| `plan_slots_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | The slots a week's approval left out because their reason no longer stands (00720): |
 | `plan_slots_mark_edited` | trigger | the server | trigger `plan_slots_edited on plan_slots` | After a slot of a week is left out, moved or given other footage (00714): |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
@@ -644,12 +645,13 @@ being read is dropped by a migration.
 | `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00699; |
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
-| `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
+| `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `post_seen_say` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
 | `post_observations_due` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | The reads of posts' numbers that are due and not kept (00699, 00705, 00716; |
 | `post_observations_keep` | the server's | the server | code `packages/db/src/repositories/content/observations.ts` | One read of a post's numbers, every number at once (00699): |
 | `post_own_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | The business's own comment, under a person's comment kept here (00699): |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
+| `post_seen_say` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | The owner's word on a post its place took and never confirmed (00720; |
 | `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00681, contracts renditionShapeOf): |
 | `post_story_ended` | the server's | the server | SQL `post_observations_due`, `posts_take_down_start` | Whether a story has run its day at p_at, now unless given (00716; |
 | `post_take_down_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00682; |
