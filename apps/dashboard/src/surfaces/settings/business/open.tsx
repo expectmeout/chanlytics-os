@@ -1,7 +1,6 @@
 // Chanlytics — Settings › Business: When you're open.
 //
-// The second card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.3; the canvas's Record and
-// Group-Open boards): the week as one sentence, the zone with the local time beside it, the days the week
+// The second card of the record (the canvas's Record and Group-Open boards): the week as one sentence, the zone with the local time beside it, the days the week
 // does not apply to, and what the business books with: its calendar link, saying what its last read found, and its
 // tool's booking emails (open-bookings.tsx). Four rows, each edited where it is stated: the week and the closed days
 // fold open under their rows, the zone is one value edited in its row, and the booking tool's fold asks one question

@@ -47,7 +47,7 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
 
-export interface InstagramBody {
+interface InstagramBody {
   op?: string;
   tenant_id?: string;
   user_id?: string;

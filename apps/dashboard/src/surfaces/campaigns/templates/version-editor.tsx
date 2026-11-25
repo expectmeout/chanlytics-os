@@ -415,7 +415,7 @@ function WordsBoxes({ p, ed }: { p: VersionEditorProps; ed: EditorWords }) {
           />
         </div>
       ) : null}
-      <AskLine
+      <VersionAskLine
         ask={ed.ask}
         disabled={ed.saving || p.busy}
         fixing={!!p.fix && ed.ask.asking !== null}
@@ -536,7 +536,7 @@ function useAskRewrite(o: {
  * The one line to Ask under the words: the owner's own words for what to change, sent on Return or its round press, and
  * the Undo of the last change beside it. While a refusal is answered, it says Ask is writing.
  */
-function AskLine({
+function VersionAskLine({
   ask,
   disabled,
   fixing,

@@ -4,7 +4,7 @@
  * confirming are two times, kept apart, and a post is taken down only once its place said so. Never an Undo: a post
  * taken down is posted again as a new post.
  */
-import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
+import { POST_KIND_SAID, POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
 import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
 import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./take-down-late";
 
@@ -101,8 +101,8 @@ export const TAKE_DOWN_WORDS = {
   /** A placement's line while its take-down runs, and after. */
   asking: (place: PostPlace) => `Taking it down from ${POST_PLACE_SAID[place]}`,
   cant: (place: PostPlace) => `Chanlytics can't take this down from ${POST_PLACE_SAID[place]}`,
-  cantHow: (place: PostPlace, kind: string) =>
-    `Open the ${kind} in ${POST_PLACE_SAID[place]}, then Delete. Chanlytics checks it's gone.`,
+  cantHow: (place: PostPlace, kind: PostKind) =>
+    `Open the ${POST_KIND_SAID[kind]} in ${POST_PLACE_SAID[place]}, then Delete. Chanlytics checks it's gone.`,
   open: (place: PostPlace) => `Open in ${POST_PLACE_SAID[place]}`,
   deleted: "I deleted it",
   /** The third press where a place left the delete to the owner (the canvas's Piece 34): the post stays up. */

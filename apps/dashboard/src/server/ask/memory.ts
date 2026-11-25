@@ -332,7 +332,7 @@ async function chainFor(
   if (!raws) return null;
   const kept = ids.map((id) => {
     const raw = raws.get(id);
-    const turn = keptOf(raw);
+    const turn = memoryKeptOf(raw);
     if (raw != null && !turn) log.error("ask_replay_malformed", { tenant_id: tenant, row: id });
     return turn;
   });
@@ -387,7 +387,7 @@ const isMsg = (m: unknown): m is Msg =>
 const messagesOf = (v: unknown): Msg[] | null => (Array.isArray(v) && v.every(isMsg) ? v : null);
 
 /** A raw turn as the row keeps it (storedRaw), read back whole, or null for anything else: a replay takes no doubt. */
-function keptOf(value: unknown): Kept | null {
+function memoryKeptOf(value: unknown): Kept | null {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")

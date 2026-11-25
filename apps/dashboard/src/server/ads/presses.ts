@@ -70,7 +70,7 @@ interface AdPausedOne {
 }
 
 /** The words a refusal of the edge's is said in. */
-function refusalOf(answer: Answer, op: keyof typeof PRESS_DOING): AppError {
+function pressRefusalOf(answer: Answer, op: keyof typeof PRESS_DOING): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
     return new AppError(
@@ -124,7 +124,7 @@ const PRESS_DOING: Record<AdPressOp | "pause_all" | "resume_all" | "cancel", str
   cancel: "cancel it",
 };
 
-const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
+const PRESS_OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
 
 /** A change as the edge's door takes it: the ask, what Meta held when it was drawn, and the most a raise names. */
 type AdChangeSent = AdChangeAsk & { from_minor?: number; from_ends_at?: string; expect_max_minor?: number };
@@ -151,8 +151,8 @@ async function sendPress(
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
   );
   const body = answer.body ?? {};
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, press.op);
-  const outcome = OUTCOMES.find((one) => one === body.outcome) ?? "sent";
+  if (answer.status !== 200 || body.ok !== true) throw pressRefusalOf(answer, press.op);
+  const outcome = PRESS_OUTCOMES.find((one) => one === body.outcome) ?? "sent";
   return { outcome, version: typeof body.version === "number" ? body.version : press.version };
 }
 
@@ -332,7 +332,7 @@ async function pressAdSet<Word extends string>(
   const body = answer.body ?? {};
   if (body.error === "edge_timeout")
     return { ads: ads.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })) };
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, op);
+  if (answer.status !== 200 || body.ok !== true) throw pressRefusalOf(answer, op);
   const answered = new Map((body.ads ?? []).map((one) => [one.ad_id, one]));
   return {
     ads: ads.map((ad) => {
@@ -390,7 +390,7 @@ export async function cancelAd(
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
   );
   const body = answer.body ?? {};
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "cancel");
+  if (answer.status !== 200 || body.ok !== true) throw pressRefusalOf(answer, "cancel");
   return {
     outcome: CANCELLED.find((word) => word === body.outcome) ?? "asked",
     version: typeof body.version === "number" ? body.version : 0,

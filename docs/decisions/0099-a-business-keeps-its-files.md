@@ -303,7 +303,7 @@ migration 00556 goes on production on Ruben's word, before the code that needs i
   cap and the purge a day on, which now also lets a lapsed upload's reservation go.
 - **The road.** `files/start` (a video's facts besides) → the edge's `admin/files/video-start` (the switch read there, since a member may not read the config; a tus reservation at Stream,
   `requiresignedurls`, four hours, `maxDurationSeconds`, then the door; a twin or no room lets the reservation go) → the
-  browser's own tus sender (`surfaces/files/video-send.ts`: HEAD, PATCH, resume from where Stream stands, the address kept on
+  browser's own tus sender (`surfaces/files/video/send.ts`: HEAD, PATCH, resume from where Stream stands, the address kept on
   the device by the clip's fingerprint) → `done` → Stream's webhook (`api/stream-webhook`, its HMAC checked) or the sweep's
   read of Stream two minutes on → `video_digest`, one step a run: the sheet (48 frames, sharp, 2,576 px, the edge's copy at
   Anthropic), the sound kept as `audio.m4a`, the words (the ear's one call, or Scribe), the note, then `file_look` with the

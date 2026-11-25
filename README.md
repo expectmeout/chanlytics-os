@@ -114,8 +114,9 @@ single-page shell of hand-written JSX, imported in a fixed order by `src/bridge/
 redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. The
 stylesheets are in `src/styles`; the standalone mockup that drew the shell without Next went with demo mode (15 Nov
 2026). The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
-fleet, store, studio, tasks, content) are parked by decision: each address draws that card, the shared report viewer
-too, and the retired deal board's address lands on People. Demo mode, the session flag that once drew the mockup's
+fleet, store, studio, tasks) are parked by decision, with the mockup's own `content` page: each address draws that card,
+the shared report viewer too, and the retired deal board's address lands on People. Content itself is live under
+Campaigns (`campaigns/content`: what was made, the Library and the Week). Demo mode, the session flag that once drew the mockup's
 invented data, went on 16 November 2026. The mockup's
 own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 

@@ -296,7 +296,7 @@ function shapeOf(node: unknown): string {
 }
 
 export function toolSchema(input: z.ZodType): Record<string, unknown> {
-  return normalise(flatten(z.toJSONSchema(input) as Record<string, unknown>)) as Record<string, unknown>;
+  return normalise(flatten(z.toJSONSchema(input))) as Record<string, unknown>;
 }
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
@@ -462,12 +462,7 @@ export async function runTool(toolContext: ToolContext, run: ToolRun): Promise<T
     const parsed = parseInput(tool, run.input, toolContext.role);
     if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
     const out = await parsed.def.run(toolContext, parsed.data);
-    const isError = !!(
-      out &&
-      typeof out === "object" &&
-      "error" in recordOrEmpty(out) &&
-      Object.keys(out as object).length <= 2
-    );
+    const isError = !!(out && typeof out === "object" && "error" in recordOrEmpty(out) && Object.keys(out).length <= 2);
     const pictures = (out as { [PICTURES]?: ToolOutcome["pictures"] } | null)?.[PICTURES];
     return { result: json(out), isError, label, ...(pictures?.length ? { pictures } : {}) };
   } catch (e) {

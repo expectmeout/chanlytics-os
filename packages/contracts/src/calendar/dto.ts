@@ -95,8 +95,8 @@ export interface CalendarItemDto {
   /** The consult-first service the title names, as Settings spells it (consultServiceOf); null when it names none. */
   consult_service?: string | null;
   /**
-   * Where the board read this one: the calendar feed (absent, or "calendar"), or a booking notice the tool emailed
-   * (docs/plans/2026-10-07-bookings-arrive-by-email.md). A notice carries what a feed's event never promises.
+   * Where the board read this one: the calendar feed (absent, or "calendar"), or a booking notice the tool emailed. A
+   * notice carries what a feed's event never promises.
    */
   source?: "calendar" | "notice";
   /** The tool whose notice it is, as the product says it ("Booksy"); null for a feed's event. */
@@ -162,7 +162,7 @@ export interface CalendarFeedDto {
   /** Read through a connected mailbox's grant (decision 0073, R20), not a link: `source` names its provider's calendar. */
   granted?: boolean;
   /**
-   * The booking notices the workspace's address has taken in (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * The booking notices the workspace's address has taken in: the
    * tool the latest came from, when, how many visits they hold in this span, and how many a person must look at. Absent
    * on an older read, and `last_at` null when none has ever arrived.
    */

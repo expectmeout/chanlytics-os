@@ -16,14 +16,14 @@ import { hostBookingTool, useFrameToast } from "../../frame-verbs";
 import { askBookingTool, closeBookingTool, useBookingToolAsked } from "./store";
 
 /** The sheet's code, fetched once; a fetch that failed is asked for again by the next press. */
-const sheetCode = codeOnce(() => import("./sheet").then(({ BookingToolSheet }) => ({ BookingToolSheet })));
+const bookingToolSheetCode = codeOnce(() => import("./sheet").then(({ BookingToolSheet }) => ({ BookingToolSheet })));
 
 export function BookingToolHost({ route }: { route: string | null }) {
   const ask = useBookingToolAsked();
   const [toast, flash] = useFrameToast();
   useEffect(() => hostBookingTool(askBookingTool), []);
   useEffect(() => closeBookingTool, [route]);
-  const Sheet = useCode(sheetCode, ask.open).loaded?.BookingToolSheet;
+  const Sheet = useCode(bookingToolSheetCode, ask.open).loaded?.BookingToolSheet;
   return (
     <>
       {ask.open && Sheet ? <Sheet key={ask.session} onClosed={closeBookingTool} flash={flash} /> : null}

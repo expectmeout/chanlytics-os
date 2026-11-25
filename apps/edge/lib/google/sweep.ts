@@ -69,7 +69,7 @@ type GoogleRead = Record<
 >;
 
 /** One workspace's zone: a zone that cannot be read is said, and the day falls back to the default, as a workspace with none does. */
-async function zoneOf(db: SweepTick["db"], tenantId: TenantId, log: Logger): Promise<string> {
+async function readSweepZone(db: SweepTick["db"], tenantId: TenantId, log: Logger): Promise<string> {
   const { data, error } = await listWorkspaceZones(db, [tenantId]);
   if (error) log.warn("google_due_read_failed", { what: "zones", error: error.message });
   return data?.at(0)?.timezone || DEFAULT_TIMEZONE;
@@ -159,7 +159,7 @@ async function readWorkspaceGoogle(
     failed: 0,
     left: 0,
   };
-  const turn = { db, tenantId, zone: await zoneOf(db, tenantId, log), now, deadline, log, out };
+  const turn = { db, tenantId, zone: await readSweepZone(db, tenantId, log), now, deadline, log, out };
   await readListings(turn, listings);
   await syncProfiles(turn, connections);
   log.info("google_read", { tenant_id: tenantId, ...out });

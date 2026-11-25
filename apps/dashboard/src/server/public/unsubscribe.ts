@@ -161,7 +161,7 @@ function draw(status: number, kind: string, pageWords: PageWords, paper: Paper):
 }
 
 /** A view of the reach-out's cold email's page, and every view that is the same for both: a bad link, a press that failed. */
-function page(status: number, view: UnsubscribeView, look: LinkPageLook = NO_LOOK): Response {
+function pageAnswer(status: number, view: UnsubscribeView, look: LinkPageLook = NO_LOOK): Response {
   const w = unsubscribePageWords(view);
   return draw(
     status,
@@ -231,7 +231,11 @@ async function offerLanguage(
  * page then says only what is true of both kinds, and a press of "Stop all messages" is refused in words that say why,
  * never answered as the cold email's page by default. A read that fails is said in the log.
  */
-async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, messageId: string): Promise<LinkedEmail> {
+async function readLinkedEmail(
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  messageId: string,
+): Promise<LinkedEmail> {
   try {
     const { data, error } = await findMessageMeta(db, tenantId, messageId);
     if (error) throw new DbFailure(error);
@@ -257,22 +261,22 @@ async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, message
 function pageFor(email: LinkedEmail, business: string | null, view: "ask" | "done", look: LinkPageLook): Response {
   if (email.lane === "offer") return offerPage(200, { kind: view, business }, email.language, look);
   if (email.lane === "unread")
-    return page(200, view === "ask" ? { kind: "ask_either", business } : { kind: "done_either", business }, look);
-  return page(200, { kind: view, business, sender: email.sender }, look);
+    return pageAnswer(200, view === "ask" ? { kind: "ask_either", business } : { kind: "done_either", business }, look);
+  return pageAnswer(200, { kind: view, business, sender: email.sender }, look);
 }
 
 export async function unsubscribeGet(token: string): Promise<Response> {
   const open = door();
-  if (!open) return page(503, { kind: "unavailable" });
+  if (!open) return pageAnswer(503, { kind: "unavailable" });
   const { db } = open;
   const claims = verifyUnsubscribeToken(open.keys, token);
   if (!claims) {
     sayBadLink();
-    return page(404, { kind: "bad_link" });
+    return pageAnswer(404, { kind: "bad_link" });
   }
   const [business, email, look] = await Promise.all([
     businessName(db, claims.tenantId),
-    emailOf(db, claims.tenantId, claims.messageId),
+    readLinkedEmail(db, claims.tenantId, claims.messageId),
     linkPageLookOf(db, claims.tenantId),
   ]);
   return pageFor(email, business, "ask", look);
@@ -318,11 +322,11 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     });
     return oneClick
       ? plainText(503, "Not recorded. Try again in a minute.")
-      : page(503, { kind: "unavailable", retry: true });
+      : pageAnswer(503, { kind: "unavailable", retry: true });
   }
   if (oneClick) return plainText(200, "Unsubscribed.");
   const [email, look] = await Promise.all([
-    emailOf(db, claims.tenantId, claims.messageId),
+    readLinkedEmail(db, claims.tenantId, claims.messageId),
     linkPageLookOf(db, claims.tenantId),
   ]);
   return pageFor(email, place.business, "done", look);
@@ -338,7 +342,7 @@ async function stopAllMessagesPage(
   claims: { tenantId: TenantId; contactId: ContactId; messageId: string },
   confirmed: boolean,
 ): Promise<Response> {
-  const email = await emailOf(db, claims.tenantId, claims.messageId);
+  const email = await readLinkedEmail(db, claims.tenantId, claims.messageId);
   // Refused in words that say why: an email that is not an offer has no other messages to stop, and one that could not be
   // read is not known to be either, so nothing is changed and the press can be made again.
   if (email.lane === "unread") return plainText(503, STOP_ALL_REFUSALS.unread);
@@ -366,6 +370,6 @@ async function stopAllMessagesPage(
       message: claims.messageId,
       error: e instanceof Error ? e.message : String(e),
     });
-    return page(503, { kind: "unavailable" });
+    return pageAnswer(503, { kind: "unavailable" });
   }
 }

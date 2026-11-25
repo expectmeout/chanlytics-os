@@ -18,7 +18,7 @@ import type { TodayLeakVM } from "../leaks";
 export const ASK_FOUND_SHOWN = 3;
 
 /** What a row came from, which says how its act is pressed. */
-export type AskFoundSource = "rule" | "noticed" | "call" | "tried" | "form_held" | "idea";
+type AskFoundSource = "rule" | "noticed" | "call" | "tried" | "form_held" | "idea";
 
 /** One row of Ask found. */
 export interface AskFoundRowVM {
@@ -54,7 +54,7 @@ export interface AskFoundRowVM {
   question: string | null;
 }
 
-export interface AskFoundVM {
+interface AskFoundVM {
   rows: AskFoundRowVM[];
   /** The rows past the three, which "and 2 more" opens in place. */
   rest: AskFoundRowVM[];

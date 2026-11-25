@@ -219,6 +219,35 @@ export interface TemplateDraft {
 
 export type TemplateDraftCheck = { ok: true; value: TemplateDraft; warnings: string[] } | { ok: false; error: string };
 
+/** The draft's button checked: none, or its words and the web address it opens. */
+function buttonChecked(
+  draftButton: TemplateDraftInput["button"],
+): { ok: true; button: TemplateDraft["button"] } | { ok: false; error: string } {
+  if (!draftButton) return { ok: true, button: null };
+  const text = String(draftButton.text ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const url = String(draftButton.url ?? "").trim();
+  if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+  if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
+    return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+  if (/\{\{/.test(text) || /\{\{/.test(url))
+    return {
+      ok: false,
+      error:
+        "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send.",
+    };
+  let parsed: URL | null;
+  try {
+    parsed = new URL(url);
+  } catch {
+    parsed = null; // Not an address.
+  }
+  if (!parsed || !/^https?:$/.test(parsed.protocol))
+    return { ok: false, error: "The button needs a web address to open, starting with https://." };
+  return { ok: true, button: { text, url } };
+}
+
 /**
  * What Meta refuses at the wire, refused here in the person's words. The
  * warnings are things reviewers frown on but do not always reject.
@@ -251,31 +280,9 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
   if (footer.length > TEMPLATE_FOOTER_MAX)
     return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
   if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
-  let button: TemplateDraft["button"] = null;
-  if (templateDraftInput.button) {
-    const text = String(templateDraftInput.button.text ?? "")
-      .replace(/\s+/g, " ")
-      .trim();
-    const url = String(templateDraftInput.button.url ?? "").trim();
-    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
-      return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text) || /\{\{/.test(url))
-      return {
-        ok: false,
-        error:
-          "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send.",
-      };
-    let parsed: URL | null;
-    try {
-      parsed = new URL(url);
-    } catch {
-      parsed = null; // Not an address.
-    }
-    if (!parsed || !/^https?:$/.test(parsed.protocol))
-      return { ok: false, error: "The button needs a web address to open, starting with https://." };
-    button = { text, url };
-  }
+  const buttonCheck = buttonChecked(templateDraftInput.button);
+  if (!buttonCheck.ok) return buttonCheck;
+  const { button } = buttonCheck;
   const refused = shapeRefusal(body, button?.url ?? null);
   if (refused) return { ok: false, error: refused };
   const warnings: string[] = [];

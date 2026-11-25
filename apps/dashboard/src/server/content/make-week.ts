@@ -69,11 +69,11 @@ function creativesToMake(slots: readonly PlanSlotDto[]): PlanSlotDto[][] {
 }
 
 /** A slot's reason as a press says it: the day, the offer or the service its words date (contracts PostAbout). */
-const aboutOf = (intent: PieceIntent | null): PostAbout | undefined =>
+const postAboutOf = (intent: PieceIntent | null): PostAbout | undefined =>
   intent ? { day: intent.day, offer: intent.offer, service: intent.service } : undefined;
 
 /** The words a refusal says to the owner, or the plain one where it was not the owner's to read. */
-const refusalWords = (e: unknown): string => (e instanceof AppError ? e.message : UNMADE.failed);
+const unmadeWordsOf = (e: unknown): string => (e instanceof AppError ? e.message : UNMADE.failed);
 
 type Hold = (reason: string) => Promise<void>;
 
@@ -83,7 +83,7 @@ type Hold = (reason: string) => Promise<void>;
  * each with its slot in one write, and a reel it begins is keyed by its slot: its making asked again, or twice at once,
  * places no slot twice and begins no second video.
  */
-export type WeekMadeBy = "press" | "rung";
+type WeekMadeBy = "press" | "rung";
 
 /** A picture or a story drawn from its photo, or its clip's best moment, with the words the Week showed: its made file. */
 async function drawPicture(
@@ -127,12 +127,12 @@ interface SlotPlacing {
 /** A slot's placement readied for AI under the rung (00714): every check, its drawn piece's words kept, nothing approved. */
 const readySlot = (ctx: RouteContext, member: Member, { slot, row, words }: SlotPlacing) =>
   slot.place === "google"
-    ? prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about: aboutOf(slot.intent) })
+    ? prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about: postAboutOf(slot.intent) })
     : prepareOnInstagram(ctx, member, row, {
         as: slot.kind === "story" ? "story" : "picture",
         caption: words.caption,
         when: slot.at,
-        about: aboutOf(slot.intent),
+        about: postAboutOf(slot.intent),
       });
 
 /** A slot held because its time came before it could be made (00714): AI never posts it late. */
@@ -155,7 +155,7 @@ async function placeAsAI(ctx: RouteContext, member: Member, placing: SlotPlacing
 
 /** A slot placed by the member's press: each place's own door, at its time. */
 async function placeByPress(ctx: RouteContext, member: Member, { slot, row, words }: SlotPlacing): Promise<void> {
-  const about = aboutOf(slot.intent);
+  const about = postAboutOf(slot.intent);
   const placed =
     slot.place === "google"
       ? await postFileToGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about }).then(() => null)
@@ -243,7 +243,7 @@ async function makeCreative(
     else await makePicture(ctx, member, { slots, file, words: first.words, by });
   } catch (e) {
     log.warn("week_make_failed", { tenant_id: member.tenantId, creative: first.creative, error: e });
-    await hold(refusalWords(e));
+    await hold(unmadeWordsOf(e));
   }
 }
 

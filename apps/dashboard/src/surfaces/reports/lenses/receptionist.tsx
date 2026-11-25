@@ -181,12 +181,12 @@ function ownRow(fold: ReceptionistReportVM | null, failed: boolean) {
 
 /** The receptionist's section: the figures against before, the mix, the time between steps, and what is stuck now. */
 function receptionistSection(
-  R: ReportsSurface,
+  reportsSurface: ReportsSurface,
   phone: boolean,
   own: Follower<ReceptionistSurface>,
   fold: ReceptionistReportVM | null,
 ) {
-  const { vm, days } = R;
+  const { vm, days } = reportsSurface;
   const more = fold !== null && fold.available ? fold : null;
   return (
     <>
@@ -201,7 +201,7 @@ function receptionistSection(
           {callsCard(vm, days, more)}
           {more && callEndingsCard(more, "rpt-span-4")}
           <ChartCard className="rpt-span-4" title="Asked, then booked" testid="chart-booking">
-            <RptBooked bk={R.booking || null} phone={phone} />
+            <RptBooked bk={reportsSurface.booking || null} phone={phone} />
             {linkLine(more)}
           </ChartCard>
         </div>

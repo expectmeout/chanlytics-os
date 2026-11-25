@@ -14,7 +14,7 @@ const INTO_TILE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const INTO_TILE_SPARE_MS = 120;
 
 /** The tile a made piece is drawn as in the grid (body.tsx MadeTile), where it shows. */
-const tileOf = (fileId: string): HTMLElement | null =>
+const tileElementOf = (fileId: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`[data-tile="${CSS.escape(fileId)}"]`);
 
 /**
@@ -23,7 +23,7 @@ const tileOf = (fileId: string): HTMLElement | null =>
  */
 export async function shrinkIntoTile(viewer: HTMLElement | null, fileId: string): Promise<boolean> {
   if (!viewer || motionReduced() || typeof viewer.animate !== "function") return false;
-  const tile = tileOf(fileId);
+  const tile = tileElementOf(fileId);
   if (!tile) return false;
   showHeld(true);
   const to = tile.getBoundingClientRect();

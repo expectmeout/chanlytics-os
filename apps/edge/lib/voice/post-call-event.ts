@@ -4,7 +4,7 @@
 export const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 /** The parts of the vendor's event this door reads (the sources note, §8); everything else is left unread. */
-export interface PostCallEvent {
+interface PostCallEvent {
   type?: string;
   data?: {
     conversation_id?: string;

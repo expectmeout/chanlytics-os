@@ -85,7 +85,7 @@ interface PlanAsked {
 }
 
 /** The intent as planOf takes it, or why not: an offer with nothing of it named. */
-function intentOf(planAsked: PlanAsked): PlanIntent | { refusal: string } {
+function planIntentOf(planAsked: PlanAsked): PlanIntent | { refusal: string } {
   if (planAsked.intent === "cover_journey")
     return {
       intent: "cover_journey",
@@ -281,7 +281,7 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
  * the round that made it answers with (loop.ts).
  */
 async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Promise<ProposalOutcome> {
-  const intent = intentOf(planAsked);
+  const intent = planIntentOf(planAsked);
   if ("refusal" in intent) return refuse(intent.refusal);
   const world = await planWorld(toolContext, intent.intent, planAsked.language ?? null);
   if ("refusal" in world) return refuse(world.refusal);

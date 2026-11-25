@@ -29,26 +29,26 @@ interface HomeAddress {
   message: string | null;
 }
 
-const NONE: HomeAddress = { group: null, moment: null, message: null };
+const NO_HOME: HomeAddress = { group: null, moment: null, message: null };
 
 /** A group's id as an address writes it: word-free, lower case, words joined by underscores (`before`, `reach_out`). */
 const GROUP_ID = /^[a-z]+(?:_[a-z]+)*$/;
 
 /** What an address's param says (`campaigns/<param>`, the part after the slash, or null for the home). */
 export function parseHome(param: string | null): HomeAddress {
-  if (!param) return NONE;
+  if (!param) return NO_HOME;
   if (param.startsWith("in:")) {
     const group = param.slice("in:".length);
-    return GROUP_ID.test(group) ? { ...NONE, group } : NONE;
+    return GROUP_ID.test(group) ? { ...NO_HOME, group } : NO_HOME;
   }
   if (param.startsWith("moment:")) {
     const [id = "", part] = param.slice("moment:".length).split(":");
-    if (!id) return NONE;
-    return part === "people" ? { ...NONE, moment: id, part } : { ...NONE, moment: id };
+    if (!id) return NO_HOME;
+    return part === "people" ? { ...NO_HOME, moment: id, part } : { ...NO_HOME, moment: id };
   }
   if (param.startsWith("message:")) {
     const name = param.slice("message:".length);
-    return name ? { ...NONE, message: name } : NONE;
+    return name ? { ...NO_HOME, message: name } : NO_HOME;
   }
-  return NONE;
+  return NO_HOME;
 }

@@ -5,19 +5,10 @@
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
  * surface holds now).
  */
-import { DAY_MS, HOUR_MS, MIN_MS, WHATSAPP_REVIEW_TAKES, stateOf } from "@chanlytics/contracts";
+import { WHATSAPP_REVIEW_TAKES, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
-
-export const tplAgo = (iso: string | null | undefined): string | null => {
-  if (!iso) return null;
-  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
-  if (diff < MIN_MS) return "just now";
-  if (diff < HOUR_MS) return `${Math.round(diff / MIN_MS)}m ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / HOUR_MS)}h ago`;
-  return `${Math.round(diff / DAY_MS)}d ago`;
-};
 
 // "English", "English and Spanish", "English, Spanish and Portuguese" -- the
 // languages a workspace answers in, said the way a person says a list. The line
@@ -25,25 +16,6 @@ export const tplAgo = (iso: string | null | undefined): string | null => {
 // that answers in neither read a sentence about two languages it does not have.
 export const tplAnd = (words: string[]): string =>
   words.length < 2 ? words[0] || "" : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-
-// A number said as a word inside a sentence -- "the starter set is eight messages"
-// -- the way a person says it; past twelve, the figure.
-const TPL_WORDS = [
-  "no",
-  "one",
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-  "seven",
-  "eight",
-  "nine",
-  "ten",
-  "eleven",
-  "twelve",
-];
-export const tplSpell = (n: number): string => TPL_WORDS[n] || String(n);
 
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 export const tplTitle = (t: Parameters<typeof starters.title>[0]): string => starters.title(t);
@@ -70,9 +42,6 @@ export const tplOwn = () => {
 // language Meta has never seen has no state -- it is an absence, and absence is drawn, not coloured.
 export const tplSaid = (status: string | null | undefined) => (status ? stateOf("template", status) : null);
 
-// "EN", "PT" -- the chip's letters, with the place only beside another code of the
-// same language ("EN-US" and "EN-GB"). A label ("English (US)") is the list's.
-export const tplTag = (id: string, among: readonly string[]): string => starters.langTag(id, among);
 export const tplLangLabel = (id: string): string => starters.langLabel(id);
 
 // One line, whatever the message does with newlines and tabs: a row is one line
@@ -241,7 +210,7 @@ export const TPL_SHEET_WORDS = {
  * Where a WhatsApp version stands, beside its message's name: what an owner can act on, never WhatsApp's own word for it
  * (Ruben, 12 Nov 2026: "English paused" read as a system error). Its language is said only where there are several.
  */
-const STANDING_WORDS: Record<string, string> = {
+const TEMPLATE_STANDING_WORDS: Record<string, string> = {
   pending: "Being checked",
   rejected: "Needs a change",
   paused: "On hold",
@@ -270,7 +239,7 @@ export const TPL_LIST_WORDS = {
   fold: (name: string, n: number): string => `${name}, ${n}`,
   /** Something sends the message and nothing can carry it for this business yet: it waits, and goes by itself. */
   waiting: "Waiting",
-  standing: STANDING_WORDS,
+  standing: TEMPLATE_STANDING_WORDS,
   /** A running sequence sends a language the message has no version of that it can send. */
   sendsMissing: (language: string): string => `A campaign sends it in ${language}, which it has no version to send in.`,
   /** At a row's right: how many went out, of a message that goes out; when the last did, of one that does not now. */

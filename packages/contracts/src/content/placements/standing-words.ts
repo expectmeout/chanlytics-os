@@ -14,10 +14,11 @@
  * place is said by its name (POST_PLACE_SAID); a day and an hour are handed in, by the business's own clock.
  * `docs/words.md`, "Where a post stands", shows the same table to a person.
  */
-import { POST_PLACE_SAID, type PostKind, type PostPlace } from "../posts";
+import { POST_KIND_SAID, POST_PLACE_SAID, type PostKind, type PostPlace } from "../posts";
+import { capitalize } from "../../shared/words";
 
 const at = (place: PostPlace): string => POST_PLACE_SAID[place];
-const listed = (places: readonly PostPlace[]): string => [...new Set(places)].map(at).join(" and ");
+const placesListed = (places: readonly PostPlace[]): string => [...new Set(places)].map(at).join(" and ");
 /** A day or an hour after a middle dot, where there is one to say. */
 const dotted = (words: string, when: string | null): string => (when ? `${words} · ${when}` : words);
 /** A day after the words, as a row says it: "Posted Monday". */
@@ -36,9 +37,6 @@ const LOOK_AT = {
   facebook: "the Page",
   google: "the profile",
 } as const satisfies Record<PostPlace, string>;
-
-/** What goes up, as a sentence starts on it: "Story goes up Sat, 9:00 AM". */
-const KIND_SAID = { picture: "Post", story: "Story", reel: "Reel" } as const satisfies Record<PostKind, string>;
 
 export const STANDING_WORDS = {
   /** It never went out. "Ready to post" is said of nothing else. */
@@ -60,7 +58,8 @@ export const STANDING_WORDS = {
   /** Set for its time. */
   waiting: {
     tile: (day: string) => `Set for ${day}`,
-    status: (kind: PostKind, when: string) => `${KIND_SAID[kind]} goes up ${when}`,
+    /** What goes up, as a sentence starts on it: "Story goes up Sat, 9:00 AM". */
+    status: (kind: PostKind, when: string) => `${capitalize(POST_KIND_SAID[kind])} goes up ${when}`,
     line: (when: string) => `Goes up ${when}`,
     week: (when: string) => `Goes up ${when}`,
     ai: (place: PostPlace, when: string) => `set to go up on ${at(place)} ${when}`,
@@ -97,12 +96,12 @@ export const STANDING_WORDS = {
   },
   /** Up. */
   up: {
-    tile: (places: readonly PostPlace[], day: string | null) => dotted(`On ${listed(places)}`, day),
+    tile: (places: readonly PostPlace[], day: string | null) => dotted(`On ${placesListed(places)}`, day),
     line: (place: PostPlace, when: string | null) => dotted(`On ${at(place)}`, when),
     row: (day: string | null) => spaced("Posted", day),
     /** Up a moment ago, as the press that sent it is still in mind. */
     rowJustNow: "Posted just now",
-    week: (places: readonly PostPlace[], day: string) => `On ${listed(places)} · ${day}`,
+    week: (places: readonly PostPlace[], day: string) => `On ${placesListed(places)} · ${day}`,
     bell: { title: (place: PostPlace) => `Posted to ${at(place)}` },
     ai: (place: PostPlace, when: string | null) => spaced(`up on ${at(place)}`, when ? `since ${when}` : null),
   },
@@ -126,7 +125,7 @@ export const STANDING_WORDS = {
     bell: {
       /** A piece that cannot be named is "A post", never a blank title. */
       title: (piece: string) => `Taken down · ${piece || "A post"}`,
-      body: (places: readonly PostPlace[]) => `From ${listed(places)}`,
+      body: (places: readonly PostPlace[]) => `From ${placesListed(places)}`,
     },
     ai: (place: PostPlace, when: string | null) => spaced(`taken down from ${at(place)} by its owner`, when),
   },

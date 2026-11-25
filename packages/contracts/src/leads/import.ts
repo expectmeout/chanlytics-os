@@ -1,6 +1,5 @@
 /**
- * A list of your own (Reach out, Part 7; docs/superpowers/plans/2026-09-28-reach-out-part-7-bring-your-own-list.md,
- * J1-J12): a file of businesses read as leads, and leads chosen on Leads, each a search a reach-out writes to.
+ * A list of your own: a file of businesses read as leads, and leads chosen on Leads, each a search a reach-out writes to.
  *
  * Pure. The file is read here, the way People's import reads a client list (imports/csv.ts), with the columns a
  * business has: its name, an email, a phone, a website, a city, a state and a category. Every sentence the import

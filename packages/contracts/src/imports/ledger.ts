@@ -178,7 +178,7 @@ export const IMPORT_WORDS = {
 const since = (oldest: string | null, tz: string): string | null =>
   oldest ? `since ${billingDayWords(oldest, tz)}` : null;
 /** The parts of a line that have something to say, one " · " apart. */
-const joined = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
+const joinedWithDots = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
 const countOfPeople = (n: number): string => groupedPlural(n, "person", "people");
 
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
@@ -188,7 +188,7 @@ function mailSaysOf(importRow: ImportRowDto, tz: string): string {
   const read = messageCount
     ? `${groupedPlural(messageCount, "email")}${importRow.state === "done" ? "" : " so far"}`
     : null;
-  return joined(
+  return joinedWithDots(
     read ?? (importRow.state === "done" ? "No email from people" : "Reading your inbox"),
     counts.asked ? IMPORT_WORDS.asked(counts.asked) : null,
     since(importRow.oldest, tz),
@@ -199,7 +199,7 @@ function mailSaysOf(importRow: ImportRowDto, tz: string): string {
 /** What a website's or an Instagram's photos and videos brought: "12 photos · 3 videos", and whose, or that they are being read. */
 function mediaSaysOf(counts: ImportCounts, via: string | null): string {
   if (counts.photos === undefined && counts.videos === undefined) return "Reading them";
-  return joined(
+  return joinedWithDots(
     groupedPlural(counts.photos ?? 0, "photo"),
     counts.videos ? groupedPlural(counts.videos, "video") : null,
     via,
@@ -213,7 +213,7 @@ function saysOf(otherImport: ImportRowDto, tz: string): string {
   switch (otherImport.source) {
     case "google_reviews":
       return counts.reviews
-        ? joined(
+        ? joinedWithDots(
             groupedPlural(counts.reviews, "review"),
             since(otherImport.oldest, tz),
             counts.unanswered ? `${counts.unanswered} wait for a reply` : null,
@@ -222,16 +222,16 @@ function saysOf(otherImport: ImportRowDto, tz: string): string {
     case "calendar":
       return counts.past === undefined
         ? "Reading your calendar"
-        : joined(
+        : joinedWithDots(
             counts.past ? groupedPlural(counts.past, "past appointment") : "No past appointments",
             counts.coming ? `${counts.coming} coming up` : null,
           );
     case "clients_file":
       return counts.people === undefined
         ? "Reading your file"
-        : joined(countOfPeople(counts.people), via ? `from ${via}'s file` : "from your file");
+        : joinedWithDots(countOfPeople(counts.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return counts.people === undefined ? "Reading them" : joined(countOfPeople(counts.people), via);
+      return counts.people === undefined ? "Reading them" : joinedWithDots(countOfPeople(counts.people), via);
     case "mailbox":
       return mailSaysOf(otherImport, tz);
     case "google_photos":
@@ -265,7 +265,7 @@ function stoppedKept(r: ImportRowDto): string | null {
 function stoppedSaysOf(r: ImportRowDto): string {
   if (r.last_error && r.last_error !== IMPORT_STOPPED_WORDS.failed) return r.last_error;
   const kept = stoppedKept(r);
-  return joined(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
+  return joinedWithDots(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
 }
 
 /**
@@ -568,7 +568,7 @@ export function historyOnTodayOf(rows: readonly ImportRowDto[] | null | undefine
   const done = history.filter((run) => run.state === "done").length;
   return {
     coming: coming
-      ? { name: words.historyComing, says: joined(words.inSoFar(done, history.length), words.keepsGoing) }
+      ? { name: words.historyComing, says: joinedWithDots(words.inSoFar(done, history.length), words.keepsGoing) }
       : null,
     stopped,
   };

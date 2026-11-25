@@ -34,7 +34,7 @@ export function lineReleaseAfterDays(raw: string | null | undefined): number | n
 }
 
 /** The billing row, as far as the release reads it. */
-export interface LineReleaseBilling {
+interface LineReleaseBilling {
   mode: BillingMode;
   status: BillingStatus;
   trial_end: string | null;
@@ -80,7 +80,7 @@ export interface LineReleaseWarned {
   ended_at: string;
 }
 
-export type LineReleaseStep =
+type LineReleaseStep =
   | { step: "keep" }
   | { step: "wait"; endedAt: number; releaseAt: number }
   | { step: "warn"; endedAt: number; releaseAt: number }
@@ -115,7 +115,7 @@ export function lineReleaseDay(releaseAt: number, nowMs: number): number {
   return Math.max(releaseAt, nowMs + LINE_RELEASE_WARN_DAYS * DAY_MS);
 }
 
-export interface LineReleaseWordsInput {
+interface LineReleaseWordsInput {
   /** The number that goes, E.164. */
   number: string;
   /** The day it goes. */

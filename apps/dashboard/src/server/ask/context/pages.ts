@@ -36,7 +36,17 @@ import { findChainLastDays, listLastDaysBySource, lastDaysOf } from "../../reade
 import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
-import { aggregateOf, idsOf, line, pageWithView, refsOf, sourceOf, type ContextRow, type Provider } from "./rows";
+import {
+  aggregateOf,
+  idsOf,
+  line,
+  pageWithView,
+  refsOf,
+  sourceOf,
+  readZone,
+  type ContextRow,
+  type Provider,
+} from "./rows";
 import { logAndGoOn } from "@chanlytics/log";
 
 /**
@@ -46,8 +56,6 @@ import { logAndGoOn } from "@chanlytics/log";
  * reader gave it: a playbook, a reach-out as its first step's playbook, a Broadcasts row as a broadcast (the page's own
  * word for it is run), a template.
  */
-
-const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
 /**
  * The window the page shows, as the report routes read one. Reports' view is a count of days for a period by name (any
@@ -177,7 +185,7 @@ async function chainContextRows(rc: ReaderContext, ids: string[]) {
 
 /** The broadcasts the page drew, each as the Broadcasts page says one: its state, when, who it went to, what came back. */
 async function broadcastRows(rc: ReaderContext, ids: string[]) {
-  const [read, tz] = await Promise.all([load(rc, broadcastsReader, undefined), zone(rc)]);
+  const [read, tz] = await Promise.all([load(rc, broadcastsReader, undefined), readZone(rc)]);
   const list = read.data;
   const vms = new Map(list.broadcasts.map((b) => [b.id, toBroadcastVM(b, tz, rc.now)]));
   const refs = refsOf(read.rows);
@@ -358,7 +366,7 @@ export const readSettingsContext: Provider = async (rc, ctx) => {
 
 /** Start: the step the page is on, and how far setup has come, as the Setup page says it (contracts setupSteps). */
 export const start: Provider = async (rc, ctx) => {
-  const [{ setup }, tz] = await Promise.all([load(rc, connectionsReader, undefined).then((r) => r.data), zone(rc)]);
+  const [{ setup }, tz] = await Promise.all([load(rc, connectionsReader, undefined).then((r) => r.data), readZone(rc)]);
   // What the member put off rides on their own saved view, which the page reads apart: none is put off here.
   const vm = setupSteps({ ...setup, tz, later: [], rests: {} }, rc.now.getTime());
   return {

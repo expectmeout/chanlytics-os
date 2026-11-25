@@ -43,7 +43,7 @@ async function previewKeptOf(db: Db, tenantId: TenantId): Promise<PreviewKept> {
 }
 
 /** A preview whose workspace is gone keeps nothing. */
-const NOTHING_KEPT: PreviewKept = { profile: null };
+const NO_PREVIEW_KEPT: PreviewKept = { profile: null };
 
 /** The preview workspace's record, or none where it cannot be read. */
 export async function previewProfileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
@@ -71,7 +71,7 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
   const ws = row.preview_tenant_id;
   const [look, kept, shown, calls] = ws
     ? await Promise.all([linkPageLookOf(db, ws), previewKeptOf(db, ws), leadShownOf(db, row), endedCallsOf(db, ws)])
-    : [NO_LOOK, NOTHING_KEPT, { phone: null, photo: null }, []];
+    : [NO_LOOK, NO_PREVIEW_KEPT, { phone: null, photo: null }, []];
   return {
     row,
     look,

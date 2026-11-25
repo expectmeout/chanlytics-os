@@ -1,5 +1,5 @@
 /**
- * People's menus, drawn by the kit's Menu (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4). A People menu
+ * People's menus, drawn by the kit's Menu. A People menu
  * is built as data -- a label, the name of its glyph, its act, a line between two groups (`divider`), a heading over the
  * group under it (`header`), a set the member chooses one of (`checked` on each item of it: a sort) and the honesty gate's
  * props -- by the page that knows what the acts are (phone-menu.ts, the row and card menus, the notes and lists), and this
@@ -48,7 +48,7 @@ function itemOf(it: PeopleMenuItem): MenuItem {
 }
 
 /** A run of items one of which is chosen: the one ticked is the value, and a choice acts as the item would. */
-function choiceOf(set: readonly PeopleMenuItem[]): MenuGroup {
+function menuGroupOf(set: readonly PeopleMenuItem[]): MenuGroup {
   const options = set.map((it, at) => ({ value: String(at), label: it.label ?? "" }));
   const chosen = set.findIndex((it) => it.checked);
   return {
@@ -77,7 +77,7 @@ export function menuGroups(items: readonly PeopleMenuItem[]): MenuGroup[] {
     run = [];
   };
   const endSet = () => {
-    if (set.length) put(choiceOf(set));
+    if (set.length) put(menuGroupOf(set));
     set = [];
   };
   for (const it of items) {

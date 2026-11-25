@@ -16,7 +16,7 @@ import { triggerOf, triggerWords, type PlaybookTrigger, journeyOf, type JourneyS
 import type { AppointmentWord } from "@chanlytics/contracts";
 
 /** One touch point: the stage it stands on, the moment a campaign on it starts from, and what goes out when. */
-export interface GuideRow {
+interface GuideRow {
   /** Null for the month's offer and a freed time, which stand on no stage of the journey. */
   stage: JourneyStageId | null;
   /** Null for first contact: the receptionist answers it, and no campaign leads it. */

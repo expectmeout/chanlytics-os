@@ -1,5 +1,5 @@
 /**
- * What the booking-notice read takes the world through (docs/plans/2026-10-07-bookings-arrive-by-email.md, step 3):
+ * What the booking-notice read takes the world through:
  * the notice as the intake fetched it, the model, the two tables (the notices ledger and the appointments record) and
  * the person the booking is for. No database client, provider or environment inside the verb; the jobs handler binds
  * these over packages/db and the edge's model door.

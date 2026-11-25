@@ -27,7 +27,7 @@ function whatsAppLinkOf(config: Pick<MetaAdConfig, "page_whatsapp">, aiNumber: s
 }
 
 /** One account's card, from its row and the number AI answers: the checks are read here, once, for every page. */
-function cardOf(row: AdAccountRow, aiNumber: string | null): AdAccountCard {
+function accountCardOf(row: AdAccountRow, aiNumber: string | null): AdAccountCard {
   const config = metaAdConfigOf(row.config);
   const standing = adStandingOf(row.standing);
   return {
@@ -76,7 +76,7 @@ export const adAccount: Reader<undefined, AdAccountDto> = {
     const data: AdAccountDto = {
       offered,
       can_connect: offered && ROLE_PERMS[rc.role].ads,
-      meta: row ? cardOf(row, number.data?.number_e164 ?? null) : null,
+      meta: row ? accountCardOf(row, number.data?.number_e164 ?? null) : null,
     };
     return { data, rows: [], stamp: readerStamp() };
   },

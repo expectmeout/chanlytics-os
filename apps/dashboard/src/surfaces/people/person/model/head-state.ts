@@ -7,7 +7,7 @@
 import type { PersonState } from "@chanlytics/contracts";
 
 /** What the head draws: the state (its pill's family is People's), its word, and the sentence under it. */
-export interface PersonHeadStateVM {
+interface PersonHeadStateVM {
   state: PersonState;
   word: string;
   sentence: string | null;
@@ -20,7 +20,7 @@ export interface PersonHeadStateVM {
 }
 
 /** What it is read from: the row's state, its word and its detail, and Right now's sentence for one that needs someone. */
-export interface PersonHeadStateFacts {
+interface PersonHeadStateFacts {
   state: PersonState;
   stateLabel: string;
   stateDetail: string;

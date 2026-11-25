@@ -36,7 +36,7 @@ const dayToday = (): string => dayInZone(usableZone(workspaceClock()?.zone()), D
 export type RestFor = { until: string; back: string } | { kind: string } | { until: string; kept: string };
 
 /** What a row's Not today is handed: what it says, and what puts its row back as its Undo is pressed. */
-export interface RestPress {
+interface RestPress {
   key: string;
   flash: (f: Flash) => void;
   onUndone?: () => void;

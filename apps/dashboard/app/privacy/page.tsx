@@ -170,29 +170,19 @@ function MetaAdsData() {
   );
 }
 
-export default function PrivacyPage() {
+/**
+ * The business, NAMED. A carrier reviewer rejected an A2P campaign
+ * against this exact page with error 30919 — "the provided website does
+ * not contain sufficient business information" — and they were right: it
+ * explained the product thoroughly and never said who was behind it. A
+ * privacy policy a carrier, a payment processor or a customer can act on
+ * has to carry the legal entity, where it is, and how to reach a person.
+ * A list rather than a sentence, because a reviewer is scanning for
+ * exactly these four facts.
+ */
+function WhoWeAre() {
   return (
-    <main className="legal">
-      <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics · last updated November 20, 2026</p>
-
-      <p>
-        Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
-        by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews, answer
-        email from their own mailbox and reach customers who asked to hear from them. This policy says what we hold to
-        do that, why, who else touches it, and what you can do about it.
-      </p>
-
-      {/*
-        The business, NAMED. A carrier reviewer rejected an A2P campaign
-        against this exact page with error 30919 — "the provided website does
-        not contain sufficient business information" — and they were right: it
-        explained the product thoroughly and never said who was behind it. A
-        privacy policy a carrier, a payment processor or a customer can act on
-        has to carry the legal entity, where it is, and how to reach a person.
-        A list rather than a sentence, because a reviewer is scanning for
-        exactly these four facts.
-      */}
+    <>
       <h2>Who we are</h2>
       <p>
         Chanlytics ("we", "us") operates the Chanlytics app at app.chanlytics.com, and the site at chanlytics.com. When
@@ -214,6 +204,24 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>Questions about this policy, and requests about your own data, go to either of those.</p>
+    </>
+  );
+}
+
+export default function PrivacyPage() {
+  return (
+    <main className="legal">
+      <h1>Privacy policy</h1>
+      <p className="legal-meta">Chanlytics · last updated November 20, 2026</p>
+
+      <p>
+        Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
+        by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews, answer
+        email from their own mailbox and reach customers who asked to hear from them. This policy says what we hold to
+        do that, why, who else touches it, and what you can do about it.
+      </p>
+
+      <WhoWeAre />
 
       <h2>What we hold</h2>
       <ul>

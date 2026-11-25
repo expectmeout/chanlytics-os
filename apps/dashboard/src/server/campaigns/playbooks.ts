@@ -82,7 +82,7 @@ export type RunSummary = TotalsRow["history"][number];
 /** How many runs a card lists; the totals are over every run. */
 export const HISTORY_ON_CARD = 10;
 
-export interface PlaybookTotals {
+interface PlaybookTotals {
   runs: number;
   sent: number;
   delivered: number;

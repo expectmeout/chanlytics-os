@@ -2,7 +2,7 @@
 //
 // The tab was two surfaces that disagreed about what exists: a card showing nine facts, and a form editing about
 // twenty-five behind one Save. Here every fact is a row, and a row is edited where it is stated
-// (docs/superpowers/specs/2026-09-20-business-tab-design.md; the canvas's Record, Group-Who and Edit-Inline boards).
+// (the canvas's Record, Group-Who and Edit-Inline boards).
 // This file draws the gap line and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // gestures/; each card is a module of its own (who.tsx, open.tsx, offer.tsx, can.tsx; How it answers' and Booking are

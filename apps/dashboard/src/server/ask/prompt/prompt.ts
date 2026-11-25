@@ -51,7 +51,7 @@ const DID: Record<AskProposalOutcome["state"], string> = {
   undone: "was undone",
 };
 
-export interface TurnFacts {
+interface TurnFacts {
   role: MembershipRole;
   personLabel: string;
   scope: AskScope | null;
@@ -286,7 +286,7 @@ export interface SearchAnswering {
   leaving_out: string[];
 }
 
-const clip = (s: unknown, n: number): string =>
+const clipText = (s: unknown, n: number): string =>
   typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "";
 
 /** The stored shape read back, or null for a turn that answered nothing. */
@@ -301,12 +301,12 @@ export function answeringOf(value: unknown): SearchAnswering | null {
     return null;
   return {
     search_id: searchAnswering.search_id,
-    name: clip(searchAnswering.name, 80),
-    question: clip(searchAnswering.question, 300),
-    asked: clip(searchAnswering.asked, 200),
+    name: clipText(searchAnswering.name, 80),
+    question: clipText(searchAnswering.question, 300),
+    asked: clipText(searchAnswering.asked, 200),
     leaving_out: (Array.isArray(searchAnswering.leaving_out) ? searchAnswering.leaving_out : [])
       .slice(0, 8)
-      .map((x) => clip(x, 80))
+      .map((x) => clipText(x, 80))
       .filter(Boolean),
   };
 }
@@ -367,7 +367,7 @@ function outcomeWords(o: AskProposalOutcome | null | undefined): string {
 }
 
 /** A list in a rebuilt line: `<name>: a; b; and N more.`, or nothing for none. */
-const listed = (name: string, parts: string[], more: number): string =>
+const listLine = (name: string, parts: string[], more: number): string =>
   parts.length || more > 0 ? `${name}: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join("; ")}.` : "";
 
 /**
@@ -390,12 +390,12 @@ export function answerLine(askMessage: AskMessageVM, max: number): string {
   const head = [
     askMessage.failed ? "(This turn failed.)" : "",
     linePart(answer.say.headline || answer.say.detail, ASK_ANSWER_CAPS.headline),
-    listed(
+    listLine(
       `List (${answer.show.list.style})`,
       entries.slice(0, LINE_CAPS.entries).map((e) => linePart(e, LINE_CAPS.entry)),
       entries.length - LINE_CAPS.entries,
     ),
-    listed("Cards", cards, askMessage.proposals.length - cards.length),
+    listLine("Cards", cards, askMessage.proposals.length - cards.length),
   ];
   const rows = answer.show.items
     .slice(0, LINE_CAPS.rows)
@@ -405,7 +405,7 @@ export function answerLine(askMessage: AskMessageVM, max: number): string {
         .join(" "),
     );
   const lineWith = (n: number) =>
-    [...head, listed("Rows, in order", rows.slice(0, n), rows.length - n)].filter(Boolean).join(" ");
+    [...head, listLine("Rows, in order", rows.slice(0, n), rows.length - n)].filter(Boolean).join(" ");
   let length = rows.length;
   while (length > 0 && lineWith(length).length > max) length--;
   return lineWith(length);

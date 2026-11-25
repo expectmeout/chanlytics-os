@@ -40,7 +40,7 @@ import {
 
 /* ---- the mockup's conversation shape ---- */
 
-export interface ConversationMessageVM {
+interface ConversationMessageVM {
   from: "client" | "agent";
   /** Where it happened. A call note is not a WhatsApp bubble, and the
    *  viewer must not draw it as one -- and neither is a text or an email. */
@@ -64,7 +64,7 @@ export interface ConversationMessageVM {
   reachedCustomer?: boolean;
 }
 
-export interface ConversationVM {
+interface ConversationVM {
   id: string;
   who: string;
   /** First name, or the whole thing when it is a number. */

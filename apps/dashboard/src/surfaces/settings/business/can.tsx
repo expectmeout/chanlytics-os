@@ -1,7 +1,6 @@
 // Chanlytics — Settings › Business: What it can do.
 //
-// The fifth card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.7; the plan's Tasks 4.1
-// and 4.1b): six abilities, each with the channels that have it and the row it runs on, and under them the three
+// The fifth card of the record: six abilities, each with the channels that have it and the row it runs on, and under them the three
 // things the receptionist cannot do at all. Nothing here is typed. Every ability, every sentence and every limit is
 // contracts' (abilityRows, cannotRows, through BUSINESS_TAB), computed from what the records show -- the tab
 // had never said a tool exists, and an owner could not know their phone agent sends the booking link to a caller's

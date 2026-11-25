@@ -1,8 +1,6 @@
 // Chanlytics — Settings › Business: What you offer.
 //
-// Details' second card, and the rules Hours & booking draws (docs/superpowers/specs/2026-09-20-business-tab-design.md
-// §4.4; the canvas's Record,
-// Edit-Sheet and Edit-Fold boards): what it calls a booking, the services, the booking rules, and what needs a consult
+// Details' second card, and the rules Hours & booking draws (the canvas's Record, Edit-Sheet and Edit-Fold boards): what it calls a booking, the services, the booking rules, and what needs a consult
 // first, each edited where it is stated. The word is the workspace's own, not a key of the settings, and saves through
 // the workspace's own door (docs/decisions/0041 J4; BtWordRow, below). The services are a list:
 // thirty-three rows of three boxes on the live record, the "99 inputs in a 720px column" the redesign exists to remove,

@@ -4,7 +4,7 @@
  * so the bytes never pass through one. A phone's signal drops, so the two steps that can be asked again are, a few times, and
  * the third is what says whether anything arrived. An object the pane imports, so a test stands a door in by assigning onto it.
  *
- * A video (stage B) is the same three steps, its bytes sent to Stream over tus (video-send.ts) and proven there: everything
+ * A video (stage B) is the same three steps, its bytes sent to Stream over tus (video/send.ts) and proven there: everything
  * the browser knows of it goes with the first step, so Stream's word alone finishes it, and `done` only says they have all gone.
  */
 import {
@@ -167,7 +167,7 @@ async function add(file: File, onSent?: (sent: number) => void): Promise<AddSaid
 async function addVideo(file: File, mime: FileVideoMime, onSent?: (sent: number) => void): Promise<AddSaid> {
   if (file.size > FILE_VIDEO_BYTES_MAX) return { kept: false, message: W.video.tooBig };
   const { readVideoSeconds, hashVideo, keptUploadOf, readUploadOffset, keepUpload, sendVideo, forgetUpload } =
-    await import("./video-send");
+    await import("./video/send");
   const [seconds, fingerprint] = await Promise.all([readVideoSeconds(file), hashVideo(file)]);
   if (seconds !== null && seconds > FILE_VIDEO_SECONDS_MAX) return { kept: false, message: W.video.tooLong };
   const stored = keptUploadOf(fingerprint);

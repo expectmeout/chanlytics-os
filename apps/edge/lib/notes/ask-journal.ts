@@ -25,7 +25,7 @@ export interface JournalLine {
 }
 
 /** What the model is handed for one day. */
-export interface JournalDay {
+interface JournalDay {
   /** YYYY-MM-DD, by the workspace's clock. */
   day: string;
   /** The day's name in English ("Tuesday"): the model says it in the workspace's language. */
@@ -81,7 +81,7 @@ export const JOURNAL_SCHEMA = {
 } as const;
 
 /** What the day comes to: an entry to keep, or a quiet day, or an answer that could not be read. */
-export type JournalCheck = { ok: true; text: string } | { ok: false; why: "quiet" | "unreadable" };
+type JournalCheck = { ok: true; text: string } | { ok: false; why: "quiet" | "unreadable" };
 
 /** A character that is no word, a control (a line break aside) or a format character, made a space. */
 const keptLines = (s: string): string =>

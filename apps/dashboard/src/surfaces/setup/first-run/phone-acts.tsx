@@ -42,7 +42,7 @@ export interface PhoneActs {
 export const answer = (k: PhoneActs, patch: Partial<KeptPhoneChoice>) => k.setChoice({ ...k.c, ...patch });
 
 /** A buy that did not go: said, and the owner chooses again. */
-function failed(k: PhoneActs, r: { ok: boolean; message: string } | null, words?: string) {
+function sayFailed(k: PhoneActs, r: { ok: boolean; message: string } | null, words?: string) {
   k.sent.current = false;
   k.setChoice({ ...k.c, pending: false, sent: false });
   k.flash(r ? refusalToast(r, k.W.notBought) : { tone: "warn", msg: <>{words}</> });
@@ -64,18 +64,18 @@ export async function buy(k: PhoneActs): Promise<void> {
   let code = c.pick ? areaCodeOf(c.pick.e164) : null;
   if (c.way !== "new") {
     code = ph.area;
-    if (!code) return failed(k, null, W.held.number);
+    if (!code) return sayFailed(k, null, W.held.number);
     const found = await setupVerbs.lines.search(code);
-    if (!found.ok) return failed(k, found);
+    if (!found.ok) return sayFailed(k, found);
     const first = found.numbers[0];
-    if (!first) return failed(k, null, W.noneFree(code));
+    if (!first) return sayFailed(k, null, W.noneFree(code));
     e164 = first.e164;
   }
-  if (!e164) return failed(k, null, W.held.pick);
+  if (!e164) return sayFailed(k, null, W.held.pick);
   const r = await setupVerbs.lines.buy(e164, code || "");
   // Refused (a card, a line already there): said, and the owner chooses again. Bought and stopped part-way: the line row
   // has it, with its Retry.
-  if (!r.ok && r.message) return failed(k, r);
+  if (!r.ok && r.message) return sayFailed(k, r);
   if (c.way === "move" && canDo("approve")) {
     const q = await setupVerbs.request("port");
     k.flash({ tone: q.ok ? "ok" : "warn", msg: <>{q.ok ? W.moveAsked : W.moveNotAsked}</> });
