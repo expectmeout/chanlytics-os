@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Json } from "@chanlytics/db/types";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 import { AppError } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/shared/route";
 import { dbRefusal } from "@/server/shared/with-route";
@@ -29,7 +29,8 @@ export const PUT = write({
     const { data, error } = await saveMemberView(ctx, {
       p_tenant_id: member.tenantId,
       p_page: page,
-      p_view: input.view as Json,
+      // A body read from JSON is JSON: the copy says so to the column, field by field, where a cast took it on trust.
+      p_view: jsonCopyOf(input.view),
     });
     if (error) throw dbRefusal(error);
     return { views: data && typeof data === "object" && !Array.isArray(data) ? data : {} };

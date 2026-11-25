@@ -70,7 +70,7 @@ async function proposeKeep(
   let subject: string | null = null;
   let on: string | null = null;
   if (input.wake === "date") {
-    on = DAY_KEY.test(input.on ?? "") ? (input.on as string) : null;
+    on = input.on !== undefined && DAY_KEY.test(input.on) ? input.on : null;
     if (!on) return refuse("on is the day, YYYY-MM-DD by the business's calendar");
   } else {
     subject = str(input.subject, 40);

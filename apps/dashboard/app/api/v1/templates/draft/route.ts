@@ -67,11 +67,16 @@ export const POST = write({
   rate: "ask",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    if (input.translate) {
-      const language = input.language as string;
-      const ref: SourceRef = input.translate.id
-        ? { id: input.translate.id }
-        : { starter: input.translate.starter as string, from: input.translate.from ?? null };
+    const { translate, language, brief, category } = input;
+    if (translate) {
+      // The body's checks hold a translation to one message on file and a language; here the handler sees them.
+      const ref: SourceRef | null = translate.id
+        ? { id: translate.id }
+        : translate.starter
+          ? { starter: translate.starter, from: translate.from ?? null }
+          : null;
+      if (!ref || language === undefined)
+        throw new AppError("validation", "Say which saved message to write in another language.");
       const src = await getTranslationSource(ctx, member.tenantId, ref, language);
       if (!src.ok) throw new AppError(src.code, src.message);
       const translation = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
@@ -83,12 +88,10 @@ export const POST = write({
         );
       return { draft: translation.draft };
     }
-    const language = input.language ?? "en_US";
-    const result = await draftTemplate(ctx, member.tenantId, {
-      brief: input.brief as string,
-      category: input.category as "marketing" | "utility",
-      language,
-    });
+    // And a draft's brief and category.
+    if (!brief || !category)
+      throw new AppError("validation", "Say what you want to tell customers — one line is enough.");
+    const result = await draftTemplate(ctx, member.tenantId, { brief, category, language: language ?? "en_US" });
     if (!result.ok)
       throw new AppError(
         result.reason === "refused" ? "upstream_anthropic" : "validation",

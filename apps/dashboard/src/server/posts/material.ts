@@ -6,7 +6,15 @@
  * under RLS, so a file removed is never drawn from memory.
  */
 import "server-only";
-import { AppError, FILE_WORDS as W, MIN_MS, fileFramePathOf, filePathOf, recordOrNull } from "@chanlytics/contracts";
+import {
+  AppError,
+  FILE_WORDS as W,
+  MIN_MS,
+  fileFramePathOf,
+  filePathOf,
+  listOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import type { FileMemberRow } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
@@ -65,10 +73,17 @@ export interface PostMaterial {
   phone: string | null;
 }
 
-const asFour = (v: unknown): readonly [number, number, number, number] | null =>
-  Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === "number")
-    ? (v as [number, number, number, number])
+const asFour = (v: unknown): readonly [number, number, number, number] | null => {
+  const four = listOrEmpty(v);
+  const [left, top, right, bottom] = four;
+  return four.length === 4 &&
+    typeof left === "number" &&
+    typeof top === "number" &&
+    typeof right === "number" &&
+    typeof bottom === "number"
+    ? [left, top, right, bottom]
     : null;
+};
 
 /** The business's mark, ready to draw, or none. A mark that can't be read costs the mark, never the post. */
 async function logoRead(tenantId: TenantId, path: string): Promise<string | null> {
