@@ -605,11 +605,9 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
   if (refusal === "held") return heldRefusal(delivery.messageId);
   const overtakenBy = !refusal && kindOf(delivery) === "draft" ? await overtakenByHuman(ports.db, delivery) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, delivery, nowMs));
-  // A queued row is canceled with its reason, so the thread shows why the
-  // words never left; a send with no row yet leaves none, and the caller
-  // records the refusal where it lives (a recipient's row, a spoken reply).
-  // The event says the person's consent as the door read it -- or, for a
-  // refusal that changed it (the carrier's, below), as it is now.
+  // A queued row is canceled with its reason, so the thread shows why the words never left; a send with no row yet
+  // leaves none, and the caller records the refusal where it lives (a recipient's row, a spoken reply). The event says
+  // the person's consent as the door read it -- or, for a refusal that changed it (the carrier's, below), as it is now.
   const refuse = async (
     reason: DeliveryRefusal,
     now: Partial<WireFacts["contact"]> = {},
@@ -637,14 +635,12 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
 
   const sent = await putOnWire(ports.wire, delivery, kindOf(delivery) === "reply", ports.now);
 
-  // The carrier's own no, on the person's behalf (channels smsRefusalOf:
-  // Twilio 21610, the recipient replied STOP to this number before we heard --
-  // the STOP went to the carrier, or came before the line's webhook pointed
-  // here). The number is unreachable whatever our row says, so the row is
-  // brought to agree with the carrier, the way ingest records a STOP it did
-  // hear, and the send is the refusal a recorded no is: the row canceled with
-  // its reason, nothing escalated, and the next send to this person refused by
-  // the predicate before the provider is asked, never a failure the owner is told of on every later send.
+  // The carrier's own no, on the person's behalf (channels smsRefusalOf: Twilio 21610, the recipient replied STOP to
+  // this number before we heard -- the STOP went to the carrier, or came before the line's webhook pointed here). The
+  // number is unreachable whatever our row says, so the row is brought to agree with the carrier, the way ingest
+  // records a STOP it did hear, and the send is the refusal a recorded no is: the row canceled with its reason, nothing
+  // escalated, and the next send to this person refused by the predicate before the provider is asked, never a failure
+  // the owner is told of on every later send.
   if (!sent.ok && delivery.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
@@ -657,10 +653,9 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
 
   if (sent.ok) {
     if (delivery.messageId) {
-      // The text is already gone, so the row must say `sent` -- but a cancel
-      // that won the row between the send and this write is the signal, not
-      // something to overwrite silently. A write that failed is neither: the
-      // words left, so it is logged with the wamid and the send still reported.
+      // The text is already gone, so the row must say `sent` -- but a cancel that won the row between the send and this
+      // write is the signal, not something to overwrite silently. A write that failed is neither: the words left, so it
+      // is logged with the wamid and the send still reported.
       const marked = await finalizeQueued(ports.db, delivery, {
         status: "sent",
         ...(sent.wamid ? { external_id: sent.wamid } : {}),
@@ -686,10 +681,9 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
       ]);
       return { outcome: "sent", messageId: delivery.messageId, externalId: sent.wamid };
     }
-    // recordOutbound stamps the thread and writes message.sent itself. The
-    // words are already gone, so a row that cannot be written is logged and
-    // the send still reported: a caller that took "not recorded" for "not
-    // sent" would send them again.
+    // recordOutbound stamps the thread and writes message.sent itself. The words are already gone, so a row that cannot
+    // be written is logged and the send still reported: a caller that took "not recorded" for "not sent" would send
+    // them again.
     const messageId = await recordOutbound(ports.db, {
       tenantId: delivery.tenantId,
       conversationId: delivery.conversationId,
@@ -724,8 +718,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
   if (delivery.messageId) {
     await finalizeQueued(ports.db, delivery, { status: "failed", error: failure });
   } else {
-    // Recorded as a failed row rather than dropped: the business should see
-    // that it tried and could not reach them.
+    // Recorded as a failed row rather than dropped: the business should see that it tried and could not reach them.
     messageId = await recordOutbound(ports.db, {
       tenantId: delivery.tenantId,
       conversationId: delivery.conversationId,
