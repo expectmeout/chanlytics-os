@@ -27,8 +27,10 @@ import {
   unmount,
 } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
+installStubReact({});
 // record-foot.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has
 // no createContext or useContext: the stub gives it a context that holds its value. The stub draws a part before the
 // provider around it, so a reader gets the context's own value (none): the editor's Cancel and Save stand under its
@@ -42,7 +44,6 @@ Object.assign(W, {
   appNavigate: () => {},
   // The role store's gate (the frame's window.gate, canDo), over an owner and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  __roleGate: contracts.roleGate,
   useHotkey: () => {},
 });
 const S = "../../apps/dashboard/src/surfaces";

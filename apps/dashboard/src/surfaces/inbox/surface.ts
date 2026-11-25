@@ -23,13 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-templates";
 import { carriedReading, carriesMark } from "../seen-carry";
-import {
-  declareSurfaceValue,
-  revivesFromCache,
-  setSurfaceValue,
-  shareUnchanged,
-  surfaceValue,
-} from "../surface-values";
+import { revivesFromCache, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { needsYouRowsNow, needsYouWaitsNow } from "../needs-you";
 import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
@@ -39,9 +33,7 @@ import { ixOnPhone, ixOpeningThread } from "./rules";
 import { inboxThreadsOf, readHeldThreads, readThreadWhole, revivedThread } from "./read-apart";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 import type { Thread } from "./types";
-
-// The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
-declareSurfaceValue("inbox", "INBOX_DATA");
+import { pageReport } from "@/client/page-report";
 
 // A refresh paints the Inbox from the tab's cache before anything is read (bridge/surface-cache.ts): each real
 // thread's times are said again by the clock that paints them, from the moments it keeps, in the zone the read said them
@@ -230,7 +222,7 @@ export const inboxOverride: SurfaceOverride = {
     // One that could not be read is a waiting customer nobody can see: the
     // list says how many, rather than listing fewer.
     const unreadEscalated = missing.length - extra.length;
-    if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
+    if (unreadEscalated) pageReport.error("inbox_escalated_fetch_failed", unreadEscalated);
     // Of those, the holds that wait on a person, and any past the read's hundred: each a customer who may be waiting,
     // which the badge counts (a customer's STOP is not one).
     const readIds = new Set(extra.map((c) => c.id));

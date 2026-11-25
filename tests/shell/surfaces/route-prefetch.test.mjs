@@ -27,6 +27,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 
@@ -768,6 +769,12 @@ test("a prefetch that failed is asked again by the read itself, and a write neve
 
 test("the bridge's client takes the window's slot for a URL and forgets it as it does", async () => {
   const fetched = [];
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: "ws-acme", slug: "acme", name: "Acme", status: "active" }],
+      activeWorkspaceId: "ws-acme",
+    },
+  });
   const win = {
     fetch: async (url) => {
       fetched.push(url);
@@ -781,8 +788,6 @@ test("the bridge's client takes the window's slot for a URL and forgets it as it
     dispatchEvent() {
       return true;
     },
-    __WORKSPACES: [{ id: "ws-acme", slug: "acme", name: "Acme", status: "active" }],
-    __ACTIVE_WORKSPACE: "ws-acme",
     [PREFETCH_SLOT]: {
       [`/api/v1/contacts/${ID}?workspace=acme`]: Promise.resolve(json({ ok: true, data: { person: { id: "early" } } })),
     },

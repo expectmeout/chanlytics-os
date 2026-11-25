@@ -12,16 +12,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** What GET content/note answers Today's line with, as the next read finds it; and how many times it was asked. */
 let note = null;
 let noteReads = 0;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: T, slug: "harbor", name: "Brightline", status: "active", timezone: "America/Chicago" }],
+    activeWorkspaceId: T,
+  },
+});
 installStubReact({
   CHANLY: { nav() {} },
   location: { pathname: "/w/harbor/", hash: "", search: "", origin: "https://app.chanlytics.com" },
-  __WORKSPACES: [{ id: T, slug: "harbor", name: "Brightline", status: "active", timezone: "America/Chicago" }],
-  __ACTIVE_WORKSPACE: T,
   fetch: (url) => {
     if (String(url).includes("content/note")) noteReads += 1;
     const body = String(url).includes("content/note") ? { ok: true, data: { today: note } } : { ok: true, data: {} };

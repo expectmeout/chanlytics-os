@@ -16,10 +16,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, textOf, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+import { bridgeHolds, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -69,7 +70,15 @@ const asked = (over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const address = await legacyAddress();
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+  parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } },
+});
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -79,10 +88,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
-  __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, address, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
@@ -119,7 +124,7 @@ test("the thread the first draw opens on waits for what it draws: its reply box'
     if (u.pathname === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
     if (u.pathname === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
     // Their own read is slow: People's book says who they are first.
     if (u.pathname === "/api/v1/contacts") return new Promise(() => {});
     return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
@@ -158,7 +163,7 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
     if (path === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (path === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
     if (path === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: path } });
   };
   // Settings' templates read failed: the slice it publishes says null, and so does the Inbox's.
@@ -654,7 +659,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
     );
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
     delete globalThis.window.appNavigate;
   }
 });
@@ -791,7 +796,7 @@ test("the words in the Inbox's search come back after a refresh, in this tab onl
     assert.equal(box(draw()).props.value, "", "and an emptied box stays empty");
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -834,7 +839,7 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
     assert.equal(box(draw(rosa, { reply: "Yes, 3pm works." })).props.value, "Friday at 3 works for us");
     box(draw(nina, { reply: "Yes, 3pm works." })).props.onChange({ target: { value: "Yes, 3pm works." } });
     assert.equal(
-      globalThis.window.__tabMemory.draft("reply", "th-nina"),
+      provided("tabMemory").draft("reply", "th-nina"),
       null,
       "AI's words, untouched, are not a draft of yours",
     );
@@ -853,14 +858,14 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
     ).props.onClick();
     accept(true);
     await settle();
-    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-rosa"), null, "a reply the server took is no draft");
+    assert.equal(provided("tabMemory").draft("reply", "th-rosa"), null, "a reply the server took is no draft");
     // Emptied by hand: gone too.
     box(draw(nina)).props.onChange({ target: { value: "Hi Nina" } });
     box(draw(nina)).props.onChange({ target: { value: "" } });
-    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-nina"), null);
+    assert.equal(provided("tabMemory").draft("reply", "th-nina"), null);
   } finally {
     globalThis.window.sessionStorage = keepStore;
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 

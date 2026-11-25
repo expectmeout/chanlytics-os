@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-10-20T19:00:00Z");
@@ -125,6 +126,15 @@ const marks = [];
 /** The door's clock, and what it holds of each person's mark; `answer` stands in for the door when a test sets it. */
 const wire = { stamp: NOW.getTime(), seen: {}, answer: null };
 const iso = (at) => new Date(at).toISOString();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
+      activeWorkspaceId: TID,
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -142,8 +152,6 @@ globalThis.window = {
   dispatchEvent() {
     return true;
   },
-  __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: TID,
   fetch: async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     const mark = /^\/api\/v1\/contacts\/([^/]+)\/seen$/.exec(u.pathname);
@@ -217,7 +225,7 @@ const painted = (key, rows) => {
 /** Published and cached as the runner does after a read lands (surface-runner.ts persistSurface). */
 const landed = (override, value) => {
   setSurfaceValue(override.value, value);
-  snapshotSurface(override.key, override.globals ?? [], TID, override.trimSnapshot, override.value);
+  snapshotSurface(override.key, TID, override.trimSnapshot, override.value);
 };
 
 /** The Inbox's threads as its read makes them: Sam and Rosa, both new to the reader. */
@@ -319,7 +327,7 @@ test("Conversations' rows carry it too, each row a person's row stands for among
 test("People's row says it from its own record, so its facts agree: new to the reader, how far they had seen, the mark's stamp; and the cache follows", async () => {
   clearSurfaceCache();
   await peopleOverride.apply();
-  snapshotSurface(peopleOverride.key, peopleOverride.globals ?? [], TID, peopleOverride.trimSnapshot, "people");
+  snapshotSurface(peopleOverride.key, TID, peopleOverride.trimSnapshot, "people");
   const rowOf = (value, id) => value.rows.find((r) => r.id === id);
   const before = rowOf(surfaceValue("people"), ROSA);
   assert.equal(before.unseen, true, "the read's word: new to the reader");

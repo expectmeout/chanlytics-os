@@ -16,9 +16,10 @@ import { AskFace } from "../../kit/face/ask-face";
 import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
 import { frameBell, frameChrome, frameGlyph, frameToastHook } from "../frame-window";
 import { NotifPopover, type BellNote } from "./notif-popover";
+import type { BellApi } from "@/bridge/notifications";
 
 type Flash = (p: FrameFlash) => void;
-type Bell = NonNullable<Window["__notifs"]>;
+type Bell = BellApi;
 
 // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): how many, heard as they are read. The
 // capsule draws the kit's dot after its words while there is one, as the kit marks something new there to the reader.

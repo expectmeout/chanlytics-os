@@ -25,6 +25,7 @@ import { otherChannelSets } from "@/lib/campaign-channels";
 import { viewerId } from "@/surfaces/people/surface";
 import { cmReadyOf } from "../parts/channels";
 import type { AudienceOption, AudiencesSurface } from "./audiences-surface";
+import { pageReport } from "@/client/page-report";
 
 /**
  * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
@@ -166,7 +167,7 @@ export function audiencesOf({ bc, heard, people, saved, tz, everyone }: Read): A
             hint: savedHint(s.rule == null),
           }))),
   ];
-  if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
+  if (saved instanceof Error) pageReport.error("broadcasts_lists_fetch_failed", saved.message);
   return {
     audiences,
     reach: reachCountsOf(rows),

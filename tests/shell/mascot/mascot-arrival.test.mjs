@@ -20,6 +20,7 @@ import {
 } from "../../../apps/dashboard/src/bridge/mascot/arrival.ts";
 import { needsYouNow } from "../../../apps/dashboard/src/bridge/arrival.ts";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /** A clock, and timers that fire as it is moved. */
@@ -242,14 +243,13 @@ test("what needs you is asked when the light is decided, never remembered: Ask c
 });
 
 test("what needs you, as the wiring hands it in: people, runs or searches Ask says wait, a follow-up of Ask's come due (the closed-loop read, 17 Oct 2026), or a notification not read; nothing of these is no light", () => {
-  const w = globalThis.window;
-  const was = { ask: askCalls(), notifs: w?.__notifs };
+  const was = { ask: askCalls(), notifs: provided("bell") };
   const quiet = { people: 0, runs: 0, searches: 0 };
   globalThis.window ??= globalThis;
   try {
     const said = (parts, due = [], unread = 0) => {
       holdAsk({ rightNowParts: () => parts, followUpsDue: () => due });
-      globalThis.window.__notifs = { unread: () => unread };
+      bridgeHolds({ parts: { bell: { unread: () => unread } } });
       return needsYouNow();
     };
     assert.equal(said(quiet), false, "nothing waits, nothing is due, the bell is read");
@@ -258,11 +258,11 @@ test("what needs you, as the wiring hands it in: people, runs or searches Ask sa
     assert.equal(said(quiet, [], 2), true);
     // An Ask from before the follow-ups (a bridge without followUpsDue) is asked what it can say.
     holdAsk({ rightNowParts: () => quiet });
-    globalThis.window.__notifs = { unread: () => 0 };
+    bridgeHolds({ parts: { bell: { unread: () => 0 } } });
     assert.equal(needsYouNow(), false);
   } finally {
     holdAsk(was.ask);
-    globalThis.window.__notifs = was.notifs;
+    bridgeHolds({ parts: { bell: was.notifs } });
   }
 });
 

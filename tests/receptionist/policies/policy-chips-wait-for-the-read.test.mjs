@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -24,6 +25,15 @@ const heard = [];
 globalThis.document = { body: {}, addEventListener() {}, removeEventListener() {} };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
+bridgeHolds(
+  {
+    who: {
+      workspaces: [{ id: "t-salon", slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
+      activeWorkspaceId: "t-salon",
+    },
+  },
+  { fresh: true },
+);
 globalThis.window = {
   location: { pathname: "/w/salon", hash: "", search: "", origin: "https://app.example.com", assign() {} },
   localStorage: globalThis.localStorage,
@@ -34,8 +44,6 @@ globalThis.window = {
     heard.push({ type: e.type, reply: globalThis.window.POLICY?.modeOf("reply") ?? null });
     return true;
   },
-  __WORKSPACES: [{ id: "t-salon", slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "t-salon",
   // A real workspace's session (seed-globals.ts sets it so wherever nothing set it first).
   // The mockup's seeded store (surfaces/frame), which the manifest installs before the bridge replaces it.
   POLICY: {

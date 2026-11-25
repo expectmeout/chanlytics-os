@@ -16,9 +16,10 @@ import { HOUR_MS, todayDay, todayDayNext } from "@chanlytics/contracts";
 import { todayBriefWords } from "../../../apps/dashboard/src/surfaces/today/brief-words.ts";
 import { installStubReact, fresh, all, byTestId, textOf } from "../../_stub-react.mjs";
 import { handoffDay } from "./_world.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  __surfaceState: () => "live",
   appNavigate: () => {},
   canDo: () => true,
   setInterval: () => 1,

@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
@@ -16,17 +17,21 @@ const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface
 
 /** The workspace list the shell holds, with the active one: every workspace has the Pipeline (0008, amended 18 Oct 2026). */
 const hold = (role = "owner") => {
-  globalThis.__WORKSPACES = [
-    {
-      id: "w1",
-      slug: "harbor",
-      name: "Harbor Studio",
-      status: "active",
-      timezone: "America/New_York",
-      role,
+  bridgeHolds({
+    who: {
+      workspaces: [
+        {
+          id: "w1",
+          slug: "harbor",
+          name: "Harbor Studio",
+          status: "active",
+          timezone: "America/New_York",
+          role,
+        },
+      ],
     },
-  ];
-  globalThis.__ACTIVE_WORKSPACE = "w1";
+  });
+  bridgeHolds({ who: { activeWorkspaceId: "w1" } });
 };
 const chromeAt = (param) => SURFACE_ROUTES.reports.chrome({ param, backToPeople: null });
 
@@ -234,8 +239,8 @@ test("Pipeline is a tab in every workspace, in its place (0008, amended 18 Oct 2
     ["overview", "receptionist", "people", "pipeline", "campaigns", "content", "reviews"],
   );
   assert.equal(chromeAt("pipeline").views.picked, "pipeline");
-  delete globalThis.__WORKSPACES;
-  delete globalThis.__ACTIVE_WORKSPACE;
+  bridgeHolds({ who: { workspaces: undefined } });
+  bridgeHolds({ who: { activeWorkspaceId: undefined } });
   assert.ok(
     chromeAt(null).views.tabs.some((t) => t.id === "pipeline"),
     "no workspace list yet: the tab is there",

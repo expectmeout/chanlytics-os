@@ -21,11 +21,11 @@ import {
   todayRunApproved,
   type BroadcastVM,
 } from "@chanlytics/contracts";
-import type { BroadcastsSurface } from "../campaigns/broadcasts/surface";
 import { approvalDaysNow, bcWhenWords } from "../campaigns/broadcasts/when-words";
 import { canDo } from "../frame-verbs";
-import { fn, object, type Flash } from "../shell-doors";
+import { fn, type Flash } from "../shell-doors";
 import { surfaceValue } from "../surface-values";
+import { provided } from "@/bridge/provided";
 
 /** The page's toast, raised. */
 export type Say = (flash: Flash) => void;
@@ -64,8 +64,8 @@ export function useRunsActing(): RunsActing {
   );
 }
 
-/** The broadcasts surface as the bridge published it, or nothing before its first read (`window.__BROADCASTS`). */
-export const broadcastsRead = () => object<BroadcastsSurface>("__BROADCASTS");
+/** The broadcasts surface as its read published it (the seam's value), or nothing before its first read. */
+export const broadcastsRead = () => surfaceValue("broadcasts");
 
 /**
  * The runs that want a row: one waiting for your word (`waiting`, the count's own rule: contracts runWaitsOnYou), which is
@@ -98,18 +98,20 @@ export const campaignsPaused = (): boolean =>
 /** What a run's verbs answer: `ok`, the server's data, or a refusal to say in the shell's words. */
 interface VerbAnswer {
   ok: boolean;
-  data?: { recipient_count?: number } & Record<string, unknown>;
-  [key: string]: unknown;
+  data?: unknown;
 }
 
-/** The broadcasts surface's verbs, as far as the rows press them (`window.__broadcasts`). */
+/** The broadcasts surface's verbs, as far as the rows press them (provided as `broadcasts`). */
 interface RunVerbs {
-  cancel(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
-  approve(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
+  cancel(id: string, opts?: { onAccepted?: (data: object) => void }): Promise<VerbAnswer>;
+  approve(id: string, opts?: { onAccepted?: (data: object) => void }): Promise<VerbAnswer>;
 }
 
-/** The broadcasts surface's verbs (`window.__broadcasts`): stop a run, approve one; nothing before the surface is installed. */
-export const broadcastVerbs = (): RunVerbs | undefined => object<RunVerbs>("__broadcasts");
+/** A field of what the server answered, whatever it is. */
+const answerField = (data: object | undefined, field: string): unknown => (data ? Reflect.get(data, field) : undefined);
+
+/** The broadcasts surface's verbs (provided as `broadcasts`): stop a run, approve one; nothing before they are installed. */
+export const broadcastVerbs = (): RunVerbs | undefined => provided("broadcasts");
 
 /** The toast a refused verb raises, in the shell's words (`window.refusalToast`): its lead, then the server's reason. */
 function refusalFlash(res: unknown, lead: string): Flash {
@@ -120,8 +122,8 @@ function refusalFlash(res: unknown, lead: string): Flash {
 /** What an accepted approve answered, as the words of when it goes read it: an object, else nothing. */
 const receiptOf = (data: unknown) => (data && typeof data === "object" ? data : null);
 
-/** The playbooks surface read again after a run's verb (`window.__refreshPlaybooks`): nothing in a stand-in window. */
-export const refreshPlaybooks = (): void => fn<[], void>("__refreshPlaybooks")?.();
+/** The playbooks surface read again after a run's verb (provided as `refreshPlaybooks`): nothing where it is not installed. */
+export const refreshPlaybooks = (): void => void provided("refreshPlaybooks")?.();
 
 /** A run's two verbs on a row, each waiting while it is on its way: what they return is the caller's (the tests await it). */
 export interface RunActs {
@@ -132,12 +134,13 @@ export interface RunActs {
 /** An approved run stopped from its toast (#1727): what the server stopped, said as the run's screen says it. */
 async function stopNow(r: BroadcastVM, api: RunVerbs, flash: Say): Promise<void> {
   let said = false;
-  const say = (data?: Record<string, unknown>) => {
+  const say = (data?: object) => {
     said = true;
+    const was = answerField(data, "was");
     flash({
       msg: (
         <>
-          <b>{runTitleOf(r)}</b> {runStoppedWords(typeof data?.was === "string" ? data.was : "scheduled")}
+          <b>{runTitleOf(r)}</b> {runStoppedWords(typeof was === "string" ? was : "scheduled")}
         </>
       ),
     });
@@ -151,9 +154,10 @@ async function stopNow(r: BroadcastVM, api: RunVerbs, flash: Say): Promise<void>
 /** A run approved: when it really goes (the server moves a send outside 9:00-20:59 to nine), with its Stop. */
 async function approveNow(r: BroadcastVM, api: RunVerbs, flash: Say, stop: (r: BroadcastVM) => unknown): Promise<void> {
   let said = false;
-  const say = (data: NonNullable<VerbAnswer["data"]>) => {
+  const say = (data: object) => {
     said = true;
-    const n = data.recipient_count || r.recipient_count;
+    const count = answerField(data, "recipient_count");
+    const n = (typeof count === "number" && count) || r.recipient_count;
     const when = bcWhenWords(receiptOf(data));
     const t = todayRunApproved(runTitleOf(r), n, when);
     flash({
@@ -170,7 +174,7 @@ async function approveNow(r: BroadcastVM, api: RunVerbs, flash: Say, stop: (r: B
   if (res.ok) refreshPlaybooks();
   if (!res.ok) flash(refusalFlash(res, "Not approved"));
   // An accepted approve always carries its data.
-  else if (!said) say(res.data as NonNullable<VerbAnswer["data"]>);
+  else if (!said) say(typeof res.data === "object" && res.data !== null ? res.data : {});
 }
 
 /** The rows' verbs, through the page's toast: nothing where the role may not, or where the workspace is paused. */

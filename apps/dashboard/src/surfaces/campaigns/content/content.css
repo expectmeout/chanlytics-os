@@ -642,11 +642,11 @@
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 24px;
   background: var(--viewer-top-wash);
 }
+/* "2 of 2" in the app's own type, quiet (the phone change list's A2 and D2, 25 Nov 2026: the one count in mono). */
 .cnv-viewer-of {
   align-self: center;
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
+  font-variant-numeric: tabular-nums;
   color: var(--viewer-ink-dim);
 }
 .cnv-viewer-right {

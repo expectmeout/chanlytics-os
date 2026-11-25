@@ -10,6 +10,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { provided } from "../_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -34,7 +35,7 @@ globalThis.window = {
 const { installTabMemory, clearTabMemory, TAB_SLOTS } =
   await import("../../../apps/dashboard/src/bridge/tab-memory.ts");
 installTabMemory(globalThis.window, { now: () => clock });
-const tm = globalThis.window.__tabMemory;
+const tm = provided("tabMemory");
 const at = (path) => {
   globalThis.window.location.pathname = path;
 };
@@ -125,8 +126,8 @@ test("a storage that refuses costs the memory, never the page", () => {
   };
   const win = { location: { pathname: "/w/salon" }, sessionStorage: refusing };
   installTabMemory(win);
-  assert.doesNotThrow(() => win.__tabMemory.keepPlace("leads", "v", { q: "x" }));
-  assert.equal(win.__tabMemory.place("leads", "v"), null);
-  assert.doesNotThrow(() => win.__tabMemory.keepDraft("leads-find", { words: "x" }));
-  assert.equal(win.__tabMemory.draft("leads-find"), null);
+  assert.doesNotThrow(() => provided("tabMemory").keepPlace("leads", "v", { q: "x" }));
+  assert.equal(provided("tabMemory").place("leads", "v"), null);
+  assert.doesNotThrow(() => provided("tabMemory").keepDraft("leads-find", { words: "x" }));
+  assert.equal(provided("tabMemory").draft("leads-find"), null);
 });

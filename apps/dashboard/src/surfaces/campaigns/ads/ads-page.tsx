@@ -13,7 +13,7 @@ import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/bridge/surface-data";
+import { currentWorkspace } from "@/bridge/who";
 import { HEAD } from "./model/words-page";
 import { nothingConnectedOf } from "./model/page-v0";
 import { Button } from "../../kit/button/button";
@@ -93,8 +93,7 @@ function useAskKnowsThePage() {
 }
 
 /** The zone a day is said in until the account says its own: the workspace's, else whoever is looking. */
-const zoneHere = (): string =>
-  workspaceOverride.current()?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+const zoneHere = (): string => currentWorkspace()?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** What the head's acts need: the coral button's word where the card gives one, and its press. */
 interface HeadActsProps {

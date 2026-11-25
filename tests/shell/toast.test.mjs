@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks } from "../_stub-react.mjs";
+import { bridgeHolds, provided } from "./_bridge-holds.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -179,7 +180,6 @@ globalThis.document = {
 globalThis.innerWidth = 375;
 globalThis.innerHeight = 812;
 globalThis.window = {
-  __chrome: { toast: toastShape },
   CHANLY: { nav() {} },
   addEventListener() {},
   removeEventListener() {},
@@ -191,6 +191,7 @@ globalThis.window = {
     if (timers[h - 1]) timers[h - 1].cleared = true;
   },
 };
+bridgeHolds({ parts: { chrome: { toast: toastShape } } }, { fresh: true });
 // The toast is TSX (surfaces/frame/flash.tsx), and takes its hooks from "react": this file's stub, set there.
 kitHooks();
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
@@ -452,12 +453,12 @@ const tipTimers = (fn) => {
 };
 
 test("a tip a press shows goes by itself under a finger, after a plain toast's three seconds; a mouse's stays", () => {
-  assert.ok(globalThis.window.__tip, "the file's tip is the frame's");
+  assert.ok(provided("tip"), "the file's tip is the frame's");
   tipNode.shown.clear();
   const control = tipped("Only an owner can change this");
   const touch = tipTimers(() => {
     tipHeard.pointerdown({ pointerType: "touch" });
-    globalThis.window.__tip.show(control);
+    provided("tip").show(control);
   });
   assert.ok(tipNode.shown.has("show"), "the reason shows at the control");
   const away = touch.find((t) => t.ms === 3000);
@@ -468,7 +469,7 @@ test("a tip a press shows goes by itself under a finger, after a plain toast's t
   tipNode.shown.clear();
   const mouse = tipTimers(() => {
     tipHeard.pointerdown({ pointerType: "mouse" });
-    globalThis.window.__tip.show(control);
+    provided("tip").show(control);
   });
   assert.ok(tipNode.shown.has("show"));
   assert.ok(!mouse.some((t) => t.ms === 3000), "under a mouse it stays until the pointer leaves");

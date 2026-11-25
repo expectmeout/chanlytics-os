@@ -17,6 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SESSION_ENDED } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 // The cache's slot for this window's workspace (its address, /w/bayside): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:bayside";
@@ -66,8 +67,8 @@ const settle = async () => {
 };
 
 test("REGRESSION: a 401 seals the tab's cache before it goes to sign in, in the page's workspace -- a read landing before the page unloaded wrote the last person's rows back", async () => {
-  win.INBOX_DATA = { THREADS: [{ id: "t1", who: "A customer of theirs" }] };
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-b");
+  bridgeHolds({ values: { inbox: { THREADS: [{ id: "t1", who: "A customer of theirs" }] } } });
+  cache.snapshotSurface("inbox", "tenant-b", undefined, "inbox");
   cache.flushSurfaceCache();
   assert.ok(store.get(CACHE), "cached, as a reload would paint it");
 
@@ -82,11 +83,11 @@ test("REGRESSION: a 401 seals the tab's cache before it goes to sign in, in the 
   assert.equal(store.get(CACHE), undefined, "cleared before it left");
 
   // Another surface's read lands before the page unloads: the runner persists it, as it persists every read.
-  cache.snapshotSurface("inbox", ["INBOX_DATA"], "tenant-b");
+  cache.snapshotSurface("inbox", "tenant-b", undefined, "inbox");
   cache.flushSurfaceCache();
   for (const fn of heard.pagehide ?? []) fn();
   assert.equal(store.get(CACHE), undefined, "REGRESSION: their rows written back after the session ended");
-  delete win.INBOX_DATA;
+  bridgeHolds({ values: { inbox: undefined } });
   assert.deepEqual([...cache.hydrateSurfaceCache()], [], "the next person to sign in on this tab is painted nothing");
 });
 

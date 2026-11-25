@@ -43,6 +43,7 @@ import {
   wire,
   wrote,
 } from "./_people-page.mjs";
+import { bridgeHolds, surfaceValue, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
   const needs = (i) =>
@@ -109,7 +110,7 @@ test("REGRESSION: a search match past the people loaded is exported with the res
     lists: [{ id: "s1", name: "Regulars", ids: [] }],
     search: () => ({ people: [person(99, { display_name: "Saturday Jones" })], total: 1, has_more: false }),
   });
-  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
+  surfaceValue("people").page = { ...surfaceValue("people").page, total: 60000, has_more: true };
   const { blobs, restore } = catchExports();
   try {
     (draw(), lineBox()).props.onChange({
@@ -246,15 +247,15 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   }
   // A member who can neither edit lists nor export has no checkbox: Person is the first cell, pinned at 0.
   await freshPage({ people: [person(1), person(2)] });
-  const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
+  const me = whoIsLooking().me;
+  bridgeHolds({ who: { me: { role: "viewer" } } });
   try {
     for (const line of lines(draw())) {
       assert.ok(pinned(line[0]), "Person first");
       assert.ok(!line.some((c) => is(c, "dtable-sel")), "and no checkbox before it");
     }
   } finally {
-    globalThis.window.__ME = me;
+    bridgeHolds({ who: { me: me } });
   }
 });
 
@@ -595,7 +596,7 @@ test("a People row is drawn from what is its own: every prop is a primitive or t
 test("People keeps its place per view in the tab: the words in the box and the cursor on everyone, a kept list and a state each their own, and back after the page is left", async () => {
   installTabMemory(globalThis.window);
   clearTabMemory();
-  const TM = globalThis.window.__tabMemory;
+  const TM = provided("tabMemory");
   try {
     await freshPage({
       people: [person(1), person(2), person(3)],
@@ -652,7 +653,7 @@ test("People keeps its place per view in the tab: the words in the box and the c
     clearTabMemory();
     assert.equal(TM.place("people", "list:s1"), null);
   } finally {
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -665,12 +666,12 @@ test("where a list's box cannot be watched, every row is drawn on the first draw
   installTabMemory(globalThis.window);
   clearTabMemory();
   try {
-    globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: null, top: 300 });
+    provided("tabMemory").keepPlace("people", "all", { q: "", cursor: null, top: 300 });
     setCells([]);
     assert.equal(rowsOf(draw()), 60, "a scroll to put back: every row on the first draw");
   } finally {
     clearTabMemory();
-    delete globalThis.window.__tabMemory;
+    bridgeHolds({ parts: { tabMemory: undefined } });
   }
 });
 
@@ -721,7 +722,7 @@ test("past everyone loaded, the line under the table says the server is being se
         answer = r;
       }),
   });
-  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
+  surfaceValue("people").page = { ...surfaceValue("people").page, total: 60000, has_more: true };
   draw();
   lineBox().props.onChange({
     target: { value: "person" },
@@ -807,12 +808,12 @@ test("each row's standing with the proposal follow-up (0006): worked out where t
   const people = [out(1), out(2), out(3, { deal_proposal_url: null })];
   wire({ people, per: 2, hasDeals: true, followUp: facts });
   await peopleOverride.apply();
-  const by = Object.fromEntries(globalThis.window.__PEOPLE.rows.map((r) => [r.id, r.followUp]));
+  const by = Object.fromEntries(surfaceValue("people").rows.map((r) => [r.id, r.followUp]));
   assert.deepEqual([by.p1?.kind, by.p1?.asks], ["will", true], "waiting, with its link and a yes: in a run to come");
   assert.equal(by.p2?.kind, "had", "its one nudge went");
   assert.equal(by.p3, null, "no link: the follow-up does not reach them");
   // No facts read (no deal on file, or a run that would send nothing): no standing.
   wire({ people, followUp: null });
   await peopleOverride.apply();
-  assert.ok(globalThis.window.__PEOPLE.rows.every((r) => r.followUp === null));
+  assert.ok(surfaceValue("people").rows.every((r) => r.followUp === null));
 });

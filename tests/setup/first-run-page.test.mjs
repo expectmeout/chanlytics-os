@@ -46,6 +46,7 @@ import {
   went,
   withFacts,
 } from "./_first-run-world.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets AI up, and nothing answers yet", () => {
   setSetup(surface(blank));
@@ -289,8 +290,8 @@ test("Check's rows, on AI, wait for the settings read, and a read that failed of
   setSetup(surface(withFacts));
   page.param = "receptionist";
   const again = [];
-  globalThis.window.__refreshSurface = (s) => again.push(s);
-  globalThis.window.__surfaceFailed = (page, pane) => page === "admin" && pane === "workspace";
+  bridgeHolds({ parts: { refreshSurface: (s) => again.push(s) } });
+  bridgeHolds({ parts: { surfaceFailed: (page, pane) => page === "admin" && pane === "workspace" } });
   try {
     fresh();
     const tree = mount();
@@ -298,8 +299,8 @@ test("Check's rows, on AI, wait for the settings read, and a read that failed of
     byTestId(tree, "fr-check-retry").props.onClick();
     assert.deepEqual(again, ["settings"], "and its retry reads the settings again");
   } finally {
-    delete globalThis.window.__surfaceFailed;
-    delete globalThis.window.__refreshSurface;
+    bridgeHolds({ parts: { surfaceFailed: undefined } });
+    bridgeHolds({ parts: { refreshSurface: undefined } });
   }
 });
 
@@ -511,7 +512,7 @@ test("Connect it to Google: Someone else manages it says who can add the owner, 
   const asked = googleConnects(t);
   const dto = managed();
   const said = laterShows(t, dto);
-  globalThis.window.__ME = { email: "owner@example.com" };
+  bridgeHolds({ who: { me: { email: "owner@example.com" } } });
   t.after(() => delete globalThis.window.__ME);
   setSetup(surface(dto));
   let tree = open();

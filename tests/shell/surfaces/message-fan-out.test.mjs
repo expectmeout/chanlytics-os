@@ -20,12 +20,13 @@ import { hookFrames } from "../../_hook-frames.mjs";
 import { changesOf, toldFor } from "../../_live-feed.mjs";
 import { historyOf, legacyAddress } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const heard = new Map();
+bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
   // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
-  __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!heard.has(type)) heard.set(type, new Set());
@@ -57,7 +58,7 @@ const settle = async (n = 10) => {
 };
 
 // The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
-win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
+bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");

@@ -26,6 +26,7 @@ import {
   textOf,
   win,
 } from "./_status.mjs";
+import { bridgeHolds } from "../../_bridge-holds.mjs";
 
 /* ------------------------------ the live-call bar ------------------------------ */
 
@@ -79,13 +80,13 @@ test("the live bar names who is on the line and opens that call; with nobody on 
     return win.LiveCallBar({});
   };
 
-  win.__LIVE = undefined;
+  bridgeHolds({ values: { live: undefined } });
   assert.equal(drawn(), null, "no live surface yet: nothing to say");
-  win.__LIVE = toLiveVM([], null, "America/New_York", new Date(NOW));
+  bridgeHolds({ values: { live: toLiveVM([], null, "America/New_York", new Date(NOW)) } });
   assert.equal(drawn(), null, "REGRESSION: an empty line still drew a bar");
   assert.equal(clocks, 0, "REGRESSION (defect 29): the clock ticked every second of every session, with no call up");
 
-  win.__LIVE = toLiveVM([ongoing()], null, "America/New_York", new Date(NOW));
+  bridgeHolds({ values: { live: toLiveVM([ongoing()], null, "America/New_York", new Date(NOW)) } });
   const bar = drawn();
   assert.ok(bar, "someone is on the phone");
   assert.equal(clocks, 1, "a call up: the clock runs");
@@ -104,7 +105,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
     "nothing to press inside it",
   );
 
-  win.__LIVE = undefined;
+  bridgeHolds({ values: { live: undefined } });
 });
 
 test("Conversations and Live are views of the Inbox: the strip is drawn over all three, the rail lights one item, and the trail starts at the Inbox", () => {
@@ -170,7 +171,7 @@ test("the route that is still `messages` is Campaigns' (decision 0060, D4: it wa
 test("a list's own route on a real workspace is the App Router page, drawn from the first frame, never the seeded Segments page -- the Lists page folded into People (its redirect to People's address is people-address.test.mjs's)", () => {
   // The frame no longer redirects (the shell's segments effect is gone): `segments/<id>` is a page of its own, which draws
   // the shell's reading pane and replaces the address once People says which list an id names (surfaces/people/lists-route.tsx).
-  win.__surfaceState = () => "real";
+  bridgeHolds({ parts: { surfaceState: () => "real" } });
   win.SegmentsPage = "SegmentsPage";
   const from = history.replaced.length;
   try {
@@ -190,7 +191,7 @@ test("a list's own route on a real workspace is the App Router page, drawn from 
     assert.deepEqual(history.replaced.slice(from), [], "the frame replaces nothing itself");
   } finally {
     clearPeople();
-    delete win.__surfaceState;
+    bridgeHolds({ parts: { surfaceState: undefined } });
     delete win.SegmentsPage;
   }
 });
@@ -223,10 +224,10 @@ test("a person's page on a cold load is the layout's, and the frame names them b
     undefined,
     "a person's address has no row in the frame's table: a row that took it would draw People over their page",
   );
-  win.__surfaceState = () => "real";
+  bridgeHolds({ parts: { surfaceState: () => "real" } });
   // The copy the tab holds of them: read once through the page's own courier (people-detail.ts), as opening them did.
-  win.__WORKSPACES = [{ id: "t-1", timezone: "America/New_York" }];
-  win.__ACTIVE_WORKSPACE = "t-1";
+  bridgeHolds({ who: { workspaces: [{ id: "t-1", timezone: "America/New_York" }] } });
+  bridgeHolds({ who: { activeWorkspaceId: "t-1" } });
   win.fetch = async () =>
     new Response(
       JSON.stringify({
@@ -269,9 +270,9 @@ test("a person's page on a cold load is the layout's, and the frame names them b
     );
     assert.match(cold.title, /Profile/, "and a plain crumb until someone can name them");
   } finally {
-    delete win.__surfaceState;
-    delete win.__WORKSPACES;
-    delete win.__ACTIVE_WORKSPACE;
+    bridgeHolds({ parts: { surfaceState: undefined } });
+    bridgeHolds({ who: { workspaces: undefined } });
+    bridgeHolds({ who: { activeWorkspaceId: undefined } });
     delete win.fetch;
     readCaches.clearReadCaches();
   }
@@ -316,12 +317,15 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   const asked = redraw();
   assert.equal(line(asked).props.open, true, "the ✦ opens it");
   assert.ok(ask(asked), "on the web it stays in the bar's row while AI is open");
-  // Inside the native app AI keeps a screen of its own over the circle, which goes while it is open.
-  win.__IN_APP = true;
+  // Inside the native app (the class contracts' boot script puts on the root, IN_APP_CLASS) AI keeps a screen of its own
+  // over the circle, which goes while it is open.
+  const doc = globalThis.document;
+  const root = doc.documentElement;
+  doc.documentElement = { ...root, classList: { contains: (name) => name === "in-app" } };
   try {
     assert.equal(ask(redraw()), undefined, "inside the app, the circle goes while AI is open");
   } finally {
-    delete win.__IN_APP;
+    doc.documentElement = root;
   }
 });
 
@@ -338,7 +342,7 @@ test("a route whose surface has not landed is an empty pane that says it is read
   };
   const byClass = (tree, has) =>
     find(tree, (n) => typeof n.props?.className === "string" && n.props.className.includes(has));
-  win.__surfaceGate = () => false;
+  bridgeHolds({ parts: { surfaceGate: () => false } });
   try {
     const { tree } = mount("#/inbox");
     assert.ok(!byClass(tree, "skel"), "no skeleton");
@@ -356,7 +360,7 @@ test("a route whose surface has not landed is an empty pane that says it is read
     assert.equal(inside.length, 1, "the pane holds the one line and nothing else: no skeleton, no page");
     assert.equal(inside[0], reading);
     assert.ok(timers.includes(8000), "the unavailable pane still comes after eight seconds");
-    win.__surfaceGate = () => true;
+    bridgeHolds({ parts: { surfaceGate: () => true } });
     const landed = mount("#/inbox");
     const viewLanded = byClass(landed.tree, "route-view");
     assert.notEqual(viewLanded.props.key, view.props.key, "keyed on readiness: the page fades in as it lands");
@@ -368,7 +372,7 @@ test("a route whose surface has not landed is an empty pane that says it is read
     );
   } finally {
     globalThis.setTimeout = keepTimeout;
-    delete win.__surfaceGate;
+    bridgeHolds({ parts: { surfaceGate: undefined } });
   }
 });
 
@@ -395,8 +399,8 @@ test("Today waits for the card it draws above its queue, and once its own read i
     setDeep(true);
     return tree;
   };
-  win.__routeWaitMs = 3000;
-  win.__surfaceGate = (page, param, own) => !!own;
+  bridgeHolds({ parts: { routeWaitMs: 3000 } });
+  bridgeHolds({ parts: { surfaceGate: (page, param, own) => !!own } });
   try {
     const held = mount("#/today");
     assert.ok(!find(held.tree, (n) => n.type === "RoutePage"), "the queue is not drawn under a card still on its way");
@@ -410,16 +414,20 @@ test("Today waits for the card it draws above its queue, and once its own read i
     // The wait counts from Today's own surface landing, not from arriving: a slow own read that used the whole wait
     // would draw the moment it landed, and the card would still push the queue down.
     const told = [];
-    win.__onSurfaceReady = (fn) => {
-      told.push(fn);
-      return () => {};
-    };
-    win.__surfaceGate = () => false;
+    bridgeHolds({
+      parts: {
+        onSurfaceReady: (fn) => {
+          told.push(fn);
+          return () => {};
+        },
+      },
+    });
+    bridgeHolds({ parts: { surfaceGate: () => false } });
     due.clear();
     mount("#/today");
     assert.ok(!due.has(3000), "REGRESSION: the wait ran from arriving, before Today's own surface was in");
     assert.ok(!find(redraw(), (n) => n.type === "RoutePage"), "a page whose own surface is not in keeps reading");
-    win.__surfaceGate = (page, param, own) => !!own;
+    bridgeHolds({ parts: { surfaceGate: (page, param, own) => !!own } });
     for (const fn of told) fn();
     assert.ok(due.has(3000), "armed as Today's own surface lands");
     due.get(3000)();
@@ -429,9 +437,9 @@ test("Today waits for the card it draws above its queue, and once its own read i
     );
   } finally {
     globalThis.setTimeout = keepTimeout;
-    delete win.__surfaceGate;
-    delete win.__onSurfaceReady;
-    delete win.__routeWaitMs;
+    bridgeHolds({ parts: { surfaceGate: undefined } });
+    bridgeHolds({ parts: { onSurfaceReady: undefined } });
+    bridgeHolds({ parts: { routeWaitMs: undefined } });
   }
 });
 
@@ -489,13 +497,13 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   assert.equal(view(go("#/clients")).props.key, view(tree).props.key, "and the list, coming back from them");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
   // A page landing where the reading pane stood fades in, even on the page the reading pane was for.
-  win.__surfaceGate = () => false;
+  bridgeHolds({ parts: { surfaceGate: () => false } });
   try {
     assert.equal(stays(go("#/clients/leads")), false, "the reading pane never stays");
-    win.__surfaceGate = () => true;
+    bridgeHolds({ parts: { surfaceGate: () => true } });
     assert.equal(stays(go("#/clients/leads")), false, "the page that lands where it stood fades in");
   } finally {
-    delete win.__surfaceGate;
+    bridgeHolds({ parts: { surfaceGate: undefined } });
   }
 });
 

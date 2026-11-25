@@ -14,6 +14,7 @@ import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { installStubReact, fresh, again, all, find, byTestId, textOf } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
 const { PL_COLUMNS, PL_CARD } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -431,7 +432,8 @@ test("the six are the six worth most: an ask to book from today is drawn first, 
 
 // Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
 // seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("./zones/_on-today.mjs");
 const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
@@ -444,7 +446,8 @@ const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surf
  */
 const rowsDrawn = (vm, runs) => {
   setSurfaceValue("today", vm);
-  Object.assign(globalThis, { __BROADCASTS: runs ? { rows: runs } : undefined });
+  bridgeHolds({ values: { broadcasts: runs ? { rows: runs } : undefined } });
+  Object.assign(globalThis, {});
   fresh();
   try {
     const tree = again(() => NeedYou());
@@ -459,7 +462,7 @@ const rowsDrawn = (vm, runs) => {
     return { tree, testids: lines.map((n) => n.props["data-testid"]) };
   } finally {
     setSurfaceValue("today", undefined);
-    delete globalThis.__BROADCASTS;
+    bridgeHolds({ values: { broadcasts: undefined } });
   }
 };
 

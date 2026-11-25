@@ -3675,12 +3675,12 @@ select.rec-input :is(option, optgroup) {
 .rec-combo-group + .rec-combo-group {
   border-top: 1px solid var(--line);
 }
+/* A group's name in sentence case, in the text face, as a menu's group says it (the phone change list's D1, 25 Nov
+   2026: spaced capitals, "COLD EMAIL"). */
 .rec-combo-group-label {
   padding: 8px 10px 4px;
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
   color: var(--ink-dim);
 }
 .rec-combo-opt:has(> .rec-combo-words) {
@@ -6758,11 +6758,13 @@ textarea.rec-input,
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
+/* Its lines broken so no word stands alone on the last (the phone change list's D4, 25 Nov 2026: Today's "morning."). */
 .pg-sentence {
   margin: 0;
   font-size: var(--text-md);
   line-height: var(--leading-snug);
   color: var(--ink-muted);
+  text-wrap: pretty;
 }
 /* A phone's head is the page's name alone (the canvases' phone boards): the sentence is a desk's, and the rows under
    the head carry what it said. */

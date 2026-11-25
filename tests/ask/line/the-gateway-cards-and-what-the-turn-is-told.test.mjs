@@ -21,6 +21,7 @@ import {
 import { importSrc, readCode, readRaw } from "../../_source.mjs";
 import { fromContext } from "../../../tooling/scripts/eval-ask-context.mjs";
 import { ACT_TOOLS, ASK_RULES, ID, ID2, NOW, READ_TOOLS, foldHistory, here } from "./_line.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 test("the gateway's usage tee reads the counts out of a passing stream and reports once at the end", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/ai/ask-gateway.ts")).href);
@@ -500,10 +501,12 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   // Whoever may approve in the workspace is offered cards, as the pages' canDo("approve"), and a viewer none: the
   // palette's own suggestions, by the role signed in (pinned as palette.ts's text until 25 Nov 2026).
   const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
-  const cards = (role) =>
-    askPalette({ __ME: { role } }, null)
+  const cards = (role) => {
+    bridgeHolds({ who: { me: { role } } });
+    return askPalette({}, null)
       .suggestions("settings", { kind: "person", id: ID, label: "Rosa" }, "en")
       .filter((x) => x.kind === "act").length;
+  };
   for (const role of ["owner", "operator"]) assert.ok(cards(role) >= 3, `${role}: cards to finish`);
   assert.equal(cards("viewer"), 0, "a viewer is offered none");
 });

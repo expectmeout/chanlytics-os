@@ -6,7 +6,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { personInitials, type PhoneDto } from "@chanlytics/contracts";
 import { ALERT_ADDRESSES_MIN, ALERT_PANE_WORDS as W, phoneLine } from "@chanlytics/contracts/alert-pane";
-import type { BellApi } from "@/bridge/notifications";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -14,7 +13,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField, RecordSwitch } from "../../kit/record/field";
 import { RecordChips, RecordRow } from "../../kit/record/row";
 import { gateTitle, showTip, type GateProps, type FrameFlash } from "../../frame-verbs";
-import { object } from "../../shell-doors";
+import { provided } from "@/bridge/provided";
 
 /** An address on the list, and whose it is: a teammate's name and face, "you", or no teammate. */
 interface AlertAddress {
@@ -219,7 +218,7 @@ function PhonesRow({ phones, now }: { phones: PhoneDto[]; now: number }) {
  * refused says so, since only its own settings can let alerts through again.
  */
 function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
-  const api = object<BellApi>("__notifs") ?? null;
+  const api = provided("bell") ?? null;
   const [alerts, setAlerts] = useState(() => api?.alerts() ?? null);
   // Whether the server tells this browser is the browser's to answer, a moment after the bell is installed.
   useEffect(() => api?.onChange(() => setAlerts(api.alerts())), [api]);

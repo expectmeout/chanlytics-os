@@ -35,6 +35,7 @@ import {
   wire,
   wrote,
 } from "./_people-page.mjs";
+import { surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 /* --------------------------- the surface, every page --------------------------- */
 
@@ -45,7 +46,7 @@ test("REGRESSION (B7): People reads every page before it counts -- a list, a cou
     lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p3"] }],
   });
   await peopleOverride.apply();
-  const P = globalThis.window.__PEOPLE;
+  const P = surfaceValue("people");
   assert.deepEqual(seen.offsets, [0, 2], "the second page was read before anything was counted");
   assert.equal(P.rows.length, 3, "REGRESSION: the rows were the first page, and a refresh put them back to it");
   assert.equal(
@@ -65,7 +66,7 @@ test("past fifty pages the surface stops and says more follow, and a search answ
   });
   await peopleOverride.apply();
   assert.equal(seen.offsets.length, 50, "a chain of pages that never ends cannot hang the surface");
-  assert.equal(globalThis.window.__PEOPLE.page.has_more, true);
+  assert.equal(surfaceValue("people").page.has_more, true);
   const r = await peopleSearch("rosa");
   assert.deepEqual(
     r.rows.map((p) => p.id),
@@ -77,19 +78,19 @@ test("past fifty pages the surface stops and says more follow, and a search answ
 test("REGRESSION (B27): a saved-lists read that fails leaves People standing and says so -- it took People, every profile and Lists down", async () => {
   wire({ people: [person(1)], listsFail: true });
   await quietly(() => peopleOverride.apply());
-  const P = globalThis.window.__PEOPLE;
+  const P = surfaceValue("people");
   assert.equal(P.rows.length, 1, "the people are there");
   assert.equal(P.savedRead, false);
   assert.deepEqual(P.saved, []);
   wire({ people: [person(1)], lists: [] });
   await peopleOverride.apply();
-  assert.equal(globalThis.window.__PEOPLE.savedRead, true, "a read that lands, even of no lists, is read");
+  assert.equal(surfaceValue("people").savedRead, true, "a read that lands, even of no lists, is read");
 });
 
 test("a saved list keeps every member the server holds, for an Undo, and counts only the people still here", async () => {
   wire({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p-erased"] }] });
   await peopleOverride.apply();
-  const s1 = globalThis.window.__PEOPLE.saved[0];
+  const s1 = surfaceValue("people").saved[0];
   assert.deepEqual([s1.count, s1.ids], [1, ["p1"]], "an erased person never counts");
   assert.deepEqual(s1.members, ["p1", "p-erased"], "who is on it, as the server keeps it");
 });
@@ -100,10 +101,10 @@ test("a refresh keeps every row, list and need that did not change as the object
   const lists = [{ id: "s1", name: "Regulars", ids: ["p1", "p3"] }];
   wire({ people: [person(1), person(2), person(3)], lists });
   await peopleOverride.apply();
-  const before = globalThis.window.__PEOPLE;
+  const before = surfaceValue("people");
   wire({ people: [person(1), person(2, { display_name: "Rosa Changed" }), person(3)], lists });
   await peopleOverride.apply();
-  const after = globalThis.window.__PEOPLE;
+  const after = surfaceValue("people");
   const row = (P, id) => P.rows.find((r) => r.id === id);
   assert.notEqual(after, before, "what was published is new: something changed");
   assert.equal(row(after, "p1"), row(before, "p1"), "a person who did not change is the row they were");
@@ -114,8 +115,8 @@ test("a refresh keeps every row, list and need that did not change as the object
   assert.equal(after.saved, before.saved, "the lists, unchanged, are the lists they were");
   // Read again with nothing changed: the rows and the needs are the very objects the table already drew.
   await peopleOverride.apply();
-  assert.equal(globalThis.window.__PEOPLE.rows, after.rows);
-  assert.equal(globalThis.window.__PEOPLE.attention, after.attention);
+  assert.equal(surfaceValue("people").rows, after.rows);
+  assert.equal(surfaceValue("people").attention, after.attention);
 });
 
 test("REGRESSION (B14): Enter or Space on a focused button presses that button -- it opened the profile under the cursor instead", async () => {
@@ -155,7 +156,7 @@ test("REGRESSION (B22): a list made on the rail says so and is the one shown -- 
     `REGRESSION: nothing said the list was made: ${JSON.stringify(flashes.map((f) => textOf(f.msg)))}`,
   );
   // The surface re-reads after the write; here the list arrives as the server keeps it.
-  globalThis.window.__PEOPLE.saved = [{ id: "s9", name: "Regulars", count: 0, ids: [], members: [] }];
+  surfaceValue("people").saved = [{ id: "s9", name: "Regulars", count: 0, ids: [], members: [] }];
   tree = draw();
   const chip = byTestId(tree, "saved-filter");
   assert.ok(chip && textOf(chip).includes("Regulars"), "the new list is the one shown");
@@ -169,7 +170,7 @@ test("an archived list leaves the rail for one quiet line, and one press brings 
       { id: "s2", name: "VIP", ids: ["p1"], archived_at: "2026-09-20T12:00:00.000Z" },
     ],
   });
-  const P = globalThis.window.__PEOPLE;
+  const P = surfaceValue("people");
   assert.deepEqual(
     P.saved.map((l) => l.id),
     ["s1"],
@@ -375,7 +376,7 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
     // Past everyone loaded, the server finds Saturday Jones (the route the box asks: GET contacts?q=).
     search: () => ({ people: [person(99, { display_name: "Saturday Jones" })], total: 1, has_more: false }),
   });
-  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
+  surfaceValue("people").page = { ...surfaceValue("people").page, total: 60000, has_more: true };
   draw();
   lineBox().props.onChange({
     target: { value: "saturday" },
@@ -409,7 +410,7 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
 
 test("REGRESSION: past a page of people, the line under the table stands in the table's gutter -- its own padding put its words at the pane's edge", async () => {
   await freshPage({ people: [person(1), person(2)] });
-  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 1240, has_more: true };
+  surfaceValue("people").page = { ...surfaceValue("people").page, total: 1240, has_more: true };
   const more = byTestId(draw(), "people-more");
   assert.ok(more, "more people than a page: the line is drawn");
   assert.equal(textOf(more), "2 of 1,240 loaded Show more", "the count, then the one button");

@@ -19,6 +19,7 @@ import { keptShow, type CalendarShow } from "./runs-surface";
 import { crTyping } from "./board-dom";
 import { calendar } from "./verbs";
 import { CR_OVERLAY, CR_WARM_MS } from "./words";
+import { provided } from "@/bridge/provided";
 
 type Span = { from: string; days: number };
 
@@ -60,7 +61,7 @@ export function useCalendarState(initialDay: string | null, heldLeft: number) {
   const [show, setShowState] = useState<CalendarShow>(keptShow);
   const setShow = (next: CalendarShow) => {
     setShowState(next);
-    if (typeof window !== "undefined") window.__tabMemory?.keepPlace("calendar", "show", { ...next });
+    provided("tabMemory")?.keepPlace("calendar", "show", { ...next });
   };
   // The phone's month (D7): the day picked, whose rows stand under it; null for the anchor's.
   const [monthPick, setMonthPick] = useState<string | null>(null);

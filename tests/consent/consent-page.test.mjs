@@ -24,6 +24,7 @@ import {
   deskSignVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const salon = { businessName: "Marisa's Beauty Salon", whatsappE164: "+13055550188", smsE164: null };
 
@@ -330,11 +331,15 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   // The owner's Get their yes names that address, and says why it is there: drawn (its pane at broadcasts/get-yes,
   // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
   const { installStubReact, fresh, byTestId, textOf } = await import("../_stub-react.mjs");
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "t-marisa", slug: "marisas", name: "Marisa's", status: "active", timezone: "America/New_York" },
+      ],
+      activeWorkspaceId: "t-marisa",
+    },
+  });
   installStubReact({
-    __WORKSPACES: [
-      { id: "t-marisa", slug: "marisas", name: "Marisa's", status: "active", timezone: "America/New_York" },
-    ],
-    __ACTIVE_WORKSPACE: "t-marisa",
     usePPToast: () => [null, () => {}],
     canDo: () => true,
     gate: () => ({}),
@@ -376,7 +381,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   );
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.ok(
-    sd.includes("const slug = workspaceOverride.current()?.slug ?? null;") &&
+    sd.includes("const slug = currentWorkspace()?.slug ?? null;") &&
       sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"),
     "the address is built from the workspace being viewed",
   );

@@ -12,6 +12,7 @@
  */
 import { importSrc } from "../../_source.mjs";
 import { PLUMBING, getsOfFile, readsOf, registeredSurfaces, traceRoutes, unheardReads } from "./_reads.mjs";
+import { whoIsLooking } from "../_bridge-holds.mjs";
 
 /** The window a surface's rules read, stood in for where nothing has set one: an address, a document, a workspace. */
 export function standInWindow() {
@@ -28,8 +29,10 @@ export function standInWindow() {
       this.detail = init?.detail;
     }
   };
-  globalThis.__WORKSPACES ??= [{ id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" }];
-  globalThis.__ACTIVE_WORKSPACE ??= "t1";
+  whoIsLooking().workspaces ??= [
+    { id: "t1", slug: "studio", name: "A", status: "active", timezone: "America/New_York" },
+  ];
+  whoIsLooking().activeWorkspaceId ??= "t1";
 }
 
 /** A person's id as a real one is written (the registry takes a person's page for a uuid alone). */

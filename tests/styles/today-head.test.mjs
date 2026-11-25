@@ -7,8 +7,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
 const { todayGreeting } = await import("../../apps/dashboard/src/surfaces/today/chrome.ts");
 const { PageHead } = await import("../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 

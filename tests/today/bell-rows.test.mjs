@@ -20,6 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -361,7 +362,7 @@ test("a note is one press that does what it says, named by where it goes; nothin
       actions: [{ label: "Open Leads", to: "clients/leads", primary: true }],
     },
   ];
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   const tree = again(() => popover(rows, acts));
   const notes = all(tree, (n) => classes(n).includes("tbn-item"));
   assert.equal(notes.length, 1);
@@ -397,7 +398,7 @@ test("a group is one line saying how many; a press opens its notes under it, eac
       actions: [{ label: "Open the calls", to: "conversations/phone", primary: true }],
     },
   ];
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   let tree = again(() => popover(rows, acts));
   const head = find(tree, (n) => classes(n).includes("tbn-item-group"));
   assert.ok(head, "one line for the two");
@@ -416,7 +417,7 @@ test("a group is one line saying how many; a press opens its notes under it, eac
 
 test("the mockup's bell, with no sections of its own, still stands unread above earlier", () => {
   fresh();
-  W.__notifs = undefined;
+  bridgeHolds({ parts: { bell: undefined } });
   const tree = again(() => popover([bellRow("a", "call", "A"), bellRow("b", "call", "B", false)]));
   assert.deepEqual(all(tree, (n) => classes(n).includes("tbn-sec")).map(textOf), ["Unread", "Earlier"]);
   assert.equal(all(tree, (n) => classes(n).includes("tbn-item")).length, 2, "not folded");
@@ -442,7 +443,7 @@ const checksOf = (node) => all(node, (n) => classes(n).includes("tbn-read"));
 test("an unread note carries a check that reads it without opening it; a read note has none", () => {
   fresh();
   const acts = {};
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   const items = [bellRow("a", "needs_you", "Note a"), bellRow("b", "review", "Note b", false)];
   const tree = again(() => checked(items, acts));
   const [unread, read] = all(tree, (n) => classes(n).includes("tbn-item"));
@@ -460,7 +461,7 @@ test("an unread note carries a check that reads it without opening it; a read no
 test("a group's check reads every unread note under it in one press, and only those", () => {
   fresh();
   const acts = {};
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   const calls = [
     bellRow("c1", "call", "Ana phoned"),
     bellRow("c2", "call", "Bo phoned"),
@@ -487,7 +488,7 @@ test("a group's check reads every unread note under it in one press, and only th
 test("a bell that reads no group as one reads each of its notes", () => {
   fresh();
   const acts = {};
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   const calls = [
     bellRow("c1", "call", "Ana phoned"),
     bellRow("c2", "call", "Bo phoned", false),
@@ -579,7 +580,7 @@ const three = () => [
 test("slid left past a third, a note leaves, folds shut, then goes; Undo finds it open again", () =>
   onPhone(async () => {
     fresh();
-    W.__notifs = { sections: bellSections };
+    bridgeHolds({ parts: { bell: { sections: bellSections } } });
     const h = heard();
     let items = three();
     let tree = again(() => thumbed(items, h));
@@ -605,7 +606,7 @@ test("slid left past a third, a note leaves, folds shut, then goes; Undo finds i
 test("slid right, an unread note is marked read where it stands and comes back; a read note does not move", () =>
   onPhone(async () => {
     fresh();
-    W.__notifs = { sections: bellSections };
+    bridgeHolds({ parts: { bell: { sections: bellSections } } });
     const h = heard();
     let items = three();
     let tree = again(() => thumbed(items, h));
@@ -639,7 +640,7 @@ test("slid right, an unread note is marked read where it stands and comes back; 
 test("the × folds a note the same way, and under reduced motion a dismissed note goes at once", () =>
   onPhone(async () => {
     fresh();
-    W.__notifs = { sections: bellSections };
+    bridgeHolds({ parts: { bell: { sections: bellSections } } });
     const h = heard();
     const tree = again(() => thumbed(three(), h));
     press(find(notes(tree)[1], (n) => classes(n).includes("tbn-x")));
@@ -655,7 +656,7 @@ test("the × folds a note the same way, and under reduced motion a dismissed not
 
 test("on a desk nothing slides: a mouse has the × and the note's own press", () => {
   fresh();
-  W.__notifs = { sections: bellSections };
+  bridgeHolds({ parts: { bell: { sections: bellSections } } });
   const h = heard();
   const tree = again(() => thumbed(three(), h));
   const el = box();
@@ -757,28 +758,32 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
   const flashes = [];
   const pressed = { seen: 0, read: 0, undone: 0 };
   W.usePPToast = () => [null, (p) => flashes.push(p)];
-  W.__notifs = {
-    feed: () => [
-      { id: "n-1", kind: "booking", title: "1 booked", message: "Tove Lind", at: 0, unread: true, actions: [] },
-    ],
-    alerts: () => null,
-    onChange: () => () => undefined,
-    older: () => 0,
-    // Three are new since the look, though one row wears a dot here: the badge says the bell's number, not its dots.
-    unread: () => 3,
-    seenAll: () => void (pressed.seen += 1),
-    readAll: () => {
-      pressed.read += 1;
-      return {
-        read: 4,
-        saved: Promise.resolve(true),
-        undo: () => {
-          pressed.undone += 1;
-          return Promise.resolve(true);
+  bridgeHolds({
+    parts: {
+      bell: {
+        feed: () => [
+          { id: "n-1", kind: "booking", title: "1 booked", message: "Tove Lind", at: 0, unread: true, actions: [] },
+        ],
+        alerts: () => null,
+        onChange: () => () => undefined,
+        older: () => 0,
+        // Three are new since the look, though one row wears a dot here: the badge says the bell's number, not its dots.
+        unread: () => 3,
+        seenAll: () => void (pressed.seen += 1),
+        readAll: () => {
+          pressed.read += 1;
+          return {
+            read: 4,
+            saved: Promise.resolve(true),
+            undo: () => {
+              pressed.undone += 1;
+              return Promise.resolve(true);
+            },
+          };
         },
-      };
+      },
     },
-  };
+  });
   const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
   const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
   try {
@@ -804,7 +809,7 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
     assert.equal(pressed.undone, 1, "Undo is the bell's own way back");
   } finally {
     unmount();
-    delete W.__notifs;
+    bridgeHolds({ parts: { bell: undefined } });
     delete W.usePPToast;
   }
 });
@@ -829,7 +834,7 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
   const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
   const signOf = (tree) => find(tree, (n) => classes(n).includes("tb-bell-unread"));
   try {
-    W.__notifs = bellWith(notes);
+    bridgeHolds({ parts: { bell: bellWith(notes) } });
     fresh();
     const looked = draw();
     assert.ok(signOf(looked), "REGRESSION: once looked at, the closed bell said nothing though two notes were unread");
@@ -842,10 +847,14 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     assert.equal(bellOf(looked).props["data-tip"], "2 unread");
     unmount();
 
-    W.__notifs = bellWith(
-      notes.map((n) => ({ ...n, unread: false })),
-      0,
-    );
+    bridgeHolds({
+      parts: {
+        bell: bellWith(
+          notes.map((n) => ({ ...n, unread: false })),
+          0,
+        ),
+      },
+    });
     fresh();
     const read = draw();
     assert.equal(signOf(read), null, "read, the bell is plain");
@@ -856,7 +865,7 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     // The closed bell is for news (decision 0137): a note about what Need you counts wears its dot in the list and is
     // no part of the sign, since the one count says it on the Inbox's badge.
     const counted = { id: "needs:th-1", kind: "needs_you", title: "Ana needs you", message: "", at: 0, actions: [] };
-    W.__notifs = bellWith([{ ...counted, unread: true, in_need_you: true }]);
+    bridgeHolds({ parts: { bell: bellWith([{ ...counted, unread: true, in_need_you: true }]) } });
     fresh();
     const waits = draw();
     assert.equal(signOf(waits), null, "REGRESSION: one person waiting was the Inbox's badge and the bell's sign too");
@@ -870,7 +879,7 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     );
   } finally {
     unmount();
-    delete W.__notifs;
+    bridgeHolds({ parts: { bell: undefined } });
     delete W.usePPToast;
   }
 });
@@ -881,14 +890,18 @@ test("the bell's foot is the door to Settings › Notifications, where this brow
   const hadNav = W.CHANLY;
   W.CHANLY = { ...(hadNav ?? {}), nav: (to) => went.push(to) };
   let looks = 0;
-  W.__notifs = {
-    feed: () => [],
-    alerts: () => ({ on: false, can: true, permission: "default", by: "push", needsHomeScreen: false }),
-    onChange: () => () => undefined,
-    older: () => 0,
-    unread: () => 0,
-    seenAll: () => void (looks += 1),
-  };
+  bridgeHolds({
+    parts: {
+      bell: {
+        feed: () => [],
+        alerts: () => ({ on: false, can: true, permission: "default", by: "push", needsHomeScreen: false }),
+        onChange: () => () => undefined,
+        older: () => 0,
+        unread: () => 0,
+        seenAll: () => void (looks += 1),
+      },
+    },
+  });
   const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
   const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
   const notesOf = (tree) => find(tree, (n) => typeof n.props?.onReadAll === "function");
@@ -907,7 +920,7 @@ test("the bell's foot is the door to Settings › Notifications, where this brow
     assert.equal(looks, 1, "which is a look, as any close is");
   } finally {
     unmount();
-    delete W.__notifs;
+    bridgeHolds({ parts: { bell: undefined } });
     delete W.usePPToast;
     if (hadNav === undefined) delete W.CHANLY;
     else W.CHANLY = hadNav;
@@ -918,15 +931,21 @@ test("a Mark all read, or an Undo, the server did not take is said in plain word
   const flashes = [];
   W.usePPToast = () => [null, (p) => flashes.push(p)];
   const took = { read: false, undo: false };
-  W.__notifs = {
-    feed: () => [{ id: "n-1", kind: "booking", title: "1 booked", message: "Tove", at: 0, unread: true, actions: [] }],
-    alerts: () => null,
-    onChange: () => () => undefined,
-    older: () => 0,
-    unread: () => 1,
-    seenAll() {},
-    readAll: () => ({ read: 1, saved: Promise.resolve(took.read), undo: () => Promise.resolve(took.undo) }),
-  };
+  bridgeHolds({
+    parts: {
+      bell: {
+        feed: () => [
+          { id: "n-1", kind: "booking", title: "1 booked", message: "Tove", at: 0, unread: true, actions: [] },
+        ],
+        alerts: () => null,
+        onChange: () => () => undefined,
+        older: () => 0,
+        unread: () => 1,
+        seenAll() {},
+        readAll: () => ({ read: 1, saved: Promise.resolve(took.read), undo: () => Promise.resolve(took.undo) }),
+      },
+    },
+  });
   const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
   const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
   const readAll = () => find(again(draw), (n) => typeof n.props?.onReadAll === "function").props.onReadAll();
@@ -953,7 +972,7 @@ test("a Mark all read, or an Undo, the server did not take is said in plain word
     assert.equal(said().at(-1), "Undo didn't save, so those notes stay read.");
   } finally {
     unmount();
-    delete W.__notifs;
+    bridgeHolds({ parts: { bell: undefined } });
     delete W.usePPToast;
   }
 });

@@ -58,6 +58,7 @@ import {
   textOf,
   typed,
 } from "./_palette.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ the quick path (the review's A1) ------------------------------ */
 
@@ -83,7 +84,7 @@ test("REGRESSION (the review's A1): an ordinary question goes to the model, wher
 });
 
 test("REGRESSION (the review's A1): a quick answer is a turn of a conversation -- kept, listed in Earlier, drawn above the next question, which is asked in its thread", async () => {
-  globalThis.window.TODAY_DATA = askQueue();
+  bridgeHolds({ values: { today: askQueue() } });
   try {
     const calls = ask([]);
     askCalls().send = async (input, on) => {
@@ -123,7 +124,7 @@ test("REGRESSION (the review's A1): a quick answer is a turn of a conversation -
     assert.ok(earlier[0].startsWith("who needs me?"), earlier[0]);
     await closes();
   } finally {
-    delete globalThis.window.TODAY_DATA;
+    bridgeHolds({ values: { today: undefined } });
   }
 });
 
@@ -821,7 +822,7 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
   const pills = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf);
   const fold = (tree) => byTestId(tree, "ask-rows-fold").props.className;
   try {
-    globalThis.window.TODAY_DATA = askQueue();
+    bridgeHolds({ values: { today: askQueue() } });
     ask([]);
     render(Palette, props);
     let tree = await later(Palette, props);
@@ -890,7 +891,7 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
     );
     await closes();
   } finally {
-    delete globalThis.window.TODAY_DATA;
+    bridgeHolds({ values: { today: undefined } });
     ph.restore();
     Object.assign(mood, had);
   }

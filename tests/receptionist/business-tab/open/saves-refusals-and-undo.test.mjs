@@ -45,13 +45,14 @@ import {
   W,
 } from "../../../_business-tab-harness.mjs";
 import { calendarRead, copyTo, place, readOk, setSurfaceValue, surfaceValue } from "./_open.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("a stale read whose refresh failed says so where the read would be, with a Retry, and never goes on stating the old one", async () => {
   // The spec review's probe: FailedRead drew only when there was no surface at all, so a read from half an hour ago
   // whose refresh had failed was stated as if nothing had happened, or not stated and not explained.
-  const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
+  const was = { calendar: provided("calendar"), failed: provided("surfaceFailed") };
   const answers = [];
-  W.__calendar = { refresh: () => new Promise((resolve) => answers.push(resolve)) };
+  bridgeHolds({ parts: { calendar: { refresh: () => new Promise((resolve) => answers.push(resolve)) } } });
   try {
     setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     let tree = drawTab();
@@ -83,15 +84,15 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
     assert.equal(byTestId(tree, "rec-calendar-unread"), null);
     // A refresh that throws is a refresh that failed.
-    W.__calendar = { refresh: () => Promise.reject(new Error("offline")) };
+    bridgeHolds({ parts: { calendar: { refresh: () => Promise.reject(new Error("offline")) } } });
     setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     tree = drawTab();
     await settle();
     tree = redrawTab();
     assert.ok(byTestId(tree, "rec-calendar-unread"));
     // And the runner's own word for it counts too: the surface is marked failed, with a stale read still in the window.
-    W.__calendar = { refresh: () => new Promise(() => {}) };
-    W.__surfaceFailed = (key) => key === "calendar";
+    bridgeHolds({ parts: { calendar: { refresh: () => new Promise(() => {}) } } });
+    bridgeHolds({ parts: { surfaceFailed: (key) => key === "calendar" } });
     setSurfaceValue("calendar", calendarRead(readOk(), 30 * 60000));
     tree = drawTab();
     assert.deepEqual([!!byTestId(tree, "rec-calendar-unread"), byTestId(tree, "rec-calendar-read")], [true, null]);
@@ -108,10 +109,10 @@ test("a stale read whose refresh failed says so where the read would be, with a 
     assert.deepEqual([byTestId(tree, "rec-calendar-unread"), !!byTestId(tree, "rec-calendar-read")], [null, true]);
   } finally {
     setSurfaceValue("calendar", undefined);
-    if (was.calendar) W.__calendar = was.calendar;
-    else delete W.__calendar;
-    if (was.failed) W.__surfaceFailed = was.failed;
-    else delete W.__surfaceFailed;
+    if (was.calendar) bridgeHolds({ parts: { calendar: was.calendar } });
+    else bridgeHolds({ parts: { calendar: undefined } });
+    if (was.failed) bridgeHolds({ parts: { surfaceFailed: was.failed } });
+    else bridgeHolds({ parts: { surfaceFailed: undefined } });
   }
 });
 
@@ -219,13 +220,17 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
   const flash = (f) => flashes.push(f);
   let answer = null;
   const asked = [];
-  W.__workspace = {
-    setTimezone: (tz) =>
-      new Promise((resolve) => {
-        asked.push(tz);
-        answer = () => resolve({ ok: true, tz, message: "" });
-      }),
-  };
+  bridgeHolds({
+    parts: {
+      workspace: {
+        setTimezone: (tz) =>
+          new Promise((resolve) => {
+            asked.push(tz);
+            answer = () => resolve({ ok: true, tz, message: "" });
+          }),
+      },
+    },
+  });
   try {
     let tree = drawTab({ flash });
     openFold(tree, "timezone");
@@ -264,7 +269,7 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
     assert.deepEqual([openRows(tree), W.__settingsSaving()], [[], false]);
     assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Your day is measured in Chicago now.");
   } finally {
-    delete W.__workspace;
+    bridgeHolds({ parts: { workspace: undefined } });
   }
 });
 
@@ -274,12 +279,16 @@ test("after the calendar's address is saved, nothing is said of a read until the
   // reads the calendar again (refresh-map.ts), and what that finds is stated when it lands.
   const sent = saving();
   const asked = [];
-  W.__calendar = {
-    refresh: () => {
-      asked.push("refresh");
-      return new Promise(() => {});
+  bridgeHolds({
+    parts: {
+      calendar: {
+        refresh: () => {
+          asked.push("refresh");
+          return new Promise(() => {});
+        },
+      },
     },
-  };
+  });
   try {
     setSurfaceValue("calendar", calendarRead(readOk()));
     let tree = drawTab();
@@ -313,7 +322,7 @@ test("after the calendar's address is saved, nothing is said of a read until the
     assert.equal(textOf(byTestId(tree, "rec-calendar-read")), surfaceValue("calendar").vm.feed.read);
   } finally {
     setSurfaceValue("calendar", undefined);
-    delete W.__calendar;
+    bridgeHolds({ parts: { calendar: undefined } });
   }
 });
 
@@ -322,13 +331,17 @@ test("a re-read after the calendar's address is saved that fails says so, with i
   // had failed, so a re-read that FAILED left the row blank for good: the read in the window stays the old calendar's.
   const sent = saving();
   const asked = [];
-  const was = W.__surfaceFailed;
-  W.__calendar = {
-    refresh: () => {
-      asked.push("refresh");
-      return new Promise(() => {});
+  const was = provided("surfaceFailed");
+  bridgeHolds({
+    parts: {
+      calendar: {
+        refresh: () => {
+          asked.push("refresh");
+          return new Promise(() => {});
+        },
+      },
     },
-  };
+  });
   try {
     setSurfaceValue("calendar", calendarRead(readOk()));
     let tree = drawTab();
@@ -347,7 +360,7 @@ test("a re-read after the calendar's address is saved that fails says so, with i
       "while the save's re-read is on its way, nothing",
     );
     // The save's own re-read fails: the runner marks the surface failed, and the old calendar's read stays in the window.
-    W.__surfaceFailed = (key) => key === "calendar";
+    bridgeHolds({ parts: { surfaceFailed: (key) => key === "calendar" } });
     tree = redrawTab();
     assert.match(
       textOf(byTestId(tree, "rec-calendar-unread")),
@@ -364,9 +377,9 @@ test("a re-read after the calendar's address is saved that fails says so, with i
     assert.equal(asked.length, 1, "its Retry asks again");
   } finally {
     setSurfaceValue("calendar", undefined);
-    delete W.__calendar;
-    if (was) W.__surfaceFailed = was;
-    else delete W.__surfaceFailed;
+    bridgeHolds({ parts: { calendar: undefined } });
+    if (was) bridgeHolds({ parts: { surfaceFailed: was } });
+    else bridgeHolds({ parts: { surfaceFailed: undefined } });
   }
 });
 
@@ -502,7 +515,9 @@ test("the page draws itself again when the settings surface is read again: the c
   );
   redrawTab();
   // The zone is saved and the settings surface read back: the workspace's list and the read's own preview name the new zone.
-  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "Pacific/Kiritimati" }];
+  bridgeHolds({
+    who: { workspaces: [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "Pacific/Kiritimati" }] },
+  });
   landSettings(settings(profile, {}, {}, "Pacific/Kiritimati"));
   quiet();
   W.dispatchEvent({ type: "surface:settings" });

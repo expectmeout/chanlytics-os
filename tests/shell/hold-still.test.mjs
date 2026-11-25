@@ -15,6 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "./_bridge-holds.mjs";
 
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", paddingBottom: "0px", ...over });
 globalThis.window = {
@@ -219,7 +220,7 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
   const warmed = [];
   const pages = [];
   const was = globalThis.window.CHANLY;
-  globalThis.window.__warmPerson = (id) => warmed.push(id);
+  bridgeHolds({ parts: { warmPerson: (id) => warmed.push(id) } });
   globalThis.window.CHANLY = { ...was, address: { href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } };
   try {
     const door = routeDoor(`clients/${ID}`);
@@ -236,7 +237,7 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
     globalThis.window.CHANLY = was;
     routeDoor("calendar").onFocus();
   } finally {
-    delete globalThis.window.__warmPerson;
+    bridgeHolds({ parts: { warmPerson: undefined } });
     globalThis.window.CHANLY = was;
   }
 });

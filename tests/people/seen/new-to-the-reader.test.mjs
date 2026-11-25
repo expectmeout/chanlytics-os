@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { isUnseen, noteWhose, seenBy, toInboxThreadVM, toPersonRowVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-10-07T14:00:00Z");
@@ -198,11 +199,16 @@ test("a bell row is about a person by what it says it is about, else by where it
 
 /* -------------------------------- the tab's store -------------------------------- */
 
-installStubReact({ __surfaceState: () => "live" });
+bridgeHolds({ parts: { surfaceState: () => "live" } });
+installStubReact({});
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's", status: "active", timezone: ZONE }],
+    activeWorkspaceId: "t1",
+  },
+});
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t1",
 });
 /** Every mark asked of the server: the person, which way, and how far the reader said they had seen. */
 const marks = [];
@@ -377,18 +383,22 @@ test("the bell's half: a person with a note still unread in the bell says so on 
     { id: "n:3", unread: false, about: { type: "contact", id: "p-quiet" }, actions: [{ to: "clients" }] },
     { id: "n:4", unread: true, about: { type: "broadcast", id: "b-1" }, actions: [{ to: "broadcasts" }] },
   ];
-  globalThis.window.__notifs = {
-    feed: () => rows,
-    read: (key) => {
-      noted.push(key);
-      rows.find((r) => r.id === key).unread = false;
-      hearers.forEach((h) => h());
+  bridgeHolds({
+    parts: {
+      bell: {
+        feed: () => rows,
+        read: (key) => {
+          noted.push(key);
+          rows.find((r) => r.id === key).unread = false;
+          hearers.forEach((h) => h());
+        },
+        onChange: (cb) => {
+          hearers.push(cb);
+          return () => {};
+        },
+      },
     },
-    onChange: (cb) => {
-      hearers.push(cb);
-      return () => {};
-    },
-  };
+  });
   const heard = ms(ago(40));
   const quiet = read(false, heard);
   assert.equal(unreadHere({ personId: "p-x", conversationId: "c-noted" }, quiet), true, "by their conversation");
@@ -410,7 +420,7 @@ test("the bell's half: a person with a note still unread in the bell says so on 
   await settle();
   assert.deepEqual(noted.slice(-1), ["n:5"]);
   assert.deepEqual(marks.splice(0), [], "the person was already marked: only the note is read");
-  delete globalThis.window.__notifs;
+  bridgeHolds({ parts: { bell: undefined } });
 });
 
 /* ---------------------------------- the rows ---------------------------------- */

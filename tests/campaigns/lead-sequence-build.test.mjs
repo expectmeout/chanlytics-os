@@ -19,15 +19,16 @@ import assert from "node:assert/strict";
 import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
+installStubReact({});
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   appNavigate: () => {},
   // The role store's gate (the frame's window.gate, canDo), over an owner and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  __roleGate: contracts.roleGate,
   useHotkey: () => {},
 });
 const SRC = "../../apps/dashboard/src";
