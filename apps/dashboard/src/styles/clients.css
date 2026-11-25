@@ -52,6 +52,9 @@
   gap: 6px;
 }
 .cl-rail-label .icon { color: var(--ink-faint); }
+/* A list's Delete and its question stand 8px after its title (list-title.tsx); a person's Back points back. */
+.cl-list-del { margin-left: 8px; }
+.icon.cl-prof-back-turn { transform: rotate(180deg); }
 
 .cl-rail-row {
   display: flex;

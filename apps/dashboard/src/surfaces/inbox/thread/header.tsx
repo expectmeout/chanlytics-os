@@ -408,7 +408,7 @@ function headerName(thread: Thread, personTo: string | null) {
       <span className="ix-th-name-words">{thread.who}</span>
       {/* They asked to stop: said beside the name, before the reply box turns into a banner (D1-stop-unseen). */}
       {thread.real && thread.optedOut && <StoppedMark testid="ix-th-stopped" />}
-      {thread.pinned && <Icon name="pin" size={11} style={{ color: "var(--ink-faint)" }} />}
+      {thread.pinned && <Icon name="pin" size={11} className="ix-th-pin" />}
       {thread.hasHumanContact && (
         <span className="ix-th-relation" title="Has spoken with a human before">
           <Icon name="users" size={10} />

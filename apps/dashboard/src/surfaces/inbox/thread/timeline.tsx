@@ -198,9 +198,7 @@ export const TimelineEntry = ({
     return (
       <div className={`tl-agent ${isDecision ? "decision" : "thinking"}`}>
         <span className="tl-agent-glyph">
-          <span className="agent-avatar" style={{ width: 18, height: 18, fontSize: 9 }}>
-            {thread.agent.glyph}
-          </span>
+          <span className="agent-avatar ix-tl-who">{thread.agent.glyph}</span>
         </span>
         <div className="tl-agent-body">
           <div className="tl-agent-head">

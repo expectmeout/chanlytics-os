@@ -1659,7 +1659,7 @@ export const FAMILIES = [
       { id: "pill-danger", html: `<span class="pill pill-danger" data-tone="danger">Failed</span>` },
       {
         id: "pill-accent",
-        html: `<span class="pill pill-accent" data-tone="accent"><span class="live-dot" style="width: 5px; height: 5px;"></span>On a call</span>`,
+        html: `<span class="pill pill-accent" data-tone="accent"><span class="live-dot"></span>On a call</span>`,
       },
       { id: "pill-glyph", html: `<span class="pill pill-ok" data-tone="ok">${icon("check", 11)}Sent</span>` },
       {

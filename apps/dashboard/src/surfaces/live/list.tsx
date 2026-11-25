@@ -145,12 +145,7 @@ export const LrList = ({ live, line, lineRead = true, activeId, elapsedOf, onSel
   // People's rows can land after the calls: each caller's business follows them (0052).
   usePeopleTrails();
   const order = live.map((c) => c.callId);
-  const dot = (
-    <span
-      className="live-dot"
-      style={{ width: 6, height: 6, ...(live.length ? {} : { opacity: 0.35, animation: "none" }) }}
-    />
-  );
+  const dot = <span className="live-dot lm-dot" data-quiet={live.length ? undefined : ""} />;
   return (
     <aside className="lm-list">
       <div className="lm-list-head">
