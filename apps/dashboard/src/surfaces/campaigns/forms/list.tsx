@@ -8,7 +8,7 @@
  * the page offers two starts: say what to collect, or connect the website's own form; past them, the connection is
  * always one press away (websiteDoorOf).
  */
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { agoWords, type FormListRowDto, type FormsDto, type OutsideFormRowDto } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { WEBSITE_FORM_WORDS } from "./website/words";
@@ -63,7 +63,11 @@ function useAsking(onMade: (formId: string) => void): [Asking, (sentence: string
   return [asking, say];
 }
 
-/** The head over the line. One moving thing: the three at work while AI drafts, still at rest. The words never move. */
+/**
+ * The head over the line. One moving thing: the three at work while AI drafts, and none at rest, where the line's own
+ * three already says who the words go to (Ruben, 25 Nov 2026: a coral three by the heading and another in the line, and
+ * the words hung off to the right of both). The words never move.
+ */
 function AskHead({
   head,
   drafting,
@@ -75,7 +79,11 @@ function AskHead({
 }) {
   return (
     <div className="fmv-ask-head" role={live ? "status" : undefined}>
-      <span className="fmv-three">{drafting ? <AskLooking looking /> : <Icon name="three" size={22} />}</span>
+      {drafting ? (
+        <span className="fmv-three">
+          <AskLooking looking />
+        </span>
+      ) : null}
       <div>
         <h3>{head.title}</h3>
         {head.body ? <p>{head.body}</p> : null}
@@ -84,8 +92,19 @@ function AskHead({
   );
 }
 
-/** The line to AI: what to collect. `first`: no form is made yet, so it leads the page with what it does. */
-function AskForForm({ first, onMade }: { first: boolean; onMade: (formId: string) => void }) {
+/**
+ * The line to AI: what to collect. `first`: no form is made yet, so it leads the page with what it does. `inputRef`: its
+ * field, which the head's New takes the thumb to.
+ */
+function AskForForm({
+  first,
+  onMade,
+  inputRef,
+}: {
+  first: boolean;
+  onMade: (formId: string) => void;
+  inputRef?: Ref<HTMLTextAreaElement>;
+}) {
   const [asking, say] = useAsking(onMade);
   const drafting = asking.state === "drafting";
   const head = askHeadOf(asking, first);
@@ -103,6 +122,7 @@ function AskForForm({ first, onMade }: { first: boolean; onMade: (formId: string
         busy={drafting}
         kept={asking.state === "rest" ? "" : asking.sentence}
         onSay={say}
+        inputRef={inputRef}
         testid="forms-ask-line"
       />
       {asking.state === "failed" ? (
@@ -230,21 +250,31 @@ function SiteGroups(props: {
  * at the button, rather than sent to an empty connection with nothing to press.
  */
 function ConnectStart({ onWebsite }: { onWebsite: () => void }) {
+  // A row under its own head, as a site's forms will stand once it is connected (SiteGroups): its kind's neutral mark,
+  // and its one press at its end (Ruben, 25 Nov 2026: the second start was a second coral heading in the same card).
   return (
-    <div className="fmv-ask-head" data-testid="forms-connect">
-      <span className="fmv-three">
-        <Icon name="globe" size={22} />
-      </span>
-      <div>
-        <h3>{W.connect.title}</h3>
-        <p>{W.connect.body}</p>
-        <div className="fmv-acts">
-          <Button size="sm" onClick={onWebsite} data-testid="forms-connect-go" {...gate("settings", W.connect.doing)}>
-            {W.connect.act}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <section className="fmv-group" data-testid="forms-connect">
+      <h3>{W.connect.group}</h3>
+      <Panel variant="pane" size="flush" className="fmv-rows">
+        <ListRow
+          mark={<Icon name="globe" size={15} />}
+          name={W.connect.title}
+          said={W.connect.body}
+          end={(place) => (
+            <span className={place}>
+              <Button
+                size="sm"
+                onClick={onWebsite}
+                data-testid="forms-connect-go"
+                {...gate("settings", W.connect.doing)}
+              >
+                {W.connect.act}
+              </Button>
+            </span>
+          )}
+        />
+      </Panel>
+    </section>
   );
 }
 
@@ -283,11 +313,13 @@ interface FormsListProps {
   onWebsite: () => void;
   /** Where the way into the website connection stands (websiteDoorOf): the list draws the start and the line. */
   door: WebsiteDoor | null;
+  /** The line to AI's field, which the head's New takes the thumb to. */
+  askRef?: Ref<HTMLTextAreaElement>;
 }
 
 /** The list: the forms, and the line to AI over them where there is none yet, under them once there is one. */
 export function FormsList(props: FormsListProps) {
-  const { dto, failed, again, openId, onOpen, onOpenSite, onWebsite, door } = props;
+  const { dto, failed, again, openId, onOpen, onOpenSite, onWebsite, door, askRef } = props;
   const websiteLine = door === "line" ? <WebsiteLine onWebsite={onWebsite} /> : null;
   const [now] = useState(() => Date.now());
   if (failed)
@@ -307,14 +339,14 @@ export function FormsList(props: FormsListProps) {
     onOpen(formId);
   };
   const outside = dto.outside ?? [];
-  const ask = dto.can_change ? <AskForForm first={dto.forms.length === 0} onMade={made} /> : null;
+  const ask = dto.can_change ? <AskForForm first={dto.forms.length === 0} onMade={made} inputRef={askRef} /> : null;
+  // The empty page stands on the page's own ground, as Campaigns' New does: the question and its line first, then the
+  // website's start apart under its head, never both in one card.
   if (dto.forms.length === 0 && outside.length === 0)
     return (
-      <div className="fmv-list" data-testid="forms-list">
-        <Panel variant="pane" size="sm">
-          {ask ?? <p className="fmv-note">{W.viewer}</p>}
-          {door === "start" ? <ConnectStart onWebsite={onWebsite} /> : null}
-        </Panel>
+      <div className="fmv-list" data-empty="" data-testid="forms-list">
+        {ask ?? <p className="fmv-note">{W.viewer}</p>}
+        {door === "start" ? <ConnectStart onWebsite={onWebsite} /> : null}
         {websiteLine}
       </div>
     );

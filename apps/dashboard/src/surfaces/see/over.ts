@@ -130,8 +130,8 @@ export const SEE_WORDS = {
   /** The door from a visit's sheet to its day on the Calendar, and from a conversation's to the Inbox. */
   homeVisit: "Open in Calendar",
   homeThread: "Open in Inbox",
-  /** Its kicker, where it was opened over. */
-  run: "A run",
+  /** Its kicker, where it was opened over: an owner's word for what it is, never the system's "run" (Ruben, 25 Nov 2026). */
+  run: "Campaign",
   message: "A message",
   toSend: "To send",
   thread: "A conversation",
