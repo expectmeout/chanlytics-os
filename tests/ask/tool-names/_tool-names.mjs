@@ -1139,12 +1139,13 @@ export function withTheYesItself(frozen) {
  * keeps it out of the composers", a sentence now said of a message that exists and is hidden); and a moment's starter of
  * which the workspace holds no version it can send `has no version this workspace can send yet`, where it said it was not
  * approved on this workspace yet. (T11) That refusal sends the owner to the Library, the room's name now, and to name a
- * message, where it said Campaigns › Messages and an approved template. The fixture is the old registry's bytes and stays as
- * it was made; these are the changes to them.
+ * message, where it said Campaigns › Messages and an approved template. (25 Nov 2026, the server's refusals in the owner's
+ * words) The message it does not hold is "Saved message not found.". The fixture is the old registry's bytes and stays
+ * as it was made; these are the changes to them.
  */
 export function withTheVerbsWords(frozen) {
   return frozen
-    .replace(/"that template is not approved by WhatsApp[^"]*"/, '"Template not found."')
+    .replace(/"that template is not approved by WhatsApp[^"]*"/, '"Saved message not found."')
     .replace("starter is not approved on this workspace yet", "starter has no version this workspace can send yet")
     .replace(
       "under Campaigns › Messages, or name an approved template from",
