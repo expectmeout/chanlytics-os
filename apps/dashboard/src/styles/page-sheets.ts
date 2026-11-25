@@ -13,10 +13,13 @@
  *   draws of 29 pages (24 Nov 2026): every one of the 26,223 rules a browser matched was one this gave its page.
  * - What a page loads is what its entry reaches by `import`, `import()` included and a type's import left out: the
  *   page's own entry and the layouts over it (write-page-sheets.ts). The contracts' words are every page's.
- * - A stylesheet's files are nested: the frame's part, that with what the pages reaching a little of the rest add, and
- *   every rule some page can draw. Nested, so whatever a tab has collected by moving from page to page is the widest
- *   of them with copies of its own earlier rules before it, and the cascade reads as it did when one file held it all.
- *   A rule no page can draw is in none of them.
+ * - A stylesheet's files are nested, a ladder: the frame's part, that with what the pages reaching a little of the rest
+ *   add, and every rule some page can draw. Nested, so any of them, or any of them with a narrower one before it, reads
+ *   as the cascade did when one file held it all; and a tab keeps one rung of each ladder, the widest it has come to
+ *   need, the narrower taken out once it has loaded (sheet-ladders.ts), so it holds no rule twice. Why a stylesheet is
+ *   never cut into parts that hold different rules: a later rule wins over an earlier one of the same weight, and rules
+ *   of the frame's part and the rest sit between each other in the source (every stylesheet but a few of one or two
+ *   rules, 25 Nov 2026), so parts placed one after the other would reorder them. A rule no page can draw is in none.
  *
  * Nothing here reads a file: write-page-sheets.ts does, as the build's configuration is read (next.config.ts).
  */
@@ -170,6 +173,8 @@ export interface SheetManifest {
   pages: Record<string, number[]>;
   /** A stylesheet a part of a page links for itself (the map's): its place in `files`, by name. */
   apart: Record<string, number>;
+  /** Each stylesheet of more than one file: its files' places, the narrowest first, each holding the one before. */
+  ladders: number[][];
 }
 
 /**

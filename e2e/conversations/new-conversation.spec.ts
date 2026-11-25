@@ -134,10 +134,11 @@ test.describe("A conversation begins from the Inbox, on a phone", () => {
       "a field took focus as the sheet rose, which raises a phone's keyboard over it",
     ).toBe(false);
     // Who it is for is held as New proposal's is on the Pipeline: the kit's sheet in a job's shape, its title and the
-    // word Cancel, no ✕ in a circle and no rule under them, over the kit's person pick, each person a face and two lines.
+    // round × every sheet has (named Cancel), no rule under them, over the kit's person pick, each person a face and two
+    // lines (one design for every sheet, 25 Nov 2026: the word Cancel stood where every other sheet drew the ×).
     const sheet = page.getByTestId("ix-new");
     await expect(sheet.locator(".sheet-job-title")).toHaveText("New conversation");
-    await expect(page.getByTestId("ix-new-close")).toHaveText("Cancel");
+    await expect(page.getByTestId("ix-new-close")).toHaveAttribute("aria-label", "Cancel");
     await expect(sheet.locator(".rec-sheet-head")).toHaveCount(0);
     await expect(sheet.locator(".person-pick")).toBeVisible();
     const picks = page.getByTestId("ix-new-who-pick");

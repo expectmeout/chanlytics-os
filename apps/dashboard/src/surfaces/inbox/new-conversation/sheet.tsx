@@ -203,7 +203,7 @@ function foot(s: SheetState) {
       ) : null}
       {/* The two acts stand together: a sentence with no room beside them takes the row over them, never between. */}
       <div className="ix-new-foot-acts" data-foot-pair="">
-        <Button disabled={s.busy} onClick={s.work.leave} data-testid="ix-new-cancel">
+        <Button disabled={s.busy} onClick={s.work.leave} data-foot-cancel="" data-testid="ix-new-cancel">
           {W.cancel}
         </Button>
         {s.how === "call" ? (

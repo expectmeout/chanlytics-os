@@ -38,9 +38,13 @@ function PartSaid({ page, part, ready }: PartProps): null {
   return null;
 }
 
+/** Whether this view of Campaigns is the one shown (true outside a kept view, and where every view is). */
+export function useViewShown(): boolean {
+  const Shown = shownContext();
+  return Shown ? use(Shown) : true;
+}
+
 /** A part's draw, said while its view is the one shown. Draws nothing. */
 export function PartShown(props: PartProps) {
-  const Shown = shownContext();
-  const onScreen = Shown ? use(Shown) : true;
-  return onScreen ? <PartSaid {...props} /> : null;
+  return useViewShown() ? <PartSaid {...props} /> : null;
 }

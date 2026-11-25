@@ -52,6 +52,7 @@ const LIST = {
   files: PAGES.map(({ key }, at) => [`s${String(at).padStart(2, "0")}`, `/sheets/${key}.css`]),
   pages: Object.fromEntries(PAGES.map(({ key }, at) => [key, [at]])),
   apart: {},
+  ladders: [],
 };
 
 /** The layouts, drawn: nothing where a page has none yet (the first test says which), since its line could not be bundled. */

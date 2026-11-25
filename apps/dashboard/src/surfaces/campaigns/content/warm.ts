@@ -13,6 +13,7 @@ import type { ContentPageDto } from "@chanlytics/contracts";
 import { refreshSurface } from "../../frame-verbs";
 import { rowPictureOf, smallPictureOf, warmPicture } from "../../files/photo";
 import { surfaceValue } from "../../surface-values";
+import { libraryCode } from "../parts/library-code";
 import { cmPhoneNow } from "../parts/phone-query";
 import { contentLayoutNow, type ContentLayout } from "./views";
 
@@ -30,6 +31,20 @@ function firstPicturesOf(dto: ContentPageDto, layout: ContentLayout): string[] {
     ...dto.made.map((m) => m.file.id),
   ]);
   return [...ids].slice(0, FIRST_SCREEN).map(layout === "list" ? rowPictureOf : smallPictureOf);
+}
+
+/**
+ * The Library, readied while Made is shown (page.tsx): its code, its read, and its first screen's pictures, so a press on
+ * Library shows it whole. Pressed cold, the page under the bar went blank, the search, the filter and the coral act with it,
+ * for 0.6 s, then drew its tiles with no pictures, then the Add (Ruben's recordings, 22 and 24 Nov 2026).
+ */
+export async function warmLibrary(): Promise<void> {
+  libraryCode.warm();
+  if (surfaceValue("files") === undefined) await refreshSurface("files");
+  const dto = surfaceValue("files")?.dto;
+  if (!dto) return;
+  const pictureOf = contentLayoutNow(cmPhoneNow()) === "list" ? rowPictureOf : smallPictureOf;
+  for (const file of dto.files.slice(0, FIRST_SCREEN)) void warmPicture(pictureOf(file.id));
 }
 
 /** Content's page read, where it has not been, and its first screen's pictures asked for. Answers once the read is in. */

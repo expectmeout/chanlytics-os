@@ -368,30 +368,28 @@ export function runDockOf(
 ) {
   const { ready, from, state } = params;
   const held = reachOutRun.held.length;
-  // An owner's run going: what a row's Skip does while one is handed to them (the canvas's foot), else what Stop does.
+  // An owner's run going: what the foot's own act, Stop, does. What a row's Skip does is said over the rows it stands in
+  // (the To send list's note): said in the foot beside Stop, it read as Stop's meaning (Ruben, 25 Nov 2026).
   if (reachOutRun.owner_sends === true)
     return {
       lead: `${ready} to send from your inbox`,
-      said:
-        state === "pending_approval"
-          ? null
-          : (reachOutRun.drafted?.length ?? 0) > 0
-            ? "Skip leaves that business out"
-            : "Stop keeps the rest from being handed to you",
+      said: state === "pending_approval" ? null : "Stop keeps the rest from being handed to you",
     };
   if (state === "sending") return { lead: "Going now", said: "Stop keeps the rest from going" };
   if (state === "scheduled")
     return { lead: from ? `Goes from ${from}` : "Goes in their hours", said: "Cancel keeps it from going" };
   // Nothing today: the coming days' go first, from their first time where it is known.
   const count = ready > 0 ? ready : reachOutRun.later;
+  // One goes, many go: "1 go from now" read as a noun (Ruben, 25 Nov 2026).
+  const go = count === 1 ? "goes" : "go";
   const lead =
     count === 0
       ? "Nothing goes yet"
       : from
-        ? `${count} go from ${from}`
+        ? `${count} ${go} from ${from}`
         : ready > 0
-          ? `${count} go from now`
-          : `${count} go in the coming days`;
+          ? `${count} ${go} from now`
+          : `${count} ${go} in the coming days`;
   const sentence =
     reachOutRun.checking > 0
       ? `${reachOutRun.checking} more go once checked`
