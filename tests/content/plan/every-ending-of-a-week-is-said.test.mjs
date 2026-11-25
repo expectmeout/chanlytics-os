@@ -18,6 +18,7 @@ import {
   cadenceOf,
   clockTime,
   newReceptionistDefaults,
+  planWeekOf,
   slotTimePassed,
   slotWhenSaid,
   weekEndingOf,
@@ -36,6 +37,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { putTheWeekUp } = await import(at("apps/edge/lib/content/week-go.ts"));
 const { approveWeekFor } = await import(at("apps/dashboard/src/server/content/plan.ts"));
+const { readWeekToday } = await import(at("apps/dashboard/src/server/readers/week-today.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 after(() => {
   setPg(null);
@@ -102,6 +104,7 @@ const dtoOf = ({ tenant_id: _t, plan_id: _p, approval_id: _a, prepared: _r, ...r
 
 /** A workspace's settings as stored, with the services the business offers. */
 const configWith = (services) => ({
+  features: { content_plan: true },
   brain: { ...newReceptionistDefaults("Harbor Studio"), business_name: "Harbor Studio", profile: { services } },
 });
 
@@ -613,4 +616,40 @@ test("a week still held to its time says when it goes and nothing of an ending; 
   assert.equal(weekViewOf(w.page(), NOW).line, `Goes up at ${WHEN} unless you stop it`);
   const asking = pageOf({ ...w.plan, goes_at: null }, w.tables.plan_slots, { rung: "ask" });
   assert.equal(weekEndingOf(asking.week, { rung: "ask", paused: true, nowMs: NOW }), null);
+});
+
+/* ------------------------------------------------------------------------------- Today's point, as it is read -- */
+
+/** Today's points of the week as its reader answers them, for the week this moment falls in. */
+async function todayRead(w) {
+  w.plan.week_of = planWeekOf(ZONE, NOW);
+  return readWeekToday({ ctx: { supabase: w.db }, tenantId: T, now: new Date(NOW) });
+}
+
+test("Today's point is the ending, in the ready week's place: AI approved it today; it waits because AI is paused", async () => {
+  const approved = jobWorld({ slots: [slot("Monday's", -2 * HOUR), slot("Thursday's", DAY)] });
+  await putTheWeekUp(approved.db, job());
+  const told = await todayRead(approved);
+  assert.equal(told.ready, null);
+  assert.deepEqual(told.ended, { name: "AI approved this week's posts", said: "1 was left out: it says why." });
+  // Let go because AI is paused: the week waits on its owner, and Today says why.
+  const paused = jobWorld({ paused: new Date(NOW - HOUR).toISOString() });
+  await putTheWeekUp(paused.db, job());
+  const waits = await todayRead(paused);
+  assert.equal(waits.ready, null);
+  assert.deepEqual(waits.ended, { name: WAITING, said: "AI is paused, so nothing goes up." });
+});
+
+test("a week still held, and one that asks, keep Today's own point: when it goes up, or that it is ready", async () => {
+  const held = jobWorld();
+  held.plan.goes_at = new Date(NOW + HOUR).toISOString();
+  const goes = await todayRead(held);
+  assert.equal(goes.ended, null);
+  assert.equal(goes.ready.held, clockTime(Date.parse(held.plan.goes_at), ZONE));
+  const asking = jobWorld({ rung: "ask", paused: new Date(NOW - HOUR).toISOString() });
+  asking.plan.goes_at = null;
+  const ready = await todayRead(asking);
+  assert.equal(ready.ended, null, "under a setting that asks, the pause changes nothing of the week's point");
+  assert.deepEqual(Object.keys(ready.ready).sort(), ["days", "held", "size"]);
+  assert.equal(ready.ready.held, null);
 });
