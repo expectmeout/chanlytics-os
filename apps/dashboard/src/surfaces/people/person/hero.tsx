@@ -665,7 +665,6 @@ export function hero(c: PageCtx) {
         title={PERSON_DELETE_WORDS.title}
         close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
         foot={del?.foot}
-        footCloses
         testid="person-delete-sheet"
       >
         {del?.body}
@@ -680,7 +679,6 @@ export function hero(c: PageCtx) {
         sub={combine?.sub}
         close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
         foot={merge?.foot}
-        footCloses
         testid="person-merge-sheet"
       >
         {merge?.body}

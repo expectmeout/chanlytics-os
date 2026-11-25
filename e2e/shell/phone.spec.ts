@@ -418,9 +418,10 @@ test.describe("Phone shell on a real workspace", () => {
     await add.click();
     await expect(page.getByTestId("people-add-sheet")).toBeVisible();
     await expect(page.getByTestId("rec-sheet-save-people-add")).toBeInViewport({ ratio: 1 });
-    // On a phone the sheet closes from its foot: its Cancel there, the corner's Close out of sight (#1592: the corner's
-    // Close comes back for a keyboard alone).
-    await page.getByTestId("rec-sheet-cancel-people-add").click();
+    // On a phone the sheet closes by its round Close in the corner, as every sheet does, and its foot holds the one act
+    // across its width: the Cancel beside it is not drawn there (kit.css, "One design for every sheet on a phone").
+    await expect(page.getByTestId("rec-sheet-cancel-people-add")).toBeHidden();
+    await page.getByTestId("people-add-sheet-close").click();
     await expect(page.getByTestId("people-add-sheet")).toHaveCount(0);
   });
   /**
@@ -1029,7 +1030,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect
       .poll(edges, { message: "side to side and on the bottom, clear by the float" })
       .toEqual([float, size.width - float, size.height - rest]);
-    await expect(pop.locator(".tbn-handle")).toBeVisible();
+    // The kit's one sheet (notif-popover.tsx): its handle, and its one round Close.
+    await expect(pop.locator(".sheet-handle")).toBeVisible();
+    await expect(page.getByTestId("notif-sheet-close")).toBeVisible();
     const y = Math.round((await pop.boundingBox())!.y) + 20;
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y }] });

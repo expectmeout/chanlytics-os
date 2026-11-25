@@ -253,7 +253,7 @@ export function TeamInvite({
       </p>
       {/* On a phone the house's pair: Send first, the two an equal pair (kit.css, data-foot-pair); a desk keeps its row. */}
       <div className="set-team-invite-foot" data-foot-pair="">
-        <Button size="sm" variant="quiet" onClick={onClose} data-testid="team-invite-cancel">
+        <Button size="sm" variant="quiet" onClick={onClose} data-foot-cancel="" data-testid="team-invite-cancel">
           Cancel
         </Button>
         <Button

@@ -12,8 +12,8 @@
  *
  * One head (Ruben, 11 Oct 2026: the drawers too cluttered): the sheet's title is a kicker, a quiet line saying where it
  * was opened from ("Appointment tomorrow", "Turn on", "The call's text") with the Close at its end, and the pane's head
- * under it carries the name, its state and its acts. A composer's foot holds its Cancel, so on a phone the corner's Close
- * steps out of sight there (`footCloses`), as every phone sheet's does over its Cancel.
+ * under it carries the name, its state and its acts. The corner's Close is there on a phone too, over a composer's foot,
+ * as on every sheet (kit.css, "One Close for every sheet"), and the composer's Cancel beside its act is not drawn there.
  *
  * On a phone it is as tall as what the pane holds, up to the sheet's cap, and past it the pane's body scrolls under its
  * head and foot (campaigns.css): a pinned height stood a three-line message on a screen of blank (Ruben, 14 Oct 2026).
@@ -46,8 +46,6 @@ interface PaneSheetProps {
   askFirst?: boolean;
   /** A composer is wider than a playbook's detail. */
   wide?: boolean;
-  /** The pane's foot holds the act that closes it (a composer's Cancel): the corner's Close steps aside on a phone. */
-  footCloses?: boolean;
   /** Open over another page (surfaces/see): on a phone the tab bar stands down while it is (mobile.css). */
   over?: boolean;
   /** No kicker drawn: the title names the sheet to a screen reader, and the pane's head takes the Close's line. */
@@ -64,7 +62,6 @@ export function PaneSheet({
   onClose,
   askFirst = false,
   wide = false,
-  footCloses = false,
   over = false,
   bare = false,
   testid,
@@ -86,7 +83,6 @@ export function PaneSheet({
       toolsInLine={toolsInLine}
       kicker
       unsaid={bare}
-      footCloses={footCloses}
       className={cx("cmh-host", wide && "cmh-host-wide", over && "cmh-host-over", bare && "cmh-host-bare")}
     >
       <div ref={body} className="cmh-host-body" data-testid={testid}>

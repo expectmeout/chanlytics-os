@@ -12,7 +12,9 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
 import { BELL_READ_WORDS } from "@chanlytics/contracts";
 import type { BellRow } from "@/bridge/notifications";
+import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Sheet } from "../../kit/sheet/sheet";
 import { frameBell, frameGlyph } from "../frame-window";
 
 /** A note the bell draws: the server's row (BellRow). */
@@ -65,15 +67,17 @@ const tbnMoving = (el: Element | null, on: boolean, way?: string) => {
 };
 const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-// Escape closes what is drawn, for as long as it is drawn, and leaves a key an earlier listener took (a menu or a field).
-const useTbnEscape = (onClose: () => void) =>
+// Escape closes the popover, for as long as it is drawn, and leaves a key an earlier listener took (a menu or a field). A
+// phone's sheet is the kit's, whose Escape is its own (`on` false there).
+const useTbnEscape = (onClose: () => void, on: boolean) =>
   useEffect(() => {
+    if (!on) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, on]);
 
 // Mark all read is offered while anything is unread: a row listed, or an older one the bell does not list (S6-10).
 const tbnCanReadAll = (items: readonly BellNote[]) => {
@@ -314,7 +318,9 @@ export function NotifPopover({
   onSettings = null,
 }: NotifPopoverProps) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  useTbnEscape(onClose);
+  // On a phone the notes are the kit's one sheet; on a wider screen the popover under the bell.
+  const phone = tbnPhone();
+  useTbnEscape(onClose, !phone);
   const { slotEls, going, fold } = useFold(onDismiss);
   // A note marked read where it stands (slid right, or by its check) keeps its place while the sheet is open, rather
   // than jumping down to Earlier: the sections are worked out as if it were still unread, and it is drawn as it is.
@@ -331,27 +337,52 @@ export function NotifPopover({
   };
   const asIs = new Map(items.map((n) => [n.id, n]));
   const d: BellDraw = { asIs, going, slotEls, fold, read, readMany, onRead, onAction, openGroup, setOpenGroup };
+  const readAll = tbnCanReadAll(items) ? (
+    <button className="tbn-readall" onClick={onReadAll}>
+      Mark all read
+    </button>
+  ) : null;
+  // On a phone the notes are the kit's one sheet, as every sheet there is (the change list's A1, E-01: it closed only by a
+  // pull): its title, Mark all read on the title's line, the one round Close, the notes, and the door to their settings
+  // in its foot; a thumb pulls it down, and it goes the way it came.
+  if (phone) {
+    return (
+      <Sheet
+        open
+        onClose={onClose}
+        title="Notifications"
+        close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+        tools={readAll ?? undefined}
+        toolsInLine
+        foot={
+          onSettings ? (
+            <LinkButton onClick={onSettings} data-testid="notif-settings">
+              {BELL_READ_WORDS.settings}
+            </LinkButton>
+          ) : undefined
+        }
+        flatFoot
+        className="tbn-sheet"
+        testid="notif-sheet"
+      >
+        {bellList(d, items, readHere.current)}
+      </Sheet>
+    );
+  }
   return (
     <>
       <div className="tbn-backdrop" role="presentation" onClick={onClose} />
-      {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (kit/motion/swipe.ts
-          touchSwipe, leaving). A popover under the bell on a wider screen, where neither moves it: the kit's pop panel. */}
+      {/* A popover under the bell on a wider screen: the kit's pop panel. */}
       <div
         className="tbn-pop panel panel-pop panel-flush"
         role="dialog"
         aria-modal="true"
         aria-label="Notifications"
         ref={window.dialogRef ? window.dialogRef("bell") : undefined}
-        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: tbnPhone }) : {})}
       >
-        <div className="tbn-handle" aria-hidden="true" />
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {tbnCanReadAll(items) && (
-            <button className="tbn-readall" onClick={onReadAll}>
-              Mark all read
-            </button>
-          )}
+          {readAll}
         </header>
         {bellList(d, items, readHere.current)}
         {onSettings && bellFoot(onSettings)}

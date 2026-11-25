@@ -154,7 +154,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
 test("the hours fold is the week on one scale: a switch, the bars and the times for each day, in the zone AI states them in", () => {
   let tree = drawTab();
   assert.deepEqual(openFolds(tree), []);
-  assert.equal(foldOf(tree, "hours").props.hidden, true, "drawn, and hidden until it is asked for");
+  assert.equal(foldOf(tree, "hours"), null, "its sheet shut until it is asked for");
   openFold(tree, "hours");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["hours"]);
@@ -164,7 +164,6 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   assert.equal(fold.props.role, "dialog", "a sheet, not a fold under the row");
   assert.equal(byTestId(fold, "rec-row-hours"), null, "the row is not inside the sheet");
   assert.ok(byTestId(tree, "rec-row-hours"), "and still in its card behind it");
-  assert.equal(fold.props["data-wide"], "true", "its own grid names each day");
   // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
   // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
   assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-sheet-sub"))), hoursZoneWords("America/New_York"));
@@ -199,9 +198,11 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   assert.equal(labelled(fold, "Sunday opens"), null, "a closed day offers no boxes");
   // The zone is the one the settings read resolved the prompt in.
   tree = drawTab({ zone: "America/Chicago" });
+  openFold(tree, "hours");
+  tree = redrawTab();
   assert.equal(
-    // Drawn afresh the fold is closed and hidden whole, in the row's frame: its hint is the head's, not a sheet's.
-    textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
+    // Opened afresh: the sheet's line under its title says the zone.
+    textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-sheet-sub"))),
     hoursZoneWords("America/Chicago"),
   );
   assert.equal(hoursZoneWords("America/Chicago"), "In Chicago time");
@@ -657,7 +658,7 @@ test("while the week saves its boxes and switches take nothing, and what is aske
     [openFolds(tree), openRows(tree), byTestId(tree, "rec-fold-hours-ask-confirm")],
     [["hours"], [], null],
   );
-  press(byTestId(tree, "rec-fold-close-hours"));
+  press(byTestId(tree, "rec-fold-hours-close"));
   tree = redrawTab(flash);
   assert.deepEqual(openFolds(tree), ["hours"], "Close is Cancel, and nothing cancels a save that is out");
   sent[0].accept();

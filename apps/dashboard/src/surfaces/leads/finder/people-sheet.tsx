@@ -98,7 +98,7 @@ const findFoot = (work: UnsavedWork, startWords: string, busy: boolean, onStart:
     <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="find-people-leave" />
   ) : (
     <div data-foot-pair="">
-      <Button variant="quiet" onClick={work.leave} data-testid="find-people-cancel">
+      <Button variant="quiet" onClick={work.leave} data-foot-cancel="" data-testid="find-people-cancel">
         {PW.cancel}
       </Button>
       <Button variant="primary" disabled={busy} onClick={onStart} data-testid="find-people-start">

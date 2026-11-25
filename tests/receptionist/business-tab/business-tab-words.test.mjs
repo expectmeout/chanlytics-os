@@ -13,7 +13,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
-import { W, drawTab, redrawTab, marisa } from "../../_business-tab-harness.mjs";
+import { W, drawTab, redrawTab, marisa, openFold } from "../../_business-tab-harness.mjs";
 
 after(() => unmount());
 
@@ -146,8 +146,9 @@ test("every phrase §10 kept is drawn where it belongs", () => {
   const told = byTestId(tree, "rec-card-told");
   assert.match(textOf(told), /What AI is told/);
   assert.equal(textOf(byTestId(tree, "rec-prompt-open")).trim(), "Read it");
-  // In New York time: the hours fold's one line under its title, in the name the card above uses.
-  assert.match(textOf(byTestId(tree, "rec-fold-hours")), /In New York time/);
+  // In New York time: the hours fold's one line under its title, in the name the card above uses (its sheet, opened).
+  openFold(tree, "hours");
+  assert.match(textOf(byTestId(redrawTab(), "rec-fold-hours")), /In New York time/);
   // N messages, in your words.
   assert.match(
     textOf(byTestId(tree, "rec-row-fallbacks")),

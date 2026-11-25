@@ -21,7 +21,7 @@ import {
   BOOKING_RULE_HINTS,
   bookingRuleRefusal,
 } from "../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
-import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
+import { unmount, settle, all, find, byTestId, textOf, classes, press, escapeSheet } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   cancelFoldOf,
@@ -844,14 +844,8 @@ test("Escape and Close are the sheet's Cancel: with changes they ask first, and 
   tree = openSheet(tree);
   typeAt(tree, "Service 1 price", "varies");
   tree = redrawTab();
-  const esc = {
-    key: "Escape",
-    defaultPrevented: false,
-    preventDefault() {
-      this.defaultPrevented = true;
-    },
-  };
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(esc);
+  // Escape, as Base UI hears it on the document and asks the kit's sheet.
+  escapeSheet(tree);
   tree = redrawTab();
   assert.ok(sheetOf(tree), "typed in: it stays open");
   assert.match(
@@ -1568,7 +1562,7 @@ test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
   typeAt(tree, "Service 3 takes (min)", "75");
   tree = redrawTab();
   const box = labelled(tree, "Service 3 takes (min)");
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown({
+  sheetOf(tree).props.onKeyDown({
     key: "Enter",
     ctrlKey: true,
     defaultPrevented: false,
@@ -1700,7 +1694,7 @@ test("Escape in a search with words in it clears the search first, and the next 
   const second = esc();
   box().props.onKeyDown(second);
   assert.equal(second.stopped, false);
-  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(second);
+  escapeSheet(tree, { taken: second.defaultPrevented });
   assert.equal(sheetOf(redrawTab()), null, "nothing typed: it closes");
 });
 

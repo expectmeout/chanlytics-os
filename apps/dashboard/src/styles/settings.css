@@ -1875,7 +1875,7 @@ html.frame-on .bt-link { position: relative; }
 /* While a fold saves, the page's own controls inside it wait as the kit's do (record.css: the gesture says aria-busy),
    and so do a sheet's. */
 :is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-insert .bt-link, .bt-line .bt-link) { cursor: progress; }
-.rec-sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
+.sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
 
 @media (max-width: 760px) {
   /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's

@@ -28,20 +28,20 @@
  * grid carries a label column (a week's days, each named) is `wide`: its fields take the fold's whole width, and what
  * saving writes and the foot keep the indent. record.css draws both.
  *
- * On a phone (the kit's one breakpoint, recPhoneQuery, kept current as the window changes size) an open fold is a sheet
- * rising from the bottom instead: the sheet's own frame (sheet.tsx's classes, and record.css's phone sheet), holding the
- * same head, fields, what saving writes and foot. It is a modal dialog named by the fold's label: Tab walks its own
- * controls, a press on the wash is Cancel, and Escape cancels from anywhere, since nothing outside it can hold focus a
- * person means. Focus comes and goes by the fold's own rules (useRecFocus): to its first field as it opens, back to its
- * row's act as it closes. The page never learns which frame drew it: the fold is called the same way, holds the same
- * hooks in the same order, open or closed, at either width, and its registry, its asks and its save are the page's. A
- * width crossed while it is open draws it again in the other frame, still open, with focus in its first field; what was
- * typed is the page's, and stays.
+ * On a phone (the record kit's width, recPhoneQuery, kept current as the window changes size) an open fold is a sheet
+ * rising from the bottom instead: the kit's one sheet (kit/sheet/sheet.tsx `Sheet`, on Base UI's Dialog), its title the
+ * fold's label, the line under it its hint, its round Close the fold's Cancel, its rows the fields and what saving writes,
+ * its foot the fold's. It is modal: focus is held in it, and Escape, a press on the wash, a pull down and its Close all ask
+ * the fold's Cancel (nothing while the save is out). Focus comes and goes by the fold's own rules (useRecFocus): to its
+ * first field as it opens (the sheet itself on a touch screen), back to its row's act as it closes. The page never learns
+ * which frame drew it: the fold is called the same way, holds the same hooks in the same order, open or closed, at either
+ * width, and its registry, its asks and its save are the page's. A width crossed while it is open draws it again in the
+ * other frame, still open, with focus in its first field; what was typed is the page's, and stays.
  *
  * `frame` is where an open fold is drawn. "row", the default, is the fold under its row on a desktop and the sheet on a
- * phone (the person's page). "sheet" is the sheet at every width: beside the page on a desktop, the frame RecordSheet
- * draws (record.css .rec-sheet; it comes in from its edge and leaves by it, components.css "HOW THINGS COME AND GO"), and
- * from the bottom on a phone, as before. Settings › Business draws every fold this way: an editor that opened under its
+ * phone (the person's page). "sheet" is the sheet at every width: beside the page on a desktop, as RecordSheet's is, and
+ * from the bottom on a phone. A fold drawn as a sheet is drawn so open or shut (`open`), so it leaves the way it came,
+ * as every kit sheet does. Settings › Business draws every fold this way: an editor that opened under its
  * row pushed everything under it down by up to 546px, and the page held still only once nothing on it opened in place.
  * The row the fold opens from stays drawn in its card behind the sheet (`behind`), so the card keeps its height under the
  * wash, whichever width drew it.
@@ -69,17 +69,15 @@
  * saves: nothing asks whether to discard a change that is on its way (registry.ts says what happens to an ask
  * meanwhile), and the fold says it is busy.
  */
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { Icon } from "../icon/icon";
-import { useRecFocus, useRecDrawn, useRecPhone, useRecSheetEscape, recKeys, recPhoneQuery } from "./focus";
+import { Sheet } from "../sheet/sheet";
+import { recFirstIn, useRecFocus, useRecDrawn, useRecPhone, recKeys } from "./focus";
 import type { FocusOn } from "./focus";
-import { recPortalRoot, useRecLeaving } from "./leaving";
 import type { FoldId } from "./registry";
 import { RecordFoot, RecordSays } from "./says";
-import { touchSwipe } from "../../frame-verbs";
-import { glideHeight } from "../motion/use-height-glide";
-import { portal, trapTab } from "./shell-verbs";
+import { onTouchScreen } from "./shell-verbs";
 
 /** A fold's Cancel: what Close, the foot's Cancel, a press on the wash and Escape all do. */
 type CancelFold = (e?: MouseEvent<HTMLElement>) => void;
@@ -119,15 +117,14 @@ interface RecordFoldProps {
 
 /** What one draw of a fold works out once, for whichever frame draws it. */
 interface FoldDraw {
+  /** The fold's box: the `div` under its row, or the kit's sheet where it is one. */
   box: RefObject<HTMLDivElement | null>;
   ask: ReactNode;
   foot: ReactNode;
   told: ReactNode;
   cancel: CancelFold;
-  phone: boolean;
   keys: ReturnType<typeof recKeys>;
   onFocus: ReturnType<typeof useRecFocus>;
-  leaving: ReturnType<typeof useRecLeaving>;
 }
 
 /**
@@ -177,119 +174,54 @@ function foldFoot(props: RecordFoldProps) {
 }
 
 /**
- * The sheet's frame, as RecordSheet draws it: a wash over the page, and the sheet beside it (from the bottom, on a phone)
- * with its head, a body that scrolls and a foot that holds still (the ask in its place while one is asked, which the
- * foot says, data-asking, for kit.css to give the words their room). Drawn in the app's root for RecordSheet's reasons (a
- * Settings pane animates itself in with a transform and sizes every child to its column; People's keys hold still under
- * a dialog there, PL_OVERLAY), or in the first run's own shell, which is drawn in place of the app's (.fr-shell). The
- * fields and what saving writes scroll; the ask, Save and Cancel stay in the foot, clear of the home indicator.
+ * The fold as a sheet: the kit's one sheet (kit/sheet/sheet.tsx), its title the fold's label, the line under it its hint,
+ * its round Close the fold's Cancel, its rows the fields and what saving writes, its foot the fold's (the ask in its place
+ * while one is asked, which the foot says, data-asking, for kit.css to give the words their room). Escape, a press on the
+ * wash, a pull down on a phone and its Close all ask the fold's Cancel, and nothing while the save is out (`busy`). As it
+ * opens, focus goes to its first field where the pointer is a mouse, and to the sheet itself on a touch screen (focus.ts,
+ * useRecFocus's rule), where Base UI places it.
+ *
+ * What the page draws at rest in the fold's place, its row, stays in the card behind the sheet while it is open
+ * (`behind`), at every width the sheet is drawn at: a card a row shorter under the wash grew back as the sheet left,
+ * which its leaving would have put on show. Behind the modal sheet it is a picture of the row, not the row: a box that
+ * lays out as nothing (record.css), so the card is as it was, aria-hidden and inert, so its act can be neither pressed,
+ * focused nor read out. `inert` is set through the ref, since React 18 and 19 spell the prop differently (this file's
+ * header).
  */
-function foldSheetNode(props: RecordFoldProps, d: FoldDraw) {
-  const { id, label, hint = null, saving = false, wide = false, closeLabel = "Close", children = null } = props;
-  const labelId = `rec-fold-${id}-label`;
-  const closeId = `rec-fold-${id}-close`;
-  const hintId = hint ? `rec-fold-${id}-hint` : undefined;
-  return (
-    <>
-      {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
-          reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
-          on the page. On a phone a pull down on the sheet from its top is the same Cancel (kit/motion/swipe.ts touchSwipe):
-          the sheet rose from the bottom, and goes back the way it came. */}
-      <div
-        className="rec-sheet-backdrop"
-        data-fold="true"
-        aria-hidden="true"
-        ref={d.leaving.wash}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={d.cancel}
-      />
-      {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-interactions -- a modal dialog takes its own focus and keys */}
-      <section
-        ref={d.box}
-        className="rec-sheet rec-fold-sheet"
-        // From the bottom, on a phone (kit.css draws its grabber, and steps its ✕ out of sight beside a foot that closes).
-        data-phone={d.phone ? "true" : undefined}
-        role="dialog"
-        // Focusable by the fold's own rule and never by Tab: on a touch screen the sheet opens on itself (focus.ts).
-        tabIndex={-1}
-        aria-modal={true}
-        aria-labelledby={labelId}
-        aria-describedby={hintId}
-        aria-busy={saving || undefined}
-        data-open="true"
-        data-wide={wide ? "true" : undefined}
-        data-testid={`rec-fold-${id}`}
-        {...touchSwipe({
-          onDown: d.cancel,
-          when: () => {
-            const q = recPhoneQuery();
-            return !!(q && q.matches);
-          },
-        })}
-        onFocus={d.onFocus}
-        onKeyDown={(e) => {
-          if (e.key === "Tab") {
-            trapTab(e, e.currentTarget);
-            return;
-          }
-          d.keys(e);
-        }}
-      >
-        <header className="rec-sheet-head">
-          <div className="rec-sheet-heading">
-            <h2 className="rec-sheet-title" id={labelId}>
-              {label}
-            </h2>
-            {hint ? (
-              <p className="rec-sheet-sub" id={hintId}>
-                {hint}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className="rec-sheet-close"
-            id={closeId}
-            aria-label={closeLabel}
-            aria-labelledby={`${closeId} ${labelId}`}
-            aria-disabled={saving || undefined}
-            onClick={d.cancel}
-            data-testid={`rec-fold-close-${id}`}
-          >
-            <Icon name="x" size={13} />
-          </button>
-        </header>
-        <div className="rec-sheet-body" onScroll={d.leaving.scrolled}>
-          <div className="rec-fold-inner">
-            {children}
-            {d.told}
-          </div>
-        </div>
-        {d.ask || d.foot ? (
-          <footer className="rec-sheet-foot" data-asking={d.ask ? "true" : undefined}>
-            {d.ask || d.foot}
-          </footer>
-        ) : null}
-      </section>
-    </>
+function foldSheet(props: RecordFoldProps, d: FoldDraw, open: boolean) {
+  const { id, label, hint = null, saving = false, closeLabel = "Close", behind = null, children = null } = props;
+  const first = () => {
+    const el = d.box.current;
+    return !el || onTouchScreen() ? el : (recFirstIn(el, ".rec-fold-inner", ".rec-sheet-close") ?? el);
+  };
+  // The label and the hint keep the ids a page's own fields are named and described by (`rec-fold-<id>-label`).
+  const drawn = (
+    <Sheet
+      open={open}
+      onClose={() => d.cancel()}
+      title={<span id={`rec-fold-${id}-label`}>{label}</span>}
+      sub={hint ? <span id={`rec-fold-${id}-hint`}>{hint}</span> : undefined}
+      close={{ label: closeLabel, glyph: <Icon name="x" size={13} /> }}
+      foot={d.ask || d.foot || undefined}
+      asking={!!d.ask}
+      busy={saving}
+      onKeyDown={d.keys}
+      onFocus={d.onFocus}
+      initialFocus={first}
+      className="rec-fold-sheet"
+      testid={`rec-fold-${id}`}
+      ref={d.box}
+    >
+      <div className="rec-fold-inner">
+        {children}
+        {d.told}
+      </div>
+    </Sheet>
   );
-}
-
-/** The fold as a sheet, and the row it opened from kept drawn behind it. */
-function foldSheet(props: RecordFoldProps, d: FoldDraw) {
-  const { behind = null } = props;
-  const drawn = portal(foldSheetNode(props, d), recPortalRoot());
-  // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`), at every
-  // width the sheet is drawn at: a card a row shorter under the wash grew back as the sheet left, which its leaving
-  // would have put on show.
-  // Behind the modal sheet it is a picture of the row, not the row: a box that lays out as nothing (record.css), so the
-  // card is as it was, aria-hidden and inert, so its act can be neither pressed, focused nor read out. `inert` is set
-  // through the ref, since React 18 and 19 spell the prop differently (this file's header). Keyed, so the fold's own
-  // box, drawn in its place as it closes, is never this one reused: it would carry `display: contents` into its close.
   const shield = (n: HTMLElement | null) => {
     if (n) n.setAttribute("inert", "");
   };
-  return behind ? (
+  return open && behind ? (
     <>
       <div key="behind" className="rec-fold-behind" aria-hidden="true" ref={shield}>
         {behind}
@@ -372,7 +304,9 @@ export function RecordFold(props: RecordFoldProps) {
   // when a component's hooks change in number). The phone query is read whatever `frame` says, so a fold given one frame
   // and then the other holds the same hooks too.
   const phone = useRecPhone();
-  const sheet = open && (frame === "sheet" || phone);
+  // Drawn as a sheet, open or shut, so it leaves the way it came; open, it is the sheet.
+  const asSheet = frame === "sheet" || phone;
+  const sheet = open && asSheet;
   const onFocus = useRecFocus(id, open, box, {
     inner: ".rec-fold-inner",
     fallback: sheet ? ".rec-sheet-close" : ".rec-fold-close",
@@ -380,12 +314,9 @@ export function RecordFold(props: RecordFoldProps) {
     frame: sheet,
   });
   useRecDrawn(id);
-  useRecSheetEscape(sheet, saving ? null : onCancel);
-  const leaving = useRecLeaving(sheet, open, box);
-  // As a sheet, it is as tall as what it holds, and its height glides as that changes (a field's error, a part unfolding).
-  useEffect(() => (sheet && box.current ? glideHeight(box.current) : undefined), [sheet]);
   const refused = !!(gate && gate["aria-disabled"]);
-  const keys = recKeys({ onCancel, onSave, saving, refused });
+  // A sheet's Escape is the kit's sheet's, which asks the Cancel below; under its row the fold hears it itself.
+  const keys = recKeys({ onCancel: asSheet ? null : onCancel, onSave, saving, refused });
   // Close, the foot's Cancel and a press on a phone's wash are one Cancel, and none acts while the fold saves (recKeys
   // says why): Close once cancelled then, where the foot's Cancel and Escape did not.
   const cancel: CancelFold = (e) => {
@@ -396,6 +327,6 @@ export function RecordFold(props: RecordFoldProps) {
     if (onCancel) onCancel(e);
   };
   const told = foldTold(props, sheet);
-  const draw: FoldDraw = { box, ask, foot: foldFoot(props), told, cancel, phone, keys, onFocus, leaving };
-  return sheet ? foldSheet(props, draw) : foldRow(props, draw);
+  const draw: FoldDraw = { box, ask, foot: foldFoot(props), told, cancel, keys, onFocus };
+  return asSheet ? foldSheet(props, draw, sheet) : foldRow(props, draw);
 }

@@ -2022,8 +2022,6 @@
 .pl-add-pick-row > span:first-child { overflow: hidden; font-size: var(--text-base); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .pl-add-pick-count { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .pl-add .pl-add-make { justify-content: flex-start; gap: 8px; margin-top: 12px; }
-.pl-add-pick-title { display: inline-flex; align-items: center; gap: 10px; }
-.pl-add-back { rotate: 180deg; }
 /* What a list came to: how many went in, said once, and the three numbers beside it; the lines that did not, by line. */
 .pl-add .pl-import-summary { gap: 12px; padding: 16px; border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-xl); background: var(--surface-inset-fill); }
 .pl-import-total { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); }

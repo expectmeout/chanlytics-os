@@ -7,7 +7,7 @@
  * never a leaving; put it on the sheet (or the palette), and its wash is found as the sibling before it as it opens. React
  * takes the wash away before the sheet, so the wash's copy is made from the one it held. Nothing leaves under reduced
  * motion, nor from a frame React mounted and let go of at once (StrictMode's check in development, a draw that never
- * showed). The fold's sheet has its own (the record kit's `recSheetLeaves`).
+ * showed). A record sheet let go of while open leaves by it too, its copies on the body (record/sheet.tsx).
  */
 import { motionReduced, washBehind } from "./swipe";
 
@@ -64,18 +64,25 @@ const playOut = (copy: Element) => {
   setTimeout(go, LEAVE_FALLBACK_MS);
 };
 
-/** Play a node and its wash out from where the node still stands: called as React lets go of the node. */
-export const leaveOverlay = (node: Element | null | undefined, wash: Element | null = null): void => {
+/**
+ * Play a node and its wash out from where the node still stands: called as React lets go of the node. `into` puts the
+ * copies at the end of another element instead (the document's body), for a node whose parent React takes away with it
+ * (a Base UI portal's own box, which goes in the same commit: kit/record/sheet.tsx).
+ */
+export const leaveOverlay = (
+  node: Element | null | undefined,
+  wash: Element | null = null,
+  into: Element | null = null,
+): void => {
   const parent = node && node.parentNode;
-  if (!node || !parent || typeof node.cloneNode !== "function" || motionReduced()) return;
-  if (wash && typeof wash.cloneNode === "function") {
-    const w = stillCopy(wash);
-    parent.insertBefore(w, node);
-    playOut(w);
-  }
-  const copy = stillCopy(node);
-  parent.insertBefore(copy, node.nextSibling);
-  playOut(copy);
+  if (!node || !(into || parent) || typeof node.cloneNode !== "function" || motionReduced()) return;
+  const put = (copy: Element, before: Node | null) => {
+    if (into) into.appendChild(copy);
+    else parent?.insertBefore(copy, before);
+    playOut(copy);
+  };
+  if (wash && typeof wash.cloneNode === "function") put(stillCopy(wash), node);
+  put(stillCopy(node), node.nextSibling);
 };
 
 /**

@@ -45,13 +45,26 @@ export interface FocusOn {
   row: string;
 }
 
-const recFocusIn = (el: HTMLElement | null, inner: string, fallback: string | null = null) => {
-  if (!el || !can(el, "querySelector")) return;
+/**
+ * The first thing in a gesture to type into or press, past its tips and its foot, else `fallback` (its Close): what
+ * focus goes to as it opens. The kit's sheet asks it for a fold's sheet (fold.tsx), as Base UI places focus there.
+ */
+export const recFirstIn = (
+  el: HTMLElement | null,
+  inner: string,
+  fallback: string | null = null,
+): HTMLElement | null => {
+  if (!el || !can(el, "querySelector")) return null;
   const within = pick(el, inner);
   const stops = within ? tabStops(within) : [];
-  const first =
+  return (
     stops.find((c) => !c.classList.contains("rec-tip") && !c.closest(".rec-foot")) ||
-    (fallback ? pick(el, fallback) : null);
+    (fallback ? pick(el, fallback) : null)
+  );
+};
+
+const recFocusIn = (el: HTMLElement | null, inner: string, fallback: string | null = null) => {
+  const first = recFirstIn(el, inner, fallback);
   if (!first || !first.focus) return;
   first.focus();
   const field = first as HTMLInputElement;

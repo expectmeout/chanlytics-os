@@ -55,7 +55,6 @@ const { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn } = requireFromDa
 );
 const { useRecordFold } = requireFromDashboard("../surfaces/kit/record/hooks.ts");
 const { RecordInline } = requireFromDashboard("../surfaces/kit/record/inline.tsx");
-const { recPortalRoot } = requireFromDashboard("../surfaces/kit/record/leaving.ts");
 const { RecordChips, RecordDispute, RecordRow } = requireFromDashboard("../surfaces/kit/record/row.tsx");
 const { RecordFoot, RecordSays } = requireFromDashboard("../surfaces/kit/record/says.tsx");
 const { RecordSheet } = requireFromDashboard("../surfaces/kit/record/sheet.tsx");
@@ -93,7 +92,6 @@ export const kitParts = {
   RecordTip,
   RecordTipCard,
   recPhoneQuery,
-  recPortalRoot,
   RecordFold,
   RecordInline,
   RecordSays,
@@ -468,7 +466,10 @@ export const walk = (n, fn) => {
     return;
   }
   fn(n);
-  walk(n.props?.children, fn);
+  // A part that stands only as what it drew (Base UI's Dialog root as the suite stands in for it: shut, nothing of the
+  // sheet stands on the page, shared/_stand-in-base-ui.mjs) is walked as what it rendered alone.
+  // (Strictly true: the other stand-ins are proxies that answer any name.)
+  if (n.type?.drawsOnlyWhatItRendered !== true) walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
 /** A drawn component is walked as the children it was given and as what it rendered: each node counts once. */
@@ -496,7 +497,27 @@ export const classes = (n) =>
   String(n?.props?.className || "")
     .split(/\s+/)
     .filter(Boolean);
-export const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+/**
+ * Escape, as Base UI's Dialog hears it on the document and asks the kit's Sheet in `tree` (its `onOpenChange`): `taken`
+ * is a key something in the sheet already took (a combobox's list closing). Whether Base UI was told to leave it be.
+ */
+export const escapeSheet = (tree, { taken = false } = {}) => {
+  // The open sheet on top: the last open one drawn (a page draws its shut sheets too).
+  const root = all(tree, (n) => typeof n.props?.onOpenChange === "function" && n.props.open === true).at(-1);
+  if (!root) throw new Error("escapeSheet: no open kit Sheet in the tree");
+  let kept = false;
+  root.props.onOpenChange(false, {
+    reason: "escape-key",
+    event: { defaultPrevented: taken },
+    cancel: () => {
+      kept = true;
+    },
+  });
+  return kept;
+};
+// A press's event: Base UI's parts hand theirs `preventBaseUIHandler` too (the kit's Sheet's Close calls it).
+export const press = (node) =>
+  node.props.onClick({ stopPropagation() {}, preventDefault() {}, preventBaseUIHandler() {} });
 export const settle = () => new Promise((r) => setImmediate(r));
 
 /**

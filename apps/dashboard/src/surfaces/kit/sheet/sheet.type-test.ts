@@ -2,9 +2,9 @@
  * What the kit's Sheet takes, proved where the compiler reads it (sheet.tsx): whether it is open, which is the page's,
  * and what asks it to close; its title, which names it; its Close, with its name and its glyph; and what it holds.
  * What would draw a sheet no one can name, close or leave stops compiling: no `open`, no `onClose`, no title, a Close
- * with no name, and a variant the kit's one frame does not have. Its two shapes keep their own parts: a record's Close
- * is its glyph and always drawn, a word or none is a phone's job's, a way back is a job's, and a job has no tools or
- * foot.
+ * with no name, and a variant the kit's one frame does not have. Every sheet has its Close (Ruben, 25 Nov 2026: "one
+ * design"): a record's is its glyph with its name, a phone's job's is named by the job's word, and neither may be left
+ * out. A way back is a step's, a record's or a job's, and a job has no tools or foot.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -28,7 +28,7 @@ function _sheetTakes(
     Holds<Exactly<ComponentProps<typeof Sheet>, SheetProps>>,
     Holds<Exactly<SheetProps["open"], boolean>>,
     Holds<Exactly<SheetProps["onClose"], () => void>>,
-    Holds<Exactly<SheetProps["close"], { label: string; glyph: ReactElement } | { word: string } | null>>,
+    Holds<Exactly<SheetProps["close"], { label: string; glyph: ReactElement } | { word: string }>>,
     Holds<Exactly<SheetBack["onBack"], () => void>>,
   ];
   Sheet({ open, onClose: close, title: "Services", close: { label: "Close", glyph }, children: "Three services" });
@@ -44,8 +44,30 @@ function _sheetTakes(
     testid: "bulk-sheet",
     children: "Why",
   });
-  // A job whose own button is its way out: no word in its head.
-  Sheet({ open, shape: "job", onClose: close, title: "Delete the list", close: null, children: "Delete it?" });
+  // A record that is a step of another (Add people's lists): the kit's own back before its title, and its Close.
+  Sheet({
+    open,
+    onClose: close,
+    title: "Put them on",
+    close: { label: "Close", glyph },
+    back: { label: "Back to their details", glyph, onBack: close },
+    children: "The lists",
+  });
+  // A composer whose save is out, its keys and its focus heard, a question in its foot, a steady height.
+  Sheet({
+    open,
+    onClose: close,
+    title: "Add people",
+    close: { label: "Close", glyph },
+    foot: "Discard what you wrote?",
+    asking: true,
+    busy: true,
+    steady: true,
+    onKeyDown: () => undefined,
+    onFocus: () => undefined,
+    initialFocus: () => null,
+    children: "One person",
+  });
   // A composer: its line, its tools and its foot; a field focused as it opens; the page's ref and its width.
   Sheet({
     open,
@@ -73,11 +95,14 @@ function _sheetTakes(
   Sheet({ open, onClose: close, title: "Services", close: { label: "Close", glyph }, variant: "centred" });
   // @ts-expect-error a record's Close is its glyph and its name: a word is a job's
   Sheet({ open, onClose: close, title: "Services", close: { word: "Cancel" } });
-  // @ts-expect-error a record's sheet always has a Close; only a job's own button may be its way out
+  // @ts-expect-error every sheet has its Close, a record's among them
   Sheet({ open, onClose: close, title: "Services", close: null });
-  const back = { label: "Back", glyph, onBack: close };
-  // @ts-expect-error a way back is a job's, between its steps
-  Sheet({ open, onClose: close, title: "Services", close: { label: "Close", glyph }, back });
+  // @ts-expect-error and a job's: the round Close is in its head beside its own button (no `close: null`)
+  Sheet({ open, shape: "job", onClose: close, title: "Delete the list", close: null, children: "Delete it?" });
+  // @ts-expect-error a foot that closes it is gone: the Close is in its corner on a phone too
+  Sheet({ open, onClose: close, title: "Services", close: { label: "Close", glyph }, footCloses: true });
   // @ts-expect-error a job's sheet is its job: no tools and no foot
   Sheet({ open, shape: "job", onClose: close, title: "Add a person", close: { word: "Cancel" }, foot: "Add" });
+  // @ts-expect-error a job's sheet holds no steady height: a job is as tall as what it holds
+  Sheet({ open, shape: "job", onClose: close, title: "Add a person", close: { word: "Cancel" }, steady: true });
 }
