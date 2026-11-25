@@ -4,9 +4,10 @@
 -- The dashboard reached these doors with the service-role key, after its route had checked the member, because only
 -- the service role could call them. So the route's check was the only one, and the dashboard held the key that opens
 -- every table for each of them. Each now asks who is calling, as the house's member doors do (content_week_approve,
--- set_workspace_logo): a signed-in caller must belong to the workspace, and may change it only where their role acts;
--- the service role (the edge, a clock, a deploy from before this) is let through as before, naming its workspace
--- itself. The dashboard calls them on the member's own session.
+-- set_workspace_logo): a signed-in caller must belong to the workspace, and may change it only where their role acts.
+-- The service role (the edge, a deploy from before this) and a session of the database itself (a clock, a migration)
+-- are let through as before, naming their workspace themselves; only an API session with no person in it is refused.
+-- The dashboard calls them on the member's own session.
 --
 --   Reads, by a member of the workspace:
 --     campaign_month_sent, reach_out_month_sent, source_files_tally, reach_out_drafts_waiting (one workspace named:
@@ -37,16 +38,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   with zone as (
@@ -75,16 +76,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   with zone as (
@@ -113,16 +114,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   select jsonb_build_object(
@@ -142,16 +143,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return query
   select s.id, s.tenant_id, s.lead_id, s.batch_id as broadcast_id, s.drafted_at,
@@ -173,16 +174,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   -- Who this sequence would try again, and from when (00608, decision 0120): the businesses its first email wrote to that
@@ -215,16 +216,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if not coalesce(public.may_read_workspace((select b.tenant_id from public.mailbox_connections b where b.id = p_mailbox_id)), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   with b as (
@@ -283,16 +284,16 @@ language plpgsql stable security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if not coalesce(public.may_read_workspace((select b.tenant_id from public.mailbox_connections b where b.id = p_mailbox_id)), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return (
   with ours as (
@@ -351,16 +352,16 @@ set search_path to 'public'
 set plan_cache_mode to 'force_generic_plan'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
       raise exception 'Not a member of this workspace.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   return query
     with asked as (
@@ -388,17 +389,17 @@ language plpgsql security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_held integer;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
       raise exception 'Not yours to change.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   update public.form_entries
      set state = 'held', held_why = 'member'
@@ -415,20 +416,20 @@ language plpgsql security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_entry   public.form_entries%rowtype;
   v_person  jsonb;
   v_contact uuid;
   v_owed    text[] := array['note', 'notice'];
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
       raise exception 'Not yours to change.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   select * into v_entry from public.form_entries e
    where e.tenant_id = p_tenant_id and e.id = p_entry_id and e.state = 'held'
@@ -475,17 +476,17 @@ language plpgsql security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_id uuid;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
       raise exception 'Not yours to change.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   if p_why is null or p_why not in ('pitch', 'notice') then
     raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
@@ -514,8 +515,9 @@ language plpgsql security definer
 set search_path to 'public'
 as $$
 declare
-  -- 00717: the service role (the edge, a clock, a deploy from before this door asked) names its workspace itself.
-  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
   v_kind  text;
   v_by    uuid;
   v_ref   text;
@@ -523,14 +525,13 @@ declare
   v_same  boolean;
   v_live  boolean;
 begin
-  if v_service is not true then
-    if auth.uid() is null then
-      raise exception 'Sign in required.' using errcode = '28000';
-    end if;
+  if v_member then
     if p_kind is distinct from 'person' or p_by is distinct from auth.uid()
        or p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
       raise exception 'Not yours to change.' using errcode = '42501';
     end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
   end if;
   if p_kind not in ('person', 'call') then
     raise exception 'control kind must be person or call' using errcode = '22023';

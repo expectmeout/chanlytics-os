@@ -1124,7 +1124,7 @@ test("every function re-created whole keeps its source's volatility, rights, sea
   assert.deepEqual(Object.fromEntries(rows.map((r) => [r.fn, [r.vol, r.definer, r.config, r.grantees]])), want);
 });
 
-test("the new doors are closed to a session, and the converter to everyone", { skip }, () => {
+test("the new doors are closed to a session but the list's own read, and the converter to everyone", { skip }, () => {
   const rows = query(`select f as fn,
       has_function_privilege('anon', f, 'execute') as anon,
       has_function_privilege('authenticated', f, 'execute') as member,
@@ -1138,7 +1138,9 @@ test("the new doors are closed to a session, and the converter to everyone", { s
     ]) as f`);
   assert.deepEqual(rows.map((r) => [r.fn.replace(/\(.*/, ""), r.anon, r.member, r.service, r.definer]).sort(), [
     ["public.lead_address_suppressed", false, false, true, true],
-    ["public.lead_addresses_suppressed", false, false, true, true],
+    // 00717: a member reads the never-again list for their own workspace (a draft asks it on their session); the door
+    // asks that they belong.
+    ["public.lead_addresses_suppressed", false, true, true, true],
     ["public.lead_convert_by", false, false, false, true],
     ["public.person_step_from_playbook", false, false, true, true],
   ]);
