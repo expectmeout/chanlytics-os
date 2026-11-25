@@ -516,7 +516,6 @@ async function motionsOn(page: Page, selector: string): Promise<Motion[][]> {
 /** The house's easings, as tokens.css spells them and the browser hands them back. */
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.7, 0, 0.84, 0)";
-const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 /**
  * Wait out whatever is moving, so the next step starts from rest: every motion that ends. The frame's pools drift on a
  * desk and Ask's dot breathes on a phone for ever (components.css), and a wait on those never finished.
@@ -594,7 +593,7 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
   const fold = '[role="dialog"][data-testid="rec-fold-escalate_when"]';
   await expect(page.locator(fold)).toBeVisible();
   const sheetIn = await motionsOn(page, fold);
-  const washIn = await motionsOn(page, ".rec-sheet-backdrop[data-fold]");
+  const washIn = await motionsOn(page, ".sheet-backdrop");
   if (reduced) {
     none(sheetIn, "the sheet arriving");
     none(washIn, "the sheet's wash");
@@ -638,16 +637,16 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
     else expect(washing[i], `${where}: "${l.text.slice(0, 40)}" washes`).toEqual([]);
   });
 
-  // 4. It leaves by its edge as it closes (side-out, faster, on --ease-in), by a still copy React no longer holds
-  // (record-fold.jsx recSheetLeaves): the fold is closed and focus is back on the row's act at once, nothing in what
-  // leaves can be found or pressed, it is gone as its slide ends, and the card behind holds still throughout.
+  // 4. It leaves by its edge as it closes (side-out, faster, on --ease-in): the kit's one sheet in its leaving state
+  // (data-leaving, Base UI's closing): the fold is closed and focus is back on the row's act at once, nothing in what
+  // leaves takes a press, it is gone as its slide ends, and the card behind holds still throughout.
   await settled(page);
   await page.getByTestId("rec-fold-cancel-escalate_when").click();
   await page.getByTestId("rec-fold-escalate_when-cancel-yes").click();
   const closing = await page.evaluate(async () => {
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
-    const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+    const wash = document.querySelector('.sheet-backdrop[data-leaving="true"]');
     const moving = (el: Element | null) =>
       el
         ? el.getAnimations().map((a) => ({
@@ -657,11 +656,11 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
           }))
         : null;
     return {
-      dialogs: document.querySelectorAll('[role="dialog"]').length,
+      dialogs: document.querySelectorAll('[role="dialog"]:not([data-leaving])').length,
       focus: document.activeElement?.getAttribute("data-testid"),
       copy: moving(copy),
       wash: moving(wash),
-      named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
+      pressed: copy ? getComputedStyle(copy).pointerEvents !== "none" : false,
     };
   });
   expect(closing.dialogs, "the fold is closed the moment it is").toBe(0);
@@ -672,7 +671,7 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
       { prop: "side-out", ms: 180, easing: EASE_IN },
     ]);
     expect(closing.wash, "its wash fading with it").toEqual([{ prop: "wash-out", ms: 160, easing: EASE_IN }]);
-    expect(closing.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
+    expect(closing.pressed, "and nothing in what leaves takes a press").toBe(false);
   }
   await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);
   await expect(page.locator(fold)).toHaveCount(0);
@@ -840,7 +839,7 @@ test.describe("Settings › Business on a real workspace", () => {
     expect(
       await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? null, beside),
       "what lies over the page beside the sheet is not its wash",
-    ).toBe("rec-sheet-backdrop");
+    ).toBe("sheet-backdrop");
     await page.mouse.click(beside.x, beside.y);
     await expect(foldOf(page, "tone")).toBeHidden();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
@@ -940,7 +939,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(toastUndo).toBeInViewport({ ratio: 1 });
     await toastUndo.focus();
     await toastUndo.click();
-    await expectFocusInside(page, ".rec-sheet", "the toast's Undo left focus outside the sheet");
+    await expectFocusInside(page, ".sheet", "the toast's Undo left focus outside the sheet");
 
     // Escape with something typed asks rather than throwing it away, and Keep editing brings focus back in.
     await page.keyboard.press("Escape");
@@ -948,7 +947,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(ask).toBeVisible();
     await page.getByTestId("rec-sheet-services-cancel-no").click();
     await expect(ask).toHaveCount(0);
-    await expectFocusInside(page, ".rec-sheet", 'the sheet dropped focus on "Keep editing"');
+    await expectFocusInside(page, ".sheet", 'the sheet dropped focus on "Keep editing"');
 
     await discard(page, "services", "sheet");
     // As the sheet closes, focus goes back to the act that opened it.
@@ -1436,7 +1435,7 @@ test.describe("Settings › Business on a real workspace", () => {
       expect(
         await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? null, above!),
         "what lies over the other row is not the wash",
-      ).toBe("rec-sheet-backdrop");
+      ).toBe("sheet-backdrop");
       await page.mouse.move(above!.x, above!.y);
       await page.mouse.wheel(0, 400);
       await page.mouse.move(195, grown.y + 30);
@@ -1549,48 +1548,43 @@ test.describe("Settings › Business on a real workspace", () => {
         const tone = '[role="dialog"][data-testid="rec-fold-tone"]';
         await expect(page.locator(tone)).toBeVisible();
         const rising = await motionsOn(page, tone);
-        // Its cut rises with it (kit.css --sheet-down, #1806): nothing of it stands lower than its rest as it comes up.
+        // The kit's one sheet: it rises on sheet-in, its cut with it (kit.css --sheet-down, #1806), so nothing of it
+        // stands lower than its rest as it comes up.
         if (reduced) expect(rising.flat(), `${where}: the sheet rises`).toEqual([]);
         else
-          expect(rising, "the sheet rises on --ease-out").toEqual([
-            [
-              { prop: "--sheet-down", ms: 200, easing: EASE_OUT },
-              { prop: "transform", ms: 200, easing: EASE_OUT },
-            ],
-          ]);
+          expect(rising, "the sheet rises on --ease-out").toEqual([[{ prop: "sheet-in", ms: 260, easing: EASE_OUT }]]);
         await settled(page);
         expect(await still(), `${where}: the card behind the open sheet moved`).toBe(at);
         const leaving = await page.evaluate(async () => {
-          (document.querySelector('[data-testid="rec-fold-close-tone"]') as HTMLElement).click();
+          (document.querySelector('[data-testid="rec-fold-tone-close"]') as HTMLElement).click();
           await new Promise((r) => requestAnimationFrame(() => r(null)));
           const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
-          const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+          const wash = document.querySelector('.sheet-backdrop[data-leaving="true"]');
           const moving = (el: Element | null) =>
             el
               ? el.getAnimations().map((a) => ({
-                  prop: (a as unknown as { transitionProperty: string }).transitionProperty,
+                  prop: (a as unknown as { animationName: string }).animationName,
                   ms: Number((a.effect as KeyframeEffect).getComputedTiming().duration),
-                  easing: String((a.effect as KeyframeEffect).getTiming().easing),
+                  easing: String((a.effect as KeyframeEffect).getKeyframes()[0]?.easing),
                 }))
               : null;
           return {
-            dialogs: document.querySelectorAll('[role="dialog"]').length,
+            dialogs: document.querySelectorAll('[role="dialog"]:not([data-leaving])').length,
             focus: document.activeElement?.getAttribute("data-testid") ?? null,
             copy: moving(copy),
             wash: moving(wash),
-            named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
+            pressed: copy ? getComputedStyle(copy).pointerEvents !== "none" : false,
           };
         });
         expect(leaving.dialogs, `${where}: the fold is closed the moment it is`).toBe(0);
         expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
         if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
         else {
-          expect(leaving.copy, "the sheet goes down on --ease-in-out, its cut with it").toEqual([
-            { prop: "--sheet-down", ms: 200, easing: EASE_IN_OUT },
-            { prop: "transform", ms: 200, easing: EASE_IN_OUT },
+          expect(leaving.copy, "the sheet goes down on sheet-out, its cut with it").toEqual([
+            { prop: "sheet-out", ms: 180, easing: EASE_IN },
           ]);
-          expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "opacity", ms: 200, easing: EASE_IN_OUT }]);
-          expect(leaving.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
+          expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "wash-out", ms: 160, easing: EASE_IN }]);
+          expect(leaving.pressed, "and nothing in what leaves takes a press").toBe(false);
         }
         expect(await still(), `${where}: the card behind the leaving sheet moved`).toBe(at);
         await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);

@@ -215,7 +215,12 @@ async function broadcastHeld(
   goesAt: Date,
 ): Promise<string> {
   if (!channels.some((c) => c !== "whatsapp")) return "";
-  const words = allowanceBeforeSend(byChannel, await readMonthSentOrNull(toolContext.tenantId, goesAt), null, purpose);
+  const words = allowanceBeforeSend(
+    byChannel,
+    await readMonthSentOrNull(toolContext.ctx.supabase, toolContext.tenantId, goesAt),
+    null,
+    purpose,
+  );
   return words ? ` · ${words}` : "";
 }
 

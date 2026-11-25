@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
+import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberMetaOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
 import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 

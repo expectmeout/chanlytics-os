@@ -15,7 +15,7 @@
  *
  * What the old rules also saw, and these keep seeing: a page or an overlay that leaves by a picture of itself (the node
  * React took away put back while it slides out, kit/motion/view-deck.ts; a still copy playing an overlay out,
- * kit/motion/leaving.ts and the record kit's) holds what it pictures until it is gone (`holdPictured`), read once by the
+ * kit/motion/leaving.ts) holds what it pictures until it is gone (`holdPictured`), read once by the
  * very selector the rule's `:has()` held; and a page marked outside React (a thumb's carry, `data-going`) holds what the
  * mark makes it while the mark stands (`holdWhileMarked`). The frame's own flag is the document's before any code runs
  * (contracts outlineBootScript, held to this word by theme-boot.test.mjs), as the outline it stands for is drawn first.
@@ -52,8 +52,6 @@ export const ROOT_FLAGS = {
   overPage: { attr: "data-over-page", picture: ":is(.cmh-host-over, .over-page):not([data-leaving])", within: "body" },
   /** The kit's sheet is open, not on its way out: a toast clears its foot. */
   sheetOpen: { attr: "data-sheet-open", picture: ".sheet:not([data-leaving])", within: "document" },
-  /** The record kit's sheet is open, not on its way out: a toast clears its foot. */
-  recordOpen: { attr: "data-record-open", picture: ".rec-sheet:not([data-leaving])", within: "document" },
   /** The bell's list is open, not on its way out: a toast stands at the screen's foot. */
   bellOpen: { attr: "data-bell-open", picture: ".tbn-pop:not([data-leaving])", within: "document" },
   /** A dialog holds the page (`aria-modal`): the page holds still under it. */

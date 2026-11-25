@@ -62,10 +62,10 @@ export const broadcasts: Reader<
     const [list, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
       findChannelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
-      readMonthSentOrNull(rc.tenantId, rc.now),
+      readMonthSentOrNull(rc.ctx.supabase, rc.tenantId, rc.now),
       // The workspace's clock says where the month ends; a zone that could not be read leaves the composer on this month.
       load(rc, readers.facts, undefined).then(
-        (r) => readMonthSentNext(rc.tenantId, rc.now, r.data.timezone),
+        (r) => readMonthSentNext(rc.ctx.supabase, rc.tenantId, rc.now, r.data.timezone),
         () => null,
       ),
       isWorkspaceOpenToCustomers(rc.ctx.supabase, rc.tenantId).then(

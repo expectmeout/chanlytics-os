@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw, importSrc } from "../../_source.mjs";
-import { installStubReact, fresh, again, byTestId, find, press, textOf, peoplePages } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

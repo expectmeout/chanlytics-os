@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
+import { IN_APP_CLASS, ROLE_PERMS, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
 import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 

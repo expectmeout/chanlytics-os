@@ -290,7 +290,6 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   const replaced = [];
   const was = globalThis.location.replace;
   globalThis.location.replace = (to) => replaced.push(to);
-  const w = globalThis;
   const ws = (slug) => ({ id: `id-${slug}`, slug, name: slug, status: "active", timezone: "UTC" });
   const user = { id: "u1", email: "member@example.com" };
   try {

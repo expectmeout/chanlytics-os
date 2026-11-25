@@ -503,7 +503,6 @@ test("REGRESSION: rows read at one workspace's address never join the cache of a
 
 test("a cache the server resolved for another workspace is not added to, even at the same address", () => {
   clearSurfaceCache();
-  const w = globalThis.window;
   setSurfaceValue("today", { n: 1 });
   snapshotSurface("today", "t-other", undefined, "today");
   setSurfaceValue("inbox", { n: 2 });
@@ -520,7 +519,6 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
   try {
     clearSurfaceCache();
-    const w = globalThis.window;
     setSurfaceValue("today", { n: 1 });
     snapshotSurface("today", TID, undefined, "today");
     flushSurfaceCache();
@@ -540,7 +538,6 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
 
 test("a page's rows leave the slot once they are a day old, though the slot is written every day: opening Today each morning kept the Inbox's threads from the one day it was opened", () => {
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
-  const w = globalThis.window;
   const kept = () => Object.keys(JSON.parse(stored()).surfaces).sort();
   try {
     clearSurfaceCache();

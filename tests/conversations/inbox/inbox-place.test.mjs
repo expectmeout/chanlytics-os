@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, textOf, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";

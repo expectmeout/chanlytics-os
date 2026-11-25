@@ -171,8 +171,8 @@ beforeEach(() => {
 });
 
 /** The files tool's view of these names, as the model reads it: each file shown, by its name. */
-async function viewed(names) {
-  const ctx = { supabase: fakeDb(tables(), {}, {}), userId: USER, email: "ada@example.com", params: {} };
+async function viewed(names, supabase = fakeDb(tables(), {}, {})) {
+  const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
   const tc = newToolContext(ctx, A, "owner", TZ, new Date("2026-11-11T12:00:00Z"));
   const out = await runTool(tc, { name: "files", input: { action: "view", names } });
   assert.equal(out.isError, false, out.result);
@@ -285,13 +285,20 @@ test("only a piece made here says how it was made", async () => {
 });
 
 test("a making that cannot be read is not told, and the piece is opened all the same", async () => {
-  // The service role's read of what a post keeps fails: nothing is guessed in its place.
-  setServiceClient({
-    from() {
-      throw new Error("the database did not answer");
-    },
-  });
-  const { out, shown } = await viewed(["saturdays-fill-first"]);
+  // The member's read of what a post keeps (files.made, 00717) fails: nothing is guessed in its place.
+  const db = fakeDb(tables(), {}, {});
+  const from = db.from.bind(db);
+  db.from = (table) => {
+    const query = from(table);
+    if (table !== "files") return query;
+    const select = query.select.bind(query);
+    query.select = (columns, ...rest) => {
+      if (columns === "made") throw new Error("the database did not answer");
+      return select(columns, ...rest);
+    };
+    return query;
+  };
+  const { out, shown } = await viewed(["saturdays-fill-first"], db);
   assert.equal(shown["saturdays-fill-first"].made_as, undefined);
   assert.equal(out.pictures.length, 1, "Ask still sees the picture");
 });

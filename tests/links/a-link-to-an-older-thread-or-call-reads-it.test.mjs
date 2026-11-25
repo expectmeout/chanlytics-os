@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { memberWords, stateOf } from "@chanlytics/contracts";
+import { stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../_stub-react.mjs";
 import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
 

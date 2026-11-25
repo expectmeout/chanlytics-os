@@ -8,7 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readRaw } from "../../_source.mjs";
 import { OUT as SCHEMA_SQL } from "../../../tooling/scripts/gen/schema-snapshot.mjs";
-import { LINKS_LEFT_UNINDEXED, linksAndIndexesOf, linksWithoutAnIndex } from "./_data.mjs";
+import { parse, repoFiles, serviceRoleReaches } from "../../_ast.mjs";
+import { LINKS_LEFT_UNINDEXED, SERVICE_ROLE_KEPT, linksAndIndexesOf, linksWithoutAnIndex } from "./_data.mjs";
 
 const schema = readRaw(SCHEMA_SQL);
 
@@ -60,5 +61,23 @@ test("the reading takes pg's printed form: a link, a key, a unique constraint an
     linksWithoutAnIndex(sql).map((l) => l.key),
     ["notes.author_id"],
     "the workspace pair is served by its parent's own column, the partial unique index serves deal_id, the author's link has none",
+  );
+});
+
+test("every dashboard module that takes the service role says why, and every module named still takes it", () => {
+  const reaching = repoFiles(["apps/dashboard"])
+    .filter((f) => f !== "apps/dashboard/src/server/shared/service-db.ts")
+    .filter((f) => serviceRoleReaches(parse(f)) > 0);
+  assert.deepEqual(
+    reaching.filter((f) => !Object.hasOwn(SERVICE_ROLE_KEPT, f)).sort(),
+    [],
+    "read and write on the member's session where a policy lets them, or through a SQL door that asks who is calling; a reach no member may make is named in SERVICE_ROLE_KEPT with why",
+  );
+  assert.deepEqual(
+    Object.keys(SERVICE_ROLE_KEPT)
+      .filter((f) => !reaching.includes(f))
+      .sort(),
+    [],
+    "a module named as keeping the service role takes it no more, or is gone: take it out of SERVICE_ROLE_KEPT",
   );
 });

@@ -34,7 +34,7 @@ test("View-as previews a lower role on top of the real one", () => {
 });
 
 test("the store answers who is acting at each ask: a change of role or of preview moves every gate together", () => {
-  const { win, store } = windowWith({ me: { role: "owner" } });
+  const { store } = windowWith({ me: { role: "owner" } });
   assert.equal(store.myRole(), "owner");
   assert.equal(store.mayAtLeast("owner"), true);
   store.viewAsRole = "viewer";

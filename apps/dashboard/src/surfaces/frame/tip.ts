@@ -3,17 +3,9 @@
  * [data-tip] element, on hover and on keyboard focus. A pressed gate shows its reason at once, at the control (a tap has no
  * hover): the provided `tip`'s `show(el)`. Under a finger a tip goes after a plain toast's 3 s, and focus shows one to a
  * keyboard alone: a tapped tip stood until the next tap (Ruben, 18 Oct 2026). Installed once, where the page loads
- * (frame-globals.ts), and provided as `tip` (bridge/provided.ts), which a gate's press asks for; the record kit's marks ask
- * for it on the window still (kit/record/shell-verbs.ts), until they read the store.
+ * (frame-globals.ts), and provided as `tip` (bridge/provided.ts), which a gate's press and the record kit's marks ask for.
  */
 import { provide, provided } from "@/bridge/provided";
-
-declare global {
-  interface Window {
-    /** The tip, as the record kit's marks still read it (kit/record/shell-verbs.ts), until they read the store. */
-    __tip?: { show: (el: Element) => void };
-  }
-}
 
 const TIP_TOUCH_MS = 3000;
 const SHOW_MS = 280;
@@ -125,7 +117,4 @@ export function installTip(): void {
     },
   };
   provide("tip", tip);
-  // The record kit's marks read it off the window (kit/record/shell-verbs.ts, the kit lane's file): a line to delete the
-  // day they read the store.
-  window.__tip = tip;
 }

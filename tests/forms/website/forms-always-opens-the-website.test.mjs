@@ -19,7 +19,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { ROLE_PERMS, roleGate } from "@chanlytics/contracts";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");

@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { all, textOf, unmount } from "../../_stub-react.mjs";
-import { W, draw } from "./_world.mjs";
+import { draw } from "./_world.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { BriefPlaying } = await import("../../../apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx");

@@ -8,7 +8,6 @@
 import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS, USUAL_DAYS, dayCameToWords, usualDayWords } from "../model/lines";
 import { useLastDays } from "../calm/days";
-import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { Icon } from "../../kit/icon/icon";

@@ -13,10 +13,9 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { findStepRow } from "@chanlytics/db/campaigns";
-import { recordEvent } from "@chanlytics/db/events";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
+import { recordWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /**
  * Refused whenever no connected mailbox can send, as the make reads it: the words say which it is (contracts
@@ -59,16 +58,9 @@ export async function refuseTurningToHand(
  * one the ledger did not keep fails, and the sheet never says told for nothing.
  */
 export async function recordProviderWanted(tenantId: TenantId, userId: string, provider: string): Promise<void> {
-  const { error } = await recordEvent(
-    serviceDb(),
-    tenantId,
-    "mailbox_connection.provider_wanted",
-    "workspace",
-    tenantId,
-    {
-      provider,
-      by: userId,
-    },
-  );
+  const { error } = await recordWorkspaceEvent(tenantId, "mailbox_connection.provider_wanted", "workspace", tenantId, {
+    provider,
+    by: userId,
+  });
   if (error) throw new DbFailure({ message: error }, "cannot keep which mailbox they use");
 }

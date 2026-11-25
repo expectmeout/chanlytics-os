@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";

@@ -25,7 +25,6 @@ import { getLeadEmailOffer, type LeadEmailOffer } from "./send";
 import type { LeadRow } from "./searches";
 import { numberBacking, unbackedNumbers } from "../campaigns/sequences/numbers";
 import { askForJson } from "../shared/model-json";
-import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
 import { findLeadDraftFacts } from "@chanlytics/db/leads";
@@ -125,7 +124,7 @@ export async function draftFor(
   if (!lead.email || lead.email_state === "none" || lead.email_state === "invalid") {
     throw new AppError("conflict", LEAD_OWN_EMAIL_WORDS.noAddress, 409);
   }
-  const held = await getAddressesSuppressed(serviceDb(), lead.tenant_id, [lead.email]);
+  const held = await getAddressesSuppressed(ctx.supabase, lead.tenant_id, [lead.email]);
   if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
   const [facts, config, ownWords] = await Promise.all([
     draftFacts(ctx, lead),

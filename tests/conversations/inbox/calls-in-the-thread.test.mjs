@@ -17,7 +17,6 @@ import {
   toInboxThreadVM,
   stateOf,
   stateLabel,
-  memberWords,
   frameWhisper,
   proposalMessage,
   dealMenuActs,

@@ -445,11 +445,14 @@ async function linesPage(
  * as it did before reels went up from here.
  */
 async function reelsWhereAsked(
+  db: Db,
   tenantId: TenantId,
   pieces: readonly { file: { kind: string }; posts: readonly PostDto[]; by_hand?: HandPostDto | null }[],
 ): Promise<boolean | undefined> {
   if (!pieces.some((piece) => !piece.by_hand && videoIsSavedOnly(piece.file, piece.posts, false))) return undefined;
-  const can = await readInstagramPostable(tenantId).catch(logAndGoOn("content: whether Instagram takes a reel", null));
+  const can = await readInstagramPostable(db, tenantId).catch(
+    logAndGoOn("content: whether Instagram takes a reel", null),
+  );
   return can === "yes";
 }
 
@@ -476,7 +479,7 @@ async function contentTodayOf(
   const whole = next === null || week.length < made.length;
   const arrived = new Set(week.map((m) => m.file.id));
   const stoppedLines = await postLinesOf(db, tenantId, held.stopped);
-  const reels = (await reelsWhereAsked(tenantId, week)) === true;
+  const reels = (await reelsWhereAsked(db, tenantId, week)) === true;
   return {
     week: week.slice(0, CONTENT_TODAY_PIECES),
     making: held.standing
@@ -544,11 +547,11 @@ async function readBesideThePage(
   db: Db,
   tenantId: TenantId,
   now: number,
-  held: { page: Parameters<typeof readSourcesWhileEmpty>[3]; made: Parameters<typeof reelsWhereAsked>[1] },
+  held: { page: Parameters<typeof readSourcesWhileEmpty>[3]; made: Parameters<typeof reelsWhereAsked>[2] },
 ): Promise<Pick<ContentPageDto, "sources" | "reels">> {
   const [sources, reels] = await Promise.all([
     readSourcesWhileEmpty(db, tenantId, now, held.page),
-    reelsWhereAsked(tenantId, held.made),
+    reelsWhereAsked(db, tenantId, held.made),
   ]);
   return reels === undefined ? { sources } : { sources, reels };
 }

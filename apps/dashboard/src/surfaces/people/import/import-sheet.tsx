@@ -6,7 +6,8 @@
  * Nothing moves under the thumb (Ruben, 20 Oct 2026, the canvas "Add people, redesigned": + Note lifted every field
  * 46px, A list dropped the switch 202px, the error landed 300px from its box). So the sheet is steady (it keeps the
  * height it opened at, kit/record/sheet.tsx): what comes and goes changes what is in its room, never where its head is.
- * The switch stands on the title's line; while the lists are picked the title is their way back.
+ * The switch stands on the title's line; while the lists are picked the sheet's own back, before the title, is their way
+ * back (the kit's Sheet's `back`).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../kit/button/button";
@@ -72,22 +73,9 @@ const oneAct = (words: string, onPress: () => void, testid: string) => (
   </div>
 );
 
-/** The title while the lists are picked: the way back, and what the room is for. */
-const pickTitle = (onBack: () => void) => (
-  <span className="pl-add-pick-title">
-    <Button
-      iconOnly
-      aria-label="Back to their details"
-      variant="glass"
-      size="sm"
-      onClick={onBack}
-      data-testid="add-person-list-back"
-    >
-      <Icon name="chevron" size={14} className="pl-add-back" />
-    </Button>
-    Put them on
-  </span>
-);
+/** While the lists are picked, the way back to their details: the kit's own back, before the title (the change list's A5). */
+const pickBack = (picking: boolean, onBack: () => void) =>
+  picking ? { label: "Back to their details", glyph: <Icon name="chevron" size={18} />, onBack } : null;
 
 export function PeopleAddSheet({
   onClose,
@@ -162,7 +150,8 @@ export function PeopleAddSheet({
       steady
       fit
       id="people-add"
-      title={picking ? pickTitle(back) : "Add people"}
+      title={picking ? "Put them on" : "Add people"}
+      back={pickBack(picking, back)}
       tools={
         // The choice is the owner's, whose door the import is; it waits while a list goes in, and goes once it is in.
         canImport && !picking && !save.done ? (

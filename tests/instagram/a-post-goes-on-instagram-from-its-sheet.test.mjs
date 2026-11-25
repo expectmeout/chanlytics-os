@@ -129,13 +129,34 @@ function world({
   // Every door asked, in order: a post let go before its piece is set aside.
   const doors = [];
   const rows = posts.map((p) => postRow(tenant, p));
+  const channels = connected
+    ? [
+        {
+          id: `cccccccc-cccc-4ccc-8ccc-${String(seq).padStart(12, "0")}`,
+          tenant_id: tenant,
+          kind: "instagram",
+          external_id: "17841400000000001",
+          status: "active",
+          credentials_ref: "ref",
+          config: { login: "meta", scopes, ...(lapsed ? { token_lapsed_at: "2026-11-09T06:00:00Z" } : {}) },
+          created_at: "2026-11-01T00:00:00Z",
+        },
+      ]
+    : [];
+  // How the post was made, as every made post keeps it: its words are kept here as it is posted (posts/caption.ts).
+  const made = { plan: { line: "Open late on Fridays", under: null }, caption: null };
   const ctx = {
     supabase: fakeDb(
       {
         memberships: [
           { user_id: USER, tenant_id: tenant, role, tenants: { slug: `w${seq}` }, created_at: "2026-01-01T00:00:00Z" },
         ],
-        files: [fileRow(tenant, file), fileRow(tenant, { id: PHOTO_ID, source: "upload", name: "storefront" })],
+        // How the post was made, and whether Instagram takes it, are read on the member's own session (00717).
+        files: [
+          { ...fileRow(tenant, file), made },
+          fileRow(tenant, { id: PHOTO_ID, source: "upload", name: "storefront" }),
+        ],
+        tenant_channels: channels,
         tenants: [{ id: tenant, name: "Harbor", slug: `w${seq}`, timezone: "UTC", status: "active" }],
         google_connections: [],
         posts: rows,
@@ -225,22 +246,6 @@ function world({
     email: "ada@example.com",
     params: { id: POST_ID },
   };
-  const channels = connected
-    ? [
-        {
-          id: `cccccccc-cccc-4ccc-8ccc-${String(seq).padStart(12, "0")}`,
-          tenant_id: tenant,
-          kind: "instagram",
-          external_id: "17841400000000001",
-          status: "active",
-          credentials_ref: "ref",
-          config: { login: "meta", scopes, ...(lapsed ? { token_lapsed_at: "2026-11-09T06:00:00Z" } : {}) },
-          created_at: "2026-11-01T00:00:00Z",
-        },
-      ]
-    : [];
-  // How the post was made, as every made post keeps it: its words are kept here as it is posted (posts/caption.ts).
-  const made = { plan: { line: "Open late on Fridays", under: null }, caption: null };
   const kept = [{ id: POST_ID, tenant_id: tenant, source: "made", made, removed_at: null }];
   // A video made here is a piece (00613): its words are kept on the plan it was drawn by.
   const pieces = [

@@ -11,15 +11,14 @@ import {
   stageArgs,
   DbFailure,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { answerOf, type DoorAnswer, refusalOf } from "./answers";
 import type { LeadRow } from "./searches";
 import { keepSaidEmail } from "./send";
-import { serviceDb } from "../shared/service-db";
 import { recordDecision } from "../shared/verbs";
 import type { RouteContext } from "../shared/with-route";
 import { applyLeadBulk, askLeadsChecked, eraseLeadRow, moveLeadStage } from "@chanlytics/db/leads";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /* ------------------------------------------------------- one lead, worked */
 
@@ -204,8 +203,8 @@ interface LeadTriage {
 }
 const triageData = (t: LeadTriage) => ({ by: t.by, search_id: t.searchId });
 export const recordLeadKept = (leadTriage: LeadTriage): Promise<void> =>
-  emitEvent(serviceDb(), leadTriage.tenantId, "lead.kept", "lead", leadTriage.leadId, triageData(leadTriage));
+  emitWorkspaceEvent(leadTriage.tenantId, "lead.kept", "lead", leadTriage.leadId, triageData(leadTriage));
 export const recordLeadExcluded = (leadTriage: LeadTriage): Promise<void> =>
-  emitEvent(serviceDb(), leadTriage.tenantId, "lead.excluded", "lead", leadTriage.leadId, triageData(leadTriage));
+  emitWorkspaceEvent(leadTriage.tenantId, "lead.excluded", "lead", leadTriage.leadId, triageData(leadTriage));
 export const recordLeadPutBack = (leadTriage: LeadTriage): Promise<void> =>
-  emitEvent(serviceDb(), leadTriage.tenantId, "lead.put_back", "lead", leadTriage.leadId, triageData(leadTriage));
+  emitWorkspaceEvent(leadTriage.tenantId, "lead.put_back", "lead", leadTriage.leadId, triageData(leadTriage));

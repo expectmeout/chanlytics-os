@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { memberWords, stateOf } from "@chanlytics/contracts";
+import { stateOf } from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { bridgeHolds, whoIsLooking } from "../_bridge-holds.mjs";

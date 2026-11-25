@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { memberWords, stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
+import { stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { all, again, find, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";

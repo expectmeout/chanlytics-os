@@ -17,7 +17,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_OWN_EMAIL_WORDS } from "@chanlytics/contracts";
-import { roleGate } from "../../../packages/contracts/src/shell/refusal.ts";
 import { stateOf } from "../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/dock.ts";

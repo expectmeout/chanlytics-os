@@ -16,7 +16,6 @@
  */
 import {
   stateOf,
-  roleGate,
   zoneSearchWords,
   resolveFacts,
   factConflicts,

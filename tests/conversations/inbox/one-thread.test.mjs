@@ -11,7 +11,7 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, memberWords, toInboxThreadVM, toCallVM } from "@chanlytics/contracts";
+import { stateOf, toInboxThreadVM, toCallVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";

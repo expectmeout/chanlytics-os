@@ -68,3 +68,13 @@ export const findLastCallIn = async (db: Db, tenantId: TenantId) =>
 
 /** A recording's opening kept on its call (recording_opened). */
 export const markRecordingOpened = async (db: Db, callId: string) => db.rpc("recording_opened", { p_call_id: callId });
+
+/** A person's calls, the newest first, two hundred at most (their page's list). PostgREST's own result, for the reader to judge. */
+export const listPersonCalls = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
+  db
+    .from("calls")
+    .select(CALL_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .order("started_at", { ascending: false, nullsFirst: false })
+    .limit(200);

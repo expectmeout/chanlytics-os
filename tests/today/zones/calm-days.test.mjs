@@ -25,7 +25,7 @@ import {
 } from "@chanlytics/contracts";
 import { again, all, atWidth, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { NOW, W, corals, dayWith, draw, metrics, row, wire } from "./_world.mjs";
+import { NOW, corals, dayWith, draw, metrics, row, wire } from "./_world.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 // Need you as the page draws it, with the card its arrangement names (Today, calm).

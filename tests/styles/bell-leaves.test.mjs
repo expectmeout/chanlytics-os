@@ -4,7 +4,8 @@
  * on any wider screen the copy kept the popover's own entrance, `route-in`, and came in again from nothing as the
  * popover went: the bell closed, came back for 180ms, and went (Ruben, 9 Oct 2026, seen frame by frame). Its leaving
  * is one rule outside every media query, which plays what the popover says it leaves by (`--tbn-out`): route-out, the
- * entrance's mirror, and on a phone sheet-out.
+ * entrance's mirror. On a phone the notes are the kit's one sheet (notif-popover.tsx), which leaves as every kit sheet does
+ * (kit.css `.sheet[data-leaving]`; 25 Nov 2026).
  *
  * Read from the sheet's syntax tree (lightningcss, the build's own parser), as touch-hover.test.mjs reads.
  */
@@ -70,7 +71,7 @@ function animationReads(rule) {
 
 const namesTbnPop = (rule) => rule.selectors.some((s) => s.some((c) => c.type === "class" && c.name === "tbn-pop"));
 
-test("the bell's popover leaves by one rule at every width: the entrance's mirror, a phone's sheet where it is a sheet", () => {
+test("the bell's popover leaves by one rule at every width it is drawn at: the entrance's mirror", () => {
   const all = rules(SHEET);
   const base = all.find(({ rule, inMedia }) => !inMedia && namesTbnPop(rule) && animationReads(rule)[0] === "route-in");
   assert.ok(base, "the popover comes in by route-in");
@@ -83,10 +84,6 @@ test("the bell's popover leaves by one rule at every width: the entrance's mirro
   assert.equal(leaving.length, 1, "one leaving rule, so a width cannot be left with the entrance as its leaving");
   assert.equal(leaving[0].inMedia, false, "and it stands outside every media query");
   assert.ok(animationReads(leaving[0].rule).includes("--tbn-out"), "playing what the popover says it leaves by");
-  const sheet = all.find(
-    ({ rule, inMedia }) => inMedia && namesTbnPop(rule) && customOf(rule, "--tbn-out") === "sheet-out",
-  );
-  assert.ok(sheet, "a phone's sheet still goes down as it came up");
   const keyframes = new Set();
   transform({
     filename: SHEET,

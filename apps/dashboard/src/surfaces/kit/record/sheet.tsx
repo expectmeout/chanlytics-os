@@ -1,70 +1,46 @@
 /**
- * The record kit: the sheet (moved whole from legacy/components/record-sheet.jsx, decision 0015: the kit's one
- * implementation, which the pages import).
- *
- * A list you scroll gets room of its own, beside the page (from the bottom, on a phone): a head with its name, the line
- * under it and a Close; an optional strip of tools (a search, an Add); the rows, which scroll; and a foot that holds
- * still, with the page's act in it. The page behind stays readable under a wash, and takes no presses while the sheet is
- * open; a press on the wash is the sheet's Close (Cancel, where the page asks first about what was typed), as the fold's
- * is, and on a phone a pull down on the sheet from its top is the same (kit/motion/swipe.ts touchSwipe): a full screen with one
- * small X in its corner was the only way out. The kit knows nothing about what the sheet lists.
+ * The record kit's sheet: a list you scroll, in room of its own beside the page (from the bottom, on a phone), drawn by
+ * the kit's one sheet (kit/sheet/sheet.tsx `Sheet`, on Base UI's Dialog), so a phone has one sheet with one head, one
+ * Close, one foot and one set of behaviours (Ruben, 25 Nov 2026: "one design"). It is the house's props over that sheet:
+ * a head with its name, the line under it and the round Close; an optional strip of tools (a search, an Add); the rows,
+ * which scroll; and a foot that holds still, with the page's act in it. The kit knows nothing about what the sheet lists.
  *
  *   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
  *
  * A sheet that saves as a fold does takes the fold's foot props instead of drawing its own: `onSave`, `saving`,
- * `saveLabel`, `savingLabel`, `cancelLabel`, `gate`, `footNote` and `confirm`, as RecordFold takes them. Then the kit
- * draws the fold's foot (RecordFoot) after the page's `foot`, or the page's ask in its place while one is asked (never
- * while the save is out: fold.tsx says why a question stands alone);
- * Cancel is `onClose`; and while the save is out nothing cancels it (Escape, the head's Close, Cancel) and Ctrl or Cmd
- * with Enter saves, by the fold's rule (recKeys). A sheet with a foot of its own (the playbook composer's) passes none of
- * them and is drawn as it was.
+ * `saveLabel`, `savingLabel`, `cancelLabel`, `gate`, `footNote` and `confirm`, as RecordFold takes them. Then it draws the
+ * fold's foot (RecordFoot) after the page's `foot`, or the page's ask in its place while one is asked (never while the
+ * save is out: fold.tsx says why a question stands alone); its Cancel is `onClose`, and on a phone it is not drawn, the
+ * Close doing what it did (kit.css, "One design for every sheet on a phone"). While the save is out nothing closes it
+ * (Escape, the wash, a pull, the Close: `busy`), and Ctrl or Cmd with Enter saves, by the fold's rule (recKeys). A sheet
+ * with a foot of its own passes none of them and is drawn as it was.
  *
- * `className` is a page's own class beside the kit's (a wider sheet, a body of its own), and `testid` names the sheet
- * when the page's tests know it by another name than `rec-sheet-<id>`.
+ * What the kit's sheet does is its own: modal, focus held inside it and given back to what opened it, Escape and a press
+ * on the wash asking the page to close it (an Escape something in it took first stays that one's: a combobox's list
+ * closing), a pull down on a phone, Back where it is asked (`backCloses`), its height gliding. The record kit adds its
+ * focus hold (focus.ts useRecFocusHold): focus that went with what held it -- an Undo left where a row was, gone with the
+ * row put back; an ask's button, gone with the ask -- comes back to the field the person was in, or to the first of them
+ * when that went too. `focusOn` ({ row }) names an element of the sheet by the data-rec-row the page put on it, and focus
+ * goes to its first tab stop: a new object each time, as RecordFold's is, so the same row named twice is focused twice.
+ * A toast is still the house's undo (.claude/skills/chanlytics-interface/shell.md, Decisions) and may echo an inline Undo,
+ * but it is drawn outside the sheet, where Tab cannot reach it, so it is never the only way back.
  *
- * It is a dialog, and modal: role="dialog" with aria-modal, named by its heading and described by the line under it
- * (with an `id`; without one, named by its title). As it opens, focus moves to the sheet itself, so a screen reader
- * names it; as it closes, focus goes back to whatever opened it. Tab and Shift+Tab walk its own controls and wrap round
- * (kit/focus/trap.ts trapTab, which counts only what Tab stops at): aria-modal tells a screen reader that nothing outside the
- * sheet is there, so focus that left it would be lost. Escape closes it, once, unless something in it took the key first
- * (a combobox's list closing): from inside the sheet its own handler hears the key first and takes it, so a fold around
- * it does not cancel as well; with focus somewhere outside it, the window hears it.
- *
- * So anything a sheet needs must be reachable inside it, because Tab stays there. A row taken out of the list leaves an
- * inline Undo where it was. The toast is still the house's undo (.claude/skills/chanlytics-interface/shell.md, Decisions)
- * and may echo it, but it is drawn
- * outside the sheet, where Tab cannot reach it, so it is never the only way back.
- *
- * And focus stays in it while it is open, by the fold's own rules (focus.ts useRecFocusHold, useRecFocusOn): one rule,
- * where the sheet once kept copies of them in part. Focus that went with what held it -- an Undo left where a row was,
- * gone with the row put back; an ask's button, gone with the ask; a toast's Undo, gone with the toast -- comes back to
- * the field the person was in, in the tools or the rows, or to the first of them when that went too: it landed on the
- * page's body, outside the dialog, where Tab walks the page behind it, and then on the dialog itself. Focus a person put
- * somewhere is left there. `focusOn` ({ row }) names an element of the sheet by the data-rec-row the page put on it, and
- * focus goes to its first tab stop: a row a list has just been given, or the Undo left where a row was taken out. A new
- * object each time, as RecordFold's is, so the same row named twice is focused twice. `saving` says the sheet's save is
- * out (aria-busy, which record.css draws its boxes by, as it does a fold's).
- *
- * It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still while
- * it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY); and there no pane's
- * layout reaches it -- a Settings pane sizes its every child to the prose column, and animates itself in with a transform
- * that would pin a fixed sheet to the pane. The first run is drawn in place of the app's chrome, with no .app-root
- * (frame/app-shell.tsx), and its shell (.fr-shell) is the root there.
+ * `open` is the page's, and a page that draws the sheet only while it is open (most do) leaves it true: let go of while
+ * open, the kit's sheet leaves the way it came all the same. `back` is a step's way back (Add people's lists). `className` is a
+ * page's own class beside the kit's (a wider sheet, a body of its own), and `testid` names the sheet when the page's tests
+ * know it by another name than `rec-sheet-<id>`; its Close is `<testid>-close`.
  */
-import { useCallback, useEffect, useRef } from "react";
-import type { MouseEvent, ReactNode, RefObject } from "react";
+import { useRef } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Icon } from "../icon/icon";
-import { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn, useRecPhone } from "./focus";
+import { Sheet, type SheetBack } from "../sheet/sheet";
+import { recKeys, useRecFocusHold, useRecFocusOn } from "./focus";
 import type { FocusOn } from "./focus";
-import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
-import { touchSwipe } from "../../frame-verbs";
-import { useHeightGlide } from "../motion/use-height-glide";
-import { useRootFlag } from "../motion/root-flags";
-import { useBackCloses } from "../sheet/back";
-import { leaveOverlay, listen, portal, trapTab, unlisten } from "./shell-verbs";
 
 interface RecordSheetProps {
+  /** Whether it is open: the page's, and true where the page draws it only while it is. */
+  open?: boolean;
   id?: string | null;
   title: ReactNode;
   sub?: ReactNode;
@@ -88,70 +64,31 @@ interface RecordSheetProps {
   children?: ReactNode;
   /** Back closes it, as the kit's Sheet's does (sheet/back.ts): named in the address where it is a name. */
   backCloses?: boolean | string;
+  /** Where it is a step of another (Add people's lists), the way back to it, before the title (the kit's Sheet's). */
+  back?: SheetBack | null;
   /**
    * On a phone it keeps the height it opened at, whatever comes and goes in it (Add people: a way switched, a note
-   * written, a list read): its head never moves under the thumb, and what it holds past that height scrolls in its body.
-   * The keyboard still takes from it (kit.css, "A steady sheet").
+   * written, a list read): its head never moves under the thumb (the kit's Sheet's `steady`).
    */
   steady?: boolean;
   /**
-   * On a desk it is as tall as what it holds, its foot under its last row, never past the window's height: a short job
-   * (Add people's one person) stood in a window-tall pane, its foot 430px under the form (kit.css, "A fitted sheet").
+   * On a desk it is as tall as what it holds, its foot under its last row, never past the window's height (the kit's
+   * Sheet's `fit`).
    */
   fit?: boolean;
 }
 
-// The sheet rises from the bottom at the kit's one phone width (record.css, focus.ts recPhoneQuery): there a pull down
-// on it is its Close.
-const recSheetFromBottom = () => {
-  const q = recPhoneQuery();
-  return !!(q && q.matches);
-};
-
-/** The sheet's head: its name, the line under it, and a Close. */
-function sheetHead(props: RecordSheetProps) {
-  const { id = null, title, sub = null, onClose, closeLabel = "Close", saving = false } = props;
-  const titleId = id ? `rec-sheet-${id}-title` : undefined;
-  const subId = id && sub ? `rec-sheet-${id}-sub` : undefined;
-  return (
-    <header className="rec-sheet-head">
-      <div className="rec-sheet-heading">
-        <h2 className="rec-sheet-title" id={titleId}>
-          {title}
-        </h2>
-        {sub ? (
-          <p className="rec-sheet-sub" id={subId}>
-            {sub}
-          </p>
-        ) : null}
-      </div>
-      {props.toolsInLine && props.tools ? <div className="rec-sheet-line">{props.tools}</div> : null}
-      <button
-        type="button"
-        className="rec-sheet-close"
-        aria-label={closeLabel}
-        aria-disabled={saving || undefined}
-        onClick={(e) => {
-          if (saving) {
-            e.preventDefault();
-            return;
-          }
-          if (onClose) onClose(e);
-        }}
-      >
-        <Icon name="x" size={13} />
-      </button>
-    </header>
-  );
-}
+/** The foot's acts while a question is asked in their place: the page's ask, and never while the save is out. */
+const footAskOf = (props: RecordSheetProps) => (props.onSave && !props.saving ? props.confirm || null : null);
 
 /** The sheet's foot, which holds still: the page's own, and where the sheet saves as a fold does, the fold's. */
 function sheetFoot(props: RecordSheetProps) {
   const { id = null, foot = null, onSave = null, onClose, saving = false, saveLabel = "Save" } = props;
-  const { savingLabel = "Saving…", cancelLabel = "Cancel", gate = null, footNote = null, confirm = null } = props;
-  const ask = onSave && !saving ? confirm : null;
-  return foot || onSave ? (
-    <footer className="rec-sheet-foot" data-asking={ask ? "true" : undefined}>
+  const { savingLabel = "Saving…", cancelLabel = "Cancel", gate = null, footNote = null } = props;
+  const ask = footAskOf(props);
+  if (!foot && !onSave) return undefined;
+  return (
+    <>
       {foot}
       {ask}
       {onSave && !ask ? (
@@ -168,147 +105,50 @@ function sheetFoot(props: RecordSheetProps) {
           footNote={footNote}
         />
       ) : null}
-    </footer>
-  ) : null;
-}
-
-/** What the sheet's frame is given by the component that owns its hooks. */
-interface SheetHooks {
-  place: (el: HTMLElement | null) => void;
-  hold: ReturnType<typeof useRecFocusHold>;
-  closeRef: RefObject<(() => void) | null>;
-  onEscape: (e: { key: string; defaultPrevented: boolean; preventDefault: () => void }) => void;
-  phone: boolean;
-}
-
-/** The wash and the sheet beside it: the wash's press is the sheet's Close, and nothing while a save is out. */
-function sheetNode(props: RecordSheetProps, h: SheetHooks) {
-  const { id = null, className = "", testid = null, saving = false, onSave = null, gate = null } = props;
-  const { tools = null, children = null } = props;
-  const titleId = id ? `rec-sheet-${id}-title` : undefined;
-  const subId = id && props.sub ? `rec-sheet-${id}-sub` : undefined;
-  const { title } = props;
-  return (
-    <>
-      {/* A press on the wash keeps focus where it was: a mousedown's default would hand it to the page's body, where
-          Shift+Tab walks the page behind the modal. The press itself is the sheet's Close -- the head's, so a page
-          that asks first about what was typed asks here too -- and nothing while a save is out (closeRef). */}
-      <div
-        className="rec-sheet-backdrop"
-        aria-hidden="true"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          if (h.closeRef.current) h.closeRef.current();
-        }}
-      />
-      {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-interactions -- a modal dialog takes its own focus and keys */}
-      <section
-        ref={h.place}
-        className={`rec-sheet${className ? ` ${className}` : ""}`}
-        // From the bottom, on a phone: kit.css draws its grabber and steps its ✕ out of sight beside a foot that closes,
-        // and record.css lets it be as tall as what it holds, its height gliding as that changes (place, below).
-        data-phone={h.phone ? "true" : undefined}
-        data-steady={props.steady ? "true" : undefined}
-        data-fit={props.fit ? "true" : undefined}
-        role="dialog"
-        aria-modal={true}
-        aria-labelledby={titleId}
-        aria-label={titleId ? undefined : typeof title === "string" ? title : undefined}
-        aria-describedby={subId}
-        aria-busy={saving || undefined}
-        tabIndex={-1}
-        {...touchSwipe({
-          onDown: () => {
-            if (h.closeRef.current) h.closeRef.current();
-          },
-          when: recSheetFromBottom,
-        })}
-        onFocus={h.hold.onFocus}
-        onKeyDown={(e) => {
-          if (e.key === "Tab") {
-            trapTab(e, e.currentTarget);
-            return;
-          }
-          if (e.key === "Enter" && onSave) {
-            recKeys({ onSave, saving, refused: !!(gate && gate["aria-disabled"]) })(e);
-            return;
-          }
-          h.onEscape(e);
-        }}
-        data-testid={testid || (id ? `rec-sheet-${id}` : undefined)}
-      >
-        {sheetHead(props)}
-        {tools && !props.toolsInLine ? <div className="rec-sheet-tools">{tools}</div> : null}
-        <div className="rec-sheet-body">{children}</div>
-        {sheetFoot(props)}
-      </section>
     </>
   );
 }
 
-/** A list you scroll, in room of its own beside the page (from the bottom, on a phone). */
+/** A list you scroll, in room of its own beside the page (from the bottom, on a phone): the kit's sheet. */
 export function RecordSheet(props: RecordSheetProps) {
-  const { onClose, focusOn = null, saving = false } = props;
-  // Drawn, it is open and holds the page (aria-modal): said on the document's root, where a toast and the page's scroll
-  // ask them (motion/root-flags.ts).
-  useRootFlag(["recordOpen", "modalOpen"], true);
-  const phone = useRecPhone();
-  const closeRef = useRef<(() => void) | null>(onClose);
-  // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.
-  closeRef.current = saving ? null : onClose;
-  // Back asks it to close as its Cancel does: nothing while a save is out, and it stands again (sheet/back.ts).
-  useBackCloses(
-    !!props.backCloses,
-    () => closeRef.current?.(),
-    typeof props.backCloses === "string" ? props.backCloses : null,
-  );
-  const opener = useRef<Element | null>(null);
-  // The sheet as it is on the page, for the fold's focus rules below: a callback ref (place) sets it.
+  const { open = true, id = null, onClose, focusOn = null, saving = false, onSave = null, gate = null } = props;
+  // The sheet as it is on the page, for the focus rules.
   const box = useRef<HTMLElement | null>(null);
   // Where the person was, in its tools or its rows; the head's Close when it holds no field at all. The rules are
   // focus.ts's, the fold's own.
-  const hold = useRecFocusHold(true, box, ".rec-sheet-tools, .rec-sheet-body", ".rec-sheet-close");
-  useRecFocusOn(true, box, focusOn);
-  const onEscape: SheetHooks["onEscape"] = (e) => {
-    if (e.key !== "Escape" || e.defaultPrevented) return;
-    e.preventDefault();
-    if (closeRef.current) closeRef.current();
+  const hold = useRecFocusHold(open, box, ".rec-sheet-tools, .rec-sheet-body", ".rec-sheet-close");
+  useRecFocusOn(open, box, focusOn);
+  // Ctrl or Cmd with Enter saves; Escape is the kit's sheet's, which asks `close` below.
+  const keys = recKeys({ onSave, saving, refused: !!(gate && gate["aria-disabled"]) });
+  // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.
+  const close = () => {
+    if (!saving) onClose();
   };
-  // One listener for the sheet's life, reading the latest close: a sheet open over a keyboard's focus elsewhere.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => onEscape(e);
-    listen("keydown", onKey);
-    return () => unlisten("keydown", onKey);
-  }, []);
-  // A callback ref, not an effect: React calls it with the sheet as the sheet opens and with null as it goes, which
-  // is exactly when focus moves in and when it goes back.
-  // What stood behind the sheet as it opened, and when: as React lets go of it, a still copy of both plays out the way
-  // it came (kit/motion/leaving.ts leaveOverlay, components.css [data-leaving]). React takes the wash first, so it is held here.
-  const wash = useRef<Element | null>(null);
-  const since = useRef(0);
-  const glide = useHeightGlide();
-  const place = useCallback(
-    (el: HTMLElement | null) => {
-      const was = box.current;
-      box.current = el;
-      glide(el);
-      // A steady sheet's height is what it held as it opened, read once, here (kit.css reads it on a phone only).
-      if (el && el.dataset.steady) el.style.setProperty("--sheet-steady", `${el.offsetHeight}px`);
-      if (el) {
-        wash.current = el.previousElementSibling || null;
-        since.current = Date.now();
-        opener.current = document.activeElement;
-        if (el.focus) el.focus({ preventScroll: true });
-        return;
-      }
-      // Not from a frame mounted and let go of at once (StrictMode's check in development).
-      if (was && Date.now() - since.current > 60) leaveOverlay(was, wash.current);
-      wash.current = null;
-      const back = opener.current as HTMLElement | null;
-      opener.current = null;
-      if (back && back.focus && back.isConnected !== false) back.focus();
-    },
-    [glide],
+  const foot = sheetFoot(props);
+  return (
+    <Sheet
+      open={open}
+      onClose={close}
+      // With an id, its title and its line keep the ids a page's fields may be named by (`rec-sheet-<id>-title`).
+      title={id ? <span id={`rec-sheet-${id}-title`}>{props.title}</span> : props.title}
+      sub={id && props.sub ? <span id={`rec-sheet-${id}-sub`}>{props.sub}</span> : (props.sub ?? undefined)}
+      close={{ label: props.closeLabel ?? "Close", glyph: <Icon name="x" size={13} /> }}
+      back={props.back ?? null}
+      tools={props.tools ?? undefined}
+      toolsInLine={props.toolsInLine}
+      foot={foot}
+      asking={!!(foot && footAskOf(props))}
+      busy={saving}
+      steady={props.steady}
+      fit={props.fit}
+      backCloses={props.backCloses}
+      onKeyDown={keys}
+      onFocus={hold.onFocus}
+      className={props.className || undefined}
+      testid={props.testid || (id ? `rec-sheet-${id}` : undefined)}
+      ref={box}
+    >
+      {props.children}
+    </Sheet>
   );
-  return portal(sheetNode(props, { place, hold, closeRef, onEscape, phone }), recPortalRoot());
 }

@@ -17,7 +17,6 @@ import {
   recordOrEmpty,
   DbFailure,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { asJson } from "@chanlytics/db/shared";
 import type { Json } from "@chanlytics/db/types";
 import {
@@ -37,11 +36,11 @@ import {
 import { answerOf, refusalOf } from "./answers";
 import { findLeadTimeline } from "../campaigns/reach-out-leads";
 import { requireUuid } from "../shared/request-guards";
-import { serviceDb } from "../shared/service-db";
 import { type Params, row } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 export interface SearchViewRow {
   id: string;
@@ -385,7 +384,7 @@ export async function renameSearch(
   const refused = refusalOf(answer);
   if (refused) throw refused;
   const now = answer.name ?? name;
-  await emitEvent(serviceDb(), leadSearchScope.tenant_id, "lead.search_renamed", "lead_search", leadSearchScope.id, {
+  await emitWorkspaceEvent(leadSearchScope.tenant_id, "lead.search_renamed", "lead_search", leadSearchScope.id, {
     name: now,
     by: ctx.userId,
   });
@@ -410,7 +409,7 @@ export async function removeSearch(
   if (kept) throw new Error(kept.message);
   const keptN = count ?? 0;
   // A search and the leads nobody worked are gone on a member's word: the ledger says whose, and what was kept.
-  await emitEvent(serviceDb(), leadSearchScope.tenant_id, "lead.search_removed", "lead_search", leadSearchScope.id, {
+  await emitWorkspaceEvent(leadSearchScope.tenant_id, "lead.search_removed", "lead_search", leadSearchScope.id, {
     name: leadSearchScope.name,
     kept: keptN,
     archived: answer.blanked ?? 0,

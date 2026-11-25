@@ -27,7 +27,6 @@ export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
       title={W.title(n, del.bot)}
       sub={W.who(names, Math.max(0, n - NAMES_SAID))}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
-      footCloses
       foot={
         <Confirm
           danger

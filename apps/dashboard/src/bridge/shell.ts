@@ -99,8 +99,6 @@ export interface ChromeWords {
 
 declare global {
   interface Window {
-    /** The chrome's words, which the record kit still reads off the window (kit/record/shell-verbs.ts) until it imports them. */
-    __chrome?: ChromeWords;
     /** Inside the native app (app-bridge.ts): the phone this page registered, forgotten before a sign-out. */
     __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   }
@@ -195,9 +193,6 @@ export function installShell(win: Window = window): void {
     },
   };
   provide("chrome", chrome);
-  // The record kit reads the words off the window still (kit/record/shell-verbs.ts, the kit lane's file): a line to delete
-  // the day it reads them here.
-  win.__chrome = chrome;
 }
 
 /**

@@ -27,7 +27,6 @@ import {
   PROMPT_ONLY,
   S,
   STORED,
-  W,
   door,
   landSettings,
   read,

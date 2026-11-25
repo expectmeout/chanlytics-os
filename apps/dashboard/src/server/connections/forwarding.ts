@@ -15,12 +15,11 @@ import {
   whyNotForward,
   recordOrEmpty,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { writeLineForwarding } from "@chanlytics/db/workspace";
 import { findConfigRow } from "@/server/workspace/config-row";
-import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 const NO_TEST_PHONE: string | null = null;
 
@@ -48,7 +47,7 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
   });
   if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
   // Where a business's calls go changed on a member's word: the ledger says who and which calls, never the number.
-  await emitEvent(serviceDb(), member.tenantId, "line.forwarding_set", "line", data, {
+  await emitWorkspaceEvent(member.tenantId, "line.forwarding_set", "line", data, {
     carrier: body.carrier,
     mode: body.mode,
     by: ctx.userId,

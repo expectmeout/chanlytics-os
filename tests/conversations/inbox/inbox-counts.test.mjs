@@ -15,14 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  toInboxThreadVM,
-  toBroadcastVM,
-  toTodayVM,
-  stateOf,
-  memberWords,
-  replyWaitsOnYou,
-} from "@chanlytics/contracts";
+import { toInboxThreadVM, toBroadcastVM, toTodayVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, settle, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";

@@ -2,8 +2,9 @@
 
 **Status:** Decided and built on one branch (`wiring/no-window-globals`, lane 7 of the code refinement plan of 25
 November 2026: the frontend pillar's state). Ruben asked that day for one standard for the wiring, with the plainest
-modern pattern where the old one is poor; this is that choice, taken in the lane. Written against main at `f41a343542`.
-No migration; either deploy order (nothing the two apps send each other changes).
+modern pattern where the old one is poor; this is that choice, taken in the lane. Written against main at `f41a343542`,
+and measured again at `1c4769fb2d` (#2594, the kit lane's one sheet, merged in). No migration; either deploy order
+(nothing the two apps send each other changes).
 
 ## Context
 
@@ -36,9 +37,11 @@ scripts could not import, which is over.
 
 1. **What the bridge installs is held in one typed store, `apps/dashboard/src/bridge/provided.ts`.** `provide(name, part)`
    as the bridge installs a part, `provided(name)` where a page or the frame uses it, read when it is used and undefined
-   before the bridge has installed it, as the window was. The names and their types are one interface (`BridgeParts`); the
-   module imports nothing at run time, so the kit, the frame and every surface can import it. A test hands in its stand-in
-   with `provide`. This is a module-level store, the first of the four replacements the plan offered: a part installed once
+   before the bridge has installed it, as the window was. The names and their types are one interface (`BridgeParts`); a
+   part typed by its owner's own interface is declared there by the owner (`declare module "./provided" { interface
+BridgeParts { clock: PageClock } }`), as each once declared its window name, so the store imports nothing, at run time
+   or for its types, and the kit, the frame and every surface can import it without a circle. A test hands in its
+   stand-in with `provide`. This is a module-level store, the first of the four replacements the plan offered: a part installed once
    for the life of the tab has no subscriber to tell, a React context would not reach the non-React readers (the runner,
    the bell, the surfaces' adapters), and a prop would thread through every page for parts the frame alone installs. A
    verb that stays installed (not imported) does so to keep its code where it is today, in the code every page shares
@@ -48,12 +51,14 @@ scripts could not import, which is over.
    (`surfaces/surface-values.ts`), and the mirrors are gone with their readers. The bridge's own three reads (who is
    looking, the bell's notices, the leads' replies) are held in the bridge, `bridge/held-reads.ts`, since the bridge stands
    under the surfaces and may not lean on them (decision 0110); `bridge/who.ts` reads and holds the workspace read's answer
-   as one value (`whoIsLooking()`, `holdWhoIsLooking()`, `currentWorkspace()`). The surface cache keeps each with its
-   snapshot under a slot of its own (`$held`) and gives it back before React draws, as it gave the window's globals back;
+   as one value (`whoIsLooking()`, `holdWhoIsLooking()`, `currentWorkspace()`), with the shapes it answers in (`Workspace`,
+   `Me`). An override whose answer the bridge holds says so (`held: true`), and the surface cache keeps that answer with
+   its snapshot under a slot of its own (`$held`) and gives it back before React draws, as it gave the window's globals back;
    a snapshot holding one is drawn under the build that kept it, as a globals snapshot was. The status line's state is
    the shell's own (`ShellApi.status()`), heard by `shell:status` as before.
 3. **Words and rules are imported:** `roleGate`, `identityWords`, `workspaceInitials` and the zone's words from contracts,
-   `plListRoute` from People's words. The phone app is read off the root's class (`IN_APP_CLASS`), which contracts' boot
+   `plListRoute` from People's words, by each page that links a list (Reports, the activity log), not through the frame's
+   verbs, which would lean the frame on People. The phone app is read off the root's class (`IN_APP_CLASS`), which contracts' boot
    script stamps before paint, as #2590 reads the page's other states off the root.
 4. **A page's console line goes through one report seam,** `apps/dashboard/src/client/page-report.ts` (`pageReport.error`,
    `pageReport.warn`), the one browser module named in `CONSOLE_SINKS`. The lines are said as they were; the day they are
@@ -65,24 +70,24 @@ reads, parts }, { fresh })`. The Playwright specs that read the page's window as
 
 ## What is left, and why
 
-- **The record kit's three reads** (`kit/record/shell-verbs.ts`: `__chrome`, `__tip`, `__tabMemory`) are the kit lane's
-  file (lane 8, mid-change on `ui/one-sheet`). The shell, the tip and the tab's memory provide each part and still write
-  it on the window for that one reader, each line marked; when the kit reads the store they go, and the names with them.
 - **The frame's helpers published for the pages by name** (`frame-globals.ts`, `seed-globals.ts`, `app-shell.tsx`'s three
   doors): `CHANLY`, the role store, the gate, the toast, the kit's parts. Their few app readers are next to move; most of
   their readers are tests' stand-ins (`CHANLY` in 124 test files), and the kit lane's files read `ReactDOM`, `leaving`,
-  `trapTab`, `tabStops`, `leaveOverlay` and `dialogRef`. A change of its own, after lane 8.
+  `trapTab`, `tabStops`, `leaveOverlay` and `dialogRef`. A change of its own. The record kit's own three reads
+  (`kit/record/shell-verbs.ts`: the chrome's words, the tip, the tab's memory) ask the store now, since #2594 landed.
 - **Names the register does not see:** Ask's on-screen ledger (`bridge/ask/on-screen.ts`, `__askOnScreen`, written and
   read by that module alone), the phone app's bridge (`__appBridge`, the native shell's door, which the paused phone app
   calls) and the e2e loads' probes (`__inboxLoad` and its kind, which only the specs write).
 
-## Numbers (the register's measures, main `f41a343542` against the branch)
+## Numbers (the register's measures, main `1c4769fb2d` against the branch)
 
-| Measure                       | Main                           | Branch               |
-| ----------------------------- | ------------------------------ | -------------------- |
-| window globals                | 40 names                       | 3 (the record kit's) |
-| window publishers             | 32 sites in 14 files           | 7 in 4               |
-| console calls past the logger | 28 (25 dashboard, 3 phone app) | 3 (the phone app's)  |
+| Measure                       | Main                           | Branch                       |
+| ----------------------------- | ------------------------------ | ---------------------------- |
+| window globals                | 40 names                       | 0                            |
+| window publishers             | 32 sites in 14 files           | 6 in 3 (the frame's helpers) |
+| console calls past the logger | 28 (25 dashboard, 3 phone app) | 3 (the phone app's)          |
+| module circles (values)       | `bridge/api.ts`'s, 19 modules  | 16                           |
+| type circles                  | `bridge/activity.ts`'s, 122    | 121                          |
 
 ## Tests
 

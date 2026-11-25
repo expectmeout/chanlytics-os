@@ -23,7 +23,6 @@ import { legacyAddress } from "../../shell/address/_address.mjs";
 import { kitPages, unrefIntervals, useStubHooks } from "../../_stub-react.mjs";
 import {
   ROLE_PERMS,
-  roleGate,
   answerBlocks,
   answerCopy,
   answerRuns,

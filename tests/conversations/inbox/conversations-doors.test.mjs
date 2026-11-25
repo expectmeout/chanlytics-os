@@ -16,7 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again, find as findNode, textOf } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";

@@ -263,7 +263,7 @@ test("closing the bell is a look: the number starts again, the look is written, 
 
 test("Mark all read reads the notes this tab holds, up to the newest and no further: a note that arrives after keeps its dot", async () => {
   requests.length = 0;
-  const { api, dto, through, win, hear } = twoNotes();
+  const { api, dto, through, hear } = twoNotes();
   door.answer = answering(through);
   assert.deepEqual(feedDots(api), ONE_UNREAD);
   const press = api.readAll();
@@ -353,7 +353,7 @@ test("a read that saves on its second try may have landed on its first: Undo tak
 
 test("an Undo that does not save says so, and the notes stay read", async () => {
   requests.length = 0;
-  const { api, dto, through, win } = twoNotes();
+  const { api, dto, through } = twoNotes();
   door.answer = (body) => (body.read_all ? answering(through)(body) : null);
   const press = api.readAll();
   assert.equal(await press.saved, true);
@@ -378,7 +378,7 @@ test("with no note in the tab, Mark all read is a look: nothing the tab never sh
 test("a group is read by one press: the server's rows in one write, a derived row on this device", async () => {
   requests.length = 0;
   door.answer = () => ({ read: 2 });
-  const { api, win } = bell({
+  const { api } = bell({
     notifications: [liveRow("a", 5), liveRow("b", 6), liveRow("c", 7)],
     seen_at: null,
     read_through_at: null,

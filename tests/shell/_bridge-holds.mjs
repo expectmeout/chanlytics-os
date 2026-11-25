@@ -60,31 +60,15 @@ const PARTS = [
 /** Every read the bridge holds itself (held-reads.ts `HeldReads`). */
 const READS = ["workspace", "notifications", "reach_out_replies"];
 
-/**
- * The three parts the record kit still reads off the window (kit/record/shell-verbs.ts, the kit lane's file), which the app
- * writes there too as it provides them (shell.ts, frame/tip.ts, tab-memory.ts): a test's stand-in goes both ways, as theirs do.
- */
-const ON_THE_WINDOW = { chrome: "__chrome", tip: "__tip", tabMemory: "__tabMemory" };
-
-function hold(name, part) {
-  provide(name, part);
-  const onWindow = ON_THE_WINDOW[name];
-  if (!onWindow) return;
-  // Before a test has a window, onto the global it is about to become (installStubReact's window is globalThis).
-  const win = globalThis.window ?? globalThis;
-  if (part === undefined) delete win[onWindow];
-  else win[onWindow] = part;
-}
-
 export function bridgeHolds({ who, values, reads, parts } = {}, { fresh = false } = {}) {
   if (fresh) {
-    for (const name of PARTS) hold(name, undefined);
+    for (const name of PARTS) provide(name, undefined);
     for (const key of READS) holdRead(key, undefined);
   }
   if (who) holdWhoIsLooking(who);
   for (const [key, value] of Object.entries(values ?? {})) setSurfaceValue(key, value);
   for (const [key, value] of Object.entries(reads ?? {})) holdRead(key, value);
-  for (const [name, part] of Object.entries(parts ?? {})) hold(name, part);
+  for (const [name, part] of Object.entries(parts ?? {})) provide(name, part);
 }
 
 /* What the bridge holds, read back by a test as the app reads it. */

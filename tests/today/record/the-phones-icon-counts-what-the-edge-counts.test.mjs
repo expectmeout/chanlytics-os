@@ -161,7 +161,7 @@ test("the bell's whole count is the page's own; the icon is the kept rows' alone
 
 test("Mark all read moves the icon at once, and reading a kept row moves it when the server's mark is back", () => {
   const dto = { notifications: [row("n1", 5), row("n2", 15)], seen_at: null };
-  const { api, win } = bell(dto);
+  const { api } = bell(dto);
   assert.equal(api.keptUnread(), 2);
   api.seenAll();
   assert.equal(api.keptUnread(), 0, "this device's seen moment counts before the re-read");

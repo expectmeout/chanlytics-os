@@ -10,7 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, forwardingCodes, roleGate } from "@chanlytics/contracts";
+import { setupSteps, forwardingCodes } from "@chanlytics/contracts";
 import { FIRST_RUN_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";

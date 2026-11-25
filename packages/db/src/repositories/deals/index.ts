@@ -6,6 +6,7 @@ export {
   getDealOnFile,
   listDealRowsOf,
   listDealStandings,
+  listPersonDeals,
   listYesesSince,
   openDealsOf,
   pageDealReport,

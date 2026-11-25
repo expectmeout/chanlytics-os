@@ -56,7 +56,7 @@ interface StorageLike {
   setItem(k: string, v: string): void;
   removeItem(k: string): void;
 }
-type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLike; __tabMemory?: TabMemory };
+type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLike };
 
 const readAll = <T>(s: StorageLike | undefined, slot: string): Record<string, T> => {
   try {
@@ -119,13 +119,9 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
   };
 }
 
-/** The pages' one store, provided for them (provided.ts); and on the window, for the record kit, which reads it there still. */
+/** The pages' one store, provided for them and for the record kit (provided.ts). */
 export function installTabMemory(win: WindowLike = window, opts: { now?: () => number } = {}): void {
-  const memory = tabMemoryFor(win, opts);
-  provide("tabMemory", memory);
-  // The record kit's one read off the window (kit/record/shell-verbs.ts `tabMemory`, the kit lane's file): a line to delete
-  // the day it reads the store.
-  win.__tabMemory = memory;
+  provide("tabMemory", tabMemoryFor(win, opts));
 }
 
 /** Everything the tab kept for its pages: at sign-out, with the surface cache (surface-cache.ts clearSurfaceCache). */
@@ -136,12 +132,5 @@ export function clearTabMemory(
     if (s) for (const slot of TAB_SLOTS) s.removeItem(slot);
   } catch {
     /* nothing to clear */
-  }
-}
-
-declare global {
-  interface Window {
-    /** The record kit's read of the tab's memory (kit/record/shell-verbs.ts), until it reads the store. */
-    __tabMemory?: TabMemory;
   }
 }

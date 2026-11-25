@@ -36,7 +36,7 @@ import { legacyAddress } from "../../../shell/address/_address.mjs";
 import { installRoleStore, kitPages, useStubHooks } from "../../../_stub-react.mjs";
 import { until } from "../../../shared/_until.mjs";
 import { importSrc } from "../../../_source.mjs";
-import { ROLE_PERMS, roleGate, stateOf, toLeadRowVM } from "@chanlytics/contracts";
+import { ROLE_PERMS, stateOf, toLeadRowVM } from "@chanlytics/contracts";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { lineBox } from "../../../shared/_line.mjs";
 import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";

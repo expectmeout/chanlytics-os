@@ -20,8 +20,6 @@ import {
   LOOK_OPTIONS,
   DEFAULT_LOOK_PREF,
   LOOK_OFFERED,
-  workspaceInitials,
-  identityWords,
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";

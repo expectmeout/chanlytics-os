@@ -3,8 +3,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, unmount, all, find, byTestId, textOf, classes, press, atWidth } from "../../_stub-react.mjs";
-import { W, bookingRules, byId, dialogOf, draw, drawFold, fakeNode, inRoots, redraw } from "./_record-kit.mjs";
+import {
+  again,
+  unmount,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  atWidth,
+  escapeSheet,
+} from "../../_stub-react.mjs";
+import { W, bookingRules, dialogOf, draw, drawFold, kitSheetOf, redraw } from "./_record-kit.mjs";
 
 test("a fold opens, says what the receptionist will be told, and saves only itself", () => {
   const saved = [];
@@ -503,91 +514,25 @@ test("on a phone the row a fold opens from is still drawn behind its sheet, so t
   );
 });
 
-test("on a phone a fold's sheet leaves as it closes: a still copy slides down over a fading wash, and is gone", async () => {
-  // Spec §9, item 1 closes the fold on --ease-in-out, and Task 6.1's step 3b asks it of the sheet too. The sheet is
-  // React's until the registry closes it, and React takes it off the page then, with focus going back to the row's act
-  // and the next fold let in at once. So nothing is kept: what leaves is a copy of what was on screen (typed words and
-  // all, where the sheet had scrolled to), put in the app's root beside it, with nothing in it to press, focus, name or
-  // find (no role, no ids, no test ids, inert, hidden from a screen reader), for record.css to slide away. It goes when
-  // its slide ends.
-  const root = { added: [], appendChild: (n) => root.added.push(n) };
-  const doc = globalThis.document;
-  const was = doc.querySelector;
-  doc.querySelector = (sel) => (inRoots(sel, ".app-root") ? root : null);
+test("on a phone a fold's sheet leaves as it closes: the kit's sheet, shut by `open`, plays its own leaving over what it held", () => {
+  // Spec §9, item 1 closes the fold on --ease-in-out, and Task 6.1's step 3b asks it of the sheet too. The fold's sheet
+  // is the kit's (kit/sheet/sheet.tsx), drawn open or shut while the fold is a sheet, so closing it is its `open` going
+  // false: Base UI plays its leaving (data-leaving, kit.css) over what it held as it closed, and lets it go.
   const width = atWidth(true);
   try {
-    const body = fakeNode("div", { class: "rec-sheet-body", "data-testid": "rec-fold-says-booking_rules" });
-    const title = fakeNode("h2", { class: "rec-sheet-title", id: "rec-fold-booking_rules-label" });
-    const sheetEl = fakeNode(
-      "section",
-      {
-        class: "rec-sheet rec-fold-sheet",
-        role: "dialog",
-        "aria-modal": "true",
-        "data-testid": "rec-fold-booking_rules",
-      },
-      [title, body],
-    );
-    const washEl = fakeNode("div", { class: "rec-sheet-backdrop", "data-fold": "true" });
     let tree = drawFold(bookingRules());
-    // The stub attaches no ref: the test hands the kit the elements React would have.
-    dialogOf(tree).props.ref.current = sheetEl;
-    find(tree, (n) => classes(n).includes("rec-sheet-backdrop")).props.ref.current = washEl;
-    find(dialogOf(tree), (n) => classes(n).includes("rec-sheet-body")).props.onScroll({
-      currentTarget: { scrollTop: 120 },
-    });
+    assert.equal(kitSheetOf(tree).props.open, true);
     tree = again(() => W.React.createElement(W.RecordFold, bookingRules({ open: false })));
-    assert.equal(dialogOf(tree), null, "the fold is closed: no dialog is drawn");
-    const [washCopy, sheetCopy] = root.added;
-    assert.ok(washCopy && sheetCopy, "a copy of the wash and of the sheet, in the app's root");
-    assert.equal(sheetCopy.attrs["data-leaving"], "true");
-    assert.equal(washCopy.attrs["data-leaving"], "true");
-    for (const k of ["role", "aria-modal", "data-testid", "id"]) assert.equal(sheetCopy.attrs[k], undefined, `no ${k}`);
-    assert.equal(sheetCopy.attrs["aria-hidden"], "true");
-    assert.equal(sheetCopy.attrs.inert, "");
-    for (const kid of sheetCopy.kids) {
-      assert.equal(kid.attrs.id, undefined, "no id inside it: the fold's own ids are the page's again");
-      assert.equal(kid.attrs["data-testid"], undefined, "and nothing a test could find it by");
-    }
-    assert.equal(sheetCopy.kids[1].scrollTop, 120, "scrolled where the sheet was");
-    sheetCopy.heard.transitionend({ target: sheetCopy, propertyName: "transform" });
-    assert.ok(sheetCopy.removed && washCopy.removed, "and gone when its slide ends");
-
-    // Neither leaves where the fold is still open: a width crossed draws it in the other frame, and a page going away
-    // takes it with it.
-    root.added.length = 0;
-    tree = drawFold(bookingRules());
-    dialogOf(tree).props.ref.current = sheetEl;
-    width.resize(false);
-    again(() => W.React.createElement(W.RecordFold, bookingRules()));
-    assert.deepEqual(root.added, [], "a width crossed with the fold open");
-    width.resize(true);
-    tree = again(() => W.React.createElement(W.RecordFold, bookingRules()));
-    dialogOf(tree).props.ref.current = sheetEl;
-    unmount();
-    assert.deepEqual(root.added, [], "a page gone with the fold open");
-
-    // And under reduced motion nothing leaves: the sheet goes at once.
-    const plain = globalThis.matchMedia;
-    globalThis.matchMedia = (q) => ({
-      ...plain(q),
-      matches: q === "(prefers-reduced-motion: reduce)" || plain(q).matches,
-    });
-    try {
-      tree = drawFold(bookingRules());
-      dialogOf(tree).props.ref.current = sheetEl;
-      again(() => W.React.createElement(W.RecordFold, bookingRules({ open: false })));
-      assert.deepEqual(root.added, [], "reduced motion");
-    } finally {
-      globalThis.matchMedia = plain;
-    }
+    const shut = kitSheetOf(tree);
+    assert.ok(shut, "still drawn as it closes, so it leaves the way it came");
+    assert.equal(shut.props.open, false, "the fold is closed: no dialog stands");
+    assert.equal(dialogOf(tree), null);
   } finally {
     width.put();
-    doc.querySelector = was;
   }
 });
 
-test("on a phone a fold opens as a sheet from the bottom: a modal dialog named by its label, with the same fields, the same says and the same foot", () => {
+test("on a phone a fold opens as the kit's sheet from the bottom: named by its label, with the same fields, the same says and the same foot", () => {
   const width = atWidth(true);
   try {
     const saved = [];
@@ -600,31 +545,20 @@ test("on a phone a fold opens as a sheet from the bottom: a modal dialog named b
         onCancel: () => cancelled.push(1),
       }),
     );
+    const kit = kitSheetOf(tree);
+    assert.ok(kit && kit.props.open, "the kit's one sheet, not a fold under its row");
+    assert.equal(textOf(kit.props.title), "Booking rules", "named by the fold's label");
+    assert.equal(kit.props.title.props.id, "rec-fold-booking_rules-label", "the id a page's field is named by");
+    assert.match(textOf(kit.props.sub), /It never books/, "and described by the fold's hint, under it");
     const sheet = dialogOf(tree);
-    assert.ok(sheet, "a dialog, not a fold under its row");
-    assert.equal(sheet.props["aria-modal"], true);
-    assert.ok(
-      classes(sheet).includes("rec-sheet"),
-      "the kit's own sheet frame, which record.css raises from the bottom",
-    );
+    assert.ok(classes(sheet).includes("rec-fold-sheet"), "the kit's frame, which kit.css raises from the bottom");
     assert.equal(sheet.props["data-testid"], "rec-fold-booking_rules", "known by the fold's own name, at every width");
-    assert.equal(textOf(byId(tree, sheet.props["aria-labelledby"])), "Booking rules", "named by the fold's label");
-    assert.equal(sheet.props["aria-labelledby"], "rec-fold-booking_rules-label", "the id a page's field is named by");
-    assert.match(
-      textOf(byId(tree, sheet.props["aria-describedby"])),
-      /It never books/,
-      "and described by the fold's hint, under it",
-    );
     assert.ok(
       find(sheet, (n) => n.props?.id === "bt-lead"),
       "the page's field is in it",
     );
     assert.match(textOf(byTestId(sheet, "rec-fold-says-booking_rules")), /At least 2 hours/, "what saving writes");
     assert.match(textOf(find(sheet, (n) => classes(n).includes("rec-foot-note"))), /five rules/, "the foot's own line");
-    assert.ok(
-      find(tree, (n) => classes(n).includes("rec-sheet-backdrop")),
-      "the page stays readable under the wash, and takes no press",
-    );
 
     // The fields and what saving writes scroll; the ask, Save and Cancel hold still in the foot.
     const body = find(sheet, (n) => classes(n).includes("rec-sheet-body"));
@@ -647,46 +581,37 @@ test("on a phone a fold opens as a sheet from the bottom: a modal dialog named b
       "the ask in Save's place, never beside it",
     );
 
-    press(byTestId(sheet, "rec-fold-save-booking_rules"));
-    press(byTestId(sheet, "rec-fold-cancel-booking_rules"));
-    const close = byTestId(sheet, "rec-fold-close-booking_rules");
-    assert.equal(close.props["aria-label"], "Close");
-    assert.equal(
-      close.props["aria-labelledby"],
-      `${close.props.id} rec-fold-booking_rules-label`,
-      "Close, then the fold's label: a screen reader hears what it closes",
-    );
+    const again = drawFold(bookingRules({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) }));
+    press(byTestId(again, "rec-fold-save-booking_rules"));
+    press(byTestId(again, "rec-fold-cancel-booking_rules"));
+    const close = byTestId(again, "rec-fold-booking_rules-close");
+    assert.equal(close.props["aria-label"], "Close", "its round Close, in the dialog the fold's label names");
     press(close);
     assert.deepEqual([saved.length, cancelled.length], [1, 2], "Save saves; Cancel and Close both cancel");
 
-    // Closed on a phone it is what it is on a desktop: hidden whole, in its place, and no dialog.
+    // Closed on a phone, the sheet is shut, and the row is the page's again.
     const closed = drawFold(bookingRules({ open: false }));
     assert.equal(dialogOf(closed), null);
-    assert.equal(find(closed, (n) => classes(n).includes("rec-fold")).props.hidden, true);
     assert.equal(
-      find(closed, (n) => classes(n).includes("rec-sheet-backdrop")),
+      find(closed, (n) => classes(n).includes("rec-fold")),
       null,
+      "no fold under its row either",
     );
   } finally {
     width.put();
   }
   // And at a desktop's width, nothing about the fold has changed: a group under its row.
   const desk = drawFold(bookingRules());
-  assert.equal(dialogOf(desk), null);
+  assert.equal(kitSheetOf(desk), null);
   assert.equal(find(desk, (n) => classes(n).includes("rec-fold")).props.role, "group");
 });
 
-test("a fold's sheet keeps Tab inside it, and Escape, the head's Close and a press on the wash cancel it, never while it saves", () => {
+test("a fold's sheet: Escape, its Close and a press on the wash cancel it, Ctrl or Cmd with Enter saves, and nothing while it saves", () => {
   const width = atWidth(true);
-  const trapped = [];
-  const trap = W.trapTab;
-  W.trapTab = (e, box) => trapped.push([e.key, box]);
   try {
     const cancelled = [];
     const saved = [];
     let tree = drawFold(bookingRules({ onCancel: () => cancelled.push(1), onSave: () => saved.push(1) }));
-    const sheet = dialogOf(tree);
-    const box = { contains: () => true };
     const key = (k, over = {}) => ({
       type: "keydown",
       key: k,
@@ -694,57 +619,36 @@ test("a fold's sheet keeps Tab inside it, and Escape, the head's Close and a pre
       metaKey: false,
       ctrlKey: false,
       shiftKey: false,
-      currentTarget: box,
+      currentTarget: { contains: () => true },
       target: { tag: "a field" },
       preventDefault() {
         this.defaultPrevented = true;
       },
       ...over,
     });
-    sheet.props.onKeyDown(key("Tab"));
-    assert.deepEqual(trapped, [["Tab", box]], "Tab walks the sheet's own controls, round and round");
-    const esc = key("Escape");
-    sheet.props.onKeyDown(esc);
-    assert.equal(cancelled.length, 1, "Escape inside the sheet cancels");
-    W.dispatchEvent(esc);
-    assert.equal(cancelled.length, 1, "and the same key reaching the window does not cancel twice");
-    W.dispatchEvent(key("Escape"));
-    assert.equal(cancelled.length, 2, "with focus outside it (the page's body), the window hears the key");
-    W.dispatchEvent(key("Escape", { defaultPrevented: true }));
-    assert.equal(cancelled.length, 2, "a key something inside already took is not the sheet's");
-    sheet.props.onKeyDown(key("Enter", { ctrlKey: true }));
+    escapeSheet(tree);
+    assert.equal(cancelled.length, 1, "Escape, which Base UI hears on the document, cancels");
+    escapeSheet(tree, { taken: true });
+    assert.equal(cancelled.length, 1, "a key something inside already took is not the sheet's");
+    dialogOf(tree).props.onKeyDown(key("Escape"));
+    assert.equal(cancelled.length, 1, "and the fold's own keys leave Escape to the sheet: it cancels once");
+    dialogOf(tree).props.onKeyDown(key("Enter", { ctrlKey: true }));
     assert.equal(saved.length, 1, "Ctrl or Cmd with Enter saves, as a fold's");
-
-    const wash = find(tree, (n) => classes(n).includes("rec-sheet-backdrop"));
-    let prevented = false;
-    wash.props.onMouseDown({
-      preventDefault() {
-        prevented = true;
-      },
+    find(tree, (n) => typeof n.props?.onOpenChange === "function").props.onOpenChange(false, {
+      reason: "outside-press",
+      event: {},
+      cancel() {},
     });
-    assert.equal(prevented, true, "a press on the wash keeps focus where it was, as the sheet's does");
-    press(wash);
-    assert.equal(
-      cancelled.length,
-      3,
-      "and it is the fold's Cancel: reaching for another row asks, when anything was typed",
-    );
+    assert.equal(cancelled.length, 2, "a press on the wash is the fold's Cancel: reaching for another row asks");
 
     // While its save is out, nothing cancels it: not Escape, not the wash, not the head's Close.
     tree = drawFold(bookingRules({ saving: true, onCancel: () => cancelled.push(1) }));
-    dialogOf(tree).props.onKeyDown(key("Escape"));
-    W.dispatchEvent(key("Escape"));
-    press(find(tree, (n) => classes(n).includes("rec-sheet-backdrop")));
-    press(byTestId(tree, "rec-fold-close-booking_rules"));
-    assert.equal(cancelled.length, 3, "the save is on its way, and nothing says it was thrown away");
+    escapeSheet(tree);
+    press(byTestId(tree, "rec-fold-booking_rules-close"));
+    assert.equal(cancelled.length, 2, "the save is on its way, and nothing says it was thrown away");
     assert.equal(dialogOf(tree).props["aria-busy"], true, "and the sheet says it is busy, as a fold does");
-
-    // Closed, the window's Escape is nobody's: the listener is on only while the sheet is.
-    drawFold(bookingRules({ open: false, onCancel: () => cancelled.push(1) }));
-    W.dispatchEvent(key("Escape"));
-    assert.equal(cancelled.length, 3);
+    assert.equal(byTestId(tree, "rec-fold-booking_rules-close").props["aria-disabled"], true);
   } finally {
-    W.trapTab = trap;
     width.put();
     unmount();
   }
@@ -771,8 +675,8 @@ test("a fold's sheet hands focus to its first field as it opens, and back to the
   try {
     let tree = drawFold(bookingRules({ open: false }));
     // The stub attaches no ref: the test stands in for the sheet React would have put there. The fold's ref is one ref
-    // at every width, so the element it names is whichever frame is drawn.
-    find(tree, (n) => classes(n).includes("rec-fold")).props.ref.current = {
+    // at every width, so the element it names is whichever frame is drawn: on a phone the kit's sheet's.
+    kitSheetOf(tree).props.ref.current = {
       querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
       contains: () => false,
     };
@@ -887,18 +791,18 @@ test('a fold given frame="sheet" is the sheet beside a desktop page too, its row
   try {
     let tree = (unmount(), W.React.createElement(Page));
     assert.equal(dialogOf(tree), null, "closed: no sheet");
-    assert.equal(find(tree, (n) => classes(n).includes("rec-fold")).props.hidden, true, "and the fold hidden whole");
+    assert.equal(kitSheetOf(tree).props.open, false, "the kit's sheet, shut, and no fold under its row either");
+    assert.equal(
+      find(tree, (n) => classes(n).includes("rec-fold")),
+      null,
+    );
     keep("after's own");
     seen.length = 0;
     hours.request();
     tree = redrawPage();
     const sheet = dialogOf(tree);
     assert.ok(sheet, "open at a desktop's width: a sheet, never a fold under the row");
-    assert.deepEqual(
-      [sheet.props["data-testid"], sheet.props["aria-modal"], sheet.props["data-wide"]],
-      ["rec-fold-hours", true, "true"],
-      "the fold's own test id, modal, and wide where the fold is",
-    );
+    assert.equal(sheet.props["data-testid"], "rec-fold-hours", "the fold's own test id, in the kit's modal sheet");
     assert.ok(
       find(tree, (n) => n === behind),
       "the row is drawn behind it",
@@ -947,7 +851,8 @@ test("a fold open when the window crosses the phone's width is drawn again in th
     const props = bookingRules({ open: true });
     let tree = drawFold(props);
     assert.equal(width.listening(), 1, "the fold hears the window's width change");
-    const ref = dialogOf(tree).props.ref;
+    // The fold's box is one ref at every width: on a phone the kit's sheet's.
+    const ref = kitSheetOf(tree).props.ref;
     ref.current = { querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null), contains: () => true };
     width.resize(false);
     tree = again(() => W.React.createElement(W.RecordFold, props));
@@ -999,8 +904,8 @@ test("on a touch screen a fold opens on itself, as a sheet or under its row, and
   try {
     const props = bookingRules({ open: true });
     let tree = drawFold(props);
-    assert.equal(dialogOf(tree).props.tabIndex, -1, "the sheet can hold focus itself, and Tab never lands on it");
-    dialogOf(tree).props.ref.current = {
+    // The kit's sheet holds focus itself (Base UI's popup), and Tab never lands on it.
+    kitSheetOf(tree).props.ref.current = {
       querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
       contains: () => true,
       focus: () => focused.push("sheet"),

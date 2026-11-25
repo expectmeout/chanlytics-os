@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, find, textOf } from "../../_stub-react.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 

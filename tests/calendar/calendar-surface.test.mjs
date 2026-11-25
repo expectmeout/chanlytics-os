@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
 import { all, fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
-import { bridgeHolds, provided, surfaceValue } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";

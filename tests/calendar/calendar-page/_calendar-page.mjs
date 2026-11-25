@@ -320,6 +320,11 @@ export const { useDayVm } = await import("../../../apps/dashboard/src/surfaces/t
 
 export const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
+  // What a part drew may be its children as they came (the suite's stand-in for Base UI's Dialog draws a sheet's parts).
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
   // A kit component's control (the date picker's, a menu's) is a prop: Base UI draws it, and the popup it opens only when
@@ -328,10 +333,15 @@ export const walk = (n, fn) => {
   if (n.rendered) walk(n.rendered, fn);
 };
 
-export const all = (tree, pred) => {
+export // Each node counts once: a sheet's rows are the children it was handed and what Base UI's Dialog drew of them.
+const all = (tree, pred) => {
   const out = [];
+  const seen = new Set();
   walk(tree, (n) => {
-    if (pred(n)) out.push(n);
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
   });
   return out;
 };

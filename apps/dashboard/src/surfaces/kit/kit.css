@@ -1918,8 +1918,8 @@ a.more-item {
    up, a side sheet slides in from its edge, a phone's sheet rises from the bottom, and the wash behind it fades; each
    leaves the same way, faster. Only translate, scale and opacity move, never transform. The kit owns this motion: the
    frame's overlays and the pages' play it from here until they move, as do the kit's rules left in components.css
-   (the record kit's sheets at 760px and 761px, Confirm's panel). Only such rules play modal-in and modal-out (a
-   dialog), sheet-rise and sheet-drop (the record sheet under 761px) and nudge-in (Confirm, a receipt, a message). */
+   (Confirm's panel). Only such rules play modal-in and modal-out (a dialog) and nudge-in (Confirm, a receipt, a
+   message); every sheet is the kit's, and plays side-in and side-out, sheet-in and sheet-out (below). */
 /* How far under its rest a phone's sheet stands as it rises, drops or is pulled down: the keyframes that move one up
    from its foot say it beside their translate, and a pull says it inline (motion/swipe.ts). A sheet with two rests says
    how far down its half rest holds it, or a pull between the two (sheet/rests.ts). The sheet is cut that far up from
@@ -1972,18 +1972,6 @@ a.more-item {
     translate: 24px 0;
   }
 }
-@keyframes sheet-rise {
-  from {
-    translate: 0 100%;
-    --sheet-down: 100%;
-  }
-}
-@keyframes sheet-drop {
-  to {
-    translate: 0 100%;
-    --sheet-down: 100%;
-  }
-}
 /* A phone's sheet is solid by the first part of its rise: faded all the way up, its glass let the page through for most
    of it (the walk of 30 Oct 2026: a sheet read as see-through while it came in). */
 @keyframes sheet-in {
@@ -2010,19 +1998,9 @@ a.more-item {
   }
 }
 
-/* The record sheet slides in from its edge, and out by a still copy. Telling the kit's sheets apart keeps this at one
-   class (:where), so the reduced-motion block of the overlays (components.css), later and equal, wins. */
-.rec-sheet:where(:not(.rec-fold-sheet)) {
-  animation: side-in 260ms var(--ease-out);
-}
-
 /* What answers a press in place: the question that stands where the button was, and a figure's receipt. */
 .confirm {
   animation: wash-in 160ms var(--ease-out);
-}
-
-.rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] {
-  animation: side-out 180ms var(--ease-in) forwards;
 }
 
 /* Tabs answer a press and ease into their state: the section tabs, and the phone's tab bar (components.css). */
@@ -2847,34 +2825,9 @@ a.more-item {
 }
 
 /* ---------- A sheet: a list you scroll, beside the page ---------- */
-/* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
-   and a sheet's Save is at its foot, where the tab bar is. The shortcuts sheet's layer (components.css), under the
-   toasts (450), so a toast, the house's undo, is seen over a sheet. What a sheet needs is reachable inside it, where
-   Tab stays, and a toast may echo it (record-sheet.jsx). */
-.rec-sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 400;
-  max-width: none;
-  background: var(--surface-scrim);
-}
-.rec-sheet {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 401;
-  width: min(540px, 92vw);
-  max-width: none;
-  display: flex;
-  flex-direction: column;
-  /* Its ground, edge and depth are the glass of everything that pops, as the kit's Sheet's are ("What pops over the
-     page", below). */
-}
-/* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
-.rec-sheet:focus {
-  outline: none;
-}
+/* The record sheet's parts, which the kit's one sheet draws (sheet/sheet.tsx: its head, tools, rows and foot); its frame
+   and wash are the Sheet's (".sheet", below). Over the shell as well as the page, under the toasts (450), so a toast,
+   the house's undo, is seen over a sheet; what a sheet needs is reachable inside it, where Tab stays. */
 .rec-sheet-head {
   flex: none;
   display: flex;
@@ -3007,21 +2960,6 @@ a.more-item {
   border-top: 1px solid var(--line);
   background: var(--bg-raised);
 }
-/* The house's toasts (.pp-toast-stack above: fixed, centred, 18px off the bottom, over the sheet's layer)
-   while a sheet is open. Centred on the window, a toast sat over the sheet's Save, bottom-left in its foot, at any width
-   under about 1,290px, and the Undo in it is the one a person reaches for straight after a remove. So where the page
-   left of the sheet has room for a toast, the stack is centred there and kept to it; where it has not, and on a phone,
-   where the sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. The height is the
-   foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
-   for a few seconds, and one over Save hides the one press that finishes. */
-/* A sheet on its way out (data-leaving, below) is not a sheet a toast has to clear: the toast a save raises would
-   otherwise start over where the sheet's foot was and drop as the sheet went. The sheet says it is open on the
-   document's root as it opens (kit/motion/root-flags.ts, data-record-open and data-sheet-open), written twice: the rule
-   weighs what its `:has(.rec-sheet:not([data-leaving]))` did, which every change on the page had the browser read again. */
-:root[data-record-open][data-record-open] .pp-toast-stack {
-  bottom: calc(184px + env(safe-area-inset-bottom));
-}
-
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
 .rec-field {
   display: flex;
@@ -3065,12 +3003,12 @@ a.more-item {
 /* While its fold's or its row's save is out (the gesture says aria-busy) its boxes take no typing, and look it: the
    sunken ground, the muted ink, the pointer that says wait. A box keeps its focus and its ring, which a disabled one
    would have let go of. The page's own controls inside a saving gesture can say the same from the same attribute. A
-   sheet says it the same way (RecordSheet's busy). */
-:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) {
+   sheet says it the same way (the Sheet's `busy`). */
+:is(.rec-fold, .rec-inline, .sheet)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) {
   background: var(--bg-sunken);
   color: var(--ink-muted);
 }
-:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) {
+:is(.rec-fold, .rec-inline, .sheet)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) {
   cursor: progress;
 }
 textarea.rec-input {
@@ -4561,8 +4499,8 @@ a.list-row {
 }
 
 /* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
-   Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
-   components.css:3040-3053): the window's height at its right edge, the page faded behind it. Under 900px, People's
+   Step 2.2. On a desk, the frame the house's record sheet had (the one frame of every sheet since the one-sheet move,
+   25 Nov 2026: kit/record/sheet.tsx draws through this one): the window's height at its right edge, the page faded behind it. Under 900px, People's
    phone sheet (components.css:1863-1870, mobile.css:170, clients.css:2406-2407, components.css:3073-3078): from the
    bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 88% of the screen (a form's or a record's cap; a list to choose from, a
    menu's, is 72%), its height gliding as what it holds changes (motion/use-height-glide.ts), a handle
@@ -4687,8 +4625,15 @@ a.list-row {
   height: 48px;
   font-size: var(--text-md);
 }
-/* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
-   record.css:23-26). */
+/* The house's toasts (.pp-toast-stack: fixed, centred, 18px off the bottom, over the sheet's layer) while a sheet is
+   open. Centred on the window, a toast sat over the sheet's Save, bottom-left in its foot, at any width under about
+   1,290px, and the Undo in it is the one a person reaches for straight after a remove. So where the page left of the
+   sheet has room for a toast, the stack is centred there and kept to it; where it has not, and on a phone, where the
+   sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. A sheet on its way out
+   (data-leaving) is not one a toast has to clear: the toast a save raises would otherwise start over where the sheet's
+   foot was and drop as the sheet went. The sheet says it is open on the document's root as it opens
+   (kit/motion/root-flags.ts, data-sheet-open), written twice: the rule weighs what its `:has()` did, which every
+   change on the page had the browser read again. */
 :root[data-sheet-open][data-sheet-open] .pp-toast-stack {
   bottom: calc(184px + env(safe-area-inset-bottom));
 }
@@ -4706,13 +4651,11 @@ a.list-row {
      browser it stops short of the window's foot and fades out there (tokens.css --foot-clear), so Safari's bar stays
      glass while a sheet is open. */
   .sheet-backdrop,
-  .rec-sheet-backdrop,
   .more-backdrop {
     bottom: var(--foot-clear, 0px);
     mask-image: var(--foot-fade, none);
   }
-  .sheet-backdrop,
-  .rec-sheet-backdrop {
+  .sheet-backdrop {
     background: var(--surface-veil);
   }
   /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, --sheet-foot), or stands on the
@@ -5854,8 +5797,7 @@ a.list-row {
    (Base UI's parts, a phone's MoreMenu), and a desk's escaped menu takes the sheet's offset back (more-menu.tsx). */
 .more-menu,
 .panel-pop,
-.sheet,
-.rec-sheet {
+.sheet {
   border: 0;
   background-color: var(--surface-pop-glass);
   background-image: var(--surface-control-sheen);
@@ -5866,11 +5808,11 @@ a.list-row {
    the sheet's own reads nothing, so the sheet's content showed through it, and it stands on the pop's solid, as the
    glass does wherever no blur is to be had. Its wash is placed by the sheet too, so it reaches past the sheet's edges:
    a press beside the sheet closes the menu, never the sheet. */
-:is(.sheet, .rec-sheet) .more-menu {
+.sheet .more-menu {
   background-color: var(--surface-pop-fill);
   backdrop-filter: none;
 }
-:is(.sheet, .rec-sheet) .more-backdrop {
+.sheet .more-backdrop {
   inset: -100vmax;
 }
 /* What pops and scrolls (a long menu, a select's list) wears one scrollbar: thin, in the line's strong ink, on
@@ -5954,8 +5896,7 @@ a.list-row {
    rows scroll above it, never under it, so it has nothing of its own to blur. It names the look outright, over the
    record kit's phone foot (record.css). */
 @media (width > 900px) {
-  .sheet,
-  .rec-sheet {
+  .sheet {
     top: 14px;
     right: 14px;
     bottom: 14px;
@@ -5970,7 +5911,6 @@ a.list-row {
      --sheet-held, above): nothing of it ever covers the point over the window's foot that Safari reads. The cut leaves
      the glass's depth at its top and sides. */
   .sheet,
-  .rec-sheet,
   :is(.pop-place:not([data-anchored]) > .more-menu, .more-menu[data-sheet]),
   .pop-place > .rec-combo-pop[data-sheet] {
     clip-path: inset(-100vmax -100vmax calc(var(--sheet-down) + var(--sheet-held)) -100vmax);
@@ -6225,29 +6165,6 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   }
 }
 
-/* A record sheet from the bottom, on a phone (data-phone: the record kit's own width, which the component reads, as
-   record.css draws it there). A grabber at its top says it is pulled down to close, as it is (kit/motion/swipe.ts touchSwipe),
-   and its ✕ steps out of sight wherever its foot holds the act that closes it (the kit's foot, with its Cancel, or a
-   page's pair of acts, data-foot-pair, with its Cancel or Done): that act, a press on the wash and the pull already
-   close it, and a third Close in the corner was the first thing a thumb met (Ruben, 10 Oct 2026). It stays
-   a button a keyboard and a screen reader reach, and comes back into sight when a keyboard does. It is as tall as what
-   it holds, up to the list's height (record.css): a member's three choices stood at the foot of a
-   screen of blank. */
-.rec-sheet[data-phone="true"]::before {
-  content: "";
-  position: absolute;
-  top: 7px;
-  left: 50%;
-  width: 36px;
-  height: 5px;
-  translate: -50% 0;
-  border-radius: var(--radius-full);
-  background: var(--line-strong);
-  pointer-events: none;
-}
-.rec-sheet[data-phone="true"] .rec-sheet-head {
-  padding-top: 22px;
-}
 /* One design for every sheet on a phone (Ruben, 25 Nov 2026: "one design"): the round Close in its corner on every sheet,
    a form's too, and the foot the one act the sheet is for (Save, Add, Send) across its width. A form's foot drew Cancel
    beside its act and hid the corner's Close, so a form closed by a word at its foot where every other sheet closed by
@@ -6374,13 +6291,9 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
     padding-right: 8px;
     padding-left: 16px;
   }
-  /* The kit's sheet draws its handle above its head (16px of it): the head starts under it. A record sheet of the shell's
-     draws its handle over its head, so its head clears the same 16px; one with no handle keeps the desk's 14px. */
+  /* The kit's sheet draws its handle above its head (16px of it): the head starts under it. */
   .sheet > .rec-sheet-head {
     padding-top: 0;
-  }
-  .rec-sheet[data-phone="true"] .rec-sheet-head {
-    padding-top: 16px;
   }
 }
 /* A menu's head (the Menu's `head`: the Inbox's template picker, "Reopen the chat with Fern"). On a desk its name is a
@@ -6407,6 +6320,13 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
 }
 .more-head .rec-sheet-close {
   display: none;
+}
+/* A head the menu has for a phone alone (its name and the Close, where the page gave it none: menu.tsx MenuHead): a desk's
+   menu hangs from its control, which says what it is about, and a press outside or Escape closes it. */
+@media (width > 900px) {
+  .more-head[data-phone-only] {
+    display: none;
+  }
 }
 @media (pointer: coarse) {
   .more-head {
@@ -6440,19 +6360,21 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
    above the thumb with it (Ruben, 20 Oct 2026: + Note lifted every field 46px; One person to A list dropped the switch
    202px from under the finger). A steady sheet keeps the height it opened at (--sheet-steady, read as it opens), under
    the keyboard's cap; what it holds past that scrolls in its body. Its body keeps the head's 16px edge. */
-.rec-sheet[data-phone="true"][data-steady="true"] {
-  /* As tall as what it holds until that is read (auto), then that, under record.css's cap, which the keyboard lowers. */
-  height: var(--sheet-steady, auto);
-}
-.rec-sheet[data-phone="true"][data-steady="true"] .rec-sheet-body {
-  --rec-gutter: 16px;
+@media (max-width: 900px) {
+  .sheet[data-steady="true"] {
+    /* As tall as what it holds until that is read (auto), then that, under the sheet's cap, which the keyboard lowers. */
+    height: var(--sheet-steady, auto);
+  }
+  .sheet[data-steady="true"] .rec-sheet-body {
+    --rec-gutter: 16px;
+  }
 }
 /* ---- A fitted sheet (Sheet and RecordSheet `fit`: the Calendar's Hours and rules, Add people) ----
    On a desk a short job stood in a pane as tall as the window, its foot 430px under its last field. Fitted, it is as tall
    as what it holds, from the top of its edge, and never past the window's height less its two gaps; past that its body
    scrolls, as any sheet's does. */
 @media (width > 900px) {
-  :is(.sheet, .rec-sheet)[data-fit="true"] {
+  .sheet[data-fit="true"] {
     bottom: auto;
     max-height: calc(100% - 28px);
   }

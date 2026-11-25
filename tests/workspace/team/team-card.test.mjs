@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, roleTable, stateOf } from "@chanlytics/contracts";
+import { ROLE_PERMS, roleTable, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
