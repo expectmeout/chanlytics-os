@@ -21,7 +21,16 @@ import "../../files/files.css";
 import "../../files/post.css";
 import "./content.css";
 import "./sheets/sheets.css";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type RefObject,
+} from "react";
 import {
   ADS_ROUTE,
   CONTENT_WORDS as W,
@@ -44,6 +53,7 @@ import {
   type WeekRow,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { UnderRow } from "../../kit/head/under-row";
 import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { useHeldList, type Arrival } from "../../kit/motion/held-list";
@@ -65,7 +75,14 @@ import { ABOUT_CONTENT } from "./model/ask-about";
 import { ContentPiece } from "./piece";
 import { MakeSheet, askIdeaOn } from "./sheets/make";
 import { askContentView, readMoreContent } from "./surface";
-import { BackHead, ContentFind, useContentFind, useLibraryHolds, WhileLibraryHolds } from "./heads";
+import {
+  BackHead,
+  ContentFind,
+  useContentFind,
+  useLibraryHolds,
+  WhileLibraryHolds,
+  type ContentFindLine,
+} from "./heads";
 import { ListFind } from "../../kit/head/list-find";
 import {
   ContentLayoutChoice,
@@ -83,6 +100,8 @@ import { useAdsShown } from "../ads/shown";
 import { useAdsNeeding } from "../ads/needs-you";
 import { pieceBesideOf } from "./model/piece-open";
 import { libraryNow } from "../parts/library-code";
+import { aheadWhenIdle } from "@/bridge/workspace";
+import { warmLibrary } from "./warm";
 import { ContentWeek, WeekPlannedOpen } from "./week/week";
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
@@ -430,6 +449,58 @@ interface ContentPageProps {
   markedAs?: { page: string; part: string };
 }
 
+/**
+ * The bar and the find line over the list: on a phone they stand in the frame's top, still as the window scrolls the pieces
+ * under them (kit/head/under-row.tsx); in the list where a piece is open over it, or another of Campaigns' views shows.
+ * One search under the bar, the list's own (Made's over All, the Library's over all it keeps); none on the Week. What needs
+ * the owner is each list's first group (body.tsx MadeGroups, files/library-groups.tsx).
+ */
+function ContentTop(p: {
+  away: boolean;
+  bar: Omit<ComponentProps<typeof ContentBar>, "glyph">;
+  glyph: ComponentProps<typeof ContentBar>["glyph"];
+  find: {
+    line: ContentFindLine | null;
+    library: boolean;
+    inputRef: RefObject<HTMLTextAreaElement | null> | null;
+  } | null;
+}) {
+  const { find } = p;
+  return (
+    <UnderRow className="cnv-under" away={p.away}>
+      <ContentBar {...p.bar} glyph={p.glyph} />
+      {find ? (
+        <ContentFind
+          key={find.library ? "library" : "made"}
+          find={find.line}
+          drawn={find.inputRef ? { inputRef: find.inputRef, folds: true } : {}}
+        />
+      ) : null}
+    </UnderRow>
+  );
+}
+
+/** How long Made waits before the Library is readied: its idle moment, and at most this (Safari has none). */
+const LIBRARY_AHEAD_MS = 400;
+
+/**
+ * The Library readied while Made is shown (warm.ts warmLibrary), a beat after Made's own reads: its press shows it whole.
+ * Effects wait while the view is hidden (route.tsx Activity), so a Content drawn ahead readies nothing until it is shown.
+ */
+function useLibraryAhead(library: boolean): void {
+  useEffect(() => {
+    if (library) return undefined;
+    return aheadWhenIdle(() => void warmLibrary().catch(() => undefined), LIBRARY_AHEAD_MS);
+  }, [library]);
+}
+
+/**
+ * Whether the bar and the find line stand in the list rather than the frame's top: not on a phone, and on a phone while a
+ * piece (or a planned row of the Week) is open over the list, or another of Campaigns' views shows.
+ */
+const barAway = (p: { phone: boolean; shown: boolean; opened: boolean; plannedOpen: boolean }): boolean =>
+  !p.phone || !p.shown || p.opened || p.plannedOpen;
+
 export function ContentPage({ route, view, markedAs }: ContentPageProps) {
   const place: ContentPlace = contentPlaceOf(route.split("/")[1]) ?? { list: "made", view: "all", open: null };
   const library = place.list === "library";
@@ -448,6 +519,7 @@ export function ContentPage({ route, view, markedAs }: ContentPageProps) {
   useEffect(() => {
     if (!library && askContentView(place.view)) void refreshSurface("content");
   }, [library, place.view]);
+  useLibraryAhead(library);
   const [layout, setLayout] = useContentLayout(phone);
   // The find line's field: on a phone it rests folded under the bar, and the bar's glyph puts the caret in it.
   const findRef = useRef<HTMLTextAreaElement>(null);
@@ -508,26 +580,21 @@ export function ContentPage({ route, view, markedAs }: ContentPageProps) {
             right={<ContentDoors library={library} add={adder} make={() => setMaking(true)} />}
             allowance={false}
           />
-          <ContentBar
-            place={place}
-            tally={dto ? dto.tally : null}
-            planned={planned}
-            phone={phone}
-            layout={layout}
-            choose={setLayout}
+          <ContentTop
+            away={barAway({
+              phone,
+              shown: view?.shown !== false,
+              opened: !!opened,
+              plannedOpen: week && !!plannedOpen,
+            })}
+            bar={{ place, tally: dto ? dto.tally : null, planned, phone, layout, choose: setLayout }}
             glyph={barGlyphOf({ week, phone, find, onFind: () => findRef.current?.focus() })}
+            find={week ? null : { line: find, library, inputRef: phone ? findRef : null }}
           />
           {week ? (
             <ContentWeek openId={plannedOpen ?? opened?.file.id ?? null} onOpen={openWeekRow} flash={flash} />
           ) : (
             <>
-              {/* One search under the bar, the list's own (Made's over All, the Library's over all it keeps). What needs the
-                  owner is each list's first group (body.tsx MadeGroups, files/library-groups.tsx). */}
-              <ContentFind
-                key={library ? "library" : "made"}
-                find={find}
-                drawn={phone ? { inputRef: findRef, folds: true } : {}}
-              />
               {library ? (
                 <Suspense fallback={null}>
                   <ContentLibrary flash={flash} onOpen={show} onPieces={setShelf} onAdder={takeAdder} layout={layout} />

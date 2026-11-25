@@ -4623,17 +4623,28 @@ a.list-row {
   line-height: var(--leading-snug);
   color: var(--ink);
 }
+/* Its Close is the round one every sheet has (One Close for every sheet, below): the control layer's glass circle, where a
+   word ("Cancel") stood (Ruben, 25 Nov 2026). */
 .sheet-job-close {
   flex: none;
-  height: 44px;
-  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: var(--radius-circle);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
   color: var(--ink);
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
   cursor: pointer;
+}
+@media (pointer: coarse) {
+  .sheet-job-close {
+    width: 44px;
+    height: 44px;
+  }
 }
 /* A step's way back, before its title: the chevron, turned. */
 .sheet-job-back {
@@ -6182,17 +6193,16 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
 .rec-sheet[data-phone="true"] .rec-sheet-head {
   padding-top: 22px;
 }
-/* The question that stands in the foot's place while a Cancel asks (Confirm) keeps the corner's Close out of sight too:
-   it came back for the length of the question, and went again with the answer. */
-.rec-sheet[data-phone="true"]:has(.rec-sheet-foot :is(.rec-foot, [data-foot-pair], .confirm))
-  .rec-sheet-close:not(:focus-visible) {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
+/* One design for every sheet on a phone (Ruben, 25 Nov 2026: "one design"): the round Close in its corner on every sheet,
+   a form's too, and the foot the one act the sheet is for (Save, Add, Send) across its width. A form's foot drew Cancel
+   beside its act and hid the corner's Close, so a form closed by a word at its foot where every other sheet closed by
+   the ×. The Close does what Cancel did (it asks first where something was written), so the Cancel beside the act is
+   not drawn on a phone: each is marked `data-foot-cancel` where it is drawn (says.tsx RecordFoot, and a page's own). A
+   question's answers are never marked, nor an act alone in its foot (a Done). */
+@media (max-width: 900px) {
+  :is(.rec-sheet-foot, .sheet-job-body) [data-foot-cancel] {
+    display: none;
+  }
 }
 
 /* A sheet whose title is a kicker (Sheet's `kicker`: Campaigns' drawers, whose pane carries the name, its state and its
@@ -6240,17 +6250,6 @@ footer.rec-sheet-foot .btn:where(:not(.btn-icon)) {
   }
   .sheet-kicker .rec-sheet-tools {
     padding: 6px 16px 0;
-  }
-  /* What it holds closes it from its own foot (`footCloses`: a composer's Cancel): the corner's Close steps out of sight,
-     as a record sheet's does on a phone, and comes back for a keyboard. */
-  .sheet[data-foot-closes="true"] .rec-sheet-close:not(:focus-visible) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 }
 

@@ -855,3 +855,16 @@
   border-radius: var(--surface-inset-radius);
   background: var(--accent-soft);
 }
+
+/* The list's top in the frame's top on a phone (kit/head/under-row.tsx): the view, Type, Sort and the search hold still as
+   the window scrolls the groups (Ruben, 25 Nov 2026), on the page's gutter the frame's slot gives, Sort ending on the coral
+   act's edge. */
+@media (max-width: 900px) {
+  .sq-under > .sq-list-head {
+    gap: 0;
+    padding: 0;
+  }
+  .sq-under .cm-list-bar {
+    min-height: 44px;
+  }
+}

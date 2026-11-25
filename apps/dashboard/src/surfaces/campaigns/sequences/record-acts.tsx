@@ -380,6 +380,18 @@ const hasStateAct = (a: RecordActs) => !!a.unwritten || a.acts.start.ok || turns
 const stateActIsPrimary = (a: RecordActs) => !!a.unwritten || a.acts.start.ok;
 
 /**
+ * The head's caret on a phone while the record is still being read: drawn where More will be, at its size, and taking no
+ * press until the record that says what it holds has come, so the head is laid out once (record.tsx SequenceRecord).
+ */
+export function HeadActsReading({ name }: { name: string }) {
+  return (
+    <Button variant="quiet" size="touch" iconOnly aria-label={A.more(name)} aria-disabled data-testid="sq-more-reading">
+      <Icon name="chevron-down" size={18} />
+    </Button>
+  );
+}
+
+/**
  * The head's acts: a desk's one act with More as its caret, one split pill (the To send row's `Your mail app ⌄`), or More
  * as a pill of its own where no act stands; a phone's More alone, its acts in the dock.
  */

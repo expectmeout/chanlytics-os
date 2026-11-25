@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { ListFind, foldedLookup } from "../../kit/head/list-find";
+import { UnderRow } from "../../kit/head/under-row";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
 import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
@@ -105,6 +106,8 @@ interface InboxListProps {
   needsYou?: NeedsYouDrawn | null;
   /** What a reading set aside as not a customer's, folded at Handled's head (needs-you-list.ts ixSetAside). */
   aside?: Thread[];
+  /** A thread, a request or a comment takes the phone's screen over the list, which is held under it (inbox-page.tsx). */
+  away?: boolean;
 }
 
 /** The props with what the caller left out filled in: what the destructuring's defaults did in the JSX. */
@@ -336,8 +339,11 @@ export function InboxList(props: InboxListProps) {
       className={`ix-list ${L.density} ${selected.length > 0 ? "picking" : ""}`}
       data-bare={bareOf(L) ? "" : undefined}
     >
-      {bucketTabs(L)}
-      {searchBox(L)}
+      {/* On a phone the buckets and the search stand in the frame's top, still as the rows scroll under them (under-row.tsx). */}
+      <UnderRow className={selected.length > 0 ? "ix-under picking" : "ix-under"} away={!!props.away || inLine}>
+        {bucketTabs(L)}
+        {searchBox(L)}
+      </UnderRow>
       {viewChips(L)}
       {stakeLine(L)}
       {listHead(L)}

@@ -43,6 +43,18 @@ function heldNoteWords(held: number, each: boolean, ready: number, owner: boolea
 }
 
 /**
+ * What a run's number counts, said as a sentence: "1 email goes today", "30 emails go today", "14 emails for you to send".
+ * "1 go today" read "go" as a noun (Ruben, 25 Nov 2026).
+ */
+function countWordsOf(count: number, how: { owner: boolean; soon: boolean; sending: boolean }): string {
+  const emails = count === 1 ? "email" : "emails";
+  const go = count === 1 ? "goes" : "go";
+  if (how.owner) return `${emails} for you to send`;
+  if (how.soon) return `${emails} ${go} in the coming days`;
+  return how.sending ? `${emails} going today` : `${emails} ${go} today`;
+}
+
+/**
  * A run to leads, as its screen decides it (F13; R21, R22; the run-to-leads canvas of 19 Oct 2026): the decision first, how
  * many go and of how many, in one bar by count, and when and from where; the held as one card with its rows; the first
  * ready business's email as an email; what was checked; and the foot's line and Approve. `today` is the workspace's date
@@ -80,13 +92,7 @@ export function approvalWordsOf(
     who: owner ? "You send them" : null,
     count: {
       n: count,
-      words: owner
-        ? "for you to send"
-        : soon
-          ? "go in the coming days"
-          : state === "sending"
-            ? "going today"
-            : "go today",
+      words: countWordsOf(count, { owner, soon, sending: state === "sending" }),
       of: `of ${ready + reachOutRun.later + held + reachOutRun.checking}`,
     },
     parts: runPartsOf(reachOutRun, ready, state),

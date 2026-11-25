@@ -279,7 +279,9 @@ function PersonWords(p: {
       testid="sq-nw-words"
       foot={
         <div className="sq-nw-pair" data-foot-pair="">
-          <Button onClick={p.onClose}>{W.sheets.cancel}</Button>
+          <Button onClick={p.onClose} data-foot-cancel="">
+            {W.sheets.cancel}
+          </Button>
           <Button
             variant="primary"
             disabled={!made}
@@ -378,7 +380,9 @@ function LeadWords(p: {
       testid="sq-nw-words"
       foot={
         <div className="sq-nw-pair" data-foot-pair="">
-          <Button onClick={p.onClose}>{W.sheets.cancel}</Button>
+          <Button onClick={p.onClose} data-foot-cancel="">
+            {W.sheets.cancel}
+          </Button>
           <Button
             variant="primary"
             onClick={() => p.onSave({ subject: p.first ? subject : null, body })}

@@ -107,7 +107,7 @@ function RenameSheet(props: { io: SiteIo; open: boolean; onClose: () => void }) 
           <Button variant="primary" disabled={busy} onClick={() => void save()} data-testid="forms-site-rename-save">
             {W.rename.save}
           </Button>
-          <Button variant="quiet" onClick={onClose}>
+          <Button variant="quiet" onClick={onClose} data-foot-cancel="">
             {W.rename.cancel}
           </Button>
         </div>

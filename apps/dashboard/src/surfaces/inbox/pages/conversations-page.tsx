@@ -8,6 +8,7 @@
 import { BAR_LINE_WORDS, mmss, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { useHeldList } from "../../kit/motion/held-list";
+import { UnderRow } from "../../kit/head/under-row";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -352,6 +353,30 @@ const useCvAddress = (
   return { openRow, closeRow };
 };
 
+/** The list's channels, each with its count: a phone's frame top draws them over the search, a desk's list under it. */
+function channelFilters(
+  channels: ConversationsSurface["CV_CHANNELS"],
+  channel: string,
+  counts: Record<string, number>,
+) {
+  return (
+    <div className="cv-filters">
+      <SubTabs
+        label="Conversations by channel"
+        dense
+        value={channel}
+        onSelect={(id) => navigate(cvAddress(id, null))}
+        tabs={channels.map((ch) => ({
+          id: ch.id,
+          label: ch.label,
+          count: counts[ch.id],
+          testid: `cv-tab-${ch.id}`,
+        }))}
+      />
+    </div>
+  );
+}
+
 /** The list: the search, the tabs with their counts, and the rows (or what there is instead). */
 function listPane(p: {
   data: ConversationsSurface;
@@ -370,6 +395,8 @@ function listPane(p: {
   listRef: (el: HTMLDivElement | null) => void;
   /** The pick (pick.tsx): the rows chosen for an act over several, the bar over them, and the question an archive asks. */
   pick: CvPick;
+  /** A row's conversation takes the phone's screen over the list, which is held under it. */
+  away: boolean;
 }) {
   const { data, rows, query, setQuery, inLine, channel, counts, selectedRow, openRow, pick, shown, listRef } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
@@ -388,23 +415,37 @@ function listPane(p: {
     },
     attr: "data-row-id",
   });
+  const phoneTop = !p.away && !inLine;
+  const head = (
+    <div className="cv-list-head" data-line={inLine ? "" : undefined}>
+      {canPick.length > 0 &&
+        pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
+      {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page);
+            on a desk the bar's line is the search. */}
+      {!inLine && (
+        <Search
+          className="cv-lookup"
+          label="Search names, transcripts, messages"
+          value={query}
+          onChange={setQuery}
+          testid="cv-search"
+        />
+      )}
+    </div>
+  );
+  const filters = channelFilters(CV_CHANNELS, channel, counts);
   return (
     <aside className={`cv-list ${pick.selected.length > 0 ? "picking" : ""}`}>
-      <div className="cv-list-head" data-line={inLine ? "" : undefined}>
-        {canPick.length > 0 &&
-          pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
-        {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page);
-            on a desk the bar's line is the search. */}
-        {!inLine && (
-          <Search
-            className="cv-lookup"
-            label="Search names, transcripts, messages"
-            value={query}
-            onChange={setQuery}
-            testid="cv-search"
-          />
-        )}
-      </div>
+      {/* On a phone the channels and the search stand in the frame's top, still as the rows scroll under them, the
+          channels first as the Inbox's buckets are (kit/head/under-row.tsx); elsewhere in the list's own head. */}
+      {phoneTop ? (
+        <UnderRow className={pick.selected.length > 0 ? "cv-under picking" : "cv-under"}>
+          {filters}
+          {head}
+        </UnderRow>
+      ) : (
+        head
+      )}
       {CALLS_READ === false && (
         <FailedRead
           kind="line"
@@ -414,20 +455,7 @@ function listPane(p: {
           testid="cv-calls-failed"
         />
       )}
-      <div className="cv-filters">
-        <SubTabs
-          label="Conversations by channel"
-          dense
-          value={channel}
-          onSelect={(id) => navigate(cvAddress(id, null))}
-          tabs={CV_CHANNELS.map((ch) => ({
-            id: ch.id,
-            label: ch.label,
-            count: counts[ch.id],
-            testid: `cv-tab-${ch.id}`,
-          }))}
-        />
-      </div>
+      {phoneTop ? null : filters}
       {pick.bar && <div className="ix-list-head">{pick.bar}</div>}
       {pick.ask}
       {/* A listbox while it holds rows, as the Inbox's is; with none, what it says instead is no option of one. */}
@@ -740,6 +768,7 @@ export const ConversationsPage = ({
         shown: shownRows.shown,
         listRef: shownRows.ref,
         pick,
+        away: phoneOpen,
       })}
       {/* On a phone the reading pane is hidden until a row is opened (mobile.css), and it was mounted all the same, keyed
           by the first row: every channel pressed drew that person's whole thread again behind the list, 44 call cards
