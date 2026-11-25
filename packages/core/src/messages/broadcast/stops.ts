@@ -28,7 +28,7 @@ export type StoppedRun = Pick<BroadcastRow, "id" | "name" | "playbook_id" | "aud
  * read failed would otherwise schedule itself again at once, and a read that
  * keeps failing would spin the ledger until somebody canceled by hand.
  */
-export const BROADCAST_STALL_RETRY_MS = 60_000;
+export const BROADCAST_STALL_RETRY_MS = MIN_MS;
 
 /**
  * How many batches in a row may reach nobody for a read that failed before the run stops and says so. A minute each

@@ -30,6 +30,7 @@ import {
   type FileMime,
 } from "@chanlytics/contracts";
 import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
+import { fetchFromProvider } from "@chanlytics/channels/shared";
 import { imageHeaderOf } from "@chanlytics/core";
 import { markFileMediaProcessing, recordFileFound, startFile } from "@chanlytics/db/files";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
@@ -135,13 +136,19 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
 async function firstBytesOf(path: string): Promise<{ head: Uint8Array; size: number } | null> {
   const link = await bucket().createSignedUrl(path, HEAD_LINK_S);
   if (link.error || !link.data) return null;
-  const res = await fetch(link.data.signedUrl, {
+  // Through the one way out (channels fetchFromProvider, as `storage`), always made: a decoder's 500 for one file is no
+  // reason to hold the next person's upload.
+  const res = await fetchFromProvider("storage", link.data.signedUrl, {
     headers: { range: `bytes=0-${FINGERPRINT_BYTES - 1}` },
-    signal: AbortSignal.timeout(HEAD_READ_MS),
+    timeoutMs: HEAD_READ_MS,
+    breaker: "count",
+    stream: true,
   });
-  if (!res.ok) return null;
-  const head = new Uint8Array(await res.arrayBuffer());
-  const whole = /\/(\d+)$/.exec(res.headers.get("content-range") ?? "")?.[1];
+  // No answer fails the upload's finish, as a fetch that threw always did.
+  if (res.status === 0) throw new Error(`the file's first bytes did not arrive: ${res.error ?? "no answer"}`);
+  if (!res.body) return null;
+  const head = new Uint8Array(await new Response(res.body).arrayBuffer());
+  const whole = /\/(\d+)$/.exec(res.headers?.get("content-range") ?? "")?.[1];
   return { head, size: whole ? Number(whole) : head.length };
 }
 
@@ -161,24 +168,26 @@ async function decoderRefuses(path: string, tenantId: TenantId, mime: FileMime, 
     say("not signed");
     return false;
   }
-  try {
-    const res = await fetch(link.data.signedUrl, {
-      headers: { accept: "image/webp" },
-      signal: AbortSignal.timeout(DECODE_READ_MS),
-    });
-    if (res.ok) {
-      await res.body?.cancel();
-      say("ok");
-      return false;
-    }
-    // An answer that is not JSON is none: its status says the rest.
-    const inBody = recordOrNull(await res.json().catch(() => null))?.statusCode;
-    say(`${res.status}/${String(inBody)}`);
-    return inBody === "400";
-  } catch {
+  const res = await fetchFromProvider("storage", link.data.signedUrl, {
+    headers: { accept: "image/webp" },
+    timeoutMs: DECODE_READ_MS,
+    breaker: "count",
+    stream: true,
+  });
+  if (res.status === 0) {
     say("no answer");
     return false;
   }
+  if (res.body) {
+    // Closing a copy nobody reads: nothing to do if that fails.
+    await res.body.cancel().catch(() => undefined);
+    say("ok");
+    return false;
+  }
+  // An answer that is not JSON is none: its status says the rest.
+  const inBody = recordOrNull(res.json)?.statusCode;
+  say(`${res.status}/${String(inBody)}`);
+  return inBody === "400";
 }
 
 /** The file by its own first bytes: its size where it says it, or the words that refuse it. */

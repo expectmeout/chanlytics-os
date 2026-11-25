@@ -1,4 +1,4 @@
-import { globalSlot } from "@chanlytics/contracts";
+import { MIN_MS, globalSlot } from "@chanlytics/contracts";
 import { sendOrAskAgain, type AgainWith } from "./read-again";
 import { readShared } from "./read-once";
 /**
@@ -44,6 +44,12 @@ export interface DbObserver {
    * (packages/log sharedReads: a request that answers several reads as one says it does). Absent, nothing is shared.
    */
   sharedReads?(): object | null;
+  /**
+   * A read of `table` stopped at the row cap (`db_answer_at_cap`): the app raises the alarm, as it raises any (layer 12).
+   * Told at most once per table per instance every AT_CAP_TOLD_EVERY_MS, so a list read at the cap on every page load is
+   * one alarm and not a write per read. Absent, the line alone says it.
+   */
+  atCap?(table: string): void;
 }
 
 /** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
@@ -170,10 +176,27 @@ function answeredAtCap(input: string | URL | Request, init: RequestInit | undefi
   return rowsInAnswer(answer.headers.get("content-range")) === AT_CAP;
 }
 
-/** Say, once a read's answer is in, when it stopped at the cap: its table and the request that read it. */
+/** How often one instance tells its app that reads of one table stopped at the cap. */
+const AT_CAP_TOLD_EVERY_MS = 10 * MIN_MS;
+/** When each table's read at the cap was last told, in this instance: one store for every inlined copy of db. */
+const atCapTold = globalSlot<Map<string, number>>("chanlytics.db.at-cap-told");
+
+/**
+ * Say, once a read's answer is in, when it stopped at the cap: its table and the request that read it, in the line, and
+ * to the app's alarm (`atCap`), at most once per table per window in this instance.
+ */
 function sayWhenAtCap(input: string | URL | Request, init: RequestInit | undefined, answer: Response): void {
   if (!answeredAtCap(input, init, answer)) return;
-  dbLog().warn("db_answer_at_cap", { table: touchOfCall(input, init)?.table, rows: AT_CAP, request_id: dbRequestId() });
+  const table = touchOfCall(input, init)?.table;
+  dbLog().warn("db_answer_at_cap", { table, rows: AT_CAP, request_id: dbRequestId() });
+  const observer = observerSlot.get() ?? FALLBACK;
+  if (!observer.atCap || !table) return;
+  const told = atCapTold.keep(() => new Map());
+  const now = Date.now();
+  const last = told.get(table);
+  if (last !== undefined && now - last < AT_CAP_TOLD_EVERY_MS) return;
+  told.set(table, now);
+  observer.atCap(table);
 }
 
 /**

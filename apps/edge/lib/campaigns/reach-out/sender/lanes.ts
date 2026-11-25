@@ -28,6 +28,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
+  HOUR_MS,
   MIN_MS,
   draftRefusalOf,
   hasFootAddress,
@@ -62,10 +63,10 @@ export const DUE_MAILBOXES_PAGE = 50;
 export const DUE_PAGES = 4;
 
 /** A claim this old was left by a tick that died after it (a tick lives 60 s at most): it is written again. */
-export const REWRITE_AFTER_MS = 5 * 60_000;
+export const REWRITE_AFTER_MS = 5 * MIN_MS;
 
 /** How far on a held send, or one waiting for the email before it to be stamped, is planned again (in its lead's hours). */
-export const HOLD_MS = 3_600_000;
+export const HOLD_MS = HOUR_MS;
 
 /**
  * How far on a send held for its lead's own receptionist is planned again while one is being made (decision 0079): a

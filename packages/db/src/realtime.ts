@@ -351,12 +351,12 @@ export function subscribeWorkspaceChanges(
   const listener: Listener = { onChange, onStatus: opts.onStatus };
   hearing.listeners.add(listener);
   const status = hearing.channel ? hearing.status : null;
-  if (status) queueMicrotask(() => hearing.listeners.has(listener) && report(listener, topic, status));
+  if (status) queueMicrotask(() => hearing.listeners.has(listener) && report(listener, status));
   else if (!hearing.channel && !hearing.joining)
     // A session that cannot be read joins nothing: the shell hears the feed is down, and the next listener tries again.
     hearing.joining = join(client, tenantId, topic, hearing, heard).catch(() => {
       hearing.joining = null;
-      for (const l of [...hearing.listeners]) report(l, topic, "CHANNEL_ERROR");
+      for (const l of [...hearing.listeners]) report(l, "CHANNEL_ERROR");
     });
 
   let left = false;
@@ -400,7 +400,7 @@ async function join(
     // A channel left behind says nothing to those listening on the topic's next one: its close is not their drop.
     if (hearing.channel !== channel) return;
     hearing.status = status;
-    for (const listener of [...hearing.listeners]) report(listener, topic, status);
+    for (const listener of [...hearing.listeners]) report(listener, status);
   });
 }
 
@@ -410,9 +410,13 @@ function forget(heard: Map<string, Hearing>, topic: string, hearing: Hearing): v
   heard.delete(topic);
 }
 
-function report(listener: Listener, topic: string, status: string): void {
-  if (listener.onStatus) listener.onStatus(status);
-  else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
+/**
+ * A channel's report, told to the listener that asked to hear it (`onStatus`). One that did not ask hears nothing: this
+ * runs in the browser, where db has no logger to write a line through, and the tab says what it makes of a status itself
+ * (the bridge's surface runner).
+ */
+function report(listener: Listener, status: string): void {
+  listener.onStatus?.(status);
 }
 
 /**

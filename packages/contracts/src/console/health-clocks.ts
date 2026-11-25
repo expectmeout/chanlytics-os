@@ -222,6 +222,7 @@ const PAGE_KEY_WORDS: Record<string, string> = {
   lead_contacts_unread: "A lead source reading no websites",
   lead_platform_day: "Lead searching near the platform's day cap",
   outside: "A check outside the product",
+  db_answer_at_cap: "A list stopped at 1,000 rows",
 };
 
 /** The pager's key in words: "A delivery failing: consent notices". */

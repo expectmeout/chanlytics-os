@@ -29,6 +29,7 @@
  */
 import { errField } from "@chanlytics/log";
 import {
+  MIN_MS,
   confirmationNameOf,
   offersAfterStart,
   optInConfirmation,
@@ -137,7 +138,7 @@ export async function isTooLate(at: Answering): Promise<typeof GO | undefined> {
       at,
       {
         reason: "stale",
-        details: `The message arrived ${Math.round(ageMs / 60000)} minutes late, too late for AI to answer.`,
+        details: `The message arrived ${Math.round(ageMs / MIN_MS)} minutes late, too late for AI to answer.`,
         said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent · too late for AI to answer)",
       },

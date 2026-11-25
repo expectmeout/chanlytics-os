@@ -21,14 +21,17 @@ import { requestIdOf, verifyEdgeToken, REQUEST_ID_HEADER } from "@chanlytics/cha
 import {
   logger as oneLogger,
   errField,
+  logAndGoOn,
   withRequestId,
   requestId,
   type Logger as OneLogger,
   type LogFields,
 } from "@chanlytics/log";
+import { noteAnswerAtCap } from "@chanlytics/db/ops";
 import { observeDb } from "@chanlytics/db/shared";
-import { textOrEmpty, valueAt } from "@chanlytics/contracts";
+import { DbFailure, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { env } from "./env.js";
+import { pg } from "./pg.js";
 import { refuse } from "./http.js";
 import type { LogEvent } from "./log-events.js";
 
@@ -51,8 +54,20 @@ export function logger(base: LogContext = {}): Logger {
   return oneLogger<LogEvent>(base);
 }
 
-// packages/db writes its lines through this logger and names the request it writes for from this store.
-observeDb({ log: oneLogger(), requestId });
+// packages/db writes its lines through this logger and names the request it writes for from this store, and a read that
+// stopped at the row cap is noted in the pager's memory, which Health shows and the health sweep pages (ops/cap-watch.ts).
+observeDb({ log: oneLogger(), requestId, atCap: noteAtCap });
+
+/** A read that stopped at PostgREST's row cap, noted in the pager's memory (layer 12); nothing where there is no database. */
+function noteAtCap(table: string): void {
+  const db = pg();
+  if (!db) return;
+  void noteAnswerAtCap(db, table, new Date().toISOString())
+    .then(({ error }) => {
+      if (error) throw new DbFailure(error, "note a read at the row cap");
+    })
+    .catch(logAndGoOn("note a read at the row cap"));
+}
 
 /** The answer, carrying the request's name. A response whose headers are fixed (a redirect) is copied to carry it. */
 function named(res: Response, id: string): Response {

@@ -9,6 +9,7 @@
  * surface draws and does not already hold. Where the answer cannot say them all, or fails, the tab reads everything the
  * feed tells of, as before.
  */
+import { MIN_MS } from "@chanlytics/contracts";
 import type { RealtimeChange } from "../surface-realtime";
 
 /** A notice the topic told, read back: its table, event, the statuses its statement left and its clock. Never a row. */
@@ -31,7 +32,7 @@ export type CatchUp = (sinceMs: number) => Promise<readonly CaughtUpNotice[] | n
  * How far before the feed first said it was in trouble a rejoin catches up from: a socket can die silently, and realtime-js
  * says so within a heartbeat or two.
  */
-export const QUIET_LOOKBACK_MS = 60_000;
+export const QUIET_LOOKBACK_MS = MIN_MS;
 
 /** What a catch-up does with what it reads back. */
 export interface CatchingUp {
