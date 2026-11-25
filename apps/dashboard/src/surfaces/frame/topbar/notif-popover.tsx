@@ -15,6 +15,7 @@ import type { BellRow } from "@/bridge/notifications";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { frameBell, frameGlyph } from "../frame-window";
 
 /** A note the bell draws: the server's row (BellRow). */
@@ -318,8 +319,11 @@ export function NotifPopover({
   onSettings = null,
 }: NotifPopoverProps) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  // On a phone the notes are the kit's one sheet; on a wider screen the popover under the bell.
+  // On a phone the notes are the kit's one sheet, which says it is open itself (data-sheet-open); on a wider
+  // screen the popover under the bell, which holds the page (aria-modal): said on the document's root, where a
+  // toast and the page's scroll ask them (kit/motion/root-flags.ts).
   const phone = tbnPhone();
+  useRootFlag(["bellOpen", "modalOpen"], !phone);
   useTbnEscape(onClose, !phone);
   const { slotEls, going, fold } = useFold(onDismiss);
   // A note marked read where it stands (slid right, or by its check) keeps its place while the sheet is open, rather

@@ -9,6 +9,7 @@
  * motion, nor from a frame React mounted and let go of at once (StrictMode's check in development, a draw that never
  * showed). A record sheet let go of while open leaves by it too, its copies on the body (record/sheet.tsx).
  */
+import { takenOutLater } from "./root-flags";
 import { motionReduced, washBehind } from "./swipe";
 
 const STILL_ATTRIBUTES = ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"];
@@ -50,12 +51,15 @@ const stillCopy = (node: Element): Element => {
   copy.setAttribute("data-leaving", "true");
   return copy;
 };
+// What the copy pictures (an open dialog inside it, a selection's bar) stands on the document's root until it has gone,
+// as the rules' :has() saw it there (root-flags.ts takenOutLater).
 const playOut = (copy: Element) => {
   let gone = false;
+  const takeOut = takenOutLater(copy);
   const go = () => {
     if (!gone) {
       gone = true;
-      copy.remove();
+      takeOut();
     }
   };
   copy.addEventListener("animationend", (e) => {
@@ -67,7 +71,7 @@ const playOut = (copy: Element) => {
 /**
  * Play a node and its wash out from where the node still stands: called as React lets go of the node. `into` puts the
  * copies at the end of another element instead (the document's body), for a node whose parent React takes away with it
- * (a Base UI portal's own box, which goes in the same commit: kit/record/sheet.tsx).
+ * (a Base UI portal's own box, which goes in the same commit: kit/sheet/sheet.tsx useLeavesWhenLetGo).
  */
 export const leaveOverlay = (
   node: Element | null | undefined,

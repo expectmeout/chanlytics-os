@@ -23,6 +23,7 @@ import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
 import { PaneProfile } from "../profile/pane";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { SettingsList } from "./list";
 import { warmSettingsPane } from "./pane-reads";
 import {
@@ -154,6 +155,8 @@ function SettingsRailRow({ t, on, gap, go }: { t: SetTab; on: boolean; gap: bool
 export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onTab?: (tab: string) => void }) {
   // The bare address names no pane: on a desk it is Details, beside the rail; on a phone it is the list of sections.
   const active = SET_TAB(tab || "workspace");
+  // Drawn, Settings holds still under a pull (mobile.css): said on the document's root (kit/motion/root-flags.ts).
+  useRootFlag("settingsPage", true);
   const phone = useSettingsPhone();
   const listing = phone && !tab;
   // Drawn again as a partner's account and the business's record are read: the rail's Partner and its gap mark.

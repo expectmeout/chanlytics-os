@@ -42,6 +42,7 @@ import { warmPeopleMap } from "./surface";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
 import { PUSH_WAIT_MS, carriedOver, pushesOver, useHeldList, type Arrival } from "../kit/motion/held-list";
+import { useRootFlag } from "../kit/motion/root-flags";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -108,6 +109,7 @@ const ownGo = (to: string, opts?: { replace?: boolean }) =>
  * person's page on its way takes the screen over as their page will (`takeover`, mobile.css data-takeover).
  */
 function ScopeReading({ takeover = false }: { takeover?: boolean }) {
+  useRootFlag("takenOver", takeover);
   return (
     <div className="route-reading" role="status" data-takeover={takeover ? "" : undefined}>
       {LIFECYCLE_WORDS.reading}

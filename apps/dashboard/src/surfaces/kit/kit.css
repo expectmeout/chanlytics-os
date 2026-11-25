@@ -4631,16 +4631,18 @@ a.list-row {
    sheet has room for a toast, the stack is centred there and kept to it; where it has not, and on a phone, where the
    sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. A sheet on its way out
    (data-leaving) is not one a toast has to clear: the toast a save raises would otherwise start over where the sheet's
-   foot was and drop as the sheet went. */
-:root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+   foot was and drop as the sheet went. The sheet says it is open on the document's root as it opens
+   (kit/motion/root-flags.ts, data-sheet-open), written twice: the rule weighs what its `:has()` did, which every
+   change on the page had the browser read again. */
+:root[data-sheet-open][data-sheet-open] .pp-toast-stack {
   bottom: calc(184px + env(safe-area-inset-bottom));
 }
 @media (width > 900px) {
-  :root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+  :root[data-sheet-open][data-sheet-open] .pp-toast-stack {
     bottom: 18px;
     left: calc((100vw - min(540px, 92vw)) / 2);
   }
-  :root:has(.sheet:not([data-leaving])) .pp-toast {
+  :root[data-sheet-open][data-sheet-open] .pp-toast {
     max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px));
   }
 }

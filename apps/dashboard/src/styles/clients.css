@@ -1103,7 +1103,7 @@
     position: relative;
     z-index: 202;
   }
-  body:has(.cl-profile[data-going]) .cl-prof-dock {
+  :where(:root)[data-person-going][data-person-going] body .cl-prof-dock {
     opacity: 0;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
@@ -2487,14 +2487,14 @@
   .pl-table tbody tr.pl-card-row > td:first-child:has(> input:focus-visible) ~ td > .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
-  body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+  :where(:root)[data-bulk-docked][data-bulk-docked] body .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 720px) {
   /* At 720px and under the row stands on the tab bar (.phone-places, 64px), which clears the home bar for it, and
      toasts sat 76px up (mobile.css): ON the row. Measured on production, 22 Sep: the row 687-748, the tabs 754-812. */
   .cl-bulk.pp-bulk { padding-bottom: 6px; }
-  body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+  :where(:root)[data-bulk-docked][data-bulk-docked] body .pp-toast-stack { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 900px) {

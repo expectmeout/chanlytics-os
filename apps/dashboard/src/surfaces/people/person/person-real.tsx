@@ -24,6 +24,7 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { tabMemory } from "../../kit/record/shell-verbs";
 import { carriedOver, heldAlong, heldUnder } from "../../kit/motion/held-list";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { mayAtLeast, navigate, touchSwipe } from "../../frame-verbs";
 import { addressReplace } from "../shell-verbs";
@@ -299,6 +300,9 @@ function personPage(
  * opened from, held under it (people-route.tsx), which the page comes in over, as an open thread does (clients.css).
  */
 function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTab; over: boolean }) {
+  // Every draw of a person's page takes the screen over (data-takeover on its root, mobile.css), reading, missing or
+  // drawn, and says so on the document's root as it does (kit/motion/root-flags.ts).
+  useRootFlag("takenOver", true);
   const [st, setSt] = useHeld(id);
   const arrive = useArrive(id, !!st.vm);
   const [cameOver] = useState(over);

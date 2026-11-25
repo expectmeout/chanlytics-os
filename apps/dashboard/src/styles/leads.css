@@ -433,7 +433,7 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   /* The first day is the screen as the browser shows it (100dvh), and no taller: every phone page's floor of the largest
      screen (mobile.css .app-root, 100lvh, so Safari tucks its toolbar away) left a page that fits room to scroll into
      with nothing in it (Ruben, 23 Oct 2026). */
-  .app-root:has(.leads-scope[data-first-day]) { min-height: 100dvh; }
+  :where(:root)[data-leads-first-day][data-leads-first-day] .app-root { min-height: 100dvh; }
 
   /* Find leads as the bar's last control, the three's still mark, in ink: from 721px to 900px the controls row is
      gone and the shell draws no ✦, so this is the page's one door. */

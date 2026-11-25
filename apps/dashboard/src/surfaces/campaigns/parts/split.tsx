@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { showHeld } from "../../kit/motion/held-list";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { Panel } from "../../kit/panel/panel";
 import { useRecSheetEscape } from "../../kit/record/focus";
 import { ViewShownAs } from "./view-shown";
@@ -91,6 +92,9 @@ interface CmSplitProps {
  */
 export function CmSplit({ list, open, className, testid, view, keepPane = false }: CmSplitProps) {
   const opened = open !== null && open !== undefined && open !== false;
+  const takesOver = opened && view?.shown !== false;
+  // What it says on its root, it says on the document's too, where the frame's rules ask it (kit/motion/root-flags.ts).
+  useRootFlag(["takenOver", "threadOpen"], takesOver);
   return (
     <div
       ref={view?.ref}
@@ -98,7 +102,7 @@ export function CmSplit({ list, open, className, testid, view, keepPane = false 
       className={cx("cm-split", className)}
       data-open={opened ? "true" : undefined}
       data-keep-pane={keepPane ? "true" : undefined}
-      data-takeover={opened && view?.shown !== false ? "true" : undefined}
+      data-takeover={takesOver ? "true" : undefined}
       data-testid={testid}
     >
       {/* Whether this view is the one shown, for the parts that say their draw (use-surface.ts PartShown). */}

@@ -15,6 +15,7 @@
  */
 import { useLayoutEffect } from "react";
 import { sayAskDocked, useAskDock } from "@/bridge/ask/dock";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { MASCOT } from "@/bridge/mascot";
 import { useAskFoot, useAskGrow, useAskLatest, useAskWarm } from "../hooks";
 import { askCalls } from "../shell";
@@ -101,6 +102,9 @@ export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void 
   useAskGrow(ln.inputRef, ln.query, open); // the field grows with its words, to six lines (../hooks.ts)
   ln.below = useAskLatest(ln.bodyRef, open && ln.view === "rows" && !!(ln.active || ln.quick));
   useAskFoot(ln.bodyRef, open && ln.view === "rows" && !!(ln.active || ln.quick)); // a card's foot in reach (../hooks.ts)
+  // Open on a phone with a field of its own, the Line holds the page (aria-modal, draw.tsx): said on the document's root
+  // (kit/motion/root-flags.ts).
+  useRootFlag("modalOpen", open && !!A && arPhone() && !docked);
 
   if (!open || !A) return null;
   ln.phone = arPhone();

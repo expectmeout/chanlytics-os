@@ -2650,13 +2650,13 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     background: none;
     color: var(--ink-muted);
   }
-  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .live-bar,
-  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .brief-bar {
+  :root:not([data-carrying])[data-thread-open][data-thread-open] .app-root .frame-top > .live-bar,
+  :root:not([data-carrying])[data-thread-open][data-thread-open] .app-root .frame-top > .brief-bar {
     position: static;
     max-width: calc(100% - 2 * var(--gutter-page));
     margin: 2px var(--gutter-page) 6px;
   }
-  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .unmarked-bar {
+  :root:not([data-carrying])[data-thread-open][data-thread-open] .app-root .frame-top > .unmarked-bar {
     display: none;
   }
   /* Under a way back it stands at the page's gutter, as the way back does: a phone's top is a block, not the desk's column. */
@@ -3355,45 +3355,45 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
      mark the quiet line they are (no ground: Ruben, 11 Nov 2026), the ring, the count and the arrow. Where the page draws
      Listen beside the bell, they take its place while they are up (the date's place stands down for them, above). Under a
      way back, and over a thread's own head, they keep their row of their own, as before. */
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > :is(.live-bar, .unmarked-bar, .brief-bar) {
     right: calc(var(--gutter-page) + 40px);
     left: auto;
     max-width: none;
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .live-bar
     :is(.live-bar-text, .live-bar-calls, .live-bar-wave) {
     display: none;
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .live-bar:not([data-count="1"])
     .live-bar-text {
     display: inline;
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .brief-bar
     .brief-bar-text {
     display: none;
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .unmarked-bar {
     gap: 6px;
     margin: 0;
     padding: 0 var(--space-2);
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .unmarked-bar
     .unmarked-bar-text {
     display: none;
   }
-  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+  :where(:root):not([data-thread-open][data-thread-open]) .app-root
     .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
     > .unmarked-bar
     .unmarked-bar-count {
@@ -3483,7 +3483,7 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   display: none;
 }
 @media (min-width: 901px) {
-  html:has(.app-root) body,
+  html[data-frame] body,
   .app-root {
     background: transparent;
   }

@@ -36,6 +36,9 @@ const requireFromDashboard = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../apps/dashboard/src/bridge/_.js"),
 );
 const reactModule = requireFromDashboard("react");
+// A part that says a state on the document's root holds it in an insertion effect (kit/motion/root-flags.ts): whatever
+// stub a test sets, the effect runs where that stub runs a layout effect, read as it is called.
+reactModule.useInsertionEffect = (effect, deps) => reactModule.useLayoutEffect(effect, deps);
 // The rule that only one fold is open, as the pages hold it: tsx loads the dashboard's TSX as CommonJS, so a page's import of
 // it is a require, and an ESM import of it from here would be a second registry the pages never write to.
 const { recFolds } = requireFromDashboard("../surfaces/kit/record/registry.ts");

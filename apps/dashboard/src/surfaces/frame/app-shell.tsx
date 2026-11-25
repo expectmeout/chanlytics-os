@@ -17,6 +17,7 @@ import { isAdsParam } from "@chanlytics/contracts";
 import type { fillDoors as FillDoors } from "../frame-doors";
 import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceRoute } from "../routes";
+import { useRootFlag } from "../kit/motion/root-flags";
 import { firstRowsMeetRoute } from "./first-rows";
 import { frameChrome, frameSurfaceHook, fromWindow } from "./frame-window";
 import { drawRoute } from "./route-table";
@@ -180,11 +181,18 @@ export function ChanlyticsApp({
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("shell:ready"));
   }, []);
+  // What the whole page holds, on the document's root for the rules that ask it (kit/motion/root-flags.ts): the frame,
+  // drawn but where a page is drawn full screen (the two below), and its drawer, open over the page.
+  const shared = page === "shared" && !demoGated;
+  const firstRun = page === "start" && !demoGated && !!routePage;
+  useRootFlag("frame", !shared && !firstRun);
+  useRootFlag("drawerOpen", !shared && !firstRun && navOpen);
+  // A page that draws its own head, still reading, takes the screen over in the frame's reading pane (shell-chrome.tsx).
+  useRootFlag("takenOver", !shared && !firstRun && gate.routeLoading && !fade.readsInPlace && !!drawn.ownHead);
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
-  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate, sharedPage });
-  if (page === "start" && !demoGated && routePage)
-    return firstRunScreen({ theme, look, routePage, askOpen, setAskOpen });
+  if (shared) return sharedViewer({ theme, look, navigate, sharedPage });
+  if (firstRun) return firstRunScreen({ theme, look, routePage, askOpen, setAskOpen });
 
   return appChrome({
     theme,

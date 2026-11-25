@@ -44,6 +44,7 @@ import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
+import { useRootFlag } from "../../kit/motion/root-flags";
 import { GRAB_AT } from "../../kit/motion/swipe";
 import { glideHeight } from "../../kit/motion/use-height-glide";
 import { riseWithKeys } from "../../kit/motion/keys-rise";
@@ -675,6 +676,8 @@ export const InboxThread = (props: InboxThreadProps) => {
   useEffect(() => foldAsRead(scrollRef.current, setFolded), [drawn]);
   const footRef = useRef<HTMLDivElement>(null);
   useEffect(() => (ixPhone() && footRef.current ? glideHeight(footRef.current) : undefined), [drawn]);
+  const docked = !!thread?.real && ixPhone();
+  useRootFlag(["dockInFrame", "dockUp"], docked); // the reply box docked at a phone's foot (footDock), said on the root
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
@@ -700,7 +703,7 @@ export const InboxThread = (props: InboxThreadProps) => {
   };
   if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
-  const dock = footDock(folded, setFolded, !!thread.real && ixPhone());
+  const dock = footDock(folded, setFolded, docked);
 
   return (
     // On a phone the thread is the screen, and a thumb carries it back to its list (ixSwipeBack).
