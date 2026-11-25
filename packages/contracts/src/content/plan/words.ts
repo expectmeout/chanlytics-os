@@ -18,8 +18,15 @@ export const WEEK_WORDS = {
   /** The notice of a week ready (plan_ready): its subject, and its body. */
   readySubject: "This week's posts are ready",
   readyBody: (size: string, days: string) => `${size}, ${days}. Nothing goes up until you approve them.`,
-  /** The same notice for a week AI may approve (00714): it goes up at 8:00 AM unless the owner stops it. */
-  readyBodyHeld: (size: string, days: string) => `${size}, ${days}. They go up at 8:00 AM unless you stop them.`,
+  /**
+   * The same notice for a week AI may approve (00714): it goes up at its time unless the owner stops it. `when` names
+   * the day too ("Mon 8:00 AM"): a week planned mid-week goes the next morning, and a notice is read later.
+   */
+  readyBodyHeld: (size: string, days: string, when: string) =>
+    `${size}, ${days}. They go up ${when} unless you stop them.`,
+  /** And for a week made while AI is paused (Stop everything): no time is promised, it waits for the owner. */
+  readyBodyPaused: (size: string, days: string) =>
+    `${size}, ${days}. AI is paused, so they wait for you. Nothing goes up until you approve them.`,
   /** And for a week AI sends as soon as it is ready (00714). */
   readyBodySent: (size: string, days: string) =>
     `${size}, ${days}. AI approves them, as you set it. Each goes up at its time.`,
@@ -40,7 +47,14 @@ export const WEEK_WORDS = {
   todayHeld: (at: string) => `Your week goes up at ${at} unless you stop it`,
   stop: "Stop it",
   stopped: "Stopped. Nothing goes up until you approve it.",
-  approved: (at: string) => `Approved ${at}. Each goes up at its time.`,
+  /** A ready week that waits on the owner's press, whatever let it go. */
+  untilApproved: "Nothing goes up until you approve it.",
+  /** An approved week's head: who approved it and when (nobody's press: AI, under the owner's setting), then what goes. */
+  approvedBy: {
+    owner: (at: string) => `Approved ${at}.`,
+    ai: (at: string) => `AI approved it ${at}, as you set it.`,
+  },
+  eachGoes: "Each goes up at its time.",
   approvedTitle: (size: string) => `Approved · ${size}`,
   /** The head while the week is drafted: AI plans it and words it; nothing is made until it is approved. */
   drafting: "AI is planning this week",
@@ -87,12 +101,39 @@ export const WEEK_WORDS = {
   videoMaking: "Its video is being made",
   videoMade: (when: string) => `Made · approve it to go up ${when}`,
   videoFailed: "Its video couldn't be made",
+  /** A slot whose time has passed, by anyone's approval: it is never put up late, and its one fix picks another time. */
+  timePassed: "Its time passed. Pick another time.",
   /** A row's one fix. */
-  fix: { offer: "Add it", connect: "Connect", again: "Try again", open: "Open", post: "Approve" },
+  fix: {
+    offer: "Add it",
+    connect: "Connect",
+    again: "Try again",
+    open: "Open",
+    post: "Approve",
+    time: "Pick another time",
+  },
+  /** Picking another time, in the row opened: the sentence before the day and the time, and its two presses. */
+  pickTime: { says: "Goes up", yes: "Set the time", set: (when: string) => `Set for ${when}.` },
   /** The piece of a row not made yet: where each place takes it, and its words. */
   whereItGoes: "Where it goes",
   caption: "Caption",
   plannedFrom: (name: string) => `Planned from ${name}`,
   approvedToast: "Approved. Each goes up at its time.",
   leftOut: (count: number) => (count === 1 ? "1 was left out: it says why." : `${count} were left out: each says why.`),
+  /**
+   * How AI's approval of a held week ended, where it says so (week-endings.ts): Today's point for a week that waits on
+   * the owner and for one AI approved, the bell where AI did not approve it, and each reason in a clause.
+   */
+  ending: {
+    todayWaits: "This week's posts are waiting for you",
+    todayApproved: "AI approved this week's posts",
+    notApproved: "AI didn't approve this week's posts",
+    aiDidnt: "AI didn't approve it.",
+    aiDidntThem: "AI didn't approve them.",
+    youStopped: "You stopped it.",
+    paused: "AI is paused, so nothing goes up.",
+    noneReady: "No post is ready to go up. Each says why.",
+    waitsThem: "Nothing goes up until you approve them.",
+    look: "Look at it, then approve the week.",
+  },
 } as const;

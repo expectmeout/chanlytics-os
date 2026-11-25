@@ -298,9 +298,17 @@ export async function prepareWeek(ctx: RouteContext, member: Member, weekOf: str
   return readied;
 }
 
+/** What runs the making once the press has answered: next/server's after(); a test hands its own. */
+export type MadeLater = (task: () => Promise<unknown>) => void;
+
 /** The week made after the press has answered (next/server `after`): the owner waits on none of it. */
-export function makeWeekAfter(ctx: RouteContext, member: Member, at: { tenantId: TenantId; weekOf: string }): void {
-  after(() =>
+export function makeWeekAfter(
+  ctx: RouteContext,
+  member: Member,
+  at: { tenantId: TenantId; weekOf: string },
+  later: MadeLater = after,
+): void {
+  later(() =>
     makeWeek(ctx, member, { weekOf: at.weekOf, by: "press" }).then(
       (count) => log.info("week_made", { tenant_id: at.tenantId, creatives: count }),
       logAndGoOn("making a week's posts"),

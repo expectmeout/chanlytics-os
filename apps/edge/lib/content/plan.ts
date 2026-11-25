@@ -55,8 +55,8 @@ import type { ClaimedJob } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
 import { FOOTAGE_DAYS, readOpportunityFacts } from "../opportunities/book.js";
 import { logger } from "../shared/log.js";
-import { notifyWeek } from "./plan-notices.js";
-import { holdReadyWeek, type WeekGoes } from "./week-go.js";
+import { notifyWeek, type WeekGoes } from "./plan-notices.js";
+import { holdReadyWeek } from "./week-go.js";
 import { creativesAsked, ownerWordsOf, slotsWithWords, writeWeekWords, type WordsWriter } from "./week-words.js";
 
 type Db = SupabaseClient<Database>;
@@ -236,7 +236,7 @@ export async function planTheWeek(
   // Under a rung that lets AI approve the week, it is held to its time (00714): 8:00 AM, or now where it sends it.
   // A hold that fails leaves the week waiting for the owner's press, as a week that asks does, and the owner is told.
   const held = await holdReadyWeek(db, { tenantId, planId: plan.id, zone: week.zone, nowMs }).catch(
-    logAndGoOn<WeekGoes>("holding a ready week to its time", "asks"),
+    logAndGoOn<WeekGoes>("holding a ready week to its time", { is: "asks" }),
   );
   await notifyWeek(db, { tenantId, planId: plan.id, weekOf: plan.week_of, zone: week.zone, slots, asks, held });
 }

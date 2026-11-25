@@ -14,6 +14,7 @@ import {
   CONTENT_LIBRARY_ROUTE,
   SECOND_MS,
   WEEK_WORDS as W,
+  slotTimePassed,
   weekMoving,
   weekViewOf,
   weekRowsOf,
@@ -21,7 +22,8 @@ import {
   type WeekRow,
   type WeekView,
 } from "@chanlytics/contracts";
-import { approveTheWeek, planThisWeek, pressSlot, stopTheWeek } from "@/bridge/verbs/week";
+import { approveTheWeek, moveSlot, planThisWeek, pressSlot, stopTheWeek } from "@/bridge/verbs/week";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { navigate, refreshSurface, type FrameFlash } from "../../../frame-verbs";
@@ -119,8 +121,9 @@ function WeekFirstOpen() {
 
 /**
  * The Week's presses, for its head, its rows and a row opened beside it: each says what it did or why not, and none runs
- * twice at once. A fix that is a page goes there; Open opens the row; Try again and a made reel's Approve are the row's
- * own presses, made for each of its places.
+ * twice at once. A fix that is a page goes there; Open opens the row, and so does Pick another time, where the time is
+ * picked (planned.tsx) and set by onTime; Try again and a made reel's Approve are the row's own presses, made for each
+ * of its places.
  */
 export function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: WeekRow) => void) {
   const [busy, setBusy] = useState(false);
@@ -149,7 +152,7 @@ export function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: Wee
     const fix = row.fix;
     if (!fix) return;
     if (fix.act === "offer" || fix.act === "connect") return navigate(FIX_PAGES[fix.act]);
-    if (fix.act === "open") return onOpen(row);
+    if (fix.act === "open" || fix.act === "time") return onOpen(row);
     run(async () => {
       // A reel's video goes up where Instagram takes it; Try again makes anew each of its places not made, never one that
       // went up (its post is the post's).
@@ -158,7 +161,20 @@ export function useWeekPresses(flash: (f: FrameFlash) => void, onOpen: (row: Wee
       for (const slot of slots) tell(await pressSlot(slot.id, fix.act === "post" ? "post" : "approved"));
     });
   };
-  return { busy, onAct, onFix };
+  /**
+   * Another time for a row whose own has passed: each of its slots that passed moves there. In a week already approved
+   * it is approved by this press too, as a slot mended after its week is, so it goes up at the time picked.
+   */
+  const onTime = (row: WeekRow, at: number, approved: boolean) =>
+    run(async () => {
+      const passed = row.slots.filter((s) => s.state === "proposed" && slotTimePassed(s.at, Date.now()));
+      for (const slot of passed) {
+        const moved = await moveSlot(slot.id, new Date(at).toISOString());
+        const answer = moved.ok && approved ? await pressSlot(slot.id, "approved") : moved;
+        tell(answer, W.pickTime.set(pageClock().when(at)));
+      }
+    });
+  return { busy, onAct, onFix, onTime };
 }
 
 export function ContentWeek({
@@ -248,8 +264,19 @@ export function WeekPlannedOpen({
   flash: (f: FrameFlash) => void;
 }) {
   const dto = useSurface("content_week")?.dto;
-  const { busy, onFix } = useWeekPresses(flash, () => undefined);
+  const { busy, onFix, onTime } = useWeekPresses(flash, () => undefined);
   const row = dto ? weekRowsOf(dto, Date.now()).find((r) => r.creative === creative) : undefined;
   if (!dto || !row) return null;
-  return <WeekPlanned row={row} zone={dto.zone} onClose={onClose} onFix={onFix} busy={busy} />;
+  const approved = dto.week.plan?.status === "approved";
+  return (
+    <WeekPlanned
+      row={row}
+      zone={dto.zone}
+      onClose={onClose}
+      onFix={onFix}
+      onTime={(at) => onTime(row, at, approved)}
+      approved={approved}
+      busy={busy}
+    />
+  );
 }

@@ -91,7 +91,7 @@ const slotScoreOf = (value: unknown): SlotScore | null => {
 type SlotRead = Omit<SlotRow, "tenant_id" | "plan_id" | "created_at" | "updated_at">;
 type PlanRead = Pick<
   PlanRow,
-  "id" | "week_of" | "status" | "fewer" | "ready_at" | "approved_at" | "approved_by" | "goes_at"
+  "id" | "week_of" | "status" | "fewer" | "ready_at" | "approved_at" | "approved_by" | "goes_at" | "stopped_at"
 >;
 
 /**
@@ -140,6 +140,7 @@ const planDtoOf = (row: PlanRead): WeekPlanDto["plan"] =>
         approved_at: row.approved_at,
         approved_by: row.approved_by,
         goes_at: row.status === "ready" ? row.goes_at : null,
+        stopped_at: row.status === "ready" ? row.stopped_at : null,
       }
     : null;
 
@@ -203,6 +204,48 @@ export async function approveWeek(
     approvalId: nonBlankOrNull(answer.approval_id),
     slots: typeof answer.slots === "number" ? answer.slots : 0,
   };
+}
+
+/** A slot an approval left out because its reason no longer stands: what holds it, and why in the owner's words. */
+interface SlotHeldOut {
+  id: string;
+  held: SlotHeldWhy;
+  why: string;
+}
+
+/** The most a row keeps of why it is held (plan_slots.blocked_reason, as plan_slot_made cuts it). */
+const HELD_REASON_MAX = 400;
+
+/**
+ * The slots an approval left out held on their rows with why (the Week review of 25 Nov 2026, C2), under the service
+ * role: each still proposed slot of the plan named becomes blocked with its reason, so the Week says why it did not go
+ * and nothing sits ready with no word. A slot that moved on meanwhile (approved, left out by its owner) is left as it is.
+ * How many were held.
+ */
+export async function holdSlotsLeftOut(
+  db: Db,
+  tenantId: TenantId,
+  left: { planId: string; slots: readonly SlotHeldOut[] },
+): Promise<number> {
+  let held = 0;
+  for (const slot of left.slots) {
+    const { data, error } = await db
+      .from("plan_slots")
+      .update({
+        state: "blocked",
+        blocked_why: slot.held,
+        blocked_reason: slot.why.trim().slice(0, HELD_REASON_MAX),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tenant_id", tenantId)
+      .eq("plan_id", left.planId)
+      .eq("id", slot.id)
+      .eq("state", "proposed")
+      .select("id");
+    if (error) throw new DbFailure(error, "slots left out held");
+    held += data.length;
+  }
+  return held;
 }
 
 /** One change to a slot, as plan_slot_set takes it. */

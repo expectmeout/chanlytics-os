@@ -9,6 +9,7 @@ import { placementStandingOf, standingOnItsWay, type PlacementStanding } from ".
 import { STANDING_WORDS } from "../placements/standing-words";
 import { postStoppedWhyOf, type PostDto, type PostKind, type PostPlace } from "../posts";
 import { creativesOf, weekdayShortOf, weekSizeSaid, type PlanSlotDto } from "./week";
+import { slotTimePassed, weekApprovedByAI, weekEndingOf, weekEndingSaid, weekLeftOut } from "./week-endings";
 import type { WeekPageDto, WeekPieceDto } from "./week-page";
 import { WEEK_WORDS as W, weekDaysSaid } from "./words";
 
@@ -21,9 +22,9 @@ export interface WeekMark {
   dot: "" | "you" | "ok";
 }
 
-/** A row's one fix, where it waits on the owner. */
+/** A row's one fix, where it waits on the owner (`time`: another time picked for a slot whose own has passed). */
 export interface WeekFix {
-  act: "offer" | "again" | "post" | "connect" | "open";
+  act: "offer" | "again" | "post" | "connect" | "open" | "time";
   label: string;
 }
 
@@ -195,6 +196,9 @@ function standOf(
   const when = slotWhenSaid(first.at, at.zone);
   const held = slots.find((s) => s.state === "blocked");
   if (held) return { line: held.blocked_reason ?? W.fix.open, tone: "you", fix: fixOfHeld(held), moving: false };
+  // No approval puts up a slot whose time has passed (week-endings.ts): it says so, and its one fix picks another.
+  if (slots.some((s) => s.state === "proposed" && slotTimePassed(s.at, at.nowMs)))
+    return { line: W.timePassed, tone: "you", fix: { act: "time", label: W.fix.time }, moving: false };
   const stands = slots.flatMap((s) => slotStandsOf(s, making, at.nowMs) ?? []);
   const posted = postsStandOf(first, stands, at);
   if (posted) return posted;
@@ -312,8 +316,21 @@ export function weekViewOf(page: WeekPageDto, nowMs: number): WeekView {
   // A week AI may approve, held to its time (00714, board B5): the head says when, and its one press stops it.
   if (state === "ready" && plan?.goes_at)
     return { ...base, title: head.title, line: W.held(clockTime(Date.parse(plan.goes_at), page.zone)), act: "stop" };
-  if (state === "ready") return { ...base, ...head, act: "approve" };
-  return { ...base, title: W.approvedTitle(head.title), line: W.approved(at(plan?.approved_at)) };
+  if (state === "ready") {
+    // A week with no time to go up at says why where AI did not approve it (week-endings.ts); else how often it goes.
+    const ending = weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs });
+    const said = ending ? weekEndingSaid(ending, "").head : null;
+    return { ...base, ...head, line: said ?? head.line, act: ending?.is === "nothing" ? null : "approve" };
+  }
+  // Approved: who did it (AI, where nobody's press did), when, and whether anything was left out of it.
+  const when = at(plan?.approved_at);
+  const ending =
+    plan && weekApprovedByAI(plan) ? weekEndingOf(page.week, { rung: page.rung, paused: false, nowMs }) : null;
+  const left = weekLeftOut(page.week.slots, nowMs);
+  const line = ending
+    ? weekEndingSaid(ending, when).head
+    : `${W.approvedBy.owner(when)} ${left > 0 ? W.leftOut(left) : W.eachGoes}`;
+  return { ...base, title: W.approvedTitle(head.title), line: line ?? "" };
 }
 
 /** Whether the Week moves: drafting, or something approved being made. The page asks again while it does. */
