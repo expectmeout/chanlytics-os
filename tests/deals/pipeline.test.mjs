@@ -883,6 +883,7 @@ const quietly = async (fn) => {
   }
 };
 const { peopleOverride } = await quietly(() => import("../../apps/dashboard/src/surfaces/people/surface.ts"));
+const { api } = await import("../../apps/dashboard/src/bridge/api.ts");
 const { installClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 installClock();
 // The page's own reads: what the tab kept of a person, and the seam's typed value (the mirror is `window.__PEOPLE`).
@@ -1224,6 +1225,8 @@ const fresh = async ({
 } = {}) => {
   // The last test's reads still on their way land on its wire, never on this one's.
   await settled();
+  // A page of its own: reads a test before it failed on purpose are no trouble of this one's (client/trouble.ts).
+  api().standAgain();
   const seen = wire({ people, hasDeals, total, hasMore, dealPace, followUp });
   await quietly(() => peopleOverride.apply());
   cells = [];

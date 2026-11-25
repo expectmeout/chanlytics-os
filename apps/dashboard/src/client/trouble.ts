@@ -28,14 +28,15 @@
  * A person's own press (the shell's Retry, the network coming back) ends the wait at once: the next reads look. A write
  * is never held: it is somebody's act, and its answer says the server answers.
  *
- * One failing read is not trouble (a route with a fault of its own): it takes several addresses failing with nothing
- * answered between. Pure: the clock, the chance and the timer are handed in, so it runs under node.
+ * One failing read is not trouble (a route with a fault of its own): it takes several routes failing with nothing
+ * answered between. And what "has not failed" is judged by is the read's whole address, its query with it: a route that
+ * fails for one period of a report and answers another is no reason to hold the other back. Pure: the clock, the chance and the timer are handed in, so it runs under node.
  */
 import { MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 
-/** This many reads failed in a row, on at least ADDRESSES_AT addresses, and the server is not answering this tab. */
+/** This many reads failed in a row, on at least ROUTES_AT routes, and the server is not answering this tab. */
 const FAULTS_AT = 3;
-const ADDRESSES_AT = 2;
+const ROUTES_AT = 2;
 /** The first wait before the tab looks again; doubled at each round of looks that fails, to WAIT_MAX_MS. */
 const WAIT_FIRST_MS = 5 * SECOND_MS;
 const WAIT_MAX_MS = 5 * MIN_MS;
@@ -67,15 +68,21 @@ interface ReadHeld {
 
 export interface Trouble {
   /**
-   * Asked before a read of an address leaves: whether it leaves or is answered here. Said at once where the tab stands
-   * or holds, so a read leaves in the turn it was asked in, as it always did; a promise only while looks are out or the
-   * tab mends.
+   * Asked before a read leaves: whether it leaves or is answered here. `address` is the read's own (its path and its
+   * query), `route` the route it is of, its own address where none is said. Said at once where the tab stands or holds,
+   * so a read leaves in the turn it was asked in, as it always did; a promise only while looks are out or the tab mends.
    */
-  before(address: string): ReadLeaves | ReadHeld | Promise<ReadLeaves | ReadHeld>;
+  before(address: string, route?: string): ReadLeaves | ReadHeld | Promise<ReadLeaves | ReadHeld>;
   /** A write, or any answer outside a read: the server answered, so the tab is as it was. */
   answered(): void;
   /** A person asked: the wait ends now, and the next reads look. */
   lookNow(): void;
+  /**
+   * A page's boot begins: the tab stands, whatever an earlier page left held. A load makes a client of its own, so this
+   * changes nothing there; it is for a page drawn again by the same client (development's second mount, a test's next page),
+   * whose reads would otherwise be answered with the trouble of the page before.
+   */
+  standAgain(): void;
   /** Whether reads are being held. */
   waiting(): boolean;
   /** Hear the wait come due (the runner's reads then look); answers the stop. */
@@ -126,6 +133,11 @@ function mendingOf(now: () => number) {
   return {
     begin: (): void => void (until = now() + MENDING_MS),
     lasts: (): boolean => now() < until,
+    /** Over at once: every read waiting its turn leaves. */
+    end(): void {
+      until = 0;
+      for (const free of turns.splice(0)) free();
+    },
     /** A read's turn, once a lane is free: answers the hand that gives the lane back. */
     async turn(): Promise<() => void> {
       if (out >= MENDING_LANES) await new Promise<void>((free) => turns.push(free));
@@ -162,15 +174,35 @@ function dueOf(after: NonNullable<TroubleDeps["after"]>) {
   };
 }
 
+/** The faults in a row while the tab stands: the routes they were on, and the addresses. */
+function faultsInARow() {
+  let faults = 0;
+  const routes = new Set<string>();
+  const addresses = new Set<string>();
+  return {
+    addresses,
+    clear(): void {
+      faults = 0;
+      routes.clear();
+      addresses.clear();
+    },
+    /** One more: answers whether the server is not answering now (FAULTS_AT in a row, on ROUTES_AT routes). */
+    add(address: string, route: string): boolean {
+      faults += 1;
+      routes.add(route);
+      addresses.add(address);
+      return faults >= FAULTS_AT && routes.size >= ROUTES_AT;
+    },
+  };
+}
+
 export function troubleOf(deps: TroubleDeps = {}): Trouble {
   const now = deps.now ?? (() => Date.now());
   const chance = deps.chance ?? Math.random;
   const due = dueOf(deps.after ?? browserTimer);
   const mending = mendingOf(now);
 
-  /** Faults in a row and the addresses they were on, while the tab stands. */
-  let faults = 0;
-  const addresses = new Set<string>();
+  const inARow = faultsInARow();
   /** The addresses that have failed since the trouble began: one of them looks only where it is the first read asked. */
   const failedSince = new Set<string>();
   /** While reads are held: when the wait ends, and how long it was before chance. */
@@ -181,8 +213,7 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
   let round: Round | null = null;
 
   const stand = () => {
-    faults = 0;
-    addresses.clear();
+    inARow.clear();
     failedSince.clear();
     until = null;
     waitMs = WAIT_FIRST_MS;
@@ -199,7 +230,7 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
 
   /** What a read that left while the tab stood, or mended, says as it settles. */
   const settledAs =
-    (address: string, done: () => void): ReadLeaves["settled"] =>
+    (address: string, route: string, done: () => void): ReadLeaves["settled"] =>
     (verdict, namedWaitS) => {
       done();
       if (verdict === "called_off") return;
@@ -215,10 +246,8 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
         failedSince.add(address);
         return;
       }
-      faults += 1;
-      addresses.add(address);
-      if (faults < FAULTS_AT || addresses.size < ADDRESSES_AT) return;
-      for (const failed of addresses) failedSince.add(failed);
+      if (!inARow.add(address, route)) return;
+      for (const failed of inARow.addresses) failedSince.add(failed);
       hold(namedWaitS);
     };
 
@@ -275,17 +304,17 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
     return beginRound(address, true);
   };
 
-  const before = (address: string): ReturnType<Trouble["before"]> => {
+  const before = (address: string, route: string = address): ReturnType<Trouble["before"]> => {
     if (round) {
       // Looks are out. A read of an address that has not failed joins them, a few at most: the witness a route's own
       // fault cannot silence. Any other waits for what they say, which is its answer too.
       const fresh = !failedSince.has(address) && !round.addresses.has(address);
       if (fresh && round.addresses.size < LOOKS_A_ROUND) return lookWith(round, address);
-      return round.verdict.then((answered) => (answered ? before(address) : { held: leftS() }));
+      return round.verdict.then((answered) => (answered ? before(address, route) : { held: leftS() }));
     }
     if (until !== null) return now() < until ? heldOrWitness(address) : beginRound(address, false);
-    if (!mending.lasts()) return { held: null, settled: settledAs(address, () => {}) };
-    return mending.turn().then((done) => ({ held: null, settled: settledAs(address, done) }));
+    if (!mending.lasts()) return { held: null, settled: settledAs(address, route, () => {}) };
+    return mending.turn().then((done) => ({ held: null, settled: settledAs(address, route, done) }));
   };
 
   return {
@@ -299,6 +328,14 @@ export function troubleOf(deps: TroubleDeps = {}): Trouble {
       if (until === null || round) return;
       until = now();
       due.letGo();
+    },
+    standAgain() {
+      // Looks still out say nothing to a page that has begun again; what waited on them leaves.
+      const out = round;
+      round = null;
+      stand();
+      mending.end();
+      out?.say(true);
     },
     waiting: () => until !== null,
     onDue: (fn) => due.hear(fn),

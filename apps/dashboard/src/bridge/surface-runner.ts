@@ -730,6 +730,8 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
     throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
   const run = newSurfaceRun(overrides);
+  // A boot begins standing: reads held for the trouble of a page before are this page's to ask (client/trouble.ts).
+  api().standAgain();
   activeRefresh = (o: SurfaceOverride) => refreshSurface(run, o, "refresh");
   activeOverrides = overrides;
   // The one pass that reads everything again: a return, the network back, a join of the feed, the page in front, the day's turn.
