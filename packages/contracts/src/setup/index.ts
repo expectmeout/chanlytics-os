@@ -66,6 +66,7 @@ export {
 export type { FirstRunStepKey } from "./first-run-route";
 export {
   BROKEN_CONFIG_WORDS,
+  LINE_SET_UP_WITH_YOU,
   LINE_STEP_WORDS,
   lineRetryRefusal,
   lineStuckProvisioning,
@@ -76,7 +77,6 @@ export {
   SOLE_PROP_CEILING_SENTENCE,
   SOLE_PROP_TEXTING_SENTENCE,
   TEXTING_CODE_SENTENCE,
-  LINE_SET_UP_WITH_YOU,
   TEXTING_NEEDS_RECORD_CLAUSE,
   TEXTING_NEEDS_RECORD_SENTENCE,
   textingWords,

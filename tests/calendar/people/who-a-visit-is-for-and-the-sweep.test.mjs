@@ -806,7 +806,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   // The sweep reads the feed through the same cache (the edge's listFeedItems): run in calendar-counts.test.mjs.
 });
 
-test("the profile: Added from your calendar, with the appointment that named them", () => {
+test("the profile: Added from the calendar, with the appointment that named them", () => {
   const now = new Date(NOW);
   const vm = toPersonVM(detail(null), TZ, now);
   assert.ok(!vm.about.some((a) => a.k === "Added"));

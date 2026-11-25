@@ -545,7 +545,7 @@ export { firstRunPhoneOf } from "./setup/first-run-phone/phone";
 export { FIRST_RUN_PHONE_WORDS } from "./setup/first-run-phone/vm";
 export { businessNameOf, receptionistCardOf, soundsWords } from "./setup/first-run-receptionist";
 export { FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, FIRST_RUN_TITLE, shouldLandOnFirstRun, firstRunStepOf, FIND_PARAM, FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, FIRST_RUN_STEP_KEYS, firstRunStepRoute } from "./setup/first-run-route";
-export { BROKEN_CONFIG_WORDS, LINE_STEP_WORDS, lineRetryRefusal, lineStuckProvisioning, MOCK_TEXTING_SENTENCE, PROVISIONING_DEADLINE_MS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, TEXTING_CODE_SENTENCE, LINE_SET_UP_WITH_YOU, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, textingWords } from "./setup/lines";
+export { BROKEN_CONFIG_WORDS, LINE_SET_UP_WITH_YOU, LINE_STEP_WORDS, lineRetryRefusal, lineStuckProvisioning, MOCK_TEXTING_SENTENCE, PROVISIONING_DEADLINE_MS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, TEXTING_CODE_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, textingWords } from "./setup/lines";
 export { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, KEEP_ROW, putOffEnds, RECEPTIONIST_MET, REHEARSE_SKIPPED, REMIND_SKIPPED, restEndsDay, SETUP_LATER_REFUSED, SETUP_REST_MS, setupLaterOf, setupPutOffNext, setupRestsOf, TRY_SKIPPED, WORKSPACE_MARKS, FORWARDING_WAIT_WORDS } from "./setup/put-off";
 export { keptNumberRowOf, ownLineStandOf } from "./setup/rows-phone";
 export { setupSteps } from "./setup/rows/steps";
