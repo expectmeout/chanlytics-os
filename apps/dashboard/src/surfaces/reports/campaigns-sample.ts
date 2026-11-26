@@ -143,7 +143,7 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
   const sentParts = [waSent, textSent, emailSent];
   const [waD = 0, txD = 0, emD = 0] = sharedUnder(t.delivered, sentParts);
   const [waR = 0, txR = 0, emR = 0] = sharedUnder(t.replied, sentParts);
-  const by_channel: CampaignReportDto["by_channel"] = t.sent
+  const byChannel: CampaignReportDto["by_channel"] = t.sent
     ? [
         { channel: "whatsapp", sent: waSent, delivered: waD, read: Math.min(t.read, waD), replied: waR },
         { channel: "sms", sent: textSent, delivered: txD, read: 0, replied: txR },
@@ -157,7 +157,7 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
     today,
     series: span.map((d) => d.campaign),
     sources,
-    by_channel,
+    by_channel: byChannel,
   };
 }
 

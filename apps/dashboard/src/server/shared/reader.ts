@@ -83,7 +83,7 @@ export function stableJson(value: unknown): string {
       ? Object.fromEntries(
           Object.keys(recordOrEmpty(val))
             .sort()
-            .map((k) => [k, (val as Record<string, unknown>)[k]]),
+            .map((k) => [k, recordOrEmpty(val)[k]]),
         )
       : val,
   );

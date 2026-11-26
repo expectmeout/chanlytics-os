@@ -5,7 +5,7 @@
  * comes before the tap, and the tap asks for nothing.
  */
 import type { PostShapeName } from "@chanlytics/contracts";
-import { fileVerbs } from "./verbs";
+import { fileVerbs } from "../verbs";
 
 /** Whether this device hands a picture to a sheet of its own: asked of the device, never of how wide it is. */
 export function sharesPictures(): boolean {
@@ -28,10 +28,10 @@ export function sharesVideos(): boolean {
 const fetched = new Map<string, Promise<File | null>>();
 
 /** A file the sheet is handed, asked for once a tab: what came, or null, and the next look asks again. */
-function fileOnce(key: string, asked: () => Promise<File | null>): Promise<File | null> {
+function fileOnce(key: string, load: () => Promise<File | null>): Promise<File | null> {
   const already = fetched.get(key);
   if (already) return already;
-  const coming = asked().then((file) => {
+  const coming = load().then((file) => {
     // A phone between masts is back in seconds.
     if (!file) fetched.delete(key);
     return file;
@@ -41,7 +41,7 @@ function fileOnce(key: string, asked: () => Promise<File | null>): Promise<File 
 }
 
 /** A shape's picture as the file the sheet is handed, under a name a person can read, asked for once a tab. */
-export function postFileOf(id: string, name: string, shape: PostShapeName): Promise<File | null> {
+export function readPostFile(id: string, name: string, shape: PostShapeName): Promise<File | null> {
   return fileOnce(`${id}:${shape}`, () =>
     fileVerbs
       .fileBytes(id, shape)
@@ -50,7 +50,7 @@ export function postFileOf(id: string, name: string, shape: PostShapeName): Prom
 }
 
 /** A video made here as the file the sheet is handed, under a name a person can read, asked for once a tab. */
-export function videoFileOf(id: string, name: string): Promise<File | null> {
+export function readVideoFile(id: string, name: string): Promise<File | null> {
   return fileOnce(`${id}:video`, () =>
     fileVerbs
       .fileBytes(id, "video")
@@ -59,7 +59,7 @@ export function videoFileOf(id: string, name: string): Promise<File | null> {
 }
 
 /** The sheet, opened in the tap's own turn, so nothing here may wait first. A person closing it is no failure. */
-export function sharePostFile(file: File): Promise<"went" | "closed" | "failed"> {
+export function openShareSheet(file: File): Promise<"went" | "closed" | "failed"> {
   return navigator.share({ files: [file] }).then(
     () => "went" as const,
     (e: unknown) => (e instanceof DOMException && e.name === "AbortError" ? ("closed" as const) : ("failed" as const)),

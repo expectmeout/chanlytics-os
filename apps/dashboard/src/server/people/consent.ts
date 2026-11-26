@@ -22,7 +22,6 @@ import {
   ownMessageRefusal,
   signupAskLine,
   type AskedPurpose,
-  type SignupAskRefusal,
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import { listPeopleStanding, recordConsent } from "@chanlytics/db/people";
@@ -224,7 +223,7 @@ export async function askToConfirmSignup(
   const body = answer.body;
   if (answer.status === 200 && body?.ok === true) {
     const request = body.asked === true;
-    const reason = typeof body.why === "string" ? (body.why as SignupAskRefusal) : null;
+    const reason = typeof body.why === "string" ? body.why : null;
     return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
   log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: body?.why ?? null });
