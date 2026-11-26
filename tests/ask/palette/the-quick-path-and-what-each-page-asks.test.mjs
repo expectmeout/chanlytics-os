@@ -707,7 +707,7 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): the 
       outcome: {
         state: "done",
         receipt: "Campaign “Win-back” is running",
-        atMs: Date.now(),
+        at_ms: Date.now(),
         undo: { playbook_id: "pb1", decision_id: "d1" },
       },
     };

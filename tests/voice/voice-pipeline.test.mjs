@@ -15,7 +15,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composeSystemPrompt, parseTenantConfigResult, hasProfile } from "@chanlytics/contracts";
+import { after } from "node:test";
+import http from "node:http";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { composeSystemPrompt, parseTenantConfigResult, hasProfile, whyNotAHandoff } from "@chanlytics/contracts";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import {
   VOICE_SHELL_PROMPT,
   VOICE_SHELL_BEGIN,
@@ -25,7 +33,6 @@ import {
   voiceShellDrift,
   voiceLlmCreateBody,
 } from "@chanlytics/channels/voice";
-import { readCode, readRaw } from "../_source.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
@@ -238,26 +245,87 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
 
 test("Settings collects the website and the notes; the transfer line is edited in its own row and normalised in one place", () => {
   // Task 3.7 deleted the form: the website is a row of the Business page, the notes and the rules are folds of it, and
-  // each patches only its own keys (surfaces/settings/business/folds.ts and fold-shapes.ts; receptionist/business-tab/folds/ runs every one of them).
-  const B = "apps/dashboard/src/surfaces/settings/business/";
-  const pane = readCode(B + "folds.ts", B + "fold-shapes.ts", B + "fold-says.ts");
-  assert.ok(pane.includes('btPutProfile(next, "notes", notes.length ? notes : undefined);'));
-  assert.ok(pane.includes('"no_health_advice"'));
-  // The transfer number and the website are rows edited where they are stated, so no FOLD writes either key: a fold
-  // patches what it owns, and not touching a key is what preserves it.
-  assert.ok(!pane.includes('"handoff_number"') && !pane.includes('"website"'), "no fold owns a row's key");
-  // The website row writes only its own key, and the transfer row normalises through the one rule in contracts:
-  // both are pressed in receptionist/business-tab/page/, which reads what the save was sent.
-  // Its two refusals moved with it, and are now shared rather than retyped.
-  const phone = readCode("packages/contracts/src/shared/phone.ts");
-  assert.ok(phone.includes("export function whyNotAHandoff("));
-  assert.ok(phone.includes("The transfer number needs the country code"));
-  assert.ok(phone.includes("it would ring itself"), "the receptionist's own line is still refused");
-  const converge = readRaw("tooling/scripts/ops/voice/voice-converge.mjs");
-  assert.ok(converge.includes('const apply = process.argv.includes("--apply");'));
-  assert.ok(
-    converge.indexOf("writeFileSync(") < converge.indexOf("if (!apply)"),
-    "the backup is written before the dry run can exit",
+  // each patches only its own keys, the notes and the health rule among them (receptionist/business-tab/folds/ runs every
+  // one); the website and the transfer rows write only their own keys, pressed in receptionist/business-tab/page/.
+  // The transfer number's two refusals are one rule, shared (pinned as phone.ts's and the folds' text until 26 Nov 2026).
+  assert.equal(whyNotAHandoff(""), null, "empty is a choice: take a message instead");
+  assert.equal(whyNotAHandoff("212 555 0143"), "The transfer number needs the country code, like +1 212 555 0143.");
+  assert.match(
+    whyNotAHandoff("+1 305 555 0100", "+13055550100"),
+    /it would ring itself/,
+    "the receptionist's own line",
   );
+  assert.equal(whyNotAHandoff("+1 212 555 0143", "+13055550100"), null, "a line a person answers");
   // The pin and its refusal while the latest is a draft are the converge door's now: voice-doors.test.mjs runs them.
+});
+
+/* ------------------------- the converge script, run ------------------------- */
+
+const SCRIPT = fileURLToPath(new URL("../../tooling/scripts/ops/voice/voice-converge.mjs", import.meta.url));
+const DOOR = "/api/admin/voice-converge";
+const SECRET = "test-edge-call-secret-0123456789abcdef";
+
+/** The converge door as production holds it: every knock kept, with its token's claims; `answer` says what it answers. */
+async function convergeDoor(answer) {
+  const knocks = [];
+  const server = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (d) => (raw += d));
+    req.on("end", () => {
+      const v = verifyEdgeToken(SECRET, req.headers["x-edge-token"], DOOR);
+      knocks.push({
+        path: req.url,
+        body: JSON.parse(raw || "{}"),
+        claims: v.ok ? v.claims : null,
+        bound: v.ok && edgeBodyMatches(v.claims, raw),
+      });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(answer(JSON.parse(raw || "{}"))));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  after(() => server.close());
+  return { base: `http://127.0.0.1:${server.address().port}`, knocks };
+}
+const backups = fs.mkdtempSync(path.join(os.tmpdir(), "voice-converge-"));
+after(() => fs.rmSync(backups, { recursive: true, force: true }));
+const converge = (args, env) =>
+  new Promise((resolve) => {
+    const clean = { ...process.env };
+    for (const k of ["BASE_URL", "EDGE_CALL_SECRET", "DIAG_KEY", "BACKUP_DIR"]) delete clean[k];
+    const child = spawn(process.execPath, [SCRIPT, ...args], { env: { ...clean, BACKUP_DIR: backups, ...env } });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (out += d));
+    child.on("exit", (code) => resolve({ code, out }));
+  });
+
+test("the converge script asks its door with a token for this body, a dry run unless told to apply, and an apply keeps the answer before it says anything", async () => {
+  // Pinned as the script's text until 26 Nov 2026.
+  const answer = (body) => ({
+    ok: true,
+    agents: [{ agent_id: "agent_abc", version: 3, is_published: true, drift: [], applied: body.apply }],
+  });
+  const door = await convergeDoor(answer);
+  const dry = await converge([], { BASE_URL: door.base, EDGE_CALL_SECRET: SECRET });
+  assert.equal(dry.code, 0, dry.out);
+  assert.deepEqual(door.knocks[0].body, { apply: false, publish: false }, "a dry run unless told");
+  assert.ok(door.knocks[0].claims && door.knocks[0].bound, "a token for this door and this body");
+  assert.equal(door.knocks[0].claims.ws ?? null, null, "that names no workspace");
+  const keyOnly = await converge([], { BASE_URL: door.base, RETELL_API_KEY: "key_should_not_matter" });
+  assert.equal(keyOnly.code, 2, "a provider key on the laptop opens nothing: the door's own credential is asked for");
+  assert.match(keyOnly.out, /EDGE_CALL_SECRET \(or DIAG_KEY, for an edge without the secret\) is required/);
+  assert.equal(door.knocks.length, 1, "and nothing was sent");
+  assert.match(dry.out, /voice-converge: dry run against http:\/\/127\.0\.0\.1/);
+  assert.deepEqual(fs.readdirSync(backups), [], "a dry run keeps nothing");
+  assert.ok(!dry.out.includes(SECRET), "the secret is never printed");
+
+  const applied = await converge(["--apply"], { BASE_URL: door.base, EDGE_CALL_SECRET: SECRET });
+  assert.equal(applied.code, 0, applied.out);
+  assert.deepEqual(door.knocks[1].body, { apply: true, publish: false });
+  const [kept] = fs.readdirSync(backups);
+  assert.match(kept, /^voice-converge-.+\.json$/, "the answer is kept");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(backups, kept), "utf8")).answer.agents[0].agent_id, "agent_abc");
+  const keptAt = applied.out.indexOf("kept: ");
+  assert.ok(keptAt >= 0 && keptAt < applied.out.indexOf("voice-converge: APPLY"), "kept before anything else is said");
 });

@@ -121,15 +121,15 @@ const FIELD = {
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
   about: {
     label: "What the business does",
-    hint: "Two or three sentences a stranger could follow: what you sell, who buys it, and how they pay. It goes on your public page and into your registration, and the phone networks check it.",
+    hint: "What you sell, who buys it and how they pay. It's on your public page, and the phone networks check it.",
     placeholder:
-      "A moving company in Brooklyn. We move homes and small offices across New York and New Jersey, and pack and store for them. Customers book a free estimate and pay per move.",
+      "A moving company in Brooklyn for homes and small offices. Customers book a free estimate and pay per move.",
     multiline: true,
     group: "business",
   },
   website_url: {
     label: "Website",
-    hint: "Yours, if you have one: your public page links to it, and the phone networks check it. Without one, the phone networks are given your public page instead, which carries your name, address and the wording they require.",
+    hint: "Your public page links to it, and the phone networks check it. Without one, they're given your public page instead.",
     placeholder: "https://",
     group: "business",
   },
@@ -224,8 +224,8 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     {
       name: "contact_phone",
       required: true,
-      label: "Your mobile",
-      hint: "Your own handset, not the number Chanlytics answers for you. The phone networks text a code to it and you reply from that phone. It is not published.",
+      label: "Personal mobile",
+      hint: "Your own handset, not the number Chanlytics answers: the phone networks text it a code, and you reply from that phone.",
     },
   ],
 };
@@ -367,7 +367,7 @@ export function businessRecordProblems(
   // but the carriers only register businesses in two countries, and a refusal
   // for this arrives days later saying nothing a person can act on.
   if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(business.country).trim().toUpperCase())) {
-    out.country = "The phone networks register US and Canadian businesses only. Ours is not a door we can open.";
+    out.country = "The phone networks register US and Canadian businesses only.";
   }
   if (
     path === "sole_proprietor" &&
@@ -375,7 +375,7 @@ export function businessRecordProblems(
     (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(business.contact_phone)))
   ) {
     out.contact_phone =
-      "This is the number Chanlytics answers for you. The phone networks need YOUR handset · they text a code to it and you reply from the phone in your hand.";
+      "Use your own handset, not the number Chanlytics answers: the phone networks text a code to it.";
   }
   return out;
 }

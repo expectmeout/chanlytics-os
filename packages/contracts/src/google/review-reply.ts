@@ -14,6 +14,7 @@ import { DAY_MS } from "../shared/time";
 import { waitEndsWords } from "../waits/rules";
 import { violatesNoPrices, namesMoney } from "../config/policy/prices";
 import { DATA_NOT_INSTRUCTIONS, fenced, promptSafeName } from "../ai/fence";
+import { textOrEmpty } from "../shared/unknown";
 
 export type ReviewReplyMode = "auto" | "veto" | "ask" | "never";
 
@@ -231,7 +232,7 @@ export function autoReplyCandidates<T extends ReviewOnRecord>(
   if (Number.isNaN(connected)) return [];
   return rows
     .filter((r) => r.origin === "profile" && !r.reply_text && r.published_at)
-    .map((r) => ({ r, at: Date.parse(r.published_at as string) }))
+    .map((r) => ({ r, at: Date.parse(textOrEmpty(r.published_at)) }))
     .filter(({ at }) => !Number.isNaN(at) && at > connected && nowMs - at <= REVIEW_AUTO_REPLY_MAX_AGE_MS)
     .sort((a, b) => b.at - a.at)
     .slice(0, Math.max(0, cap))

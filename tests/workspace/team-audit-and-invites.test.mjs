@@ -217,7 +217,7 @@ test("an open invitation, run: the list read seats nobody, whoever asks; the acc
     const home = await read("same-origin");
     assert.equal(roleIn(home, B), "operator", "the list read after it says the seat the invitation made");
     assert.equal(roleIn(home, A), "owner");
-    assert.equal(home.activeWorkspaceId, A, "the tab stays where it asked to be");
+    assert.equal(home.active_workspace_id, A, "the tab stays where it asked to be");
     assert.equal(home.user.role, "owner");
     assert.ok(world.invitations[0].accepted_at, "the invitation is stamped accepted");
     assert.equal(world.memberships.length, 2);

@@ -49,9 +49,11 @@ import {
   GOOGLE_SHOWN_REVIEWS,
   placesQueryOf,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
+import { bootRunsOneNamed, listedTogether } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const KEY = "AIza-test-key-not-real";
@@ -747,7 +749,7 @@ const setup = (google, over = {}) =>
         name: "Northside Movers",
         hours: true,
         services: 4,
-        bookingLink: true,
+        booking_link: true,
         address: true,
         handoff: null,
         broken: false,
@@ -791,7 +793,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
         name: "Northside Movers",
         hours: true,
         services: 4,
-        bookingLink: true,
+        booking_link: true,
         address: false,
         handoff: null,
         broken: false,
@@ -906,35 +908,13 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // The door -- the knock, status, search, link (a read before a row, the
   // old place's reviews forgotten), unlink, refresh, and the two events --
   // runs in google/door/. The library is modules: the key's, the check's and the profile's sync. The
-  // bell each of them rings, and the lens it opens, run there and in cron/doors-b/.
-  const lib = ["shared/google/config", "google/listing-check", "google/profile-sync"]
-    .map((m) => readCode(`apps/edge/lib/${m}.ts`))
-    .join("\n");
-  assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
-  assert.ok(lib.includes("planListingCheck("), "the plan decides, the edge writes and rings");
-  assert.ok(
-    lib.includes("patchListing(db, row.tenant_id, { check_error: error })"),
-    "a failed read leaves its words and the last good numbers",
-  );
-  // And does NOT move the stamp: checked_at / last_synced_at are the last
-  // SUCCESSFUL read, which is the news cutoff, the first-sync flag and the due
-  // window all at once.
-  assert.ok(!lib.includes("check_error: error, checked_at:"), "a failure must not read as a read");
-  assert.ok(!lib.includes("sync_error: error.slice(0, 300), last_synced_at:"), "nor a failed sync as a sync");
-  // The write itself is packages/db's (decision 0111).
-  const reviews = readCode("packages/db/src/repositories/google/reviews.ts");
-  // The write alone, of the module that also reads the reviews back with their first sighting.
-  const write = reviews.slice(
-    reviews.indexOf("export const saveGoogleReviews"),
-    reviews.indexOf("export const findReviewToAnswer"),
-  );
-  assert.ok(
-    write.includes('onConflict: "tenant_id,review_id"') &&
-      !write.includes("first_seen_at") &&
-      !lib.includes("first_seen_at"),
-    "an existing review keeps its first_seen_at",
-  );
-  assert.ok(lib.includes('"google.reviews"'));
+  // bell each of them rings, and the lens it opens, run there and in cron/doors-b/. What was pinned here as the
+  // modules' text until 26 Nov 2026 is run there: the key read on the edge, a search sending it and a refresh without it
+  // a 503 (door/search-link-refresh-and-connect, "search" and "refresh on the public listing"); a failed read that
+  // leaves its words and the last good numbers and moves no stamp, the event google.reviews on the ledger, and a review
+  // already there keeping its row and its first_seen_at (the same "refresh on the public listing"); a failed sync that
+  // is no sync (door/the-profile-reply-draft-and-disconnect, "refresh with the profile connected"); the check's plan
+  // over forty listings a tick, never-read first (cron/doors-b/).
   // The sweep -- skipped without a key, forty listings a tick, never-read
   // first, a refusal left on its row -- runs in cron/doors-b/.
   assert.equal(edgeFunctions()["api/admin/google.ts"].maxDuration, 60);
@@ -949,30 +929,84 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
 });
 
 test("the dashboard: owners and the partner link and search, operators read, members look; the pages read one surface", async () => {
-  const search = readCode(
-    "apps/dashboard/app/api/v1/google/search/route.ts",
-    "apps/dashboard/src/server/settings/google-actions.ts",
+  // Run, not read (26 Nov 2026): the search the owner's and the partner's, counted on its own bucket (google-routes,
+  // "the eleven declare their policy"); with no words of its own it asks with the facts on record, and Google's words
+  // go to the log, never to the owner (google-asked-of-the-edge.test.mjs, beside Setup's Google row, ready where the
+  // edge can look a listing up or connect a profile). Linking, unlinking and refreshing are the owner's, the partner's
+  // and an operator's, each stopping at the edge's credential, and GET google answers what the deployment can do beside
+  // the listing: run through the routes in google/google-routes.test.mjs; the Places key is never the dashboard's
+  // (repo/env-manifest.test.mjs).
+  // Google's surface: one override, read where its pages draw it, and heard again when a review or the rule that says
+  // whether the receptionist answers one moves (the wiring's second audit, W-review-facts-rules-8).
+  const { googleOverride, googleVerbs } = await importSrc("apps/dashboard/src/bridge/google.ts");
+  assert.deepEqual([googleOverride.key, googleOverride.reads], ["google", ["review", "rules"]]);
+  assert.equal(typeof googleVerbs.refresh, "function", "its verbs are the module's, imported");
+  // The way there is the browser's whole page, to the route that signs it, with the first run's way back where it asked
+  // (decision 0073, R17), and its outcome said in the words the card reads (pinned as google.ts's text in google/profile/
+  // until 26 Nov 2026).
+  const { CONNECT_OUTCOME_WORDS } = await importSrc("apps/dashboard/src/bridge/google.ts");
+  assert.equal(googleVerbs.outcomeWords, CONNECT_OUTCOME_WORDS);
+  const went = [];
+  const realWindow = globalThis.window;
+  globalThis.window = { ...realWindow, location: { ...realWindow?.location, assign: (to) => went.push(to) } };
+  try {
+    googleVerbs.connect({ back: "start" });
+    googleVerbs.connect();
+  } finally {
+    globalThis.window = realWindow;
+  }
+  // A draft is keyed (decision 0035): a second press while the first is on its way is the same request, which the server
+  // answers once, not a second model call; one after it landed is a new intent (pinned as google.ts's text in
+  // review-reply.test.mjs until 26 Nov 2026).
+  const R1 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
+  const posted = [];
+  // The server's answer is held until both presses are out, so the second is pressed while the first is on its way.
+  let answer;
+  const answered = new Promise((resolve) => (answer = resolve));
+  globalThis.window = {
+    ...realWindow,
+    fetch: async (url, init) => {
+      const key = Object.entries(init?.headers ?? {}).find(([k]) => k.toLowerCase() === "idempotency-key")?.[1];
+      posted.push([init?.method ?? "GET", new URL(String(url), "https://app.chanlytics.com").pathname, key ?? null]);
+      await answered;
+      return new Response(JSON.stringify({ ok: true, data: { text: "Thank you, Rosa.", mode: "ask" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  };
+  try {
+    const pressed = Promise.all([googleVerbs.draft(R1), googleVerbs.draft(R1)]);
+    await until(() => posted.length === 2);
+    answer();
+    const both = await pressed;
+    assert.deepEqual(
+      both.map((d) => d.text),
+      ["Thank you, Rosa.", "Thank you, Rosa."],
+    );
+    await googleVerbs.draft(R1);
+  } finally {
+    globalThis.window = realWindow;
+  }
+  const path = `/api/v1/google/reviews/${R1}/draft`;
+  assert.deepEqual(
+    posted.map(([method, at]) => [method, at]),
+    [
+      ["POST", path],
+      ["POST", path],
+      ["POST", path],
+    ],
   );
-  assert.ok(search.includes('role: "partner",') && search.includes('rate: "google_search",'));
-  assert.ok(
-    search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"),
-    "the facts on record are the default query",
-  );
-  // Linking, unlinking and refreshing are the owner's, the partner's and an operator's, each stopping at the edge's
-  // credential, and GET google answers what the deployment can do beside the listing: run through the routes in
-  // google/google-routes.test.mjs; the Places key is never the dashboard's (repo/env-manifest.test.mjs). Pinned as the
-  // routes' and google.ts's text until 25 Nov 2026.
-  const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).
-  assert.ok(setup.includes("ready: google.places || google.profile,"));
-  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
-  assert.ok(
-    bridge.includes('key: "google",') &&
-      bridge.includes('declareReads("google", {') &&
-      // And the rule that says whether the receptionist answers a review on its own (the wiring's second audit, W-review-facts-rules-8).
-      bridge.includes('reads: ["review", "rules"],'),
+  const [first, second, later] = posted.map((p) => p[2]);
+  assert.ok(first && first === second, "the two presses are one intent: one key");
+  assert.notEqual(later, first, "a press after it landed is a new one");
+  const asked = went.map((to) => new URL(to, "https://app.chanlytics.com"));
+  assert.deepEqual(
+    asked.map((u) => [u.pathname, u.searchParams.get("back")]),
+    [
+      ["/api/v1/google/connect", "start"],
+      ["/api/v1/google/connect", null],
+    ],
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
@@ -981,9 +1015,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(/setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app) && !app.includes("installGoogle"));
-  assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
+  // Read between Setup's and Billing's as the frame loads (bridge/boot), and no verbs of its own installed there.
+  assert.ok(listedTogether("setup", "google", "billing") && !bootRunsOneNamed("installGoogle"));
+  assert.equal("__GOOGLE" in globalThis, false, "and no mirror on the window");
   // A review is told when it is first seen and when its answer moved (00431): Today's line and the bell close at once.
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT", "UPDATE"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
@@ -992,22 +1026,10 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   // does under a new review beside it (executed: reports/page/, Google's reviews under the period).
   // Today's line reads the seam's Google, the one value there is, and its door opens the Reviews lens: executed in
   // today/page/, over a review that landed this morning.
-  const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
-  assert.ok(
-    settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),
-    "the listing row keeps its verbs' names",
-  );
-  // The search verb is the last of google-actions.ts's: its own text, not the callback's or the reply's.
-  const searchVerb = search.slice(search.indexOf("function searchGoogleFor"));
-  assert.ok(
-    /log\.error\(\s*"google_search_failed"/.test(searchVerb) &&
-      !/typeof b\.error === "string" \? b\.error :/.test(searchVerb),
-    "Google's words go to the log, not the owner",
-  );
-  assert.ok(
-    settings.includes('"verb:google-connect": "google-connect"') && settings.includes('testid="google-disconnect"'),
-    "the second door keeps its verbs' names",
-  );
+  // The listing's row keeps its verbs' names (Check now, Disconnect) and the profile's its Connect and Disconnect: drawn
+  // and pressed by those names in workspace/settings-doors.test.mjs, and named by Connections' model in
+  // connections/connections.test.mjs (pinned as row.tsx's text until 26 Nov 2026).
   const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
-  for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(RATE[b], b);
+  for (const b of ["google_search", "google_link", "google_refresh", "google_reply", "google_draft"])
+    assert.ok(RATE[b], b);
 });

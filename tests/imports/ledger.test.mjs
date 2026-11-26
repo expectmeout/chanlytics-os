@@ -229,8 +229,8 @@ test("Connections' notes: a line a source the connection brought, where it stand
     row("google_reviews", "done", { reviews: 5 }),
   ];
   assert.deepEqual(importNotesOf(["mailbox", "contacts"], rows), [
-    { text: "Your inbox: 40 emails so far · 25%", live: true },
-    { text: "Your contacts: 80 people · Google", live: true },
+    { text: "Email: 40 emails so far · 25%", live: true },
+    { text: "Contacts: 80 people · Google", live: true },
   ]);
   assert.deepEqual(importNotesOf(undefined, rows), [], "a row that brings nothing in");
   assert.deepEqual(importNotesOf(["mailbox"], null), []);
@@ -301,8 +301,8 @@ test("Today says the history only while it helps: one line while any of it is co
       coming: { name: "Bringing in your history", says: "0 of 4 in · Keeps going if you leave." },
       stopped: [
         { source: "google_reviews", name: "Reviews stopped coming in", says: IMPORT_STOPPED_WORDS.googleSignedOut },
-        { source: "calendar", name: "Your calendar stopped coming in", says: "What came in is kept." },
-        { source: "mailbox", name: "Your inbox stopped coming in", says: "130 emails kept" },
+        { source: "calendar", name: "Calendar stopped coming in", says: "What came in is kept." },
+        { source: "mailbox", name: "Email stopped coming in", says: "130 emails kept" },
       ],
     },
     "in the order the sources are said, each with its own words",

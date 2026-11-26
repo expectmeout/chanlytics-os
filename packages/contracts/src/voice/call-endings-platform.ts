@@ -16,6 +16,7 @@ import {
   type CallEndingForOwner,
   type CallEndingReason,
 } from "./call-endings";
+import { keysOf } from "../shared/unknown";
 
 /** Whose an ending is: who could have done otherwise. */
 export type CallEndingWhose = "caller" | "business" | "platform";
@@ -131,9 +132,9 @@ const CALL_ENDINGS_FOR_PLATFORM = {
 } as const satisfies Record<CallEndingReason, CallEndingForPlatform>;
 
 /** Every ending the table holds, whole: the owner's half and the platform's. */
-export const CALL_ENDINGS = Object.fromEntries(
-  Object.keys(CALL_ENDINGS_FOR_OWNERS).map((r) => [r, callEndingOf(r)]),
-) as Record<CallEndingReason, CallEnding>;
+export const CALL_ENDINGS: Readonly<Partial<Record<CallEndingReason, CallEnding>>> = Object.fromEntries(
+  keysOf(CALL_ENDINGS_FOR_OWNERS).map((r) => [r, { ...CALL_ENDINGS_FOR_OWNERS[r], ...CALL_ENDINGS_FOR_PLATFORM[r] }]),
+);
 
 /**
  * The ending a reason names, or one in plain words for a reason the table does not hold yet: an `error_` the provider

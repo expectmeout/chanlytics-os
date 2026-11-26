@@ -18,6 +18,7 @@ import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -27,10 +28,10 @@ const workspaces = await importSrc("apps/dashboard/app/api/v1/workspaces/route.t
 const { installIdentity } = await importSrc("apps/dashboard/src/bridge/identity.ts");
 const { sbWho } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar-who.tsx");
 
-test("the words for the signed-in person: a given name or 'Your account', initials from the name or the email, the role in a word", () => {
-  assert.deepEqual(identityWords(null), { name: "Your account", email: "", initials: "?", role: "", named: false });
+test("the words for the signed-in person: a given name or 'Account', initials from the name or the email, the role in a word", () => {
+  assert.deepEqual(identityWords(null), { name: "Account", email: "", initials: "?", role: "", named: false });
   assert.deepEqual(identityWords({ email: "billing@rjcapital.example", role: "owner" }), {
-    name: "Your account",
+    name: "Account",
     email: "billing@rjcapital.example",
     initials: "B",
     role: "Owner",
@@ -52,7 +53,7 @@ test("the words for the signed-in person: a given name or 'Your account', initia
   );
   assert.equal(
     identityWords({ email: "hi@chanlytics.agency", role: null }).name,
-    "Your account",
+    "Account",
     "never a name invented from an email",
   );
   assert.equal(personInitials(null, null), "?");
@@ -126,15 +127,14 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads
   // (refresh-map.ts "PUT me"), and the bridge patches nothing ahead of them or announces a name of its own:
   // shell/hearing/channels-billing-and-rules-are-heard.test.mjs ("naming yourself is a write ...") runs it.
-  // The frame installs the identity at boot, before any page draws. FrameApp.tsx cannot be imported here (its installs
-  // need a browser), so that one line is still read.
-  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installIdentity();"));
+  // The frame installs the identity at boot, before any page draws (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs).
+  assert.ok(stepRunning(fromDashboard("bridge/identity.ts").installIdentity));
 
-  // The sidebar's chip: the name given, else "Your account", and never the email's local part.
+  // The sidebar's chip: the name given, else "Account", and never the email's local part.
   bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "", role: "owner" } } });
   assert.deepEqual(
     [sbWho().name, sbWho().email, sbWho().named],
-    ["Your account", "ana@salon.example", false],
+    ["Account", "ana@salon.example", false],
     "REGRESSION: never 'ana' dressed as a name",
   );
   bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "Ana Ruiz", role: "operator" } } });

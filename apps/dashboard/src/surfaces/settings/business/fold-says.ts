@@ -3,8 +3,11 @@
 // Split from folds.ts, which adds willSay and changedLines to the tab's saver (saver.ts). Pure but for willSay's cache,
 // and no JSX.
 
-import { BUSINESS_TAB, type ConsequenceVM, type FoldSection } from "@/bridge/business-tab";
+import { BUSINESS_TAB, FOLD_BLOCK, type ConsequenceVM, type FoldSection } from "@/bridge/business-tab";
 import { settingsNow } from "./shell";
+
+/** Whether a row's or a fold's id names a section the prompt has a block for (the bridge's FOLD_BLOCK). */
+export const isFoldSection = (id: string): id is FoldSection => Object.hasOwn(FOLD_BLOCK, id);
 
 /** The blocks of one brain, resolved: each block as the brain a save goes on writes it, by channel and block. */
 interface SaidOn {
@@ -155,8 +158,7 @@ export const btWillSay = ({ was, next, sections, channel }: WillSayAsk): WillSay
   if (channel) {
     if (btSaidOn.brain !== was || btSaidOn.prompt !== btPreview())
       btSaidOn = { brain: was, prompt: btPreview(), blocks: {} };
-    for (const block of ([] as FoldSection[]).concat(sections))
-      btSayBlock(said, block, { was, next, channel, crossing });
+    for (const block of [sections].flat()) btSayBlock(said, block, { was, next, channel, crossing });
   }
   return {
     note: crossing ? crossing.sentence : null,

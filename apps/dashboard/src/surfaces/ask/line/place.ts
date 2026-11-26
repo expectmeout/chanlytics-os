@@ -2,7 +2,7 @@
  * What the Line reads of where it stands: the route under it, a scope's name, a phone or a desk, where the three come from
  * as it opens, and what stands over the page. Pure of its state.
  */
-import type { AskMessageVM, AskScope } from "@chanlytics/contracts";
+import type { AskMessageDto, AskScope } from "@chanlytics/contracts";
 import { askOnScreenKey } from "@/bridge/ask/on-screen";
 import { AH_OPEN_OVER } from "../hooks";
 import { askKindGlyph } from "../card-parts";
@@ -39,17 +39,29 @@ export const arScopeLabel = (page: string, param: string | null) => {
 
 export const arScopeIcon = (s: AskScope) => askKindGlyph(s.kind);
 
-export const arFailed = (id: string, text: string) =>
-  ({
-    id,
-    role: "assistant",
-    text,
-    failed: true,
-    citations: [],
-    followups: [],
-    proposals: [],
-    atMs: Date.now(),
-  }) as Partial<AskMessageVM> as AskMessageVM;
+/**
+ * A message the Line draws before the server has said one (the question as asked, the answer on its way, a turn that
+ * failed): what it holds, and the rest as a message that says nothing yet. Its language is the server's word on a
+ * message it wrote, and nothing reads it on one the Line drew itself.
+ */
+export const lineMessage = (
+  message: Pick<AskMessageDto, "id" | "role" | "text"> & Partial<AskMessageDto>,
+): AskMessageDto => ({
+  at: "",
+  at_ms: Date.now(),
+  citations: [],
+  followups: [],
+  navigate: null,
+  proposals: [],
+  language: "en",
+  ungrounded: false,
+  tools: [],
+  latency_ms: null,
+  failed: false,
+  ...message,
+});
+
+export const arFailed = (id: string, text: string) => lineMessage({ id, role: "assistant", text, failed: true });
 
 /** The newest question's key: the thread stands it at the top once each (the spec 2026-09-27-ask-chat-on-a-phone, D5). */
 export const arNowKey = (active: Conversation | null, quick: QuickTurn | null) => {

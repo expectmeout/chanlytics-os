@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { toPersonRowVM } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { scenario } from "../../../tooling/scripts/e2e-harness/scenarios.mjs";
-import { installStubReact, fresh, again } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
 
 installStubReact();
 // The standing keeps the minute on a timer (kit/head/dateline.ts), and a test that draws by hand starts none: a live
@@ -129,17 +129,43 @@ test("REGRESSION: a person's address heads no name before their page says anythi
 });
 
 test("the route says the standing once, from its address: a person's page, the Pipeline's, Leads' and the list's pages their own, else People's", async () => {
-  const route = (await import("node:fs")).readFileSync(
-    new URL("../../../apps/dashboard/src/surfaces/people/people-route.tsx", import.meta.url),
-    "utf8",
+  // People's route drawn at each address, before People's read and after it, and what the frame's head is then told
+  // (pinned as people-route.tsx's text until 26 Nov 2026). The pages that say their own: person/person-real.tsx,
+  // pipeline/standing.tsx, rail/standing.tsx, page/people-real.tsx.
+  const { PeopleRoute } = await importSrc("apps/dashboard/src/surfaces/people/people-route.tsx");
+  let tree = null;
+  const at = (pathname) => {
+    forgetStanding();
+    fresh();
+    tree = again(() => globalThis.React.createElement(PeopleRoute, { pathname }));
+    const said = standingSaid();
+    return said ? { title: said.title, sentence: said.sentence ?? null, act: !!said.act } : null;
+  };
+  setSurfaceValue("people", undefined);
+  assert.deepEqual(
+    at("/w/harbor/people"),
+    { title: "People", sentence: null, act: false },
+    "until the list can be drawn, the route says People's name, and nothing it cannot count yet",
   );
-  assert.match(
-    route,
-    /usePeopleStanding\(person \|\| pipeline \|\| leads \|\| listDrawn \? null : "people"\)/,
-    "one call, keyed by the address; a person's page, the Pipeline's, Leads and the list say their own (person/person-real.tsx, pipeline/standing.tsx, rail/standing.tsx, page/people-real.tsx)",
+  assert.equal(at("/w/harbor/people/pipeline"), null, "the Pipeline's address: the route leaves it to the Pipeline");
+  assert.equal(at("/w/harbor/people/leads"), null, "and Leads' to Leads");
+  const surface = peopleSample(NOW);
+  setSurfaceValue("people", surface);
+  const list = at("/w/harbor/people");
+  assert.deepEqual(
+    [list.title, list.sentence, list.act],
+    ["People", headOf("people").sentence, true],
+    "drawn, the list says People's standing itself, with its act",
   );
-  assert.equal(route.match(/usePeopleStanding\(/g).length, 1, "and only the one");
-  assert.ok(!/<PeopleHead|<Glass>/.test(route), "the page draws no head of its own; the frame's is the head");
+  assert.equal(
+    find(tree, (n) => n.type === "h1"),
+    null,
+    "the page draws no head of its own; the frame's is the head",
+  );
+  assert.equal(at("/w/harbor/people/pipeline")?.title, "Pipeline", "the Pipeline says its own");
+  assert.notEqual(at("/w/harbor/people/c-1")?.title, "People", "a person's page is never People's");
+  setSurfaceValue("people", undefined);
+  forgetStanding();
 });
 
 test("People's list says its own standing, with its act: the name, the sentence, no way back, and Add a person", () => {

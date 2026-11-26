@@ -35,7 +35,7 @@ test("a run counts the people it SENT to, not the audience it was scheduled for:
     ],
     inbox: [],
   });
-  assert.deepEqual(sends.winback_offer, { count: 2, lastAt: "2026-09-18T15:00:05Z" });
+  assert.deepEqual(sends.winback_offer, { count: 2, last_at: "2026-09-18T15:00:05Z" });
 });
 
 test("every run of a message adds to it -- a person's broadcast and a playbook's run alike, in whichever language it went", () => {
@@ -51,10 +51,10 @@ test("every run of a message adds to it -- a person's broadcast and a playbook's
     ],
     inbox: [],
   });
-  assert.deepEqual(sends.winback_offer, { count: 3, lastAt: "2026-09-08T10:00:03Z" });
+  assert.deepEqual(sends.winback_offer, { count: 3, last_at: "2026-09-08T10:00:03Z" });
   assert.deepEqual(
     sends.quick_note,
-    { count: 1, lastAt: "2026-09-10T10:00:00Z" },
+    { count: 1, last_at: "2026-09-10T10:00:00Z" },
     "another message's sends are its own",
   );
 });
@@ -70,7 +70,7 @@ test("the Inbox's own template sends count -- the ones WhatsApp took, never one 
       inboxSend("booking_link", "2026-09-20T09:00:00Z", null),
     ],
   });
-  assert.deepEqual(sends.booking_link, { count: 2, lastAt: "2026-09-20T08:00:00Z" });
+  assert.deepEqual(sends.booking_link, { count: 2, last_at: "2026-09-20T08:00:00Z" });
 });
 
 test("when it last went out is the latest of either door, compared as instants rather than as text", () => {
@@ -80,14 +80,14 @@ test("when it last went out is the latest of either door, compared as instants r
     recipients: [person("b1", "sent", "2026-09-18T15:00:00Z"), person("b1", "sent", "2026-09-18T11:00:01-04:00")],
     inbox: [inboxSend("welcome_new", "2026-09-18T15:00:00.5+00:00")],
   });
-  assert.deepEqual(sends.welcome_new, { count: 3, lastAt: "2026-09-18T11:00:01-04:00" });
+  assert.deepEqual(sends.welcome_new, { count: 3, last_at: "2026-09-18T11:00:01-04:00" });
   // Half a second after 15:00 UTC is later, though as text it sorts BEFORE "15:00:00Z".
   const two = templateSends({
     runs: [run("b1", "welcome_new")],
     recipients: [person("b1", "sent", "2026-09-18T15:00:00Z")],
     inbox: [inboxSend("welcome_new", "2026-09-18T15:00:00.5+00:00")],
   });
-  assert.equal(two.welcome_new.lastAt, "2026-09-18T15:00:00.5+00:00");
+  assert.equal(two.welcome_new.last_at, "2026-09-18T15:00:00.5+00:00");
 });
 
 test("a message nothing ever sent is absent, and a send whose run is not on file is nobody's", () => {
@@ -105,10 +105,10 @@ test("a send whose time was not kept still counts; the latest is read from the o
     recipients: [person("b1", "sent"), person("b1", "sent", "2026-09-02T12:00:00Z")],
     inbox: [],
   });
-  assert.deepEqual(sends.offer, { count: 2, lastAt: "2026-09-02T12:00:00Z" });
+  assert.deepEqual(sends.offer, { count: 2, last_at: "2026-09-02T12:00:00Z" });
   assert.deepEqual(templateSends({ runs: [run("b1", "offer")], recipients: [person("b1", "sent")], inbox: [] }).offer, {
     count: 1,
-    lastAt: null,
+    last_at: null,
   });
 });
 
@@ -119,22 +119,25 @@ const H = 3_600_000;
 const D = 24 * H;
 
 test("the Sent cell says how many, with the thousands marked, and how long ago in the words every page uses", () => {
-  assert.deepEqual(templateSentWords({ count: 412, lastAt: before(2 * D) }, TZ, NOW), { count: "412", when: "2d ago" });
-  assert.deepEqual(templateSentWords({ count: 1204, lastAt: before(3 * H) }, TZ, NOW), {
+  assert.deepEqual(templateSentWords({ count: 412, last_at: before(2 * D) }, TZ, NOW), {
+    count: "412",
+    when: "2d ago",
+  });
+  assert.deepEqual(templateSentWords({ count: 1204, last_at: before(3 * H) }, TZ, NOW), {
     count: "1,204",
     when: "3h ago",
   });
-  assert.deepEqual(templateSentWords({ count: 1, lastAt: before(20_000) }, TZ, NOW), { count: "1", when: "just now" });
+  assert.deepEqual(templateSentWords({ count: 1, last_at: before(20_000) }, TZ, NOW), { count: "1", when: "just now" });
 });
 
 test('past a week it is a date by the business\'s calendar, not a count of days -- "31d ago" is not how anyone says it', () => {
   // 02:00 UTC on Aug 1 is the evening of Jul 31 in Los Angeles.
-  assert.deepEqual(templateSentWords({ count: 88, lastAt: "2026-08-01T02:00:00Z" }, TZ, NOW), {
+  assert.deepEqual(templateSentWords({ count: 88, last_at: "2026-08-01T02:00:00Z" }, TZ, NOW), {
     count: "88",
     when: "Jul 31",
   });
   assert.deepEqual(
-    templateSentWords({ count: 5, lastAt: "2025-03-03T20:00:00Z" }, TZ, NOW),
+    templateSentWords({ count: 5, last_at: "2025-03-03T20:00:00Z" }, TZ, NOW),
     { count: "5", when: "Mar 3, 2025" },
     "and its year, once it is not this one",
   );
@@ -143,11 +146,11 @@ test('past a week it is a date by the business\'s calendar, not a count of days 
 test('a message that never went out says so in words, not "0"', () => {
   assert.deepEqual(templateSentWords(undefined, TZ, NOW), { count: null, when: "Never sent" });
   assert.deepEqual(templateSentWords(null, TZ, NOW), { count: null, when: "Never sent" });
-  assert.deepEqual(templateSentWords({ count: 0, lastAt: null }, TZ, NOW), { count: null, when: "Never sent" });
+  assert.deepEqual(templateSentWords({ count: 0, last_at: null }, TZ, NOW), { count: null, when: "Never sent" });
 });
 
 test("a count whose times were not kept is said without a when, rather than with an invented one", () => {
-  assert.deepEqual(templateSentWords({ count: 3, lastAt: null }, TZ, NOW), { count: "3", when: null });
+  assert.deepEqual(templateSentWords({ count: 3, last_at: null }, TZ, NOW), { count: "3", when: null });
 });
 
 /* ------------------ what the page is handed (bridge) ------------------ */
@@ -255,8 +258,8 @@ test("the page is handed the Sent words for every message on file: how many and 
       row("t3", "quick_note"),
       row("t4", "autumn_promo"),
     ],
-    usedBy: {},
-    sends: { winback_offer: { count: 1204, lastAt: recent }, quick_note: { count: 7, lastAt: old.toISOString() } },
+    used_by: {},
+    sends: { winback_offer: { count: 1204, last_at: recent }, quick_note: { count: 7, last_at: old.toISOString() } },
   });
   await settingsOverride.apply();
   const sent = sentNow();
@@ -275,7 +278,7 @@ test("the page is handed the Sent words for every message on file: how many and 
 });
 
 test('a template read without the roll-up, or one that failed, is a Sent column that says nothing -- never a column of "Never sent"', async () => {
-  wire({ templates: [row("t1", "winback_offer")], usedBy: {} });
+  wire({ templates: [row("t1", "winback_offer")], used_by: {} });
   await settingsOverride.apply();
   assert.equal(sentNow(), null, "not read is not never sent");
   wire(500);

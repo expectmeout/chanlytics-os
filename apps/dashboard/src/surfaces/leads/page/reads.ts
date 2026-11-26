@@ -16,6 +16,9 @@ import {
   type LeadSort,
   type LeadStatusGroup,
   type PersonRowVM,
+  isOneOf,
+  LEAD_FITS,
+  LEAD_SORTS,
 } from "@chanlytics/contracts";
 import { hrefOfRoute } from "@/bridge/workspace";
 import type { TableState } from "../../kit/table/state";
@@ -100,7 +103,7 @@ export const useLeadsRead = ({
       cls: leadView.cls,
       chips,
       q,
-      sort: sortBy as LeadSort,
+      sort: leadSortOf(sortBy),
       dir: sortDir === "desc" ? "desc" : "asc",
       pileList,
     });
@@ -133,13 +136,22 @@ const NO_GROUPS: LeadStatusGroup[] = [];
  * or both), and the status groups a heading's menu asks (`f_status`, 00552). Each is kept with the view's place, as the
  * map is, so Back puts it back and another view starts without it.
  */
+/** The order the table's sort asks of the read: one of the read's sorts, else the page's own default. */
+export const leadSortOf = (by: string): LeadSort => (isOneOf(LEAD_SORTS, by) ? by : "stage");
+
+/** The Excluded chip the table's filter holds: the criterion's name, or none. */
+const excludedChipOf = (held: unknown): string | null => (typeof held === "string" ? held : null);
+
+/** The fit chip the table's filter holds: one of the fits, or none. */
+const fitChipOf = (held: unknown): LeadFit | null => (isOneOf(LEAD_FITS, held) ? held : null);
+
 export const leadNarrowings = (table: TableState) => {
   const reach = table.filterOf("f_reach");
   const groups = table.filterOf("f_status");
   return {
-    chip: (table.filterOf("f_excluded") as string | null) ?? null,
+    chip: excludedChipOf(table.filterOf("f_excluded")),
     setChip: (why: string | null) => table.setFilter("f_excluded", why),
-    fitChip: (table.filterOf("fit") as LeadFit | null) ?? null,
+    fitChip: fitChipOf(table.filterOf("fit")),
     setFitChip: (fit: LeadFit | null) => table.setFilter("fit", fit),
     reach: Array.isArray(reach) ? leadReachOf(reach) : NO_REACH,
     setReach: (r: readonly LeadReachFilter[]) => table.setFilter("f_reach", r.length ? leadReachOf(r) : null),

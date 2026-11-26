@@ -7,11 +7,12 @@
  */
 import { ASK_MEMORY_WORDS } from "../memory/memory";
 import { asText, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
+import { valueAt } from "../../shared/unknown";
 
 /** The line's id a door answered with, or the card's own (`memory_id`, written when the turn kept it). */
 const memoryIdOf = (data: unknown, payload: Record<string, unknown>): string => {
-  const d = (data && typeof data === "object" ? data : {}) as { memory?: { id?: unknown } };
-  return typeof d.memory?.id === "string" ? d.memory.id : asText(payload.memory_id);
+  const id = valueAt(data, "memory", "id");
+  return typeof id === "string" ? id : asText(payload.memory_id);
 };
 
 /** Settings › Memory: where every card about a line opens. */
@@ -30,8 +31,7 @@ export const memorySpec: ProposalSpec = {
     },
   }),
   receipt: ({ payload: pl }, data) => {
-    const d = (data && typeof data === "object" ? data : {}) as { memory?: { text?: unknown } };
-    return ASK_MEMORY_WORDS.receipt(asText(d.memory?.text) || asText(pl.text));
+    return ASK_MEMORY_WORDS.receipt(asText(valueAt(data, "memory", "text")) || asText(pl.text));
   },
   made: ({ payload: pl }, data) => memoryIdOf(data, pl) || null,
   undo: {

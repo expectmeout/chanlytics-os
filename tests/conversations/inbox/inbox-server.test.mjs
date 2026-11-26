@@ -403,7 +403,7 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
     if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: waiting } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
     if (u.pathname === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, active_workspace_id: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
   };
   await quiet(() => inboxOverride.apply());

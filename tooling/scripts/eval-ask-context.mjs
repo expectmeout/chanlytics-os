@@ -247,7 +247,7 @@ export function resolveContext(spec, answers = {}, now = Date.now(), first = nul
     view: typeof spec.view === "string" ? spec.view : null,
     focus: focus ?? null,
     rows: rows.map(({ kind, id }) => ({ kind, id })),
-    askedAt: now,
+    asked_at: now,
   };
   const read = PageContextSchema.safeParse(context);
   if (!read.success) throw new Error(`a context the route would refuse: ${JSON.stringify(read.error.issues)}`);
@@ -1067,7 +1067,7 @@ export async function approveBetween(io, message) {
   const told = await send(io, "POST", outcomePath(message.id, card.id), {
     state: "done",
     receipt: spec.receipt(card, saved.data),
-    atMs: io.now(),
+    at_ms: io.now(),
     undo: record,
   });
   if (!told.ok)
@@ -1106,7 +1106,7 @@ export async function putBack(io, approval) {
     ? await send(io, "POST", outcomePath(approval.messageId, approval.card.id), {
         state: "undone",
         receipt: spec.undo.receipt(saved.data),
-        atMs: io.now(),
+        at_ms: io.now(),
         undo: null,
       })
     : null;

@@ -142,11 +142,14 @@ export function igClockOfRow(person: Pick<PersonRowDto, "last_inbound_channel" |
   return person.last_inbound_channel === "instagram" ? (person.last_wrote_at ?? null) : null;
 }
 
+/** Whether a stored came_from is one this build has words for. */
+const isCameFrom = (k: string): k is PersonCameFrom => Object.hasOwn(PERSON_CAME_FROM_WORDS, k);
+
 /** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
 export function cameFromOf(row: { came_from?: string | null }): { key: PersonCameFrom; label: string } | null {
   const k = row.came_from;
-  if (!k || !Object.prototype.hasOwnProperty.call(PERSON_CAME_FROM_WORDS, k)) return null;
-  return { key: k as PersonCameFrom, label: PERSON_CAME_FROM_WORDS[k as PersonCameFrom] };
+  if (!k || !isCameFrom(k)) return null;
+  return { key: k, label: PERSON_CAME_FROM_WORDS[k] };
 }
 
 /* ------------------------------- row VM ---------------------------------- */

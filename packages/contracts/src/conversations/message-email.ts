@@ -28,8 +28,7 @@ const storageNamed = (name: string): boolean => STORAGE_NAME.test(name.trim());
  * line under the words, and only when something was left out.
  */
 export function emailLeftOutOf(meta: unknown): string | null {
-  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown; truncated?: unknown } } | null)
-    ?.email;
+  const email = recordOrNull(valueAt(meta, "email"));
   if (!email) return null;
   const files = Array.isArray(email.attachments) ? email.attachments : [];
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
@@ -49,7 +48,7 @@ export function emailLeftOutOf(meta: unknown): string | null {
 
 /** How many files an email came with whose names alone were kept (the intake keeps no file): 0 where none, or no email. */
 export function emailFilesLeftOf(meta: unknown): number {
-  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown } } | null)?.email;
+  const email = recordOrNull(valueAt(meta, "email"));
   if (!email) return 0;
   const files = Array.isArray(email.attachments) ? email.attachments.length : 0;
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;

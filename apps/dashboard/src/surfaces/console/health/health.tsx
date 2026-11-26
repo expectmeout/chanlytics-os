@@ -24,8 +24,8 @@ import {
   oursOf,
   promiseDaysOf,
   type HealthScope,
-  type HealthTab,
   type HealthWindow,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { backOffice } from "@/bridge/platform";
 import { PageHead } from "../../kit/head/page-head";
@@ -99,7 +99,9 @@ export function HealthScreen({ me, go, flash, pathname }: { me: ConsoleMe; go: G
         label={HEALTH_WORDS.tabs}
         value={tab}
         dense
-        onSelect={(id) => go(healthPathOf(id as HealthTab))}
+        onSelect={(id) => {
+          if (isOneOf(HEALTH_TABS, id)) go(healthPathOf(id));
+        }}
         tabs={HEALTH_TABS.map((t) => ({
           id: t,
           label: HEALTH_TAB_WORDS[t],

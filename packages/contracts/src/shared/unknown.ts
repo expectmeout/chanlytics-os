@@ -24,6 +24,13 @@ export const entryOf = <R extends object>(record: R, key: unknown): R[keyof R] |
 export const textOrEmpty = (value: unknown): string =>
   typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "";
 
+/**
+ * What a catch caught, as an Error: the Error itself, or a new one whose message is the thrown value's text. A read that
+ * keeps its failure as a value (`.catch(errorOfThrown)`) is then told from its data by `instanceof Error`, which a
+ * thrown string passed as data.
+ */
+export const errorOfThrown = (thrown: unknown): Error => (thrown instanceof Error ? thrown : new Error(String(thrown)));
+
 /** A finite number, or null. */
 export const finiteOrNull = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -86,6 +93,25 @@ export const isObjectRecord = (value: unknown): value is Record<string, unknown>
 /** A plain object (never an array), or null. */
 export const recordOrNull = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+/**
+ * A body whose fields took the wire's names (decision 0022, rule 3), read by their old names too for one release: a tab
+ * opened before the deploy sends the old one, and a row kept before it may hold it. Each old name is read as its new
+ * one where the body does not say the new one too, and dropped; anything but a plain object is handed on as it came.
+ * A schema reads through it with `z.preprocess(withOldNames({ old: "new" }), …)`.
+ */
+export const withOldNames =
+  (oldToNew: Readonly<Record<string, string>>) =>
+  (body: unknown): unknown => {
+    if (!isObjectRecord(body)) return body;
+    const named: Record<string, unknown> = { ...body };
+    for (const [old, name] of Object.entries(oldToNew)) {
+      if (!(old in named)) continue;
+      if (!(name in named)) named[name] = named[old];
+      delete named[old];
+    }
+    return named;
+  };
 
 /**
  * Words somebody else wrote (a provider's refusal in a query string, a link's fragment), on one line and at most 200

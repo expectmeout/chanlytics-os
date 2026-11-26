@@ -194,7 +194,7 @@ test("SPF: the record the domain has, with the provider put in before its all; t
   assert.equal(spf("google", null).note, null);
   const kept = spf("google", "v=spf1 include:mailgun.org ip4:192.0.2.1 -all", 3);
   assert.equal(kept.value, "v=spf1 include:mailgun.org ip4:192.0.2.1 include:_spf.google.com -all", "its own all kept");
-  assert.match(kept.note, /may have only one: change it to this, which keeps every sender it names and adds Google/);
+  assert.match(kept.note, /may have one SPF record only. Change it to this: it keeps every sender and adds Google/);
   assert.equal(
     spf("google", "v=spf1 a mx redirect=_spf.example.com").value,
     "v=spf1 a mx include:_spf.google.com redirect=_spf.example.com",
@@ -202,7 +202,7 @@ test("SPF: the record the domain has, with the provider put in before its all; t
   assert.equal(spf("microsoft", "v=spf1 a").value, "v=spf1 a include:spf.protection.outlook.com");
   const two = spf("google", "v=spf1 include:mailgun.org -all | v=spf1 a include:mailgun.org ~all");
   assert.equal(two.value, "v=spf1 include:mailgun.org a include:_spf.google.com ~all");
-  assert.match(two.note, /2 SPF records, and with more than one none of them counts/);
+  assert.match(two.note, /2 SPF records, so none counts/);
   // The edge counts the record with the provider in it (Google's include spends four: itself and three netblocks).
   assert.match(spf("google", "v=spf1 a -all", 11).note, /spend 11 of SPF's 10 lookups and stop working/);
   assert.doesNotMatch(spf("google", "v=spf1 a -all", 10).note, /lookups/, "ten is SPF's own limit, not past it");

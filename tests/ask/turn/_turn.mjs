@@ -160,7 +160,7 @@ export const conversation = (id, over = {}) => ({
   snooze_until: null,
   assignee_user_id: null,
   // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it: a thread
-  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply-window.test.mjs).
+  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply/reply-window.test.mjs).
   last_inbound_at: iso(NOW.getTime() - 3600_000),
   last_inbound_on_whatsapp: iso(NOW.getTime() - 3600_000),
   last_message_at: iso(NOW.getTime() - 3600_000),
@@ -383,8 +383,8 @@ export const BUILT = {
   warm: "hit",
 };
 
-/** A page context as the tab sends it (contracts PageContext). */
-export const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
+/** A page context as the tab sends it (contracts PageContextDto). */
+export const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], asked_at: 1 };
 
 export const ports = (round, extra = {}) => ({
   round,
@@ -1093,7 +1093,7 @@ export const answered = (over = {}) => ({
   role: "assistant",
   text: "",
   at: "",
-  atMs: 0,
+  at_ms: 0,
   citations: [],
   followups: [],
   navigate: null,
@@ -1101,7 +1101,7 @@ export const answered = (over = {}) => ({
   language: "en",
   ungrounded: false,
   tools: [],
-  latencyMs: null,
+  latency_ms: null,
   rounds: null,
   failed: false,
   ...over,

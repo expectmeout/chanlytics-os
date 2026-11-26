@@ -10,13 +10,13 @@ import type {
   AskAnswer,
   AskColumn,
   AskLanguage,
-  AskMessageVM,
+  AskMessageDto,
   AskProposalOutcome,
   AskScope,
   AskShowPreview,
   AskSurface,
-  AskThreadVM,
-  PageContext,
+  AskThreadDto,
+  PageContextDto,
   VoiceEndReason,
 } from "@chanlytics/contracts";
 import {
@@ -41,7 +41,7 @@ export type SendEvent =
   | { t: "trace"; text: string }
   | { t: "say"; headline: string; detail: string; show?: AskShowPreview }
   | { t: "delta"; text: string }
-  | { t: "final"; message: AskMessageVM }
+  | { t: "final"; message: AskMessageDto }
   | { t: "error"; text: string };
 
 export interface OpeningsView {
@@ -100,7 +100,7 @@ function voiceCalls(client: Api) {
       threadId: string | null;
       scope: AskScope | null;
       surface: AskSurface | null;
-      context: PageContext | null;
+      context: PageContextDto | null;
     }): Promise<{ session: string; token: string; conversation_id: string | null; thread_id: string; title: string }> =>
       unwrap(
         await client("POST ask/voice", {
@@ -112,7 +112,7 @@ function voiceCalls(client: Api) {
           },
         }),
       ),
-    voicePage: async (session: string, context: PageContext): Promise<void> => {
+    voicePage: async (session: string, context: PageContextDto): Promise<void> => {
       try {
         await client.raw("POST ask/voice/page", { body: { session, context } });
       } catch {
@@ -224,7 +224,7 @@ function modelWarm(client: Api) {
 export function askApi(client: Api = api()) {
   const head = modelWarm(client);
   return {
-    threads: async (): Promise<AskThreadVM[]> => {
+    threads: async (): Promise<AskThreadDto[]> => {
       try {
         return unwrap(await client("GET ask/threads")).threads;
       } catch {
@@ -238,7 +238,7 @@ export function askApi(client: Api = api()) {
      */
     thread: async (
       id: string,
-    ): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | { missing: true } | null> => {
+    ): Promise<{ thread: AskThreadDto; messages: AskMessageDto[] } | { missing: true } | null> => {
       try {
         const r = await client("GET ask/threads/[id]", { params: { id } });
         if (r.ok) return r.data;
@@ -276,7 +276,7 @@ export function askApi(client: Api = api()) {
      * under it changes, so the question asked a moment later finds its page read. Sent raw, so the tab keeps its reads
      * and runs no refresh; never waited on, and a warm that fails costs nothing but the warm.
      */
-    warm: async (context: PageContext): Promise<void> => {
+    warm: async (context: PageContextDto): Promise<void> => {
       try {
         await client.raw("POST ask/warm", { body: context });
       } catch {
@@ -314,8 +314,8 @@ function turnCall(client: Api, head: { sent(): void }) {
       column?: AskColumn | null;
       /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
       openedMs?: number | null;
-      /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
-      context?: PageContext | null;
+      /** The page the question is asked on (contracts PageContextDto; ask/context.ts); omitted when the page gave none. */
+      context?: PageContextDto | null;
       /** The ids of the files the question came with: the route opens each picture ahead of the words. */
       files?: readonly string[];
       /** What to answer in, for a question of no words of its own: words say their own. */

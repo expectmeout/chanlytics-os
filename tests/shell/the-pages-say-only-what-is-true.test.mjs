@@ -891,7 +891,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     outcome: {
       state: "done",
       receipt: "Sent to Rosa",
-      atMs: sentAt,
+      at_ms: sentAt,
       undo: { message_id: "m9", cancelable_until: new Date(sentAt + 15_000).toISOString() },
     },
   };
@@ -919,7 +919,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     outcome: {
       state: "done",
       receipt: "Playbook “Win-back” is running",
-      atMs: Date.now() - 60_000,
+      at_ms: Date.now() - 60_000,
       undo: { playbook_id: "pb1" },
     },
   };

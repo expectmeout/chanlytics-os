@@ -252,7 +252,7 @@ function signInLead({ stage, unconfirmed, email }: SignInForm) {
     ? "Sign in to your workspace."
     : unconfirmed
       ? SIGNUP_WORDS.confirmFromSignIn(email.trim())
-      : "We sent a one-time code to your work email.";
+      : "Check your work email for a one-time code.";
 }
 
 /** The password step: the address, the password, and the ways out (a code instead, a forgotten password). */

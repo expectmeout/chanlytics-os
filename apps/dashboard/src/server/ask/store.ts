@@ -7,17 +7,18 @@ import {
   type AskAnswer,
   type AskCitation,
   type AskIntent,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
   type AskProposalOutcome,
   type AskScope,
-  type AskThreadVM,
+  type AskThreadDto,
   DAY_MS,
   citationRoute,
   storedAnswer,
   v1FromAnswer,
   recordOrEmpty,
   listOrEmpty,
+  valueAt,
   DbFailure,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
@@ -70,11 +71,11 @@ const MESSAGES_CAP = 60;
 type NamedFiles = ReadonlyMap<string, AttachedFile>;
 const NONE_NAMED: NamedFiles = new Map();
 
-function toThreadVM(thread: ThreadRow): AskThreadVM {
+function toThreadVM(thread: ThreadRow): AskThreadDto {
   return {
     id: thread.id,
     title: thread.title || "Untitled",
-    lastAtMs: Date.parse(thread.last_at) || 0,
+    last_at_ms: Date.parse(thread.last_at) || 0,
     scope: scopeIn(thread.scope),
   };
 }
@@ -99,19 +100,32 @@ const isStoredCitation = (value: unknown): value is AskCitation & { to?: string 
   typeof value.kind === "string" &&
   typeof value.id === "string" &&
   typeof value.label === "string";
-const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageVM["navigate"]> =>
+const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageDto["navigate"]> =>
   isObjectRecord(value) && typeof value.to === "string" && typeof value.label === "string";
 const isStoredCard = (value: unknown): value is AskProposal =>
   isObjectRecord(value) && typeof value.id === "string" && typeof value.kind === "string";
 
+/**
+ * A kept card with its outcome's time under the wire's name: a card kept before 26 November 2026 holds it as `atMs`
+ * (contracts schemas.ts), read here as `at_ms`, so every reader of a kept card reads one name: for as long as such a card
+ * is kept, after the schemas stop reading the old name (decision 0022, step 3).
+ */
+function keptOutcome(card: AskProposal): AskProposal {
+  const old = valueAt(card.outcome, "atMs");
+  if (!card.outcome || typeof old !== "number") return card;
+  const outcome = { ...card.outcome, at_ms: old };
+  Reflect.deleteProperty(outcome, "atMs");
+  return { ...card, outcome };
+}
+
 /** The cards a turn keeps, each one the turn made. */
-export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value).filter(isStoredCard);
+export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value).filter(isStoredCard).map(keptOutcome);
 
 /**
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
-export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
+export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageDto {
   const content = recordOrEmpty(message.content);
   const cites = listOrEmpty(content.citations).filter(isStoredCitation);
   const files = fileIdsOf(content.files);
@@ -123,7 +137,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     role: message.role === "assistant" ? "assistant" : "user",
     text: typeof content.text === "string" ? content.text : "",
     at: message.created_at,
-    atMs: Date.parse(message.created_at) || 0,
+    at_ms: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
     followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
     navigate: isStoredNavigate(content.navigate) ? content.navigate : null,
@@ -131,7 +145,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
     tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
-    latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
+    latency_ms: typeof content.latency_ms === "number" ? content.latency_ms : null,
     rounds: typeof content.rounds === "number" ? content.rounds : null,
     failed: content.failed === true,
   };
@@ -143,7 +157,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
  * thread's morning, read beside it only where it was made before then, must be none (an anti-join the database does,
  * so a year of mornings is left out as surely as one).
  */
-export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadVM[]> {
+export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadDto[]> {
   const { data, error } = await listAskThreads(
     ctx.supabase,
     tenantId,
@@ -187,8 +201,8 @@ export async function readThread(
   ctx: RouteContext,
   id: string,
 ): Promise<{
-  thread: AskThreadVM;
-  messages: AskMessageVM[];
+  thread: AskThreadDto;
+  messages: AskMessageDto[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
   /** Each row's history kind (replayOf), beside `messages`: where a live replay's chain begins (memory.ts). */
@@ -244,7 +258,7 @@ export async function createThread(
   tenantId: TenantId,
   title: string,
   scope: AskScope | null,
-): Promise<AskThreadVM> {
+): Promise<AskThreadDto> {
   const { data, error } = await insertAskThread(ctx.supabase, {
     tenant_id: tenantId,
     user_id: ctx.userId,

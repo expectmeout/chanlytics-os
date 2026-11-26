@@ -94,7 +94,7 @@ export function RptHero({ vm, phone }: { vm: ReportVM; phone: boolean }) {
   const a = vm.answered;
   const pct = a.share == null ? null : Math.round(a.share * 100);
   return (
-    <section className="ck-card rpt-hero" data-testid="reports-hero">
+    <section className="panel ck-chart rpt-hero" data-testid="reports-hero">
       <RadialChart
         value={a.share || 0}
         marker={a.priorShare}
@@ -155,8 +155,8 @@ function factRow(f: ReportFactVM) {
 // link, the whole row its target; the sentence wraps rather than being cut short, so its words are all on the page.
 export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
   return (
-    <section className="ck-card rpt-facts" data-testid="reports-facts">
-      <h2 className="ck-card-title rpt-facts-title">Worth knowing</h2>
+    <section className="panel ck-chart rpt-facts" data-testid="reports-facts">
+      <h2 className="ck-chart-title rpt-facts-title">Worth knowing</h2>
       {facts.length ? (
         <ul className="rpt-fact-list">{facts.map(factRow)}</ul>
       ) : (

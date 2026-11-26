@@ -31,6 +31,7 @@ import {
   validateEmailVersion,
   validateSmsVersion,
   versionSlotsRefusal,
+  valueAt,
 } from "@chanlytics/contracts";
 import { namedProblem } from "./message-version-slots";
 import type {
@@ -66,8 +67,8 @@ const draftKey = (name: string, language: string, channel: string): string => `$
 /** What the tab kept of these words, where it kept any: the editor opens on them. */
 export function keptWords(name: string, language: string, channel: string): VersionWords | null {
   const kept = tabDraft(DRAFT_KIND, draftKey(name, language, channel));
-  if (!kept || typeof kept !== "object") return null;
-  const { subject, body } = kept as { subject?: unknown; body?: unknown };
+  const subject = valueAt(kept, "subject");
+  const body = valueAt(kept, "body");
   return typeof body === "string" ? { subject: typeof subject === "string" ? subject : null, body } : null;
 }
 

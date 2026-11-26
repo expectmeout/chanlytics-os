@@ -392,3 +392,51 @@ test(
     assert.equal(service.error, null, "the service's own key opens the door the edge reads through");
   },
 );
+
+test(
+  "a channel's credential is the service's alone, one secret named by the channel and written again in place: nobody signed in writes or reads it, the channel's own owner included (00042)",
+  { skip },
+  async () => {
+    // Pinned as 00042's text in whatsapp/connect/whatsapp-connect.test.mjs until 26 Nov 2026.
+    const channel = await seed("tenant_channels", {
+      tenant_id: A,
+      kind: "whatsapp",
+      status: "disabled",
+      external_id: `wa-tenancy-${crypto.randomUUID()}`,
+    });
+    for (const [who, session] of [
+      ["the owner", owner],
+      ["the partner", partner],
+      ["a viewer", viewer],
+    ]) {
+      const write = await session.client.rpc("put_channel_credentials", {
+        p_channel_id: channel,
+        p_secret: { access_token: "a-token-of-their-own" },
+      });
+      assert.ok(write.error, `${who} may not write the channel's credential`);
+      assert.ok(
+        (await session.client.rpc("get_channel_credentials", { p_channel_id: channel })).error,
+        `${who} may not read it`,
+      );
+    }
+    const name = `wa-creds-${channel}`;
+    const first = await db.rpc("put_channel_credentials", { p_channel_id: channel, p_secret: { access_token: "one" } });
+    assert.deepEqual(
+      [first.error, first.data],
+      [null, name],
+      "named by the channel, never the workspace or the number",
+    );
+    const again = await db.rpc("put_channel_credentials", { p_channel_id: channel, p_secret: { access_token: "two" } });
+    assert.equal(again.error, null, again.error?.message);
+    const read = await db.rpc("get_channel_credentials", { p_channel_id: channel });
+    assert.deepEqual(read.data, { access_token: "two" }, "a second connection updates the one secret, never a second");
+    const row = await db.from("tenant_channels").select("credentials_ref").eq("id", channel).single();
+    assert.equal(row.data?.credentials_ref, name, "and the channel points at it");
+    const none = await db.rpc("put_channel_credentials", {
+      p_channel_id: crypto.randomUUID(),
+      p_secret: { access_token: "x" },
+    });
+    assert.match(String(none.error?.message), /no such channel/, "a channel that is not there keeps nothing");
+    assert.equal((await db.from("tenant_channels").delete().eq("id", channel)).error, null);
+  },
+);

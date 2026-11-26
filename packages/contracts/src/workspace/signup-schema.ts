@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { SIGNUP_NAME_MIN, SIGNUP_NAME_MAX, PENDING_WORKSPACE_KEY } from "./signup";
 import { isTimezone } from "./workspace";
+import { valueAt } from "../shared/unknown";
 
 /** The invite code, where sign-up is by invitation: what the form, the create screen and the kept answers all read it as. */
 export const InviteCodeSchema = z.string().trim().max(80);
@@ -22,6 +23,7 @@ export const SignupSchema = z
       .string()
       .trim()
       .min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.")
+      // screen-word: the database raises the same sentence (supabase/schema.sql), so it changes with a migration
       .max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
     email: z.string().trim().toLowerCase().regex(z.regexes.email, "Enter a work email address.").max(254),
     /**
@@ -78,7 +80,7 @@ const PendingWorkspaceSchema = z
 /** The pending workspace on a user's metadata, or null when there is none worth showing. Never throws: metadata is whatever Supabase holds. */
 export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
   if (!metadata || typeof metadata !== "object") return null;
-  const r = PendingWorkspaceSchema.safeParse((metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY]);
+  const r = PendingWorkspaceSchema.safeParse(valueAt(metadata, PENDING_WORKSPACE_KEY));
   return r.success ? r.data : null;
 }
 
@@ -89,7 +91,6 @@ export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
  */
 export function pendingCodeOf(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") return null;
-  const p = (metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY];
-  const r = InviteCodeSchema.safeParse(p && typeof p === "object" ? (p as { code?: unknown }).code : null);
+  const r = InviteCodeSchema.safeParse(valueAt(metadata, PENDING_WORKSPACE_KEY, "code") ?? null);
   return r.success && r.data ? r.data : null;
 }

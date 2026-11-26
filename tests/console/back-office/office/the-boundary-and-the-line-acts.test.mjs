@@ -35,6 +35,7 @@ import {
   workspaceRows,
   workspaceTables,
 } from "./_office.mjs";
+import { bootRunsOneNamed } from "../../../shell/boot/_frame-boot.mjs";
 
 /* ------------------------------- the boundary ------------------------------ */
 
@@ -512,7 +513,7 @@ test("the back office is read on demand, not published to every browser", async 
   );
   // Nothing reads the verbs off the window (the pane imports them), so nothing publishes them there (O4b).
   assert.ok(!bridge.includes("installPlatform"), "no window name for the verbs");
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installPlatform"));
+  assert.ok(!bootRunsOneNamed("installPlatform"), "the frame's boot installs nothing of the back office's");
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who
   // clicked Back office got the Not-in-this-release card -- but never as a

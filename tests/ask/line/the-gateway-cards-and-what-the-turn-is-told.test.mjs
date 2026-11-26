@@ -231,7 +231,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
     receipt: "Sent to Rosa",
-    atMs: 1,
+    at_ms: 1,
     undo: { message_id: ID },
   });
   assert.ok(ok.success);
@@ -468,7 +468,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   const acts = withActs.filter((s) => s.kind === "act");
   assert.ok(acts.length >= 3 && acts.length <= 4, "a few cards, never a wall");
   assert.ok(
-    acts.some((s) => s.label === "Tell Rosa we're running late" && !s.compose && /15 minutes late/.test(s.q)),
+    acts.some((s) => s.label === "Tell Rosa I'm running late" && !s.compose && /15 minutes late/.test(s.q)),
     "a scoped person gets a card to send",
   );
   assert.ok(
@@ -885,7 +885,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(!w.includes("They are on the campaigns page."), "the line, never the bare page");
   assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
   // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
-  const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
+  const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", at_ms: 1 }];
   assert.ok(turnWords({ ...facts, since }).includes("read the campaigns again, never the shape"));
   for (const state of ["dismissed", "failed", "undone"])
     assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);

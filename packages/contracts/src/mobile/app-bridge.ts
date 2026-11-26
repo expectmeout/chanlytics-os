@@ -9,7 +9,7 @@
 
 import type { Theme } from "../shell/chrome/theme";
 import { isUuid } from "../shared/identity";
-import { isCount, isOneOf } from "../shared/unknown";
+import { isCount, isOneOf, entryOf } from "../shared/unknown";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
 
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
@@ -118,9 +118,9 @@ export function parsePageMessage(raw: string): PageMessage | null {
     return null;
   }
   if (!isRecord(value) || typeof value.t !== "string") return null;
-  // Own keys only: "toString" and its kin are on every object and are no shape.
-  if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, value.t)) return null;
-  return PAGE_MESSAGES[value.t as PageMessage["t"]](value);
+  // Own keys only (entryOf): "toString" and its kin are on every object and are no shape.
+  const read = entryOf(PAGE_MESSAGES, value.t);
+  return read ? read(value) : null;
 }
 
 const token = (v: unknown): string | null =>

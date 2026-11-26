@@ -80,14 +80,21 @@ const portJudgeClient = (): LeadJudgeClient => ({
   beta: {
     messages: {
       async create(params, call) {
-        const { model, betas, ...body } = params as { model?: string; betas?: string[] } & Record<string, unknown>;
-        const r = await callModel(
-          { purpose: "lead_judge", body, ...(typeof model === "string" ? { model } : {}), ...(betas ? { betas } : {}) },
+        const { model, betas, ...body } = params;
+        const answer = await callModel(
+          {
+            purpose: "lead_judge",
+            body,
+            ...(typeof model === "string" ? { model } : {}),
+            ...(Array.isArray(betas)
+              ? { betas: betas.filter((beta): beta is string => typeof beta === "string") }
+              : {}),
+          },
           { tenantId: call?.tenantId ?? null, subjectId: call?.roundId ?? null },
         );
-        if (!r || r.outcome === "held") throw new Error("lead judge: no model to ask");
-        if (r.outcome !== "ok") throw Object.assign(new Error(r.error), { status: r.status });
-        return r.message;
+        if (!answer || answer.outcome === "held") throw new Error("lead judge: no model to ask");
+        if (answer.outcome !== "ok") throw Object.assign(new Error(answer.error), { status: answer.status });
+        return answer.message;
       },
     },
   },
@@ -125,16 +132,16 @@ function shadowed(inner: LeadJudge): LeadJudge {
 }
 
 /**
- * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called with the
- * platform's fetch. A lead's home page is read by the platform's one page reader (leads/marks.ts findLeadSitePage), and the
- * picture it names through the guarded fetch (channels publicFetcher): a lead's website is an address somebody else
- * typed, and the picture's may resolve, or redirect, to a private one.
+ * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called through
+ * channels' door with the door's own fetch. A lead's home page is read by the platform's one page reader (leads/marks.ts
+ * findLeadSitePage), and the picture it names through the guarded fetch (channels publicFetcher): a lead's website is
+ * an address somebody else typed, and the picture's may resolve, or redirect, to a private one.
  */
 export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
-    apify: apifyClient(fetchImpl ?? fetch, token),
+    apify: apifyClient(fetchImpl, token),
     // The screen first (decision 0085), when it is on: the places it is sure are left out never reach the judge.
     judge: screened(shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks()))),
     webhookBase: leadWebhookBase(),

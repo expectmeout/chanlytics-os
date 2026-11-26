@@ -198,21 +198,65 @@ export function repeatedSentences(trees) {
   return Object.fromEntries([...modules].filter(([, n]) => n > 1));
 }
 
-/** The calls a syntax tree makes to the global `fetch`: a port's or a client's method of that name is not one. */
+/** The global object, by each name a module reaches it by: `window.fetch` is the global fetch as `fetch` is. */
+const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self"]);
+
+/** Where an identifier named `fetch` is a name and no reach for the global: a member, a key, a declaration, a type. */
+function fetchIsAName(id) {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) && p.name === id) return true;
+  if ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p) || ts.isPropertySignature(p)) && p.name === id)
+    return true;
+  if (ts.isMethodSignature(p) || ts.isQualifiedName(p) || ts.isTypeQueryNode(p) || ts.isTypeOfExpression(p))
+    return true;
+  return (
+    (ts.isParameter(p) || ts.isVariableDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isBindingElement(p)) &&
+    p.name === id
+  );
+}
+
+/** Whether a module declares a `fetch` of its own (a parameter, a binding, an import), which its bare `fetch` may be. */
+function declaresFetch(sf) {
+  let found = false;
+  const walk = (node) => {
+    if (found) return;
+    const name = node.name;
+    if (
+      name &&
+      ts.isIdentifier(name) &&
+      name.text === "fetch" &&
+      (ts.isParameter(node) ||
+        ts.isVariableDeclaration(node) ||
+        ts.isFunctionDeclaration(node) ||
+        ts.isBindingElement(node) ||
+        ts.isImportSpecifier(node))
+    )
+      found = true;
+    else ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return found;
+}
+
+/**
+ * Each reach a syntax tree makes for the global `fetch`: a call of it, or the function handed on (`deps.fetch ?? fetch`,
+ * `apifyClient(fetch, token)`), by its own name or through the global object (`globalThis.fetch`, `window.fetch`,
+ * `self.fetch`). Until 26 Nov 2026 only a bare call or `globalThis.fetch(…)` was counted, so a page's `window.fetch`
+ * and a fetch handed to a client went unseen. A port's or a client's method of that name is not one, nor `typeof
+ * fetch`, nor, in a module that declares a `fetch` of its own, its bare name (that is the module's).
+ */
 export function fetchesIn(sf) {
   let n = 0;
+  const bareIsGlobal = !declaresFetch(sf);
   const walk = (node) => {
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      if (ts.isIdentifier(callee) && callee.text === "fetch") n += 1;
-      else if (
-        ts.isPropertyAccessExpression(callee) &&
-        callee.name.text === "fetch" &&
-        ts.isIdentifier(callee.expression) &&
-        callee.expression.text === "globalThis"
-      )
-        n += 1;
-    }
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === "fetch" &&
+      ts.isIdentifier(node.expression) &&
+      GLOBAL_OBJECTS.has(node.expression.text)
+    )
+      n += 1;
+    else if (bareIsGlobal && ts.isIdentifier(node) && node.text === "fetch" && !fetchIsAName(node)) n += 1;
     ts.forEachChild(node, walk);
   };
   walk(sf);
@@ -236,6 +280,18 @@ export const FETCH_EXCEPTIONS = {
     "the phone app (paused, 7 Oct 2026): it reads the site's version itself and shares no client with the site",
   "apps/dashboard/src/auth/GoogleSignIn.tsx":
     "a page's read of Supabase's auth settings, as the person: a page's call to the identity store stays in the browser (CLAUDE.md, Where new code goes)",
+  "apps/dashboard/src/bridge/api.ts":
+    "the API client's transport: every route key a page asks leaves from here on the window's fetch (client/api.ts calls the one it is handed), and the sign-out beside it",
+  "apps/dashboard/src/client/own-route.ts":
+    "the page's own-route client (decision 0149, rule 4): the one fetch for a route of the dashboard's outside the typed set",
+  "apps/dashboard/src/surfaces/files/verbs.ts":
+    "a file's bytes, which no JSON client carries: a photo PUT to the bucket at the signed address its route gave, and a kept file read as a blob for a phone's share sheet",
+  "apps/dashboard/src/surfaces/files/video/send.ts":
+    "a clip's resumable upload, from the browser to Cloudflare Stream at the address its route gave: the bytes never pass a server of ours",
+  "packages/db/src/shared/observe.ts":
+    "the database client's transport: supabase-js reads PostgREST and auth through it, timed under `db`; db leans on contracts alone (decision 0110), so it cannot reach channels' door, and a read of our own database is no call out",
+  "packages/db/src/shared/service-client.ts":
+    "the same transport, bounded (boundedFetch): a read of the database stops at its timeout",
 };
 
 const excepted = (f) => Object.keys(FETCH_EXCEPTIONS).some((at) => (at.endsWith("/") ? f.startsWith(at) : f === at));

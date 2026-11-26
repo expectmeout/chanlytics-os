@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { messageStatusLabel, reachedCustomer, toInboxThreadVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { readCode } from "../_source.mjs";
+import { givenOn } from "../_css.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -122,21 +122,16 @@ test("an ordinary sent message says nothing rather than something reassuring", (
 
 /* ------------------------ one vocabulary, one place ----------------------- */
 
-test("the thread keeps no private list of these words", () => {
-  const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
-  // The Inbox's ternary WAS the only home of this vocabulary, which is why the
-  // other pane had none.
-  assert.ok(
-    !thread.includes('"Canceled before sending"') && !thread.includes("· Canceled before sending"),
-    "the labels belong to the viewmodel now",
-  );
-  assert.ok(thread.includes("entry.statusLabel"), "the Inbox renders the shared label");
-  // Conversations draws the same thread (one-thread.test.mjs), so it says the same words.
-});
+// The thread keeps no private list of these words. The Inbox's ternary WAS the only home of this vocabulary, which is why
+// the other pane had none; the thread draws the view model's label now (contracts messageStatusLabel, above): a reply
+// that did not send says so in its corner in contracts' words, drawn in conversations/inbox/inbox-true.test.mjs, where
+// timeline.tsx's text was read until 26 Nov 2026. Conversations draws the same thread (one-thread.test.mjs).
 
 test("the thread visibly separates what was said from what was only drafted", () => {
   // The mark on the bubble is drawn and run in inbox-true.test.mjs ("the reply that didn't send says so").
-  const css = readCode("apps/dashboard/src/styles/conversations.css");
-  // On the words, not the bubble's frame, which stands as wide as the thread on a desk (#1841).
-  assert.ok(css.includes(".tl-msg.undelivered .tl-msg-body"), "and the mark must have a style");
+  // On the words, not the bubble's frame, which stands as wide as the thread on a desk (#1841): asked of the parsed
+  // sheet under any query (read as its text until 26 Nov 2026), dimmed and dashed.
+  const words = givenOn("apps/dashboard/src/styles/conversations.css", ".tl-msg.undelivered .tl-msg-body", null);
+  assert.equal(words.opacity, ".7", "and the mark must have a style");
+  assert.match(words.border ?? "", /dashed/);
 });

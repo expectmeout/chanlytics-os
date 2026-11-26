@@ -5,6 +5,7 @@
  */
 import { saveView } from "../people-detail";
 import { pageReport } from "@/client/page-report";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 const PL_VIEW_KEYS: Record<string, string> = {
   people: "chanlytics-people-view",
@@ -18,7 +19,7 @@ const viewKeyOf = (scope: string): string => PL_VIEW_KEYS[scope] ?? "chanlytics-
 export const plLoadView = (scope: string): Record<string, unknown> => {
   try {
     const kept: unknown = JSON.parse(localStorage.getItem(viewKeyOf(scope)) || "{}");
-    return { ...(kept as Record<string, unknown>) };
+    return { ...recordOrEmpty(kept) };
   } catch {
     return {};
   }

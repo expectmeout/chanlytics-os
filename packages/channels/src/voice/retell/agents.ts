@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import { MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import { answerObject } from "../../shared/provider-fetch";
+import { wordsTableOf } from "../shell/tools";
 import { answered, retell, type RetellConfig } from "./calls";
 
 export { MISSED_CALL_LINE } from "@chanlytics/contracts";
@@ -273,10 +274,7 @@ export async function getRetellLlm(
     ...llmModelOf(result),
     general_prompt: str("general_prompt"),
     begin_message: str("begin_message"),
-    default_dynamic_variables:
-      result.default_dynamic_variables && typeof result.default_dynamic_variables === "object"
-        ? (result.default_dynamic_variables as Record<string, string>)
-        : null,
+    default_dynamic_variables: wordsTableOf(result.default_dynamic_variables),
     general_tools: Array.isArray(result.general_tools) ? result.general_tools : null,
     knowledge_base_ids: Array.isArray(result.knowledge_base_ids) ? result.knowledge_base_ids.map(String) : null,
   };

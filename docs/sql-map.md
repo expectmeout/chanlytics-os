@@ -107,7 +107,7 @@ being read is dropped by a migration.
 | `appointments_guard` | trigger | the server | trigger `appointments_guard on appointments` |  |
 | `appointments_lead_stamp` | trigger | the server | trigger `appointments_lead_stamp on appointments` | A visit names the lead its person was made from (00426): |
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
-| `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry.ts` | An erasure's hand in the appointments (decision 0036): |
+| `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry/people.ts` | An erasure's hand in the appointments (decision 0036): |
 | `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00699; |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
 | `approval_hash` | the server's | the server | SQL `ad_turn_on`, `content_week_approve` and 4 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
@@ -219,7 +219,7 @@ being read is dropped by a migration.
 | `email_sent_at` | the server's | the server | SQL `mailbox_capacity`, `reach_out_chain_totals` and 5 more | When an email row left, or tried to: |
 | `enforce_money_lock` | trigger | a signed-in person, the server | trigger `policies_money_lock on policies` | Before insert or update on policies: |
 | `ensure_events_partition` | the server's | the server | the clock, `events-partition-precreate` |  |
-| `erase_contact` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/erasure/registry.ts` | Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub |
+| `erase_contact` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/erasure/registry.ts` and 3 more | Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub |
 | `erase_marketing_consent` | the server's | the server | SQL `marketing_consent_on_erase` | Clears the marketing answer as part of an erasure. |
 | `erasure_digest` | the server's | the server | SQL `lead_suppression_hash`, `people_erase_begin` and 1 more |  |
 | `erasure_digest_keyed_on_write` | trigger | the server | trigger `contacts_erasure_digest_keyed on contacts`, `lead_suppressions_erasure_digest_keyed on lead_suppressions` |  |

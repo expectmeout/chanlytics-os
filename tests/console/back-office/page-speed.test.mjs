@@ -645,7 +645,7 @@ test("the card: each page by its moves and loads, slowest first; the parts drawn
   });
   assert.equal(
     vm.sentence,
-    "Of 640 moves in the last 7 days, three in four drew their page within 300 ms; of 120 page loads, within 1.2 s.",
+    "Of 640 moves in the last 7 days, three in four drew their page within 300 ms, and of 120 page loads, within 1.2 s.",
   );
   assert.deepEqual(
     vm.pages.map((p) => [p.label, p.value, p.tone]),
