@@ -24,7 +24,16 @@ import {
   describeNow,
   resolveSystemPrompt,
 } from "@chanlytics/contracts";
-import { readCode } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
+import { runtime, text, world } from "../../inbound/_world.mjs";
+import { sure } from "../../inbound/phases/_fixtures.mjs";
+import { scripted, json } from "../../ai/_model-world.mjs";
+
+process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
+const { setModelFetch } = await importSrc("apps/edge/lib/ai/model.ts");
+const { generateReply } = await importSrc("apps/edge/lib/ai/receptionist-brain.ts");
+const { loadTenantRuntime } = await importSrc("apps/edge/lib/shared/tenant-runtime.ts");
 
 const brain = {
   business_name: "Marisa's Beauty Salon",
@@ -94,47 +103,88 @@ test("the timezone has ONE home, and it is not the business profile", () => {
 
 /* ----------------------------- the call sites ------------------------------ */
 
-test("the clock is sent as its OWN system block, uncached", () => {
-  const brainSrc = readCode("apps/edge/lib/ai/receptionist-brain.ts");
-  const cached = brainSrc.indexOf("cache_control");
-  const now = brainSrc.indexOf('nowNote ? [{ type: "text", text: nowNote }]');
-  assert.ok(now > 0, "the now block must be sent");
-  assert.ok(now > cached, "it belongs after the cached prompt, not inside it");
-  assert.equal(
-    brainSrc.split("cache_control").length - 1,
-    1,
-    "only the stable business profile may carry a cache breakpoint",
+test("the clock is sent as its OWN system block, uncached", async () => {
+  // One line per contact would otherwise evict the business profile from the cache on every new customer. Run through
+  // the receptionist's own call with the model at the wire (pinned as receptionist-brain.ts's text until 26 Nov 2026).
+  const api = scripted(
+    json({
+      reply: "We open at 9:30.",
+      intent: "hours",
+      escalate: false,
+      reason: "",
+      confidence: 0.9,
+      facts_used: [],
+      language: "en",
+    }),
   );
+  setModelFetch(api.fetch);
+  try {
+    const system = composeSystemPrompt(brain, profile, "whatsapp", "America/New_York");
+    const now = describeNow("America/New_York", INSTANT);
+    await generateReply({
+      history: [],
+      userText: "are you open right now?",
+      systemPrompt: system,
+      fallbackText: "Hold on.",
+      nowNote: now,
+      call: { tenantId: null },
+    });
+    const blocks = api.calls[0].body.system;
+    assert.deepEqual(
+      blocks.map((b) => [b.text, b.cache_control ?? null]),
+      [
+        [system, { type: "ephemeral" }],
+        [now, null],
+      ],
+      "the cached prompt first, then the clock after it, uncached",
+    );
+  } finally {
+    setModelFetch(null);
+  }
 });
 
-test("both channels read the tenant's zone, and neither invents one", () => {
-  // Every module of the message path, answer.ts's order and the phases beside it: the zone lint below reads them all.
-  const wa = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
-    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
-    .join("\n");
-  // The wire the message came on: a text is told it answers texts (compose.ts).
-  // One clock for the turn (model-turn.ts `now`): the prompt, the clock note and layer two read the same day.
-  assert.ok(wa.includes("const now = new Date();"));
-  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known)"));
-  // The clock also carries the closures, so it can state a shut day in the
-  // block the model reads LAST — where the weekly grid cannot outrank it.
-  assert.ok(wa.includes("describeNow(rt?.timezone, now, brainCfg.profile?.closures)"));
-
-  // The phone's composition -- the same composer, one clock, the closures in
-  // the block the model reads last -- is run, byte for byte, in
-  // call-start.test.mjs. The read here serves only the zone lint below.
-  const voice = readCode("apps/edge/lib/voice/call-start.ts");
-
-  const runtime = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  // The read is packages/db's (decision 0111): the runtime's own row, with its zone.
-  assert.ok(
-    runtime.includes("findWorkspaceRuntimeRow(db, routed.tenantId)") &&
-      readCode("packages/db/src/repositories/workspace/rows.ts").includes(
-        'db.from("tenants").select("name, slug, timezone, status")',
-      ),
-    "read from the tenants row, not from config",
+test("both channels read the tenant's zone, from its row, and neither invents one", async () => {
+  // Run in a zone the code was not written in (pinned as the message path's text, with a lint for a hard-coded New York,
+  // until 26 Nov 2026). The runtime reads the zone from the tenants row, never from config.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-0000000c10c4";
+  const db = fakeDb(
+    {
+      tenants: [{ id: T, name: "Harbor", timezone: "Pacific/Auckland", status: "active" }],
+      tenant_channels: [],
+      tenant_config: [{ tenant_id: T, config: { brain: { ...brain, profile } } }],
+      policies: [],
+      google_listings: [],
+    },
+    {},
+    { runtime_stamp: () => "stamp-clock" },
   );
-  for (const src of [wa, voice, runtime]) {
-    assert.ok(!src.includes("America/New_York"), "no zone may be hard-coded on the message path");
+  const rt = await loadTenantRuntime(db, { tenantId: T, channelId: "wa-1", kind: "whatsapp", credentialsRef: null });
+  assert.equal(rt.timezone, "Pacific/Auckland", "the tenants row's zone");
+
+  // A text's turn: one clock for the prompt and the clock note, both in the workspace's zone.
+  for (const tz of ["Pacific/Auckland", null]) {
+    let asked = null;
+    const before = new Date();
+    const rtOf = runtime({ brain: { ...brain, profile }, timezone: tz });
+    await world({ env: { modelKey: "sk-test" }, rt: rtOf }).run(text("are you open right now?"), {
+      brain: async () => ({
+        generateReply: async (a) => {
+          asked = a;
+          return { text: "We open at 9:30.", escalate: false, meta: sure, usage: { input_tokens: 40 } };
+        },
+      }),
+    });
+    const after = new Date();
+    const either = (f) => [f(before), f(after)];
+    assert.ok(
+      either((d) => describeNow(tz, d, undefined)).includes(asked.nowNote.split("\n\n")[0]),
+      `${tz}: the clock note`,
+    );
+    assert.ok(
+      either((d) => resolveSystemPrompt({ ...brain, profile }, "whatsapp", tz, d, rtOf.policy, rtOf.known)).includes(
+        asked.systemPrompt,
+      ),
+      `${tz}: the prompt in the same zone, by the one resolver`,
+    );
   }
 });

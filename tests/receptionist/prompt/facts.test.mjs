@@ -18,7 +18,7 @@ import {
   sameName,
   SOURCE_WORDS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../../_source.mjs";
+import { importSrc, readRaw } from "../../_source.mjs";
 
 /** Marisa's Beauty Salon, exactly as the database held it. */
 const LIVE = {
@@ -222,87 +222,23 @@ test("every source has words a person can read", () => {
   }
 });
 
-test("the resolver is the ONE place facts are decided, on every surface that states them", () => {
-  // A resolver nothing calls is a comment. These are the four places a fact
-  // reaches a customer or an owner, and each has to go through it.
-  const cfg = readRaw("packages/contracts/src/config/workspace-config/resolve.ts");
-  assert.ok(cfg.includes("const facts = resolveFacts(brain, known);"), "the prompt resolves before it speaks");
-  assert.ok(
-    cfg.includes("return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);"),
-    "and composes from the resolved values, not the raw document",
-  );
+// The resolver is the ONE place facts are decided, on every surface that states them. A resolver nothing calls is a
+// comment, so each place a fact reaches a customer is run: the runtime carries what the platform knows, loaded with the
+// config from the workspace's routing rows and its listing, and a failed load is empty, never a guess; a text's model
+// turn is told the line the platform provisioned, formatted as a person says it; a call is never told the number it is
+// ringing on, which only the routing row can say (receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs). The eval and the steer
+// doors passing what the platform knows are run in eval-door.test.mjs and steer-door.test.mjs; the settings read carrying
+// each fact and its conflicts through the route in settings-routes.test.mjs ("F1") and its reader in ask/readers/, and
+// landing once on the settings surface in the-settings-read-lands-the-facts.test.mjs. Pinned as resolve.ts's,
+// tenant-runtime.ts's, the routing read's, model-turn's and call-start's text until 26 Nov 2026.
 
-  const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  assert.ok(rt.includes("known: KnownFacts;"), "the edge runtime carries what the platform knows");
-  // The read is packages/db's (decision 0111): the workspace's routing rows, in the one load.
-  assert.ok(
-    rt.includes("listWorkspaceChannels(db, routed.tenantId)") &&
-      readCode("packages/db/src/repositories/channels/routing.ts").includes(
-        'db.from("tenant_channels").select("kind, number_e164, status")',
-      ),
-    "loaded with the config, behind the same stamp",
-  );
-  assert.ok(
-    rt.includes("known: { workspace: null, channels: [], listing: null },"),
-    "and a failed load is empty, never a guess",
-  );
-
-  // The eval and the steer doors passing what the platform knows -- the
-  // provisioned line spoken in their prompts -- are run in eval-door.test.mjs
-  // and steer-door.test.mjs.
-  for (const [file, call] of [
-    ["packages/core/src/inbound/model-turn.ts", "rt?.known"],
-    ["apps/edge/lib/voice/call-start.ts", "rt.known"],
-  ]) {
-    const src = readCode(file);
-    assert.ok(src.includes(call + ")"), `${file} passes what the platform knows`);
-  }
-
-  // The server resolves, because it is where the channel rows and the listing
-  // are; the browser only ever had a listing DTO with no address on it. That the
-  // settings read carries both -- each fact from the typed brain and what the
-  // platform knows, and their conflicts -- is RUN: through the route in
-  // settings-routes.test.mjs ("F1") and through its reader in ask/readers/.
-  // And that the browser's read lands them once, on the settings surface, is run too
-  // (the-settings-read-lands-the-facts.test.mjs): a line of the bridge's source was read for it here.
-});
-
-test("the field that caused this says what it is", () => {
-  // Task 3.7 deleted the form. The three numbers are three rows of the Business page, each edited where it is stated
-  // (surfaces/settings/business/who.tsx); receptionist/business-tab/page/ draws and presses every one of them.
-  const pane = readRaw("apps/dashboard/src/surfaces/settings/business/who.tsx");
-  assert.ok(!/label="Phone line"/.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
-  assert.ok(pane.includes('label="Tells customers to call"'), "it is what goes in the words");
-  // And not a text box at all any more: the line is the default, and publishing
-  // anything else is a deliberate act with a reason shown under it.
-  assert.ok(
-    /\{ value: "line", label: "Your number" \},\s*\{ value: "other", label: "A different number" \}/.test(pane),
-    "two options, the line first",
-  );
-
-  // Three numbers, three names, and only the provisioned one links away. The
-  // two the receptionist DECIDES are edited in the row that states them: they
-  // were sections nine and thirteen of a fourteen-section form, a page apart
-  // from each other and from the card that reads them.
-  assert.ok(
-    pane.includes('navigate("admin/integrations")') && pane.includes('label="Answers on"'),
-    "the line is Connections' to own",
-  );
-  assert.ok(
-    pane.includes('id="phone_display"') && pane.includes('id="handoff_number"'),
-    "and the two AI decides are rows of their own",
-  );
-  // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
-  // and a fragment would delete the rest. The save itself moved to
-  // surfaces/settings/business/save.tsx with the Business tab (Task 3.2); these rows
-  // take it from window, settings-honest.test.mjs presses them, and
-  // receptionist/business-tab/page/ runs the save when it fails.
-  // Absent means the line, so clearing the box removes the key: the row's patch, run in receptionist/business-tab/page/.
-  assert.ok(
-    pane.includes('btDispute(pub, btConflictOn("phone_display")'),
-    "and a serious disagreement is said out loud, on the row it is about",
-  );
-});
+// The field that caused this says what it is. Task 3.7 deleted the form. The three numbers are three rows of the Business
+// page, each edited where it is stated, drawn and pressed in
+// receptionist/business-tab/page/the-facts-and-one-value-edited-where-stated.test.mjs: the number customers are told to
+// call, a choice of "Your number" or "A different number" with the line first; the line AI answers on, Connections' to
+// own (its press goes to admin/integrations); the handoff number, a row of its own; and a serious disagreement said on
+// the row it is about, with no banner. Absent means the line, so clearing the box removes the key: the row's patch, run
+// there too. Pinned as who.tsx's text until 26 Nov 2026.
 
 test("Setup stops saying ready while a customer-facing fact is wrong", async () => {
   const { setupSteps } = await import("@chanlytics/contracts");
@@ -428,15 +364,8 @@ test("a config change records who and what, and neither is the values", async ()
   // settings-routes.test.mjs runs the PUT and reads both rows it wrote (its fields, its author and its version, and
   // never the business's own words), and first-receptionist.test.mjs the first receptionist's.
 
-  const mig = readRaw("supabase/migrations/00085_config_audit.sql");
-  assert.ok(
-    mig.includes("add column if not exists updated_by uuid references auth.users (id) on delete set null"),
-    "nullable, because rows written before this had no author to record",
-  );
-  assert.ok(
-    mig.includes("grant update (updated_by) on public.tenant_config to authenticated"),
-    "and the column needs its own door, or the UPDATE writes nothing",
-  );
+  // A member's save is recorded as theirs on the stack (workspace/config/the-feed-address-is-the-owner-s.db.test.mjs,
+  // through tenant_config_write); pinned as 00085's text until 26 Nov 2026.
 });
 
 test("the editor is four steps, and the days sit beside the hours they qualify", () => {
@@ -455,12 +384,7 @@ test("languages is one control, not a grid plus a second control", () => {
   // The fourteen languages shouting, two of them chosen, went with the form (Task 3.7). The languages are one fold of
   // the Business page: the chosen ones as tokens, each with its remove, and ONE box to add another, over the common
   // ones as an offer rather than a wall. receptionist/business-tab/answers/ draws it and adds, removes and caps it.
-  const pane = readRaw("apps/dashboard/src/surfaces/settings/business/answers-fields.tsx");
-  assert.ok(pane.includes('data-testid="rec-languages"') && pane.includes("<RecordCombobox"), "a token field");
-  assert.ok(!/set-chip/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");
-  assert.ok(!pane.includes('placeholder="Another language"'), "and no second field underneath to add a fifteenth");
-  assert.ok(
-    /e\.key === "Backspace" &&\s*"value" in e\.target &&\s*e\.target\.value === "" &&\s*chosen\.length/.test(pane),
-    "backspace takes the last one back, as every token field does",
-  );
+  // Drawn and pressed in receptionist/business-tab/answers/the-voice-the-languages-and-the-rules.test.mjs: a token field,
+  // added from the list or as typed, removed with its Undo, and Backspace in the empty box gives the last one back.
+  // Pinned as answers-fields.tsx's text until 26 Nov 2026.
 });
