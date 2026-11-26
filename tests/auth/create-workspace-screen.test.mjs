@@ -574,7 +574,7 @@ test("a handover (0016): asked before anything opens, in the partner's name, and
   assert.ok(byTestId(tree, "handover"), "the screen, instead of the app");
   assert.equal(
     textOf(byTestId(tree, "handover-body")),
-    "ada-co set Luna Studio up for you. Accept to become its owner: you'll choose a plan and pay for it, and ada-co stays on your team as your partner, whom you can remove in Team at any time.",
+    "ada-co set Luna Studio up for you. Accept to own it: you choose a plan and pay, and ada-co stays on as your partner until you remove them.",
   );
   assert.equal(textOf(byTestId(tree, "handover-until")), "Open until Oct 11.");
   await byTestId(tree, "handover-accept").props.onClick();

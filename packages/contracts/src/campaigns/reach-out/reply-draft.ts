@@ -90,6 +90,8 @@ const flatClip = (v: string | null | undefined, max: number): string => clipAtWo
  * The business's name is theirs, not the owner's: the lead's listing, as the finder read it from Places. The note is a
  * system block (the brain's whoNote), so the name is one as a prompt may show one and fenced as the name they call
  * themselves (contracts ai/fence.ts), and a listing that names itself an instruction says nothing to the model.
+ *
+ * screen-word: said to the model, never shown on a page.
  */
 export function leadReplyNote(params: {
   business: string;

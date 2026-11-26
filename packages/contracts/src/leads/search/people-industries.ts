@@ -20,7 +20,7 @@ const PEOPLE_INDUSTRIES = [
   "Aviation & Aerospace",
   "Banking",
   "Biotechnology",
-  "Broadcast Media",
+  "Broadcast Media", // screen-word: the industry's own name, as the directory lists it
   "Building Materials",
   "Business Supplies & Equipment",
   "Capital Markets",

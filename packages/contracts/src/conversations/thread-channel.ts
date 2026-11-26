@@ -18,6 +18,7 @@ import type { MessageDto } from "./thread-dto";
 const AGENTS = {
   whatsapp: { glyph: "W", name: "AI on WhatsApp" },
   sms: { glyph: "T", name: "AI by text" },
+  // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
   email: { glyph: "Y", name: "Your team" },
   instagram: { glyph: "I", name: "AI on Instagram" },
   phone: { glyph: "P", name: "AI on the phone" },

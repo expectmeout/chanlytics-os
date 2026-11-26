@@ -657,7 +657,7 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
     assert.ok(byTestId(tree, "ask-card-ring"), "the clock leads the line");
     const undo = byClass(tree, "ask-card-undo")[0];
     assert.equal(textOf(undo), t.undo, "it says Undo");
-    assert.equal(undo.props.title, reply.undo);
+    assert.equal(undo.props["data-tip"], reply.undo);
     assert.equal(byClass(tree, "ask-card-foot").length, 0, "the words for what follows are the card's, before the act");
 
     const sent = {

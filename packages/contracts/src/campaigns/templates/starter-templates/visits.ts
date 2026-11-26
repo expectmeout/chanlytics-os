@@ -31,7 +31,7 @@ export const VISIT_STARTERS: readonly StarterTemplate[] = [
   {
     key: "visit_reminder",
     name: "visit_reminder",
-    title: "Visit reminder",
+    title: "Appointment reminder",
     purpose: "for the day before an appointment",
     category: "utility",
     trigger: "visit_tomorrow",
@@ -114,7 +114,7 @@ export const VISIT_STARTERS: readonly StarterTemplate[] = [
     key: "after_visit_check",
     name: "after_visit_check",
     title: "How did it go",
-    purpose: "for the day after a visit",
+    purpose: "for the day after an appointment",
     category: "utility",
     trigger: "visited",
     texts: {

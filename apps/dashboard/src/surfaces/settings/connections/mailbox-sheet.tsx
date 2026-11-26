@@ -250,7 +250,7 @@ export const MailboxSheet = (props: SheetProps) => {
         asking ? (
           <Confirm
             question={`Remove ${m.address}?`}
-            detail="Nothing more leaves from it and its replies are no longer read here · what it sent stays in its conversations, and a business it was writing to hears nothing more from that chain."
+            detail="Nothing more is sent from it or read here, and its cold emails stop. What it sent stays in its conversations."
             yes="Yes, remove"
             danger
             busy={busy}

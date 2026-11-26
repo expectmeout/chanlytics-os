@@ -26,6 +26,8 @@ import {
   type DnsRecordState,
   type MailboxDnsRecord,
   type MailboxProvider,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 
 type TxtResolver = (name: string) => Promise<string[][]>;
@@ -53,7 +55,7 @@ async function readTxt(name: string): Promise<TxtAnswer | null> {
   try {
     return await txt(name);
   } catch (e) {
-    return NO_RECORD.has((e as { code?: string }).code ?? "") ? [] : null;
+    return NO_RECORD.has(textOrEmpty(valueAt(e, "code"))) ? [] : null;
   }
 }
 
@@ -122,7 +124,7 @@ export async function readMailboxDns(host: string, provider: MailboxProvider): P
     readTxt(host),
     mx(host).then(
       (r) => r,
-      (e: unknown) => (NO_RECORD.has((e as { code?: string }).code ?? "") ? [] : null),
+      (e: unknown) => (NO_RECORD.has(textOrEmpty(valueAt(e, "code"))) ? [] : null),
     ),
   ]);
   if (root) {

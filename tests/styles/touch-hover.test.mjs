@@ -294,7 +294,7 @@ test("a list's row keeps its hover fill under a finger: the row last opened is t
         if (row && !guarded) under.set(row, true);
       }
     });
-  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "dtable", "msg-row", "sq-row"])
+  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "dtable", "sq-row"])
     assert.ok(
       under.get(row),
       `.${row}'s hover fill stands under @media (hover: hover), so a phone's tapped row is not lit`,

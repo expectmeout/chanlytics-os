@@ -51,6 +51,7 @@ import {
   lineLookupOf,
   normalizePhone,
   type SpendWords,
+  entryOf,
 } from "@chanlytics/contracts";
 import { lookupLineType } from "@chanlytics/channels/lines";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
@@ -472,6 +473,6 @@ export async function runLineOp(auth: Admitted, body: Partial<LinesBody>): Promi
 
   const call = await writingCall(body, choice, personFor(auth, body.user_id));
   if (!call.ok) return call.response;
-  const run = Object.hasOwn(WRITES, op) ? WRITES[op as WritingOp] : null;
+  const run = entryOf(WRITES, op) ?? null;
   return run ? run(call.value) : respond(UNKNOWN_LINE_OP);
 }

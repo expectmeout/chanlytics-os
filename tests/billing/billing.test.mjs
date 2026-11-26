@@ -62,7 +62,7 @@ test("planBilling: the status is copied verbatim, the switch follows AI, the bel
   assert.equal(started.row.card_last4, "4242");
   assert.equal(started.tenantStatus, null, "already active: nothing to write");
   assert.equal(started.switched, null);
-  assert.equal(started.bell.title, "Your trial has started");
+  assert.equal(started.bell.title, "The trial has started");
   assert.ok(started.bell.body.startsWith("14 days left on the trial, until Sep 21"));
 
   const paused = planBilling(

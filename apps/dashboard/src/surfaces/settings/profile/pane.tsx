@@ -98,7 +98,7 @@ function YourName({ flash }: { flash: Flash }) {
           id="profile-name"
           label="Name"
           value={stored || null}
-          empty="Your email stands in"
+          empty="Shown as your email"
           act={{
             label: stored ? "Change" : "Add one",
             name: stored ? "Change your name" : "Add one: your name",

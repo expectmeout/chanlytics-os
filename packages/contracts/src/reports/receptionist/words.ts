@@ -4,6 +4,7 @@
  * the view model, and only Reports' page reads them (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
 import { HELD_REASONS } from "../../campaigns/broadcasts/run-words";
+import { CALENDAR_UNLOADED } from "../../calendar/words/labels";
 import { INTENT_LABELS } from "../../config/intent-labels";
 import { DISCONNECTION_LABELS } from "../../conversations/call-dto";
 import { NEEDS_YOU_WORD } from "../../conversations/standing";
@@ -114,7 +115,7 @@ export function screenedLine(screened: ScreenedCallsDto): string {
 function bookedReason(calendar: LinksCalendar): string | null {
   if (calendar === "ended") return BOOKED_NEEDS_TODAY;
   if (calendar === "none") return BOOKED_NEEDS_A_LINK;
-  if (calendar === "unavailable") return "Your calendar couldn't be read.";
+  if (calendar === "unavailable") return `${CALENDAR_UNLOADED}.`;
   return null;
 }
 

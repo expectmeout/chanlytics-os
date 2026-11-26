@@ -61,6 +61,7 @@ function agoOf(at: string, now: Date): string {
 
 const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`;
 
+// screen-word: said to the model, never shown on a page.
 const VERDICT_SAYS: Record<IdeaVerdict, string> = {
   worked: "worked: build on it, the same kind in another listed place or a close kind",
   did_not_work: "did not work: do not suggest it again; a close kind only with what went wrong left out",

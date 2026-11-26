@@ -67,6 +67,7 @@ const TOLD_BEFORE_WORDS = { rejected: "refused", paused: "paused", disabled: "di
  * The same notice as the edge worded it until 13 Nov 2026 (`Template “<name>” <status word>`): a warning kept then is on
  * the bell for its thirty days, and its approval closes it too. Nothing is kept under these after 13 Dec 2026.
  */
+// screen-word: the titles of rows kept before 13 Nov 2026, matched and never written
 const toldBefore = (status: (typeof MENDED_BY_APPROVAL)[number]): string =>
   `Template “.*” ${TOLD_BEFORE_WORDS[status]}`;
 
