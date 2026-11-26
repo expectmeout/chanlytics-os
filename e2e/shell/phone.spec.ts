@@ -1280,6 +1280,26 @@ test.describe("Phone shell on a real workspace", () => {
         await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: 562 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
+    // Where a row stands once the page is at rest: every animation running has finished (motionSettled), then two frames
+    // run at one place. Both readings are taken so, the one the Back is held to and the one after it.
+    const restingTop = async (at: ReturnType<typeof page.locator>) => {
+      await motionSettled(page);
+      return at.evaluate(
+        (el) =>
+          new Promise<number>((done) => {
+            let last = Number.NaN;
+            const look = () => {
+              const top = el.getBoundingClientRect().top;
+              if (Math.abs(top - last) < 0.5) done(top);
+              else {
+                last = top;
+                requestAnimationFrame(look);
+              }
+            };
+            requestAnimationFrame(look);
+          }),
+      );
+    };
     const places: Record<string, string> = {};
     // The room under the list is the list's own where the row's page is a thread: while the window scrolled an open thread
     // (#1781, until the thread became a screen of its own on 3 Nov 2026) it opened it at its end, and room left on the
@@ -1295,19 +1315,25 @@ test.describe("Phone shell on a real workspace", () => {
         content: `${rowSel} { height: 420px !important; } ${room} { padding-bottom: 1600px; }`,
       });
       await page.evaluate(() => window.scrollBy(0, 260));
-      // The row a third of the way down the screen, marked so the one found after is the same element, and where it stands.
-      const was = await page.evaluate((sel) => {
-        const row = document.elementFromPoint(195, 300)?.closest(sel);
-        if (!row) return null;
-        row.setAttribute("data-e2e-opened", "");
-        return { top: row.getBoundingClientRect().top, scrolled: window.scrollY };
+      // The page comes in rising from 4px lower (components.css .route-view, route-in, 240 ms). Read during that rise, the
+      // row stood up to 4px low, while the held list read it at the tap, when the rise was over, and put it back there: "-4px
+      // from where it stood" on a slow night's first try (twice in 45 nights to 25 Nov 2026, again on 26 Nov), never on the
+      // retry, whose page had risen before it was read. So the row is marked once the page is still, and read at rest.
+      await motionSettled(page);
+      // The row a third of the way down the screen, marked so the one found after is the same element.
+      const scrolled = await page.evaluate((sel) => {
+        const found = document.elementFromPoint(195, 300)?.closest(sel);
+        if (!found) return null;
+        found.setAttribute("data-e2e-opened", "");
+        return window.scrollY;
       }, rowSel);
-      if (!was) throw new Error(`${hash}: no row stands a third of the way down the screen`);
-      expect(was.scrolled, `${hash}: the list is scrolled down`).toBeGreaterThan(200);
+      if (scrolled === null) throw new Error(`${hash}: no row stands a third of the way down the screen`);
+      expect(scrolled, `${hash}: the list is scrolled down`).toBeGreaterThan(200);
       // The list's own row, never the still picture of the list that stands under the row's page while a thumb carries it
       // (kit/motion/held-list.ts showHeld, over leaving.ts stillCopyOf): a copy keeps every attribute but its ids, this mark
       // among them, is inert, and can stand a moment after the Back has landed, so the mark alone found two rows some nights.
       const row = page.locator(`${rowSel}[data-e2e-opened]:not([inert], [inert] *)`);
+      const was = await restingTop(row);
       // A thumb taps it where it stands. A locator's click first scrolls a row the frame's head half covers wholly into
       // view, so the list moved before the tap, and was put back where the tap found it, not where the test measured it.
       await page.touchscreen.tap(195, 300);
@@ -1317,26 +1343,8 @@ test.describe("Phone shell on a real workspace", () => {
       await carryBack();
       await expect(page.locator(opened), `${hash}: the row's page has gone`).toBeHidden();
       await expect(row, `${hash}: the same row, kept: nothing was built again`).toBeVisible();
-      // Where it stands once the list has come to rest: read while the list was still sliding back under the page that
-      // left, it stood 4px short twice in 45 nights (13-25 Nov 2026), and was where it stood on the retry. At rest is two
-      // frames running at one place, after every animation the Back began has finished.
-      await motionSettled(page);
-      const restsAt = await row.evaluate(
-        (el) =>
-          new Promise<number>((done) => {
-            let last = Number.NaN;
-            const look = () => {
-              const top = el.getBoundingClientRect().top;
-              if (Math.abs(top - last) < 0.5) done(top);
-              else {
-                last = top;
-                requestAnimationFrame(look);
-              }
-            };
-            requestAnimationFrame(look);
-          }),
-      );
-      const off = Math.round(restsAt - was.top);
+      // Where it stands once the list has come to rest, after every animation the Back began has finished.
+      const off = Math.round((await restingTop(row)) - was);
       places[hash] = Math.abs(off) <= 1 ? "where it stood" : `${off}px from where it stood`;
     }
     test.skip(Object.keys(places).length === 0, "no list here has a row");
