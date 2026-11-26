@@ -31,7 +31,17 @@ import {
   rpcNames,
   serviceRoleReaches,
 } from "../_ast.mjs";
-import { breakpointSet, DOOR_FORBIDS, doorsWithoutEventsIn, tablesWrittenBy, writersByTable } from "../_measures.mjs";
+import {
+  breakpointSet,
+  DOOR_FORBIDS,
+  doorsWithoutEventsIn,
+  EVIDENCE_FAMILIES,
+  NO_FACT_DOORS,
+  TS_ONLY_EVENTS,
+  tablesWrittenBy,
+  writersByTable,
+} from "../_measures.mjs";
+import { readRaw } from "../_source.mjs";
 import { knipCommand } from "../../tooling/scripts/checks/dead-exports.mjs";
 import { flatWarnings, groupArgs, heldButClean, peaksWords } from "../../tooling/scripts/checks/lint.mjs";
 
@@ -579,7 +589,67 @@ end $$;
     fn("notes_erase_on_contact", "update public.notes set id = null; insert into public.notes (id) values (1);"),
   ].join(`
 `);
-  assert.deepEqual(doorsWithoutEventsIn(sql), { "note_quiet()": 1, "notes_erase_on_contact()": 1 });
+  // What the code calls: every function above but the trigger's.
+  const reached = new Set([
+    "note_add",
+    "note_add_via",
+    "lead_add",
+    "note_quiet",
+    "note_quiet_unprivileged",
+    "job_schedule",
+    "purge_notes",
+    "notes_erase_on_contact",
+  ]);
+  assert.deepEqual(doorsWithoutEventsIn(sql, { reached }), { "note_quiet()": 1, "notes_erase_on_contact()": 1 });
+});
+
+test("a trigger and a step are no door: their writes are the writes of the door whose run reaches them", () => {
+  const fn = (name, body, { returns = "void" } = {}) =>
+    `CREATE FUNCTION public.${name}() RETURNS ${returns}
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+${body}
+end $$;
+`;
+  const table = (name) => `CREATE TABLE public.${name} (
+    id uuid
+);
+`;
+  const sql = [
+    ...["events", "notes", "note_counts", "bells"].map(table),
+    // A trigger that keeps a count: no door, and the door that writes notes holds what it writes.
+    fn("notes_counted", "insert into public.note_counts (id) values (1);", { returns: "trigger" }),
+    `CREATE TRIGGER notes_counted AFTER INSERT ON public.notes FOR EACH ROW EXECUTE FUNCTION public.notes_counted();
+`,
+    fn("note_add", "insert into public.notes (id) values (1);"),
+    fn("note_add_told", "insert into public.notes (id) values (1); insert into public.events (id) values (1);"),
+    // A step only other functions call: no door, and each caller holds what it writes.
+    fn("bell_ring", "insert into public.bells (id) values (1);"),
+    fn("note_ring", "perform public.bell_ring();"),
+    fn("note_ring_told", "perform public.bell_ring(); insert into public.events (id) values (1);"),
+  ].join(`
+`);
+  const reached = new Set(["note_add", "note_add_told", "note_ring", "note_ring_told"]);
+  assert.deepEqual(doorsWithoutEventsIn(sql, { reached }), { "note_add()": 2, "note_ring()": 1 });
+});
+
+test("an evidence kind, the only thing written where it is observed, is no kind the TypeScript-only measure holds", () => {
+  const held = Object.keys(TS_ONLY_EVENTS.measure());
+  assert.deepEqual(
+    held.filter((kind) => EVIDENCE_FAMILIES.some((family) => kind.startsWith(family))),
+    [],
+    "a token count, a webhook's knock, a message no workspace takes",
+  );
+});
+
+test("each door named as keeping no fact is still a door that writes rows and no event", () => {
+  const raw = doorsWithoutEventsIn(readRaw("supabase/schema.sql"));
+  const stale = Object.keys(NO_FACT_DOORS).filter((door) => !Object.hasOwn(raw, door));
+  assert.deepEqual(stale, [], "a door that writes its event now, or is gone, leaves NO_FACT_DOORS");
+  for (const [door, why] of Object.entries(NO_FACT_DOORS))
+    assert.ok(why.length > 40, `${door}: say why it keeps no fact`);
 });
 
 /* ---- The doors a module reaches ---- */
