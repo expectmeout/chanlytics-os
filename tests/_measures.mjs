@@ -1397,6 +1397,12 @@ export const LEDGER_ONLY_KINDS = {
     "Stripe's word that a trial ends in three days: no row of ours changes for it; its bell is kept once under the Stripe event, and the event records the word",
   "call.screened":
     "A call turned away, or let pass with no call back owed (decision 0138): a count for Reports (ACTIVITY_NOISE_KINDS), observed before any row of the call exists; the third writer, a reply draft that reads its sender as selling, sets the thread aside through its own door first, and moves with it",
+  "google.reply_held":
+    "A reply the receptionist wrote for a review and did not post, as it named a price or money: no row changes for it, and the event is the hold's one record, which the next sync reads back so the review is not drafted again (getSubjectsWith)",
+  "file.posted":
+    "A post put on the Google profile: Google holds the post, and no row of ours is written for it; the event is the record of where it is, which the file's page reads back (findFilePosted)",
+  "file.unposted":
+    "A post taken off the Google profile: the same record's other half, read back the same way (findFilePosted)",
 };
 
 export const TS_ONLY_EVENTS = {
