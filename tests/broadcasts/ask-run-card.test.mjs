@@ -204,7 +204,7 @@ async function runCall(input, { role = "operator", now = NOW, question } = {}) {
   const supabase = fakeDb(world(role), {}, RPCS);
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, now);
   t.question = question;
-  const out = await buildProposal(t, "propose_campaign", { action: "batch", ...input });
+  const out = await buildProposal(t, "propose_campaign", { action: "send", ...input });
   const p = out.proposal;
   return {
     got: p
@@ -591,7 +591,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
   const tables = todays();
   const tab = tabOver(tables);
   const run = () => tables.broadcasts.find((b) => b.id === RUN);
-  const built = await buildProposal(tab.t, "propose_campaign", { action: "batch", broadcast_id: RUN, verb: "approve" });
+  const built = await buildProposal(tab.t, "propose_campaign", { action: "send", broadcast_id: RUN, verb: "approve" });
   assert.equal(built.isError, false, built.result);
   const card = built.proposal;
   const done = await commitProposal(tab.win, card, tab.client);
@@ -641,7 +641,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
 test("a run card skipped, walked end to end: Skip ends the run unsent through its cancel, nothing is scheduled, the receipt is the Broadcasts page's, and there is nothing to undo; approved after its day, the route refuses in the words the card's builder refuses in", async () => {
   const tables = todays();
   const tab = tabOver(tables);
-  const card = (await buildProposal(tab.t, "propose_campaign", { action: "batch", broadcast_id: RUN, verb: "skip" }))
+  const card = (await buildProposal(tab.t, "propose_campaign", { action: "send", broadcast_id: RUN, verb: "skip" }))
     .proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const run = tables.broadcasts.find((b) => b.id === RUN);

@@ -323,7 +323,7 @@ test("the row the scope names rides in whole, read by its own tool and action: a
   for (const kind of ["thread", "conversation"])
     assert.deepEqual(scopedRead({ kind, id: X, label: "Rosa" }), {
       name: "inbox",
-      input: { action: "thread", conversation_id: X, more: false },
+      input: { action: "conversation", conversation_id: X, more: false },
     });
   assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }), {
     name: "leads",
@@ -345,7 +345,7 @@ test("the row the scope names rides in whole, read by its own tool and action: a
   });
   assert.deepEqual(scopedRead({ kind: "run", id: X, label: "Monday offer" }), {
     name: "campaigns",
-    input: { action: "batch", broadcast_id: X },
+    input: { action: "send", broadcast_id: X },
   });
   assert.equal(scopedRead({ kind: "page", id: "reports", label: "Reports" }), null, "a page");
   assert.equal(scopedRead(null), null);
@@ -653,7 +653,7 @@ test("a rule that described one tool is that tool's description now, and out of 
       "propose_reply",
       "a rewrite in words",
     ],
-    ["Read list_audiences before any broadcast", "sequences", "read before any send"],
+    ["Read list_audiences before any broadcast", "campaigns", "read before any send"],
     ["never propose a broadcast to nobody", "propose_campaign", "never propose a send to nobody"],
     [
       "read list_lead_searches, then propose_lead_search: one plan, never a search",

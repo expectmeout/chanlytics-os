@@ -518,6 +518,16 @@ test("every read, each an action of the read tools, runs against the database in
       "calendar.week",
       "calls.get",
       "calls.list",
+      "campaigns.campaign",
+      "campaigns.cold_emails",
+      "campaigns.edited",
+      "campaigns.journey",
+      "campaigns.list",
+      "campaigns.lists",
+      "campaigns.messages",
+      "campaigns.moments",
+      "campaigns.send",
+      "campaigns.sent",
       "files.compare",
       "files.get",
       "files.list",
@@ -527,9 +537,9 @@ test("every read, each an action of the read tools, runs against the database in
       "files.week",
       "files.zoom",
       "guide",
+      "inbox.conversation",
       "inbox.list",
       "inbox.search",
-      "inbox.conversation",
       "leads.back",
       "leads.ideas",
       "leads.lead",
@@ -543,16 +553,6 @@ test("every read, each an action of the read tools, runs against the database in
       "people.winners",
       "recall",
       "report",
-      "campaigns.send",
-      "campaigns.cold_emails",
-      "campaigns.edited",
-      "campaigns.journey",
-      "campaigns.list",
-      "campaigns.lists",
-      "campaigns.messages",
-      "campaigns.moments",
-      "campaigns.sent",
-      "campaigns.campaign",
       "signals",
       "today",
       "workspace.activity",
@@ -618,7 +618,7 @@ test("every read, each an action of the read tools, runs against the database in
   assert.deepEqual(JSON.parse(out["campaigns.list"].result), {
     route: "campaigns/sequences",
     needs_you: 0,
-    sequences: [],
+    campaigns: [],
   });
   assert.equal(out["campaigns.campaign"].isError, true, "a sequence is asked for by its id");
   assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
@@ -680,7 +680,7 @@ test("every read, each an action of the read tools, runs against the database in
   // A period the schema does not list is refused before the read runs, in the schema's own words (PR 3.1, D2).
   assert.match(JSON.parse((await run("report", { period: "12d" })).result).error, /^report: period Invalid option/);
   assert.equal(
-    (await run("inbox", { action: "thread", conversation_id: "nope" })).result,
+    (await run("inbox", { action: "conversation", conversation_id: "nope" })).result,
     JSON.stringify({ error: "conversation_id must be an id a tool returned" }),
   );
 });

@@ -1063,7 +1063,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   );
   const READ_TOOLS = toApiTools("viewer", true);
   const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
-  assert.ok(READ_TOOLS.some((t) => t.name === "sequences"));
+  assert.ok(READ_TOOLS.some((t) => t.name === "campaigns"));
   // Only a template WhatsApp approves, or is still checking (the send waits for that one: ask-campaign-channels.test.mjs):
   // one it asked a change to is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

@@ -225,7 +225,7 @@ after(() => (globalThis.fetch = real));
  * propose_plan's offer; a broadcast, a playbook and a run are propose_campaign's once, moment and batch; the rest keep
  * their names under propose_campaign.
  */
-const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "batch" };
+const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "send" };
 const asSequence = (input) =>
   input?.action === "plan"
     ? ["propose_plan", { ...input, action: "offer" }]
@@ -725,7 +725,7 @@ test("campaigns with action playbooks says the channels each playbook goes by no
     },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "sequences", input: { action: "moments" } });
+  const out = await runTool(t, { name: "campaigns", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const listed = Object.fromEntries(JSON.parse(out.result).playbooks.map((p) => [p.name, p.channels]));
   assert.deepEqual(listed, {
@@ -902,7 +902,7 @@ test("campaigns.audiences lists a message with an email version and no WhatsApp 
     { people_list: () => PEOPLE },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
+  const out = await runTool(t, { name: "campaigns", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const { templates } = JSON.parse(out.result);
   assert.deepEqual(
@@ -929,7 +929,7 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   const world = { ...NO_NUMBER, templates: [emailNote()] };
   const supabase = fakeDb(tables(world), {}, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
+  const out = await runTool(t, { name: "campaigns", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   const everyone = read.audiences.find((a) => a.kind === "everyone");
@@ -963,7 +963,7 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   assert.match(card.proposal.summary, /^2 people who said yes · by email/);
   // The tool's own words say the same, in the listing's sentences and in the tail the model reads before it quotes a count.
   const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-  const listing = toApiTools("owner", true).find((x) => x.name === "sequences").description;
+  const listing = toApiTools("owner", true).find((x) => x.name === "campaigns").description;
   for (const words of [
     "four counts, because there are two consents and a yes needs a number to send to and a channel to carry it:",
     "(who a promotional, or a utility or authentication, message reaches on WhatsApp)",
@@ -1135,7 +1135,7 @@ test("a message WhatsApp is still checking is listed to the AI, with an email be
   ];
   const supabase = fakeDb(tables({ templates: reviewing }), {}, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
+  const out = await runTool(t, { name: "campaigns", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const { templates } = JSON.parse(out.result);
   // The one picker rule: both are listed, each under the id of the WhatsApp row its words are read from, by the channels
@@ -1191,7 +1191,7 @@ test("Ask is told what a message is: a name with a version on each channel it is
   );
   const tools = toApiTools("owner", true);
   const described = (name) => tools.find((t) => t.name === name).description;
-  const listing = described("sequences");
+  const listing = described("campaigns");
   const proposing = described("propose_campaign");
   assert.ok(
     listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now;"),
@@ -1298,7 +1298,7 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
   const listing = async (db, faults = {}) => {
     const supabase = fakeDb(tables(db), faults, { people_list: () => PEOPLE });
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-    return JSON.parse((await runTool(t, { name: "sequences", input: { action: "lists" } })).result);
+    return JSON.parse((await runTool(t, { name: "campaigns", input: { action: "lists" } })).result);
   };
   const everyone = (r) => r.audiences.find((a) => a.kind === "everyone");
   // Nobody heard: the counts and the note are what they always were, and nothing is said of anyone left out.

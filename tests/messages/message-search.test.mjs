@@ -405,7 +405,7 @@ test("inbox.search says who wrote a message and what became of it as inbox.conve
   );
   // One spelling: the thread says each of them as the search does -- all but the call's note, which the thread files
   // as the customer's because it is recorded as inbound.
-  const thread = await inbox(t, { action: "thread", conversation_id: C1 });
+  const thread = await inbox(t, { action: "conversation", conversation_id: C1 });
   for (const h of found.hits.filter((x) => x.from !== "call note")) {
     const m = thread.messages.find((x) => x.text === h.snippet);
     assert.deepEqual([h.from, h.status], [m.from, m.status], h.snippet);

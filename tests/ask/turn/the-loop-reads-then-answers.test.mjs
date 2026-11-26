@@ -176,6 +176,8 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "press_card",
     "propose_ad",
     "propose_call",
+    "propose_campaign",
+    "propose_conversation",
     "propose_deal",
     "propose_follow_up",
     "propose_form",
@@ -186,9 +188,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "propose_plan",
     "propose_reply",
     "propose_review",
-    "propose_campaign",
     "propose_settings",
-    "propose_conversation",
     // A fact the person tells Ask to keep (decision 0070).
     "remember",
   ]);

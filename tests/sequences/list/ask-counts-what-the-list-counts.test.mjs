@@ -104,16 +104,16 @@ const listed = async () => {
   );
   const ctx = { supabase, userId: "u1", email: "ada@example.com", params: {} };
   const said = await runTool(newToolContext(ctx, TID, "owner", TZ, NOW), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "list" },
   });
   return JSON.parse(said.result);
 };
-const named = (said, name) => said.sequences.find((s) => s.name === name);
+const named = (said, name) => said.campaigns.find((s) => s.name === name);
 
 test("the number on top is the page's: the sequences under Needs you", async () => {
   const said = await listed();
-  const under = said.sequences.filter((s) => s.group === "needs").map((s) => s.name);
+  const under = said.campaigns.filter((s) => s.group === "needs").map((s) => s.name);
   assert.deepEqual(under.sort(), ["Did not run", "Failed once", "Held", "Stuck"]);
   assert.equal(said.needs_you, 4);
 });

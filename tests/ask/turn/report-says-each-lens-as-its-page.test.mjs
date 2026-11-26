@@ -549,7 +549,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
     forgetFeeds();
     // A busy week: every part, in the page's own words.
     const week = await run({ receptionist_series: (a) => quietSeries(a, busy) });
-    assert.deepEqual(week.said.receptionist, {
+    assert.deepEqual(week.said.ai, {
       hold: {
         rows: [
           "Went out as the hold ended: 9",
@@ -597,8 +597,8 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       ],
       held_back: ["A person had the conversation: 3", "Asked to stop: 1"],
     });
-    assert.equal(week.said.receptionist.held_back[0], "A person had the conversation: 3");
-    assert.equal(week.said.receptionist.stuck[0].value, "2");
+    assert.equal(week.said.ai.held_back[0], "A person had the conversation: 3");
+    assert.equal(week.said.ai.stuck[0].value, "2");
     assert.equal(
       peopleRead(week),
       1,
@@ -625,10 +625,10 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       },
       { nowMs: NOW.getTime() },
     );
-    assert.equal(week.said.receptionist.link, folded.link.line);
-    assert.equal(week.said.receptionist.hold.line, folded.hold.line);
+    assert.equal(week.said.ai.link, folded.link.line);
+    assert.equal(week.said.ai.hold.line, folded.hold.line);
     assert.deepEqual(
-      week.said.receptionist.stuck.map((s) => s.meta),
+      week.said.ai.stuck.map((s) => s.meta),
       folded.stuck.map((s) => s.meta),
     );
 
@@ -646,18 +646,18 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         },
       }),
     );
-    assert.deepEqual(absent.result.said.receptionist, { available: false });
+    assert.deepEqual(absent.result.said.ai, { available: false });
     assert.deepEqual(absent.lines, [JSON.stringify({ tenant_id: A })], "said once for the read, naming the workspace");
 
     // A read that fails, here a function nobody scripted: said as an error, never as nothing happening, and in the log;
     // the report's own numbers stand.
     const failed = await logged("ask_tool_read_failed", () => run({}));
-    assert.deepEqual(failed.result.said.receptionist, {
+    assert.deepEqual(failed.result.said.ai, {
       error: "AI's numbers could not be read just now",
     });
     assert.deepEqual(
-      failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "receptionist"),
-      ["receptionist"],
+      failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "ai"),
+      ["ai"],
       "and said once in the log",
     );
     assert.equal(failed.result.said.range, "7 days");
@@ -666,11 +666,11 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         throw new Error("connection refused");
       },
     });
-    assert.deepEqual(down.said.receptionist, { error: "AI's numbers could not be read just now" });
+    assert.deepEqual(down.said.ai, { error: "AI's numbers could not be read just now" });
 
     // A period with nothing in it: the page's words for each part, and no zero said for what has no source.
     const quiet = await run({ receptionist_series: (a) => quietSeries(a) });
-    assert.deepEqual(quiet.said.receptionist, {
+    assert.deepEqual(quiet.said.ai, {
       hold: { empty: "No reply waited in a hold in this period." },
       topics: { empty: "Topics are read from texts and WhatsApp messages. None came in this period." },
       languages: null,
@@ -710,8 +710,8 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       receptionist_series: (a) =>
         quietSeries(a, { missed: { now: { n: 2, touched: 1, pending: 0, unknown: 0 }, before: NO_MISSED } }),
     });
-    assert.deepEqual(rang.said.receptionist.call_endings, { empty: "No call connected in this period." });
-    assert.equal(JSON.stringify(quiet.said.receptionist).includes("NaN"), false);
+    assert.deepEqual(rang.said.ai.call_endings, { empty: "No call connected in this period." });
+    assert.equal(JSON.stringify(quiet.said.ai).includes("NaN"), false);
     assert.equal(peopleRead(quiet), 1, "no link was sent: nobody is read for it, only the booking line's own read");
   } finally {
     globalThis.fetch = fetchWas;
