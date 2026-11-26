@@ -2,7 +2,7 @@
  * What the Line reads of where it stands: the route under it, a scope's name, a phone or a desk, where the three come from
  * as it opens, and what stands over the page. Pure of its state.
  */
-import type { AskMessageVM, AskScope } from "@chanlytics/contracts";
+import type { AskMessageDto, AskScope } from "@chanlytics/contracts";
 import { askOnScreenKey } from "@/bridge/ask/on-screen";
 import { AH_OPEN_OVER } from "../hooks";
 import { askKindGlyph } from "../card-parts";
@@ -45,10 +45,10 @@ export const arScopeIcon = (s: AskScope) => askKindGlyph(s.kind);
  * message it wrote, and nothing reads it on one the Line drew itself.
  */
 export const lineMessage = (
-  message: Pick<AskMessageVM, "id" | "role" | "text"> & Partial<AskMessageVM>,
-): AskMessageVM => ({
+  message: Pick<AskMessageDto, "id" | "role" | "text"> & Partial<AskMessageDto>,
+): AskMessageDto => ({
   at: "",
-  atMs: Date.now(),
+  at_ms: Date.now(),
   citations: [],
   followups: [],
   navigate: null,
@@ -56,7 +56,7 @@ export const lineMessage = (
   language: "en",
   ungrounded: false,
   tools: [],
-  latencyMs: null,
+  latency_ms: null,
   failed: false,
   ...message,
 });

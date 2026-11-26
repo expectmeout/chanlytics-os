@@ -3,6 +3,7 @@
  * whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { audienceLate, audienceTrigger } from "../broadcasts/audience";
+import type { RunReachDto } from "../broadcasts/audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { BREATH_WHY } from "../broadcasts/run-words";
 import { purposeOfPlaybook } from "../../consent/consent";
@@ -16,7 +17,6 @@ import { isReachOutRun } from "../reach-out/rules";
 import { capitalize } from "../../shared/words";
 import { isOccasionTrigger, occasionWords } from "./triggers/occasions";
 import { messageAboutOfTrigger } from "./purpose";
-import type { RunReach } from "./reach";
 import { approvalEndsWithSendingHours, triggerOf } from "./triggers/notices";
 import { localDate, nextOpenMoment } from "./schedule";
 import type { PlaybookDto } from "./playbooks";
@@ -106,7 +106,7 @@ export function poolWords(trigger: string, word: AppointmentWord): string {
  * change. Null for a run that kept no count.
  */
 export function reachLines(
-  reach: RunReach | null | undefined,
+  reach: RunReachDto | null | undefined,
   playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null,
   /** How many of the run's people the month's allowance holds (ALLOWANCE_HELD_WORDS): in the held line, out of `will`. */
   allowanceHeld = 0,
@@ -131,16 +131,16 @@ export function reachLines(
       door: { words: "Say who came", to: SAY_WHO_CAME_ROUTE },
     },
     {
-      n: reach.noYes,
+      n: reach.no_yes,
       words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE },
     },
     // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
-    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
+    { n: reach.heard_any, words: `${one(reach.heard_any, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
-      n: reach.heardThis,
+      n: reach.heard_this,
       words: once
         ? "had this proposal's follow-up already"
         : gap
@@ -151,8 +151,8 @@ export function reachLines(
     },
     { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
     {
-      n: reach.noNumber,
-      words: one(reach.noNumber, "has no number on file", "have no number on file"),
+      n: reach.no_number,
+      words: one(reach.no_number, "has no number on file", "have no number on file"),
       tone: "plain",
       door: null,
     },
@@ -185,15 +185,15 @@ export function reachLines(
       door: null,
     },
     {
-      n: reach.overCap,
-      words: `${one(reach.overCap, "waits", "wait")} for the next run${playbook ? ` · ${playbook.cap_per_run} a run, the longest unheard first` : ""}`,
+      n: reach.over_cap,
+      words: `${one(reach.over_cap, "waits", "wait")} for the next run${playbook ? ` · ${playbook.cap_per_run} a run, the longest unheard first` : ""}`,
       tone: "plain",
       door: null,
     },
     {
-      n: reach.overLimit,
+      n: reach.over_limit,
       words: one(
-        reach.overLimit,
+        reach.over_limit,
         "is past what the number may start today",
         "are past what the number may start today",
       ),
@@ -208,7 +208,7 @@ export function reachLines(
     .map(({ n, words, tone, door }) => ({ n, words: `${n} ${words}`, tone, door }));
   return {
     pool: reach.pool,
-    held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit + allowanceHeld,
+    held: reach.heard_any + (once ? 0 : reach.heard_this) + reach.over_limit + allowanceHeld,
     lines,
   };
 }
@@ -399,7 +399,7 @@ export function waitingRunOffer(
 export function toApprovalVM(
   details: {
     broadcast: Pick<BroadcastDto, "recipient_count" | "run_for" | "params" | "playbook_id"> & {
-      audience?: { reach?: RunReach; trigger?: string } | null;
+      audience?: { reach?: RunReachDto; trigger?: string } | null;
     };
     recipients: ReadonlyArray<
       Pick<BroadcastRecipientDto, "name" | "first_name"> &

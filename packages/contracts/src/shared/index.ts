@@ -173,6 +173,7 @@ export {
   recordOrEmpty,
   textOrEmpty,
   valueAt,
+  withOldNames,
 } from "./unknown";
 export {
   ANSWER_JSON_ONLY,

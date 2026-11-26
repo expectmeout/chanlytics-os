@@ -4,13 +4,13 @@ import type {
   AskAnswer,
   AskAttached,
   AskLanguage,
-  AskMessageVM,
+  AskMessageDto,
   AskProposalOutcome,
   AskSayPreview,
   AskShowPreview,
   AskScope,
   AskSurface,
-  AskThreadVM,
+  AskThreadDto,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import type { AskDock } from "@/bridge/ask/dock";
@@ -27,7 +27,7 @@ export interface Turn {
   threadId: string | null;
   qid: string;
   ctl: AbortController;
-  final: AskMessageVM | null;
+  final: AskMessageDto | null;
   spoke: boolean;
   said: number;
   spoken: boolean;
@@ -61,7 +61,7 @@ type KeptQuick = { id: string; title: string } | null;
 export interface Conversation {
   id: string | null;
   title: string;
-  messages: AskMessageVM[];
+  messages: AskMessageDto[];
   scope: AskScope | null;
   kept?: Promise<KeptQuick> | null;
 }
@@ -116,14 +116,14 @@ export interface DrawnAnswer {
 
 /** A turn of the thread that has both: what the thread draws in full. */
 export interface FoldedTurn {
-  q: AskMessageVM;
-  a: AskMessageVM;
+  q: AskMessageDto;
+  a: AskMessageDto;
 }
 
 /** One question and its answer (`A.turns`). */
 export interface LineTurn {
-  q: AskMessageVM | null;
-  a: AskMessageVM | null;
+  q: AskMessageDto | null;
+  a: AskMessageDto | null;
 }
 
 /** The state of one Line (state.ts useArLine). */
@@ -133,8 +133,8 @@ export interface LineState {
   /** The photos beside the field (attached.tsx). */
   attached: AttachedPhoto[];
   setAttached: (next: AttachedPhoto[] | ((prev: AttachedPhoto[]) => AttachedPhoto[])) => void;
-  threads: AskThreadVM[];
-  setThreads: (next: AskThreadVM[] | ((prev: AskThreadVM[]) => AskThreadVM[])) => void;
+  threads: AskThreadDto[];
+  setThreads: (next: AskThreadDto[] | ((prev: AskThreadDto[]) => AskThreadDto[])) => void;
   active: Conversation | null;
   setActive: (next: Conversation | null | ((prev: Conversation | null) => Conversation | null)) => void;
   live: LiveTurn | null;
@@ -153,8 +153,8 @@ export interface LineState {
   setTick: (next: number | ((prev: number) => number)) => void;
   view: string;
   setView: (next: string | ((prev: string) => string)) => void;
-  doomed: AskThreadVM | null;
-  setDoomed: (next: AskThreadVM | null) => void;
+  doomed: AskThreadDto | null;
+  setDoomed: (next: AskThreadDto | null) => void;
   composing: boolean;
   setComposing: (next: boolean) => void;
   noticeWaits: boolean;
@@ -170,7 +170,7 @@ export interface LineState {
   bodyRef: ElementRef<HTMLDivElement>;
   dialogRef: ElementRef<HTMLDivElement>;
   typing: Ref<boolean>;
-  threadsReady: Ref<Promise<AskThreadVM[]> | null>;
+  threadsReady: Ref<Promise<AskThreadDto[]> | null>;
   turnSeq: Ref<number>;
   asked: Ref<AskedSeed | null>;
   held: Ref<boolean>;
@@ -199,8 +199,8 @@ export interface Line extends LineState {
   clearLine: () => void;
   noteOutcome: (messageId: string, pid: string, o: AskProposalOutcome) => void;
   openThread: (th: { id: string }) => Promise<Conversation | null>;
-  askDelete: (th: AskThreadVM) => void;
-  removeThread: (th: AskThreadVM) => Promise<void>;
+  askDelete: (th: AskThreadDto) => void;
+  removeThread: (th: AskThreadDto) => Promise<void>;
   stop: () => void;
   // The photos beside the field (attached.tsx).
   attach: ReturnType<typeof arAttach>["attach"];
@@ -222,7 +222,7 @@ export interface Line extends LineState {
   // What is under the line (under.ts).
   latest: LineTurn | null;
   folded: FoldedTurn[];
-  answerMsg: AskMessageVM | null;
+  answerMsg: AskMessageDto | null;
   showRows: boolean;
   composingRows: boolean;
   rowsDrawn: boolean;

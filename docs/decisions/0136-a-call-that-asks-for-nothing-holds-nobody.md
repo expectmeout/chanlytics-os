@@ -106,7 +106,7 @@ did, and the next pass lets the quiet ones go.
 - `tests/voice/provider/a-call-that-asks-for-nothing-holds-nobody.test.mjs`: the rule, the plan, and the real door over
   a database in memory.
 - `tests/cron/a-call-back-nobody-asked-for-lets-itself-go.test.mjs`: the hourly pass.
-- `tests/conversations/reply-draft-verbs.test.mjs`: a selling call set aside, and the two words on a held thread.
+- `tests/conversations/reply/reply-draft-verbs.test.mjs`: a selling call set aside, and the two words on a held thread.
 - `tests/conversations/inbox/inbox-status.test.mjs`, `inbox-counts.test.mjs`: the menu's word, the dock, the row.
 - `tests/receptionist/prompt/prompt-sections.test.mjs`: the rule's words on a call, and none in a chat.
 - `tests/voice/provider/call-backs-measure.test.mjs`: the count of `tooling/scripts/ops/voice/call-backs-measure.mjs`.

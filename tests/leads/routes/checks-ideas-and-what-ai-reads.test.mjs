@@ -815,7 +815,7 @@ test("the first page of leads carries the month's standing; a later page carries
     [262, 238],
     "used and reserved are both spoken for, out of the month's whole",
   );
-  assert.match(first.month.renewsOn, /^[A-Z][a-z]{2} \d{1,2}$/, "the day it renews, as the owner reads it");
+  assert.match(first.month.renews_on, /^[A-Z][a-z]{2} \d{1,2}$/, "the day it renews, as the owner reads it");
   assert.ok(first.counts, "the counts ride the first page too");
   const later = await leads.GET.run(
     get(`${inA}&sort=fit&dir=asc&list=all&limit=50&after_key=k&after_id=${LEAD}`),

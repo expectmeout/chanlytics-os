@@ -85,6 +85,7 @@ export {
   RUN_FILTERS,
   RUN_REPORT_STEPS,
   runCountsOf,
+  runReachDto,
   runStillMoving,
   runTitleOf,
   saidYesOnAny,

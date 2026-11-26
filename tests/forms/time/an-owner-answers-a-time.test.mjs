@@ -29,7 +29,7 @@ const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/s
 const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
-const { formRowsOf } = await import(at("packages/contracts/src/today/form-rows.ts"));
+const { formRowsOf } = await import(at("packages/contracts/src/today/queue/form-rows.ts"));
 
 const wire = emailWire(getEmailWire);
 beforeEach(async () => {

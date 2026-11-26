@@ -2,7 +2,7 @@
  * The plan panel's two acts (moved from legacy/pages/leads-finder.jsx, decision 0015): the answer to a search's question as
  * one Ask turn, and approving the plan the card shows. Plain functions over the panel's setters, so the tests can run them.
  */
-import type { AskProposal, LeadSearchPlan, PageContext } from "@chanlytics/contracts";
+import type { AskProposal, LeadSearchPlan, PageContextDto } from "@chanlytics/contracts";
 import type { SendEvent } from "@/bridge/ask";
 import { askCalls } from "../../frame-verbs";
 import { addressRoute } from "../../people/shell-verbs";
@@ -14,7 +14,7 @@ const payloadOf = (card: { payload?: unknown } | null | undefined): LeadSearchCa
   card && card.payload && typeof card.payload === "object" ? card.payload : {};
 
 /** The Leads page as it stands, sent beside the answer (bridge/ask/context.ts); nothing where Ask cannot say it. */
-function leadsContext(): PageContext | null {
+function leadsContext(): PageContextDto | null {
   const A = askCalls();
   try {
     return A && A.context

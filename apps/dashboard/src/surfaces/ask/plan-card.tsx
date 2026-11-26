@@ -81,7 +81,7 @@ const usePlanPress = (
   const undoable = (p: AskProposal, o: AskProposalOutcome) =>
     !!p.undo &&
     !!o.undo &&
-    askApi.undoOpen(p.kind, o.undo, o.atMs || 0, Date.now(), version ?? finiteOrNull(o.undo.version_after));
+    askApi.undoOpen(p.kind, o.undo, o.at_ms || 0, Date.now(), version ?? finiteOrNull(o.undo.version_after));
   // One campaign started is paused or opened from the card; several are each their own on Campaigns.
   const started = now.filter(
     (p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id,
@@ -122,7 +122,7 @@ const usePlanPress = (
       let kept = false;
       for (const { step, result } of run.results) {
         const p = now.find((c) => c.plan && c.plan.step === step);
-        if (p && result.ok) got[p.id] = { state: "undone", receipt: result.receipt, atMs: at, undo: null };
+        if (p && result.ok) got[p.id] = { state: "undone", receipt: result.receipt, at_ms: at, undo: null };
         else if (!result.ok) setErr(result.message);
         kept = kept || (result.ok && result.kept === true);
       }
@@ -146,7 +146,7 @@ const usePlanPress = (
           .filter((p) => !p.outcome)
           .map((p): [string, AskProposalOutcome] => [
             p.id,
-            { state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null },
+            { state: "dismissed", receipt: t.notNow, at_ms: Date.now(), undo: null },
           ]),
       ),
     );

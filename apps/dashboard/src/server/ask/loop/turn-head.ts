@@ -11,13 +11,13 @@ import {
   type AskCardOrigin,
   type AskColumn,
   type AskLanguage,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
   type AskProposalOutcome,
   type AskRowRef,
   type AskScope,
   type AskShowPreview,
-  type PageContext,
+  type PageContextDto,
 } from "@chanlytics/contracts";
 import { ASK_ANSWER_TEXT_FORMAT } from "../answer-format";
 import type { AskTurnShape } from "../shape";
@@ -85,7 +85,7 @@ export interface TurnEvent {
   headline?: string;
   detail?: string;
   show?: AskShowPreview;
-  message?: AskMessageVM;
+  message?: AskMessageDto;
 }
 
 export interface TurnInput {
@@ -137,11 +137,11 @@ export interface TurnInput {
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
   /**
-   * The page the question was asked on, as the tab sent it and the route read it (contracts PageContext); null from an
+   * The page the question was asked on, as the tab sent it and the route read it (contracts PageContextDto); null from an
    * older tab, a script, or a context the route refused. The turn reads the page again through its readers from these
    * identities (context.ts); nothing the tab says about a row is taken.
    */
-  context?: PageContext | null;
+  context?: PageContextDto | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
   /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
@@ -195,7 +195,7 @@ export type Msg = { role: "user" | "assistant"; content: unknown } | EffortMessa
 export interface AskPorts {
   round: typeof runRound;
   /** The page's context, built through the page's readers or taken from the warm's cache (context.ts). */
-  context: (rc: ReaderContext, context: PageContext) => Promise<BuiltContext>;
+  context: (rc: ReaderContext, context: PageContextDto) => Promise<BuiltContext>;
   /**
    * The shape of the workspace, as the second system block (readers/shape.ts, kept five minutes), and after it what Ask
    * remembers (companion/remembered.ts, read every turn): a memory that cannot be read costs its lines, never the shape.

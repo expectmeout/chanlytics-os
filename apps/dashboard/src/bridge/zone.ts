@@ -111,7 +111,7 @@ export async function workspaceZone(win: Window = window): Promise<string> {
   if (known) return known;
   const data = await read("GET workspaces");
   // Every workspace is made with a zone; the default is for a row that somehow has none.
-  lastRead = data.workspaces.find((t) => t.id === data.activeWorkspaceId)?.timezone || DEFAULT_TIMEZONE;
+  lastRead = data.workspaces.find((t) => t.id === data.active_workspace_id)?.timezone || DEFAULT_TIMEZONE;
   remember(win, slugOf(win), lastRead);
   return lastRead;
 }

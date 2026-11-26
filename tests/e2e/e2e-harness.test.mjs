@@ -294,13 +294,13 @@ test("the server answers the templates read as the route does, from the record's
 
   // Settings' read, `all`: the same, and what sends each message and how many went out, none on a harness that sends nothing.
   const all = asked("email-only", { all: "1" }).body.data;
-  assert.deepEqual(Object.keys(all), ["templates", "held", "messages", "booking", "usedBy", "sends"]);
-  assert.deepEqual([all.usedBy, all.sends], [{}, {}]);
+  assert.deepEqual(Object.keys(all), ["templates", "held", "messages", "booking", "used_by", "sends"]);
+  assert.deepEqual([all.used_by, all.sends], [{}, {}]);
   assert.deepEqual(all.messages, read.body.data.messages);
 
   // A record with no row answers none, and the salon's booking message is the one WhatsApp row it holds, marked as the Inbox books by it.
   assert.deepEqual(asked("nightly").body.data.messages, []);
-  assert.equal(asked("salon", { all: "1" }).body.data.usedBy.booking_link.booking, true);
+  assert.equal(asked("salon", { all: "1" }).body.data.used_by.booking_link.booking, true);
 
   // The channels: the rows the record knows, and none for a workspace with no line.
   const channels = (name) => answer("GET", "/api/v1/channels", scoped, scenario(name, NOW)).body.data.channels;

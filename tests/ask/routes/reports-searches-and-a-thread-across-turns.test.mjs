@@ -592,7 +592,7 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
     context: async () => page,
     propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
   });
-  const onToday = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
+  const onToday = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], asked_at: 1 };
   try {
     const [opened] = await linesOf(
       await ask.POST.run(send("POST", { text: "Ask me before every reply" }, inA), asJsonb(tables)),
@@ -702,7 +702,7 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
     );
     const card = tables.ask_messages.find((m) => m.role === "assistant");
     const outcome = asJsonb(tables, { id: card.id, pid: REPLY.id });
-    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 }), outcome);
     for (const text of ["And the reminders?", "And tomorrow?"])
       await linesOf(await ask.POST.run(send("POST", { text, thread_id: opened.id }, inA), asJsonb(tables)));
 
@@ -796,7 +796,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
       isError: false,
     }),
   });
-  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], askedAt: 1 };
+  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], asked_at: 1 };
   const SINCE = "Since the last answer, the person acted on cards from earlier in this conversation:";
   const wordsOf = (req) =>
     req.messages
@@ -836,7 +836,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
     );
 
     const outcome = asJsonb(tables, { id: first.id, pid: REPLY.id });
-    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 }), outcome);
     await linesOf(await ask.POST.run(send("POST", asked("Did it go?"), inA), asJsonb(tables)));
     await linesOf(await ask.POST.run(send("POST", asked("And tomorrow?"), inA), asJsonb(tables)));
     const [, , third, fourth] = requests;
@@ -990,7 +990,7 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
 
   // A card's outcome, recorded later: the row is read and written back whole, so the raw turn stays beside it.
   const outcome = asJsonb(tables, { id: answer.id, pid: CARD.id });
-  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", atMs: 0 }), outcome);
+  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", at_ms: 0 }), outcome);
   assert.equal(done.proposal.outcome.receipt, "Set");
   const row = tables.ask_messages.find((m) => m.id === answer.id);
   assert.equal(row.content.proposals[0].outcome.receipt, "Set");
@@ -998,6 +998,24 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
   assert.equal(row.content.raw.blocks, raw.blocks, "its blocks byte for byte");
   const [write] = outcome.supabase.seen.filter((q) => q.table === "ask_messages" && q.op === "update");
   assert.deepEqual(write.values.content.raw, raw, "written back whole");
+});
+
+test("a card kept before 26 Nov 2026 holds its outcome's time as atMs, and the Line reads it as at_ms, as a card kept since says it (store.ts keptOutcome)", async () => {
+  const { toMessageVM } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const kept = (id, outcome) => ({
+    id,
+    kind: "note",
+    outcome: { state: "done", receipt: "Noted on Priya.", ...outcome },
+  });
+  const row = {
+    id: "m-kept",
+    role: "assistant",
+    created_at: "2026-11-20T10:00:00Z",
+    content: { text: "Noted.", proposals: [kept("p-old", { atMs: 1_700 }), kept("p-new", { at_ms: 2_000 })] },
+  };
+  const [old, fresh] = toMessageVM(row).proposals;
+  assert.deepEqual(old.outcome, { state: "done", receipt: "Noted on Priya.", at_ms: 1_700 }, "the old name, gone");
+  assert.equal(fresh.outcome.at_ms, 2_000, "the new one as it was kept");
 });
 
 test("the database in memory answers a select as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key, ->> as text; a column or an embed the table does not have is refused", async () => {

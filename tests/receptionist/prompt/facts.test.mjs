@@ -247,7 +247,7 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
       name: "Marisa's Beauty Salon",
       hours: true,
       services: 33,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: "+12125550142",
       broken: false,

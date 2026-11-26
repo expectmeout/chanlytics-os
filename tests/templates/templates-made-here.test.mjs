@@ -29,7 +29,7 @@ import {
   MODEL_ROUTES,
   MODELS,
 } from "@chanlytics/contracts";
-import { ROOT, readCode } from "../_source.mjs";
+import { ROOT } from "../_source.mjs";
 
 // The drafter is run below over an edge stubbed with the provider guard open, which is read as its module loads.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -261,15 +261,13 @@ test("the duplicate's sentence is contracts', since Ask's message card says it t
 });
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
-  const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
-  // The slots per person and the hold on an unfillable one are run: broadcasts/core-broadcast/.
-  assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
+  // The slots per person and the hold on an unfillable one are run: broadcasts/core-broadcast/. The business name a slot
+  // is filled with, the business's own else the workspace's, by a whole run of the job in broadcasts/broadcasts.test.mjs,
+  // where broadcast-send.ts's text was read until 26 Nov 2026.
   // The specs and the booking-link refusal are run: broadcasts/core-campaigns/. Delete is the last item of a message's
   // name menu, drawn whole in templates/sheet/message-versions-page.test.mjs; the composer is drawn and typed into, its
   // brief drafted, its name, body and examples set and submitted, in broadcasts/page/a-broadcast-s-state.test.mjs; the
   // verbs it presses are imported, not published, and ask their routes (routes/the-library-s-verbs-ask-their-routes.test.mjs).
-  // The business name a slot is filled with falls back to the workspace's name: the one read left here, since only a
-  // whole run of the job reaches it (workspaceFacts is the handler's own).
   // An approval is news the owner waits for, told with what it was approved as: run, by value, in
   // whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
 });

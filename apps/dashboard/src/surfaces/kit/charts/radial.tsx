@@ -4,8 +4,9 @@
  * good outcome, as the app's tones say; charts.css) on a pale track, so the unfilled part still reads as "of this"; a small
  * tick marks the period before when there is one. Round caps; the value sweeps in once, never loops.
  */
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ckArcLine, ckPolar } from "./geometry";
+import { customProperties } from "../variants";
 
 interface RadialChartProps {
   /** 0..1 */
@@ -37,9 +38,8 @@ export function RadialChart({
   const m = marker == null ? null : a0 + rad * Math.max(0, Math.min(1, marker));
   const tick =
     m == null ? null : [ckPolar(cx, cy, r - thickness / 2 - 3, m), ckPolar(cx, cy, r + thickness / 2 + 3, m)];
-  const sweep = { "--len": len } as CSSProperties;
   return (
-    <div className="ck-radial" style={{ width: size, height: size }} role="img" aria-label={ariaLabel}>
+    <div className="ck-radial" style={customProperties({ "--size": `${size}px` })} role="img" aria-label={ariaLabel}>
       <svg width={size} height={size} className="ck-svg" aria-hidden="true">
         <path d={ckArcLine(cx, cy, r, [a0, a0 + rad])} className="ck-radial-track" strokeWidth={thickness} />
         {v > 0 && (
@@ -47,7 +47,7 @@ export function RadialChart({
             d={ckArcLine(cx, cy, r, [a0, a0 + rad * v])}
             className="ck-radial-value"
             strokeWidth={thickness}
-            style={sweep}
+            style={customProperties({ "--len": len })}
           />
         )}
         {tick && (
