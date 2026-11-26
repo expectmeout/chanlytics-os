@@ -6,8 +6,7 @@ import { resolveFacts, type KnownFacts } from "../facts";
 import type { BrainConfig } from "./brain-config-schema";
 
 /** The details a message sent in the business's name may name, as the owner writes them. */
-export const FALLBACK_DETAILS = ["business", "booking link", "phone"] as const;
-export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
+export type FallbackDetail = "business" | "booking link" | "phone";
 
 /**
  * The product's own wording for the three messages, naming the details rather

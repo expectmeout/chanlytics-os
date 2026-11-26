@@ -375,7 +375,7 @@ export interface SetupRowContext {
 export const SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 
 /** Setup's version: the good news, then the ceiling. */
-export const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 
 export const MOCK_TEXTING_SENTENCE =
   "Texting is filed against a test registry, so nothing is delivered · a person at Chanlytics is filing it with the phone networks for real.";
@@ -389,7 +389,7 @@ export const MOCK_TEXTING_SENTENCE =
 export const TEXTING_NEEDS_RECORD_SENTENCE =
   "Texting needs your business on record for the phone networks · two minutes, once.";
 
-export const TEXTING_NEEDS_RECORD_CLAUSE =
+const TEXTING_NEEDS_RECORD_CLAUSE =
   "Texting needs your business on record for the phone networks · two minutes, once, on Connections.";
 
 /**
