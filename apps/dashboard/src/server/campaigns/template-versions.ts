@@ -354,7 +354,7 @@ export async function fileStarterVersions(
         detail:
           error instanceof AppError && !isFaultCode(error.code)
             ? error.message
-            : "The version could not be saved. Add the set again to retry.",
+            : "Couldn't save the version. Add the set again to retry.",
       });
     }
   }

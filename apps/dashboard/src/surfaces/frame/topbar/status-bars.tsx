@@ -239,7 +239,13 @@ export function NextVisitBar({ page }: { page: string }) {
   }, [up]);
   if (!next) return null;
   return (
-    <a className="next-bar" {...routeDoor(next.to)} aria-label={next.label} title={next.label} data-testid="next-bar">
+    <a
+      className="next-bar"
+      {...routeDoor(next.to)}
+      aria-label={next.label}
+      data-tip={next.label}
+      data-testid="next-bar"
+    >
       <span className="next-bar-phase">{next.phase}</span>
       <b className="next-bar-start">{next.start}</b>
       <span className="next-bar-who">{next.who}</span>

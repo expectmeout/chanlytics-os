@@ -16,7 +16,14 @@
  * may keep.
  */
 import { SECOND_MS } from "@chanlytics/contracts";
-import { META_GRAPH, metaAppSecretProof, type MetaNextPage, type MetaRequest } from "../meta/client";
+import {
+  META_GRAPH,
+  metaReadRequest,
+  metaRemoveRequest,
+  metaWriteRequest,
+  type MetaNextPage,
+  type MetaRequest,
+} from "../meta/client";
 import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 
 /** What asks for the Page's token: the Meta link's token, the app's secret its proof is made with, and the Page. */
@@ -37,49 +44,32 @@ export interface PageHand {
 const RUPLOAD = `https://rupload.facebook.com/video-upload/${META_GRAPH.slice(META_GRAPH.lastIndexOf("/") + 1)}`;
 
 const page = (hand: Pick<PageHand, "pageId">): string => encodeURIComponent(hand.pageId);
-const proofOf = (token: string, appSecret: string): Record<string, string> => ({
-  access_token: token,
-  appsecret_proof: metaAppSecretProof(token, appSecret),
-});
-
 /** A read of the Graph with the Page's token. */
-const readFrom = (path: string, params: Record<string, string>, hand: PageHand): MetaRequest => ({
-  url: `${META_GRAPH}/${path}?${new URLSearchParams({ ...params, ...proofOf(hand.pageToken, hand.appSecret) }).toString()}`,
-  method: "GET",
-});
+const readAsPage = (path: string, params: Record<string, string>, hand: PageHand): MetaRequest =>
+  metaReadRequest(path, params, hand.pageToken, hand.appSecret);
 
 /** A write to the Graph with the Page's token, its fields in the body. */
-const writeTo = (path: string, fields: Record<string, string>, hand: PageHand): MetaRequest => ({
-  url: `${META_GRAPH}/${path}`,
-  method: "POST",
-  headers: { "content-type": "application/x-www-form-urlencoded" },
-  body: new URLSearchParams({ ...fields, ...proofOf(hand.pageToken, hand.appSecret) }).toString(),
-});
+const writeAsPage = (path: string, fields: Record<string, string>, hand: PageHand): MetaRequest =>
+  metaWriteRequest(path, fields, hand.pageToken, hand.appSecret);
 
 /** The Page's own token, asked with the Meta link's (its answer is never kept: it holds the token). */
 export function pageTokenRequest(poster: PagePoster): MetaRequest {
-  return {
-    url: `${META_GRAPH}/${page(poster)}?${new URLSearchParams({
-      fields: "access_token",
-      ...proofOf(poster.token, poster.appSecret),
-    }).toString()}`,
-    method: "GET",
-  };
+  return metaReadRequest(page(poster), { fields: "access_token" }, poster.token, poster.appSecret);
 }
 
 /** A photo Meta fetches from its address and keeps unpublished (Page Photos, `published=false`): a post's or a story's. */
 export function pagePhotoRequest(hand: PageHand, mediaUrl: string): MetaRequest {
-  return writeTo(`${page(hand)}/photos`, { url: mediaUrl, published: "false" }, hand);
+  return writeAsPage(`${page(hand)}/photos`, { url: mediaUrl, published: "false" }, hand);
 }
 
 /** Whether Meta still holds an unpublished photo. */
 export function pagePhotoReadRequest(hand: PageHand, photoId: string): MetaRequest {
-  return readFrom(encodeURIComponent(photoId), { fields: "id" }, hand);
+  return readAsPage(encodeURIComponent(photoId), { fields: "id" }, hand);
 }
 
 /** A post of the Page made with a kept photo and its words: the only call that puts a picture in front of anyone. */
 export function pagePostRequest(hand: PageHand, at: { photoId: string; caption: string | null }): MetaRequest {
-  return writeTo(
+  return writeAsPage(
     `${page(hand)}/feed`,
     {
       "attached_media[0]": JSON.stringify({ media_fbid: at.photoId }),
@@ -92,12 +82,12 @@ export function pagePostRequest(hand: PageHand, at: { photoId: string; caption: 
 
 /** A kept photo put up as the Page's story (Page Stories, photo_stories): it shows no words. */
 export function pageStoryRequest(hand: PageHand, photoId: string): MetaRequest {
-  return writeTo(`${page(hand)}/photo_stories`, { photo_id: photoId }, hand);
+  return writeAsPage(`${page(hand)}/photo_stories`, { photo_id: photoId }, hand);
 }
 
 /** A reel begun: Meta answers the video's id it will take the file under. */
 export function pageReelStartRequest(hand: PageHand): MetaRequest {
-  return writeTo(`${page(hand)}/video_reels`, { upload_phase: "start" }, hand);
+  return writeAsPage(`${page(hand)}/video_reels`, { upload_phase: "start" }, hand);
 }
 
 /**
@@ -114,7 +104,7 @@ export function pageReelFetchRequest(hand: PageHand, videoId: string, mediaUrl: 
 
 /** A fetched reel published with its words: the only call that puts a reel in front of anyone. */
 export function pageReelFinishRequest(hand: PageHand, at: { videoId: string; caption: string | null }): MetaRequest {
-  return writeTo(
+  return writeAsPage(
     `${page(hand)}/video_reels`,
     {
       upload_phase: "finish",
@@ -128,17 +118,17 @@ export function pageReelFinishRequest(hand: PageHand, at: { videoId: string; cap
 
 /** Where a reel stands: its upload, its processing and its publishing, and its address once it has one. */
 export function pageVideoStatusRequest(hand: PageHand, videoId: string): MetaRequest {
-  return readFrom(encodeURIComponent(videoId), { fields: "id,status,permalink_url,created_time" }, hand);
+  return readAsPage(encodeURIComponent(videoId), { fields: "id,status,permalink_url,created_time" }, hand);
 }
 
 /** A post of the Page, by its id: its address and its time. */
 export function pagePostReadRequest(hand: PageHand, postId: string): MetaRequest {
-  return readFrom(encodeURIComponent(postId), { fields: "id,permalink_url,created_time,is_published" }, hand);
+  return readAsPage(encodeURIComponent(postId), { fields: "id,permalink_url,created_time,is_published" }, hand);
 }
 
 /** The Page's own newest posts, with their words, to find one a send with no answer may have made. */
 export function pagePostsRequest(hand: PageHand): MetaRequest {
-  return readFrom(
+  return readAsPage(
     `${page(hand)}/published_posts`,
     { fields: "id,message,created_time,permalink_url", limit: "10" },
     hand,
@@ -154,7 +144,7 @@ const PAGE_LISTED_PAGE = 100;
  * leaned on: the reader stops where a page reaches back past it.
  */
 export function pagePostsSinceRequest(hand: PageHand, at: { since: Date; next?: MetaNextPage | null }): MetaRequest {
-  return readFrom(
+  return readAsPage(
     `${page(hand)}/published_posts`,
     {
       fields: "id,created_time",
@@ -169,20 +159,17 @@ export function pagePostsSinceRequest(hand: PageHand, at: { since: Date; next?: 
 
 /** The Page's stories (Page Stories: each with its post id, its photo, its state and its time). */
 export function pageStoriesRequest(hand: PageHand): MetaRequest {
-  return readFrom(`${page(hand)}/stories`, {}, hand);
+  return readAsPage(`${page(hand)}/stories`, {}, hand);
 }
 
 /** The Page's reels, by id, to tell one that is gone from one this connection may not read. */
 export function pageReelsRequest(hand: PageHand): MetaRequest {
-  return readFrom(`${page(hand)}/video_reels`, { fields: "id", limit: "25" }, hand);
+  return readAsPage(`${page(hand)}/video_reels`, { fields: "id", limit: "25" }, hand);
 }
 
 /** A post, a story or a reel taken off the Page (Meta's Pages guide: a DELETE of the node). */
 export function pageDeleteRequest(hand: PageHand, id: string): MetaRequest {
-  return {
-    url: `${META_GRAPH}/${encodeURIComponent(id)}?${new URLSearchParams(proofOf(hand.pageToken, hand.appSecret)).toString()}`,
-    method: "DELETE",
-  };
+  return metaRemoveRequest(encodeURIComponent(id), hand.pageToken, hand.appSecret);
 }
 
 /* -------------------------------------------------------------- the call */

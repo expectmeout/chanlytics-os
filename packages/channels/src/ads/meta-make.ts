@@ -20,9 +20,9 @@
  * Read on Meta's own pages on 19 November 2026; what each showed is in docs/plans/2026-11-18-ads-meta-checks.md.
  * Nothing here has been sent to Meta: what an account answers is seen at the paused-ad check.
  */
-import { META_GRAPH, metaProofQuery } from "../meta/client";
+import { META_GRAPH, isMetaId, metaProofQuery } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { isMetaId, metaAccountPath, minorToMetaUnits } from "./meta-account";
+import { metaAccountPath, minorToMetaUnits } from "./meta-account";
 import { metaPlaceTargeting, type MetaPlace } from "./meta-place";
 
 const MAKE_KEY = /^[A-Za-z0-9_-]{1,128}$/;

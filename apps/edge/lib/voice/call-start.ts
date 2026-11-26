@@ -28,7 +28,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
 import { readLeadContext, describeLead } from "@chanlytics/db/conversations";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { findOpenings, findVisits } from "../calendar/availability.js";
@@ -376,127 +376,195 @@ function knownCallerOf(
   };
 }
 
+/**
+ * What the plan has found so far, written in the order it is found: a throw part way leaves what was found before it in
+ * place, and the call is planned from that (planCallStart's catch).
+ */
+interface PlanSoFar {
+  facts: FactsOutcome;
+  memory: MemoryOutcome;
+  alert: boolean;
+  error: string | null;
+  businessFacts: string;
+  context: string;
+  line: SpokenLine;
+  thread: CallerThread;
+  configVersion: number | null;
+  tenantId: TenantId | null;
+}
+
+/** The first failure, said once: what went wrong first is what the call's row keeps. */
+function planFailed(plan: PlanSoFar, e: unknown): void {
+  if (plan.error === null) plan.error = e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Whose call this is, before anything is read. No tenant means no memory we are entitled to read: a returning caller
+ * loses their recognition, a stranger keeps their privacy. "The database said no" and "the database did not answer" are
+ * told apart, as the texting door tells them apart: only the first is a switched-off channel worth paging the platform
+ * for. The database and the channel, or null where the call is no workspace's (said on the plan).
+ */
+async function routeCall(
+  plan: PlanSoFar,
+  callStartInput: CallStartInput,
+): Promise<{ db: Db; routed: RoutedChannel } | null> {
+  const db = callStartInput.db;
+  if (!db) {
+    planFailed(plan, "no database to route the call with");
+    return null;
+  }
+  if (!callStartInput.agentId) {
+    plan.facts = "unrouted";
+    plan.alert = true;
+    return null;
+  }
+  const lookup = await resolveChannelDetailed(db, "voice", callStartInput.agentId);
+  const routed = lookup.channel;
+  if (lookup.lookupFailed) {
+    planFailed(plan, "the voice channel could not be looked up");
+    return null;
+  }
+  if (!routed) {
+    plan.facts = "unrouted";
+    plan.alert = true;
+    return null;
+  }
+  plan.tenantId = routed.tenantId;
+  return { db, routed };
+}
+
+/** The workspace's side of the call, from its runtime: its line, and its facts paused, composed or missing. Its runtime. */
+function readWorkspaceFacts(
+  plan: PlanSoFar,
+  rtR: PromiseSettledResult<TenantRuntime>,
+  openingsR: PromiseSettledResult<string | null>,
+  now: Date,
+): TenantRuntime | null {
+  if (rtR.status === "rejected") {
+    planFailed(plan, rtR.reason);
+    return null;
+  }
+  const rt = rtR.value;
+  plan.line = spokenLineOf(rt);
+  if (rt.loadFailed) {
+    planFailed(plan, "the workspace's runtime could not be loaded");
+  } else if (rt.paused) {
+    // Billing stopped: the phone receptionist takes a message and promises a call back, nothing more -- its whole prompt
+    // for the call.
+    plan.facts = "paused";
+    plan.businessFacts = pausedVoiceFacts(plan.line.businessName);
+    // Nobody is put through while paused (the script says so): the transfer tool is given no number to dial.
+    plan.line = { ...plan.line, handoff: null };
+  } else if (rt.brain) {
+    // The SAME composition the WhatsApp receptionist is given, asked for in its spoken form. Not a copy of the hours kept
+    // in Retell's dashboard -- a second copy is how two channels start disagreeing about when the business opens, and
+    // only one of them can be corrected from here.
+    //
+    // The clock and the open times ride INSIDE business_facts rather than as variables of their own. Substitution
+    // happens once, at call start, so there is no cache to protect here; a call is minutes long, the feed is cached for
+    // five, and the agent needs the openings before the caller asks "when could I come in?".
+    plan.facts = "composed";
+    plan.configVersion = rt.configVersion ?? null;
+    plan.businessFacts = composedFacts(rt, rt.brain, now, settledOrThrow(openingsR));
+  } else {
+    plan.facts = "missing";
+    if (rt.configBroken) planFailed(plan, "the workspace's config does not parse");
+  }
+  return rt;
+}
+
+/** The caller's side of the call: none without a number, unread where the contacts would not answer, else who they are. */
+function readCallerMemory(
+  plan: PlanSoFar,
+  phone: string | null,
+  reads: {
+    leadR: PromiseSettledResult<Awaited<ReturnType<typeof readLeadContext>> | null>;
+    visitsR: PromiseSettledResult<string | null>;
+    now: Date;
+    timezone: string;
+  },
+): void {
+  const { leadR } = reads;
+  if (!phone) {
+    plan.memory = "none";
+  } else if (leadR.status === "rejected") {
+    plan.memory = "unread";
+    planFailed(plan, leadR.reason);
+  } else if (leadR.value) {
+    // Said once the whole of it is built: a memory that threw halfway is told as none, never as half.
+    ({
+      context: plan.context,
+      thread: plan.thread,
+      memory: plan.memory,
+    } = knownCallerOf(leadR.value, reads.visitsR, reads.now, reads.timezone));
+  }
+}
+
+/**
+ * Both reads at once. Retell gives this webhook ten seconds before it gives up on the call, and two round trips in series
+ * is how a slow day turns into a dropped one. Settled, not all: the memory is read from Postgres -- the same rows, the
+ * same rules, the same order as the WhatsApp receptionist reads, so a customer who texted this morning and phones this
+ * afternoon is talking to ONE receptionist -- and a contact table that will not answer is the caller's loss, not the
+ * business's.
+ */
+async function readForCall(
+  plan: PlanSoFar,
+  at: { db: Db; routed: RoutedChannel; phone: string | null; now: Date },
+  calendar: Calendar,
+): Promise<void> {
+  const { db, routed, phone, now } = at;
+  const [rtR, leadR] = await Promise.allSettled([
+    loadTenantRuntime(db, routed),
+    phone ? readLeadContext(db, routed.tenantId, phone, 12) : Promise.resolve(null),
+  ]);
+  const [openingsR, visitsR] = await calendarReads(calendar, rtR, leadR, phone, now);
+  const rt = readWorkspaceFacts(plan, rtR, openingsR, now);
+  readCallerMemory(plan, phone, { leadR, visitsR, now, timezone: rt?.timezone ?? "UTC" });
+}
+
 async function planCallStart(callStartInput: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = callStartInput.now ?? new Date();
   const phone = normalizePhone(callStartInput.from);
-
-  let facts: FactsOutcome = "unreadable";
-  let memory: MemoryOutcome = "none";
-  let alert = false;
-  let error: string | null = null;
-  let businessFacts = "";
-  let context = "";
-  let line: SpokenLine = NO_LINE;
-  let thread: CallerThread = NO_THREAD;
-  let configVersion: number | null = null;
-  let tenantId: TenantId | null = null;
-  const fail = (e: unknown) => {
-    if (error === null) error = e instanceof Error ? e.message : String(e);
+  const plan: PlanSoFar = {
+    facts: "unreadable",
+    memory: "none",
+    alert: false,
+    error: null,
+    businessFacts: "",
+    context: "",
+    line: NO_LINE,
+    thread: NO_THREAD,
+    configVersion: null,
+    tenantId: null,
   };
-
   try {
-    // Whose call this is, before anything is read. No tenant means no memory
-    // we are entitled to read: a returning caller loses their recognition, a
-    // stranger keeps their privacy. "The database said no" and "the database
-    // did not answer" are told apart, as the texting door tells them apart:
-    // only the first is a switched-off channel worth paging the platform for.
-    const db = callStartInput.db;
-    if (!db) {
-      fail("no database to route the call with");
-    } else if (!callStartInput.agentId) {
-      facts = "unrouted";
-      alert = true;
-    } else {
-      const lookup = await resolveChannelDetailed(db, "voice", callStartInput.agentId);
-      const routed = lookup.channel;
-      if (lookup.lookupFailed) {
-        fail("the voice channel could not be looked up");
-      } else if (!routed) {
-        facts = "unrouted";
-        alert = true;
-      } else {
-        tenantId = routed.tenantId;
-        // Both reads at once. Retell gives this webhook ten seconds before it
-        // gives up on the call, and two round trips in series is how a slow
-        // day turns into a dropped one. Settled, not all: the memory is read
-        // from Postgres -- the same rows, the same rules, the same order as
-        // the WhatsApp receptionist reads, so a customer who texted this
-        // morning and phones this afternoon is talking to ONE receptionist --
-        // and a contact table that will not answer is the caller's loss, not
-        // the business's.
-        const [rtR, leadR] = await Promise.allSettled([
-          loadTenantRuntime(db, routed),
-          phone ? readLeadContext(db, routed.tenantId, phone, 12) : Promise.resolve(null),
-        ]);
-
-        const [openingsR, visitsR] = await calendarReads(calendar, rtR, leadR, phone, now);
-
-        let rt: TenantRuntime | null = null;
-        if (rtR.status === "rejected") {
-          fail(rtR.reason);
-        } else {
-          rt = rtR.value;
-          line = spokenLineOf(rt);
-          if (rt.loadFailed) {
-            fail("the workspace's runtime could not be loaded");
-          } else if (rt.paused) {
-            // Billing stopped: the phone receptionist takes a message and
-            // promises a call back, nothing more -- its whole prompt for the call.
-            facts = "paused";
-            businessFacts = pausedVoiceFacts(line.businessName);
-            // Nobody is put through while paused (the script says so): the transfer tool is given no number to dial.
-            line = { ...line, handoff: null };
-          } else if (rt.brain) {
-            // The SAME composition the WhatsApp receptionist is given, asked
-            // for in its spoken form. Not a copy of the hours kept in Retell's
-            // dashboard -- a second copy is how two channels start disagreeing
-            // about when the business opens, and only one of them can be
-            // corrected from here.
-            //
-            // The clock and the open times ride INSIDE business_facts rather
-            // than as variables of their own. Substitution happens once, at
-            // call start, so there is no cache to protect here; a call is
-            // minutes long, the feed is cached for five, and the agent needs
-            // the openings before the caller asks "when could I come in?".
-            facts = "composed";
-            configVersion = rt.configVersion ?? null;
-            businessFacts = composedFacts(rt, rt.brain, now, settledOrThrow(openingsR));
-          } else {
-            facts = "missing";
-            if (rt.configBroken) fail("the workspace's config does not parse");
-          }
-        }
-
-        if (!phone) {
-          memory = "none";
-        } else if (leadR.status === "rejected") {
-          memory = "unread";
-          fail(leadR.reason);
-        } else if (leadR.value) {
-          // Said once the whole of it is built: a memory that threw halfway is told as none, never as half.
-          ({ context, thread, memory } = knownCallerOf(leadR.value, visitsR, now, rt?.timezone ?? "UTC"));
-        }
-      }
-    }
+    const route = await routeCall(plan, callStartInput);
+    if (route) await readForCall(plan, { ...route, phone, now }, calendar);
   } catch (e) {
-    // A throw past the reads above leaves whatever was composed in place, and
-    // says so: the caller still gets the facts that were read before it.
-    fail(e);
+    // A throw past the reads above leaves whatever was composed in place, and says so: the caller still gets the facts
+    // that were read before it.
+    planFailed(plan, e);
   }
 
+  const { facts, line } = plan;
   const { businessName, ownGreeting, assistant, handoff } = line;
   const opening = greetingOf({ name: businessName, stored: ownGreeting, paused: facts === "paused", assistant });
   return {
-    variables: callVariables({ context, businessFacts, handoff, greeting: opening.text }),
+    variables: callVariables({
+      context: plan.context,
+      businessFacts: plan.businessFacts,
+      handoff,
+      greeting: opening.text,
+    }),
     greetingSource: opening.source,
     facts,
-    memory,
-    alert,
-    error,
-    ...thread,
+    memory: plan.memory,
+    alert: plan.alert,
+    error: plan.error,
+    ...plan.thread,
     voiceId: line.voiceId,
     voiceSpeed: line.voiceSpeed,
-    configVersion,
-    tenantId,
+    configVersion: plan.configVersion,
+    tenantId: plan.tenantId,
   };
 }

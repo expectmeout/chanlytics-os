@@ -19,7 +19,7 @@ export const LrPill = ({ c }: { c: LiveCallVM }) => {
     <StatePill
       kind="call"
       value={value}
-      title={
+      tip={
         c.stale
           ? "Shown as live, but nothing has been heard from this call for a while. Checked within five minutes."
           : null

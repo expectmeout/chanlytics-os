@@ -7,19 +7,7 @@
  * be tested.
  */
 
-import { HOUR_MS } from "@chanlytics/contracts";
-
-/** One row of public.sweep_health(). */
-export interface SweepHealthRow {
-  sweep: string;
-  healthy: boolean;
-  detail: string | null;
-  /** When it last spoke: the request it enqueued, or, for a clock judged on its runs, its last successful run. */
-  last_request_at: string | null;
-  status_code: number | null;
-  scheduled: boolean;
-  alerted_at: string | null;
-}
+import { HOUR_MS, type SweepHealthRow } from "@chanlytics/contracts";
 
 /**
  * How long a DELIVERED alert buys quiet. Six hours, not one tick: the failure

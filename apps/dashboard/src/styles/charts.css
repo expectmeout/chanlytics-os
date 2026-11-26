@@ -57,7 +57,7 @@
 .ck-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 .ck-base { stroke: var(--line-strong); stroke-width: 1; shape-rendering: crispEdges; }
 /* An axis's ticks in the text face, their digits in columns (the phone change list's D2, 25 Nov 2026: in mono). */
-.ck-tick { font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.ck-tick { font-size: var(--text-2xs); fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ck-bar { transition: opacity var(--duration-fast) var(--ease-out); }
 .ck-col.dim .ck-bar { opacity: 0.42; }
 .ck-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -67,14 +67,14 @@
 .ck-dot { stroke: var(--bg-raised); stroke-width: 2; }
 .ck-dot.prior { fill: var(--chart-prior); }
 .ck-ref line { stroke: var(--ink-faint); stroke-width: 1; shape-rendering: crispEdges; }
-.ck-ref text { font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.ck-ref text { font-size: var(--text-2xs); fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ck-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ---------- keys, legend, tooltip ---------- */
 .ck-key { display: inline-block; flex: none; background: var(--k); }
-.ck-key.rect { width: 9px; height: 9px; border-radius: 2.5px; }
-.ck-key.line { width: 12px; height: 2px; border-radius: 1px; }
-.ck-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--ink-muted); }
+.ck-key.rect { width: 9px; height: 9px; border-radius: var(--radius-dot); }
+.ck-key.line { width: 12px; height: 2px; border-radius: var(--radius-full); }
+.ck-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--text-label); color: var(--ink-muted); }
 .ck-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .ck-legend-icon { color: var(--warn-ink); }
 .ck-legend-value { color: var(--ink); font-weight: 600; }
@@ -84,18 +84,18 @@
   position: absolute; z-index: 6; top: 0; pointer-events: none;
   width: max-content; min-width: 164px; max-width: 260px; padding: 9px 11px;
   /* A period's figures, read as a card: the kit's pop panel (parts.tsx), the glass every menu and list wears. */
-  border-radius: var(--radius-md); font-size: 12px; line-height: 1.45;
+  border-radius: var(--radius-md); font-size: var(--text-label); line-height: 1.45;
   transform: translate(14px, calc(-100% - 6px));
   animation: ck-fade var(--duration-fast) var(--ease-out);
 }
 .ck-tip.end { transform: translate(calc(-100% - 14px), calc(-100% - 6px)); }
 .ck-tip.pin { left: 0; right: 0; width: auto; min-width: 0; max-width: none; transform: translateY(calc(-100% - 6px)); }
-.ck-tip-title { font-size: 11.5px; color: var(--ink-dim); margin-bottom: 5px; }
+.ck-tip-title { font-size: var(--text-xs); color: var(--ink-dim); margin-bottom: 5px; }
 .ck-tip-row { display: flex; align-items: center; gap: 7px; }
 .ck-tip-row + .ck-tip-row { margin-top: 3px; }
 .ck-tip-value { min-width: 24px; text-align: right; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .ck-tip-label { color: var(--ink-muted); }
-.ck-tip-note { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: 11.5px; }
+.ck-tip-note { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: var(--text-xs); }
 
 /* ---------- card ---------- */
 .ck-card {
@@ -118,7 +118,7 @@
 .ck-card-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 /* The switch is the kit's segmented capsule in a pane (kit.css .rec-seg): an inset track, the one picked the lozenge. */
 .ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
-.ck-seg button { font-size: 11.5px; line-height: 1; padding: 5px 10px; border-radius: var(--radius-full); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
+.ck-seg button { font-size: var(--text-xs); line-height: 1; padding: 5px 10px; border-radius: var(--radius-full); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
 @media (hover: hover) { .ck-seg button:hover { color: var(--ink); } }
 .ck-seg button.on { background: var(--selected-fill); color: var(--ink); box-shadow: var(--selected-depth); }
 .ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-full); color: var(--ink-dim); }
@@ -146,7 +146,7 @@
 .ck-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; font-variant-numeric: tabular-nums; }
 .ck-barlist-track { display: block; height: 6px; }
-.ck-barlist-bar { display: block; height: 6px; border-radius: 0 3px 3px 0; transform-origin: left center; }
+.ck-barlist-bar { display: block; height: 6px; border-radius: 0 var(--radius-full) var(--radius-full) 0; transform-origin: left center; }
 
 /* ---------- dot plot: a dot per event, painted with the card's --color-dot; the held dot stays, the others step back ---------- */
 .ck-dotplot-dot { fill-opacity: 0.7; }
@@ -159,14 +159,14 @@
 
 /* ---------- segment bar: one bar in its parts, a legend under it ---------- */
 .ck-segbar { display: flex; flex-direction: column; gap: 9px; }
-.ck-segbar-title { font-size: 11.5px; color: var(--ink-dim); }
+.ck-segbar-title { font-size: var(--text-xs); color: var(--ink-dim); }
 .ck-segbar-bar { display: flex; gap: 2px; height: 10px; }
 .ck-segbar-bar.small { height: 8px; }
 .ck-segbar-bar i { display: block; min-width: 3px; }
 .ck-segbar-bar i:first-child { border-radius: var(--radius-xs) 0 0 var(--radius-xs); }
 .ck-segbar-bar i:last-child { border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
 .ck-segbar-bar i:only-child { border-radius: var(--radius-xs); }
-.ck-segbar .ck-legend { gap: 5px 14px; font-size: 11.5px; }
+.ck-segbar .ck-legend { gap: 5px 14px; font-size: var(--text-xs); }
 
 /* ---------- radar ---------- */
 .ck-ring { fill: none; }
