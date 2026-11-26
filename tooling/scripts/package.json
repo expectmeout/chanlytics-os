@@ -12,11 +12,12 @@
     "@supabase/supabase-js": "catalog:"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "0.131.0",
+    "@anthropic-ai/sdk": "1.12.0",
     "@elevenlabs/client": "catalog:",
     "@supabase/ssr": "catalog:",
     "esbuild": "catalog:",
     "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "zod": "catalog:"
   }
