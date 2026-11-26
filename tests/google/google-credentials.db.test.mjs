@@ -173,11 +173,15 @@ test(
       [{ cmd: "SELECT", roles: "{authenticated}" }],
       "one policy, a member's read: the edge writes with the service role",
     );
+    // The frame hears a connection change on its workspace's own topic (decision 0019): the table is one packages/db's
+    // realtime.ts watches, and its tell triggers are on it (each-workspace-is-told-what-changed.db.test.mjs runs what they
+    // tell). 00070 put the table in the realtime publication; since 00324 no page listens there.
     assert.deepEqual(
       query(
-        "select count(*)::int as n from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'google_connections'",
+        "select tgname from pg_trigger where tgrelid = 'public.google_connections'::regclass and tgname like 'workspace_tell_%' order by tgname",
       ),
-      [{ n: 1 }],
+      [{ tgname: "workspace_tell_delete" }, { tgname: "workspace_tell_insert" }, { tgname: "workspace_tell_update" }],
+      "the frame hears it change",
     );
   },
 );

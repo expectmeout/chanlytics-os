@@ -350,6 +350,12 @@ export function cssOf(file) {
 
 /* ---- The cascade on a screen: what a selector is given, as the build's parser reads a stylesheet ---- */
 
+/*
+ * The suite's one cascade (the coordinator's call, 26 Nov 2026): lightningcss underneath, the build's own parser. Lane 4
+ * (c)'s `cascadeOf` (an element's style through selector matching, specificity, inheritance and var()) sits on this parse
+ * in its own change, and the checks below move onto it. Ask of it, or add to it; never a third parser of sheets.
+ */
+
 /**
  * A screen a stylesheet is asked about: its width in CSS pixels, whether it can hover, its pointer, and whether its person
  * asked for less motion. A phone and a desk, at the widths e2e/ opens the pages at; any other is asked as
@@ -543,6 +549,15 @@ export function givenOn(file, selector, screen) {
     }
   }
   return given;
+}
+
+/**
+ * Every style rule of one stylesheet, under any query, as the parser reads it: its `selectors` (the syntax tree, each a
+ * list of components) and its `declarations`. What a check over every rule of a kind asks (no rule that hides a bar for a
+ * dock while a page is carried back), where no one selector is the question.
+ */
+export function styleRulesIn(file) {
+  return [...rulesOf(file, null)].filter((r) => r.type === "style").map((r) => r.value);
 }
 
 /** Every property one stylesheet sets, in any rule under any query: what a check that it sets none asks. */
