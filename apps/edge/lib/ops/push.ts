@@ -62,9 +62,9 @@ function experienceGroups(detail: string): Set<string>[] {
     const errors = listOrEmpty(valueAt(JSON.parse(detail), "errors"));
     const groups: Set<string>[] = [];
     for (const e of errors) {
-      const details = valueAt(e, "details");
-      if (!details || typeof details !== "object") continue;
-      for (const tokens of Object.values(recordOrEmpty(details))) {
+      const byApp = valueAt(e, "details");
+      if (!byApp || typeof byApp !== "object") continue;
+      for (const tokens of Object.values(recordOrEmpty(byApp))) {
         if (Array.isArray(tokens) && tokens.every((t) => typeof t === "string")) groups.push(new Set(tokens));
       }
     }

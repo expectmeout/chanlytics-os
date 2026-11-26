@@ -71,15 +71,16 @@ interface ClaudeCopy {
 }
 
 function heldCopyOf(row: FileRow, nowMs: number): ClaudeCopy | null {
-  const c = recordOrNull(row.claude_copy);
-  if (!c || typeof c.id !== "string" || typeof c.width !== "number" || typeof c.height !== "number") return null;
+  const copy = recordOrNull(row.claude_copy);
+  if (!copy || typeof copy.id !== "string" || typeof copy.width !== "number" || typeof copy.height !== "number")
+    return null;
   // A day short of its end: a read must not start on a copy about to go.
-  if (typeof c.expires_at === "string" && Date.parse(c.expires_at) - nowMs < DAY_MS) return null;
+  if (typeof copy.expires_at === "string" && Date.parse(copy.expires_at) - nowMs < DAY_MS) return null;
   return {
-    id: c.id,
-    expires_at: typeof c.expires_at === "string" ? c.expires_at : null,
-    width: c.width,
-    height: c.height,
+    id: copy.id,
+    expires_at: typeof copy.expires_at === "string" ? copy.expires_at : null,
+    width: copy.width,
+    height: copy.height,
   };
 }
 
