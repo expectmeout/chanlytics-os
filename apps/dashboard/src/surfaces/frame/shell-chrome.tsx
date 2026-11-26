@@ -450,7 +450,7 @@ const phoneAsk = (s: ChromeAt) => {
         className="phone-ask-press"
         onClick={s.openAsk}
         aria-label="Ask Chanlytics"
-        title="Ask Chanlytics"
+        data-tip="Ask Chanlytics"
         data-testid="phone-ask"
         aria-hidden={docked ? "true" : undefined}
         tabIndex={docked ? -1 : undefined}

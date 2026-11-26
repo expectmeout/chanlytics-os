@@ -179,7 +179,7 @@ test("the refusals and the words the brief names are words, and the pace is the 
   // A tight room for a later offer: the send reaches the whole list on its day, so pacing it is dismissing the send.
   assert.equal(
     EN.roomTight({ open: 1, days: 14 }, 40, "Nov 1"),
-    "The calendar has 1 open slot in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.",
+    "The calendar has 1 open slot in the next 14 days for 40 people, and the send goes to the whole list at once. To pace it to the room, dismiss it and ask again on Nov 1.",
   );
   // A send on a WhatsApp version being checked, a one-off or a campaign, says its WhatsApp people wait; nothing says it
   // waits for a second press.

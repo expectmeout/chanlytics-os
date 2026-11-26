@@ -19,7 +19,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -50,7 +50,7 @@ async function sectionRows(
 ): Promise<Record<string, unknown>[]> {
   const { data, error } = await q;
   if (error) throw new DbFailure(error);
-  return (data ?? []) as Record<string, unknown>[];
+  return (data ?? []).map(recordOrEmpty);
 }
 
 /** The last row a page starting at `offset` reads, for PostgREST's inclusive range. */

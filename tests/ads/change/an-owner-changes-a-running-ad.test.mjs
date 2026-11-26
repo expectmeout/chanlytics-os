@@ -49,7 +49,7 @@ const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { logger } = await import(at("apps/edge/lib/shared/log.ts"));
 const { runAdPress } = await import(at("apps/edge/lib/ads/press.ts"));
 const { runChanges, endFixedAd } = await import(at("apps/edge/lib/ads/change.ts"));
-const { endOfDayIn } = await import(at("apps/edge/lib/ads/launch-parts.ts"));
+const { endOfDayIn } = await import(at("apps/edge/lib/ads/launch/parts.ts"));
 
 const auth = { ok: true, via: "token", workspace: T, user: U };
 const TZ = "America/New_York";

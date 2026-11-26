@@ -12,7 +12,7 @@ import { newReceptionistDefaults } from "../config/workspace-config/brain-config
 import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fallbacks";
 import { instructionsDraft } from "../config/workspace-config/resolve";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
-import { isList } from "../shared/unknown";
+import { isList, listOrEmpty, recordOrEmpty, valueAt } from "../shared/unknown";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACE_WORDS, type PhonePace } from "../voice/phone-pace";
 import { WALK_IN_WORDS, type WalkInsChoice } from "../config/business-tab/choices";
@@ -167,7 +167,7 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
   }
   switch (change.op) {
     case "add_closure": {
-      const closures = [...((profile.closures as unknown[]) ?? [])];
+      const closures = [...listOrEmpty(profile.closures)];
       closures.push({
         date: change.date,
         ...(change.until ? { until: change.until } : {}),
@@ -177,21 +177,21 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
       break;
     }
     case "set_hours": {
-      const hours = { ...((profile.hours as Record<string, unknown>) ?? {}) };
+      const hours = { ...recordOrEmpty(profile.hours) };
       hours[change.day] =
         change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
       profile.hours = hours;
       break;
     }
     case "add_note": {
-      const notes = [...((profile.notes as unknown[]) ?? [])];
+      const notes = [...listOrEmpty(profile.notes)];
       // Its last day only when it has one: a note with none is said for good, as every note was before it had one.
       notes.push({ title: change.title, text: change.text, ...(change.until ? { until: change.until } : {}) });
       profile.notes = notes;
       break;
     }
     case "add_service": {
-      const services = [...((profile.services as unknown[]) ?? [])];
+      const services = [...listOrEmpty(profile.services)];
       services.push({
         name: change.name,
         ...(change.duration_min ? { duration_min: change.duration_min } : {}),
@@ -233,8 +233,7 @@ function servicesWithAmounts(list: unknown, amounts: readonly ServiceAmountChang
 }
 
 /** A stored object as its keys, and anything else as none. */
-const storedKeysOf = (v: unknown): Record<string, unknown> =>
-  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+const storedKeysOf = (v: unknown): Record<string, unknown> => recordOrEmpty(v);
 /** A stored value's words when it is a string, and none otherwise. */
 const storedWordsOf = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -266,17 +265,14 @@ function profileWithFix(profile: Record<string, unknown>, change: AskFixChange):
 function servicesWith(list: unknown, change: Extract<AskFixChange, { op: "set_service" }>): unknown[] {
   const services = [...((list as unknown[] | undefined) ?? [])];
   const at = services.findIndex(
-    (s) =>
-      !!s &&
-      typeof s === "object" &&
-      serviceKey(storedWordsOf((s as { name?: unknown }).name)) === serviceKey(change.name),
+    (s) => !!s && typeof s === "object" && serviceKey(storedWordsOf(valueAt(s, "name"))) === serviceKey(change.name),
   );
   const fields = {
     ...(change.duration_min ? { duration_min: change.duration_min } : {}),
     ...(change.price_note ? { price_note: change.price_note } : {}),
   };
   if (at < 0) services.push({ name: change.name, ...fields });
-  else services[at] = { ...(services[at] as Record<string, unknown>), ...fields };
+  else services[at] = { ...recordOrEmpty(services[at]), ...fields };
   return services;
 }
 

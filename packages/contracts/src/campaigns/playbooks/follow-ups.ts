@@ -16,7 +16,7 @@ import { DAY_MS, sweepTickAtOrAfter } from "./time";
 
 /** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
 export const FOLLOW_UP_NEEDS_LINK =
-  "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
+  "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill it with their link.";
 
 /** Why a second proposal follow-up is refused (00167): two would each owe every proposal its nudge. */
 export const FOLLOW_UP_ONE =

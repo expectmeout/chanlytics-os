@@ -33,7 +33,7 @@ export const SEQUENCE_WORDS = {
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: {
     needs: "Needs you",
-    customers: "Your customers",
+    customers: "Customers",
     // Type's own names (SEQUENCE_LIST_WORDS.types): one set of names (decision 0128).
     leads: "Cold email",
     dates: "One-off sends",
@@ -114,7 +114,7 @@ export const SEQUENCE_FLOW_WORDS = {
   call: "A call for you, on Today",
   sendsFrom: "Sends from",
   fromYou: "You, from your own inbox",
-  fromMailboxes: "Your connected mailboxes",
+  fromMailboxes: "Connected mailboxes",
   connect: "Connect a mailbox",
   mailboxes: "Mailboxes",
   checked: "Each one is checked before it goes",

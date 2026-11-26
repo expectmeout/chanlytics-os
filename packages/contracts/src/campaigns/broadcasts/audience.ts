@@ -7,7 +7,7 @@ import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { PEOPLE_LISTS } from "../../people/lists/builtin-lists";
 import { saidYesTo } from "../../people/person-consent";
 import type { PersonRowVM } from "../../people/person-row/row-facts";
-import { recordOrEmpty } from "../../shared/unknown";
+import { recordOrEmpty, valueAt } from "../../shared/unknown";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/params";
 import { answeredYes } from "./reach-any";
@@ -80,7 +80,7 @@ interface LateVisit {
 
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
 export function audienceTrigger(audience: unknown): string | null {
-  const t = audience && typeof audience === "object" ? (audience as { trigger?: unknown }).trigger : null;
+  const t = audience && typeof audience === "object" ? valueAt(audience, "trigger") : null;
   return typeof t === "string" ? t : null;
 }
 
@@ -107,7 +107,7 @@ export const EVERYONE_LABEL = "Everyone";
  * no address: who can be reached depends on the channels the send goes by, and the held lines say which of them is missing.
  */
 export const EVERYONE_HINT =
-  "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
+  "Everyone who can be reached and whose yes covers the message, and by email whoever has dealt with you";
 
 /**
  * The People lists that are no audience of their own because each restates the consent filter an audience is already

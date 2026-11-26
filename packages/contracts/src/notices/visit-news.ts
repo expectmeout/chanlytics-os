@@ -93,7 +93,7 @@ interface EventLike {
  */
 export function feedAdditionIsBooking(data: unknown): boolean {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
-  const item = data as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   return (
     item.change === "added" &&
     item.source === "calendar_feed" &&
@@ -113,7 +113,7 @@ export function bookingArriving(event: EventLike): ArrivingBooking | null {
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
   const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
   if (!data) return null;
-  const { change, source, starts_at: startsAt } = data as Record<string, unknown>;
+  const { change, source, starts_at: startsAt } = recordOrEmpty(data);
   if (typeof change !== "string" || !ARRIVES.has(change)) return null;
   if (typeof source !== "string" || !ARRIVES_BY.has(source)) return null;
   if (source === "calendar_feed" && !feedAdditionIsBooking(data)) return null;
@@ -139,7 +139,7 @@ export function bookingChanged(event: EventLike): { appointmentId: string; chang
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
   const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
   if (!data) return null;
-  const { change, source, by } = data as Record<string, unknown>;
+  const { change, source, by } = recordOrEmpty(data);
   if (typeof change !== "string" || !CHANGES.has(change)) return null;
   if (typeof source !== "string" || !CHANGES_BY.has(source)) return null;
   if (by !== "service") return null;

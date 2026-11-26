@@ -19,6 +19,7 @@ import {
   type TemplateSentWords,
   type ResolvedFacts,
   type FactConflict,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../../server/receptionist/prompt-preview";
 import { read } from "../api";
@@ -33,6 +34,9 @@ import { setSurfaceValue } from "../../surfaces/surface-values";
 import { getActiveWorkspace, routeOnScreen } from "../workspace";
 import { readAdsBesideContent, readAdsOpening } from "./ads-first-reads";
 import { pageReport } from "@/client/page-report";
+
+/** A read that failed, as the surface tells one from its data: always an Error, whatever was thrown. */
+const failureOfRead = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
 
 /**
  * Settings · Workspace — the business's own facts, and who is on the team.
@@ -158,9 +162,7 @@ export interface SettingsSurface {
 /** The email and text rows among the templates read, for the page that draws a message's versions; null where the read failed. */
 function versionRowsOf(tpl: Error | { templates?: TemplateDto[] }): TemplateDto[] | null {
   if (tpl instanceof Error) return null;
-  return (tpl.templates ?? []).filter(
-    (t) => (OWN_VERSION_CHANNELS as readonly string[]).includes(t.channel) && !isReachOutRow(t),
-  );
+  return (tpl.templates ?? []).filter((t) => isOneOf(OWN_VERSION_CHANNELS, t.channel) && !isReachOutRow(t));
 }
 
 /**
@@ -275,12 +277,12 @@ export const settingsOverride: SurfaceOverride = {
     const [cfg, team, pol, tpl, zone] = await Promise.all([
       read("GET settings"),
       // A team read that fails must not blank the business card beside it.
-      read("GET team").catch((e: unknown) => e as Error),
+      read("GET team").catch(failureOfRead),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
       // never the mockup's charter.
-      read("GET policies").catch((e: unknown) => e as Error),
+      read("GET policies").catch(failureOfRead),
       // Every template with its status, for the Integrations pane's card.
-      read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
+      read("GET templates", { query: { all: "1" } }).catch(failureOfRead),
       // When a template last went out is a date past a week, on the business's
       // calendar (zone.ts). A zone that cannot be read is the page clock's, and
       // never a reason to lose the page.

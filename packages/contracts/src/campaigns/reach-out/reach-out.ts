@@ -1,3 +1,4 @@
+import { valueAt } from "../../shared/unknown";
 /**
  * Reach out's words that more than one layer says: where a lead was found, the tag a campaign's email carries, and the
  * unsubscribe page. The foot every campaign email carries is campaigns/templates/email-foot.ts, one builder for every kind. Pure.
@@ -40,7 +41,7 @@ export function isCampaignEmail(request: unknown): boolean {
   if (typeof v === "string" && v.trim() !== "") return true;
   return (
     Array.isArray(r?.tags) &&
-    r.tags.some((t) => !!t && typeof t === "object" && (t as { name?: unknown }).name === CAMPAIGN_EMAIL_TAG)
+    r.tags.some((t) => !!t && typeof t === "object" && valueAt(t, "name") === CAMPAIGN_EMAIL_TAG)
   );
 }
 
@@ -137,7 +138,7 @@ export function unsubscribePageWords(unsubscribeView: UnsubscribeView): Unsubscr
       return {
         title: "Unsubscribe",
         lead: "This link doesn't work.",
-        body: "It may have been cut short when it was copied. Open the Unsubscribe link in the email itself, or reply to the email and ask them to stop.",
+        body: "It may have been cut short when copied. Open the Unsubscribe link in the email, or reply and ask them to stop.",
         button: null,
         foot: null,
       };
@@ -146,8 +147,8 @@ export function unsubscribePageWords(unsubscribeView: UnsubscribeView): Unsubscr
         title: "Unsubscribe",
         lead: "That didn't go through.",
         body: unsubscribeView.retry
-          ? "We couldn't record it just now. Press Try again. Or reply to the email and ask them to stop."
-          : "We couldn't record it just now. Try the link again in a minute. Or reply to the email and ask them to stop.",
+          ? "Couldn't record it just now. Press Try again, or reply to the email and ask them to stop."
+          : "Couldn't record it just now. Try the link again in a minute, or reply to the email and ask them to stop.",
         button: unsubscribeView.retry ? "Try again" : null,
         foot: null,
       };

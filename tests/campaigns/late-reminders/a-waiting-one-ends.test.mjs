@@ -20,7 +20,7 @@ import {
 const TZ = "America/New_York";
 const APPT = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
 const TOO_LATE =
-  "It is too late for this reminder: approved now it would arrive on a later day than its words say, or after the appointment has begun. Skip it · nothing later sends it in its place.";
+  "Too late for this reminder: it would arrive after the day its words say, or once the appointment began. Skip it.";
 
 /** A late reminder's batch waiting for an OK, as the run kept it: no day, and its visit in its audience. */
 const waiting = (start, day) => ({

@@ -34,11 +34,13 @@ export interface ReachOutToldDto {
 const PART = {
   rules: { label: "The rules", note: "Chanlytics keeps these for every business", row: null, door: null },
   offer: {
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     label: "Your pitch",
     note: "What you sell, who should hear from you, the problem you solve, what you do",
     row: "offer",
     door: null,
   },
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   proof: { label: "Your facts", note: "One per email, word for word", row: "proof", door: null },
   writes: { label: "How you sound", note: "Your tone, and the lines learned from you", row: "sound", door: null },
   examples: {
@@ -47,9 +49,12 @@ const PART = {
     row: null,
     door: null,
   },
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   sources: { label: "Your searches and lists", note: "Who can hear from you now", row: null, door: "leads" },
   asked: { label: "What you ask for", note: "The line you type in New", row: null, door: null },
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   business: { label: "Your business", note: "Its name, what you offer, your tone", row: "offer", door: null },
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   words: { label: "Your words for this step", note: "The email the line opens", row: null, door: "campaigns" },
   listing: {
     label: "Their listing",

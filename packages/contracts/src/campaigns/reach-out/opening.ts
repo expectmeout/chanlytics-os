@@ -23,7 +23,7 @@ import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import { DATA_NOT_INSTRUCTIONS, defang, fenceLine, fencedInline } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
-import { isOneOf } from "../../shared/unknown";
+import { isOneOf, recordOrEmpty, valueAt } from "../../shared/unknown";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
@@ -33,6 +33,7 @@ export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
  * before it writes and again when it made one (29 Oct 2026: the writer, never told, guessed at how busy a business is
  * in most openings, and a rewrite told only its words made the same guess in others).
  */
+// screen-word: said to the model, never shown on a page.
 export const OPENING_UNSTATED =
   "how busy they are, how often their phone rings, how many customers or calls they get, their revenue, their feelings, their problems or their plans";
 
@@ -73,7 +74,7 @@ export interface OpeningWorkspace {
   tone: string | null;
 }
 
-/** What a record's website_says line is, told the writer and the reader alike. */
+/** What a record's website_says line is, told the writer and the reader alike. screen-word: said to the model, never shown on a page. */
 const WEBSITE_SAYS_LINE =
   "website_says, where the record has it, is what the business's own website says about itself: its words, a fact like the rest of the record.";
 
@@ -192,7 +193,7 @@ export function openingAskedOf(stored: unknown): OpeningAsked | null {
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
   const s = stored as { change?: unknown; was?: unknown };
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const was = s.was && typeof s.was === "object" ? text((s.was as { opening?: unknown }).opening) : null;
+  const was = s.was && typeof s.was === "object" ? text(valueAt(s.was, "opening")) : null;
   return { was, change: text(s.change) };
 }
 
@@ -248,6 +249,7 @@ export function openingUserLines(params: OpeningInput): OpeningLine[] {
       ...(retry
         ? [
             "",
+            // screen-word: said to the model, never shown on a page.
             fenceLine("Your last opening was", retry.opening) ?? "",
             `It could not be sent: ${defang(retry.why)}. Write it again from the record only.`,
           ]
@@ -307,7 +309,7 @@ function angleOf(raw: string): string {
 
 export function parseOpening(first: unknown): WrittenOpening | null {
   if (!first || typeof first !== "object") return null;
-  const value = first as Record<string, unknown>;
+  const value = recordOrEmpty(first);
   if (typeof value.opening !== "string" || typeof value.angle !== "string" || !Array.isArray(value.facts_used))
     return null;
   // A name that is no field of the record is kept as written: checkOpening refuses it (unnamed_fact), never drops it.
@@ -332,7 +334,7 @@ const isClaimKind = (k: unknown): k is OpeningClaimKind => typeof k === "string"
 
 export function parseReading(first: unknown): Reading | null {
   if (!first || typeof first !== "object") return null;
-  const value = first as Record<string, unknown>;
+  const value = recordOrEmpty(first);
   // An answer missing a part is no reading: the check fails closed (asked again, then held), never open.
   if (typeof value.backed !== "boolean" || typeof value.pitch !== "boolean" || typeof value.language !== "string")
     return null;
@@ -398,6 +400,7 @@ export function openingVerdict(
       hold: "unbacked_fact",
       detail: heldClaimDetail("guess", sentence),
       rewrite: true,
+      // screen-word: said to the model, never shown on a page.
       why: `it guessed (“${sentence}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
     };
   }

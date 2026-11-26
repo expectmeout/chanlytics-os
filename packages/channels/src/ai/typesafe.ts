@@ -23,6 +23,7 @@ import {
   type SystemOneAnswer,
   type SystemOneQuestion,
   type SystemOneRequest,
+  valueAt,
 } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
@@ -51,7 +52,7 @@ function scrubbed(text: string, key: string): string {
 function errorOf(a: ProviderReply, key: string): string {
   const j = answerObject(a);
   const detail = j && typeof j.detail === "string" ? j.detail : null;
-  const nested = j && j.error && typeof j.error === "object" ? (j.error as { message?: unknown }).message : null;
+  const nested = valueAt(j?.error, "message");
   const message =
     detail ?? (typeof nested === "string" ? nested : null) ?? (typeof j?.error === "string" ? j.error : null);
   return scrubbed(message ?? a.error ?? `status ${a.status}`, key);

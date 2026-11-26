@@ -9,7 +9,7 @@ import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import { sameListed } from "../calendar/service-offer";
 import { bookingPageOf } from "../google/booking-page";
 import { DAY_KEY } from "../shared/zone/day-keys";
-import { isObjectRecord } from "../shared/unknown";
+import { isObjectRecord, recordOrEmpty } from "../shared/unknown";
 
 export const BUSINESS_READ_SOURCES = ["google_profile", "website"] as const;
 export type BusinessReadSource = (typeof BUSINESS_READ_SOURCES)[number];
@@ -76,10 +76,9 @@ function lookReadOf(v: unknown): LookRead | null {
 
 /** A row's facts, read for what each is: a field of the wrong kind is none, a list of things that are not is empty. */
 export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
-  const item = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const item = recordOrEmpty(raw);
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-  const obj = (v: unknown): Record<string, unknown> =>
-    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  const obj = (v: unknown): Record<string, unknown> => recordOrEmpty(v);
   return {
     services: list(item.services).flatMap((s) => {
       const o = obj(s);

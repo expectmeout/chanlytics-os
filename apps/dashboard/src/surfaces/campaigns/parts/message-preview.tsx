@@ -207,6 +207,7 @@ function MpHead({ from, kind }: { from: string | null | undefined; kind: string 
         {mpInitials(from)}
       </span>
       <span className="mp-who">
+        {/* screen-word: "Your" tells the owner's own business, standing in for its name (docs/words.md, The voice 5) */}
         <span className="mp-name">{from || "Your business"}</span>
         <span className="mp-kind">{kind}</span>
       </span>

@@ -102,7 +102,7 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
   } catch (e) {
     return refuseFailure(503, "read_failed", e);
   }
-  const lines = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
+  const lines = data.map((r) => r.external_id).filter((id): id is string => typeof id === "string");
   return [...new Set([...lines, ...before])];
 }
 

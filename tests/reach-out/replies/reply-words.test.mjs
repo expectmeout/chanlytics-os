@@ -123,7 +123,7 @@ test("away: an automatic reply's day back, or their own words' step", () => {
 test("wrong person, other, and a reply not read yet", () => {
   assert.equal(
     strip({ intent: "wrong_person", refer_to: "their office manager" }).did,
-    "Not the right person. They said to write to their office manager. A step is on Today.",
+    "Not the right person: they said to write to their office manager. A step is on Today.",
   );
   assert.deepEqual(strip({ intent: "other", summary: null }), {
     title: "Wrote back",
@@ -133,8 +133,8 @@ test("wrong person, other, and a reply not read yet", () => {
     doors: [],
   });
   const unread = { intent: "other", summary: null, unread: "model_failed" };
-  assert.equal(strip(unread).did, "We couldn't read it yet: we'll try again.");
-  assert.equal(strip({ ...unread, rereads: REPLY_REREADS }).did, "We couldn't read it.", "after the last try");
+  assert.equal(strip(unread).did, "Couldn't read it yet · Chanlytics tries again.");
+  assert.equal(strip({ ...unread, rereads: REPLY_REREADS }).did, "Couldn't read it.", "after the last try");
 });
 
 test("the row's chip: what it was read as, and Wrote back when it was not or was undone", () => {

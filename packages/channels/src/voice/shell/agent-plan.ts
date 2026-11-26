@@ -1,6 +1,6 @@
 /** Shell: agent plan. */
 
-import { PHONE_VOICE_DEFAULT, RETELL_MODELS, keysOf } from "@chanlytics/contracts";
+import { PHONE_VOICE_DEFAULT, RETELL_MODELS, keysOf, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import {
   CALL_ANALYSIS_FIELDS,
   CALL_LIMITS,
@@ -69,15 +69,15 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     if (!subsetEqual(have, want)) {
       const subject =
         want.name === "transfer_to_staff"
-          ? ` (live destination: ${JSON.stringify((have.transfer_destination as { number?: string } | undefined)?.number ?? "?")}, ` +
-            `option: ${JSON.stringify((have.transfer_option as { type?: string } | undefined)?.type ?? "?")})`
+          ? ` (live destination: ${JSON.stringify(valueAt(have.transfer_destination, "number") ?? "?")}, ` +
+            `option: ${JSON.stringify(valueAt(have.transfer_option, "type") ?? "?")})`
           : "";
       drift.push(`tool ${want.name} differs${subject}`);
       toolsDiffer = true;
       continue;
     }
-    const wanted = (want.headers as Record<string, string> | undefined) ?? {};
-    const extra = Object.keys((have.headers as Record<string, string> | undefined) ?? {}).filter((k) => !(k in wanted));
+    const wanted = recordOrEmpty(want.headers);
+    const extra = Object.keys(recordOrEmpty(have.headers)).filter((k) => !(k in wanted));
     if (extra.length) {
       drift.push(`tool ${want.name} carries a header the shell does not set (${extra.join(", ")}): an apply drops it`);
       toolsDiffer = true;

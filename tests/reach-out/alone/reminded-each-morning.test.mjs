@@ -66,14 +66,14 @@ test("one run that waits is named by its sequence, with how many emails and sinc
   assert.equal(told.subject, "Movers in Austin still waits for your approval");
   assert.equal(
     told.body,
-    "8 emails to businesses your search found have waited since Nov 8. Approve them, or skip this send. " +
+    "8 emails to businesses your search found have waited since Nov 8: approve them, or skip this send. " +
       "Waits for you to approve. Nothing new goes out until you do, and you're reminded each morning.",
   );
   assert.equal(told.runId, "r1", "the bell's row opens the run");
   const one = coldWaitsNotice([{ ...MOVERS, emails: 1 }], TZ, MORNING);
   assert.match(
     one.body,
-    /^1 email to businesses your search found has waited since Nov 8\. Approve it, or skip this send\./,
+    /^1 email to businesses your search found has waited since Nov 8: approve it, or skip this send\./,
   );
 });
 
@@ -82,10 +82,10 @@ test("several runs are counted, the longest-waiting named first, and the row ope
   assert.equal(told.subject, "2 cold email sends still wait for your approval");
   assert.match(
     told.body,
-    /^12 emails to businesses your searches found have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\)\. Approve or skip each one\./,
+    /^12 emails to businesses your searches found have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\) · approve or skip each one\./,
   );
   assert.equal(told.runId, "r1");
   const many = [MOVERS, DENTISTS, FRESH, run("r4", "Vets · 2026-11-07", 2, "2026-11-07T20:00:00.000Z")];
-  assert.match(coldWaitsNotice(many, TZ, MORNING).body, /Gyms in Reno \(6\) and 1 more\./, "three are named");
+  assert.match(coldWaitsNotice(many, TZ, MORNING).body, /Gyms in Reno \(6\) and 1 more · /, "three are named");
   assert.equal(coldWaitsNotice([], TZ, MORNING), null);
 });

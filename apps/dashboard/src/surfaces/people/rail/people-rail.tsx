@@ -83,7 +83,7 @@ function archivedLine(p: {
               <button
                 type="button"
                 className="cl-bucket-link"
-                title={`Bring ${a.name} back`}
+                data-tip={`Bring ${a.name} back`}
                 onClick={() => onRestore(a)}
                 data-testid="rail-restore"
               >

@@ -240,7 +240,7 @@ function foundPeople(row: AskFoundRowVM) {
     <span className="tz-idea-people" data-testid="today-found-people">
       {row.peopleLead ? <small>{row.peopleLead}</small> : null}
       {row.people.map((p) => (
-        <Button key={p.id} variant="quiet" size="sm" onClick={() => appNavigate(p.to)} title={p.title}>
+        <Button key={p.id} variant="quiet" size="sm" onClick={() => appNavigate(p.to)} data-tip={p.title}>
           {p.name}
         </Button>
       ))}

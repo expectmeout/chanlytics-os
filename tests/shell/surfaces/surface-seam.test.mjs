@@ -142,50 +142,16 @@ test("nothing outside the runner calls activateOverride directly", () => {
 });
 
 /* ------- three states the operator's screen could show falsely ----------- */
-{
-  // The third, a failed boot over cached real data said as degraded, runs the runner in surface-boot.test.mjs.
-  const { readCode } = await import("../../_source.mjs");
-  // The seam and each surface's module beside it (bridge/surfaces/, and the surfaces that have left the shell),
-  // read as one text.
-  const seam = [
-    "apps/dashboard/src/bridge/surface-data.ts",
-    "apps/dashboard/src/surfaces/reports/surface.ts",
-    "apps/dashboard/src/surfaces/inbox/surface.ts",
-    "apps/dashboard/src/surfaces/inbox/conversations-surface.ts",
-    ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  const verbs = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
-  const wrapper = readCode("apps/dashboard/src/server/shared/with-route.ts");
-
-  test("a successful write forgets every in-flight read", () => {
-    // The collapser shares a pending request for two seconds. A verb commits
-    // and then refreshes; that refresh joins a request issued BEFORE the
-    // commit and repaints the thread exactly as it was, under a "live" pill.
-    assert.ok(!seam.includes("fetch("), "the seam owns no fetch either");
-    // The client does this now, once, for every courier (typed-client.test.mjs
-    // runs it): a courier that owns no fetch cannot forget to.
-    assert.ok(!verbs.includes("fetch("), "the courier owns no fetch; the client forgets after every write");
-  });
-
-  test("an auth outage is a 503, not a sign-out", () => {
-    // getUser() returns no user for BOTH a missing session and a network
-    // failure. Reporting 401 for the second made the client wipe the surface
-    // cache — real customer transcripts — and hard-redirect to /login, so a
-    // brief Supabase blip logged every operator out mid-sentence.
-    assert.match(wrapper, /upstream_auth/);
-    assert.match(wrapper, /status: 503/);
-    // ONE predicate, shared with the middleware — which used to answer 401
-    // for API paths before the wrapper ever ran.
-    assert.match(wrapper, /isRetryableAuthError\(authErr\)/);
-    const predicate = readCode("apps/dashboard/src/server/shared/auth/errors.ts");
-    assert.match(predicate, /AuthRetryableFetchError|err\.status >= 500/);
-    const middleware = readCode("apps/dashboard/proxy.ts");
-    assert.match(middleware, /isRetryableAuthError\(authErr\)/, "the gate must not answer 401 for an outage");
-    assert.match(middleware, /status: 503/);
-  });
-}
+// Each is run where it lives (25 Nov 2026; their modules' text was read here until then):
+// - a failed boot over cached real data is said as degraded: the runner, in surface-boot.test.mjs;
+// - a successful write forgets every in-flight read: the client does it once for every courier (typed-client.test.mjs),
+//   and neither the seam nor a courier owns a fetch to forget it with, since nothing in apps or packages calls a global
+//   fetch but the named exceptions (repo/rules/rules.test.mjs, FETCH_EXCEPTIONS, decision 0149);
+// - an auth outage is a 503, not a sign-out: getUser() returns no user for a missing session AND a network failure, and
+//   reporting 401 for the second wiped the surface cache and logged every operator out mid-sentence. The route wrapper
+//   answers 503 for a verifier it cannot reach (auth/bearer.test.mjs), the proxy answers 503 upstream_auth for a page and
+//   an API path alike (auth/auth-gate.test.mjs), and both ask the one predicate (routes/doors-and-rows.test.mjs runs
+//   isRetryableAuthError).
 
 /* ---------------- 5. the newest read wins (defect 52's sibling, plan section 4) ---------------- */
 // A surface is read by its boot, the live feed, a write's refresh, a return to the tab and Retry, and nothing ordered

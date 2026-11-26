@@ -78,7 +78,7 @@ export function reachOutPersonOf(leadTimeline: ReachOutLeadTimelineDto, nowMs: n
     if (s.from || s.host) parts.push(`from ${s.from ?? s.host}`);
     else if (s.said) parts.push("from your inbox");
     parts.push(emailWords(s));
-    emails.set(s.message_id, { who: chain ? `Campaign · ${chain}` : "Your campaign", sub: parts.join(" · ") });
+    emails.set(s.message_id, { who: chain ? `Campaign · ${chain}` : "A campaign", sub: parts.join(" · ") });
   }
   const readings = new Map<string, string>();
   for (const r of leadTimeline.readings)

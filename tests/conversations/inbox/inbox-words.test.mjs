@@ -168,7 +168,7 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
     [
       ["quick_note", "A quick note", "A quick note"],
       ["booking_link", "Booking link", "Booking link"],
-      ["save_our_number", "Save our number", "Save our number"],
+      ["save_our_number", "Save the number", "Save the number"],
     ],
     "a message is offered by its title: the language it is written in is not a choice a person makes",
   );
@@ -356,7 +356,7 @@ test("one message is offered once: its default language first, a language said o
   );
   assert.deepEqual(
     inboxTemplates([saveEs, booking], to).sendable.map((s) => s.title),
-    ["Booking link", "Save our number"],
+    ["Booking link", "Save the number"],
     "nothing says what language this person reads: a message in the product's own comes before one without",
   );
   assert.equal(
@@ -637,15 +637,15 @@ test("the template send is the reply box's capsule: the message it will send at 
     choicesOf(tree),
     [
       ["Booking link", true],
-      ["Save our number", false],
+      ["Save the number", false],
     ],
     "REGRESSION: booking_link · en_US; the box offers messages, not languages",
   );
-  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Save our number").props.onClick();
+  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Save the number").props.onClick();
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.deepEqual(
     choicesOf(tree).find(([, on]) => on),
-    ["Save our number", true],
+    ["Save the number", true],
     "the chosen message is the one the box marks, and Send sends it",
   );
 

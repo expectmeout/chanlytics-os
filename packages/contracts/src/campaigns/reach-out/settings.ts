@@ -149,6 +149,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
   /** Whoever may only read the page. */
   viewer: "Only an owner can change these, or connect a mailbox.",
   pitch: {
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     title: "Your pitch",
     sell: "What do you sell?",
     whoFor: "Who should hear from you?",
@@ -210,6 +211,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     none: "Not set",
     foot: "Then why they're hearing from you, your address, and a way to say no. The law asks for them.",
     noAddress: "No address yet, and every email needs one.",
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     name: "Your name",
     nameFrom: "From your newest campaign, until you set it here.",
     under: "Under your name",
@@ -254,7 +256,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     connect: "Connect",
     batchAutonomy: "See this for every kind of message on Autonomy",
     batchNote:
-      "You approve a campaign's first run. After that, this is what happens each day. A campaign sends on its own only where you set that on the campaign itself.",
+      "You approve a campaign's first run, then this happens each day. It sends by itself only where the campaign says so.",
     batchNew: "New words always wait for your approval, whichever you pick.",
     batchWhich: "For new campaigns. Each campaign can change its own.",
     batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your approval" },
@@ -290,7 +292,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     row: "Your customers, and anyone who said no",
     soFar: (n: number) => `${n} so far.`,
     sheetSub: "Chanlytics checks this before every email, in every campaign.",
-    customers: "Your customers",
+    customers: "Customers",
     customersValue: "Always, on its own",
     saidNo: "Said no",
     askedToStop: "Asked to stop",
@@ -310,7 +312,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     hints: {
       words: "Written once by AI when you make a campaign in New: the same words for every business it goes to.",
       opening:
-        "Written for each business as its email comes due, then read back by a second reader. One that guesses is written again · one that still does is held for you.",
+        "Written as each email comes due, then checked. One that guesses is rewritten · one that still does waits for you.",
       reply:
         "Written by AI as How it answers is told, with the conversation and the lead's note. Signed as the campaign signs.",
     },
@@ -330,6 +332,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     open: "Open the campaign",
     none: "Start a campaign to see one: its first email is what this writes.",
     noneAct: "Start a campaign",
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     legend: { them: "Their listing", proof: "Your facts", words: "Your pitch" },
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,

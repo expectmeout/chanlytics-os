@@ -50,6 +50,12 @@ function modelPlace(node) {
   return false;
 }
 
+/**
+ * A message a customer is sent, with the places its values fill (`Hi {{1}}, it's {{2}}.`): the business's own words to
+ * its customer, which docs/words.md does not bind ("Who reads it"), however a page shows it to the owner.
+ */
+const MESSAGE_BODY = /\{\{\s*[\w.]+\s*\}\}/;
+
 /** The entities a JSX text may write, as the screen draws each one. */
 const ENTITIES = {
   amp: "&",
@@ -159,7 +165,7 @@ export function wordsReadIn(sf, { only = () => true } = {}) {
   const out = [];
   const say = (node, raw) => {
     const text = raw.replace(/\s+/g, " ").trim();
-    if (!isWords(text) || kept(node)) return;
+    if (!isWords(text) || MESSAGE_BODY.test(text) || kept(node)) return;
     out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text });
   };
   const read = (n) => !idPlace(n) && !developerPlace(n) && !modelPlace(n) && only(n);
@@ -202,19 +208,28 @@ export function voiceMarksOf(sf) {
   return out;
 }
 
-/** An element the browser draws (a lower-case tag), or the kit's Button, which hands its `title` to one. */
-const DRAWS_ITS_TITLE = /^([a-z][\w.-]*|Button|IconButton)$/;
+/**
+ * Where a `title=` is the browser's tooltip: on an element the browser draws (a lower-case tag); on a part of Base UI
+ * (`Tabs.Tab`, `Menu.Item`), which hands its element every prop it does not know; or on a kit control that hands its
+ * `title` on the same way (Button, IconButton, LinkButton, LinePress, Press, RecordField). A component's own `title` prop
+ * (a sheet's, an empty state's) is its heading, not a tooltip.
+ */
+const DRAWS_ITS_TITLE = /^([a-z][\w.-]*|[A-Z]\w*\.[A-Z]\w*|Button|IconButton|LinkButton|LinePress|Press|RecordField)$/;
+/** A frame's title is its name, the words a screen reader says as focus enters it (WCAG 4.1.2), not a tooltip. */
+const NAMED_BY_ITS_TITLE = new Set(["iframe"]);
+
+/** The markup the browser-tooltips measure reads: the dashboard's TSX, but what nobody reads (its tests, its types). */
+export const markupFiles = () =>
+  repoFiles(["apps/dashboard/src", "apps/dashboard/app"]).filter((f) => /\.tsx$/.test(f) && !NOT_READ.test(f));
 
 /** How many `title=` a file writes on an element: the browser's own tooltip, which a phone never shows. */
 export function titleTooltipsIn(sf) {
   let n = 0;
   const visit = (node) => {
-    if (
-      ts.isJsxAttribute(node) &&
-      node.name.getText() === "title" &&
-      DRAWS_ITS_TITLE.test(node.parent.parent.tagName.getText())
-    )
-      n += 1;
+    if (ts.isJsxAttribute(node) && node.name.getText() === "title") {
+      const tag = node.parent.parent.tagName.getText();
+      if (DRAWS_ITS_TITLE.test(tag) && !NAMED_BY_ITS_TITLE.has(tag)) n += 1;
+    }
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -307,12 +322,11 @@ export const WORD_RATCHETS = [
     file: "title-tooltips.json",
     measure: () =>
       Object.fromEntries(
-        repoFiles(["apps/dashboard/src", "apps/dashboard/app"])
-          .filter((f) => /\.tsx$/.test(f) && !NOT_READ.test(f))
+        markupFiles()
           .map((f) => [f, titleTooltipsIn(parse(f))])
           .filter(([, n]) => n > 0),
       ),
     advice:
-      "A phone shows no title=, and nothing important lives only in one: name the control for a screen reader (aria-label) and use the kit's Tooltip for an icon's name.",
+      "A phone shows no title=, and nothing important lives only in one: name the control for a screen reader (its words or an aria-label) and say its hint in the house's tip (data-tip, frame/tip.ts), which shows on hover, on focus and under a tap.",
   },
 ];

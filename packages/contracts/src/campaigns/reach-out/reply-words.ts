@@ -8,6 +8,7 @@ import { REPLY_CHIP_WORDS, REPLY_INTENT_WORDS, type ReplyIntent, type Unread } f
 import { REPLY_REREADS } from "./replies/words";
 import type { ReplyClaim } from "./replies/reading";
 import type { DraftWhy } from "./reply-draft";
+import { valueAt } from "../../shared/unknown";
 
 /** The most readings one page is told, and how far back it looks (the reading's own window, REACH_OUT_REPLY_DAYS). */
 export const REPLIES_PAGE = 200;
@@ -142,7 +143,7 @@ function didLine(reachOutReply: ReachOutReplyDto, now: number, tz: string): stri
     case "no":
       return saidNoLine(reachOutReply);
     case "wrong_person":
-      return `Not the right person. They said to write to ${reachOutReply.refer_to ?? "someone else"}. A step is on Today.`;
+      return `Not the right person: they said to write to ${reachOutReply.refer_to ?? "someone else"}. A step is on Today.`;
     case "away":
       if (reachOutReply.claim === "auto_reply" && reachOutReply.until_at) {
         const back = clockDate(Date.parse(reachOutReply.until_at), tz, now);
@@ -181,7 +182,7 @@ export function replyStripOf(reachOutReply: ReachOutReplyDto, now: number, tz: s
       title: "Wrote back",
       said: null,
       answers,
-      did: last ? "We couldn't read it." : "We couldn't read it yet: we'll try again.",
+      did: last ? "Couldn't read it." : "Couldn't read it yet · Chanlytics tries again.",
       doors: [],
     };
   }
@@ -242,8 +243,8 @@ const bareAddress = (from: unknown): string | null => {
 export function replyLeftAsOf(meta: unknown): string | null {
   const email = (meta as { email?: Record<string, unknown> } | null)?.email;
   if (!email || email.left_as !== "mailbox") return null;
-  const sent = bareAddress((email.request as { from?: unknown } | undefined)?.from);
-  const own = bareAddress((email.own_request as { from?: unknown } | undefined)?.from);
+  const sent = bareAddress(valueAt(email.request, "from"));
+  const own = bareAddress(valueAt(email.own_request, "from"));
   if (!sent) return null;
   if (!own) return `Went from ${sent}.`;
   return email.left_as_why === "own_not_sending"

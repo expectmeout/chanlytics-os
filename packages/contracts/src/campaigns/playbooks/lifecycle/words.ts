@@ -47,7 +47,7 @@ export const LIFECYCLE_WORDS = {
   // Said, after the standard beat, where a tile's read is still out.
   reading: "Reading…",
   close: "Close",
-  rail: "Your customer, start to finish",
+  rail: "A customer, start to finish",
   needs: {
     none: "Answers whoever writes",
     messages: "Reaches a yes to messages",
@@ -198,7 +198,7 @@ export const LIFECYCLE_WORDS = {
      * one where it is not set up, as the rows' marks draw them; a hollow chip pressed says why under the row, and one
      * door to Settings › Connections stands at its end.
      */
-    head: "Your channels",
+    head: "Channels",
     sending: (word: string): string => `${word}, sending`,
     notSetUp: (word: string): string => `${word}, not set up: why`,
     setUp: "Set up",
@@ -245,7 +245,7 @@ export const LIFECYCLE_WORDS = {
   // Campaigns' ledger (spec 2026-10-09 §4.3, §4.4): every word its page says once; each row's own are the view model's.
   ledger: {
     /** The ledger's name to a screen reader. */
-    label: "Your campaigns",
+    label: "Campaigns",
     /** The phone's strip of chips, to a screen reader. */
     strip: "Campaigns by moment",
     /** The phone's search circle, which opens the search. */
@@ -341,7 +341,7 @@ export const LIFECYCLE_WORDS = {
     // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
-    asks: "AI now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    asks: "AI now asks for it once a person, in a conversation they started. At the desk, the code or phrase does the same.",
     /**
      * The phone's line in the Moments head: who of everyone in People a message can reach now. Everyone is said as
      * everyone ("All 29 can hear you"), not as a fraction of itself; nobody in People is no line at all (the tile).

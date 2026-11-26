@@ -63,12 +63,12 @@ import type { Database } from "@chanlytics/db/types";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { logger } from "../shared/log.js";
-import { checksumOf, readAdPhoto } from "./approval.js";
+import { checksumOf, readAdPhoto } from "./launch/approval.js";
 import { readWayIn } from "./chat/answered.js";
-import { approvedOf, launchDiffers, type LaunchApproved, type LaunchMoment } from "./launch-parts.js";
+import { approvedOf, launchDiffers, type LaunchApproved, type LaunchMoment } from "./launch/parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { ADS_USAGE_HOLD_PCT } from "./pace.js";
-import { sandboxAnswer, sandboxHeld } from "./launch-sandbox.js";
+import { sandboxAnswer, sandboxHeld } from "./launch/sandbox.js";
 import { launchNameOf } from "./tag.js";
 import type { AdsWrites } from "./tell.js";
 

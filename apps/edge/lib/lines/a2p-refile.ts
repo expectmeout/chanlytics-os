@@ -77,7 +77,7 @@ export async function unfileMockRegistration(
       return {
         ok: false,
         error: "provider_refused",
-        detail: `the mock campaign would not come off (HTTP ${result?.status ?? 0})`,
+        detail: `the mock campaign would not come off (HTTP ${result.status})`,
       };
   }
   // `single()` is the row count: a write that changed nothing errors here
@@ -180,7 +180,7 @@ export async function resubmitRejectedCampaign(
     return {
       ok: false,
       error: "provider_refused",
-      detail: `texting approval couldn't be filed again (HTTP ${result?.status ?? 0}) ${detail}`,
+      detail: `texting approval couldn't be filed again (HTTP ${result.status}) ${detail}`,
     };
   }
   log.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });

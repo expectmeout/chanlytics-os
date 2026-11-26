@@ -360,7 +360,7 @@ const RUN_CALLS = [
     {},
     {
       error:
-        "This run was made for 2026-09-19 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
+        "This run was made for 2026-09-19 and that day has passed. Skip it · the next run reads the calendar again.",
     },
     RUN_READ,
   ],

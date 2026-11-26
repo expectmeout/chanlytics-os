@@ -49,7 +49,7 @@ const ROWS = [
     name: "a mailbox signed out",
     facts: facts({ mailboxes: [{ state: "reconnect", held_why: null }] }),
     kind: "reconnect",
-    headline: "Your mailbox needs reconnecting",
+    headline: "The mailbox needs reconnecting",
     act: "Reconnect",
     to: "admin/integrations",
     needs_you: true,
@@ -130,7 +130,7 @@ const ROWS = [
     name: "no address and a campaign running, none held yet or the count not read",
     facts: facts({ hasAddress: false, heldForAddress: null }),
     kind: "no_address",
-    headline: "Your emails need your address",
+    headline: "Emails need your address",
     act: "Add your address",
     to: "admin/workspace/address",
     needs_you: true,
@@ -184,7 +184,7 @@ const ROWS = [
     name: "every mailbox paused by its owner",
     facts: facts({ mailboxes: [{ state: "paused", held_why: null }] }),
     kind: "paused",
-    headline: "Your mailbox is paused",
+    headline: "The mailbox is paused",
     act: "Open Connections",
     to: "admin/integrations",
     needs_you: false,
@@ -196,7 +196,7 @@ const ROWS = [
       waitingRun: { id: "run-1", planned: 25, name: "Dental clinics · Austin", first: false },
     }),
     kind: "paused",
-    headline: "Your mailbox is paused",
+    headline: "The mailbox is paused",
     act: "Open Connections",
     to: "admin/integrations",
     needs_you: true,
@@ -425,7 +425,7 @@ test("a mailbox that sends and fails a check is said at the top, with what fails
   const alone = coldEmailStandingOf(
     facts({ needsLook: { ...needsLook, why: "Your domain is missing its DMARC record", alone: true } }),
   );
-  assert.equal(alone.headline, "Your mailbox needs a look");
+  assert.equal(alone.headline, "The mailbox needs a look");
   // A batch waiting for an OK is today's, and a held mailbox stops emails: each is said first.
   const waitingRun = { id: "run-1", planned: 12, name: "Clinics · Austin", first: false };
   assert.equal(coldEmailStandingOf(facts({ needsLook, waitingRun })).kind, "waiting_ok");
