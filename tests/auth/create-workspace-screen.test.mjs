@@ -412,6 +412,10 @@ test("V1: another workspace, from inside the app, keeps its own form -- its titl
     find(tree, (n) => n.type === "select"),
     "the zone is asked",
   );
+  assert.ok(
+    textOf(tree).includes("Your opening hours are read in this timezone."),
+    "and the form says what the zone decides",
+  );
   assert.ok(byTestId(tree, "create-workspace-back"));
 });
 

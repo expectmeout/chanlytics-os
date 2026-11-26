@@ -16,8 +16,12 @@ import {
   pendingWorkspaceOf,
   PENDING_WORKSPACE_KEY,
   EVENT_KINDS,
+  SIGNUP_WAITLIST,
+  passwordProblem,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { AUTH, RATE, SAME, signupWorld } from "./_signup-route.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
   const ok = SignupSchema.safeParse({
@@ -130,141 +134,123 @@ test("what the form said waits on the user, and is a prefilled form rather than 
   }
 });
 
-test("the wiring: two public paths, the guards on the route, a service role that makes no workspace, the one place workspaces are made", () => {
-  const middleware = readCode("apps/dashboard/proxy.ts");
+test("the wiring: the door a stranger may use, its guards, an account made on the public key, and no workspace made", async () => {
+  // Public by a deliberate edit to the proxy's list (/signup and /api/v1/signup): auth/auth-gate.test.mjs runs the gate
+  // over every address. The route, run as a stranger meets it (_signup-route.mjs), with no session at all: it does not
+  // go through withRoute, since there is none to verify.
+  const who = { name: "Luna Studio", email: "owner@luna.example", password: "correct horse battery" };
+  const open = signupWorld();
+  const made = await open.post({ ...who, timezone: "America/New_York" });
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the admin API and mark the address confirmed
+  // with no proof at all. With confirmation on, the ordinary sign-up call does the whole job on the PUBLIC key: no
+  // session for an unproved address, and the code sent as part of it. Nothing else is asked of anybody.
+  assert.deepEqual(
+    open.wire.map((r) => `${r.origin === AUTH ? "auth" : r.origin}${r.path}`),
+    ["auth/auth/v1/signup"],
+    "one call, the ordinary sign-up: no admin API, no workspace, nothing to undo, no notice to the platform",
+  );
+  const [signup] = open.signups();
+  assert.equal(signup.headers.apikey, "anon-key-for-this-file", "on the public key: the route holds no service key");
   assert.ok(
-    middleware.includes('"/signup"') && middleware.includes('"/api/v1/signup"'),
-    "public by a deliberate edit to PUBLIC_PATHS",
+    !Object.values(signup.headers).some((v) => String(v).includes(process.env.SUPABASE_SERVICE_ROLE_KEY)),
+    "and never the service role's",
   );
-  const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
-  assert.ok(!route.includes("withRoute"), "no session to verify: the route does not go through withRoute");
-  assert.ok(
-    route.includes('if (!isSameOrigin(req)) throw new AppError("forbidden", SIGNUP_WORDS.crossSite);'),
-    "same-origin, like every mutating route",
+  assert.deepEqual([signup.body.email, signup.body.password], [who.email, who.password]);
+  // What the form said rides on the user, for the create screen to open with -- and the code it checked, so nothing is
+  // typed twice. A workspace is made by the person who proved the inbox, signed in (workspace-creation.test.mjs runs
+  // that route, and the platform's notice it sends).
+  assert.deepEqual(signup.body.data, {
+    [PENDING_WORKSPACE_KEY]: { name: "Luna Studio", timezone: "America/New_York" },
+  });
+  assert.deepEqual(open.tables.waitlist, [], "and nothing is written of ours");
+  const invited = signupWorld({ code: "SPRING-2026" });
+  await invited.post({ ...who, email: "two@luna.example", code: "SPRING-2026" });
+  assert.deepEqual(
+    invited.signups()[0].body.data[PENDING_WORKSPACE_KEY],
+    { name: "Luna Studio", timezone: null, code: "SPRING-2026" },
+    "the code rides with it when the door asked one",
   );
-  assert.ok(
-    route.includes('await takeRate(`ip:${hash(ipOf(req))}`, "signup_ip");') &&
-      route.includes('await takeRate(`email:${hash(input.email)}`, "signup_email");'),
-    "a bucket per network and per address",
+
+  // Same-origin, like every mutating route.
+  const crossSite = await signupWorld().post(who, { "sec-fetch-site": "cross-site" });
+  assert.deepEqual([crossSite.status, crossSite.body.error.message], [403, SIGNUP_WORDS.crossSite]);
+
+  // The invite code, by the one function both doors use: no code, or another, is the code's sentence and no account.
+  for (const code of [undefined, "WINTER-2025"]) {
+    const w = signupWorld({ code: "SPRING-2026" });
+    const r = await w.post({ ...who, ...(code ? { code } : {}) });
+    assert.deepEqual([r.status, r.body.error.message], [403, SIGNUP_WORDS.codeWrong], String(code));
+    assert.deepEqual(w.signups(), []);
+  }
+  assert.equal((await signupWorld({ code: "SPRING-2026" }).post({ ...who, code: "SPRING-2026" })).status, 200);
+
+  // A bucket per address: the same address from new networks is refused once its own bucket is spent.
+  const one = signupWorld();
+  for (let i = 0; i < RATE.signup_email.limit; i++)
+    await one.post({ ...who, email: "flood@luna.example" }, { ...SAME, "x-forwarded-for": `203.0.113.${i + 1}` });
+  assert.equal(
+    (await one.post({ ...who, email: "flood@luna.example" }, { ...SAME, "x-forwarded-for": "198.51.100.7" })).status,
+    429,
+    "the address's own bucket",
   );
-  assert.ok(
-    route.includes("inviteCodeMatches(input.code)") && route.includes("env.SIGNUP_CODE"),
-    "the invite code compared in constant time, by the one function both doors use",
-  );
-  assert.ok(
-    !route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"),
-    "the route holds no key",
-  );
-  // The rules are the dashboard's, the call on the public key is packages/db's: read together, as one path.
-  const server = readCode("apps/dashboard/src/server/workspace/signup.ts", "packages/db/src/repositories/auth/auth.ts");
-  assert.ok(server.includes('import "server-only";'));
-  // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
-  // admin API and mark the address confirmed with no proof at all, because
-  // confirmation was off and nothing else would send one. With confirmation on,
-  // the ordinary sign-up call does the whole job on the PUBLIC key: no session
-  // for an unproved address, an obfuscated answer for an address we already
-  // have, and the code sent as part of it.
-  assert.ok(
-    !server.includes("admin.createUser") && !server.includes("email_confirm"),
-    "REGRESSION: an address marked proved by the thing that has not proved it",
-  );
-  assert.ok(server.includes("anon.auth.signUp({ email: args.email"), "the ordinary sign-up call, on the public key");
-  assert.ok(
-    server.includes("[PENDING_WORKSPACE_KEY]: {") &&
-      server.includes("timezone: input.timezone ?? null,") &&
-      server.includes("...(input.code ? { code: input.code } : {}),"),
-    "what the form said rides on the user, for the create screen to open with -- and the code it checked, so nothing is typed twice",
-  );
-  assert.ok(
-    !server.includes("create_workspace") && !server.includes("deleteUser") && !server.includes("emitEvent"),
-    "REGRESSION: a workspace, or anything to undo, for an address nobody has proved",
-  );
-  assert.ok(
-    server.includes("identities?.length ?? 0) > 0"),
-    "when the platform DOES obfuscate, the empty identities array is the tell, and it is read for the LOG alone",
-  );
-  // And when it does not — which is this project's state, because the flag that
-  // would is locked behind a phone provider nobody signs in with — the answer
-  // is kept neutral here rather than by a console toggle.
-  assert.ok(
-    server.includes("if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };"),
-    "an address we already have is answered exactly as a new one is: nothing made, nothing sent, same sentence",
-  );
-  assert.ok(
-    server.indexOf("addressAlreadyKnown(error)") < server.indexOf('throw new DbFailure(error, "signUp")'),
-    "REGRESSION: an ordinary second sign-up becoming a 500, which is a dead end AND an oracle",
-  );
-  // Read from the `route` already in hand rather than a second read of the
-  // same file: the ratchet counts source reads per test file, and it is right
-  // to — a file that reads more source is a file pinning more text.
-  assert.ok(
-    route.includes("if (!byCode && !isUsablePassword(input.password))"),
-    "the credential is insisted on by the creating path, not by the schema the waitlist also passes through",
-  );
-  assert.ok(
-    route.includes("const byCode = !!preview && input.password === undefined;"),
-    "and the one account made with none is a live preview's, whose link the route checked first (decision 0079)",
-  );
-  assert.ok(
-    route.indexOf('if (posture === "waitlist")') < route.indexOf("isUsablePassword(input.password)"),
-    "and the queue, which makes no account, is never asked for one",
-  );
-  assert.ok(!route.includes("notifyPlatformSignup"), "the public route has no workspace to tell anyone about");
-  // An owner's workspace starts in one place, the first one included, and that
-  // place tells the mailbox and hands the create screen what sign-up kept (a
-  // partner's is told through the same recordWorkspaceBegun from partner-account.ts, which
-  // partners/a-handed-over-workspace-has-alerts.test.mjs runs).
-  const create = readCode(
-    "apps/dashboard/app/api/v1/workspaces/create/route.ts",
-    "apps/dashboard/src/server/workspace/create.ts",
-  );
-  // What follows every workspace made is one function (recordWorkspaceBegun, decision 0091): the create route asks it, and
-  // it tells the mailbox.
-  assert.ok(
-    create.includes(
-      'await recordWorkspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });',
-    ) && create.includes("if (how.notify !== null) await notifyPlatformSignup(tenantId, how.notify, ctx.userId);"),
-    "the mailbox hears about a workspace where workspaces are made",
-  );
-  const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts", "apps/dashboard/src/server/workspace/list.ts");
-  assert.ok(list.includes("pending: pendingWorkspaceOf(ctx.metadata)"), "nowhere yet comes with what sign-up kept");
-  // The service role alone may name an owner, and the signed-in wrapper delegates: create_workspace_for, redefined
-  // since 00072 through 00497, run on the stack (auth/workspace-created.db.test.mjs, partners/handover.db.test.mjs).
-  // Pinned as 00072's text until 25 Nov 2026, which no longer said what the database does.
-  const record = readRaw("supabase/migrations/00104_a_workspace_is_recorded_where_it_is_made.sql");
-  assert.ok(
-    record.includes("after insert on public.tenants") &&
-      record.includes("'workspace.created'") &&
-      record.includes("jsonb_build_object('by', auth.uid()"),
-    "every workspace is recorded where it is made, naming the session when there was one",
-  );
-  const login = readCode("apps/dashboard/app/login/page.tsx");
-  // Sign-in no longer opens at a code step handed to it by sign-up; it carries
-  // the address across so nobody types it twice, keeps the code door for every
-  // account that has no password, and still points at sign-up.
-  assert.ok(
-    login.includes('href="/signup"') && login.includes("signInWithPassword({ email: email.trim(), password })"),
-    "a password door, pointing at sign-up",
-  );
-  assert.ok(login.includes("shouldCreateUser: false"), "REGRESSION: the code door must never mint an account");
-  assert.ok(login.includes("href={`/reset-password"), "and a way out for somebody who has forgotten it");
-  // And a way out of the state confirmation created: password right, address
-  // never proved. Without this the person is told the pair does not match and
-  // goes off to reset a password that works.
-  assert.ok(
-    login.includes("if (emailNotConfirmed(error)) {") &&
-      login.includes('await supabase.auth.resend({ type: "signup", email: email.trim() });'),
-    "an unconfirmed account is sent a fresh confirmation rather than the neutral refusal",
-  );
-  const page = readCode("apps/dashboard/src/auth/SignupScreen.tsx");
-  // The server says which of the three doors this is; the field belongs to
-  // exactly one of them.
-  assert.ok(
-    /askOwnRoute<[^>]*>\(\s*"\/api\/v1\/signup",\s*\{\s*headers/.test(page) &&
-      page.includes('{posture === "invite" && ('),
-    "the code field appears only when the server asks for it",
-  );
+
+  // The credential is insisted on by the creating path, not by the schema the waitlist also passes through: an open door
+  // with no password is refused in the rule's words and makes nothing; the queue, which makes no account, never asks
+  // for one. The one account made with none is a live preview's, whose link the route checked first (decision 0079):
+  // run in previews/preview-claim.test.mjs ("from a live preview's link an account is made with no password").
+  const bare = signupWorld();
+  const noPassword = await bare.post({ name: who.name, email: who.email });
+  assert.deepEqual([noPassword.status, noPassword.body.error.code], [400, "validation"]);
+  assert.equal(noPassword.body.error.message, passwordProblem(undefined) ?? "Choose a password.");
+  assert.deepEqual(bare.signups(), []);
+  assert.equal((await signupWorld({ code: SIGNUP_WAITLIST }).post({ name: who.name, email: who.email })).status, 200);
+
+  // When the platform DOES obfuscate an address it already has (no identities), and when it says so outright, the
+  // answer is the one a new address gets: nothing made, nothing sent, the same sentence. An ordinary second sign-up is
+  // never a 500, which is a dead end AND an oracle.
+  const fresh = (await signupWorld().post(who)).body;
+  for (const answer of [
+    { status: 200, body: { id: "d1", email: who.email, identities: [], user_metadata: {} } },
+    {
+      status: 422,
+      body: { code: "user_already_exists", error_code: "user_already_exists", msg: "User already registered" },
+    },
+  ]) {
+    const again = await signupWorld({ signUp: () => answer }).post(who);
+    assert.deepEqual([again.status, again.body], [200, fresh], JSON.stringify(answer.body));
+  }
 });
+
+test("nowhere yet comes with what sign-up kept: the first workspace's create screen opens with it", async () => {
+  // GET /api/v1/workspaces for someone with no workspace (server/workspace/list.ts): no workspace, and the name and
+  // clock they typed before they had proved the inbox, from the user's metadata, so the create screen opens with them.
+  const workspaces = await importSrc("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const kept = { name: "Luna Studio", timezone: "America/New_York" };
+  const answer = await workspaces.GET.run(new Request("http://localhost/api/v1/workspaces"), {
+    supabase: fakeDb(
+      { memberships: [], tenants: [], profiles: [] },
+      {},
+      { platform_staff_state: () => null, handovers_mine: () => [] },
+    ),
+    userId: "u-new",
+    email: "owner@luna.example",
+    params: {},
+    metadata: { [PENDING_WORKSPACE_KEY]: kept },
+  });
+  assert.deepEqual([answer.workspaces, answer.activeWorkspaceId], [[], null]);
+  assert.deepEqual(answer.pending, pendingWorkspaceOf({ [PENDING_WORKSPACE_KEY]: kept }));
+  assert.equal(answer.pending.name, "Luna Studio", "what sign-up kept");
+});
+
+// The service role alone may name an owner, and the signed-in wrapper delegates: create_workspace_for, redefined since
+// 00072 through 00497, run on the stack (auth/workspace-created.db.test.mjs, partners/handover.db.test.mjs). Every
+// workspace is recorded where it is made, naming the session when there was one (00104's trigger): the same suite.
+// Sign-in (app/login) carries the address across, keeps the code door for every account with no password, never mints
+// an account by its code, points at sign-up and a reset, and sends an unconfirmed address a fresh confirmation: drawn
+// and pressed in sign-in-screen.test.mjs. The sign-up page asks the server which door it is and draws the code field for
+// the invite's alone: signup-screen.test.mjs. Pinned as the proxy's, the route's, signup.ts's, auth.ts's, create.ts's,
+// list.ts's, 00104's, the login page's and SignupScreen.tsx's text until 26 Nov 2026.
 
 test("a send WE could not make is admitted; one about an ADDRESS is not", () => {
   // THE SECOND WALL IN THE GATE-9 WALKTHROUGH. The auth mailer has a declared
