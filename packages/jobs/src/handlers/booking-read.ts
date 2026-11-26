@@ -40,10 +40,8 @@ import {
 } from "@chanlytics/db/calendar";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { clearForwardingConfirmation } from "@chanlytics/db/email";
-import { emitEvent } from "@chanlytics/db/events";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { MAX_ATTEMPTS } from "../runner/ledger";
-import type { TenantId } from "@chanlytics/contracts";
 
 /** The closed sets as the tables hold them (00345): a row the verb cannot read as one is a failed read, not a missing one. */
 const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "missed", "cancelled"];
@@ -56,20 +54,6 @@ const isOutcome = (v: string): v is NoticeOutcome => isOneOf(OUTCOMES, v);
  * appointment it wrote. The notice's own ledger (appointment_notices) says each email; this says what happened to the
  * calendar, where an owner reads everything else that did. A notice held or set aside moved no visit, and says nothing.
  */
-async function sayBooking(
-  db: JobContext["db"],
-  params: { tenantId: TenantId; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
-): Promise<void> {
-  if (!params.appointmentId) return;
-  const data = { source: "booking_email" as const, tool: params.tool };
-  if (params.outcome === "booked")
-    await emitEvent(db, params.tenantId, "appointment.booked", "appointment", params.appointmentId, data);
-  if (params.outcome === "changed")
-    await emitEvent(db, params.tenantId, "appointment.moved", "appointment", params.appointmentId, data);
-  if (params.outcome === "cancelled")
-    await emitEvent(db, params.tenantId, "appointment.cancelled", "appointment", params.appointmentId, data);
-}
-
 /** The row as the verb reads it: its life and its key, nothing it does not move. */
 function stored(appointment: AppointmentRow): StoredAppointment {
   if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${String(appointment.status)}`);
@@ -223,7 +207,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
           hold_reason: context.holdReason,
           appointment_id: context.appointmentId,
         });
-        await sayBooking(db, context);
+        // The notice's outcome is the appointment's news: its own write says it (00721 appointment_notices_tell_bookings).
       },
       byKey: async (tenantId, key) => {
         const r = await findAppointmentByKey(db, tenantId, "booking_email", key);

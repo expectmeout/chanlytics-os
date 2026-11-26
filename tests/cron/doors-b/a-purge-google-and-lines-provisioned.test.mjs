@@ -801,7 +801,8 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
         "setup",
         "line",
         worn,
-        { step: "trunk", error: row(worn).last_error, provider: "dry", by: "sweep" },
+        // The row's own move to failed writes it (00721 lines_tell_their_moves): its step, error and provider.
+        { step: "trunk", error: row(worn).last_error, provider: "dry" },
       ],
     ],
   );

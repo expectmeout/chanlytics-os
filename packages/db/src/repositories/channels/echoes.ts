@@ -8,7 +8,6 @@ import type { ContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch } from "@chanlytics/contracts";
 import type { Database } from "../../types";
-import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { settleByEcho } from "../conversations/control";
 import { getOrCreateContact } from "./ingest";
@@ -99,11 +98,14 @@ export async function recordEchoAndPause(
   // the two failures, and it is what this function exists to prevent.
   // A redelivery still asks for the settle: the first try may have kept the echo and failed it (settleByEcho).
   if (error?.code === "23505" && params.externalId) return settleByEcho(db, params);
-  const { error: perr } = await db
-    .from("conversations")
-    .update(conversationPatch("owner_echo", { until: params.pausedUntilIso, now: new Date().toISOString() }))
-    .eq("id", conv.id)
-    .eq("tenant_id", params.tenantId);
+  // The pause and its event in one transaction (00721): the receptionist is quiet on this thread because its owner
+  // spoke, which nothing on any page said. Once per echo: a redelivery returned above.
+  const { error: perr } = await db.rpc("conversation_owner_echo_keep", {
+    p_tenant_id: params.tenantId,
+    p_conversation_id: conv.id,
+    p_patch: conversationPatch("owner_echo", { until: params.pausedUntilIso, now: new Date().toISOString() }),
+    p_until: params.pausedUntilIso,
+  });
   if (perr) {
     // The words kept without their pause would be found by the redelivery and taken for a replay, which pauses
     // nothing: so they are taken back out, and the echo comes again whole. Said with whether that worked.
@@ -120,11 +122,6 @@ export async function recordEchoAndPause(
     });
     return false;
   }
-  // The receptionist is quiet on this thread because its owner spoke: on the ledger, since nothing on any page said why
-  // it stopped answering. Once per echo: a redelivery returned above.
-  await emitEvent(db, params.tenantId, "conversation.owner_replied", "conversation", conv.id, {
-    until: params.pausedUntilIso,
-  });
   // The pause landed. The words did only when their insert did: one the database refused comes again, and its
   // redelivery writes them (and the pause once more, from its own moment).
   if (error) return false;

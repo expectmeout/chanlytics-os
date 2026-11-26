@@ -8,14 +8,12 @@
 import { answerObject } from "@chanlytics/channels/shared";
 import { smsStateFor, registrationVerdict, refusalWords, requestTwilio } from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode, listOrEmpty, recordOrNull } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { logger } from "../shared/log.js";
 import { keepOnce } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
-import { saveLineRow } from "@chanlytics/db/lines";
-import { logAndGoOn } from "@chanlytics/log";
+import { keepLineTexting, saveLineRow, type LineTextingTold } from "@chanlytics/db/lines";
 
 const SYNC_READ_MS = 15000;
 
@@ -59,25 +57,37 @@ async function askRegistration(line: LineRow, acct: { sid: string; token: string
  * not stamp stood first every hour, so past a page of waiting lines the rest were never asked (cron-doors-b, "every line
  * asked about is written"). That stamp is the one re-read an hour a waiting line still costs.
  */
+/** A verdict's event, as the door that keeps the answer names it. */
+const TEXTING_KINDS = {
+  "line.texting_on": "texting_on",
+  "line.texting_approved": "texting_approved",
+  "line.texting_rejected": "texting_rejected",
+} as const;
+
 async function keepAnswer(
   db: Db,
   line: LineRow,
   answer: { smsState: LineRow["sms_state"]; mock: LineRow["reg_mock"]; reason: string | null },
+  told: LineTextingTold | null = null,
 ): Promise<void> {
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
   const news = moved || mock !== line.reg_mock || reason !== line.last_error;
-  const written = await saveLineRow(db, line, {
-    // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
-    updated_at: new Date().toISOString(),
-    ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
-    // Only when the state actually MOVED. This sweep runs hourly and wrote it
-    // every time, so `state_since` meant "the last hour" rather than "when this
-    // wait began" -- and the Setup row reads it to say how long the carriers
-    // have had it, which therefore never got past an hour.
-    ...(moved ? { state_since: new Date().toISOString() } : {}),
-  });
-  if (written.error) lineStateNotWritten(line, written.error.message);
+  // Asked: to the back of the sweep's queue, news or not (the door stamps updated_at), with the verdict's event where
+  // there is one, in the same transaction (00721).
+  await keepLineTexting(
+    db,
+    line,
+    {
+      ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
+      // Only when the state actually MOVED. This sweep runs hourly and wrote it
+      // every time, so `state_since` meant "the last hour" rather than "when this
+      // wait began" -- and the Setup row reads it to say how long the carriers
+      // have had it, which therefore never got past an hour.
+      ...(moved ? { state_since: new Date().toISOString() } : {}),
+    },
+    told,
+  ).catch((e: unknown) => lineStateNotWritten(line, e instanceof Error ? e.message : String(e)));
 }
 
 /** A read of the registration that could not be had, kept on the row so the sweep's queue moves past it (see below). */
@@ -232,14 +242,11 @@ async function tellThenKeep(
     about: { type: "line", id: line.id },
     onceKey: `a2p_verdict:${line.id}:${line.sms_state}:${line.state_since}:${smsState}`,
   };
+  const told: LineTextingTold | null = verdict && {
+    kind: TEXTING_KINDS[verdict.event],
+    data: { e164: line.e164, from: line.sms_state, to: smsState, mock },
+  };
   if (notice && !(await keepOnce(line.tenant_id, notice))) return null;
-  await keepAnswer(db, line, answer);
-  if (!verdict) return false;
-  await emitEvent(db, line.tenant_id, verdict.event, "line", line.id, {
-    e164: line.e164,
-    from: line.sms_state,
-    to: smsState,
-    mock,
-  }).catch(logAndGoOn("event"));
-  return true;
+  await keepAnswer(db, line, answer, told);
+  return verdict !== null;
 }

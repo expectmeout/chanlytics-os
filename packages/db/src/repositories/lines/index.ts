@@ -9,7 +9,8 @@ export {
   findFiledNames,
   findLinesThatText,
   findOwnLine,
-  saveBusinessOnRecord,
+  addVoiceChannel,
+  keepBusinessOnRecord,
 } from "./lines";
 export {
   findOtherLineOnRow,
@@ -27,7 +28,6 @@ export {
   claimFailedLine,
   claimLineForFiling,
   claimStuckLine,
-  deleteLineRow,
   findForwardedLine,
   findLineByE164,
   findLineRow,
@@ -41,8 +41,11 @@ export {
   listLinesOf,
   listLinesOfWorkspaces,
   listStuckLines,
+  keepLineTexting,
+  releaseLineRow,
   saveForwardingVerified,
   saveLineFacts,
   saveLineRow,
   saveLineRowBack,
 } from "./rows";
+export type { LineTextingTold } from "./rows";

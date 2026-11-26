@@ -528,24 +528,16 @@ export async function suppressEmailOf(
   },
 ): Promise<string | null> {
   if (!params.addresses.length) return null;
-  const sent = await db
-    .from("messages")
-    .select("contact_id")
-    .eq("id", params.messageId)
-    .eq("tenant_id", params.tenantId)
-    .maybeSingle();
-  if (sent.error) throw new DbFailure(sent.error, `email receipt: cannot read who message ${params.messageId} went to`);
-  if (!sent.data?.contact_id) return null;
-  const { data, error } = await db
-    .from("contacts")
-    .update({ email_suppressed_at: params.at, email_suppressed_reason: params.reason })
-    .eq("id", sent.data.contact_id)
-    .eq("tenant_id", params.tenantId)
-    .in("email", params.addresses)
-    .is("email_suppressed_at", null)
-    .select("id");
+  // The address the email went to stops once, with contact.email_suppressed in the same transaction (00721).
+  const { data, error } = await db.rpc("contact_email_suppress", {
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_addresses: params.addresses,
+    p_reason: params.reason,
+    p_at: params.at,
+  });
   if (error) throw new DbFailure(error, "email receipt: cannot stop sends to the address");
-  return data?.[0]?.id ?? null;
+  return data ?? null;
 }
 
 /**

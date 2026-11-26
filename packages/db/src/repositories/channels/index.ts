@@ -55,13 +55,14 @@ export {
 } from "./routing";
 export type { ChannelLookup, RoutedChannel, WhatsappNumberRow } from "./routing";
 export {
-  finalizeQueuedMessage,
   findMessageWrittenAt,
   findOutboxMessage,
   findTemplateCategory,
   listPersonRepliesAfter,
+  settleQueuedMessage,
   stampThreadSent,
 } from "./send-door";
+export type { SendTold } from "./send-door";
 export {
   findChannelConfig,
   findReceiptSince,

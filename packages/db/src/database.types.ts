@@ -11184,6 +11184,7 @@ export type Database = {
           p_row: Json
           p_tenant_id: string
           p_tenant_status?: string
+          p_told?: Json
         }
         Returns: boolean
       }
@@ -11245,6 +11246,10 @@ export type Database = {
           timezone: string
           what: string
         }[]
+      }
+      business_record_keep: {
+        Args: { p_data?: Json; p_row: Json; p_tenant_id: string }
+        Returns: boolean
       }
       calendar_grant_note: {
         Args: {
@@ -11412,6 +11417,16 @@ export type Database = {
         Args: { p_add: string[]; p_have: string[] }
         Returns: string[]
       }
+      contact_email_suppress: {
+        Args: {
+          p_addresses: string[]
+          p_at?: string
+          p_message_id: string
+          p_reason: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       contact_first_moments: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -11547,6 +11562,15 @@ export type Database = {
       conversation_open: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: string
+      }
+      conversation_owner_echo_keep: {
+        Args: {
+          p_conversation_id: string
+          p_patch: Json
+          p_tenant_id: string
+          p_until: string
+        }
+        Returns: boolean
       }
       conversation_reply_anyway: {
         Args: {
@@ -13019,6 +13043,19 @@ export type Database = {
         Args: { p_line_id: string; p_tenant_id: string }
         Returns: Json
       }
+      line_release_row: {
+        Args: { p_data?: Json; p_line_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      line_texting_keep: {
+        Args: {
+          p_line_id: string
+          p_row: Json
+          p_tenant_id: string
+          p_told?: Json
+        }
+        Returns: boolean
+      }
       link_code_new: { Args: never; Returns: string }
       link_open: { Args: { p_code: string; p_count?: boolean }; Returns: Json }
       llm_tokens_since: {
@@ -13049,6 +13086,18 @@ export type Database = {
       mailbox_connection_counts: {
         Args: { p_mailbox_id: string; p_since: string }
         Returns: Json
+      }
+      mailbox_connection_move: {
+        Args: {
+          p_at?: string
+          p_by?: string
+          p_detail?: Json
+          p_id: string
+          p_move: string
+          p_tenant_id: string
+          p_why?: string
+        }
+        Returns: boolean
       }
       mailbox_left_note: {
         Args: {
@@ -13159,6 +13208,10 @@ export type Database = {
         }
         Returns: Record<string, unknown>
       }
+      message_outbound_record: {
+        Args: { p_row: Json; p_told?: Json }
+        Returns: string
+      }
       message_send_now: {
         Args: {
           p_message_id: string
@@ -13167,6 +13220,15 @@ export type Database = {
           p_via?: string
         }
         Returns: Json
+      }
+      message_settle: {
+        Args: {
+          p_message_id: string
+          p_patch: Json
+          p_tenant_id: string
+          p_told: Json
+        }
+        Returns: boolean
       }
       message_stamp_handled: {
         Args: {
@@ -15945,6 +16007,16 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: number
       }
+      voice_channel_add: {
+        Args: {
+          p_agent_id: string
+          p_config: Json
+          p_data?: Json
+          p_e164: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }
@@ -15965,6 +16037,10 @@ export type Database = {
       }
       words_seen: {
         Args: { p_step_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      workspace_activation_note: {
+        Args: { p_milestone: string; p_tenant_id: string; p_via: string }
         Returns: boolean
       }
       workspace_days: {

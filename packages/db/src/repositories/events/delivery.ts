@@ -4,7 +4,7 @@ import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
-import { recordEvent, rowOf, type Db, type EventData } from "./events";
+import { rowOf, type Db, type EventData } from "./events";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
@@ -19,22 +19,22 @@ export async function recordActivation(
   milestone: ActivationMilestone,
   via: string,
 ): Promise<boolean> {
-  const { data, error } = await db
-    .from("events")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "workspace.activated")
-    .eq("data->>milestone", milestone)
-    .limit(1);
+  // Once a milestone, asked and written in one transaction (00721 workspace_activation_note).
+  const { data, error } = await db.rpc("workspace_activation_note", {
+    p_tenant_id: tenantId,
+    p_milestone: milestone,
+    p_via: via,
+  });
   if (error) {
-    dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
+    dbLog().error("emit_event_failed", {
+      tenant_id: tenantId,
+      kind: "workspace.activated",
+      milestone,
+      error: error.message,
+    });
     return false;
   }
-  if (data && data.length) return false;
-  const result = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
-  if (result.error)
-    dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: result.error });
-  return !result.error;
+  return data === true;
 }
 
 /* ----------------------------------------------------------- the spine: the relay and a delivery (00334, decision 0032) */

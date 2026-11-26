@@ -3413,6 +3413,43 @@ COMMENT ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) IS 'Who h
 
 
 --
+-- Name: appointment_notices_tell_bookings(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointment_notices_tell_bookings() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.appointment_id is null
+     or (tg_op = 'UPDATE' and old.outcome is not distinct from new.outcome) then
+    return null;
+  end if;
+  if new.outcome = 'booked' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'appointment.booked', 'appointment', 'appointment', new.appointment_id,
+            jsonb_build_object('source', 'booking_email', 'tool', new.tool));
+  elsif new.outcome = 'changed' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'appointment.moved', 'appointment', 'appointment', new.appointment_id,
+            jsonb_build_object('source', 'booking_email', 'tool', new.tool));
+  elsif new.outcome = 'cancelled' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'appointment.cancelled', 'appointment', 'appointment', new.appointment_id,
+            jsonb_build_object('source', 'booking_email', 'tool', new.tool));
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION appointment_notices_tell_bookings(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointment_notices_tell_bookings() IS 'A booking email''s notice kept with the outcome it came to says so of its appointment, in the read''s transaction (00721): booked (appointment.booked), changed (appointment.moved), cancelled (appointment.cancelled), with the tool that sent it. A notice read again to the same outcome says nothing twice; a hold or a dismissal is no appointment''s news. The trigger appointment_notices_tell_bookings.';
+
+
+--
 -- Name: appointments_feed_sync(uuid, text, jsonb, timestamp with time zone, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4437,10 +4474,10 @@ COMMENT ON FUNCTION public.batch_closes_its_notices() IS 'Closes the open playbo
 
 
 --
--- Name: billing_apply(uuid, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: billing_apply(uuid, jsonb, jsonb, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb DEFAULT NULL::jsonb, p_tenant_status text DEFAULT NULL::text) RETURNS boolean
+CREATE FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb DEFAULT NULL::jsonb, p_tenant_status text DEFAULT NULL::text, p_told jsonb DEFAULT NULL::jsonb) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -4459,6 +4496,13 @@ begin
   select k into v_stray from jsonb_object_keys(p_row) k where k <> all (v_columns) limit 1;
   if v_stray is not null then
     raise exception 'billing_apply: % is not a column a reading writes', v_stray using errcode = '22023';
+  end if;
+  -- What the ledger is told of the change, written with it: {kind, data}, the kind one of billing's own.
+  if p_told is not null
+     and (jsonb_typeof(p_told) <> 'object'
+          or coalesce(p_told->>'kind', '') not in ('updated', 'paused', 'resumed', 'paid', 'payment_failed')
+          or jsonb_typeof(coalesce(p_told->'data', '{}'::jsonb)) <> 'object') then
+    raise exception 'billing_apply: what it is told is {kind, data}, a kind of billing''s own' using errcode = '22023';
   end if;
   if p_expect is not null
      and (jsonb_typeof(p_expect) <> 'object'
@@ -4503,15 +4547,36 @@ begin
   if p_tenant_status is not null then
     update public.tenants set status = p_tenant_status where id = p_tenant_id;
   end if;
+  -- The change's event, in its transaction (00721): Stripe's word of the subscription, a payment, or the customer gone.
+  -- A reading another one beat writes none, as it writes no row.
+  if p_told is not null then
+    if p_told->>'kind' = 'paused' then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'billing.paused', 'billing', 'subscription', null, coalesce(p_told->'data', '{}'::jsonb));
+    elsif p_told->>'kind' = 'resumed' then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'billing.resumed', 'billing', 'subscription', null, coalesce(p_told->'data', '{}'::jsonb));
+    elsif p_told->>'kind' = 'paid' then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'billing.paid', 'billing', 'subscription', null, coalesce(p_told->'data', '{}'::jsonb));
+    elsif p_told->>'kind' = 'payment_failed' then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'billing.payment_failed', 'billing', 'subscription', null,
+              coalesce(p_told->'data', '{}'::jsonb));
+    else
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'billing.updated', 'billing', 'subscription', null, coalesce(p_told->'data', '{}'::jsonb));
+    end if;
+  end if;
   return true;
 end $$;
 
 
 --
--- Name: FUNCTION billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text) IS 'The edge''s one writer of a workspace''s billing row (00382): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, and the workspace''s switch (p_tenant_status, null when it does not move), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved. The rules are contracts'' planBilling''s; the bell and the event are the edge''s, after. Service role only.';
+COMMENT ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text, p_told jsonb) IS 'The edge''s one writer of a workspace''s billing row (00382): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, the workspace''s switch (p_tenant_status, null when it does not move), and the change''s event where the caller tells one (p_told {kind, data}, 00721: billing.updated, .paused, .resumed, .paid, .payment_failed), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved and no event is written. The rules are contracts'' planBilling''s; the bell is the edge''s. Service role only.';
 
 
 --
@@ -4874,6 +4939,57 @@ $$;
 --
 
 COMMENT ON FUNCTION public.booking_requests_due(p_limit integer) IS 'What the request clock is due to act on (00679, decision 0061): `lapse`, the open requests whose expires_at has passed, and `nudge`, the ones within two hours of it that live longer than four, were not nudged, and whose conversation still holds for them; each oldest first, at most p_limit (200 at most). A request stamped lapsed_at is never listed. The service role''s.';
+
+
+--
+-- Name: business_record_keep(uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb DEFAULT '{}'::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.business_records;
+begin
+  if p_tenant_id is null or jsonb_typeof(p_row) is distinct from 'object' then
+    raise exception 'business_record_keep: a record is written for a workspace' using errcode = '22004';
+  end if;
+  if jsonb_typeof(coalesce(p_data, '{}'::jsonb)) <> 'object' then
+    raise exception 'business_record_keep: what is said of it is an object' using errcode = '22023';
+  end if;
+  v_row := jsonb_populate_record(null::public.business_records, p_row || jsonb_build_object('tenant_id', p_tenant_id));
+  insert into public.business_records as b (
+    tenant_id, legal_name, trade_name, ein, street, street_secondary, city, region, postal_code, country, website_url,
+    industry, contact_first_name, contact_last_name, contact_email, contact_phone, contact_title, contact_job_position,
+    business_type, company_type, about)
+  values (
+    p_tenant_id, v_row.legal_name, v_row.trade_name, v_row.ein, v_row.street, v_row.street_secondary, v_row.city,
+    v_row.region, v_row.postal_code, coalesce(v_row.country, 'US'), v_row.website_url,
+    coalesce(v_row.industry, 'PROFESSIONAL_SERVICES'), v_row.contact_first_name, v_row.contact_last_name,
+    v_row.contact_email, v_row.contact_phone, coalesce(v_row.contact_title, 'Owner'),
+    coalesce(v_row.contact_job_position, 'Director'), coalesce(v_row.business_type, 'Limited Liability Corporation'),
+    coalesce(v_row.company_type, 'private'), coalesce(v_row.about, ''))
+  on conflict (tenant_id) do update set
+    legal_name = excluded.legal_name, trade_name = excluded.trade_name, ein = excluded.ein, street = excluded.street,
+    street_secondary = excluded.street_secondary, city = excluded.city, region = excluded.region,
+    postal_code = excluded.postal_code, country = excluded.country, website_url = excluded.website_url,
+    industry = excluded.industry, contact_first_name = excluded.contact_first_name,
+    contact_last_name = excluded.contact_last_name, contact_email = excluded.contact_email,
+    contact_phone = excluded.contact_phone, contact_title = excluded.contact_title,
+    contact_job_position = excluded.contact_job_position, business_type = excluded.business_type,
+    company_type = excluded.company_type, about = excluded.about;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'business.recorded', 'setup', 'tenant', p_tenant_id, coalesce(p_data, '{}'::jsonb));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb) IS 'The business on record saved whole for its workspace, with business.recorded in the same transaction (00721): what the edge said of it (p_data: its legal name, the path it came by, who saved it, what changed). The service role''s: the lines door, after its checks.';
 
 
 --
@@ -6814,6 +6930,49 @@ end $$;
 
 
 --
+-- Name: contact_email_suppress(uuid, uuid, text[], text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone DEFAULT now()) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact uuid;
+  v_stopped uuid;
+begin
+  if p_reason is null or p_reason not in ('hard_bounce', 'complaint', 'provider') then
+    raise exception 'contact_email_suppress: % is no reason mail stops', p_reason using errcode = '22023';
+  end if;
+  if coalesce(array_length(p_addresses, 1), 0) = 0 then
+    return null;
+  end if;
+  select m.contact_id into v_contact from public.messages m where m.tenant_id = p_tenant_id and m.id = p_message_id;
+  if v_contact is null then
+    return null;
+  end if;
+  update public.contacts c
+     set email_suppressed_at = p_at, email_suppressed_reason = p_reason
+   where c.tenant_id = p_tenant_id and c.id = v_contact and c.email = any (p_addresses)
+     and c.email_suppressed_at is null
+  returning c.id into v_stopped;
+  if v_stopped is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.email_suppressed', 'contact', 'contact', v_stopped,
+            jsonb_build_object('reason', p_reason));
+  end if;
+  return v_stopped;
+end $$;
+
+
+--
+-- Name: FUNCTION contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone) IS 'Mail to the person an email went to stops at that address, for a permanent bounce, a complaint or the provider''s own stop (00126), with contact.email_suppressed in the same transaction (00721). Only while it has not stopped already: the contact''s id where this call stopped it, else null. The service role''s: the email receipts door.';
+
+
+--
 -- Name: contact_events_on_erase(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7963,6 +8122,51 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) IS 'A member opens a person''s one thread, as themselves (an owner, an operator, or a partner whose session showed its second factor): the thread''s id, made when they had none and left untouched (no last_message_at: that is the message''s). Refuses a person who is not this workspace''s, or erased, being erased, or merged into another. Writes no message and no event: the reply route queues what follows.';
+
+
+--
+-- Name: conversation_owner_echo_keep(uuid, uuid, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_stray text;
+begin
+  if jsonb_typeof(p_patch) is distinct from 'object' then
+    raise exception 'conversation_owner_echo_keep: the move is an object' using errcode = '22023';
+  end if;
+  -- The owner_echo move's own columns (contracts conversations/moves.ts), and nothing else.
+  select k into v_stray from jsonb_object_keys(p_patch) k
+   where k not in ('state', 'paused_until', 'last_message_at') limit 1;
+  if v_stray is not null then
+    raise exception 'conversation_owner_echo_keep: % is not a column the owner''s echo moves', v_stray
+      using errcode = '22023';
+  end if;
+  update public.conversations c
+     set state = coalesce(p_patch ->> 'state', c.state),
+         paused_until = case when p_patch ? 'paused_until' then (p_patch ->> 'paused_until')::timestamptz
+                             else c.paused_until end,
+         last_message_at = case when p_patch ? 'last_message_at' then (p_patch ->> 'last_message_at')::timestamptz
+                                else c.last_message_at end
+   where c.tenant_id = p_tenant_id and c.id = p_conversation_id;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.owner_replied', 'message', 'conversation', p_conversation_id,
+          jsonb_build_object('until', p_until));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone) IS 'The owner replied from their own phone: the thread takes the owner_echo move (p_patch, contracts conversationPatch: state, paused_until, last_message_at and nothing else) with conversation.owner_replied in the same transaction (00721). False where the thread is not the workspace''s. The service role''s: the echo intake.';
 
 
 --
@@ -22058,6 +22262,96 @@ COMMENT ON FUNCTION public.line_forwarding_test(p_tenant_id uuid, p_line_id uuid
 
 
 --
+-- Name: line_release_row(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb DEFAULT '{}'::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_line public.lines;
+begin
+  if jsonb_typeof(coalesce(p_data, '{}'::jsonb)) <> 'object' then
+    raise exception 'line_release_row: what it released is an object' using errcode = '22023';
+  end if;
+  delete from public.lines l where l.tenant_id = p_tenant_id and l.id = p_line_id returning * into v_line;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.released', 'setup', 'line', p_line_id,
+          jsonb_build_object('e164', v_line.e164) || coalesce(p_data, '{}'::jsonb));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb) IS 'A released line''s row deleted, with line.released in the same transaction (00721): its number, and what the edge released at the carrier and in routing (p_data: provider, what was let go, by, ended_at). False, with nothing written, where the row is gone already. The service role''s: the release door and the sweep.';
+
+
+--
+-- Name: line_texting_keep(uuid, uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row jsonb := coalesce(p_row, '{}'::jsonb);
+  v_stray text;
+begin
+  if jsonb_typeof(v_row) <> 'object' then
+    raise exception 'line_texting_keep: a row is an object' using errcode = '22023';
+  end if;
+  select k into v_stray from jsonb_object_keys(v_row) k
+   where k not in ('sms_state', 'reg_mock', 'last_error', 'state_since') limit 1;
+  if v_stray is not null then
+    raise exception 'line_texting_keep: % is not a column the carriers'' answer writes', v_stray using errcode = '22023';
+  end if;
+  if p_told is not null
+     and (jsonb_typeof(p_told) <> 'object'
+          or coalesce(p_told ->> 'kind', '') not in ('texting_on', 'texting_approved', 'texting_rejected')
+          or jsonb_typeof(coalesce(p_told -> 'data', '{}'::jsonb)) <> 'object') then
+    raise exception 'line_texting_keep: what it is told is {kind, data}, a verdict''s kind' using errcode = '22023';
+  end if;
+  -- Asked, news or not: to the back of the sweep's queue (lines_set_updated_at stamps updated_at).
+  update public.lines l
+     set sms_state = case when v_row ? 'sms_state' then v_row ->> 'sms_state' else l.sms_state end,
+         reg_mock = case when v_row ? 'reg_mock' then (v_row ->> 'reg_mock')::boolean else l.reg_mock end,
+         last_error = case when v_row ? 'last_error' then v_row ->> 'last_error' else l.last_error end,
+         state_since = case when v_row ? 'state_since' then (v_row ->> 'state_since')::timestamptz else l.state_since end,
+         updated_at = now()
+   where l.tenant_id = p_tenant_id and l.id = p_line_id;
+  if not found then
+    return false;
+  end if;
+  if p_told ->> 'kind' = 'texting_on' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'line.texting_on', 'setup', 'line', p_line_id, coalesce(p_told -> 'data', '{}'::jsonb));
+  elsif p_told ->> 'kind' = 'texting_approved' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'line.texting_approved', 'setup', 'line', p_line_id, coalesce(p_told -> 'data', '{}'::jsonb));
+  elsif p_told ->> 'kind' = 'texting_rejected' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'line.texting_rejected', 'setup', 'line', p_line_id, coalesce(p_told -> 'data', '{}'::jsonb));
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb) IS 'The carriers'' answer on a line''s texting kept (00721): sms_state, reg_mock, last_error and state_since where given, the row asked again either way, and the verdict''s event where the edge''s rule found news (p_told {kind, data}: line.texting_on, .texting_approved, .texting_rejected), in one transaction. False where the line is gone. The service role''s: the registration sweep.';
+
+
+--
 -- Name: lines_sms_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22083,6 +22377,42 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lines_sms_guard() IS 'sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. Never back to none (a line is released, which deletes the row); never into otp_waiting or hosting, which are not built.';
+
+
+--
+-- Name: lines_tell_their_moves(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lines_tell_their_moves() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.voice_state is distinct from old.voice_state and new.voice_state = 'answering' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'line.answering', 'setup', 'line', new.id,
+            jsonb_build_object('e164', new.e164, 'provider', new.provider, 'agent_id', new.retell_agent_id));
+  end if;
+  if new.voice_state is distinct from old.voice_state and new.voice_state = 'failed' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'line.failed', 'setup', 'line', new.id,
+            jsonb_build_object('step', new.step, 'error', left(new.last_error, 300), 'provider', new.provider));
+  end if;
+  if new.forwarding_state is distinct from old.forwarding_state and new.forwarding_state = 'verified' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'line.forwarding_verified', 'setup', 'line', new.id,
+            jsonb_build_object('from', new.facts ->> 'verified_from', 'call_id', new.facts ->> 'verified_call_id',
+                               'proof', coalesce(new.facts ->> 'verified_proof', new.facts ->> 'verified_by')));
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION lines_tell_their_moves(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lines_tell_their_moves() IS 'A line''s moves on its own row, each with its event in the write''s transaction (00721): voice_state to answering (line.answering: number, provider, agent) or failed (line.failed: step, error, provider), forwarding_state to verified (line.forwarding_verified: the call that proved it, and how). The trigger lines_tell_their_moves.';
 
 
 --
@@ -22472,6 +22802,118 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'What one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes. The mailboxes clock (the service role) and Setup''s read (a member of the mailbox''s workspace, 00717).';
+
+
+--
+-- Name: mailbox_connection_move(uuid, uuid, text, text, text, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text DEFAULT NULL::text, p_why text DEFAULT NULL::text, p_detail jsonb DEFAULT '{}'::jsonb, p_at timestamp with time zone DEFAULT now()) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_was public.mailbox_connections;
+  v_row public.mailbox_connections;
+  v_detail jsonb := coalesce(p_detail, '{}'::jsonb);
+begin
+  if p_move is null
+     or p_move not in ('stood', 'paused', 'unpaused', 'resumed', 'held', 'signed_out', 'removed') then
+    raise exception 'mailbox_connection_move: % is no move a mailbox makes', p_move using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_detail) <> 'object' then
+    raise exception 'mailbox_connection_move: the detail is an object' using errcode = '22023';
+  end if;
+  select * into v_was from public.mailbox_connections m
+   where m.tenant_id = p_tenant_id and m.id = p_id
+   for update;
+  if not found then
+    return false;
+  end if;
+
+  if p_move = 'stood' then
+    -- The connect stood: its token is kept, and what it read of its domain, and a new one's history, go on its row.
+    update public.mailbox_connections m
+       set dns = coalesce(v_detail -> 'dns', m.dns),
+           dns_checked_at = case when v_detail ? 'dns' then p_at else m.dns_checked_at end,
+           history = coalesce(v_detail ->> 'history', m.history)
+     where m.id = p_id
+    returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.connected', 'setup', 'mailbox_connection', p_id,
+            jsonb_build_object('address', v_row.address, 'provider', v_row.provider,
+                               'again', coalesce((v_detail ->> 'again')::boolean, false), 'by', p_by));
+  elsif p_move = 'paused' then
+    update public.mailbox_connections m set state = 'paused'
+     where m.id = p_id and m.state = 'connected'
+    returning * into v_row;
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.paused', 'setup', 'mailbox_connection', p_id,
+              jsonb_build_object('address', v_row.address, 'by', p_by));
+    end if;
+  elsif p_move = 'unpaused' then
+    update public.mailbox_connections m set state = 'connected'
+     where m.id = p_id and m.state = 'paused'
+    returning * into v_row;
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.unpaused', 'setup', 'mailbox_connection', p_id,
+              jsonb_build_object('address', v_row.address, 'by', p_by));
+    end if;
+  elsif p_move = 'resumed' then
+    -- A hold lifted by its owner: its counts start again from now.
+    update public.mailbox_connections m
+       set state = 'connected', held_why = null, held_at = null, counted_since = p_at
+     where m.id = p_id and m.state = 'held'
+    returning * into v_row;
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.resumed', 'setup', 'mailbox_connection', p_id,
+              jsonb_build_object('address', v_row.address, 'why', v_was.held_why, 'by', p_by));
+    end if;
+  elsif p_move = 'held' then
+    -- Its own mail earned a hold (contracts mailboxHoldOf): why, and the counts that said so.
+    update public.mailbox_connections m
+       set state = 'held', held_why = p_why, held_at = p_at, judged_at = p_at
+     where m.id = p_id and m.state in ('connected', 'paused')
+    returning * into v_row;
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.held', 'setup', 'mailbox_connection', p_id,
+              v_detail || jsonb_build_object('address', v_row.address, 'why', p_why));
+    end if;
+  elsif p_move = 'signed_out' then
+    update public.mailbox_connections m
+       set state = 'reconnect', held_why = null, held_at = null,
+           last_error = 'Signed out by its provider: connect it again.', last_error_at = p_at
+     where m.id = p_id and m.state in ('connected', 'paused', 'held')
+    returning * into v_row;
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.signed_out', 'setup', 'mailbox_connection', p_id,
+              jsonb_build_object('address', v_row.address, 'provider', v_row.provider));
+    end if;
+  else
+    -- Removed: its token is already given back and dropped; the row stays, said removed.
+    update public.mailbox_connections m
+       set state = 'removed', removed_at = p_at, held_why = null, held_at = null, watch_id = null,
+           sync_lease_until = null
+     where m.id = p_id
+    returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.removed', 'setup', 'mailbox_connection', p_id,
+            jsonb_build_object('address', v_row.address, 'by', p_by));
+  end if;
+  return v_row.id is not null;
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text, p_why text, p_detail jsonb, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text, p_why text, p_detail jsonb, p_at timestamp with time zone) IS 'A connected mailbox''s every move, with its event in the same transaction (lanes 9 and 2, 00721): stood (the connect held: dns, history; mailbox_connection.connected), paused, unpaused, resumed (a hold lifted; counts from now), held (why and its counts), signed_out (to reconnect), removed. Each takes only the states it may leave; a move that found the mailbox elsewhere writes nothing and answers false. The service role''s.';
 
 
 --
@@ -23780,6 +24222,70 @@ COMMENT ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp w
 
 
 --
+-- Name: message_outbound_record(jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_outbound_record(p_row jsonb, p_told jsonb DEFAULT NULL::jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.messages;
+  v_id uuid;
+  v_status text := coalesce(p_row ->> 'status', 'sent');
+begin
+  if jsonb_typeof(p_row) is distinct from 'object' or p_row ->> 'tenant_id' is null
+     or p_row ->> 'conversation_id' is null then
+    raise exception 'message_outbound_record: a message is a workspace''s, on a thread' using errcode = '22004';
+  end if;
+  if v_status not in ('sent', 'failed', 'queued') then
+    raise exception 'message_outbound_record: a message recorded here was sent, failed or waits' using errcode = '22023';
+  end if;
+  if p_row ->> 'channel' = 'email' then
+    raise exception 'message_outbound_record: an email''s row is written before it is sent, never after'
+      using errcode = '22023';
+  end if;
+  if p_told is not null
+     and (jsonb_typeof(p_told) <> 'object' or coalesce(p_told ->> 'kind', '') <> 'failed'
+          or jsonb_typeof(coalesce(p_told -> 'data', '{}'::jsonb)) <> 'object') then
+    raise exception 'message_outbound_record: what it is told is a failure''s {kind, data}' using errcode = '22023';
+  end if;
+  v_row := jsonb_populate_record(null::public.messages, p_row);
+  begin
+    insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body,
+                                 external_id, status, meta)
+    values (v_row.tenant_id, v_row.conversation_id, v_row.contact_id, coalesce(v_row.channel, 'whatsapp'), 'outbound',
+            v_row.sender, coalesce(v_row.type, 'text'), v_row.body, v_row.external_id, v_status,
+            coalesce(v_row.meta, '{}'::jsonb))
+    returning id into v_id;
+  exception when unique_violation then
+    -- Its provider id is kept already: a retry, benign, and nothing more is written.
+    return null;
+  end;
+  -- The thread stamped either way; the send moment is written only for a row that went out (00035's first_replies
+  -- reads it): a queued draft gets its one from the settle when it leaves, and a failure is message.send_failed.
+  update public.conversations c set last_message_at = now()
+   where c.id = v_row.conversation_id and c.tenant_id = v_row.tenant_id;
+  if v_status = 'sent' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'message.sent', 'message', 'message', v_id, jsonb_build_object('sender', v_row.sender));
+  end if;
+  if p_told is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'message.send_failed', 'message', 'message', v_id, coalesce(p_told -> 'data', '{}'::jsonb));
+  end if;
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION message_outbound_record(p_row jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_outbound_record(p_row jsonb, p_told jsonb) IS 'A message the send door sent, or tried, with no row yet (never an email''s, whose row is written first), recorded with its thread stamped and its event in the same transaction (00721): message.sent for one that went out, message.send_failed where it is told a failure (p_told {kind: failed, data}). Its id; null where its provider id was kept already (a retry). The service role''s: the send door.';
+
+
+--
 -- Name: message_send_now(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -23823,6 +24329,66 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) IS 'A member lets a held reply go now (00503): the outbound_send job of a message still queued and claimed by no run brought to now, and the approve decision on the message as the member''s own, in one transaction. Null when there was nothing to bring forward (sent, claimed, withdrawn, gone), with nothing written. Returns decision_id and undo_dropped.';
+
+
+--
+-- Name: message_settle(uuid, uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_stray text;
+  v_moved boolean;
+  v_data jsonb := coalesce(p_told -> 'data', '{}'::jsonb);
+begin
+  if jsonb_typeof(p_patch) is distinct from 'object'
+     or coalesce(p_patch ->> 'status', '') not in ('sent', 'canceled', 'failed') then
+    raise exception 'message_settle: a queued message settles as sent, canceled or failed' using errcode = '22023';
+  end if;
+  select k into v_stray from jsonb_object_keys(p_patch) k where k not in ('status', 'external_id', 'error') limit 1;
+  if v_stray is not null then
+    raise exception 'message_settle: % is not a column the send door settles', v_stray using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_told) is distinct from 'object'
+     or coalesce(p_told ->> 'kind', '') not in ('sent', 'blocked', 'failed')
+     or jsonb_typeof(v_data) <> 'object' then
+    raise exception 'message_settle: what it is told is {kind, data}, a send''s kind' using errcode = '22023';
+  end if;
+  -- Only while it is still queued: no row moved means a cancel won it first (messages_guard holds the rest).
+  update public.messages m
+     set status = p_patch ->> 'status',
+         external_id = coalesce(p_patch ->> 'external_id', m.external_id),
+         error = case when p_patch ? 'error' then p_patch -> 'error' else m.error end
+   where m.tenant_id = p_tenant_id and m.id = p_message_id and m.status = 'queued';
+  v_moved := found;
+  if p_told ->> 'kind' = 'sent' then
+    -- The words left whatever the row says: a cancel that won it between the wire and here is said beside the send.
+    if not v_moved then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'message.send_raced_cancel', 'message', 'message', p_message_id,
+              jsonb_build_object('wamid', p_patch ->> 'external_id'));
+    end if;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.sent', 'message', 'message', p_message_id, v_data);
+  elsif p_told ->> 'kind' = 'blocked' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.send_blocked', 'message', 'message', p_message_id, v_data);
+  else
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.send_failed', 'message', 'message', p_message_id, v_data);
+  end if;
+  return v_moved;
+end $$;
+
+
+--
+-- Name: FUNCTION message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb) IS 'The send door''s settle of a queued message (core deliver.ts), with its event in the same transaction (00721): sent (message.sent, and message.send_raced_cancel where a cancel won the row first), canceled with its reason (message.send_blocked), failed with what the provider said (message.send_failed). p_patch is status, external_id and error only; p_told {kind, data} is the door''s own words. True when the row moved from queued. The service role''s: the send door.';
 
 
 --
@@ -40296,6 +40862,31 @@ end $$;
 
 
 --
+-- Name: sequence_batches_tell_a_stop(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_batches_tell_a_stop() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (new.tenant_id, 'broadcast.stopped', 'message', 'broadcast', new.id,
+          jsonb_build_object('failure', new.failure,
+                             'sent', (select count(*) from public.sequence_sends s
+                                       where s.batch_id = new.id and s.state = 'sent')));
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_batches_tell_a_stop(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_batches_tell_a_stop() IS 'A run that moved to failed, on the ledger in the write''s transaction (00721): broadcast.stopped, with its failure and how many of its sends were sent first. The trigger sequence_batches_tell_a_stop.';
+
+
+--
 -- Name: sequence_sends; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -47594,6 +48185,39 @@ COMMENT ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) IS 'How ma
 
 
 --
+-- Name: voice_channel_add(uuid, text, text, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb DEFAULT '{}'::jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  if p_tenant_id is null or coalesce(p_agent_id, '') = '' or jsonb_typeof(p_config) is distinct from 'object' then
+    raise exception 'voice_channel_add: a voice row is a workspace''s agent and its config' using errcode = '22004';
+  end if;
+  if jsonb_typeof(coalesce(p_data, '{}'::jsonb)) <> 'object' then
+    raise exception 'voice_channel_add: what is said of it is an object' using errcode = '22023';
+  end if;
+  insert into public.tenant_channels (tenant_id, kind, external_id, number_e164, status, config)
+  values (p_tenant_id, 'voice', p_agent_id, p_e164, 'active', p_config)
+  returning id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'voice.provisioned', 'setup', 'tenant_channel', v_id, coalesce(p_data, '{}'::jsonb));
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb) IS 'The voice line''s routing row (tenant_channels, kind voice, keyed on its agent), made with voice.provisioned in the same transaction (00721): what the edge provisioned (p_data: agent, model, number, pinned, bought, its type). Answers the row''s id. The service role''s: the voice provisioning door.';
+
+
+--
 -- Name: wake_stale_snoozes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -47789,6 +48413,39 @@ $$;
 --
 
 COMMENT ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) IS 'A member pressed a card of Ask''s that showed this step''s words: they are taken as seen (0064, the answers canvas D3).';
+
+
+--
+-- Name: workspace_activation_note(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_tenant_id is null or coalesce(p_milestone, '') = '' then
+    raise exception 'workspace_activation_note: a milestone is a workspace''s' using errcode = '22004';
+  end if;
+  -- One a milestone, held under the workspace's lock on the ledger: two first searches at once write one row.
+  perform pg_advisory_xact_lock(hashtextextended('workspace.activated:' || p_tenant_id::text || ':' || p_milestone, 0));
+  if exists (select 1 from public.events e
+              where e.tenant_id = p_tenant_id and e.kind = 'workspace.activated'
+                and e.data ->> 'milestone' = p_milestone) then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'workspace.activated', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('milestone', p_milestone, 'via', p_via));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text) IS 'A workspace''s first of a milestone (a line that answers, a first search, the funnel''s steps), on the ledger once (00721): workspace.activated with the milestone and the way it came. True when this call wrote it; false where it was there already. The service role''s.';
 
 
 --
@@ -61191,6 +61848,13 @@ CREATE TRIGGER appointment_notices_set_updated_at BEFORE UPDATE ON public.appoin
 
 
 --
+-- Name: appointment_notices appointment_notices_tell_bookings; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointment_notices_tell_bookings AFTER INSERT OR UPDATE OF outcome ON public.appointment_notices FOR EACH ROW EXECUTE FUNCTION public.appointment_notices_tell_bookings();
+
+
+--
 -- Name: appointments appointments_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -61807,6 +62471,13 @@ CREATE TRIGGER lines_sms_guard BEFORE UPDATE ON public.lines FOR EACH ROW EXECUT
 
 
 --
+-- Name: lines lines_tell_their_moves; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lines_tell_their_moves AFTER UPDATE OF voice_state, forwarding_state ON public.lines FOR EACH ROW EXECUTE FUNCTION public.lines_tell_their_moves();
+
+
+--
 -- Name: lines lines_voice_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -62105,6 +62776,13 @@ CREATE TRIGGER sequence_batches_say_sequence AFTER UPDATE OF name, state ON publ
 --
 
 CREATE TRIGGER sequence_batches_set_updated_at BEFORE UPDATE ON public.sequence_batches FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: sequence_batches sequence_batches_tell_a_stop; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequence_batches_tell_a_stop AFTER UPDATE OF state ON public.sequence_batches FOR EACH ROW WHEN (((new.state = 'failed'::text) AND (old.state IS DISTINCT FROM new.state))) EXECUTE FUNCTION public.sequence_batches_tell_a_stop();
 
 
 --
@@ -68912,6 +69590,14 @@ GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO serv
 
 
 --
+-- Name: FUNCTION appointment_notices_tell_bookings(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointment_notices_tell_bookings() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointment_notices_tell_bookings() TO service_role;
+
+
+--
 -- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -69077,11 +69763,11 @@ GRANT ALL ON FUNCTION public.batch_closes_its_notices() TO service_role;
 
 
 --
--- Name: FUNCTION billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text, p_told jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text) TO service_role;
+REVOKE ALL ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text, p_told jsonb) TO service_role;
 
 
 --
@@ -69147,6 +69833,14 @@ GRANT ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversati
 
 REVOKE ALL ON FUNCTION public.booking_requests_due(p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.booking_requests_due(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.business_record_keep(p_tenant_id uuid, p_row jsonb, p_data jsonb) TO service_role;
 
 
 --
@@ -69459,6 +70153,14 @@ GRANT ALL ON FUNCTION public.contact_email_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_email_suppress(p_tenant_id uuid, p_message_id uuid, p_addresses text[], p_reason text, p_at timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION contact_events_on_erase(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -69661,6 +70363,14 @@ GRANT ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_con
 REVOKE ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_owner_echo_keep(p_tenant_id uuid, p_conversation_id uuid, p_patch jsonb, p_until timestamp with time zone) TO service_role;
 
 
 --
@@ -72003,12 +72713,36 @@ GRANT ALL ON FUNCTION public.line_forwarding_test(p_tenant_id uuid, p_line_id uu
 
 
 --
+-- Name: FUNCTION line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.line_release_row(p_tenant_id uuid, p_line_id uuid, p_data jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.line_texting_keep(p_tenant_id uuid, p_line_id uuid, p_row jsonb, p_told jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION lines_sms_guard(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.lines_sms_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lines_sms_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.lines_sms_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION lines_tell_their_moves(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lines_tell_their_moves() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lines_tell_their_moves() TO service_role;
 
 
 --
@@ -72077,6 +72811,14 @@ GRANT ALL ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user
 REVOKE ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) TO service_role;
 GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) TO authenticated;
+
+
+--
+-- Name: FUNCTION mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text, p_why text, p_detail jsonb, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text, p_why text, p_detail jsonb, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_connection_move(p_tenant_id uuid, p_id uuid, p_move text, p_by text, p_why text, p_detail jsonb, p_at timestamp with time zone) TO service_role;
 
 
 --
@@ -72310,12 +73052,28 @@ GRANT ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp
 
 
 --
+-- Name: FUNCTION message_outbound_record(p_row jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_outbound_record(p_row jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_outbound_record(p_row jsonb, p_told jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_settle(p_tenant_id uuid, p_message_id uuid, p_patch jsonb, p_told jsonb) TO service_role;
 
 
 --
@@ -74846,6 +75604,14 @@ GRANT ALL ON FUNCTION public.sequence_batches_say_sequence() TO service_role;
 
 
 --
+-- Name: FUNCTION sequence_batches_tell_a_stop(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_batches_tell_a_stop() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_batches_tell_a_stop() TO service_role;
+
+
+--
 -- Name: TABLE sequence_sends; Type: ACL; Schema: public; Owner: -
 --
 
@@ -76169,6 +76935,14 @@ GRANT ALL ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) TO servi
 
 
 --
+-- Name: FUNCTION voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.voice_channel_add(p_tenant_id uuid, p_agent_id text, p_e164 text, p_config jsonb, p_data jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION wake_stale_snoozes(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -76207,6 +76981,14 @@ GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uui
 REVOKE ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_activation_note(p_tenant_id uuid, p_milestone text, p_via text) TO service_role;
 
 
 --

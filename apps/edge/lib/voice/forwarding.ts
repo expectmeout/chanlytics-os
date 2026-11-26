@@ -20,7 +20,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { emitEvent } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   forwardingMatch,
@@ -32,7 +31,6 @@ import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -76,6 +74,8 @@ export async function markForwardingVerified(
           verified_from: call.fromE164,
           // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
           verified_by: proof === "carrier" ? "carrier" : "window",
+          // What the call showed, as the ledger says it (00721: the row's move to verified writes the event).
+          verified_proof: proof,
         },
       });
       if (upd.error || !upd.data.length) continue;
@@ -87,11 +87,7 @@ export async function markForwardingVerified(
         route: FIRST_RUN_ROUTE,
         about: { type: "line", id: row.id },
       });
-      await emitEvent(db, tenantId, "line.forwarding_verified", "line", row.id, {
-        from: call.fromE164,
-        call_id: call.callId,
-        proof,
-      }).catch(logAndGoOn("event line.forwarding_verified"));
+      // line.forwarding_verified is the row's own: its move to verified wrote it (00721 lines_tell_their_moves).
       log.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }

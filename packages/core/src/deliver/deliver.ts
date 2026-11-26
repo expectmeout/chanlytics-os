@@ -41,16 +41,16 @@ import {
   recordCarrierOptOut,
   findTextLineFacts,
 } from "@chanlytics/db/campaigns";
-import { emitEvent, type EventData } from "@chanlytics/db/events";
 import { stampEmailFromMailbox, stampEmailLeftAs } from "@chanlytics/db/email";
 import {
-  finalizeQueuedMessage,
   findMessageWrittenAt,
   findTemplateCategory,
   findWireRow,
   listPersonRepliesAfter,
   recordOutbound,
+  settleQueuedMessage,
   stampThreadSent,
+  type SendTold,
 } from "@chanlytics/db/channels";
 import { replyAnswersAt } from "@chanlytics/db/conversations";
 import type { Database, Json } from "@chanlytics/db/types";
@@ -506,20 +506,6 @@ async function draftTooLate(db: Db, d: Delivery, nowMs: number): Promise<Deliver
   return kindOf(d) === "draft" ? lateDraft(d, await replyAnswersAt(db, d), nowMs, kindOf(d)) : null;
 }
 
-/** The message kinds the send door writes. */
-type MessageKind = "message.send_blocked" | "message.send_raced_cancel" | "message.sent" | "message.send_failed";
-
-/** The same writer every other event goes through: a failed insert is logged there, never dropped. */
-function event<K extends MessageKind>(
-  db: Db,
-  d: Delivery,
-  kind: K,
-  messageId: string | null,
-  data: EventData[K],
-): Promise<void> {
-  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
-}
-
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
 async function stampThread(db: Db, delivery: Delivery, nowMs: number): Promise<void> {
   const { error } = await stampThreadSent(db, {
@@ -585,11 +571,13 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
   });
 }
 
-async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
+/**
+ * The queued row settled with what the door says of it, in one transaction (00721 message_settle): message.sent,
+ * .send_blocked or .send_failed, and a cancel that won the row first said beside a send. False when a cancel won it.
+ */
+async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, told: SendTold): Promise<boolean> {
   if (!d.messageId) return false;
-  const { data, error } = await finalizeQueuedMessage(db, d.messageId, patch);
-  if (error) throw new DbFailure(error, `deliver: cannot finalize message ${d.messageId}`);
-  return !!data && data.length > 0;
+  return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told });
 }
 
 export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
@@ -615,19 +603,26 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
   ): Promise<Delivered> => {
     if (delivery.messageId) {
       const contact = { ...facts.contact, ...now };
-      await finalizeQueued(ports.db, delivery, { status: "canceled", error: { reason: reason } });
-      await event(ports.db, delivery, "message.send_blocked", delivery.messageId, {
-        reason: reason,
-        purpose: delivery.purpose,
-        consent: contact.consent,
-        dnc: contact.dnc,
-        marketing_consent: contact.marketing_consent,
-        ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
-          ? { email_marketing: contact.email_marketing }
-          : {}),
-        ...(overtakenBy ? { after: overtakenBy } : {}),
-        ...extra,
-      });
+      await finalizeQueued(
+        ports.db,
+        delivery,
+        { status: "canceled", error: { reason: reason } },
+        {
+          kind: "blocked",
+          data: {
+            reason: reason,
+            purpose: delivery.purpose,
+            consent: contact.consent,
+            dnc: contact.dnc,
+            marketing_consent: contact.marketing_consent,
+            ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
+              ? { email_marketing: contact.email_marketing }
+              : {}),
+            ...(overtakenBy ? { after: overtakenBy } : {}),
+            ...extra,
+          },
+        },
+      );
     }
     return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };
   };
@@ -656,10 +651,12 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
       // The text is already gone, so the row must say `sent` -- but a cancel that won the row between the send and this
       // write is the signal, not something to overwrite silently. A write that failed is neither: the words left, so it
       // is logged with the wamid and the send still reported.
-      const marked = await finalizeQueued(ports.db, delivery, {
-        status: "sent",
-        ...(sent.wamid ? { external_id: sent.wamid } : {}),
-      }).catch((e: unknown) => {
+      await finalizeQueued(
+        ports.db,
+        delivery,
+        { status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) },
+        { kind: "sent", data: { sender: delivery.sender } },
+      ).catch((e: unknown) => {
         deliverLog.error("deliver_finalize_failed", {
           tenant_id: delivery.tenantId,
           message_id: delivery.messageId,
@@ -669,13 +666,9 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
         return null;
       });
       await Promise.all([
-        marked === false
-          ? event(ports.db, delivery, "message.send_raced_cancel", delivery.messageId, { wamid: sent.wamid })
-          : Promise.resolve(),
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
         delivery.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, delivery, nowMs),
-        event(ports.db, delivery, "message.sent", delivery.messageId, { sender: delivery.sender }),
         leftAs(ports.db, delivery, sent),
         fromMailbox(ports.db, delivery, sent),
       ]);
@@ -715,24 +708,29 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
     ...(sent.outcome === "unknown" ? { outcome: "unknown" } : {}),
   };
   let messageId: string | null = delivery.messageId ?? null;
+  // The failure's event is written with its row, in one transaction (00721).
+  const failed = { ...failure, reason: sent.reason ?? "provider" };
   if (delivery.messageId) {
-    await finalizeQueued(ports.db, delivery, { status: "failed", error: failure });
+    await finalizeQueued(ports.db, delivery, { status: "failed", error: failure }, { kind: "failed", data: failed });
   } else {
     // Recorded as a failed row rather than dropped: the business should see that it tried and could not reach them.
-    messageId = await recordOutbound(ports.db, {
-      tenantId: delivery.tenantId,
-      conversationId: delivery.conversationId,
-      contactId: delivery.contactId,
-      sender: delivery.sender,
-      type: delivery.template ? "template" : "text",
-      body: delivery.body,
-      channel: delivery.channel,
-      externalId: null,
-      status: "failed",
-      meta: { ...(delivery.meta ?? {}), ...failure },
-    });
+    messageId = await recordOutbound(
+      ports.db,
+      {
+        tenantId: delivery.tenantId,
+        conversationId: delivery.conversationId,
+        contactId: delivery.contactId,
+        sender: delivery.sender,
+        type: delivery.template ? "template" : "text",
+        body: delivery.body,
+        channel: delivery.channel,
+        externalId: null,
+        status: "failed",
+        meta: { ...(delivery.meta ?? {}), ...failure },
+      },
+      failed,
+    );
   }
-  await event(ports.db, delivery, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
