@@ -118,8 +118,27 @@ function world({ role = "owner", post = {} } = {}) {
       row.updated_at = new Date().toISOString();
       return true;
     },
+    // The owner's word as 00720 writes it (post_seen_say): a post still up, never seen and not Google's moves through
+    // post_moved; anything else moves nothing.
+    post_seen_say: ({ p_post_id, p_there, p_words }) => {
+      const row = tables.posts.find((p) => p.id === p_post_id);
+      if (!row || row.status !== "published" || row.place === "google" || row.verified_at) return false;
+      return p_there
+        ? rpc.post_moved({
+            p_post_id,
+            p_from: ["published"],
+            p_to: "published",
+            p_patch: { verified_at: new Date().toISOString() },
+          })
+        : rpc.post_moved({
+            p_post_id,
+            p_from: ["published"],
+            p_to: "failed",
+            p_patch: { error: { code: null, subcode: null, words: p_words } },
+          });
+    },
   };
-  // The member's session reads; the service role moves. One world behind both, as one database is.
+  // The member's session reads and says; the door moves. One world behind both, as one database is.
   const db = fakeDb(tables, {}, rpc);
   setServiceClient(db);
   const ctx = { supabase: db, userId: USER, email: "ada@example.com", params: { id: FILE } };
