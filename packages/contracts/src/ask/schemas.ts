@@ -16,29 +16,17 @@ import { PHONE_PACES } from "../voice/phone-pace";
 import { WALK_INS_CHOICES } from "../config/business-tab/choices";
 import { GUARDRAIL_RULES } from "./settings-change";
 import { DAY_KEY } from "../shared/zone/day-keys";
+import { withOldNames } from "../shared/unknown";
 
 const Id = z.string().min(1).max(120);
 
 /**
- * A body's field read by its old camelCase name too, for one release from 26 November 2026, when the context's
- * `asked_at` and an outcome's `at_ms` took the wire's names (decision 0022, rule 3): a tab opened before that deploy
- * sends the old one, and a voice session's context and a turn's cards kept before it hold it. A body that says both is
- * read by its snake_case name. The kept cards are read through `keptOutcome` (dashboard server/ask/store.ts), so this
- * goes in the release after, once no open tab sends it.
+ * The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. Its
+ * `asked_at` is read by its old name too for one release from 26 November 2026 (decision 0022, rule 3): a tab opened
+ * before that deploy sends `askedAt`, and a voice session kept before it holds it.
  */
-function withOldName(old: string, name: string) {
-  return (body: unknown): unknown => {
-    if (typeof body !== "object" || body === null || Array.isArray(body) || !(old in body)) return body;
-    const named: Record<string, unknown> = { ...body };
-    if (!(name in named)) named[name] = named[old];
-    delete named[old];
-    return named;
-  };
-}
-
-/** The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. */
 export const PageContextSchema = z.preprocess(
-  withOldName("askedAt", "asked_at"),
+  withOldNames({ askedAt: "asked_at" }),
   z
     .object({
       v: z.literal(1),
@@ -77,8 +65,8 @@ const AskProposalOutcomeFields = z.object({
     .catch(undefined),
 });
 
-/** A card's outcome as the page sends it: its time read by its old name too (`withOldName`). */
-export const AskProposalOutcomeSchema = z.preprocess(withOldName("atMs", "at_ms"), AskProposalOutcomeFields);
+/** A card's outcome as the page sends it: its time read by its old name too (shared withOldNames). */
+export const AskProposalOutcomeSchema = z.preprocess(withOldNames({ atMs: "at_ms" }), AskProposalOutcomeFields);
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */
 const CalendarDay = z.string().regex(DAY_KEY);

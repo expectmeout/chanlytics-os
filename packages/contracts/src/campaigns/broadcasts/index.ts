@@ -100,7 +100,6 @@ export {
 } from "./broadcasts";
 export type {
   Audience,
-  AudienceDto,
   AudienceKind,
   AudiencePreview,
   BroadcastCounts,
@@ -127,7 +126,6 @@ export type {
   RunFigureId,
   RunFilterId,
   RunPersonVM,
-  RunReachDto,
   RunReplyVM,
   RunReportVM,
   RunStop,

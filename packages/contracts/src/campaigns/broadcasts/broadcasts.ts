@@ -36,15 +36,7 @@ export {
   runReachDto,
 } from "./audience";
 
-export type {
-  AudienceKind,
-  Audience,
-  AudienceDto,
-  PreviewPerson,
-  AudiencePreview,
-  CampaignHow,
-  RunReachDto,
-} from "./audience";
+export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./audience";
 
 export {
   DEFAULT_CAMPAIGN_CHANNELS,
