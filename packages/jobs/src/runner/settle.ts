@@ -25,7 +25,6 @@ import {
   REPLY_DRAFT_KINDS,
   PER_MAILBOX_SOURCES,
   isCampaignEmail,
-  type ImportSource,
   type JobKind,
   FILE_LOOK_EDITION,
   VIDEO_LOOK_EDITION,
@@ -378,7 +377,7 @@ async function settleImport(db: Db, job: TerminalJob): Promise<Settled[]> {
   await noteImport(db, {
     tenantId: job.tenant_id,
     source,
-    connectionId: PER_MAILBOX_SOURCES.includes(source as ImportSource) ? connection : null,
+    connectionId: isOneOf(PER_MAILBOX_SOURCES, source) ? connection : null,
     run: run || "1",
     state: "failed",
     error: IMPORT_STOPPED_WORDS.failed,
