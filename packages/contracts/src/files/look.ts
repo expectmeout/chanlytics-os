@@ -15,6 +15,7 @@ import { DATA_NOT_INSTRUCTIONS, fenced } from "../ai/fence";
 import { FILE_LOOKS_LIKE, FILE_NAME_WORDS, FILE_SHOWS, type FileLooksLike, type FileShows } from "./limits";
 import { fileNameOf, type FilePeople } from "./views";
 import { ANSWER_JSON_ONLY } from "../shared/words";
+import { finiteOrNull } from "../shared/unknown";
 
 /**
  * The edition of these rules: file_look_keep records it, and the sweep reads again whatever a lower one read. A change to
@@ -195,15 +196,12 @@ function lookPeopleOf(v: unknown): FilePeople | null {
   return { count, recognizable: Math.min(peopleCountOf(record.recognizable) ?? count, count) };
 }
 
-/** Whether a value is a pixel box: four finite numbers, its corners' x and y. */
-const isPixelBox = (box: unknown): box is [number, number, number, number] =>
-  Array.isArray(box) && box.length === 4 && box.every((n) => typeof n === "number" && Number.isFinite(n));
-
 /** A pixel box as shares of the picture, or null for anything that is not a box on it. */
 function lookSubjectOf(box: unknown, width: number, height: number): FileLook["subject"] {
-  if (!isPixelBox(box)) return null;
+  // Four finite numbers, its corners' x and y; anything else is no box.
+  const [x1, y1, x2, y2] = Array.isArray(box) && box.length === 4 ? box.map(finiteOrNull) : [];
+  if (x1 == null || y1 == null || x2 == null || y2 == null) return null;
   if (!(width > 0) || !(height > 0)) return null;
-  const [x1, y1, x2, y2] = box;
   // Held to the picture first: a box wholly off it comes back with no width, and that is no box.
   const left = share(x1, width);
   const top = share(y1, height);
