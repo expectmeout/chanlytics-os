@@ -13,6 +13,6 @@ export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
     const cfg = await getWhatsappSignupConfig({ workspace: member.tenantId, user: ctx.userId });
-    return { ...cfg, can_connect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready };
+    return { ...cfg, can_connect: !!ROLE_PERMS[member.role].disconnect && cfg.ready };
   },
 });

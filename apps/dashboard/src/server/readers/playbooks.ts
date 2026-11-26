@@ -77,7 +77,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       hasDeals: dealtRead,
       playbooks: listed,
     });
-    const [playbooks, facts, touched, shape, paceRead, ready, month_sent] = await Promise.all([
+    const [playbooks, facts, touched, shape, paceRead, ready, monthSent] = await Promise.all([
       listed,
       load(rc, readers.facts, undefined).then((r) => r.data),
       getRecentTouches(ctx.supabase, tenantId, now),
@@ -112,7 +112,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         people_lists: people,
         has_deals: dealt,
         ready,
-        month_sent,
+        month_sent: monthSent,
         // What the workspace calls an appointment, and whether its bookings arrive by a tool's emails (businessShape).
         appointment_word: shape.word,
         bookings_by_email: shape.bookingsByEmail,

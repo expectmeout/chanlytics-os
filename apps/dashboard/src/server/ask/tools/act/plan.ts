@@ -232,7 +232,7 @@ async function planWorld(
       ...(result.lists?.own ?? []).map((l) => ({
         token: l.list,
         name: l.name,
-        count: "count" in l ? (l.count ?? null) : null,
+        count: "count" in l ? l.count : null,
       })),
     ],
     playbooks: result.pb.playbooks.map((p) => ({
@@ -240,7 +240,7 @@ async function planWorld(
       name: p.name,
       trigger: p.trigger,
       state: p.state,
-      template_name: p.template_name ?? null,
+      template_name: p.template_name,
       // Its last day: a month's offer past it sends nothing, so the plan leaves it alone (contracts campaignEnded).
       until: p.until ?? null,
     })),
@@ -440,7 +440,7 @@ async function genericStep(
   const def = Object.prototype.hasOwnProperty.call(tool.actions, key) ? tool.actions[key] : null;
   if (!def) return { refusal: `${step.tool} takes action ${Object.keys(tool.actions).join(", ")}` };
   if (!offeredTo(def, toolContext.role)) return { refusal: `${step.tool}.${key} is not this member's to approve` };
-  const parsed = def.input.safeParse(nullsLeftOut(step.input ?? {}));
+  const parsed = def.input.safeParse(nullsLeftOut(step.input));
   if (!parsed.success)
     return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
   const created = await def.build({ ...toolContext, step: count }, parsed.data);

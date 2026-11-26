@@ -63,14 +63,14 @@ export async function getAudiencePool(
    */
   opts: { hasDeals?: boolean; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings; stale?: boolean } = {},
 ): Promise<AudiencePool> {
-  const [{ people, calendar, consult_first }, has_deals] = await Promise.all([
+  const [{ people, calendar, consult_first }, hasDeals] = await Promise.all([
     (opts.people === undefined ? listEveryone(ctx, tenantId) : loadLazily(opts.people)).then((rows) =>
       // `stale`: the calendar's last good read may answer, for a caller that only counts (readers/list-counts.ts).
       withVisits(ctx, tenantId, rows, now, opts.known, opts.stale ? { stale: true } : {}),
     ),
     opts.hasDeals !== undefined ? opts.hasDeals : hasDealsRead(ctx, tenantId),
   ]);
-  const viewer = ctx.userId ?? null;
+  const viewer = ctx.userId;
   return {
     people,
     // The pool's one reading (contracts audience-pool.ts), for the member asking: a teammate's thread is theirs, and a
@@ -78,11 +78,11 @@ export async function getAudiencePool(
     rows: poolRowsOf(people, { tz, now, viewer, ready }),
     calendar,
     consult_first,
-    has_deals,
+    has_deals: hasDeals,
     // What the pool can give a list (contracts poolListContext), the consult-first service as withVisits read it.
     listCtx: poolListContext({
       calendar: calendar.state,
-      hasDeals: has_deals,
+      hasDeals: hasDeals,
       consultFirst: consult_first,
       viewer,
     }),

@@ -570,6 +570,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
   const offers = press === "connect" || press === "fix" ? "primary" : press === "settings" ? "one" : "none";
   const settingsOpen = (press === "settings" || press === "fix") && open;
   return (
+    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events -- a pointer's press anywhere on the row; a keyboard reaches its own buttons
     <div
       className="set-int-row"
       data-testid={`connection-${r.kind}`}

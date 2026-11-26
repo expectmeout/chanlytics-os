@@ -275,7 +275,7 @@ export async function answeredAfter(
       since,
     );
     if (error) throw new DbFailure(error);
-    for (const m of data ?? []) {
+    for (const m of data) {
       const reply = replied.get(m.conversation_id);
       if (!reply || !(m.created_at > reply)) continue;
       if (m.type !== "text" && m.type !== "media") continue;

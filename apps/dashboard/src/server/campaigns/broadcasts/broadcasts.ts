@@ -83,7 +83,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: TenantId, shown: reado
     if (!ids.length) return [];
     const { data, error } = await listRunRowsByIds(ctx.supabase, tenantId, ids);
     if (error) throw new DbFailure(error);
-    return (data ?? []) as BroadcastRow[];
+    return data as BroadcastRow[];
   } catch (e) {
     log.error("broadcasts_waiting_read_failed", {
       tenant_id: tenantId,
@@ -110,7 +110,7 @@ export async function listBroadcasts(
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
   if (error) throw new DbFailure(error);
-  const all = (rows ?? []) as BroadcastRow[];
+  const all = rows as BroadcastRow[];
   const recent = all.slice(0, RECENT);
   const beyond = all.length > RECENT ? await waitingBeyond(ctx, tenantId, recent) : [];
   const counted = await withCounts(ctx, tenantId, [...recent, ...(beyond ?? [])]);
@@ -156,7 +156,7 @@ async function withHeld(ctx: RouteContext, tenantId: TenantId, rows: BroadcastDt
 export async function listRuns(ctx: RouteContext, tenantId: TenantId): Promise<BroadcastDto[]> {
   const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
   if (error) throw new DbFailure(error);
-  return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
+  return withCounts(ctx, tenantId, rows as BroadcastRow[]);
 }
 
 /** A person's answer to the run, as the sheet draws it: which, about what, and when. */
@@ -196,7 +196,7 @@ async function consentEventsOf(
       since,
     );
     if (error) throw new DbFailure(error);
-    for (const e of data ?? []) {
+    for (const e of data) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
     }
   }
@@ -352,7 +352,7 @@ export async function listPersonRuns(
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const { data, error } = await listRunNames(ctx.supabase, tenantId, ids.slice(i, i + IN_CHUNK));
     if (error) throw new DbFailure(error);
-    for (const b of data ?? []) runs.set(b.id, b);
+    for (const b of data) runs.set(b.id, b);
   }
   const out: (PersonCampaignDto & { at: string })[] = [];
   for (const row of rows) {

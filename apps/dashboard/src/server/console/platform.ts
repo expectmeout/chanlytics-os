@@ -77,7 +77,7 @@ export async function listPlatformOverview(office: BackOffice): Promise<Platform
   // No cast: the generated Functions type is precise, so a column renamed in a
   // future migration fails the build here rather than shipping `undefined` to
   // the page.
-  const rows: PlatformTenantDto[] = data ?? [];
+  const rows: PlatformTenantDto[] = data;
   return rows;
 }
 
@@ -130,7 +130,7 @@ export async function getPlatformWaitlist(office: BackOffice, limit = QUEUE_SHOW
     log.error("platform_waitlist_unreadable", { error: error.message });
     return { waiting: null, total: null };
   }
-  return { waiting: data ?? [], total: count ?? (data ?? []).length };
+  return { waiting: data, total: count ?? data.length };
 }
 
 /**
@@ -152,7 +152,7 @@ export async function getPlatformWaitlistInvited(
     async () => {
       const { data, error } = await markWaitlistInvited(office.db, id, office.userId, new Date().toISOString());
       if (error) throw new AppError("unavailable", NOT_RECORDED);
-      return data && data.length > 0 ? ("marked" as const) : ("already" as const);
+      return data.length > 0 ? ("marked" as const) : ("already" as const);
     },
     (out) => ({ outcome: "done", note: out === "already" ? "Someone had marked them already." : null }),
   );
@@ -193,7 +193,7 @@ interface PlatformEvent {
 export async function listPlatformEvents(office: BackOffice, tenantId: TenantId, limit = 40): Promise<PlatformEvent[]> {
   const { data, error } = await listWorkspaceEvents(office.db, tenantId, limit);
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -232,16 +232,22 @@ import { logAndGoOn } from "@chanlytics/log";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: TenantId, lineId: string) => EdgeBody<"/api/admin/lines">> = {
-  retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id, by: "support" }),
+  retry: (tenantId, lineId) => ({ op: "retry", tenant_id: tenantId, line_id: lineId, by: "support" }),
   // `refile` is the same edge operation as an owner's own registration, with the
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
   // two things an owner may not do and support must.
-  refile: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true }),
+  refile: (tenantId, lineId) => ({ op: "register", tenant_id: tenantId, line_id: lineId, refile: true }),
   // `replace` is the same door once more, with the flag that deletes a refused
   // campaign and files a new one -- a second vetting fee, so never implied by
   // refile and never reachable from an owner's own registration.
-  replace: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true, replace: true }),
-  release: (tenant_id, line_id) => ({ op: "release", tenant_id, line_id }),
+  replace: (tenantId, lineId) => ({
+    op: "register",
+    tenant_id: tenantId,
+    line_id: lineId,
+    refile: true,
+    replace: true,
+  }),
+  release: (tenantId, lineId) => ({ op: "release", tenant_id: tenantId, line_id: lineId }),
 };
 
 interface PlatformActionResult {
@@ -426,7 +432,7 @@ export async function resetPlatformPartnerSecondFactor(
       const { data, error } = await listSecondFactors(svc, userId);
       if (error) throw new AppError("upstream_auth", "Couldn't reach sign-in just now. Try again in a moment.", 503);
       let removed = 0;
-      for (const f of data?.factors ?? []) {
+      for (const f of data.factors) {
         const gone = await deleteSecondFactor(svc, userId, f.id);
         if (gone.error)
           throw new AppError("upstream_auth", "Couldn't remove the authenticator. Try again in a moment.", 503);

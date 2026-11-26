@@ -68,7 +68,7 @@ export const campaignReport: Reader<ReportWindow, { report: CampaignReportDto }>
 export async function listLastDaysBySource(rc: ReaderContext): Promise<CampaignSourceDto[] | null> {
   try {
     const window = await reportWindowFor(rc, { period: CAMPAIGNS_RESULTS_PERIOD });
-    return (await load(rc, campaignReport, window)).data.report.sources ?? [];
+    return (await load(rc, campaignReport, window)).data.report.sources;
   } catch (e) {
     log.error("campaign_last_days_read_failed", {
       tenant_id: rc.tenantId,

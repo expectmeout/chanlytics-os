@@ -243,7 +243,7 @@ async function startPreviewCall(
       rehearsal_id: started.rehearsal_id,
       call: started.call,
       max_ms: started.max_ms,
-      left_ms: started.allowance?.left_ms ?? 0,
+      left_ms: started.allowance.left_ms,
     };
   } catch (e) {
     // The rehearsal's refusals are said to an owner in Settings; a business calling its preview hears the page's own.

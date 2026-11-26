@@ -22,5 +22,5 @@ const Query = z.object({
 export const GET = read({
   scope: workspace,
   query: Query,
-  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), files, input ?? {})).data,
+  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), files, input)).data,
 });

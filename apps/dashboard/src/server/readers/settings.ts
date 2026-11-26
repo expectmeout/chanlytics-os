@@ -111,7 +111,7 @@ export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Prom
   return {
     workspace: ws.error || !ws.data ? null : { name: ws.data.name, timezone: ws.data.timezone },
     ours: !ws.error && ws.data?.ours === true,
-    channels: ch.error ? [] : (ch.data ?? []),
+    channels: ch.error ? [] : ch.data,
     listing: gl.error ? null : gl.data,
     forwarding: knownForwarding(lines),
   };

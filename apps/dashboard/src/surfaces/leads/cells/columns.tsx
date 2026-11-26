@@ -270,6 +270,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
         <CellLines
           end
           top={
+            // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- a focus stop, so a keyboard reaches the tip it describes
             <span tabIndex={0} aria-describedby={`${l.id}-found-tip`}>
               {l.foundLabel}
             </span>

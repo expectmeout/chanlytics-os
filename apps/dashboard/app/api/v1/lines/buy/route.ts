@@ -33,7 +33,7 @@ export const POST = write({
     // which the truthiness check below then dropped -- searching with no area
     // code rather than refusing -- and "012" a 12, a different area code than
     // the one the owner typed.
-    const areaCode = input.area_code === undefined || input.area_code === null ? undefined : String(input.area_code);
+    const areaCode = input.area_code === undefined ? undefined : String(input.area_code);
     const edgeAnswer = await callEdgeLines(
       {
         op: "buy",

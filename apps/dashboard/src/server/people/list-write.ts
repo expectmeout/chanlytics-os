@@ -137,10 +137,16 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
   }
 
   // Every id, not the first thousand: an Undo tells who an add really added from this answer.
-  const archived_at = restore ? null : list.archived_at;
+  const archivedAt = restore ? null : list.archived_at;
   const out: SavedListDto = smart
-    ? { id, name: rename ?? list.name, ids: [], rule: rule ?? list.rule, archived_at }
-    : { id, name: rename ?? list.name, ids: await listMemberIds(ctx.supabase, id), rule: null, archived_at };
+    ? { id, name: rename ?? list.name, ids: [], rule: rule ?? list.rule, archived_at: archivedAt }
+    : {
+        id,
+        name: rename ?? list.name,
+        ids: await listMemberIds(ctx.supabase, id),
+        rule: null,
+        archived_at: archivedAt,
+      };
   return out;
 }
 

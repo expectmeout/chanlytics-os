@@ -119,8 +119,8 @@ type Renamed =
  * keeps its name until a new one is filed), so the answer says it where it differs.
  */
 async function renamedWith(ctx: RouteContext, member: Member, was: unknown, next: unknown): Promise<Renamed | null> {
-  const name = parseTenantConfig(next)?.brain?.business_name?.trim() ?? "";
-  const before = parseTenantConfig(was ?? null)?.brain?.business_name?.trim() ?? "";
+  const name = parseTenantConfig(next)?.brain?.business_name.trim() ?? "";
+  const before = parseTenantConfig(was ?? null)?.brain?.business_name.trim() ?? "";
   if (!name || name === before) return null;
   let done: { from: string; to: string } | null;
   try {

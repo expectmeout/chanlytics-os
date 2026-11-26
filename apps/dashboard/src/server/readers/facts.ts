@@ -92,7 +92,7 @@ export const config: Reader<
             config: row.config,
             version: row.version,
             updated_by: row.updated_by ?? null,
-            updated_at: row.updated_at ?? null,
+            updated_at: row.updated_at,
           }
         : null,
       rows: [],

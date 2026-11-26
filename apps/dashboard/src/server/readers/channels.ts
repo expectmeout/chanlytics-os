@@ -27,7 +27,7 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
     if (rows.error) throw new DbFailure(rows.error);
     if (lastCall.error) throw new DbFailure(lastCall.error);
     // The DM clock only where an Instagram account is connected: most workspaces have none, and ask nothing more.
-    const lastDm = rows.data?.some((c) => c.kind === "instagram")
+    const lastDm = rows.data.some((c) => c.kind === "instagram")
       ? await findLastInboundOn(supabase, tenantId, "instagram")
       : null;
     const lastByKind: Record<string, string | null> = {
@@ -35,7 +35,7 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
       instagram: lastDm,
       voice: lastCall.data?.started_at ?? null,
     };
-    const channels: ChannelDto[] = (rows.data ?? []).map((row) => {
+    const channels: ChannelDto[] = rows.data.map((row) => {
       const cfg = recordOrEmpty(row.config);
       const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
       return {

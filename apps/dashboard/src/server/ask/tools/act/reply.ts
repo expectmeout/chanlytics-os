@@ -26,6 +26,7 @@ import { noteRow, str } from "../context/tool-reads";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
 import { findMessageCard, findThreadForReply } from "@chanlytics/db/ask";
+import { embedded } from "@chanlytics/db/shared";
 
 /**
  * What a first message on this thread would be refused for, or null. A thread nothing has come to answers nobody, so
@@ -57,13 +58,14 @@ async function threadOnCard(toolContext: ToolContext, id: string) {
   const { data: conv, error } = await findThreadForReply(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new DbFailure(error);
   if (!conv) return null;
+  const person = embedded(conv.contacts);
   const asked: Parameters<typeof contactName>[0] = {
     contact: {
-      id: conv.contacts?.id ?? "",
-      display_name: conv.contacts?.display_name ?? null,
-      wa_profile_name: conv.contacts?.wa_profile_name ?? null,
-      phone_e164: conv.contacts?.phone_e164 ?? null,
-      email: conv.contacts?.email ?? null,
+      id: person?.id ?? "",
+      display_name: person?.display_name ?? null,
+      wa_profile_name: person?.wa_profile_name ?? null,
+      phone_e164: person?.phone_e164 ?? null,
+      email: person?.email ?? null,
       consent: null,
       dnc: false,
     },
@@ -89,7 +91,7 @@ async function draftReply(
   // The channel it will go out on: where they last wrote (the reply route's own rule).
   const channel = await replyChannelOf(toolContext.ctx, conv);
   const may = mayMessageFor(
-    { consent: conv.contacts?.consent ?? null, dnc: conv.contacts?.dnc ?? null },
+    { consent: embedded(conv.contacts)?.consent ?? null, dnc: embedded(conv.contacts)?.dnc ?? null },
     "conversational",
     // A reply in the thread they wrote in: theirs (contracts MessageAbout).
     { channel, about: "theirs" },
@@ -142,7 +144,7 @@ async function proposeSteer(
   const { data: m, error } = await findMessageCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new DbFailure(error);
   if (!m) return refuse("no such message in this workspace");
-  if (!isHeldDraft({ sender: m.sender, status: m.status ?? undefined })) {
+  if (!isHeldDraft({ sender: m.sender, status: m.status })) {
     return refuse("that reply is not waiting any more; there is nothing to rewrite");
   }
   noteRow(

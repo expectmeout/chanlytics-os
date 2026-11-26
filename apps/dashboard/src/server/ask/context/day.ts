@@ -124,7 +124,7 @@ export const readToday: Provider = async (rc, ctx) => {
       vm.standing.detail,
       ...vm.standing.chips.map((c) => c.text),
       parts.length ? parts.join(", ") : vm.queue.empty.sub,
-      ...(vm.figures ?? []).map((f) => `${f.label}: ${f.value}`),
+      ...vm.figures.map((f) => `${f.label}: ${f.value}`),
       vm.calls?.line,
     ]),
   };

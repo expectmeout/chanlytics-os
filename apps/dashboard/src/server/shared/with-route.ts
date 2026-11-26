@@ -21,7 +21,7 @@ import {
   DbFailure,
   causedBy,
 } from "@chanlytics/contracts";
-import { databaseFailing, ReadCutShort } from "@chanlytics/db/shared";
+import { databaseFailing, ReadCutShort, embedded, identityAccountOf } from "@chanlytics/db/shared";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -187,6 +187,7 @@ function answerOf<T>(
         });
       }
       const authFrom = Date.now();
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the signature is Next's ParamCheck's, which wants the context; a caller of its own (a test) may still leave it out
       const params = (await routeCtx?.params) ?? {};
       // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
       // server where the project still signs with its shared secret), and its claims: who this is, their address
@@ -232,7 +233,7 @@ function answerOf<T>(
         // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
         const request = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
         if (request.error) return isRetryableAuthError(request.error) ? "unknown" : "gone";
-        return request.data.user?.id === String(user.sub) ? "live" : "gone";
+        return identityAccountOf(request)?.id === String(user.sub) ? "live" : "gone";
       };
       const data = await handler(req, {
         supabase,
@@ -437,7 +438,7 @@ async function listMembershipsFor(ctx: RouteContext, shares: boolean): Promise<M
   const read = async (): Promise<MembershipRows> => {
     const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
     if (error) throw new DbFailure(error);
-    return data ?? [];
+    return data;
   };
   return shares ? MEMBERSHIPS.shared(ctx.userId, ctx.burst, read) : read();
 }
@@ -454,7 +455,9 @@ async function resolveMember(
   // person's home workspace does not move because a tenant was renamed, which
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
-  const membership = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
+  const membership = wanted
+    ? rows.find((r) => r.tenant_id === wanted || embedded(r.tenants)?.slug === wanted)
+    : rows[0];
   // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
   // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
   // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
@@ -471,7 +474,7 @@ async function resolveMember(
   // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026). And a reader beneath a read that
   // asks for them by the workspace is answered from here (tenant.ts getTenantFacts): never beneath a write, which may
   // change them.
-  const row = membership.tenants;
+  const row = embedded(membership.tenants);
   if (ctx.burst !== undefined && typeof row?.timezone === "string")
     tenantFactsKnown(ctx.supabase, membership.tenant_id, tenantFactsOf(row));
   return {

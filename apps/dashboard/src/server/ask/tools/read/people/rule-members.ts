@@ -188,7 +188,7 @@ export async function searchPeople(
     inView = (id) => listed.ids.has(id);
   }
   const on = members;
-  const viewer = toolContext.ctx.userId ?? null;
+  const viewer = toolContext.ctx.userId;
   let hits: PersonRowDto[];
   let matches: number;
   let rowOf: (r: PersonRowDto) => PersonRowVM;

@@ -74,6 +74,14 @@ const OURS = {
     { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
     { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
     { selector: "variable", modifiers: ["destructured"], format: null },
+    // An Ask tool's definition is named by its tool, the name the model calls it by on the wire (propose_reply,
+    // press_card), so a definition and its call read the same.
+    {
+      selector: "variable",
+      modifiers: ["exported", "const"],
+      filter: { regex: "^(propose_[a-z_]+|press_card)$", match: true },
+      format: null,
+    },
     { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
     { selector: "parameter", modifiers: ["destructured"], format: null },
   ],
@@ -112,8 +120,8 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // The colour model's four (it misreads a `??`, decision 0112).
-  "@typescript-eslint/no-unnecessary-type-assertion",
+  // None held: the last, no-unnecessary-type-assertion, had its colour model's four go on 26 November 2026, read
+  // through the model's own colours (mascot/colour.ts ownLab) rather than asserted.
 ];
 
 /** A rule's entry at warning, its options kept. */
@@ -875,6 +883,22 @@ export default [
     files: DASHBOARD_MARKUP,
     plugins: { "jsx-a11y-x": jsxA11y },
     rules: A11Y_RULES,
+  },
+  // A field that opens with the bar or the sheet it is in takes the caret, on a desktop and never on a phone (frame-verbs
+  // focusAsDrawn, Ruben 8 Oct 2026): People's and Leads' own inputs that do, until each is the kit's Field; and the one
+  // field of a new workspace's first page, which is all that page asks.
+  {
+    files: [
+      "apps/dashboard/src/bridge/CreateWorkspace.tsx",
+      "apps/dashboard/src/surfaces/leads/scope/rail.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/lists/rule-editor.tsx",
+      "apps/dashboard/src/surfaces/people/lists/save-shown.tsx",
+      "apps/dashboard/src/surfaces/people/rail/new-list.tsx",
+      "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx",
+    ],
+    rules: { "jsx-a11y-x/no-autofocus": "off" },
   },
 
   // Test and operational scripts.

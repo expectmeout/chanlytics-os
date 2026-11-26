@@ -43,11 +43,11 @@ type Runs = () => Promise<Awaited<ReturnType<typeof listBroadcasts>> | null>;
 async function lastOfferWords(runsRead: Runs): Promise<string | null> {
   const runs = await runsRead();
   const newest = runs?.broadcasts
-    .filter((b) => (b.params ?? []).some((p) => p.kind === "text"))
+    .filter((b) => b.params.some((p) => p.kind === "text"))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .at(0);
-  const typed = newest?.params?.find((p) => p.kind === "text");
-  return typed && typed.kind === "text" ? typed.value : null;
+  const typed = newest?.params.find((p) => p.kind === "text");
+  return typed ? typed.value : null;
 }
 
 /**
@@ -79,13 +79,11 @@ async function offerResult(t: ToolContext, language: string, runsRead: Runs): Pr
   const send = acted.find((a) => (a.kind === "broadcast" || a.kind === "playbook") && a.state === "done");
   if (!send) return null;
   const runs = await runsRead();
-  const run = runs?.broadcasts.find(
-    (b) => Date.parse(b.created_at) >= Date.parse(send.at) && (b.counts?.sent ?? 0) > 0,
-  );
+  const run = runs?.broadcasts.find((b) => Date.parse(b.created_at) >= Date.parse(send.at) && b.counts.sent > 0);
   if (!run) return null;
   return noticeOf(
     "offer_result",
-    { name: run.name ?? "", sent: run.counts.sent, replied: run.counts.replied, booked: 0 },
+    { name: run.name, sent: run.counts.sent, replied: run.counts.replied, booked: 0 },
     language,
     [],
   );

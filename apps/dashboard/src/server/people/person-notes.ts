@@ -115,7 +115,7 @@ async function teamNames(ctx: RouteContext, tenantId: TenantId): Promise<PersonN
       (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
     );
   if (error) return null;
-  return (data ?? []).map((m) => ({
+  return data.map((m) => ({
     id: m.member_user_id,
     name: memberWords(m).name,
     me: m.member_user_id === ctx.userId,
@@ -146,7 +146,7 @@ export async function getPersonNotes(
   }
   const names = new Map((team ?? []).map((m) => [m.id, m.name]));
   return {
-    notes: (rows.data ?? []).map((n) => toNoteDto(n, names, ctx.userId)),
+    notes: rows.data.map((n) => toNoteDto(n, names, ctx.userId)),
     ...(team ? { team } : {}),
   };
 }
@@ -203,7 +203,7 @@ export async function seeNote(ctx: RouteContext, contactId: ContactId, noteId: s
   if (answer.seen) return { seen: noteId };
   const notYours = answer.why === "not_yours";
   const reason = notYours ? "not_for_you" : "not_found";
-  throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[reason] ?? reason, notYours ? 403 : 404);
+  throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[reason], notYours ? 403 : 404);
 }
 
 /** What the lead became, where the call moved it (lead_set_stage's answer, through the door). */
