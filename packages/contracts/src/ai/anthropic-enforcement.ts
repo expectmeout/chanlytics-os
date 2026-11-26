@@ -100,8 +100,8 @@ export function enforcementWords(status: AnthropicEnforcementStatus, actions: En
 /** What a member reads while a banned profile's calls are held. Plain, and no reason: the reason is the platform's to say. */
 export const MODEL_PAUSED_WORDS = {
   ask: {
-    en: "AI is paused on your account. Your pages still work. Write to support and we'll sort it out.",
-    es: "AI está en pausa en tu cuenta. Tus páginas siguen funcionando. Escribe a soporte y lo resolvemos.",
+    en: "AI is paused on your account, and your pages still work. Write to support to turn it back on.",
+    es: "AI está en pausa en tu cuenta, y tus páginas siguen funcionando. Escribe a soporte para reactivarlo.",
   },
   draft: (text: string) => `The ${text} waits while AI is paused on your account.`,
   edge: "AI is paused for this account.",

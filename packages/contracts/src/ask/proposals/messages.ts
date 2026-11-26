@@ -53,7 +53,7 @@ export const MESSAGE_CHANGE_WORDS = {
   renameTitle: (was: string): string => `Rename ${was}`,
   /** WhatsApp keeps its own name for a version it holds: said only where the message has one. */
   renameSaid: (title: string, whatsapp: boolean): string =>
-    `Called “${title}” in the list and the composers${whatsapp ? "; WhatsApp keeps its own name for it" : ""}.`,
+    `Called “${title}” in the list and the composers${whatsapp ? ", and WhatsApp keeps its own name for it" : ""}.`,
   awayTitle: (title: string, away: boolean): string => (away ? `Put away ${title}` : `Bring back ${title}`),
   awayStill,
   awaySaid: (away: boolean, stillSentBy: string | null): string =>

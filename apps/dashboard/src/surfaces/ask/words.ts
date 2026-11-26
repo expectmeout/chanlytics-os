@@ -243,7 +243,7 @@ const ASK_TEXT = {
     micDenied: "The browser needs microphone permission to talk to AI.",
     micFailed: "Couldn't hear you · try again or type it.",
     micBlocked:
-      "The microphone is blocked for this site. Allow it in the browser’s site settings · the lock beside the address, or on iPhone the aA menu, Website Settings · then press again.",
+      "The microphone is blocked for this site. Allow it from the lock by the address, or aA › Website Settings on iPhone.",
     noVoice: "Voice needs Chrome, Edge or Safari · this browser can't listen. Type instead.",
     voice: "Talk with Chanlytics",
     readFailed: "AI's voice couldn't be reached just now.",
@@ -393,7 +393,7 @@ const ASK_TEXT = {
     micDenied: "El navegador necesita permiso del micrófono para hablar con AI.",
     micFailed: "No te oí · inténtalo de nuevo o escríbelo.",
     micBlocked:
-      "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador · el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web · y vuelve a pulsar.",
+      "El micrófono está bloqueado aquí. Permítelo con el candado junto a la dirección, o en iPhone aA › Ajustes del sitio web.",
     noVoice: "La voz necesita Chrome, Edge o Safari · este navegador no puede escuchar. Escríbelo.",
     voice: "Habla con Chanlytics",
     readFailed: "No se pudo llegar a la voz de AI ahora mismo.",

@@ -94,10 +94,7 @@ async function activation(on: boolean, to: string, k: RowActs): Promise<void> {
       ) : on ? (
         <>Turned on. It is yours to use, and Setup says so.</>
       ) : (
-        <>
-          Activation withdrawn. Nothing stops answering, and Setup no longer marks it as yours. Turn it on again
-          whenever you like.
-        </>
+        <>Activation withdrawn · nothing stops answering. Turn it on again whenever you like.</>
       ),
     });
   });

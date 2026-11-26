@@ -336,6 +336,6 @@ export function filmShotsOf(raw: unknown): FilmShot[] {
 export const WEBSITE_UNREAD_WORDS = {
   address: "it isn't an address on the public web",
   silent: "it didn't answer, or answered with no page",
-  nothing: "it says nothing about services, prices or rules that we could find",
+  nothing: "it says nothing Chanlytics could read about services, prices or rules",
   failed: "it couldn't be read just now. It is read again when you save it",
 } as const;

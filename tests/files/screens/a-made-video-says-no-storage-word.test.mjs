@@ -125,6 +125,6 @@ test("a watched folder's clip says what it said before, letter for letter", () =
   // clip's changed on purpose changes this with it: print `all` to see which.
   assert.equal(
     createHash("sha256").update(JSON.stringify(all)).digest("hex"),
-    "ab3e63c0082b73828c043cc21413b2589ca7a9c3ab4586a7c2344233f0836791",
+    "9eaa7c7bb0c8e49dac8b2fcc44f711af1fecfd6e258903aa68488a7f62a0c9e0",
   );
 });

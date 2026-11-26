@@ -331,7 +331,7 @@ test("on the first run the page's own questions lead: what is left to set up and
     );
   assert.deepEqual(chips("start"), [
     "What is left to set up?",
-    "What are our hours this week?",
+    "What are my hours this week?",
     "What can you do for me?",
     "Who needs me right now?*",
     "How did the week go?",
@@ -372,7 +372,7 @@ test("on the first run the page's own questions lead: what is left to set up and
     reports: ["How did the week go?", "Who needs me right now?*", "What can you do on your own?", "Remember that "],
     settings: [
       "What can you do on your own?",
-      "What are our hours this week?",
+      "What are my hours this week?",
       "Who needs me right now?*",
       "How did the week go?",
       "Remember that ",

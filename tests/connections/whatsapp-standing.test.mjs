@@ -625,7 +625,7 @@ test("Meta's words written for a developer never reach an owner, and the number'
       { entity: "PHONE_NUMBER", code: null, said: "Configure the number using {PHONE_NUMBER_ID}/settings", fix: null },
     ],
   };
-  const SETTING = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+  const SETTING = "Meta says a setting on this number needs changing. WhatsApp Manager shows which.";
   assert.equal(
     standingAlertWords("+13055550188", forDevelopers).body,
     `WhatsApp can't send from +1 (305) 555-0188: ${SETTING}`,

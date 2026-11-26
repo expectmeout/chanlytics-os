@@ -130,7 +130,7 @@ test("the words a save shows, for each standing, with and without a change to wh
   assert.equal(recordSavedWords(saved("none", own)), "Saved. The phone networks see it when you file.");
   assert.equal(
     recordSavedWords(saved("in_review", pub, "Harbor Moving LLC")),
-    `${page}; the phone networks are still reviewing “Harbor Moving LLC” as you filed it.`,
+    `${page}, and the phone networks are still reviewing “Harbor Moving LLC” as you filed it.`,
   );
   assert.equal(
     recordSavedWords(saved("in_review", own)),
@@ -138,7 +138,7 @@ test("the words a save shows, for each standing, with and without a change to wh
   );
   assert.equal(
     recordSavedWords(saved("on_file", pub, "Harbor Moving LLC")),
-    `${page}; the phone networks still hold “Harbor Moving LLC” as you filed it.`,
+    `${page}, but the phone networks still hold “Harbor Moving LLC” as you filed it.`,
   );
   assert.equal(recordSavedWords(saved("on_file", own)), "Saved. The phone networks still hold what you filed.");
   assert.equal(
