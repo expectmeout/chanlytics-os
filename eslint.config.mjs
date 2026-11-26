@@ -464,6 +464,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/google",
   "packages/contracts/src/imports",
   "packages/contracts/src/journey",
+  "packages/contracts/src/leads",
   "packages/contracts/src/lines",
   "packages/contracts/src/logo",
   "packages/contracts/src/look",
@@ -481,6 +482,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/campaigns/sequences",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
+  "packages/contracts/src/today",
   "packages/contracts/src/voice",
   "packages/contracts/src/waits",
   "packages/core/src/calendar",
@@ -506,7 +508,10 @@ export const LIMITED_TREES = [
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
  * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
  * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
- * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts).
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). Contracts'
+ * today joined on 25 November 2026, the day its figures were split: four take five to seven (the day's figures and the
+ * brief, a band's words, the facts' reader). Contracts' leads joined the same day, its row and peek split: a search's
+ * class takes six.
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -548,6 +553,8 @@ export const WIDE_PARAMS = [
   "packages/channels/src/google",
   "packages/channels/src/shared",
   "apps/edge/lib/voice",
+  "packages/contracts/src/today",
+  "packages/contracts/src/leads",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);

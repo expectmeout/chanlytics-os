@@ -226,79 +226,57 @@ export function leadRatingOf(lead: Pick<LeadRowDto, "rating" | "reviews">): Lead
   const n = lead.reviews ?? 0;
   return { score: lead.rating.toFixed(1), count: n.toLocaleString("en-US"), reviews: reviewsPhrase(n) };
 }
+/** A row's membership of its search, as the DTO carries it. */
+type LeadMember = LeadRowDto["member"];
 
 /**
- * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
- * row names what it waits on in the queue's words, and the name card names the term it was found for.
+ * The fit the row wears and what its tip says: Qualified its fit band, Needs review the judge's reason, what it waits on,
+ * Excluded the criterion that left it out.
  */
-export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
-  const nowMs = now.getTime();
-  const foundMs = Date.parse(lead.found_at);
-  const member = lead.member;
-  const excludedBy = member.excluded_by ? leadCriterionWords(member.excluded_by) : null;
-  const rating = ratingLabel(lead.rating, lead.reviews);
-  const rated = leadRatingOf(lead);
-  // Qualified wears its fit band; Needs review the judge's reason, what it waits on; Excluded the criterion that left it out.
-  const fitLabel =
-    member.class === "excluded"
-      ? (excludedBy ?? member.reason)
-      : member.class === "review"
-        ? member.reason
-        : member.fit
-          ? LEAD_FIT_WORDS[member.fit]
-          : member.reason;
-  const fitTitle =
-    member.class === "excluded"
-      ? `${LEAD_LEFT_OUT_WORD}: ${excludedBy ?? member.reason}`
-      : member.class === "qualified" && rated
-        ? `${member.reason} · ${rated.score} from ${rated.reviews}`
-        : member.reason;
-  const area = [lead.postal_code ?? "", [lead.city, lead.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
-  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
-  const sub = subLineOf(lead, member.distance_m);
-  const spread: LeadRowVM["spread"] = lead.reviews_dist
-    ? [
-        lead.reviews_dist.one,
-        lead.reviews_dist.two,
-        lead.reviews_dist.three,
-        lead.reviews_dist.four,
-        lead.reviews_dist.five,
-      ]
-    : null;
-  const waitsOn =
-    member.class === "review"
-      ? (leadReviewGroups([{ id: lead.id, cls: "review", reasons: member.reasons ?? [] }], search)[0]?.label ??
-        member.reason)
-      : null;
-  const state: LeadRowVM["state"] =
-    member.class === "excluded"
-      ? "out"
-      : member.class === "review"
-        ? "review"
-        : lead.stage === "nurture"
-          ? "contacted"
-          : lead.stage === "converted"
-            ? "talking"
-            : lead.stage === "archived"
-              ? "out"
-              : "ready";
-  // Ready is the silent default and wears nothing; every other state says which one it is. Review said nothing for
-  // its whole life, which left `.ld-state-tag.review` in the stylesheet matching no row ever drawn -- and on a mixed
-  // list a lead that is waiting on something looked exactly like a lead that is ready to call.
-  const stateTag =
-    state === "contacted"
-      ? `${LEAD_STAGE_WORDS.nurture}${lead.contacted_at ? ` · ${agoShort(Date.parse(lead.contacted_at), nowMs)}` : ""}`
-      : state === "talking"
-        ? LEAD_STAGE_WORDS.converted
-        : state === "review"
-          ? LEAD_REVIEW_WORD
-          : state === "out"
-            ? member.class === "excluded"
-              ? LEAD_LEFT_OUT_WORD
-              : stageLabelOf(lead.stage, lead.closed_reason)
-            : null;
+function rowFitWords(
+  member: LeadMember,
+  excludedBy: string | null,
+  rated: LeadRowVM["rated"],
+): Pick<LeadRowVM, "fitLabel" | "fitTitle"> {
+  if (member.class === "excluded")
+    return { fitLabel: excludedBy ?? member.reason, fitTitle: `${LEAD_LEFT_OUT_WORD}: ${excludedBy ?? member.reason}` };
+  if (member.class === "review") return { fitLabel: member.reason, fitTitle: member.reason };
+  // Qualified: its band, and its rating beside its reason in the tip.
+  return {
+    fitLabel: member.fit ? LEAD_FIT_WORDS[member.fit] : member.reason,
+    fitTitle: rated ? `${member.reason} · ${rated.score} from ${rated.reviews}` : member.reason,
+  };
+}
+
+/** Where the row stands: left out, waiting on review, written to, talking, or ready. */
+function rowStateOf(member: LeadMember, stage: LeadRowDto["stage"]): LeadRowVM["state"] {
+  if (member.class === "excluded") return "out";
+  if (member.class === "review") return "review";
+  if (stage === "nurture") return "contacted";
+  if (stage === "converted") return "talking";
+  if (stage === "archived") return "out";
+  return "ready";
+}
+
+/**
+ * The state's tag. Ready is the silent default and wears nothing; every other state says which one it is. Review said
+ * nothing for its whole life, which left `.ld-state-tag.review` in the stylesheet matching no row ever drawn -- and on a
+ * mixed list a lead that is waiting on something looked exactly like a lead that is ready to call.
+ */
+function rowStateTag(state: LeadRowVM["state"], lead: LeadRowDto, nowMs: number): string | null {
+  if (state === "contacted")
+    return `${LEAD_STAGE_WORDS.nurture}${lead.contacted_at ? ` · ${agoShort(Date.parse(lead.contacted_at), nowMs)}` : ""}`;
+  if (state === "talking") return LEAD_STAGE_WORDS.converted;
+  if (state === "review") return LEAD_REVIEW_WORD;
+  if (state === "out")
+    return lead.member.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(lead.stage, lead.closed_reason);
+  return null;
+}
+
+/** The name card: what it is, today's hours, where, its site and its map, and the term it was found for. */
+function rowCardOf(lead: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null): LeadRowCard {
   const term = search?.plan?.terms[0] ?? null;
-  const card: LeadRowCard = {
+  return {
     about: lead.about ?? null,
     today: leadTodayLine(lead.hours ?? [], tz, now),
     where: leadWhere(lead),
@@ -311,6 +289,42 @@ export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: Lea
       },
     ],
   };
+}
+
+/** The reviews by star, one to five, and the tip that says them five to one; none where the source does not say. */
+function rowReviewsOf(lead: LeadRowDto): Pick<LeadRowVM, "spread" | "reviewsTitle"> {
+  const dist = lead.reviews_dist;
+  if (!dist) return { spread: null, reviewsTitle: "" };
+  return {
+    spread: [dist.one, dist.two, dist.three, dist.four, dist.five],
+    reviewsTitle: `5★ ${dist.five} · 4★ ${dist.four} · 3★ ${dist.three} · 2★ ${dist.two} · 1★ ${dist.one}`,
+  };
+}
+
+/**
+ * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
+ * row names what it waits on in the queue's words, and the name card names the term it was found for.
+ */
+export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
+  const nowMs = now.getTime();
+  const foundMs = Date.parse(lead.found_at);
+  const member = lead.member;
+  const excludedBy = member.excluded_by ? leadCriterionWords(member.excluded_by) : null;
+  const rating = ratingLabel(lead.rating, lead.reviews);
+  const rated = leadRatingOf(lead);
+  const { fitLabel, fitTitle } = rowFitWords(member, excludedBy, rated);
+  const area = [lead.postal_code ?? "", [lead.city, lead.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
+  const sub = subLineOf(lead, member.distance_m);
+  const { spread, reviewsTitle } = rowReviewsOf(lead);
+  const waitsOn =
+    member.class === "review"
+      ? (leadReviewGroups([{ id: lead.id, cls: "review", reasons: member.reasons ?? [] }], search)[0]?.label ??
+        member.reason)
+      : null;
+  const state = rowStateOf(member, lead.stage);
+  const stateTag = rowStateTag(state, lead, nowMs);
+  const card = rowCardOf(lead, tz, now, search);
   return {
     id: lead.id,
     searchId: lead.search_id,
@@ -342,9 +356,7 @@ export function toLeadRowVM(lead: LeadRowDto, tz: string, now: Date, search: Lea
     reasons: member.reasons ?? [],
     why: member.reason,
     rating,
-    reviewsTitle: lead.reviews_dist
-      ? `5★ ${lead.reviews_dist.five} · 4★ ${lead.reviews_dist.four} · 3★ ${lead.reviews_dist.three} · 2★ ${lead.reviews_dist.two} · 1★ ${lead.reviews_dist.one}`
-      : "",
+    reviewsTitle,
     stage: lead.stage,
     stageLabel: stageLabelOf(lead.stage, lead.closed_reason),
     contactId: lead.contact_id ?? null,
