@@ -12,7 +12,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, readCode, readRaw } from "../_source.mjs";
+import vm from "node:vm";
+import { ROOT, readCode, readRaw, importSrc } from "../_source.mjs";
+import { installStubReact } from "../_stub-react.mjs";
+import { bridgeHolds } from "./_bridge-holds.mjs";
+
+bridgeHolds({ who: { workspaces: [], activeWorkspaceId: null } });
+installStubReact();
+const { threadBack } = await importSrc("apps/dashboard/src/surfaces/inbox/thread/who.tsx");
+const { PHONE_TABS } = await importSrc("apps/dashboard/src/surfaces/frame/places.ts");
+const { PhoneTabs } = await importSrc("apps/dashboard/src/surfaces/frame/phone-tabs.tsx");
+const { default: manifest } = await importSrc("apps/dashboard/app/manifest.ts");
 
 function pngSize(rel) {
   const b = fs.readFileSync(path.join(ROOT, rel));
@@ -22,18 +32,17 @@ function pngSize(rel) {
 
 test("the Inbox and Conversations take turns on a phone, with a Back that only a phone sees", () => {
   // The Inbox's turns and its Back run in inbox-place.test.mjs, on the page itself.
-  // The thread head's way back is drawn at its start (thread/who.tsx threadBack, moved from header.tsx 17 Nov 2026).
-  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/who.tsx");
-  assert.ok(thread.includes('data-testid="ix-back"'));
-  assert.ok(thread.includes("if (!onBack) return null;"), "no Back on desktop's markup path when nobody asked for one");
-  const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
-  assert.ok(cv.includes("data-takeover={phoneOpen || undefined}"));
-  // A row pressed opens the pane (openRow: the row, the phone's turn, and the address).
-  assert.ok(
-    cv.includes("const openRow = (id: string) => {") &&
-      cv.includes("    setPhoneOpen(true);") &&
-      cv.includes("onSelect={openRow}"),
-  );
+  // The thread head's way back is drawn at its start (thread/who.tsx threadBack, moved from header.tsx 17 Nov 2026):
+  // only where someone asked for one, which a desk never does.
+  assert.equal(threadBack(null), null, "no Back on a desk's markup path when nobody asked for one");
+  const went = [];
+  const back = threadBack(() => went.push("back"));
+  assert.equal(back.props["data-testid"], "ix-back");
+  assert.equal(back.props["aria-label"], "Back to the list");
+  back.props.onClick();
+  assert.deepEqual(went, ["back"], "and its press goes back");
+  // Conversations takes the same turns: a row pressed opens its pane and marks the page taken over, drawn in
+  // conversations/inbox/conversations-address.test.mjs.
   const css = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
   // A list held under the thread it opened stays laid out, where it stood (kit motion/held-list.ts, components.css).
@@ -47,28 +56,35 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
 
 test("the tab bar carries the real surfaces and the count that matters, drawn by the kit's TabBar", () => {
   // The places themselves are places.ts's, which the tab bar and the document's outline both draw from.
-  const shell = ["phone-tabs.tsx", "places.ts", "shell-chrome.tsx", "shell-hooks.ts"]
-    .map((f) => readRaw(`apps/dashboard/src/surfaces/frame/${f}`))
-    .join("\n");
-  assert.ok(shell.includes('testid="phone-tabs"'));
-  for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "calendar"'])
-    assert.ok(shell.includes(route), route);
-  assert.ok(!/route: "(fleet|store|studio|outbound|broadcasts)"/.test(shell), "nothing seeded gets a tab");
-  assert.ok(
-    !/route: "live"/.test(shell),
-    "and not Live: a call is a bar while it is happening, not a slot that is empty the rest of the week",
+  assert.deepEqual(
+    PHONE_TABS.map((t) => t.route),
+    ["today", "inbox", "calendar", "clients"],
+    "the real places, and not Live: a call is a bar while it is happening, not a slot that is empty the rest of the week; nothing seeded gets a tab",
   );
-  assert.ok(shell.includes('count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null'), "what needs you");
-  assert.ok(
-    shell.includes("<PhoneTabs") &&
-      shell.includes("inboxNeeds={s.inboxNeeds}") &&
-      shell.includes("onMenu={() => s.setNavOpen(true)}") &&
-      shell.includes("onPlace={s.onPlace}"),
+  const drawn = (inboxNeeds) => {
+    const prev = globalThis.window.TabBar;
+    globalThis.window.TabBar = function TabBar() {};
+    try {
+      return PhoneTabs({ page: "inbox", param: null, inboxNeeds, onNavigate() {}, onMenu() {}, onPlace() {} });
+    } finally {
+      globalThis.window.TabBar = prev;
+    }
+  };
+  const bar = drawn(3);
+  assert.equal(bar.props.testid, "phone-tabs", "drawn by the kit's TabBar");
+  assert.deepEqual(
+    bar.props.places.map((p) => [p.id, p.count]),
+    [
+      ["home", null],
+      ["inbox", 3],
+      ["calendar", null],
+      ["people", null],
+    ],
+    "what needs you, on the Inbox",
   );
-  assert.ok(
-    shell.includes("!inApp() && ("),
-    "and only outside the app: inside it the native tab bar stands there (the root's in-app class, stamped before paint)",
-  );
+  assert.equal(drawn(0).props.places.find((p) => p.id === "inbox").count, null, "and a zero says nothing");
+  // The shell draws it with what needs you, and only outside the app: inside it the native tab bar stands there, and the
+  // native More tab opens the drawer (shell/surfaces/status/the-live-call-bar.test.mjs, "on a phone the web's tab bar ...").
   const css = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(css.includes(".phone-places { display: none; }"), "desktop never sees it");
   assert.ok(
@@ -91,11 +107,6 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
   // The in-app rule for the web's Google door is in globals.css, which the sign-in page loads (consent-page.test.mjs).
   assert.ok(!css.includes(".auth-google"), "the sign-in page never loads this sheet, so its rule cannot live here");
-  assert.ok(
-    shell.includes('window.addEventListener("shell:menu", onMenu)') &&
-      shell.includes('window.addEventListener("shell:top", onTop)'),
-    "the native More tab opens the drawer and a re-tap scrolls to the top (bridge/app-bridge.ts)",
-  );
   // The ✦'s own lift lives in ask.css with the palette's rules (ask/line/ holds it there).
   assert.ok(
     css.includes("position: fixed;") && css.includes("bottom: var(--bar-foot);"),
@@ -108,9 +119,9 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
 });
 
 test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {
-  const m = readCode("apps/dashboard/app/manifest.ts");
-  assert.ok(m.includes('display: "standalone"'));
-  assert.ok(m.includes('purpose: "maskable"'));
+  const m = manifest();
+  assert.equal(m.display, "standalone");
+  assert.ok(m.icons.some((i) => i.purpose === "maskable" && i.src === "/icons/maskable-512.png"));
   assert.deepEqual(pngSize("apps/dashboard/public/icons/icon-192.png"), {
     ...pngSize("apps/dashboard/public/icons/icon-192.png"),
     w: 192,
@@ -141,13 +152,21 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
     layout.includes("__html: themeBootScript()") && layout.includes("data-look={DEFAULT_LOOK_PREF}"),
     "the document stands in the default look until the head's script stamps the one this device keeps",
   );
-  assert.ok(
-    readCode("apps/dashboard/proxy.ts").includes('"/manifest.webmanifest"'),
-    "the installer fetches it without a session (the public list is pinned by value in auth-gate)",
-  );
-  const sw = readRaw("apps/dashboard/public/sw.js");
-  assert.ok(sw.includes("self.skipWaiting()") && sw.includes("self.clients.claim()"));
-  assert.ok(!/caches\.|cache\.put|respondWith/.test(sw), "caches nothing: the workspace is live data");
+  // The installer fetches the manifest without a session: the proxy's public list, run by value in auth/auth-gate.test.mjs.
+  // The worker, run as a browser runs it: it takes over at once, and answers nothing, so it caches nothing.
+  const heard = {};
+  const did = [];
+  const self = {
+    addEventListener: (type, fn) => (heard[type] = fn),
+    skipWaiting: () => did.push("skipWaiting"),
+    clients: { claim: () => (did.push("claim"), Promise.resolve()) },
+    registration: { showNotification: () => Promise.resolve() },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, "apps/dashboard/public/sw.js"), "utf8"), { self });
+  heard.install({});
+  heard.activate({ waitUntil: (p) => p });
+  assert.deepEqual(did, ["skipWaiting", "claim"], "an update never waits on a closed tab");
+  assert.equal(heard.fetch, undefined, "caches nothing and answers nothing: the workspace is live data");
   const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(boot.includes("publicEnv.productionBuild"), "no worker on a dev origin");
   assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));

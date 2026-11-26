@@ -25,6 +25,8 @@ import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
 import { bridgeHolds } from "./_bridge-holds.mjs";
 
+const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
+
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
   assert.equal(resolveTheme("dark", false), "dark");
@@ -175,10 +177,9 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
     ],
   );
   assert.deepEqual(where("⌘↵"), ["Everywhere", "Inbox"], "⌘↵ saves an edit anywhere, and sends in the Inbox");
-  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
-  assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
-  assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");
-  assert.ok(readCode("apps/dashboard/src/surfaces/frame/shortcuts.tsx").includes('e.key === "?"'), "? is real");
+  // Every key the sheet lists is real, pressed where it lives: ⌘K opens AI (shell/surfaces/status/, "the first run
+  // keeps AI ... the shell's ⌘K"), ⌘B folds the sidebar on a desk and ⌘1-9 switch workspaces (shell/surfaces/status/,
+  // "⌘B folds the sidebar ..."), and ? opens the sheet (shell/surfaces/keys-in-the-sheet.test.mjs).
 });
 
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
@@ -212,22 +213,15 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     assert.ok(app.includes(pin), `the page wears and keeps what device-prefs.ts says: ${pin}`);
   assert.ok(!readRaw("apps/dashboard/src/bridge/frame.css").includes(".bridge-pill"), "the pill's styles are gone");
 
-  const bridge = readCode("apps/dashboard/src/bridge/shell.ts");
-  assert.ok(
-    bridge.indexOf("sealSurfaceCache();") < bridge.indexOf('form.action = "/auth/signout";'),
-    "the cache is cleared before the server ends the session",
-  );
-  assert.ok(bridge.includes("form.submit();") && bridge.includes("switchWorkspace(id);"));
-  assert.ok(
-    bridge.includes('win.dispatchEvent(new CustomEvent("shell:create-workspace"));'),
-    "another workspace is one door in the menu",
-  );
+  // The shell bridge's doors, run: the sign-out seals the cache before the form posts (shell/surfaces/sign-out-seals),
+  // another workspace is one door, said as the event the frame opens its screen on (sign-out-seals, "another workspace
+  // is one door"), and the chrome's words and themes are what the account menu draws (below, "the account menu offers
+  // the look"). Another workspace's own title and its Back: create-workspace-screen.test.mjs draws the screen and presses
+  // them. The frame's own listener for it is FrameApp's, read with the rest of its boot above.
   assert.ok(
     app.includes('window.addEventListener("shell:create-workspace", on);') &&
       app.includes("onCancel={() => setCreating(false)}"),
   );
-  // Another workspace's own title and its Back: create-workspace-screen.test.mjs draws the screen and presses them.
-  assert.ok(bridge.includes("statusLine: shellStatusLine,") && bridge.includes("themes: THEME_OPTIONS,"));
 
   const shell = ["shell-chrome.tsx", "shell-hooks.ts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
@@ -240,45 +234,23 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
       shell.includes('onSidebar(sidebar === "rail" ? "open" : "rail");'),
     "⌘B folds the sidebar on a desk only",
   );
-  assert.ok(shell.includes("shell.switchWorkspace(ws.id)"));
   assert.ok(
     shell.includes('const Sheet = fromGlobal("ShortcutsSheet", ShortcutsSheet);') && shell.includes("<Sheet />"),
   );
 
-  const sidebar = ["sidebar", "sidebar-menus", "sidebar-who"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
-    .join("\n");
-  for (const pin of [
-    "export function WorkspaceMenu(",
-    "export function UserMenu(",
-    "export function useSbMenu(",
-    'className="more-menu sb-menu"',
-    'testid="sb-account-menu"',
-    'testid="sb-workspace-menu"',
-    "frameShell()?.signOut();",
-    "frameShell()?.switchWorkspace(w.id)",
-    "identityWords(me)",
-    "const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;",
-    // The sheet opens on ?, and on a desk from the account menu's row (keys-in-the-sheet.test.mjs draws it).
-    // Settings came in from the sidebar's list.
-    'data-testid="sb-me-settings"',
-    'data-testid="sb-me-shortcuts"',
-    "frameShell()?.createWorkspace();",
-  ])
-    assert.ok(sidebar.includes(pin), pin);
-  assert.ok(
-    !sidebar.includes('onClick={() => onNavigate("admin")}>\n          <div className="avatar">'),
-    "the chip opens a menu, not Settings",
-  );
-
-  const icons = readCode("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
-  for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"])
-    assert.ok(new RegExp(`\\b${name}: \\(p\\) =>`).test(icons), name);
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/frame/shell-chrome.tsx").includes(
-      'import { ShortcutsSheet } from "./shortcuts";',
-    ),
-  );
+  // The sidebar's menus are drawn and pressed: the account chip opens a menu, not Settings, and its rows (Settings, the
+  // keys' sheet on a desk) are drawn in keys-in-the-sheet.test.mjs, where a workspace pressed is switched to, the new
+  // one is the shell's door and Sign out signs out ("the menus' doors are the shell's"); the person in its words is
+  // workspace/identity.test.mjs's; a rail item's tip says its count, drawn below ("the account chip says it opens a menu").
+  installStubReact({ usePPToast: () => [null, () => {}] });
+  for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"]) {
+    const drawn = Icon({ name });
+    assert.notDeepEqual(
+      drawn,
+      Icon({ name: "no-such-glyph" }),
+      `${name} is a glyph of its own, not the unknown circle`,
+    );
+  }
 
   const css = readRaw("apps/dashboard/src/styles/components.css");
   for (const pin of [
@@ -461,13 +433,9 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
   // on the shell as drawn (shell/surfaces/status/), the safe default with them. Broadcasts follows its run and its
   // list as props: drawn in runs-honest.test.mjs.
-  const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
-  assert.ok(settings.includes('const active = SET_TAB(tab || "workspace");'), "Settings derives its tab every render");
-  const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
-  assert.ok(
-    /\},\s*\[initialThreadId, addressThreadHeld\],\s*\)/.test(inbox),
-    "the Inbox follows a later deep-link, and the thread it names arriving",
-  );
+  // Settings derives its tab on every draw (workspace/settings-owner-panes/every-address-of-the-business-lands-on-its-pane,
+  // "Settings derives its tab on every draw"), and the Inbox follows a later deep-link and the thread it names arriving
+  // (conversations/inbox/inbox-place.test.mjs, "the thread open is the address's").
 });
 
 test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {

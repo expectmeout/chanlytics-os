@@ -89,3 +89,23 @@ test("REGRESSION (defect 52): a read that lands while the sign-out waits for the
   assert.deepEqual([...cache.hydrateSurfaceCache()], []);
   assert.equal(surfaceValue("inbox"), undefined);
 });
+
+test("another workspace is one door in the account menu: the shell says it, and the frame opens its screen on the word", () => {
+  // The frame (FrameApp.tsx) listens for shell:create-workspace; its screen's own title and Back are drawn and pressed in
+  // create-workspace-screen.test.mjs.
+  const told = [];
+  const was = win.dispatchEvent;
+  globalThis.CustomEvent ??= class CustomEvent {
+    constructor(type) {
+      this.type = type;
+    }
+  };
+  win.dispatchEvent = (e) => (told.push(e.type), true);
+  try {
+    installShell(win);
+    provided("shell").createWorkspace();
+    assert.deepEqual(told, ["shell:create-workspace"]);
+  } finally {
+    win.dispatchEvent = was;
+  }
+});

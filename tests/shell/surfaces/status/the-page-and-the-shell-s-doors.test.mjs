@@ -1096,3 +1096,62 @@ test("People has no tab strip -- its one real tab is People, and Lists and Leads
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
 });
+
+test("⌘B folds the sidebar to its rail and back on a desk, and does nothing on a phone; ⌘1 to ⌘9 switch to that workspace", () => {
+  // The shell's own keys (shell-hooks.ts), as a draw installs them; the sheet that lists them is drawn in
+  // keys-in-the-sheet.test.mjs, and ⌘K opens AI in the test of the first run above.
+  const kept = provided("shell");
+  const switched = [];
+  bridgeHolds({ parts: { shell: { ...kept, switchWorkspace: (id) => switched.push(id) } } });
+  bridgeHolds({
+    who: {
+      workspaces: [
+        { id: "w1", slug: "one", name: "Studio One", status: "active" },
+        { id: "w2", slug: "two", name: "Studio Two", status: "active" },
+      ],
+      activeWorkspaceId: "w1",
+    },
+  });
+  const wide = win.innerWidth;
+  const folds = [];
+  try {
+    placeAt("#/inbox");
+    // The handlers this draw installs alone: an earlier draw's are its own.
+    const drawAt = (sidebar) => {
+      const before = new Set(heard.get("keydown") ?? []);
+      setDeep(false);
+      setCells([]);
+      frames.begin();
+      win.ChanlyticsApp({
+        ...PAGES,
+        theme: "dark",
+        themePref: "dark",
+        sidebar,
+        onSidebar: (v) => folds.push(v),
+        onTheme() {},
+      });
+      setDeep(true);
+      return [...(heard.get("keydown") ?? [])].filter((fn) => !before.has(fn));
+    };
+    const press = (keys, e) => {
+      for (const fn of keys) fn({ type: "keydown", target: null, preventDefault() {}, metaKey: true, ...e });
+    };
+    win.innerWidth = 1400;
+    press(drawAt("open"), { key: "b" });
+    assert.deepEqual(folds, ["rail"], "open folds to the rail");
+    press(drawAt("rail"), { key: "b" });
+    assert.deepEqual(folds, ["rail", "open"], "and the rail opens");
+    win.innerWidth = 600;
+    press(drawAt("open"), { key: "b" });
+    assert.deepEqual(folds, ["rail", "open"], "a phone has a drawer, not a rail");
+    press(drawAt("open"), { key: "2" });
+    assert.deepEqual(switched, ["w2"], "⌘2 is the second workspace");
+    press(drawAt("open"), { key: "2", altKey: true });
+    assert.deepEqual(switched, ["w2"], "and ⌥⌘2 is not the shell's");
+  } finally {
+    win.innerWidth = wide;
+    bridgeHolds({ parts: { shell: kept } });
+    bridgeHolds({ who: { workspaces: undefined } });
+    bridgeHolds({ who: { activeWorkspaceId: undefined } });
+  }
+});
