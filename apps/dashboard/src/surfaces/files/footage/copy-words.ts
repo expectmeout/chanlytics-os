@@ -263,7 +263,7 @@ function lossSaidOf(reason: FileCopyWhy | null, facts: CopyFacts): CopySaid {
       return {
         mark: "none",
         head: "Google Drive no longer has its original",
-        body: "The pictures, the sound and what AI wrote stay, so it can still be a post. To play it again, add the video from your phone.",
+        body: "The pictures, sound and what AI wrote stay, so it can still be a post. To play it again, add the video from your phone.",
         act: "add_again",
         mends: false,
       };

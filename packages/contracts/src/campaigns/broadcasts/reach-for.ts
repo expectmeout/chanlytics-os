@@ -194,6 +194,8 @@ export function channelRefuses(
  * by it (`ready.email.offers`: the campaigns domain, the business's address, no pause), a text never. A workspace whose
  * offers by email are closed, for whatever reason, is told so, so the note is never false on the day the domain verifies.
  * The workspace's channels are required, as the ticks' are.
+ *
+ * screen-word: what consent an offer needs, in full where the owner decides, in the carriers' words (docs/words.md)
  */
 export function offersNote(ready: ChannelsReady): string {
   const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
@@ -201,11 +203,11 @@ export function offersNote(ready: ChannelsReady): string {
   const noText = "Texting is approved for replies and appointment messages, so no offer goes by text";
   const paused = ready.whatsapp.offers?.why ?? "";
   if (byWhatsApp && byEmail)
-    return `Offers and news go by WhatsApp and by email. ${noText} · someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+    return `Offers and news go by WhatsApp and by email. ${noText}: someone who only texts you hears of them once they say yes on WhatsApp, or by email if you have their address and they haven't said no.`;
   if (byWhatsApp)
-    return `Offers and news go by WhatsApp only. ${noText} · someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+    return `Offers and news go by WhatsApp only. ${noText}: someone who only texts you hears of them once they say yes on WhatsApp.`;
   if (byEmail)
-    return `Offers and news go by email only for now. ${paused} ${noText} · someone hears about offers by email if you have their address and they have not said no.`;
+    return `Offers and news go by email only. ${paused} ${noText}: someone hears of them by email if you have their address and they haven't said no.`;
   // Why email carries none, in its own reason: Chanlytics' own ("Emails carry no offers or news for now.") or the business's.
   const byEmailWhy = channelRefuses("email", "marketing", "ours", ready) ?? "";
   return `Offers and news have no channel right now. ${paused} ${noText}. ${byEmailWhy}`;

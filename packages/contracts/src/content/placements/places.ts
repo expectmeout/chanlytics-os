@@ -86,7 +86,7 @@ const FACEBOOK_VIDEO: PlaceVideoLimits = {
 };
 
 /** Built from Meta's Pages guide (23 Nov 2026) and sent by code; no real Page has shown it yet. */
-const FACEBOOK_BUILT = "Sent by code from Meta's Pages guide; no real Page has shown it yet.";
+const FACEBOOK_BUILT = "Sent by code from Meta's Pages guide. No real Page has shown it yet.";
 
 // screen-word: each `how` is the evidence a capability stands on, read by whoever builds a place, never shown on a page
 export const PLACE_CAPABILITIES: Readonly<Record<PostPlace, PlaceCapabilities>> = {

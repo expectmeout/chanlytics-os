@@ -28,10 +28,10 @@ const workspaces = await importSrc("apps/dashboard/app/api/v1/workspaces/route.t
 const { installIdentity } = await importSrc("apps/dashboard/src/bridge/identity.ts");
 const { sbWho } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar-who.tsx");
 
-test("the words for the signed-in person: a given name or 'Your account', initials from the name or the email, the role in a word", () => {
-  assert.deepEqual(identityWords(null), { name: "Your account", email: "", initials: "?", role: "", named: false });
+test("the words for the signed-in person: a given name or 'Account', initials from the name or the email, the role in a word", () => {
+  assert.deepEqual(identityWords(null), { name: "Account", email: "", initials: "?", role: "", named: false });
   assert.deepEqual(identityWords({ email: "billing@rjcapital.example", role: "owner" }), {
-    name: "Your account",
+    name: "Account",
     email: "billing@rjcapital.example",
     initials: "B",
     role: "Owner",
@@ -53,7 +53,7 @@ test("the words for the signed-in person: a given name or 'Your account', initia
   );
   assert.equal(
     identityWords({ email: "hi@chanlytics.agency", role: null }).name,
-    "Your account",
+    "Account",
     "never a name invented from an email",
   );
   assert.equal(personInitials(null, null), "?");
@@ -130,11 +130,11 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   // The frame installs the identity at boot, before any page draws (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs).
   assert.ok(stepRunning(fromDashboard("bridge/identity.ts").installIdentity));
 
-  // The sidebar's chip: the name given, else "Your account", and never the email's local part.
+  // The sidebar's chip: the name given, else "Account", and never the email's local part.
   bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "", role: "owner" } } });
   assert.deepEqual(
     [sbWho().name, sbWho().email, sbWho().named],
-    ["Your account", "ana@salon.example", false],
+    ["Account", "ana@salon.example", false],
     "REGRESSION: never 'ana' dressed as a name",
   );
   bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "Ana Ruiz", role: "operator" } } });
