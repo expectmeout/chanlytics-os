@@ -79,7 +79,7 @@ const wordsFilterOf = <R extends TableRow>(matcher: (q: string) => ((row: R) => 
 /** A table drawn from the state it is plugged into. */
 export type DataTableModel<R extends TableRow> = Table<AppFeatures, R>;
 
-export interface DataTableArgs<R extends TableRow, X, C> {
+interface DataTableArgs<R extends TableRow, X, C> {
   state: TableState;
   /** The columns this workspace declares (columns.ts `columnsIn`), held still while nothing they are made of changes. */
   columns: readonly DataColumn<R, X, C>[];

@@ -14,7 +14,7 @@ import { LinkButton } from "../link-button/link-button";
 import { cx } from "../variants";
 
 /** A heading that folds its group: whether it stands open, the press, and what the press is to a screen reader. */
-export interface GroupFold {
+interface GroupFold {
   open: boolean;
   onFold: () => void;
   label: string;
