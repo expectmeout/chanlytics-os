@@ -55,7 +55,7 @@ jobs:
   # installs, builds every package, typechecks, lints, runs Expo's doctor and bundles both platforms: a little over
   # two minutes of a runner, which every pull request and every push to main spent for an app that 3 of main's last
   # 60 merges touched (9 October 2026). So its first step asks whether the change touches anything the app is built
-  # from (tooling/scripts/checks/mobile-paths-changed.mjs: its own tree, the one module of the workspace it imports
+  # from (tooling/scripts/checks/changed/mobile.mjs: its own tree, the one module of the workspace it imports
   # and everything that reaches, what an install resolves), and every step after it waits for a yes. The job reports
   # either way, in seconds when the answer is no, so a rule that requires it by name still gets its check. A run
   # asked for by hand is a yes.
@@ -78,7 +78,7 @@ jobs:
             echo "Asked for by hand, so the check runs."
             echo "mobile=true" >> "$GITHUB_OUTPUT"
           else
-            git diff --name-only HEAD^1 HEAD | node tooling/scripts/checks/mobile-paths-changed.mjs >> "$GITHUB_OUTPUT"
+            git diff --name-only HEAD^1 HEAD | node tooling/scripts/checks/changed/mobile.mjs >> "$GITHUB_OUTPUT"
           fi
       - uses: pnpm/action-setup@v6
         if: steps.changed.outputs.mobile == 'true'

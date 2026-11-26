@@ -28,6 +28,7 @@ import {
   linesOf,
   windowUse,
   copiesAmong,
+  topLevelNames,
   castsIn,
   tableNames,
   tablesWrittenIn,
@@ -85,6 +86,29 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "tests", "e2e"])
 const SHELL = SRC.filter((f) => /^apps\/dashboard\/(src|mockup)\//.test(f));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/**
+ * The URL trees, where a folder is a path a request names (docs/naming.md; CLAUDE.md, "Where new code goes"): a door's
+ * folder holds the doors its address holds, so it is not grouped by domain and its size is not a directory's.
+ */
+const URL_TREE = /^apps\/dashboard\/app\/|^apps\/edge\/api\/|^apps\/mobile\/src\/app\//;
+/**
+ * React Native's idiom, one `const styles = StyleSheet.create({…})` beside each component of the phone app: a screen's
+ * own styles, not a helper spelled out in three files.
+ */
+function isOwnStyleSheet(sf, name) {
+  return sf.statements.some(
+    (st) =>
+      ts.isVariableStatement(st) &&
+      st.declarationList.declarations.some(
+        (d) =>
+          ts.isIdentifier(d.name) &&
+          d.name.text === name &&
+          !!d.initializer &&
+          ts.isCallExpression(d.initializer) &&
+          d.initializer.expression.getText(sf) === "StyleSheet.create",
+      ),
+  );
+}
 /** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
 export const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
 /**
@@ -599,7 +623,7 @@ export const MEASURES = [
     measure: () => {
       const perDir = {};
       for (const f of TREES) {
-        if (!SOURCE.test(f)) continue;
+        if (!SOURCE.test(f) || URL_TREE.test(f)) continue;
         const dir = path.posix.dirname(f);
         perDir[dir] = (perDir[dir] ?? 0) + 1;
       }
@@ -657,7 +681,14 @@ export const MEASURES = [
   {
     name: "copies",
     file: "copies.json",
-    measure: () => copiesAmong(SRC.filter(notARoute).map(parse), COPY_LIMIT),
+    measure: () => {
+      const files = SRC.filter(notARoute).map(parse);
+      const copies = copiesAmong(files, COPY_LIMIT);
+      const declaring = (name) => files.filter((sf) => topLevelNames(sf).includes(name));
+      return Object.fromEntries(
+        Object.entries(copies).filter(([name]) => !declaring(name).every((sf) => isOwnStyleSheet(sf, name))),
+      );
+    },
     advice:
       "Give it one home and import it from there — a helper declared in three files is a fact spelled out three times — or, when the new one is a different thing, give it a name that says which.",
   },

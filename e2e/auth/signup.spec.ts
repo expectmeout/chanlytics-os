@@ -9,7 +9,7 @@ import { googleProviderOn } from "../providers";
  * workspace was made for an address nobody has proved, and removes the
  * user with the service role afterwards.
  */
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 test.describe("sign-up", () => {
@@ -70,7 +70,7 @@ test.describe("sign-up", () => {
     baseURL,
   }) => {
     test.skip(
-      process.env.E2E_SIGNUP_PROBE !== "1" || !URL_ || !KEY,
+      process.env.E2E_SIGNUP_PROBE !== "1" || !SUPABASE_URL || !KEY,
       "set E2E_SIGNUP_PROBE=1 with the service role to run the probe",
     );
     // The probe proves a code went out, and no example.com address can receive
@@ -82,7 +82,7 @@ test.describe("sign-up", () => {
     );
     const admin = { apikey: KEY!, Authorization: `Bearer ${KEY}` };
     const rest = (path: string, init: RequestInit = {}) =>
-      fetch(`${URL_}/rest/v1/${path}`, {
+      fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         ...init,
         headers: {
           ...admin,
@@ -122,7 +122,7 @@ test.describe("sign-up", () => {
       }>;
       expect(tenants).toHaveLength(0);
       const listed = (await (
-        await fetch(`${URL_}/auth/v1/admin/users?page=1&per_page=1000`, { headers: admin })
+        await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, { headers: admin })
       ).json()) as { users: Array<{ id: string; email?: string; user_metadata?: Record<string, unknown> }> };
       const user = listed.users.find((u) => u.email === email);
       expect(user).toBeTruthy();
@@ -130,7 +130,7 @@ test.describe("sign-up", () => {
       expect(user!.user_metadata?.pending_workspace).toEqual({ name, timezone: "America/New_York" });
     } finally {
       if (userId) {
-        await fetch(`${URL_}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: admin });
+        await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: admin });
       }
     }
   });
