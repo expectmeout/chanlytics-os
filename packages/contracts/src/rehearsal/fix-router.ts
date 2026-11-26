@@ -561,7 +561,7 @@ const FIELD_OF: Partial<Record<AskSettingsChange["op"], string>> = {
   add_service: "Services",
   set_service: "Services",
   add_note: "Things it should know",
-  set_booking_link: "Your booking link",
+  set_booking_link: "Booking link",
   set_tone: "Its voice",
   set_languages: "Languages",
   add_own_words: "In your own words",
@@ -592,7 +592,7 @@ export function fixLine(change: AskSettingsChange): string {
     case "add_note":
       return `Add to Things it should know: “${change.title}”: ${change.text}`;
     case "set_booking_link":
-      return `Your booking link: ${change.link}`;
+      return `Booking link: ${change.link}`;
     case "set_tone":
       return `Its voice: “${change.tone}”`;
     case "set_languages":
@@ -610,7 +610,7 @@ export function fixLine(change: AskSettingsChange): string {
 
 export const FIX_WORDS = {
   label: "What should it have said?",
-  placeholder: "We're open till 7 on Thursdays",
+  placeholder: "Open till 7 on Thursdays",
   route: "Show me where it goes",
   routing: "Finding where it goes…",
   keep: "Keep",

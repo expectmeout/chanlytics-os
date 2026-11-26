@@ -33,6 +33,7 @@ export interface PartnerHandoverDto {
 
 export const HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
+  // screen-word: the handover's terms, who pays and what stays, in full (docs/words.md, "Kept on purpose")
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
   nameLabel: "The business's name",
   emailLabel: "Its owner's email",

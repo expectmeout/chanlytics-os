@@ -41,14 +41,56 @@ const declaredName = (p) =>
     ? p.name.getText()
     : null;
 
-/** Whether a string is said to a model where it stands: inside a declaration named for a prompt, at any depth. */
-function modelPlace(node) {
+/**
+ * The blocks of a page's file that a model alone reads, by the file and the declaration or field they stand in, each with
+ * why: the words a tool hands AI, which it answers in its own (docs/words.md, "Kept on purpose"). A whole file a model
+ * alone reads is the "nobody" audience's (AUDIENCES); one line a model alone reads, in a block a page says too, keeps
+ * `screen-word:` beside it.
+ */
+export const MODEL_ONLY = {
+  "packages/contracts/src/ask/memory/morning.ts": {
+    MORNING_HEAD: "the morning's question, which Ask asks of AI as the member",
+    MORNING_TAIL: "the morning's question, which Ask asks of AI as the member",
+    ASK_MORNING_EDITED_QUESTION: "the morning's question after cold emails were edited, asked as the member",
+  },
+  "packages/contracts/src/ask/plan-steps.ts": {
+    waitingCardsWords: "what AI is told of the cards waiting in a conversation, so it says them from their terms",
+  },
+  "packages/contracts/src/ask/proposals/proposals.ts": {
+    proposalBelowNeeds: "what AI is told when the member's role may not commit a card, for it to say in its words",
+  },
+  "packages/contracts/src/leads/search/card.ts": {
+    waitingSearchWords: "what AI is told of a search card waiting in a conversation, so a change replaces it",
+  },
+  "packages/contracts/src/leads/search/cards.ts": {
+    goodFor: "a finder card's brief, the half of a card AI reads to choose a search (LeadCardBrief)",
+    notFor: "a finder card's brief, the half of a card AI reads to choose a search (LeadCardBrief)",
+    settings: "a finder card's brief, the half of a card AI reads to choose a search (LeadCardBrief)",
+  },
+  "packages/contracts/src/rehearsal/rehearsal.ts": {
+    REHEARSAL_TOOL_WORDS: "what a rehearsal's tools answer AI, which tells the owner playing the customer",
+  },
+  "packages/contracts/src/deals/vm.ts": {
+    dealSentence: "what AI hears of a person's deal before it answers them",
+  },
+};
+
+/**
+ * Whether a string is said to a model where it stands: inside a declaration named for a prompt, or one of its file's
+ * MODEL_ONLY, at any depth.
+ */
+function modelPlace(node, file) {
+  const own = MODEL_ONLY[file] ?? {};
   for (let p = node.parent; p; p = p.parent) {
     const name = declaredName(p);
-    if (name && MODEL_NAME.test(name)) return true;
+    if (name && (MODEL_NAME.test(name) || Object.hasOwn(own, name))) return true;
   }
   return false;
 }
+
+/** A string split into a list is the list's spelling, not words a person reads: `"mr mrs ms dr".split(" ")`. */
+const spelledList = (node) =>
+  ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node && node.parent.name.text === "split";
 
 /**
  * A message a customer is sent, with the places its values fill (`Hi {{1}}, it's {{2}}.`): the business's own words to
@@ -168,7 +210,8 @@ export function wordsReadIn(sf, { only = () => true } = {}) {
     if (!isWords(text) || MESSAGE_BODY.test(text) || kept(node)) return;
     out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text });
   };
-  const read = (n) => !idPlace(n) && !developerPlace(n) && !modelPlace(n) && only(n);
+  const file = sf.fileName.replace(/\\/g, "/");
+  const read = (n) => !idPlace(n) && !developerPlace(n) && !modelPlace(n, file) && !spelledList(n) && only(n);
   const visit = (n) => {
     if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
       if (read(n)) say(n, n.text);
@@ -243,8 +286,9 @@ const NOT_READ = /\.d\.ts$|\.generated\.|database\.types\.ts$|\.type-test\.|(^|\
 /**
  * Who reads the words a file writes, first match wins. Nobody reads on a page a module of notes the code keeps for
  * itself (what a page refreshes and why, where a record's page is), the legal pages a lawyer words, a module that only
- * speaks to a model (the receptionist's composed prompt, the lead judge, a file's look and sound, a whisper), or what
- * callers hear (decision 0051). Staff read the Console, where the code's words are allowed.
+ * speaks to a model (the receptionist's composed prompt, the lead judge, a file's look and sound, a whisper), the patterns
+ * an owner's words are matched against (Ask's fast paths), or what callers hear (decision 0051). A model's block in a
+ * page's file is MODEL_ONLY's. Staff read the Console, where the code's words are allowed.
  * A customer reads the pages Chanlytics hosts for a business (consent, a preview): filed words, bound by the code's and
  * the providers' lists alone. What AI is taught is its instructions and its tools. An owner or a member reads every
  * page and view model else, and the server's words on those pages.
@@ -252,7 +296,7 @@ const NOT_READ = /\.d\.ts$|\.generated\.|database\.types\.ts$|\.type-test\.|(^|\
 export const AUDIENCES = [
   [
     "nobody",
-    /^apps\/dashboard\/src\/bridge\/(refresh-map|surface-data|surface-registry)\.ts$|^apps\/dashboard\/src\/surfaces\/.*(\/|-)surface\.ts$|^packages\/contracts\/src\/activity\/(subjects|record-address)\.ts$|^packages\/contracts\/src\/shell\/route-prefetch\.ts$|^apps\/dashboard\/app\/(privacy|terms|data-deletion)\/|^packages\/contracts\/src\/(config\/workspace-config\/|files\/(look|sound)\.ts$|leads\/(judge|ideas-ask)\.ts$|voice\/(whisper|greeting)\.ts$)/,
+    /^apps\/dashboard\/src\/bridge\/(refresh-map|surface-data|surface-registry)\.ts$|^apps\/dashboard\/src\/surfaces\/.*(\/|-)surface\.ts$|^packages\/contracts\/src\/activity\/(subjects|record-address)\.ts$|^packages\/contracts\/src\/shell\/route-prefetch\.ts$|^apps\/dashboard\/app\/(privacy|terms|data-deletion)\/|^packages\/contracts\/src\/(config\/workspace-config\/|files\/(look|sound)\.ts$|leads\/(judge|ideas-ask)\.ts$|voice\/(whisper|greeting)\.ts$|ask\/fast-paths\.ts$)/,
   ],
   [
     "staff",

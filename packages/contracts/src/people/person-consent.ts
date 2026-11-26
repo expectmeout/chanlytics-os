@@ -130,6 +130,7 @@ export function offersYesRefusal(source: string | null | undefined): string | nu
  */
 export const OWN_MESSAGE_REFUSALS = {
   /** Their own message, with no message named. */
+  // screen-word: the database raises the same sentence (supabase/schema.sql), so it changes with a migration
   missing:
     "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
   /** The message named is not one this person sent this workspace. */
@@ -139,8 +140,7 @@ export const OWN_MESSAGE_REFUSALS = {
   /** A message named beside another way of answering. */
   notOwnMessage: "Only an answer in their own message names a message.",
   /** Their own message, for many people at once: one message cannot be every person's. */
-  batch:
-    "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.",
+  batch: "Their own message is recorded one person at a time, on their page. For signed slips, choose Sign-up form.",
 } as const;
 
 /** Why an answer given this way cannot be recorded with this message -- or null when it can. */

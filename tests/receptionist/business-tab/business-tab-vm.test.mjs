@@ -301,7 +301,7 @@ test("an ability names its channels and the row it runs on", () => {
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
   assert.deepEqual(byId.open_times.channels, { voice: true, whatsapp: true });
-  assert.match(byId.open_times.detail, /at that moment/i, "the phone asks live; chat is handed a snapshot");
+  assert.match(byId.open_times.detail, /reads the calendar live/i, "the phone asks live; chat is handed a snapshot");
   assert.equal(byId.open_times.runsOn.row, "calendar");
 
   assert.match(byId.booking_link.detail, /caller's WhatsApp/i, "it goes by WhatsApp, never by text");
