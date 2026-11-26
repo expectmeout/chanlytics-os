@@ -456,6 +456,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/content",
+  "packages/contracts/src/deals",
   "packages/contracts/src/email",
   "packages/contracts/src/events",
   "packages/contracts/src/files",
@@ -482,6 +483,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/shell",
   "packages/contracts/src/voice",
   "packages/contracts/src/waits",
+  "packages/contracts/src/workspace",
   "packages/core/src/calendar",
   "packages/core/src/campaigns",
   "packages/core/src/content",
@@ -503,7 +505,9 @@ export const LIMITED_TREES = [
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
- * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert).
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). Contracts'
+ * deals joined on 25 November 2026, the day the deal sheet was split: six take five (the pipeline's three, the deal
+ * card's two, the sheet's own).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -515,6 +519,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/config",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
+  "packages/contracts/src/deals",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",

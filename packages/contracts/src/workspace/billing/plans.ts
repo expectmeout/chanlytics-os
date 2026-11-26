@@ -261,6 +261,130 @@ export const START_PLAN_WORDS = {
   unpaid: "Your plan started, but the charge did not go through. Update the card in Billing.",
 } as const;
 
+/** A Stripe state's own part of the card: its headline, what it means, its tone, the presses it offers, and whether AI is paused. */
+type BillingStanding = Pick<BillingVM, "headline" | "detail" | "tone" | "actions" | "paused">;
+type BillingAccount = NonNullable<BillingDto["account"]>;
+/** What every state's words read: the card and the plan as the page says them, the clock and the workspace's zone. */
+interface BillingFacts {
+  card: string | null;
+  plan: string;
+  nowMs: number;
+  tz: string;
+}
+
+/** The presses a state offers; Manage billing alone unless it says otherwise. */
+const billingPresses = (offers: Partial<BillingVM["actions"]> = {}): BillingVM["actions"] => ({
+  checkout: false,
+  portal: true,
+  resume: false,
+  startNow: false,
+  ...offers,
+});
+
+/** On trial: when it ends and what follows, or, cancelled during it, when AI stops. */
+function trialStanding(account: BillingAccount, facts: BillingFacts): BillingStanding {
+  // Cancelled during the trial: Stripe keeps the subscription trialing and sets cancel_at to the trial's end.
+  if (account.cancel_at || account.cancel_at_period_end) {
+    return {
+      headline: "On trial, ending",
+      detail: `Cancelled: AI answers until ${billingDayWords(account.cancel_at ?? account.trial_end, facts.tz) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+      tone: "warn",
+      actions: billingPresses(),
+      paused: false,
+    };
+  }
+  return {
+    headline: "On trial",
+    detail: `${trialWords(account.trial_end, facts.nowMs, facts.tz)}${facts.card ? `, then ${facts.plan || "the plan"} on ${facts.card}` : ""}. ${TRIAL_COVERS}`,
+    tone: "ok",
+    // Its plan may start now, for more than the trial includes (TRIAL_INCLUDES).
+    actions: billingPresses({ startNow: true }),
+    paused: false,
+  };
+}
+
+/** Subscribed: the next invoice, or, cancelled, the day it ends. */
+function activeStanding(account: BillingAccount, facts: BillingFacts): BillingStanding {
+  const ending = !!(account.cancel_at_period_end || account.cancel_at);
+  return {
+    headline: ending ? "Subscribed, ending" : "Subscribed",
+    detail: ending
+      ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, facts.tz)}; AI answers until then.`
+      : `Next invoice ${billingDayWords(account.current_period_end, facts.tz) || "on the renewal date"}${facts.card ? ` on ${facts.card}` : ""}.`,
+    tone: "ok",
+    actions: billingPresses(),
+    paused: false,
+  };
+}
+
+/** A state with no subscription to manage: none yet, or one that ended, with the trial it may take. */
+function unsubscribedStanding(dto: BillingDto, account: BillingAccount): BillingStanding {
+  const unavailable = "Billing is not available on this deployment yet.";
+  if (account.status === "none")
+    return {
+      headline: "No subscription yet",
+      detail: dto.ready ? trialOffer(dto.trial_days) : unavailable,
+      tone: "warn",
+      actions: billingPresses({ checkout: dto.ready, portal: false }),
+      paused: false,
+    };
+  return {
+    headline: "Subscription ended",
+    detail: dto.ready ? trialOffer(dto.trial_days, true) : unavailable,
+    tone: "danger",
+    actions: billingPresses({ checkout: dto.ready, portal: !!account.card_brand }),
+    paused: true,
+  };
+}
+
+/** What each Stripe state says, past what every state says (toBillingVM's base). */
+function stripeStanding(dto: BillingDto, account: BillingAccount, facts: BillingFacts): BillingStanding {
+  switch (account.status) {
+    case "trialing":
+      return trialStanding(account, facts);
+    case "active":
+      return activeStanding(account, facts);
+    case "past_due":
+      return {
+        headline: "Payment declined",
+        detail: `${account.last_payment_failed_at ? `The last charge was declined ${agoWords(Date.parse(account.last_payment_failed_at), facts.nowMs)}. ` : ""}Stripe retries for a few days · update the card in Manage billing to keep AI answering.`,
+        tone: "danger",
+        actions: billingPresses(),
+        paused: false,
+      };
+    case "incomplete":
+      return {
+        headline: "Finishing checkout",
+        detail: "The first payment is still being confirmed. This page updates by itself.",
+        tone: "warn",
+        actions: billingPresses(),
+        paused: false,
+      };
+    case "paused":
+      return {
+        headline: "Paused",
+        detail:
+          "The trial ended without a card on file. Add one in Manage billing, then resume · messages keep landing in the Inbox meanwhile.",
+        tone: "danger",
+        actions: billingPresses({ resume: true }),
+        paused: true,
+      };
+    case "unpaid":
+      return {
+        headline: "Paused",
+        detail: "Payment couldn't be collected after several tries. Update the card in Manage billing, then resume.",
+        tone: "danger",
+        actions: billingPresses({ resume: true }),
+        paused: true,
+      };
+    case "none":
+    case "canceled":
+    case "incomplete_expired":
+    default:
+      return unsubscribedStanding(dto, account);
+  }
+}
+
 export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): BillingVM {
   const account = dto.account;
   const plan = priceWords(dto.price)
@@ -284,107 +408,15 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
       testMode: null,
     };
   }
-  const status = account.status;
   // On test keys, said in every state: each of them talks about a card or a charge.
   const base = {
     mode: "stripe" as const,
-    status: status,
+    status: account.status,
     plan,
     card,
     testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null,
   };
-  switch (status) {
-    case "none":
-      return {
-        ...base,
-        headline: "No subscription yet",
-        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
-        tone: "warn",
-        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
-        paused: false,
-      };
-    case "trialing":
-      // Cancelled during the trial: Stripe keeps the subscription trialing and sets cancel_at to the trial's end.
-      if (account.cancel_at || account.cancel_at_period_end) {
-        return {
-          ...base,
-          headline: "On trial, ending",
-          detail: `Cancelled: AI answers until ${billingDayWords(account.cancel_at ?? account.trial_end, tz) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
-          tone: "warn",
-          actions: { checkout: false, portal: true, resume: false, startNow: false },
-          paused: false,
-        };
-      }
-      return {
-        ...base,
-        headline: "On trial",
-        detail: `${trialWords(account.trial_end, nowMs, tz)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
-        tone: "ok",
-        // Its plan may start now, for more than the trial includes (TRIAL_INCLUDES).
-        actions: { checkout: false, portal: true, resume: false, startNow: true },
-        paused: false,
-      };
-    case "active":
-      return {
-        ...base,
-        headline: account.cancel_at_period_end || account.cancel_at ? "Subscribed, ending" : "Subscribed",
-        detail:
-          account.cancel_at || account.cancel_at_period_end
-            ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, tz)}; AI answers until then.`
-            : `Next invoice ${billingDayWords(account.current_period_end, tz) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
-        tone: "ok",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false,
-      };
-    case "past_due":
-      return {
-        ...base,
-        headline: "Payment declined",
-        detail: `${account.last_payment_failed_at ? `The last charge was declined ${agoWords(Date.parse(account.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days · update the card in Manage billing to keep AI answering.`,
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false,
-      };
-    case "incomplete":
-      return {
-        ...base,
-        headline: "Finishing checkout",
-        detail: "The first payment is still being confirmed. This page updates by itself.",
-        tone: "warn",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false,
-      };
-    case "paused":
-      return {
-        ...base,
-        headline: "Paused",
-        detail:
-          "The trial ended without a card on file. Add one in Manage billing, then resume · messages keep landing in the Inbox meanwhile.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true,
-      };
-    case "unpaid":
-      return {
-        ...base,
-        headline: "Paused",
-        detail: "Payment couldn't be collected after several tries. Update the card in Manage billing, then resume.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true,
-      };
-    case "canceled":
-    case "incomplete_expired":
-    default:
-      return {
-        ...base,
-        headline: "Subscription ended",
-        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
-        tone: "danger",
-        actions: { checkout: dto.ready, portal: !!account.card_brand, resume: false, startNow: false },
-        paused: true,
-      };
-  }
+  return { ...base, ...stripeStanding(dto, account, { card, plan, nowMs, tz }) };
 }
 
 /**
