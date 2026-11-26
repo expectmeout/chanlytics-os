@@ -29,7 +29,7 @@ import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { readerContext } from "@/server/shared/reader";
 import { newToolContext } from "../tools";
-import type { Member } from "@/server/shared/route";
+import { mint } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { listNotices } from "./notices";
 
@@ -50,8 +50,9 @@ async function lookAt(
   role: MembershipRole,
   now: Date,
 ): Promise<string | null> {
-  const ctx = { supabase: db, userId: ownerId } as unknown as RouteContext;
-  const member = { tenantId, role } as unknown as Member;
+  // The clock's own client, as the owner: nobody signed in, so no email and no metadata of a session.
+  const ctx: RouteContext = { supabase: db, userId: ownerId, email: undefined, metadata: {} };
+  const member = mint({ tenantId, role });
   const rc = readerContext(ctx, member);
   const t: Parameters<typeof listNotices>[0] = {
     ...newToolContext(ctx, tenantId, role, timezone, now, rc),
@@ -85,10 +86,10 @@ export async function runMorningSweep(now: Date): Promise<{ looked: number; told
     await Promise.all(
       waiting.slice(at, at + AT_ONCE).map(async (b) => {
         try {
-          const owner = (await listOwnerSeats(db, b.id as TenantId)).at(0);
+          const owner = (await listOwnerSeats(db, b.id)).at(0);
           if (!owner) return;
           looked++;
-          if (await lookAt(db, b.id as TenantId, b.timezone, owner.user_id, owner.role as MembershipRole, now)) told++;
+          if (await lookAt(db, b.id, b.timezone, owner.user_id, owner.role, now)) told++;
         } catch (e) {
           log.error("ask_morning_sweep_failed", { tenant_id: b.id, error: e });
         }

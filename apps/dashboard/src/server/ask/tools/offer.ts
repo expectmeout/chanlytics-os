@@ -1,5 +1,5 @@
 import "server-only";
-import { MEMBERSHIP_ROLES, type MembershipRole, PROPOSAL_SPECS } from "@chanlytics/contracts";
+import { MEMBERSHIP_ROLES, type MembershipRole, PROPOSAL_SPECS, recordOrEmpty } from "@chanlytics/contracts";
 import { NO_ACTION, offeredTo, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context/tool-defs";
 import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 import { ANSWER_TOOL } from "./answer";
@@ -20,9 +20,7 @@ const examplesOf = (t: Tool<{ examples?: unknown[] }>, only?: readonly string[])
   Object.entries(t.actions)
     .filter(([action]) => !only || only.includes(action))
     .flatMap(([action, d]) =>
-      ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) =>
-        action === NO_ACTION ? ex : { action, ...ex },
-      ),
+      (d.examples ?? []).map(recordOrEmpty).map((ex) => (action === NO_ACTION ? ex : { action, ...ex })),
     );
 
 /** A tool as this role is offered it, from the actions it may use (D2). */

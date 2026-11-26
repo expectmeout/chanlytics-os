@@ -9,6 +9,7 @@ import {
   shiftKey,
   zoneMidnight,
   UUID,
+  isOneOf,
   PROPOSAL_SPECS,
   DbFailure,
 } from "@chanlytics/contracts";
@@ -25,9 +26,9 @@ async function proposeThreadVerb(
   input: { conversation_id: string; verb: string; until?: string },
 ): Promise<ProposalOutcome> {
   const id = str(input.conversation_id, 40);
-  const verb = str(input.verb, 20) as (typeof THREAD_VERBS)[number];
+  const verb = str(input.verb, 20);
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
-  if (!THREAD_VERBS.includes(verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
+  if (!isOneOf(THREAD_VERBS, verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
   const { data: conv, error } = await findThreadCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new DbFailure(error);
   if (!conv) return refuse("no such conversation in this workspace");

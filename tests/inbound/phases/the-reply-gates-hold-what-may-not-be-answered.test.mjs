@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { optInConfirmation, formatPhoneDisplay, HOUR_MS } from "@chanlytics/contracts";
+import { optInConfirmation, formatPhoneDisplay, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { FROM, FROM_ITS_EVENT, runtime, text, world } from "../_world.mjs";
 import { photo, handledOf, voice } from "./_fixtures.mjs";
 
@@ -172,6 +172,22 @@ test("an acknowledgement that did not send neither pauses the thread nor is repo
   assert.equal(w.seen.alerts[0].pauseHours, null);
   assert.match(w.seen.alerts[0].botText, /could not be sent/);
   assert.match(w.seen.refused[0].details, /could not be sent/);
+});
+
+test("an acknowledgement that sent pauses the thread for the workspace's own pause_hours, and the owner is told that number", async () => {
+  // Settings says "stays paused for N hours" from the reply row; the pause and the owner's email read the same row
+  // (context.ts pauseHoursOf), so a workspace on six hours is paused for six and told six, never a day.
+  const w = world({
+    escalateAnswer: "failed",
+    rt: runtime({ policy: { reply: { mode: "auto", limits: { pause_hours: 6 } } } }),
+  });
+  const before = Date.now();
+  await w.run(voice());
+  assert.equal(w.seen.sent.length, 1, "acknowledged");
+  assert.equal(w.seen.pauses.length, 1, "and paused");
+  const pausedFor = Date.parse(w.seen.pauses[0]) - before;
+  assert.ok(pausedFor >= 6 * HOUR_MS && pausedFor < 6 * HOUR_MS + MIN_MS, `paused for six hours, not ${pausedFor} ms`);
+  assert.equal(w.seen.alerts[0].pauseHours, 6, "and the email says the six hours it paused for");
 });
 
 test("an opt-in confirmation that did not send is not remembered as said, and somebody is told", async () => {

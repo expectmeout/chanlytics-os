@@ -1286,7 +1286,8 @@ on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB fo
 work at the rate main grew in early October, read again with these numbers; the route's JS raised to 832 KiB on 13 Oct 2026
 by Ruben's word, #1579, and to 1 MiB with its CSS to 192 KiB on 16 Oct 2026 by his word, with p75 LCP 1.6 s and INP 102 ms
 that day, docs/debt.md "Rises"; the CSS brought down to 144 KiB on 25 Nov 2026, when a page came to link only the rules
-its code can draw and the route's fell from 183 KB to 127, with a ceiling of 132 KiB for each page's own stylesheets,
+its code can draw and the route's fell from 183 KB to 127, and to 128 KiB the same night, just over the route's 124.6 KB
+with a week and a half of growth at the week's line (lane 8, #2617), with a ceiling of 132 KiB for each page's own stylesheets,
 `sheets=<bytes>`, the rows `check:bundle` calls `styles <page>`, the largest 117 KB that day): LCP for the page drawn,
 INP for a tap answered.
 

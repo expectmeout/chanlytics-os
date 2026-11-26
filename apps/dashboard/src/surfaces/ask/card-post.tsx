@@ -19,11 +19,11 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { openFile } from "../files/file-asked";
-import { usePostDraft } from "../files/post-draft";
-import { drawnKeyOf, pictureDrawn } from "../files/post-drawn";
-import { PostEdit } from "../files/post-edit";
-import { PostFrame } from "../files/post-frame";
-import { PostActs, postShapeAddress } from "../files/post-shapes";
+import { usePostDraft } from "../files/post/draft";
+import { drawnKeyOf, pictureDrawn } from "../files/post/drawn";
+import { PostEdit } from "../files/post/edit";
+import { PostFrame } from "../files/post/frame";
+import { PostActs, postShapeAddress } from "../files/post/shapes";
 import { canDo } from "./shell";
 import type { LineWords } from "./words";
 
