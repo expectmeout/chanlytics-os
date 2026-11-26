@@ -68,8 +68,8 @@ async function keepNote(
   }
   // What the schema left out of the stored row is put back, as a save on the page does (settings-save.ts).
   const next = withStoredKeysKept(parsed.data, before.config);
-  const told = settingsTold(ctx, before.config, next);
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId, told);
+  const event = settingsTold(ctx, before.config, next);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId, event);
   if (!result.ok) throw new AppError("conflict", FACT_SUGGEST_WORDS.moved, 409);
   await settingsSaved(ctx, member.tenantId, before.config, next);
   return { version: result.row.version, already: false };

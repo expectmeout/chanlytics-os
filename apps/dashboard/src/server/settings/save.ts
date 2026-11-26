@@ -72,8 +72,8 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
   // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any
   // depth) is put back first: the page never saw it, so the page never meant to delete it.
   const next = withStoredKeysKept(parsed.data, before?.config);
-  const told = settingsTold(ctx, before?.config, next);
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, body.version, ctx.userId, told);
+  const event = settingsTold(ctx, before?.config, next);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, body.version, ctx.userId, event);
   // Two different failures, each in its own words (settings-write.ts says why).
   if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
   await settingsSaved(ctx, member.tenantId, before?.config, next);

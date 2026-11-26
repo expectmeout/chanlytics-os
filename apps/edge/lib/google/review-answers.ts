@@ -123,10 +123,10 @@ async function markReplied(
   tenantId: TenantId,
   rowId: string,
   reply: { reply_text: string | null; replied_at: string | null },
-  told: ReviewReplied,
+  event: ReviewReplied,
 ): Promise<void> {
   // The reply on its row, what it held cleared, and google.replied, in one transaction (00722).
-  const up = await markGoogleReviewReplied(db, tenantId, rowId, reply, told);
+  const up = await markGoogleReviewReplied(db, tenantId, rowId, reply, event);
   if (up.error) throw new DbFailure(up.error);
 }
 

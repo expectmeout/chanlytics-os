@@ -92,9 +92,9 @@ export async function putTenantConfig(
   updatedBy?: string | null,
   /** A member's save that changed parts of it: which (never their values), and the card it came from. The door writes
    *  the row and its settings.changed in one transaction (00722), as the member. */
-  told?: SettingsTold,
+  event?: SettingsTold,
 ): Promise<PutTenantConfigResult> {
-  if (told && told.fields.length > 0) return putThroughTheDoor(db, tenantId, config, expectedVersion, told);
+  if (event && event.fields.length > 0) return putThroughTheDoor(db, tenantId, config, expectedVersion, event);
   const { data, error } = await db
     .from("tenant_config")
     .update({
@@ -128,14 +128,14 @@ async function putThroughTheDoor(
   tenantId: TenantId,
   config: unknown,
   expectedVersion: number,
-  told?: SettingsTold,
+  event?: SettingsTold,
 ): Promise<PutTenantConfigResult> {
   const door = await db
     .rpc("tenant_config_write", {
       p_tenant_id: tenantId,
       p_config: jsonCopyOf(config),
       p_version: expectedVersion,
-      ...(told ? { p_told: { fields: [...told.fields], ...(told.via ? { via: told.via } : {}) } } : {}),
+      ...(event ? { p_told: { fields: [...event.fields], ...(event.via ? { via: event.via } : {}) } } : {}),
     })
     .maybeSingle();
   if (door.error) throw new DbFailure(door.error, "putTenantConfig");
