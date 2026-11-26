@@ -28,7 +28,6 @@ export {
   findPersonOwnColumns,
   findReplyPolicyMode,
   listPeopleStanding,
-  listPeopleWith,
   listPersonConsentChanges,
   listPersonIdentities,
   listPersonNotes,

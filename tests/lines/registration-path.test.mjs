@@ -597,7 +597,7 @@ test("one validator, three writers", () => {
   assert.ok(route.includes("businessRecordProblems(record, path, { ourNumbers:"));
   // On the owner's own client (packages/db's read, decision 0111): under RLS.
   assert.ok(route.includes("listLineNumbersOf(ctx.supabase, tenantId)"), "read where the owner can read it, under RLS");
-  assert.ok(route.includes('registrationPathOf(record) || "standard"'), "derived only when the caller did not say");
+  assert.ok(route.includes('registrationPathOf(record) ?? "standard"'), "derived only when the caller did not say");
   assert.ok(
     /record, path \},\s*20_000[,)]/.test(route),
     "and the path travels with the record to the door that writes it",
