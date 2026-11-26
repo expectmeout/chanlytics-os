@@ -53,9 +53,7 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
 export function nativeSignInPlan(body: unknown): NativePlan {
   if (!body || typeof body !== "object") return refusedPlan("no body");
   const bodyFields = recordOrEmpty(body);
-  const provider = isOneOf(NATIVE_PROVIDERS, String(bodyFields.provider))
-    ? (bodyFields.provider as NativeProvider)
-    : null;
+  const provider = isOneOf(NATIVE_PROVIDERS, bodyFields.provider) ? bodyFields.provider : null;
   if (!provider) return refusedPlan("unknown provider");
   const token = typeof bodyFields.token === "string" ? bodyFields.token.trim() : "";
   if (!token) return refusedPlan("no token");

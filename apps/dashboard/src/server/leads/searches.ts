@@ -14,7 +14,10 @@ import {
   type LeadSearchVia,
   type LeadStage,
   type PersonLeadDto,
+  isObjectRecord,
   recordOrEmpty,
+  recordOrNull,
+  valueAt,
   DbFailure,
 } from "@chanlytics/contracts";
 import { asJson } from "@chanlytics/db/shared";
@@ -95,18 +98,16 @@ export interface SearchViewRow {
 /** The round's nearby areas as the view returns them: only rows shaped as an area are handed on. */
 function nearbyOf(value: unknown): LeadArea[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((first): first is LeadArea => {
-    const leadArea = first as Partial<LeadArea> | null;
+  return value.filter((leadArea): leadArea is LeadArea => {
+    const center: unknown = isObjectRecord(leadArea) ? leadArea.center : undefined;
     return (
-      !!leadArea &&
-      typeof leadArea === "object" &&
+      isObjectRecord(leadArea) &&
       typeof leadArea.label === "string" &&
       typeof leadArea.radius_m === "number" &&
       typeof leadArea.query === "string" &&
       (leadArea.kind === "zip" || leadArea.kind === "city" || leadArea.kind === "radius") &&
       typeof leadArea.state === "string" &&
-      (leadArea.center === null ||
-        (!!leadArea.center && typeof leadArea.center.lat === "number" && typeof leadArea.center.lng === "number"))
+      (center === null || (typeof valueAt(center, "lat") === "number" && typeof valueAt(center, "lng") === "number"))
     );
   });
 }
@@ -135,7 +136,7 @@ export function answerPlanOf(
   search: Pick<SearchViewRow, "plan" | "plan_version">,
   plan: LeadSearchPlan,
 ): LeadSearchPlan {
-  const reserved = (search.plan as LeadSearchPlan | null)?.count;
+  const reserved = valueAt(search.plan, "count");
   return {
     ...plan,
     version: (search.plan_version ?? 1) + 1,
@@ -148,7 +149,7 @@ export function answerPlanOf(
  * counts each change made on it (planVersionOf), so one changed twice is past the next, and to the search it is one.
  */
 export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearchPlan): LeadSearchPlan {
-  const at = (search.plan as LeadSearchPlan | null)?.version;
+  const at = valueAt(search.plan, "version");
   return typeof at === "number" ? { ...plan, version: Math.min(plan.version, at + 1) } : plan;
 }
 
@@ -239,13 +240,10 @@ const questionKeyOf = (q: { criterionKey?: unknown; criterion_key?: unknown }): 
  * reader for Ask (leads.searches says it; a proposal that amends answers it); the DTO reads the question in
  * every state, for the page.
  */
-export const waitingQuestionOf = (searchView: Pick<SearchViewRow, "state" | "question">): string | null =>
-  searchView.state === "waiting_on_owner" &&
-  searchView.question &&
-  typeof searchView.question === "object" &&
-  typeof (searchView.question as { sentence?: unknown }).sentence === "string"
-    ? (searchView.question as { sentence: string }).sentence
-    : null;
+export const waitingQuestionOf = (searchView: Pick<SearchViewRow, "state" | "question">): string | null => {
+  const sentence = valueAt(searchView.question, "sentence");
+  return searchView.state === "waiting_on_owner" && typeof sentence === "string" ? sentence : null;
+};
 
 /**
  * One search as the Leads page holds it (GET lead-searches maps each row through this), and as Ask says one it read by
@@ -255,10 +253,7 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
   // A people search's plan is the people card's (00430), never read as a places one.
   const people = peoplePlanOf(searchView.plan);
   const plans = { plan: people ? null : (searchView.plan as LeadSearchPlan), people };
-  const question =
-    searchView.question && typeof searchView.question === "object"
-      ? (searchView.question as { sentence?: unknown; criterionKey?: unknown; criterion_key?: unknown })
-      : null;
+  const question = recordOrNull(searchView.question);
   if (!searchView.round_id)
     return {
       id: searchView.id,
