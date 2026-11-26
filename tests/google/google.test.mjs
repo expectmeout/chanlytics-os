@@ -921,20 +921,22 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // window all at once.
   assert.ok(!lib.includes("check_error: error, checked_at:"), "a failure must not read as a read");
   assert.ok(!lib.includes("sync_error: error.slice(0, 300), last_synced_at:"), "nor a failed sync as a sync");
-  // The write itself is packages/db's (decision 0111).
-  const reviews = readCode("packages/db/src/repositories/google/reviews.ts");
-  // The write alone, of the module that also reads the reviews back with their first sighting.
-  const write = reviews.slice(
-    reviews.indexOf("export const saveGoogleReviews"),
-    reviews.indexOf("export const findReviewToAnswer"),
+  // The write itself is its door's, with the read's event (00722 google_reviews_keep): the door's body alone.
+  const migration = readCode("supabase/migrations/00722_the_dashboard_s_acts_write_their_own_events.sql");
+  const write = migration.slice(
+    migration.indexOf("create or replace function public.google_reviews_keep"),
+    migration.indexOf("get diagnostics v_kept"),
   );
   assert.ok(
-    write.includes('onConflict: "tenant_id,review_id"') &&
+    write.includes("on conflict on constraint google_reviews_tenant_id_review_id_key") &&
       !write.includes("first_seen_at") &&
       !lib.includes("first_seen_at"),
     "an existing review keeps its first_seen_at",
   );
-  assert.ok(lib.includes('"google.reviews"'));
+  assert.ok(
+    lib.includes("keepGoogleReviews(") && lib.includes("stampGoogleProfileSync("),
+    "each read tells its reviews",
+  );
   // The sweep -- skipped without a key, forty listings a tick, never-read
   // first, a refusal left on its row -- runs in cron/doors-b/.
   assert.equal(edgeFunctions()["api/admin/google.ts"].maxDuration, 60);

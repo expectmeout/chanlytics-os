@@ -262,7 +262,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "screened_calls_failed",
   "sequence_draft_read_failed",
   "sequence_kept_draft_left",
-  "settings_event_failed",
   "setup_offers_by_email_failed",
   "setup_request_tell_failed",
   "signed_media_url_failed",

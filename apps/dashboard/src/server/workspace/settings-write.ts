@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * What a write of the settings says when it cannot land, and what it records when it does: the settings PUT's, and
+ * What a write of the settings says when it cannot land, and what it tells when it does: the settings PUT's, and
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
 import { changedConfigFields, valueAt } from "@chanlytics/contracts";
@@ -9,7 +9,7 @@ import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import type { TenantId } from "@chanlytics/contracts";
-import { recordWorkspaceEvent } from "@/server/shared/ledgers/events";
+import type { SettingsTold } from "@chanlytics/db/workspace";
 
 /** How long the edge has to queue a read of the website: one insert. */
 const WEBSITE_ASK_MS = 5_000;
@@ -47,29 +47,24 @@ export const SETTINGS_REFUSED = {
 } as const;
 
 /**
- * The change, in the ledger every other consequential act lands in. Fields, never values -- see changedConfigFields.
- * Best effort by design: an audit row that failed to write must not fail the save the owner just made and watched
- * succeed. Written as the service role: a session may not insert into events (no policy lets it), so this row, written
- * on the session, never reached the ledger.
+ * What a save says of the change, for the ledger every other consequential act lands in: which parts changed, never their
+ * values (changedConfigFields), and where a card was tapped rather than a form saved, which (`via`, as the decisions
+ * ledger says it). The settings' door writes it with the row, in one transaction (00722 tenant_config_write); undefined
+ * where nothing changed, and nothing is written for it.
  */
-export async function recordSettingsChanged(
+export function settingsTold(ctx: RouteContext, before: unknown, after: unknown): SettingsTold | undefined {
+  const fields = changedConfigFields(before, after);
+  if (!fields.length) return undefined;
+  return { fields, ...(ctx.via ? { via: ctx.via } : {}) };
+}
+
+/** After a save: a website newly named is read for the first run's Check. */
+export async function settingsSaved(
   ctx: RouteContext,
   tenantId: TenantId,
   before: unknown,
   after: unknown,
-  version: number,
 ): Promise<void> {
-  const fields = changedConfigFields(before, after);
-  if (!fields.length) return;
-  // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-  const { error } = await recordWorkspaceEvent(tenantId, "settings.changed", "workspace", tenantId, {
-    fields,
-    by: ctx.userId,
-    version,
-    ...(ctx.via ? { via: ctx.via } : {}),
-  });
-  // Under its own name, as it always was: the name is what alerting greps for.
-  if (error) log.error("settings_event_failed", { error });
   const site = websiteIn(after);
   if (site && site !== websiteIn(before)) await askWebsiteRead(ctx, tenantId);
 }

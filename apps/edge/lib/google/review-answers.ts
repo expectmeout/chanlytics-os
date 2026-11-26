@@ -30,9 +30,11 @@ import {
   findReviewOnGoogle,
   findReviewToAnswer,
   listUnrepliedProfileReviews,
-  patchGoogleReview,
+  markGoogleReviewReplied,
+  type ReviewReplied,
   saveHeldReviewReply,
 } from "@chanlytics/db/google";
+import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 
@@ -121,13 +123,10 @@ async function markReplied(
   tenantId: TenantId,
   rowId: string,
   reply: { reply_text: string | null; replied_at: string | null },
+  told: ReviewReplied,
 ): Promise<void> {
-  const up = await patchGoogleReview(db, tenantId, rowId, {
-    ...reply,
-    draft_text: null,
-    drafted_at: null,
-    posts_at: null,
-  });
+  // The reply on its row, what it held cleared, and google.replied, in one transaction (00722).
+  const up = await markGoogleReviewReplied(db, tenantId, rowId, reply, told);
   if (up.error) throw new DbFailure(up.error);
 }
 
@@ -157,13 +156,12 @@ async function postReply(
   at: { parent: string; token: string; net: PlacesHttp; usage?: DraftUsage },
 ): Promise<void> {
   const reply = await replyToReview(at.net, at.token, `${at.parent}/reviews/${unreplied.review_id}`, text);
-  await markReplied(db, conn.tenant_id, unreplied.id, reply);
-  await emitEvent(db, conn.tenant_id, "google.replied", "review", unreplied.id, {
+  await markReplied(db, conn.tenant_id, unreplied.id, reply, {
     review_id: unreplied.review_id,
     chars: text.length,
     by: "receptionist",
-    ...(at.usage === undefined ? {} : { usage: at.usage }),
-  }).catch(logAndGoOn("event google.replied"));
+    ...(at.usage === undefined ? {} : { usage: asJson(at.usage) }),
+  });
 }
 
 /**
@@ -314,14 +312,10 @@ export async function replyOnProfile(
   }
   // The reply posted, and any it held cleared: the review is answered.
   try {
-    await markReplied(db, tenantId, rowId, reply);
+    await markReplied(db, tenantId, rowId, reply, { review_id: review.data.review_id, chars: comment.length });
   } catch (e) {
     return { ok: false, error: "review_write_failed", detail: logFailure("write", e) };
   }
-  await emitEvent(db, tenantId, "google.replied", "review", rowId, {
-    review_id: review.data.review_id,
-    chars: comment.length,
-  }).catch(logAndGoOn("event google.replied"));
   return { ok: true, ...reply };
 }
 

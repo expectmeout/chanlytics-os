@@ -15,7 +15,6 @@
  * connection of its Google account rides it: Google ends every token the account gave this project at once, the
  * mailbox's among them (shared/google/give-back.ts, the one rule for it).
  */
-import { emitEvent } from "@chanlytics/db/events";
 import { findLinkedPlace } from "@chanlytics/db/imports";
 import {
   tokenExchangeRequest,
@@ -32,7 +31,7 @@ import type { EdgeRefusal, TenantId } from "@chanlytics/contracts";
 import { profileClient } from "../shared/google/config.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
-import { grantFrom, readCredentials, storeCredentials, tokenFor } from "../shared/google/credentials.js";
+import { grantFrom, readCredentials, storeConnectCredentials, tokenFor } from "../shared/google/credentials.js";
 import { giveGoogleGrantBack } from "../shared/google/give-back.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
@@ -49,6 +48,7 @@ import {
   findGoogleListingPlace,
   patchGoogleConnection,
   patchGoogleConnectionBack,
+  removeGoogleConnection,
   rereadGoogleConnection,
   saveGoogleConnection,
   saveGoogleListing,
@@ -168,12 +168,24 @@ export async function connectProfile(
   if (saved.error || !saved.data)
     return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   try {
-    await storeCredentials(db, tenantId, {
-      refresh_token: grant.refresh_token,
-      access_token: grant.access_token,
-      expires_at: now.getTime() + grant.expires_in * 1000,
-      scope: grant.scope,
-    });
+    // The token and the connect's event in one transaction: the connect is told once its token stands.
+    await storeConnectCredentials(
+      db,
+      tenantId,
+      {
+        refresh_token: grant.refresh_token,
+        access_token: grant.access_token,
+        expires_at: now.getTime() + grant.expires_in * 1000,
+        scope: grant.scope,
+      },
+      {
+        email: claims.email,
+        accounts: new Set(locations.map((l) => l.account_name)).size,
+        locations: locations.length,
+        on_maps: onMaps.length,
+        by: userId,
+      },
+    );
   } catch (error) {
     // Without the token the row is a lie. Deleting it unconditionally was the
     // lie's cure and somebody else's outage: a workspace whose profile was
@@ -202,13 +214,6 @@ export async function connectProfile(
     await giveBack(grant.refresh_token);
     return { ok: false, error: "credentials_failed", detail: logFailure("write", error) };
   }
-  await emitEvent(db, tenantId, "google.connected", "listing", null, {
-    email: claims.email,
-    accounts: new Set(locations.map((l) => l.account_name)).size,
-    locations: locations.length,
-    on_maps: onMaps.length,
-    by: userId,
-  }).catch(logAndGoOn("event google.connected"));
   // One location on Maps is the one; among several, the one the owner already said was theirs (the first run's "That's
   // us", decision 0073 R17) is bound at once, and only otherwise does the owner choose.
   const linked = onMaps.length > 1 ? await findLinkedPlace(db, tenantId).catch(() => null) : null;
@@ -348,17 +353,15 @@ export async function disconnectProfile(
   // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
   const dropped = await dropGoogleCredentials(db, tenantId);
   if (dropped.error) throw new DbFailure(dropped.error);
-  const gone = await deleteGoogleReviews(db, tenantId, { origin: "profile" });
-  if (gone.error) throw new DbFailure(gone.error);
-  const del = await deleteGoogleConnection(db, tenantId);
-  if (del.error) throw new DbFailure(del.error);
-  // A notice that it had stopped syncing is about nothing now.
-  await syncMended(db, tenantId, "google_connection.removed");
-  await emitEvent(db, tenantId, "google.disconnected", "listing", null, {
+  // The profile's reviews and the row gone, with google.disconnected, in one transaction (00722).
+  const del = await removeGoogleConnection(db, tenantId, {
     email: conn.google_email,
     location: conn.location_name,
     revoked,
     by,
-  }).catch(() => {});
+  });
+  if (del.error) throw new DbFailure(del.error);
+  // A notice that it had stopped syncing is about nothing now.
+  await syncMended(db, tenantId, "google_connection.removed");
   return { ok: true, removed: true, revoked };
 }

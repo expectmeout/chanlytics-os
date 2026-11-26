@@ -24,7 +24,7 @@ import { listPolicies, putTenantConfig } from "@chanlytics/db/workspace";
 import { callEdge, edgeConfigured, edgeReasonOf, type EdgeAnswer } from "../shared/edge";
 import { log } from "../shared/log";
 import { findConfigRow } from "../workspace/config-row";
-import { recordSettingsChanged } from "../workspace/settings-write";
+import { settingsSaved, settingsTold } from "../workspace/settings-write";
 import { judgeChangedHandoff } from "./save";
 import { getKnownFacts } from "../readers/settings";
 import { composePromptPreview } from "../receptionist/prompt-preview";
@@ -277,9 +277,10 @@ export async function keepRehearsalChange(
   await judgeChangedHandoff(ctx, member.tenantId, parsed.data, before.config);
   // What the schema left out of the stored row is put back, as a save on the page does (settings-save.ts).
   const next = withStoredKeysKept(parsed.data, before.config);
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId);
+  const told = settingsTold({ ...ctx, via: input.via }, before.config, next);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId, told);
   if (!result.ok) throw new AppError("conflict", FIX_WORDS.moved, 409);
-  await recordSettingsChanged({ ...ctx, via: input.via }, member.tenantId, before.config, next, result.row.version);
+  await settingsSaved(ctx, member.tenantId, before.config, next);
   const field = fixField(input.change);
   const line = fixLine(input.change);
   // Its door's count once kept (two Keeps at once each count the other's); the count read with the rehearsal if not.

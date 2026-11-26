@@ -5,6 +5,7 @@ export {
   activateCapabilityFn,
   createWorkspaceFn,
   deactivateCapabilityFn,
+  editPlaybook,
   findWorkspaceNamed,
   findWorkspacePublicSlug,
   findWorkspaceZone,
@@ -16,7 +17,6 @@ export {
   setSetupChoices,
   setWorkspaceLogo,
   startPlaybook,
-  updatePlaybook,
   wordsSeenByMember,
   writeLineForwarding,
   writePlaybookChange,
@@ -50,6 +50,7 @@ export type {
   PolicyRecord,
   PublicWorkspaceRead,
   PutTenantConfigResult,
+  SettingsTold,
   SetupChoicesRow,
   TenantConfigRow,
 } from "./control-plane/config";

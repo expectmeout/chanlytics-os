@@ -5,7 +5,6 @@
  * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent } from "@chanlytics/db/events";
 import { noteImport } from "@chanlytics/db/imports";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import {
@@ -38,15 +37,15 @@ import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
 import {
   deleteGoogleReviews,
+  keepGoogleReviews,
   pageGoogleReviewReplies,
   patchGoogleConnection,
   patchGoogleListing,
   patchGoogleListingAtPlace,
   saveGoogleListingDay,
-  saveGoogleReviews,
+  stampGoogleProfileSync,
 } from "@chanlytics/db/google";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 /** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
 async function noteReviews(db: Db, tenantId: TenantId, plan: ProfileSyncPlan): Promise<void> {
@@ -99,7 +98,7 @@ async function keepReviews(
   reviews: ReturnType<typeof planProfileSync>["reviews"],
 ): Promise<void> {
   if (!reviews.length) return;
-  const up = await saveGoogleReviews(
+  const up = await keepGoogleReviews(
     db,
     tenantId,
     reviews.map((review) => ({
@@ -296,11 +295,22 @@ export async function syncProfile(
   }
   // The new reviews told before the stamp, so a bell that could not be kept is asked for again (ringNewReviews).
   await ringNewReviews(db, conn, plan);
-  const done = await patchGoogleConnection(db, conn.tenant_id, {
-    last_synced_at: plan.synced_at,
-    sync_error: null,
-    reviews_complete: plan.complete,
-  });
+  // The stamp, and the new reviews on the ledger with it, in one transaction (00722): a sync that fails before it tells
+  // nothing, and the next finds the same reviews new.
+  const done = await stampGoogleProfileSync(
+    db,
+    conn.tenant_id,
+    { synced_at: plan.synced_at, complete: plan.complete },
+    plan.fresh.length
+      ? {
+          source: "profile",
+          fresh: plan.fresh.length,
+          counted: 0,
+          rating: plan.listing?.rating ?? null,
+          review_count: plan.listing?.review_count ?? null,
+        }
+      : undefined,
+  );
   if (done.error) throw new DbFailure(done.error);
   // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
   if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");
@@ -330,15 +340,6 @@ export async function syncProfile(
       route: one ? reviewRoute(one.id) : lensRoute("reviews"),
       about: one,
     });
-  }
-  if (plan.fresh.length) {
-    await emitEvent(db, conn.tenant_id, "google.reviews", "listing", null, {
-      source: "profile",
-      fresh: plan.fresh.length,
-      counted: 0,
-      rating: plan.listing?.rating ?? null,
-      review_count: plan.listing?.review_count ?? null,
-    }).catch(logAndGoOn("event google.reviews"));
   }
   // What came in, on the imports ledger as Google's reviews (decision 0073, R23): every one on record, those waiting for a
   // reply, and how far back the oldest goes. A note that fails is logged: the reviews are kept all the same.

@@ -3,9 +3,9 @@
  * transaction, startNewPlaybook), and changed or removed (app/api/v1/playbooks/:id): `{ state, name, run_hour,
  * cap_per_run, gap_days, cadence_days, params, until, mode }`, any of them, changes it in place, judged against it
  * as it stands and written
- * with its line in the ledger in one transaction (the change_playbook door; on a database before it, the way it was
- * written before, for one release); `{ channels }` changes the channels it goes by and writes nothing else; the whole
- * playbook is re-checked the way a new one is checked and rewritten (campaigns/playbooks.ts); the rule can go, its runs
+ * with its line in the ledger in one transaction (the change_playbook door); `{ channels }` changes the channels it goes
+ * by and writes nothing else; the whole playbook is re-checked the way a new one is checked and rewritten
+ * (campaigns/playbooks.ts), each with its playbook.changed (the playbook_edit door); the rule can go, its runs
  * staying as broadcasts with their numbers, recorded as a pause with `deleted`. Never a reach-out's step: its sends would
  * go with it (R16). The playbook is the row (playbookScope), found under RLS, and the route declares who may and how
  * often.
@@ -36,8 +36,8 @@ import { findPlaybookForChange, listRunningStepsOn, listRunningTwins } from "@ch
 import {
   findWorkspaceZoneStatus,
   removePlaybook,
+  editPlaybook,
   startPlaybook,
-  updatePlaybook,
   wordsSeenByMember,
   writePlaybookChange,
 } from "@chanlytics/db/workspace";
@@ -58,7 +58,6 @@ import { refuseWhenNoMailboxSends } from "@/server/campaigns/reach-outs/mailbox-
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
@@ -288,7 +287,7 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * an undo puts back. An undo is a change naming the decision it undoes (ctx.undoOf, the x-undo-of header Ask's commit
  * runner sends): it restores the end and the mode the door recorded, the end past or not, where any other change names
  * a day still to come. Nothing that differs writes nothing and answers what it is, so a second press of Pause is no second
- * line. On a database before the door, written the way it was before (changeTheOldWay), for one release.
+ * line.
  */
 async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>, playbook: PlaybookRow) {
   const read = await findPlaybookForChange(ctx.supabase, playbook.tenant_id, playbook.id);
@@ -325,7 +324,7 @@ async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>,
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,
   });
-  const done = wrote === "missing" ? await changeTheOldWay(ctx, playbook, { set, was, name }) : wrote;
+  const done = wrote;
   if (done.error) throw playbookChangeError(done.error);
   if (!done.data) throw new Error("playbook not changed");
   return {
@@ -335,29 +334,6 @@ async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>,
     was: done.data.was,
     decision_id: done.data.decisionId,
   };
-}
-
-/**
- * A change in place on a database before the change_playbook door: written as the route wrote it before, so either
- * deploy order works (CLAUDE.md), for one release, then this goes (docs/debt.md, owed). The row (`updatePlaybook`,
- * uncounted, as it always was), then its record: a pause or a resume is pause_playbook or start_playbook in the ledger, as
- * the drawer's switch wrote; any other change is the `playbook.changed` event the whole rewrite wrote (that database's
- * decisions_verb_check has no change_playbook), so its answer names no decision.
- */
-async function changeTheOldWay(
-  ctx: RouteContext,
-  playbook: PlaybookRow,
-  change: { set: PlaybookPatch; was: PlaybookPatch; name: string },
-): Promise<{ data: { was: Record<string, unknown>; decisionId: string | null }; error: null }> {
-  const { error } = await updatePlaybook(ctx.supabase, playbook.id, change.set);
-  if (error) throw playbookWriteError(error);
-  const others = Object.keys(change.set).filter((k) => k !== "state");
-  if (others.length) await playbookEdited(ctx, playbook, change.name, others);
-  const verb = change.set.state === "running" ? "start_playbook" : "pause_playbook";
-  const decisionId = change.set.state
-    ? await recordDecision(ctx, playbook.tenant_id, "playbook", playbook.id, verb, { name: change.name })
-    : null;
-  return { data: { was: { ...change.was }, decisionId }, error: null };
 }
 
 /** A change the database refused: not there (P0002: another workspace's, or one the role may not change), else as it came. */
@@ -376,9 +352,9 @@ async function changeChannels(ctx: RouteContext, texts: string[], playbook: Play
   const kept = await listKeptChannels(ctx, playbook.id);
   const channels = await checkPlaybookChannelsInput(ctx, playbook.tenant_id, { ...playbook, channels: kept }, texts);
   if (channelsChanged(channels, kept)) {
-    const { error } = await updatePlaybook(ctx.supabase, playbook.id, { channels });
+    // The channels and the edit's playbook.changed in one transaction, as the member (00722 playbook_edit).
+    const { error } = await editPlaybook(ctx.supabase, playbook.tenant_id, playbook.id, { channels }, ["channels"]);
     if (error) throw playbookWriteError(error);
-    await playbookEdited(ctx, playbook, playbook.name, ["channels"]);
   }
   // What it went by before this write, for an undo: the channels as this request found them, never a card's copy.
   return { id: playbook.id, name: playbook.name, state: playbook.state, was: { channels: kept } };
@@ -393,42 +369,42 @@ async function rewritePlaybook(ctx: RouteContext, body: Record<string, unknown>,
   // database 00298 has not reached has none to read or write).
   const kept = await listKeptChannels(ctx, id);
   const result = await checkPlaybookInput(ctx, playbook.tenant_id, body, { ...playbook, channels: kept });
-  const { error } = await updatePlaybook(ctx.supabase, id, {
-    name: result.name,
-    trigger: result.trigger,
-    // A playbook moved off a list leaves it (both null); one never on a list names no column 00155 or 00168 adds. A
-    // playbook on a list names exactly one of the two (playbooks_one_list).
-    ...(result.list_id || result.list_key || playbook.trigger === "saved_list"
-      ? { list_id: result.list_id, list_key: result.list_key }
-      : {}),
-    template_id: result.template_id,
-    template_name: result.template_name,
-    template_language: result.template_language,
-    params: result.params,
-    policy_class: result.policy_class,
-    run_hour: result.run_hour,
-    cap_per_run: result.cap_per_run,
-    gap_days: result.gap_days,
-    cadence_days: result.cadence_days,
-    ...(channelsChanged(result.channels, kept) ? { channels: result.channels } : {}),
-  });
-  if (error) throw playbookWriteError(error);
-  await playbookEdited(ctx, playbook, result.name, [
+  // The playbook rewritten and its playbook.changed, with which parts moved, in one transaction as the member (00722
+  // playbook_edit): which of the parts the scope read before the write (its name, its moment, its message, its
+  // channels); never the words.
+  const fields = [
     ...(result.name !== playbook.name ? ["name"] : []),
     ...(result.trigger !== playbook.trigger ? ["moment"] : []),
     ...(result.template_id !== playbook.template_id ? ["message"] : []),
     ...(channelsChanged(result.channels, kept) ? ["channels"] : []),
-  ]);
+  ];
+  const { error } = await editPlaybook(
+    ctx.supabase,
+    playbook.tenant_id,
+    id,
+    {
+      name: result.name,
+      trigger: result.trigger,
+      // A playbook moved off a list leaves it (both null); one never on a list names no column 00155 or 00168 adds. A
+      // playbook on a list names exactly one of the two (playbooks_one_list).
+      ...(result.list_id || result.list_key || playbook.trigger === "saved_list"
+        ? { list_id: result.list_id, list_key: result.list_key }
+        : {}),
+      template_id: result.template_id,
+      template_name: result.template_name,
+      template_language: result.template_language,
+      params: result.params,
+      policy_class: result.policy_class,
+      run_hour: result.run_hour,
+      cap_per_run: result.cap_per_run,
+      gap_days: result.gap_days,
+      cadence_days: result.cadence_days,
+      ...(channelsChanged(result.channels, kept) ? { channels: result.channels } : {}),
+    },
+    fields,
+  );
+  if (error) throw playbookWriteError(error);
   return { id, name: result.name, state: playbook.state };
-}
-
-/**
- * An edit, on the ledger: the ledger kept a playbook starting and pausing and never that what it sends, or when, was
- * changed. Which parts moved, of the ones the scope read before the write (its name, its moment, its message, its
- * channels), and who by; never the words. As the service role: a session may not insert into events.
- */
-async function playbookEdited(ctx: RouteContext, p: PlaybookRow, name: string, fields: string[]): Promise<void> {
-  await emitWorkspaceEvent(p.tenant_id, "playbook.changed", "playbook", p.id, { name, by: ctx.userId, fields });
 }
 
 export async function deletePlaybook(ctx: RouteContext, playbook: PlaybookRow) {

@@ -214,7 +214,9 @@ test("what kind of thing is two short lists -- the part of the product, then its
   workspace("owner");
   const A = stand(feed());
   settings("activity");
-  answer(A.waiting[0], [], ["open_recording", "call.recorded", "message.sent", "appointment.changed"]);
+  // The calendar's kind is one that shows a row: the picker lists no part whose kinds are all kept from the rows (the
+  // calendar's hourly appointment.changed is one), as Ruben chose (26 Nov 2026).
+  answer(A.waiting[0], [], ["open_recording", "call.recorded", "message.sent", "appointment.booked"]);
   await flush();
   let tree = settle("activity");
   const area = listOf(tree, "act-area");

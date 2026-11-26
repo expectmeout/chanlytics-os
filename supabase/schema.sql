@@ -14642,6 +14642,251 @@ COMMENT ON FUNCTION public.get_mailbox_credentials(p_connection_id uuid) IS 'Ser
 
 
 --
+-- Name: google_connect_finish(uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ref text;
+begin
+  if p_told is null or jsonb_typeof(p_told) <> 'object' then
+    raise exception 'google_connect_finish: what the connect says is an object' using errcode = '22023';
+  end if;
+  v_ref := public.put_google_credentials(p_tenant_id, p_secret, null);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'google.connected', 'google', 'listing', null, p_told);
+  return v_ref;
+end $$;
+
+
+--
+-- Name: FUNCTION google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb) IS 'A Google Business Profile connect finished (00722): its token kept in Vault through put_google_credentials, and google.connected (p_told: the email, how many accounts, locations and on Maps, who) in the same transaction. Service role only.';
+
+
+--
+-- Name: google_connection_remove(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_connection_remove(p_tenant_id uuid, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_told is null or jsonb_typeof(p_told) <> 'object' then
+    raise exception 'google_connection_remove: what the disconnect says is an object' using errcode = '22023';
+  end if;
+  delete from public.google_reviews r where r.tenant_id = p_tenant_id and r.origin = 'profile';
+  delete from public.google_connections c where c.tenant_id = p_tenant_id;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'google.disconnected', 'google', 'listing', null, p_told);
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION google_connection_remove(p_tenant_id uuid, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_connection_remove(p_tenant_id uuid, p_told jsonb) IS 'A Google Business Profile disconnected (00722): the profile''s reviews and the connection''s row deleted, with google.disconnected (p_told: the email, the location, whether the grant went back, who) in the same transaction. False, and no event, where there was no connection. Service role only.';
+
+
+--
+-- Name: google_listing_link(uuid, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_place text := p_row ->> 'place_id';
+  v_name  text := p_row ->> 'name';
+begin
+  if p_row is null or jsonb_typeof(p_row) <> 'object' or v_place is null or v_name is null then
+    raise exception 'google_listing_link: a listing has its place and its name' using errcode = '22023';
+  end if;
+  insert into public.google_listings as l
+    (tenant_id, place_id, name, address, maps_uri, new_review_uri, business_status, facts, linked_by, linked_at,
+     rating, review_count, checked_at, check_error)
+  values (p_tenant_id, v_place, v_name, p_row ->> 'address', p_row ->> 'maps_uri', p_row ->> 'new_review_uri',
+          p_row ->> 'business_status', coalesce(p_row -> 'facts', '{}'::jsonb), p_by,
+          coalesce((p_row ->> 'linked_at')::timestamptz, now()), null, null, null, null)
+  on conflict on constraint google_listings_pkey do update
+     set place_id = excluded.place_id, name = excluded.name, address = excluded.address, maps_uri = excluded.maps_uri,
+         new_review_uri = excluded.new_review_uri, business_status = excluded.business_status, facts = excluded.facts,
+         linked_by = excluded.linked_by, linked_at = excluded.linked_at, rating = null, review_count = null,
+         checked_at = null, check_error = null;
+  delete from public.google_reviews r where r.tenant_id = p_tenant_id;
+  delete from public.google_listing_days d where d.tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'google.linked', 'google', 'listing', null,
+          jsonb_build_object('place_id', v_place, 'name', v_name, 'by', p_by));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid) IS 'A Google listing linked (00722): the workspace''s one listing written from Google''s public read (p_row: place_id, name, address, maps_uri, new_review_uri, business_status, facts, linked_at; its counts and its check start again), the last place''s reviews and days deleted, and google.linked (the place, its name, who) in the same transaction. Service role only.';
+
+
+--
+-- Name: google_listing_unlink(uuid, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_place text;
+  v_name  text;
+begin
+  delete from public.google_listings l where l.tenant_id = p_tenant_id returning l.place_id, l.name into v_place, v_name;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'google.unlinked', 'google', 'listing', null,
+          jsonb_build_object('place_id', v_place, 'name', v_name, 'had_profile', coalesce(p_had_profile, false),
+                             'by', p_by));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid) IS 'A Google listing unlinked (00722): its row deleted, with google.unlinked (the place and its name as the row kept them, whether a profile was connected, who) in the same transaction. False, and no event, where there was none. Service role only.';
+
+
+--
+-- Name: google_profile_synced(uuid, timestamp with time zone, boolean, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_told is not null and jsonb_typeof(p_told) <> 'object' then
+    raise exception 'google_profile_synced: what the sync says is an object' using errcode = '22023';
+  end if;
+  update public.google_connections c
+     set last_synced_at = p_synced_at, sync_error = null, reviews_complete = coalesce(p_complete, false)
+   where c.tenant_id = p_tenant_id;
+  if not found then
+    return false;
+  end if;
+  if p_told is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'google.reviews', 'google', 'listing', null, p_told);
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb) IS 'A Google profile''s sync stamped (00722): last_synced_at, no sync error, whether its reviews are whole, and with p_told google.reviews (its source, what was new, the counts) in the same transaction. False, and no event, where the connection is gone. Service role only.';
+
+
+--
+-- Name: google_review_replied(uuid, uuid, jsonb, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text DEFAULT NULL::text, p_replied_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_told is null or jsonb_typeof(p_told) <> 'object' then
+    raise exception 'google_review_replied: what the reply says is an object' using errcode = '22023';
+  end if;
+  update public.google_reviews r
+     set reply_text = p_reply_text, replied_at = p_replied_at, draft_text = null, drafted_at = null, posts_at = null
+   where r.tenant_id = p_tenant_id and r.id = p_id;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'google.replied', 'google', 'review', p_id, p_told);
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text, p_replied_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text, p_replied_at timestamp with time zone) IS 'A Google review answered (00722): its reply and when on its row, what it held (draft, its time) cleared, and google.replied (the review''s id on Google, how long, who) in the same transaction. False, and no event, where the row is gone. Service role only.';
+
+
+--
+-- Name: google_reviews_keep(uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb DEFAULT NULL::jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_kept integer := 0;
+begin
+  if p_reviews is null or jsonb_typeof(p_reviews) <> 'array' then
+    raise exception 'google_reviews_keep: the reviews are a list' using errcode = '22023';
+  end if;
+  if p_told is not null and jsonb_typeof(p_told) <> 'object' then
+    raise exception 'google_reviews_keep: what the read says is an object' using errcode = '22023';
+  end if;
+  insert into public.google_reviews as r
+    (tenant_id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at,
+     reply_text, replied_at, maps_uri, last_seen_at)
+  select p_tenant_id, x.review_id, coalesce(x.origin, 'places'), x.rating, x.author, x.author_uri, x.author_photo_uri,
+         x.body, x.language_code, x.published_at, x.reply_text, x.replied_at, x.maps_uri, coalesce(x.last_seen_at, now())
+    from jsonb_array_elements(p_reviews) e
+    cross join lateral jsonb_populate_record(null::public.google_reviews, e) x
+  on conflict on constraint google_reviews_tenant_id_review_id_key do update
+     set origin = excluded.origin, rating = excluded.rating, author = excluded.author, author_uri = excluded.author_uri,
+         author_photo_uri = excluded.author_photo_uri, body = excluded.body, language_code = excluded.language_code,
+         published_at = excluded.published_at, maps_uri = excluded.maps_uri, last_seen_at = excluded.last_seen_at;
+  get diagnostics v_kept = row_count;
+  -- A reply, where the read carried one (the profile's): written over the row's.
+  update public.google_reviews r
+     set reply_text = x.reply_text, replied_at = x.replied_at
+    from jsonb_array_elements(p_reviews) e
+    cross join lateral jsonb_populate_record(null::public.google_reviews, e) x
+   where e ? 'reply_text' and r.tenant_id = p_tenant_id and r.review_id = x.review_id;
+  if p_told is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'google.reviews', 'google', 'listing', null, p_told);
+  end if;
+  return v_kept;
+end $$;
+
+
+--
+-- Name: FUNCTION google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb) IS 'The reviews a Google read listed (00722), each written over its row by review id with the keys the read carried (a row keeps its first_seen_at; a reply only where the read carried one), and with p_told, google.reviews (its source, what was new, the counts) in the same transaction. How many rows it wrote. Service role only.';
+
+
+--
 -- Name: handover_accept(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31909,6 +32154,123 @@ COMMENT ON FUNCTION public.platform_staff_state() IS 'The calling session in the
 
 
 --
+-- Name: playbook_edit(uuid, uuid, jsonb, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[] DEFAULT '{}'::text[]) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by   uuid := auth.uid();
+  v_row  public.sequence_steps;
+  v_bad  text;
+begin
+  if v_by is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_set is null or jsonb_typeof(p_set) <> 'object' then
+    raise exception 'playbook_edit: the edit is an object' using errcode = '22023';
+  end if;
+  select k into v_bad from jsonb_object_keys(p_set) k
+   where k not in ('name', 'trigger', 'list_id', 'list_key', 'template_id', 'template_name', 'template_language',
+                   'params', 'policy_class', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days', 'channels')
+   limit 1;
+  if v_bad is not null then
+    raise exception 'playbook_edit: % is not a column an edit writes', v_bad using errcode = '22023';
+  end if;
+  update public.sequence_steps s
+     set name = case when p_set ? 'name' then p_set ->> 'name' else s.name end,
+         trigger = case when p_set ? 'trigger' then p_set ->> 'trigger' else s.trigger end,
+         list_id = case when p_set ? 'list_id' then (p_set ->> 'list_id')::uuid else s.list_id end,
+         list_key = case when p_set ? 'list_key' then p_set ->> 'list_key' else s.list_key end,
+         template_id = case when p_set ? 'template_id' then (p_set ->> 'template_id')::uuid else s.template_id end,
+         template_name = case when p_set ? 'template_name' then p_set ->> 'template_name' else s.template_name end,
+         template_language = case when p_set ? 'template_language' then p_set ->> 'template_language'
+                                  else s.template_language end,
+         params = case when p_set ? 'params' then coalesce(p_set -> 'params', '[]'::jsonb) else s.params end,
+         policy_class = case when p_set ? 'policy_class' then p_set ->> 'policy_class' else s.policy_class end,
+         run_hour = case when p_set ? 'run_hour' then (p_set ->> 'run_hour')::integer else s.run_hour end,
+         cap_per_run = case when p_set ? 'cap_per_run' then (p_set ->> 'cap_per_run')::integer else s.cap_per_run end,
+         gap_days = case when p_set ? 'gap_days' then (p_set ->> 'gap_days')::integer else s.gap_days end,
+         cadence_days = case when p_set ? 'cadence_days' then (p_set ->> 'cadence_days')::integer else s.cadence_days end,
+         channels = case when p_set ? 'channels'
+                         then array(select jsonb_array_elements_text(p_set -> 'channels')) else s.channels end
+   where s.tenant_id = p_tenant_id and s.id = p_id
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  -- What the row's own rule asks of an edit: its list and its message are this workspace's.
+  if v_row.list_id is not null
+     and not exists (select 1 from public.segments g where g.id = v_row.list_id and g.tenant_id = p_tenant_id) then
+    raise exception 'playbook_edit: the list is not this workspace''s' using errcode = '42501';
+  end if;
+  if v_row.template_id is not null
+     and not exists (select 1 from public.templates t where t.id = v_row.template_id and t.tenant_id = p_tenant_id) then
+    raise exception 'playbook_edit: the message is not this workspace''s' using errcode = '42501';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'playbook.changed', 'message', 'playbook', p_id,
+          jsonb_build_object('name', v_row.name, 'by', v_by, 'fields', to_jsonb(coalesce(p_fields, '{}'::text[]))));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]) IS 'A playbook edited in place (00722), as the member: only the columns an edit writes (p_set; any other key is refused), its list and its message this workspace''s, and playbook.changed (its name, who, which parts moved: p_fields) in the same transaction. A member who acts in the workspace. False, and no event, where the row is not there.';
+
+
+--
+-- Name: playbook_run_record(uuid, uuid, jsonb, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb DEFAULT NULL::jsonb, p_decision jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_data is null or jsonb_typeof(p_data) <> 'object' then
+    raise exception 'playbook_run_record: what the run says is an object' using errcode = '22023';
+  end if;
+  if p_stamp is not null and (p_stamp ->> 'run_for' is null or p_stamp ->> 'at' is null) then
+    raise exception 'playbook_run_record: a stamp has its day and its time' using errcode = '22023';
+  end if;
+  if p_decision is not null and p_decision ->> 'broadcast_id' is null then
+    raise exception 'playbook_run_record: a decision is about its batch' using errcode = '22023';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'playbook.run', 'message', 'playbook', p_playbook_id, p_data);
+  -- The day's run, stamped on its step: what the sweep reads as the day ran.
+  if p_stamp is not null then
+    update public.sequence_steps s
+       set last_run_for = (p_stamp ->> 'run_for')::date, last_run_at = (p_stamp ->> 'at')::timestamptz
+     where s.tenant_id = p_tenant_id and s.id = p_playbook_id;
+  end if;
+  -- A batch the sweep scheduled without its owner's yes: the system's decision, under the mode the owner chose.
+  if p_decision is not null then
+    insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+    values (p_tenant_id, 'broadcast', (p_decision ->> 'broadcast_id')::uuid, 'send_broadcast', 'system', null,
+            coalesce(p_decision -> 'payload', '{}'::jsonb));
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb, p_decision jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb, p_decision jsonb) IS 'A campaign''s run recorded (00722): playbook.run (p_data: what it made, or why nothing), with p_stamp {run_for, at} its step''s day stamped (the day''s run alone), and with p_decision {broadcast_id, payload} the system''s send_broadcast for a batch the sweep scheduled, in one transaction. Service role only.';
+
+
+--
 -- Name: playbook_totals(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -35715,6 +36077,38 @@ $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) IS 'The connected, rested mailboxes with a reach-out send due and going ahead (checked, its run and chain running), earliest first (00424). Service role only.';
+
+
+--
+-- Name: reach_out_edit(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_saved jsonb;
+begin
+  if p_chain is null or p_chain ->> 'root_id' is null then
+    raise exception 'reach_out_edit: an edit names the chain it edits' using errcode = '22023';
+  end if;
+  -- The save is reach_out_save's, as an edit has always asked it: no decision rides an edit.
+  v_saved := public.reach_out_save(p_tenant_id, p_user_id, p_chain, null, null, null);
+  if v_saved ->> 'root_id' is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'playbook.changed', 'message', 'playbook', (v_saved ->> 'root_id')::uuid,
+            jsonb_build_object('name', p_chain ->> 'name', 'by', p_user_id, 'fields', jsonb_build_array('steps')));
+  end if;
+  return v_saved;
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb) IS 'A reach-out chain edited (00722): saved whole through reach_out_save, with no decision, and playbook.changed (its name, who, steps) in the same transaction. Its answer is the save''s. Service role only, as the save is.';
 
 
 --
@@ -47660,10 +48054,10 @@ COMMENT ON FUNCTION public.tenant_config_worth_stamp() IS 'The day a service is 
 
 
 --
--- Name: tenant_config_write(uuid, jsonb, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: tenant_config_write(uuid, jsonb, integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) RETURNS TABLE(outcome text, version integer, updated_at timestamp with time zone, updated_by uuid)
+CREATE FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb DEFAULT NULL::jsonb) RETURNS TABLE(outcome text, version integer, updated_at timestamp with time zone, updated_by uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -47680,11 +48074,21 @@ begin
   if p_tenant_id is null or not public.caller_has_permission(p_tenant_id, 'settings') then
     raise exception 'Only a member who may change the settings can save them.' using errcode = '42501';
   end if;
+  if p_told is not null and (jsonb_typeof(p_told) <> 'object' or jsonb_typeof(p_told -> 'fields') is distinct from 'array') then
+    raise exception 'tenant_config_write: what a save says is its fields' using errcode = '22023';
+  end if;
   update public.tenant_config c
      set config = p_config, version = p_version + 1, updated_by = v_user
    where c.tenant_id = p_tenant_id and c.version = p_version
   returning c.* into v_row;
   if v_row.tenant_id is not null then
+    -- Which parts changed and who by, never the values: on the ledger in the save's transaction.
+    if p_told is not null and jsonb_array_length(p_told -> 'fields') > 0 then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+              jsonb_build_object('fields', p_told -> 'fields', 'by', v_user, 'version', v_row.version)
+              || case when p_told ? 'via' then jsonb_build_object('via', p_told -> 'via') else '{}'::jsonb end);
+    end if;
     return query select 'saved'::text, v_row.version, v_row.updated_at, v_row.updated_by;
   elsif exists (select 1 from public.tenant_config c where c.tenant_id = p_tenant_id) then
     -- Someone saved between the caller's read and this write.
@@ -47697,10 +48101,10 @@ end $$;
 
 
 --
--- Name: FUNCTION tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) IS 'A member''s versioned write of their workspace''s configuration (00365): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. outcome is saved (with the new version), stale (someone saved since) or missing (no row). The session''s write once 00366 lets only the owner read the table, which an update needs.';
+COMMENT ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb) IS 'A member''s versioned write of their workspace''s configuration (00365): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. With p_told {fields, via} (00722), settings.changed (which parts changed, who, the new version, the card) in the same transaction, where any part changed. outcome is saved (with the new version), stale (someone saved since) or missing (no row).';
 
 
 --
@@ -72092,6 +72496,62 @@ GRANT ALL ON FUNCTION public.get_mailbox_credentials(p_connection_id uuid) TO se
 
 
 --
+-- Name: FUNCTION google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_connect_finish(p_tenant_id uuid, p_secret jsonb, p_told jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION google_connection_remove(p_tenant_id uuid, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_connection_remove(p_tenant_id uuid, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_connection_remove(p_tenant_id uuid, p_told jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_listing_link(p_tenant_id uuid, p_row jsonb, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_listing_unlink(p_tenant_id uuid, p_had_profile boolean, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_profile_synced(p_tenant_id uuid, p_synced_at timestamp with time zone, p_complete boolean, p_told jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text, p_replied_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text, p_replied_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_review_replied(p_tenant_id uuid, p_id uuid, p_told jsonb, p_reply_text text, p_replied_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.google_reviews_keep(p_tenant_id uuid, p_reviews jsonb, p_told jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION handover_accept(p_tenant uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -74779,6 +75239,23 @@ GRANT ALL ON FUNCTION public.platform_staff_state() TO service_role;
 
 
 --
+-- Name: FUNCTION playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.playbook_edit(p_tenant_id uuid, p_id uuid, p_set jsonb, p_fields text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb, p_decision jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb, p_decision jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.playbook_run_record(p_tenant_id uuid, p_playbook_id uuid, p_data jsonb, p_stamp jsonb, p_decision jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION playbook_totals(p_tenant_id uuid, p_history integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -75499,6 +75976,14 @@ GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_
 
 REVOKE ALL ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_edit(p_tenant_id uuid, p_user_id uuid, p_chain jsonb) TO service_role;
 
 
 --
@@ -77294,12 +77779,12 @@ GRANT ALL ON FUNCTION public.tenant_config_worth_stamp() TO service_role;
 
 
 --
--- Name: FUNCTION tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) TO authenticated;
-GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) TO service_role;
+REVOKE ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer, p_told jsonb) TO service_role;
 
 
 --

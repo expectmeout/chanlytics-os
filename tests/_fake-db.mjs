@@ -1394,6 +1394,19 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     seen.push({ table: "events", op: "insert", values: [row] });
     return kept;
   };
+  /** A fault a suite set on a table's write, raised as the write would raise it. */
+  const writeFault = (key) => {
+    const fault = faults[key];
+    if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+  };
+  /** The rows of a table a door deletes, seen as a delete through `from`: whether any went. */
+  const rowsGone = (table, which, filters = []) => {
+    const all = tables[table] ?? [];
+    const going = all.filter(which);
+    for (const row of going) all.splice(all.indexOf(row), 1);
+    seen.push({ table, op: "delete", filters });
+    return going.length > 0;
+  };
   /**
    * The AFTER triggers this double runs, each of which writes a record's event in the write's own transaction (00721):
    * a line's moves, and a booking email's appointment. `was` is null for a row the write made.
@@ -1627,12 +1640,30 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const { tenant_id, config, version, updated_at, updated_by } = row;
       return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
     },
-    tenant_config_write: ({ p_tenant_id, p_config, p_version }) => {
+    // The versioned save, and with p_told its settings.changed in the same write (00722), as the member.
+    tenant_config_write: ({ p_tenant_id, p_config, p_version, p_told = null }) => {
+      writeFault("tenant_config.update");
       const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
       if (!row) return { outcome: "missing", version: null, updated_at: null, updated_by: null };
       if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
-      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
-      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+      const by = opts.userId ?? null;
+      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: by });
+      seen.push({
+        table: "tenant_config",
+        op: "update",
+        values: { config: p_config, version: p_version + 1 },
+        filters: [["eq", "tenant_id", p_tenant_id]],
+      });
+      if (p_told && (p_told.fields ?? []).length > 0)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "settings.changed",
+          category: "system",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data: { fields: p_told.fields, by, version: row.version, ...(p_told.via ? { via: p_told.via } : {}) },
+        });
+      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: by };
     },
     // A policy's change, as one write (00624): the workspace's own row for the class takes the mode when one is given
     // and the dials merged into its limits, and the change is on the ledger in the same write, the dials' names in
@@ -2148,6 +2179,251 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         data: { tool: row.tool, hold_reason: row.hold_reason ?? null, by: opts.userId ?? null },
       });
       return true;
+    },
+    /**
+     * Google's changes with their events (00722), over the rows a world holds. A door that writes a table refuses as the
+     * table's write would (`faults["<table>.<op>"]`), and each write is seen as `from` would see it.
+     */
+    google_connect_finish: ({ p_tenant_id, p_secret, p_told }) => {
+      // The token is kept through the Vault door, as the real one calls it: a suite's own model of it answers.
+      const put = rpcs.put_google_credentials ?? derived.put_google_credentials;
+      if (!put)
+        throw new Error("fakeDb: google_connect_finish keeps its token through put_google_credentials; model it");
+      const ref = put({ p_tenant_id, p_secret }, derived.put_google_credentials);
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.connected",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: p_told,
+      });
+      return ref ?? `google-creds-${p_tenant_id}`;
+    },
+    google_connection_remove: ({ p_tenant_id, p_told }) => {
+      writeFault("google_reviews.delete");
+      rowsGone("google_reviews", (r) => r.tenant_id === p_tenant_id && r.origin === "profile", [
+        ["eq", "tenant_id", p_tenant_id],
+        ["eq", "origin", "profile"],
+      ]);
+      writeFault("google_connections.delete");
+      if (!rowsGone("google_connections", (c) => c.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]))
+        return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.disconnected",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: p_told,
+      });
+      return true;
+    },
+    google_listing_link: ({ p_tenant_id, p_row, p_by = null }) => {
+      writeFault("google_listings.upsert");
+      const row = {
+        ...p_row,
+        tenant_id: p_tenant_id,
+        linked_by: p_by,
+        rating: null,
+        review_count: null,
+        checked_at: null,
+        check_error: null,
+      };
+      const all = (tables.google_listings ??= []);
+      const was = all.find((l) => l.tenant_id === p_tenant_id);
+      if (was) Object.assign(was, row);
+      else insertRow("google_listings", row);
+      seen.push({ table: "google_listings", op: "upsert", values: row });
+      writeFault("google_reviews.delete");
+      rowsGone("google_reviews", (r) => r.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]);
+      writeFault("google_listing_days.delete");
+      rowsGone("google_listing_days", (d) => d.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]);
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.linked",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: { place_id: p_row.place_id, name: p_row.name, by: p_by },
+      });
+      return true;
+    },
+    google_listing_unlink: ({ p_tenant_id, p_had_profile, p_by = null }) => {
+      writeFault("google_listings.delete");
+      const row = (tables.google_listings ?? []).find((l) => l.tenant_id === p_tenant_id);
+      if (!rowsGone("google_listings", (l) => l.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]))
+        return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.unlinked",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: { place_id: row.place_id, name: row.name, had_profile: Boolean(p_had_profile), by: p_by },
+      });
+      return true;
+    },
+    google_reviews_keep: ({ p_tenant_id, p_reviews, p_told = null }) => {
+      writeFault("google_reviews.upsert");
+      const all = (tables.google_reviews ??= []);
+      for (const given of p_reviews) {
+        // A row keeps its first sighting, and only the keys the read carried are written over it.
+        const { tenant_id: _tenant, first_seen_at: _first, ...keys } = given;
+        const was = all.find((r) => r.tenant_id === p_tenant_id && r.review_id === given.review_id);
+        if (was) Object.assign(was, keys);
+        else insertRow("google_reviews", { ...keys, tenant_id: p_tenant_id });
+      }
+      if (p_reviews.length) seen.push({ table: "google_reviews", op: "upsert", values: p_reviews });
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "google.reviews",
+          category: "google",
+          subject_type: "listing",
+          subject_id: null,
+          data: p_told,
+        });
+      return p_reviews.length;
+    },
+    google_profile_synced: ({ p_tenant_id, p_synced_at, p_complete, p_told = null }) => {
+      writeFault("google_connections.update");
+      const conn = (tables.google_connections ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!conn) return false;
+      const values = { last_synced_at: p_synced_at, sync_error: null, reviews_complete: Boolean(p_complete) };
+      Object.assign(conn, values);
+      seen.push({ table: "google_connections", op: "update", values, filters: [["eq", "tenant_id", p_tenant_id]] });
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "google.reviews",
+          category: "google",
+          subject_type: "listing",
+          subject_id: null,
+          data: p_told,
+        });
+      return true;
+    },
+    google_review_replied: ({ p_tenant_id, p_id, p_told, p_reply_text = null, p_replied_at = null }) => {
+      writeFault("google_reviews.update");
+      const review = (tables.google_reviews ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_id);
+      if (!review) return false;
+      const values = {
+        reply_text: p_reply_text,
+        replied_at: p_replied_at,
+        draft_text: null,
+        drafted_at: null,
+        posts_at: null,
+      };
+      Object.assign(review, values);
+      seen.push({ table: "google_reviews", op: "update", values, filters: [["eq", "id", p_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.replied",
+        category: "google",
+        subject_type: "review",
+        subject_id: p_id,
+        data: p_told,
+      });
+      return true;
+    },
+    /**
+     * A step's run recorded (00722 playbook_run_record): playbook.run, with `p_stamp` the step's day stamped, and with
+     * `p_decision` the system's send_broadcast for the batch, in one write: a refused write keeps none of them.
+     */
+    playbook_run_record: ({ p_tenant_id, p_playbook_id, p_data, p_stamp = null, p_decision = null }) => {
+      if (p_stamp && (!p_stamp.run_for || !p_stamp.at))
+        throw Object.assign(new Error("playbook_run_record: a stamp has its day and its time"), { code: "22023" });
+      writeFault("events.insert");
+      if (p_stamp) {
+        writeFault("playbooks.update");
+        writeFault("sequence_steps.update");
+      }
+      if (p_decision) writeFault("decisions.insert");
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "playbook.run",
+        category: "message",
+        subject_type: "playbook",
+        subject_id: p_playbook_id,
+        data: p_data,
+      });
+      if (p_stamp) {
+        const values = { last_run_for: p_stamp.run_for, last_run_at: p_stamp.at };
+        const row = (tables.sequence_steps ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_playbook_id);
+        if (row) Object.assign(row, values);
+        seen.push({ table: "sequence_steps", op: "update", values, filters: [["eq", "id", p_playbook_id]] });
+      }
+      if (p_decision) {
+        const decision = {
+          tenant_id: p_tenant_id,
+          subject_type: "broadcast",
+          subject_id: p_decision.broadcast_id,
+          verb: "send_broadcast",
+          actor_type: "system",
+          actor_user_id: null,
+          payload: p_decision.payload ?? {},
+        };
+        insertRow("decisions", decision);
+        seen.push({ table: "decisions", op: "insert", values: [decision] });
+      }
+      return true;
+    },
+    /**
+     * A playbook edited as the member, with playbook.changed (00722 playbook_edit): only the columns an edit writes,
+     * over the step's row; false where it is not there.
+     */
+    playbook_edit: ({ p_tenant_id, p_id, p_set, p_fields = [] }) => {
+      const EDITS = [
+        "name",
+        "trigger",
+        "list_id",
+        "list_key",
+        "template_id",
+        "template_name",
+        "template_language",
+        "params",
+        "policy_class",
+        "run_hour",
+        "cap_per_run",
+        "gap_days",
+        "cadence_days",
+        "channels",
+      ];
+      const stray = Object.keys(p_set ?? {}).find((k) => !EDITS.includes(k));
+      if (stray)
+        throw Object.assign(new Error(`playbook_edit: ${stray} is not a column an edit writes`), { code: "22023" });
+      writeFault("playbooks.update");
+      writeFault("sequence_steps.update");
+      const row = (tables.sequence_steps ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_id);
+      if (!row) return false;
+      Object.assign(row, p_set);
+      seen.push({ table: "sequence_steps", op: "update", values: p_set, filters: [["eq", "id", p_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "playbook.changed",
+        category: "message",
+        subject_type: "playbook",
+        subject_id: p_id,
+        data: { name: row.name, by: opts.userId ?? null, fields: [...(p_fields ?? [])] },
+      });
+      return true;
+    },
+    /** A chain edited through its save, with playbook.changed (00722 reach_out_edit): the save is a suite's own model. */
+    reach_out_edit: ({ p_tenant_id, p_user_id, p_chain }) => {
+      const save = rpcs.reach_out_save ?? derived.reach_out_save;
+      if (!save) throw new Error("fakeDb: reach_out_edit saves through reach_out_save; model it");
+      const saved = save({ p_tenant_id, p_user_id, p_chain, p_decision: null }, derived.reach_out_save);
+      if (saved && typeof saved.root_id === "string")
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "playbook.changed",
+          category: "message",
+          subject_type: "playbook",
+          subject_id: saved.root_id,
+          data: { name: p_chain?.name ?? null, by: p_user_id, fields: ["steps"] },
+        });
+      return saved;
     },
     /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
     conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {

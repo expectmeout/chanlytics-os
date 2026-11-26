@@ -597,7 +597,7 @@ export const EVENT_KINDS = [
   "reach_out.reply_undone",
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
-  /** Stop everything pressed, and lifted ({ at | stopped_at, by }: workspace_stop_keep, 00722). */
+  /** Stop everything pressed, and lifted ({ at | stopped_at, by }: workspace_sending_stop, 00722). */
   "workspace.sending_stopped",
   "workspace.sending_resumed",
   /**

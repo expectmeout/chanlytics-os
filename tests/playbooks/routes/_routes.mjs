@@ -147,8 +147,9 @@ export const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
 /** The `change_playbook` door for a database in memory, as 00416 writes it (change/_change-door.mjs), beside `rpcs`. */
 export const withChangeDoor = (tables, rpcs = {}) => ({ ...rpcs, ...changePlaybookDoor(tables, USER) });
 
+// The session is the member's: a door that writes as the caller (playbook_edit) writes as them.
 export const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
-  supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
+  supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), { userId: USER, ...opts }),
   userId: USER,
   email: "ada@example.com",
   params,

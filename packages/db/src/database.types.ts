@@ -12337,6 +12337,45 @@ export type Database = {
         Args: { p_connection_id: string }
         Returns: Json
       }
+      google_connect_finish: {
+        Args: { p_secret: Json; p_tenant_id: string; p_told: Json }
+        Returns: string
+      }
+      google_connection_remove: {
+        Args: { p_tenant_id: string; p_told: Json }
+        Returns: boolean
+      }
+      google_listing_link: {
+        Args: { p_by?: string; p_row: Json; p_tenant_id: string }
+        Returns: boolean
+      }
+      google_listing_unlink: {
+        Args: { p_by?: string; p_had_profile: boolean; p_tenant_id: string }
+        Returns: boolean
+      }
+      google_profile_synced: {
+        Args: {
+          p_complete: boolean
+          p_synced_at: string
+          p_tenant_id: string
+          p_told?: Json
+        }
+        Returns: boolean
+      }
+      google_review_replied: {
+        Args: {
+          p_id: string
+          p_replied_at?: string
+          p_reply_text?: string
+          p_tenant_id: string
+          p_told: Json
+        }
+        Returns: boolean
+      }
+      google_reviews_keep: {
+        Args: { p_reviews: Json; p_tenant_id: string; p_told?: Json }
+        Returns: number
+      }
       handover_accept: {
         Args: { p_tenant: string }
         Returns: {
@@ -14218,6 +14257,25 @@ export type Database = {
       }
       platform_role: { Args: never; Returns: string }
       platform_staff_state: { Args: never; Returns: string }
+      playbook_edit: {
+        Args: {
+          p_fields?: string[]
+          p_id: string
+          p_set: Json
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
+      playbook_run_record: {
+        Args: {
+          p_data: Json
+          p_decision?: Json
+          p_playbook_id: string
+          p_stamp?: Json
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
       playbook_totals: {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json
@@ -14627,6 +14685,10 @@ export type Database = {
           id: string
           tenant_id: string
         }[]
+      }
+      reach_out_edit: {
+        Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+        Returns: Json
       }
       reach_out_finishable: {
         Args: { p_limit: number; p_tenant_id?: string }
@@ -16009,7 +16071,12 @@ export type Database = {
         }[]
       }
       tenant_config_write: {
-        Args: { p_config: Json; p_tenant_id: string; p_version: number }
+        Args: {
+          p_config: Json
+          p_tenant_id: string
+          p_told?: Json
+          p_version: number
+        }
         Returns: {
           outcome: string
           updated_at: string

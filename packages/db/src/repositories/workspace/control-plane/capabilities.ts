@@ -4,6 +4,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { hasPublicPages, openToCustomersOf, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
+import { jsonCopyOf } from "../../../shared/json";
 import type { Db } from "./config";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -155,14 +156,24 @@ export async function setWorkspaceLogo(db: Db, tenantId: TenantId, path: string)
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["sequence_steps"]["Update"];
 
-/** Write the edited fields of a playbook. */
-export async function updatePlaybook(
+/**
+ * A playbook edited as the member (playbook_edit, 00722): the columns the edit writes, and playbook.changed with which
+ * parts moved (`fields`), in one transaction. `found` is false where the row is not there.
+ */
+export async function editPlaybook(
   db: Db,
+  tenantId: TenantId,
   id: string,
   patch: PlaybookPatch,
-): Promise<{ error: PostgrestError | null }> {
-  const { error } = await db.from("sequence_steps").update(patch).eq("id", id);
-  return { error };
+  fields: readonly string[],
+): Promise<{ error: PostgrestError | null; found: boolean }> {
+  const { data, error } = await db.rpc("playbook_edit", {
+    p_tenant_id: tenantId,
+    p_id: id,
+    p_set: jsonCopyOf(patch),
+    p_fields: [...fields],
+  });
+  return { error, found: data === true };
 }
 
 /** Remove a playbook; `count` is how many rows went (none: the row is not there, or the caller may not see it). */
@@ -242,10 +253,7 @@ export async function startPlaybook(
  * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`; where nothing
  * named differs from the row, nothing is written and `was` is empty with no decision (two presses of Pause at once). A
  * playbook the caller cannot see or change is the database's P0002, which the caller words; an answer without its row,
- * or with a change and no decision, is a door that is not this one, and throws. `"missing"` on a database before the
- * door's migration
- * (isMissingDoor), where the dashboard writes the change the way it did before, for one release, so either deploy order
- * works (the counts doors' rule, reports/series.ts answerOrMissing).
+ * or with a change and no decision, is a door that is not this one, and throws.
  */
 export async function writePlaybookChange(
   db: Db,
@@ -257,13 +265,10 @@ export async function writePlaybookChange(
     via: string | null;
     undoOf: string | null;
   },
-): Promise<
-  | {
-      data: { id: string; was: Record<string, unknown>; decisionId: string | null } | null;
-      error: PostgrestError | null;
-    }
-  | "missing"
-> {
+): Promise<{
+  data: { id: string; was: Record<string, unknown>; decisionId: string | null } | null;
+  error: PostgrestError | null;
+}> {
   const { data, error } = await db.rpc("change_playbook", {
     p_tenant_id: params.tenantId,
     p_playbook_id: params.playbookId,
@@ -272,7 +277,7 @@ export async function writePlaybookChange(
     ...(params.via ? { p_via: params.via } : {}),
     ...(params.undoOf ? { p_undo_of: params.undoOf } : {}),
   });
-  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  if (error) return { data: null, error };
   const created = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
   const was = created.was !== null && typeof created.was === "object" && !Array.isArray(created.was) ? created.was : {};
   const decisionId = typeof created.decision_id === "string" ? created.decision_id : null;

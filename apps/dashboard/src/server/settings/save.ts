@@ -24,7 +24,7 @@ import {
 import { findFiledNames } from "@chanlytics/db/lines";
 import { putTenantConfig } from "@chanlytics/db/workspace";
 import { findConfigRow } from "@/server/workspace/config-row";
-import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
+import { SETTINGS_REFUSED, settingsSaved, settingsTold } from "@/server/workspace/settings-write";
 import { feedVisibleTo, getKnownFacts, withHiddenFeed } from "@/server/readers/settings";
 import { renameWorkspace } from "@/server/workspace/list";
 import { log } from "@/server/shared/log";
@@ -72,10 +72,11 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
   // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any
   // depth) is put back first: the page never saw it, so the page never meant to delete it.
   const next = withStoredKeysKept(parsed.data, before?.config);
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, body.version, ctx.userId);
+  const told = settingsTold(ctx, before?.config, next);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, body.version, ctx.userId, told);
   // Two different failures, each in its own words (settings-write.ts says why).
   if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
-  await recordSettingsChanged(ctx, member.tenantId, before?.config, next, result.row.version);
+  await settingsSaved(ctx, member.tenantId, before?.config, next);
   const renamed = await renamedWith(ctx, member, before?.config, next);
   return {
     config: feedVisibleTo(member.role, parseTenantConfig(result.row.config) ?? {}),

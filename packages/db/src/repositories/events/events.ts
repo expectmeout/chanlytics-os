@@ -37,8 +37,6 @@ interface TableData {
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   /** A call that asked nobody (decision 0138, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
   "call.screened": { reason: ScreenedReason; call_id: string | null };
-  "capability.activated": { capability: string; by: string };
-  "capability.deactivated": { capability: string; by: string };
   /** A channel connected: a WhatsApp number (its ids and what Meta calls it), or an Instagram account (decision 0001, step 8). */
   "channel.connected":
     | {
@@ -62,59 +60,20 @@ interface TableData {
   "contact.consent_changed": ContactConsentChangedData;
   /** A thread handed to the team: why (an escalation's reason), on the conversation. Once per hold. */
   "escalation.opened": { reason: string };
-  "google.connected": { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null };
-  "google.disconnected": { email: string | null; location: string | null; revoked: boolean; by?: string | null };
-  "google.linked": { place_id: string; name: string | null; by: string | null; read: boolean };
-  "google.replied": { review_id: string; chars: number; by?: "receptionist"; usage?: JsonObject | null };
   /** An automatic reply the receptionist wrote and did not post: it named a price or money (contracts autoReplyHold). */
   "google.reply_held": { review_id: string; why: "price" | "money" };
-  "google.reviews": {
-    source: "places" | "profile";
-    fresh: number;
-    counted: number;
-    rating: number | null;
-    review_count: number | null;
-  };
-  "google.unlinked": { place_id: string; name: string | null; had_profile: boolean; by?: string | null };
   "ingest.unreachable_sender": Nothing;
   "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" | "instagram" } & JsonObject;
   "lead.emailed": { by: "reach_out"; send_id: string };
-  /** A person accepted an invitation: who, and the role they joined at. */
-  "member.joined": { by: string; role: string };
-  /** A person left by deleting their account: who (an id no row names any more), and how. */
-  "member.left": { by: string; how: "account_deleted" | "left"; had_role?: string };
-  "file.added": { file_id: string; source: string; by?: string };
-  /** What was said of a file, and by whom (file_change, 00551). */
-  "file.changed": {
-    file_id: string;
-    by: string;
-    said: {
-      name?: string;
-      shows?: string;
-      who_in_it?: string;
-      status?: string;
-    };
-  };
-  "file.kept": { count: number; by: string };
   /** A post put on the Google profile: Google's name for it, which is how it comes down. */
   "file.posted": { file_id: string; post_name: string; search_url: string | null; by: string | null };
   "file.unposted": { file_id: string; post_name: string; by: string | null };
-  "file.removed": { file_id: string; by: string };
-  /** A delete undone in its ten minutes (00616 file_restore). */
-  "file.restored": { file_id: string; by: string };
-  "file.set_aside": { count: number };
-  "mailbox_connection.sender_sorted": {
-    kind: "address" | "domain";
-    verdict: "automated" | "person" | null;
-    by: string;
-  };
   "message.send_blocked": { reason: string | null } & JsonObject;
   /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
   "message.send_failed": { http_status?: number; body: string | null; reason: string } & JsonObject;
   "platform.acted": PlatformActedData;
   /** A playbook, or a reach-out's chain, edited: its name, who, and which parts moved (never their words). */
   "playbook.changed": { name: string; by: string; fields: string[] };
-  "playbook.run": Record<string, unknown>;
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
   /** A rename of the workspace keeps the names it changed from and to (00439, X4-5): the one setting the ledger says in full. */
@@ -133,8 +92,6 @@ interface TableData {
    * new ones can go back to them; absent where the change was to words not approved, or the message was new.
    */
   "template.submitted": { name: string; language: string; by: string; before?: string };
-  /** Ask's new words for a message WhatsApp refused, and the refusal they answer: what its editor opens on again. */
-  "template.fix_written": { words: string; reason: string; by: string };
   "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
   "webhook.auth": { provider: "retell" } & JsonObject;
@@ -154,43 +111,24 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "billing.trial_ending": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "call.screened": { category: "call", version: 1 },
-  "capability.activated": { category: "setup", version: 1 },
-  "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "escalation.opened": { category: "message", version: 1 },
-  "google.connected": { category: "google", version: 1 },
-  "google.disconnected": { category: "google", version: 1 },
-  "google.linked": { category: "google", version: 1 },
-  "google.replied": { category: "google", version: 1 },
   "google.reply_held": { category: "google", version: 1 },
-  "google.reviews": { category: "google", version: 1 },
-  "google.unlinked": { category: "google", version: 1 },
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },
-  "member.joined": { category: "system", version: 1 },
-  "member.left": { category: "system", version: 1 },
-  "file.added": { category: "setup", version: 1 },
-  "file.changed": { category: "setup", version: 1 },
-  "file.kept": { category: "setup", version: 1 },
   "file.posted": { category: "setup", version: 1 },
   "file.unposted": { category: "setup", version: 1 },
-  "file.removed": { category: "setup", version: 1 },
-  "file.restored": { category: "setup", version: 1 },
-  "file.set_aside": { category: "setup", version: 1 },
-  "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
   "playbook.changed": { category: "message", version: 1 },
-  "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
-  "template.fix_written": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
