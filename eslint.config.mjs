@@ -120,8 +120,10 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // None held: the last, no-unnecessary-type-assertion, had its colour model's four go on 26 November 2026, read
-  // through the model's own colours (mascot/colour.ts ownLab) rather than asserted.
+  // Held again: the colour model's four went on 26 November 2026 (mascot/colour.ts ownLab), and the kit's bar chart
+  // gained two the same day, `{ "--i": i } as CSSProperties` in surfaces/kit/charts/bar.tsx (#2674, lane 8's tree).
+  // An error once those two go.
+  "@typescript-eslint/no-unnecessary-type-assertion",
 ];
 
 /** A rule's entry at warning, its options kept. */
