@@ -6,7 +6,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PostPicture } from "@chanlytics/contracts";
-import { mediaSays } from "../frame-verbs";
+import { mediaSays } from "../../frame-verbs";
 
 /** The frame's glide and the picture's fade, on the house's ease-out (tokens.css --ease-out). */
 const FRAME_GLIDE_MS = 240;
@@ -26,6 +26,37 @@ function pictureReady(src: string): Promise<void> {
     next.onerror = () => reject(new Error("no picture"));
     next.src = src;
   }).then(() => next.decode?.().catch(() => {}));
+}
+
+/**
+ * The frame glides from the size it had to the size it has now, and the new picture fades in over the old: `done` once it
+ * has, at once under reduced motion or where the browser cannot animate. What it returns cancels the fade.
+ */
+function glideIn(
+  box: HTMLDivElement,
+  from: { width: number; height: number },
+  done: () => void,
+): (() => void) | undefined {
+  if (mediaSays("(prefers-reduced-motion: reduce)") || typeof box.animate !== "function") {
+    done();
+    return undefined;
+  }
+  box.getAnimations().forEach((a) => a.cancel());
+  const to = box.getBoundingClientRect();
+  if (Math.abs(to.width - from.width) > 1 || Math.abs(to.height - from.height) > 1)
+    box.animate(
+      [
+        { width: `${from.width}px`, height: `${from.height}px` },
+        { width: `${to.width}px`, height: `${to.height}px` },
+      ],
+      { duration: FRAME_GLIDE_MS, easing: FRAME_EASE },
+    );
+  const fade = box
+    .querySelector('[data-layer="now"]')
+    ?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FRAME_FADE_MS, easing: FRAME_EASE });
+  if (fade) fade.finished.then(done, done);
+  else done();
+  return () => fade?.cancel();
 }
 
 interface PostFrameProps {
@@ -74,27 +105,7 @@ export function PostFrame({ src, shape, alt, waiting, drawing = false, onUnseen 
     const from = sizeWas.current;
     sizeWas.current = null;
     if (!box || !from || !was) return undefined;
-    if (mediaSays("(prefers-reduced-motion: reduce)") || typeof box.animate !== "function") {
-      setWas(null);
-      return undefined;
-    }
-    box.getAnimations().forEach((a) => a.cancel());
-    const to = box.getBoundingClientRect();
-    if (Math.abs(to.width - from.width) > 1 || Math.abs(to.height - from.height) > 1)
-      box.animate(
-        [
-          { width: `${from.width}px`, height: `${from.height}px` },
-          { width: `${to.width}px`, height: `${to.height}px` },
-        ],
-        { duration: FRAME_GLIDE_MS, easing: FRAME_EASE },
-      );
-    const fade = box
-      .querySelector('[data-layer="now"]')
-      ?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FRAME_FADE_MS, easing: FRAME_EASE });
-    const done = () => setWas(null);
-    if (fade) fade.finished.then(done, done);
-    else done();
-    return () => fade?.cancel();
+    return glideIn(box, from, () => setWas(null));
     // Once for each picture that comes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);

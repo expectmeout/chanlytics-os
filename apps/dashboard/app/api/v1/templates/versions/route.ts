@@ -33,6 +33,7 @@ import { MESSAGE_VALUES_WORDS, saveVersion } from "@/server/campaigns/template-v
  */
 const Message = z.object({
   category: z.enum(TEMPLATE_CATEGORIES, {
+    // trade-word: the database raises the same sentence (00343), and the two read alike
     message: "A message is an offer or news, or about their own visit or proposal.",
   }),
   variables: z.array(

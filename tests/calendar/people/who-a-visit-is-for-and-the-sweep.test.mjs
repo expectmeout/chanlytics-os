@@ -298,7 +298,7 @@ test("the receptionist's lines: the next appointment, the last visit, the rule t
   );
   assert.ok(byName.includes("Matched by name only · make sure it is them before confirming details."));
   const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
-  assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
+  assert.equal(last, "Their last appointment on the calendar: Aug 20 (Daniela Ruiz · Colour).");
   assert.equal(
     describeVisits({ next: null, last: null }, TZ, NOW, { hasBookingLink: true }),
     null,
@@ -806,7 +806,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   // The sweep reads the feed through the same cache (the edge's listFeedItems): run in calendar-counts.test.mjs.
 });
 
-test("the profile: Added from your calendar, with the appointment that named them", () => {
+test("the profile: Added from the calendar, with the appointment that named them", () => {
   const now = new Date(NOW);
   const vm = toPersonVM(detail(null), TZ, now);
   assert.ok(!vm.about.some((a) => a.k === "Added"));
@@ -817,7 +817,7 @@ test("the profile: Added from your calendar, with the appointment that named the
   );
   assert.equal(
     fromCal.about.find((a) => a.k === "Added").v,
-    "Sep 6, 2026 · from your calendar (Maria Lopez - Balayage)",
+    "Sep 6, 2026 · from the calendar (Maria Lopez - Balayage)",
   );
   const byHand = toPersonVM(
     { ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "manual", title: null } },

@@ -10,13 +10,10 @@
  * A budget sits on the ad set or on the campaign above it (Meta holds it in one of the two), as an amount a day or a
  * total for the whole run. Money is converted here from Meta's own units, as an account's is (meta-account.ts).
  */
-import { isDayKey, recordOrEmpty, valueAt } from "@chanlytics/contracts";
-import { META_GRAPH, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { isDayKey, recordOrEmpty, valueAt, type AdEngaged } from "@chanlytics/contracts";
+import { META_GRAPH, isMetaId, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { metaAccountId, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
-
-const ID = /^\d{5,32}$/;
-const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
+import { metaAccountId, metaAccountPath, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
 
 /* ------------------------------------------------------------------ the ads */
 
@@ -59,16 +56,18 @@ const AD_FIELDS = [
   "ad_review_feedback",
   `adset{${SET_FIELDS}}`,
   "campaign{id,daily_budget,lifetime_budget,budget_remaining}",
-  "creative{title,body,thumbnail_url}",
+  // What it shows: its words, its small picture and, where it is one, its whole image; and the Instagram post it runs,
+  // by Meta's id for it (a comment Meta says was left on the ad names the ad, 00719) and the post's own address.
+  "creative{title,body,thumbnail_url,image_url,effective_instagram_media_id,instagram_permalink_url}",
 ].join(",");
 
 /** The most ads one page of the list holds. */
-export const META_ADS_PAGE = 100;
+const META_ADS_PAGE = 100;
 
 /** One page of an account's ads that are not gone, each with the ad set and the campaign it sits under. */
 export function metaAdsRequest(token: string, appSecret: string, accountId: string, after?: string): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/ads`, {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/ads`, {
       fields: AD_FIELDS,
       effective_status: JSON.stringify(META_LISTED_STATES),
       limit: String(META_ADS_PAGE),
@@ -90,7 +89,7 @@ export const META_IDS_MAX = 50;
  * an ad object's status). A batch holds up to fifty, and each request in it counts against the account's allowance.
  */
 export function metaAdsByIdRequest(token: string, appSecret: string, adIds: readonly string[]): MetaRequest {
-  const ids = adIds.filter((id) => ID.test(id)).slice(0, META_IDS_MAX);
+  const ids = adIds.filter((id) => isMetaId(id)).slice(0, META_IDS_MAX);
   const batch = ids.map((id) => ({ method: "GET", relative_url: `${id}?fields=${encodeURIComponent(AD_FIELDS)}` }));
   return {
     url: META_GRAPH,
@@ -136,8 +135,35 @@ export interface MetaAd {
   budget: MetaAdBudget | null;
   startsAt: string | null;
   endsAt: string | null;
-  /** What it says where it shows: only the parts Meta gave. */
-  said: { headline?: string; body?: string; thumbnail?: string };
+  /**
+   * What it says where it shows: only the parts Meta gave. Its small picture (`thumbnail`, Meta's 64px), its whole image
+   * where it is one (`image`), and the Instagram post it runs (`post`, Meta's id for it; `permalink`, the post's address).
+   */
+  said: { headline?: string; body?: string; thumbnail?: string; image?: string; post?: string; permalink?: string };
+}
+
+/** An address Meta gave for an ad's creative, its picture or its post, that a page may draw or open: https, and short. */
+const creativeAddressOf = (value: unknown): string | null => {
+  const text = metaText(value);
+  return /^https:\/\//.test(text) && text.length <= 2000 ? text : null;
+};
+
+/** What an ad's creative shows, as the ad keeps it (said): only the parts Meta gave. */
+function creativeSaidOf(creative: Record<string, unknown> | null): MetaAd["said"] {
+  const headline = metaText(valueAt(creative, "title")).slice(0, 300);
+  const body = metaText(valueAt(creative, "body")).slice(0, 2000);
+  const thumbnail = creativeAddressOf(valueAt(creative, "thumbnail_url"));
+  const image = creativeAddressOf(valueAt(creative, "image_url"));
+  const post = metaText(valueAt(creative, "effective_instagram_media_id"));
+  const permalink = creativeAddressOf(valueAt(creative, "instagram_permalink_url"));
+  return {
+    ...(headline ? { headline } : {}),
+    ...(body ? { body } : {}),
+    ...(thumbnail ? { thumbnail } : {}),
+    ...(image ? { image } : {}),
+    ...(isMetaId(post) ? { post } : {}),
+    ...(permalink ? { permalink } : {}),
+  };
 }
 
 const CONFIGURED: readonly string[] = ["ACTIVE", "PAUSED", "ARCHIVED", "DELETED"];
@@ -157,7 +183,7 @@ function budgetOf(
   currency: string,
 ): MetaAdBudget | null {
   const holderId = metaText(valueAt(holder, "id"));
-  if (!holder || !ID.test(holderId)) return null;
+  if (!holder || !isMetaId(holderId)) return null;
   const total = metaUnitsToMinor(valueAt(holder, "lifetime_budget"), currency) ?? 0;
   const daily = metaUnitsToMinor(valueAt(holder, "daily_budget"), currency) ?? 0;
   if (total > 0)
@@ -188,7 +214,7 @@ function issueOf(ad: Record<string, unknown>): string | null {
 function adOf(row: unknown, currency: string): MetaAd | null {
   const ad = metaObject(row);
   const id = metaText(valueAt(ad, "id"));
-  if (!ad || !ID.test(id)) return null;
+  if (!ad || !isMetaId(id)) return null;
   const set = metaObject(valueAt(ad, "adset"));
   const campaign = metaObject(valueAt(ad, "campaign"));
   const creative = metaObject(valueAt(ad, "creative"));
@@ -200,9 +226,6 @@ function adOf(row: unknown, currency: string): MetaAd | null {
         .filter((word) => /^[a-z_]{1,40}$/.test(word))
         .slice(0, 10)
     : [];
-  const headline = metaText(valueAt(creative, "title")).slice(0, 300);
-  const body = metaText(valueAt(creative, "body")).slice(0, 2000);
-  const thumbnail = metaText(valueAt(creative, "thumbnail_url"));
   return {
     id,
     name: metaText(valueAt(ad, "name")).slice(0, 500) || id,
@@ -218,11 +241,7 @@ function adOf(row: unknown, currency: string): MetaAd | null {
     budget: budgetOf(set, "set", currency) ?? budgetOf(campaign, "campaign", currency),
     startsAt: instantOf(valueAt(set, "start_time")),
     endsAt: instantOf(valueAt(set, "end_time")),
-    said: {
-      ...(headline ? { headline } : {}),
-      ...(body ? { body } : {}),
-      ...(/^https:\/\//.test(thumbnail) && thumbnail.length <= 2000 ? { thumbnail } : {}),
-    },
+    said: creativeSaidOf(creative),
   };
 }
 
@@ -265,7 +284,7 @@ export function parseMetaAdsById(json: unknown, currency: string): MetaAd[] {
 /* --------------------------------------------------------------- their days */
 
 /** The most rows one page of days holds. */
-export const META_DAYS_PAGE = 500;
+const META_DAYS_PAGE = 500;
 
 /**
  * One page of Meta's days for an account's ads: a row for each ad and day it was shown, from `since` to `until`, both
@@ -278,7 +297,7 @@ export function metaAdDaysRequest(
   range: { since: string; until: string; after?: string | undefined },
 ): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/insights`, {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/insights`, {
       level: "ad",
       time_increment: "1",
       time_range: JSON.stringify({ since: range.since, until: range.until }),
@@ -304,6 +323,30 @@ export interface MetaAdDay {
   conversations: number | null;
   /** The forms Meta says were sent that day; null where it counted none of that kind. */
   leads: number | null;
+  /**
+   * What the day of the ad did as Meta counts it (00719): plays, engagement, comments, reactions, saves, shares. Left
+   * out of a day Meta counted none of them on.
+   */
+  engaged?: AdEngaged;
+}
+
+/** Meta's own names for what a post's ad did (its Ads Action Stats' action types), by the word the ad keeps for each. */
+const ENGAGED_ACTIONS: Readonly<Record<keyof AdEngaged, string>> = {
+  plays: "video_view",
+  engaged: "post_engagement",
+  comments: "comment",
+  reactions: "post_reaction",
+  saves: "onsite_conversion.post_save",
+  shares: "post",
+};
+
+/** What a day of an ad did, of what Meta counted: each kind it counted any of; null where it counted none. */
+function engagedOf(counted: ReadonlyMap<string, number>): AdEngaged | null {
+  const parts = Object.entries(ENGAGED_ACTIONS).flatMap(([kind, action]) => {
+    const n = counted.get(action) ?? 0;
+    return n > 0 ? [[kind, n] as const] : [];
+  });
+  return parts.length > 0 ? Object.fromEntries(parts) : null;
 }
 
 const countOf = (value: unknown): number => {
@@ -319,7 +362,7 @@ function dayOf(row: unknown, currency: string): MetaAdDay | null {
   const o = metaObject(row);
   const adId = metaText(valueAt(o, "ad_id"));
   const day = metaText(valueAt(o, "date_start"));
-  if (!o || !ID.test(adId) || !isDayKey(day)) return null;
+  if (!o || !isMetaId(adId) || !isDayKey(day)) return null;
   const actions = valueAt(o, "actions");
   const counted = new Map<string, number>(
     (Array.isArray(actions) ? actions : []).map((action) => {
@@ -328,6 +371,7 @@ function dayOf(row: unknown, currency: string): MetaAdDay | null {
     }),
   );
   const leads = LEAD_ACTIONS.flatMap((name) => counted.get(name) ?? []);
+  const engaged = engagedOf(counted);
   return {
     adId,
     day,
@@ -336,6 +380,7 @@ function dayOf(row: unknown, currency: string): MetaAdDay | null {
     clicks: countOf(valueAt(o, "inline_link_clicks")),
     conversations: counted.get(CONVERSATION_ACTION) ?? null,
     leads: leads.length > 0 ? Math.max(...leads) : null,
+    ...(engaged ? { engaged } : {}),
   };
 }
 
@@ -359,7 +404,10 @@ export function metaSubscribeNoticesRequest(
   appId: string,
 ): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/subscribed_apps`, { app_id: appId, ...metaProofQuery(token, appSecret) }),
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/subscribed_apps`, {
+      app_id: appId,
+      ...metaProofQuery(token, appSecret),
+    }),
     method: "POST",
   };
 }
@@ -382,7 +430,7 @@ export function parseMetaAdsNotice(json: unknown): MetaAdsNotice {
     const one = metaObject(entry);
     const id = metaAccountId(metaText(valueAt(one, "id")));
     const changed = valueAt(one, "changes");
-    if (!ID.test(id)) continue;
+    if (!isMetaId(id)) continue;
     ids.add(id);
     changes += Array.isArray(changed) ? changed.length : 0;
   }

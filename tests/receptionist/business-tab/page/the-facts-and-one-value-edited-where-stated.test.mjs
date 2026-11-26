@@ -601,7 +601,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   stored = structuredClone(settingsHeld().config);
   const row = byTestId(tree, "rec-row-phone_display");
   assert.equal(row.props["data-state"], "warn", "the serious one washes its row");
-  assert.match(textOf(row), /which is the number it transfers to/);
+  assert.match(textOf(row), /the number it transfers to/);
   assert.equal(
     find(row, (n) => n.type === "button" && /keep/i.test(textOf(n))),
     null,
@@ -1207,7 +1207,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   openFold(tree, "phone_display");
   tree = redrawTab(flash);
   const choice = () => byTestId(tree, "rec-inline-phone_display-choice");
-  press(find(choice(), (n) => n.props?.role === "radio" && textOf(n) === "Your line"));
+  press(find(choice(), (n) => n.props?.role === "radio" && textOf(n) === "Your number"));
   tree = redrawTab(flash);
   saveRow(tree, "phone_display");
   tree = redrawTab(flash);
@@ -1217,7 +1217,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   tree = redrawTab(flash);
   assert.equal(
     find(choice(), (n) => n.props?.role === "radio" && n.props["aria-checked"]).props.children.join(""),
-    "Your line",
+    "Your number",
     "a press while it saves chooses nothing",
   );
 });

@@ -32,6 +32,7 @@ import {
   type SourceItemRecord,
   type SourceProviderContract,
   type SourceReply,
+  nonEmptyOrNull,
 } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 
@@ -198,8 +199,6 @@ export function driveRefusalOf(
   throw new SourceUnanswered(call, reply.status, reason);
 }
 
-const driveTextOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
-
 /**
  * Whether a type is one a watched folder lists at all: a folder, a photo or a video. Nothing else is asked for,
  * kept or named: a business's documents are never listed (the review of 18 Nov, finding 2).
@@ -232,23 +231,23 @@ function driveCountOf(value: unknown): number | null {
  */
 function itemOf(raw: unknown, among?: ReadonlySet<string>): SourceItemRecord | null {
   const file = recordOrEmpty(raw);
-  const id = driveTextOf(file.id);
+  const id = nonEmptyOrNull(file.id);
   if (!id || id.length > DRIVE_SHORT_MAX) return null;
-  const mime = driveTextOf(file.mimeType) ?? "";
+  const mime = nonEmptyOrNull(file.mimeType) ?? "";
   const parents = Array.isArray(file.parents) ? file.parents : [];
   const millis = driveCountOf(recordOrNull(file.videoMediaMetadata)?.durationMillis);
   return {
     id,
     kind: driveKindOf(mime),
-    parentId: driveTextOf(parents.find((parent) => typeof parent === "string" && among?.has(parent)) ?? parents[0]),
-    name: (driveTextOf(file.name) ?? id).slice(0, DRIVE_NAME_MAX),
+    parentId: nonEmptyOrNull(parents.find((parent) => typeof parent === "string" && among?.has(parent)) ?? parents[0]),
+    name: (nonEmptyOrNull(file.name) ?? id).slice(0, DRIVE_NAME_MAX),
     mime,
-    modifiedAt: driveTextOf(file.modifiedTime),
-    createdAt: driveTextOf(file.createdTime),
-    checksum: driveTextOf(file.md5Checksum)?.slice(0, DRIVE_SHORT_MAX) ?? null,
+    modifiedAt: nonEmptyOrNull(file.modifiedTime),
+    createdAt: nonEmptyOrNull(file.createdTime),
+    checksum: nonEmptyOrNull(file.md5Checksum)?.slice(0, DRIVE_SHORT_MAX) ?? null,
     bytes: driveCountOf(file.size),
     seconds: millis === null ? null : millis / SECOND_MS,
-    addedBy: driveTextOf(recordOrNull(file.lastModifyingUser)?.displayName)?.slice(0, DRIVE_SHORT_MAX) ?? null,
+    addedBy: nonEmptyOrNull(recordOrNull(file.lastModifyingUser)?.displayName)?.slice(0, DRIVE_SHORT_MAX) ?? null,
     trashed: file.trashed === true,
   };
 }
@@ -256,15 +255,15 @@ function itemOf(raw: unknown, among?: ReadonlySet<string>): SourceItemRecord | n
 /** One change as the feed gives it: a file's ids, or null for a change that is not a file's. */
 function driveChangeOf(raw: unknown): SourceChange | null {
   const change = recordOrEmpty(raw);
-  const id = driveTextOf(change.fileId);
+  const id = nonEmptyOrNull(change.fileId);
   if (!id || id.length > DRIVE_SHORT_MAX || (change.changeType !== undefined && change.changeType !== "file"))
     return null;
   const file = recordOrNull(change.file);
   const parents = Array.isArray(file?.parents) ? file.parents : [];
-  const mime = driveTextOf(file?.mimeType);
+  const mime = nonEmptyOrNull(file?.mimeType);
   return {
     id,
-    parentId: driveTextOf(parents[0]),
+    parentId: nonEmptyOrNull(parents[0]),
     // A type the folder does not list (a document) is no kind: its change is passed over unread.
     kind: mime === null || !isFootageMime(mime) ? null : driveKindOf(mime),
     trashed: file?.trashed === true,
@@ -330,19 +329,23 @@ async function validateFolder(ask: Ask, accessToken: string, folderId: string): 
   });
   if (reply.outcome !== "ok") return driveRefusalOf("files.get", reply, "item");
   const file = recordOrEmpty(reply.json);
-  const id = driveTextOf(file.id);
+  const id = nonEmptyOrNull(file.id);
   // Something that is not a folder, or one in the bin, is not there to be watched.
   if (!id || file.mimeType !== FOLDER_MIME || file.trashed === true) return { verdict: "gone" };
   return {
     verdict: "ok",
-    answer: { id, name: (driveTextOf(file.name) ?? id).slice(0, DRIVE_NAME_MAX), driveId: driveTextOf(file.driveId) },
+    answer: {
+      id,
+      name: (nonEmptyOrNull(file.name) ?? id).slice(0, DRIVE_NAME_MAX),
+      driveId: nonEmptyOrNull(file.driveId),
+    },
   };
 }
 
 async function getStartCursor(ask: Ask, accessToken: string, folder: SourceFolder): Promise<SourceReply<string>> {
   const reply = await ask(accessToken, "/changes/startPageToken", changeListOf(folder));
   if (reply.outcome !== "ok") return driveRefusalOf("startPageToken", reply);
-  const cursor = driveTextOf(recordOrNull(reply.json)?.startPageToken);
+  const cursor = nonEmptyOrNull(recordOrNull(reply.json)?.startPageToken);
   if (!cursor) throw new SourceUnanswered("startPageToken", reply.status);
   return { verdict: "ok", answer: cursor };
 }
@@ -377,7 +380,7 @@ async function listChildrenOf(
     verdict: "ok",
     answer: {
       items: files.flatMap((file) => itemOf(file, new Set(parentIds)) ?? []),
-      nextPage: driveTextOf(body.nextPageToken),
+      nextPage: nonEmptyOrNull(body.nextPageToken),
     },
   };
 }
@@ -404,8 +407,8 @@ async function listChanges(
   const changes = Array.isArray(body.changes) ? body.changes : [];
   const answer: SourceChanges = {
     changes: changes.flatMap((change) => driveChangeOf(change) ?? []),
-    nextPage: driveTextOf(body.nextPageToken),
-    cursor: driveTextOf(body.newStartPageToken),
+    nextPage: nonEmptyOrNull(body.nextPageToken),
+    cursor: nonEmptyOrNull(body.newStartPageToken),
   };
   if (!answer.nextPage && !answer.cursor) throw new SourceUnanswered("changes.list", reply.status);
   return { verdict: "ok", answer };
@@ -450,7 +453,7 @@ async function openChannel(
   );
   if (reply.outcome !== "ok") return driveRefusalOf("changes.watch", reply);
   const body = recordOrEmpty(reply.json);
-  const resourceId = driveTextOf(body.resourceId);
+  const resourceId = nonEmptyOrNull(body.resourceId);
   const expires = driveCountOf(body.expiration);
   if (!resourceId || expires === null) throw new SourceUnanswered("changes.watch", reply.status);
   return { verdict: "ok", answer: { id: channelAsk.id, resourceId, expiresAt: new Date(expires).toISOString() } };
@@ -534,9 +537,9 @@ function folderChoicesOf(body: Record<string, unknown>, key: "files" | "drives")
   return {
     folders: entries.flatMap((raw) => {
       const entry = recordOrEmpty(raw);
-      const id = driveTextOf(entry.id);
-      return id ? [{ id, name: (driveTextOf(entry.name) ?? id).slice(0, DRIVE_NAME_MAX) }] : [];
+      const id = nonEmptyOrNull(entry.id);
+      return id ? [{ id, name: (nonEmptyOrNull(entry.name) ?? id).slice(0, DRIVE_NAME_MAX) }] : [];
     }),
-    nextPage: driveTextOf(body.nextPageToken),
+    nextPage: nonEmptyOrNull(body.nextPageToken),
   };
 }

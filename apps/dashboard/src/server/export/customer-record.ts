@@ -1,6 +1,6 @@
 /** One customer's whole record, as the export writes it. */
-import { recordOrEmpty, type ContactId, DbFailure } from "@chanlytics/contracts";
-import type { MessageDto, TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, recordOrNull, type ContactId, DbFailure } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 import { mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -40,7 +40,7 @@ export function customerRecord(
         media: mediaPublic(row.media),
         // A message's meta as stored, not through memberMetaOf: this is the owner's own copy of their data, and the
         // `pricing` a receipt keeps there (K8) holds the provider's category words and no amount.
-        meta: row.meta as MessageDto["meta"],
+        meta: recordOrNull(row.meta),
         status: row.status,
         created_at: row.created_at,
         channel_ts: row.channel_ts,

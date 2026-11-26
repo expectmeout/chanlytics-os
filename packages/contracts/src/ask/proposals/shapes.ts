@@ -15,15 +15,13 @@ import type { AskProposal } from "../thread-words";
  * spends to look (find), something waiting on an answer (decide), how the business runs (change), something to look at
  * (make), and the one thing stopping it (fix).
  */
-export const ASK_CARD_SHAPES = ["say", "send", "keep", "find", "decide", "change", "make", "fix"] as const;
-export type AskCardShape = (typeof ASK_CARD_SHAPES)[number];
+export type AskCardShape = "say" | "send" | "keep" | "find" | "decide" | "change" | "make" | "fix";
 
 /**
  * How far a card reaches, which decides how it may run (the canvas's Autonomy board): a record kept, one person, many
  * people, the public, money, how the business works, something gone for good, a call happening now, a stop.
  */
-export const ASK_REACHES = ["keeps", "one", "many", "public", "spends", "how", "removes", "live", "stops"] as const;
-export type AskReach = (typeof ASK_REACHES)[number];
+export type AskReach = "keeps" | "one" | "many" | "public" | "spends" | "how" | "removes" | "live" | "stops";
 
 /**
  * Whether a card may run with no press once the member's rows allow it: `at_once` goes on the word, whatever the rows say
@@ -33,56 +31,54 @@ export type AskReach = (typeof ASK_REACHES)[number];
 export type AskAlone = "at_once" | "keep" | "row" | "press";
 
 /** The word on a card's press: what it does. The words are each language's own (surfaces/ask/words.ts `press`). */
-export const ASK_PRESS_WORDS = [
-  "send",
-  "send_to",
-  "post",
-  "post_it",
-  "take_down",
-  "stop",
-  "whisper",
-  "ring_me",
-  "test",
-  "start",
-  "run_now",
-  "make",
-  "keep",
-  "save",
-  "add",
-  "change",
-  "pause",
-  "resume",
-  "rewrite",
-  "forget",
-  "list",
-  "take_over",
-  "hand_back",
-  "snooze",
-  "wake",
-  "archive",
-  "resolve",
-  "later",
-  "take_out",
-  "move",
-  "find",
-  "find_more",
-  "check",
-  "booked",
-  "cant",
-  "let_go",
-  "skip",
-  "let_through",
-  "invite",
-  "remove",
-  "end",
-  "throw_away",
-  "delete",
-  "merge",
-  "open",
+export type AskPressWord =
+  | "send"
+  | "send_to"
+  | "post"
+  | "post_it"
+  | "take_down"
+  | "stop"
+  | "whisper"
+  | "ring_me"
+  | "test"
+  | "start"
+  | "run_now"
+  | "make"
+  | "keep"
+  | "save"
+  | "add"
+  | "change"
+  | "pause"
+  | "resume"
+  | "rewrite"
+  | "forget"
+  | "list"
+  | "take_over"
+  | "hand_back"
+  | "snooze"
+  | "wake"
+  | "archive"
+  | "resolve"
+  | "later"
+  | "take_out"
+  | "move"
+  | "find"
+  | "find_more"
+  | "check"
+  | "booked"
+  | "cant"
+  | "let_go"
+  | "skip"
+  | "let_through"
+  | "invite"
+  | "remove"
+  | "end"
+  | "throw_away"
+  | "delete"
+  | "merge"
+  | "open"
   // A form drafted from the owner's sentence, in Forms (forms/draft-card.ts).
-  "draft",
-] as const;
-export type AskPressWord = (typeof ASK_PRESS_WORDS)[number];
+  | "draft";
 
 /** A kind's row in the one table. `row` "own" is the row its payload names (a sequence's class); null is none. */
 export interface AskKindTraits {

@@ -51,7 +51,7 @@ export const IDEMPOTENCY_WINDOW_MS = 30 * 1000;
  */
 export const HOLD_EXPIRY_MS = 2 * MIN_MS;
 /** What the second of two callers under one key hears while the first one's reply is still on its way. */
-export const REPLY_IN_PROGRESS_REFUSAL =
+const REPLY_IN_PROGRESS_REFUSAL =
   "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 /** A DM reply past Instagram's day: Meta refuses any message then, and there is no approved one to send instead. */
 export const DM_WINDOW_CLOSED_REFUSAL =

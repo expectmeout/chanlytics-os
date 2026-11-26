@@ -2,7 +2,7 @@
 
 import type { PlacesRequest } from "../places";
 
-export const GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
+const GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 
 export const GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
 

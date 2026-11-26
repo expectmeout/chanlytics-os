@@ -247,6 +247,8 @@ export type HeldLineKind = "price" | "money" | "booking" | "faq";
  * receptionist was answering in (the brain's record says which), in no one
  * trade's words. English is also what "other" gets: the one the workspace's
  * own greetings are written in by default.
+ *
+ * screen-word: a message a customer reads, in the business's own voice, which docs/words.md does not bind ("Who reads it")
  */
 const HELD_LINES: Record<"en" | "es", Record<HeldLineKind, string> & { urgent: (phone: string) => string }> = {
   en: {
@@ -358,7 +360,7 @@ export function spokenBreach(
 /** What the owner reads in the Inbox. Names the words, and what they cost. */
 export function spokenBreachDetails(spokenBreach: SpokenBreach): string {
   return (
-    "AI said a price out loud on a call that it may not give: none while “Never quote a price” is on, and otherwise one you haven't written. " +
+    "On a call AI said a price it may not give: none while “Never quote a price” is on, else only yours. " +
     `It said: "${spokenBreach.said}" ` +
     "A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything."
   );

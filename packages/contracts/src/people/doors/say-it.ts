@@ -97,7 +97,7 @@ export const SAY_IT_WORDS = {
   label: "Say it",
   placeholder: {
     deal: "Website, 1,200 a month, valid to the 30th",
-    note: "Prefers mornings; call them back Friday",
+    note: "Prefers mornings, call back Friday",
   },
   // The press inside the box's end (21 Oct 2026): one word fits beside what was typed.
   go: "Fill",

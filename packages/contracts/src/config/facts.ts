@@ -295,7 +295,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       known: phone.disputed.value,
       known_source: phone.disputed.source,
       sentence: isHandoff
-        ? `AI tells customers to call ${phone.value}, which is the number it transfers to — so they reach a person directly and never AI answering on ${phone.disputed.value}.`
+        ? `AI tells customers to call ${phone.value}, the number it transfers to, so they reach a person and never AI on ${phone.disputed.value}.`
         : `AI tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
       to: "admin/workspace",
     });
@@ -316,7 +316,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       used: resolvedFacts.handoff_number.value,
       known: kept,
       known_source: resolvedFacts.kept_line.source,
-      sentence: `AI puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it — they would come straight back. Give a mobile or another line a person answers.`,
+      sentence: `Callers who ask for a person go to ${kept}, which sends unanswered calls back to AI. Give a number a person answers.`,
       // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
       to: "admin/workspace/handoff_number",
     });
@@ -329,7 +329,7 @@ export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
       used: resolvedFacts.address.value,
       known: resolvedFacts.address.disputed.value,
       known_source: resolvedFacts.address.disputed.source,
-      sentence: `AI gives ${resolvedFacts.address.value}; Google has you at ${resolvedFacts.address.disputed.value}.`,
+      sentence: `AI gives ${resolvedFacts.address.value} · Google has you at ${resolvedFacts.address.disputed.value}.`,
       to: "admin/workspace",
     });
   }

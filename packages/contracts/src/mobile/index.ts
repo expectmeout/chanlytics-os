@@ -1,5 +1,5 @@
 /** The phone app: the bridge between the web page and the native shell, the Today widget and the call's Live Activity. */
-export { APP_ROUTE_RE, parsePageMessage, parseShellMessage, PUSH_TOKEN_MAX } from "./app-bridge";
+export { APP_ROUTE_RE, parsePageMessage, parseShellMessage } from "./app-bridge";
 export type { PageMessage, ShellMessage } from "./app-bridge";
 export {
   CALL_ACTIVITY_NAME,

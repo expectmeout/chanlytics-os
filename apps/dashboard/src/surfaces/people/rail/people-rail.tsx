@@ -164,8 +164,7 @@ function savedSection(p: {
       ) : null}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">
-          No lists yet. Keep one by hand · regulars, one staff member&apos;s customers · or describe who, and it keeps
-          itself current.
+          No lists yet. Keep one by hand, like regulars, or describe who and it keeps itself current.
         </div>
       )}
       {/* Archived lists (00169): off the rail, each one press from coming back, in one quiet line. */}

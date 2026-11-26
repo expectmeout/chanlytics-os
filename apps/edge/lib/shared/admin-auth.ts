@@ -85,7 +85,11 @@ function firstUse(nonce: string, exp: number, now: number): boolean {
   if (seen.size >= NONCES_HELD) {
     for (const [n, until] of seen) if (until < now) seen.delete(n);
     // Still full: forget the oldest, which expires first.
-    while (seen.size >= NONCES_HELD) seen.delete(seen.keys().next().value as string);
+    while (seen.size >= NONCES_HELD) {
+      const oldest = seen.keys().next().value;
+      if (oldest === undefined) break;
+      seen.delete(oldest);
+    }
   }
   seen.set(nonce, exp);
   return true;

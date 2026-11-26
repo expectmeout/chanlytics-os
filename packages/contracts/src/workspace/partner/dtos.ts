@@ -37,15 +37,15 @@ export const PARTNER_HOLD_DAYS = 30;
 
 /* ------------------------------------------------------------------ the code */
 
-export const PARTNER_CODE_MIN = 3;
+const PARTNER_CODE_MIN = 3;
 
-export const PARTNER_CODE_MAX = 24;
+const PARTNER_CODE_MAX = 24;
 
 /** Lowercase letters, digits and dashes, a letter or digit at each end: it is a path segment in a link. */
 const CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
 
 /** Codes that would read as Chanlytics itself, or as a page of the app. */
-export const PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+const PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
 
 /** The code as it is stored: lowercased and trimmed. The database applies the same rule (partner_become). */
 export function cleanPartnerCode(raw: unknown): { ok: true; code: string } | { ok: false; reason: string } {
@@ -65,7 +65,7 @@ export const isPartnerCode = (raw: unknown): raw is string => cleanPartnerCode(r
 /* ------------------------------------------------------------------ the link */
 
 /** The link a partner hands out: `/p/<code>` on the app, which leaves the cookie and goes on to sign-up. */
-export const partnerPathFor = (code: string): string => `/p/${encodeURIComponent(code)}`;
+const partnerPathFor = (code: string): string => `/p/${encodeURIComponent(code)}`;
 
 export const partnerLinkFor = (code: string, origin: string): string =>
   `${origin.replace(/\/+$/, "")}${partnerPathFor(code)}`;
@@ -103,26 +103,26 @@ export const PARTNER_WORDS = {
   /** The offer, before the share, which is printed from the row (shareWords). */
   offer:
     "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set AI up for it and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
-  codeLabel: "Your code",
+  codeLabel: "Partner code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
   terms:
     "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up…",
-  linkLabel: "Your link",
+  linkLabel: "Partner link",
   copy: "Copy link",
   copied: "Copied",
   since: (at: string) =>
     `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
-  paused: "Your partner account is paused. Write to us to have it looked at.",
+  paused: "Your partner account is paused. Write to Chanlytics to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account…",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
-  workspaces: "Your workspaces",
+  workspaces: "Workspaces",
   open: "Open",
   readingWorkspaces: "Reading your workspaces…",
   failedWorkspaces: "your workspaces",

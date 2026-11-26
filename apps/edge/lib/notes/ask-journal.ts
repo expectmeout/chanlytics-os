@@ -10,7 +10,7 @@
  * handed is data inside tags. Pure: the edge's step (apps/edge/lib/notes.ts) and the tests read the same prompt, schema
  * and check.
  */
-import { defang, ASK_JOURNAL_LIMITS, CONTROL_CHARS } from "@chanlytics/contracts";
+import { defang, ASK_JOURNAL_LIMITS, CONTROL_CHARS, recordOrEmpty } from "@chanlytics/contracts";
 
 /** One line of the day's activity, as the log says it: when (the workspace's clock), who, what, and about whom. */
 export interface JournalLine {
@@ -93,7 +93,7 @@ const keptLines = (s: string): string =>
 /** The model's answer, checked: its words cleaned and within the limit, or a quiet day, or one that could not be read. */
 export function checkJournal(answer: unknown): JournalCheck {
   if (!answer || typeof answer !== "object") return { ok: false, why: "unreadable" };
-  const a = answer as { worth?: unknown; text?: unknown };
+  const a = recordOrEmpty(answer);
   if (a.worth === false) return { ok: false, why: "quiet" };
   if (a.worth !== true) return { ok: false, why: "unreadable" };
   // Its own line breaks kept, every other control or format character a space.

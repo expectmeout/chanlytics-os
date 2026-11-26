@@ -174,7 +174,7 @@ export async function readKeptWords(db: Db, tenantId: TenantId, fileId: string):
     );
     return [...plan.lines, ...blocks, plan.end_line ?? "", plan.caption ?? ""];
   };
-  const words = await read().catch(logAndGoOn("the words a piece keeps", [] as string[]));
+  const words = await read().catch(logAndGoOn<string[]>("the words a piece keeps", []));
   return words.filter((w) => w.trim()).join("\n");
 }
 

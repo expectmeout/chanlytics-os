@@ -24,13 +24,13 @@
 import { TABLE_MAX_PX, TABLE_SELECT_PX, baseOf, fillMinOf, type AnyDataColumn } from "./columns";
 
 /** How the table takes its box. */
-export type Sizing = "fill" | "sized";
+type Sizing = "fill" | "sized";
 
 /** The most of the box a fill column keeps while the table scrolls under it. */
 const PIN_SHARE = 0.45;
 
 /** Every drawn column's width (null: the fill column taking the room left), how the table is sized, and its sums. */
-export interface DrawnWidths {
+interface DrawnWidths {
   widths: (number | null)[];
   sizing: Sizing;
   /** Sized: the table's width. Fill: its least, the others' widths and the fill column's least. */

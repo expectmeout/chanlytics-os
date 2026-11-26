@@ -674,9 +674,9 @@ function phoneOf(d: SheetDraw) {
  * on a lead to decide on. A line opens by itself for a problem alone.
  */
 function useLine(facts: SheetFacts | null) {
-  const [pressed_, press] = useState<{ open: LeadLineId | null } | null>(null);
+  const [linePressed, press] = useState<{ open: LeadLineId | null } | null>(null);
   const failed = !!facts && !facts.place && !!facts.why && facts.why.failed;
-  const open = pressed_ ? pressed_.open : failed ? ("fit" as const) : null;
+  const open = linePressed ? linePressed.open : failed ? ("fit" as const) : null;
   return { open, turn: (id: LeadLineId) => press({ open: open === id ? null : id }) };
 }
 

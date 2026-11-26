@@ -36,7 +36,7 @@ import type { CollectCompany, CollectJudgment } from "./ports";
 import type { TenantId } from "@chanlytics/contracts";
 
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
-export const FACT_MAX = 120;
+const FACT_MAX = 120;
 /**
  * How long one judge call may take: the registry's route for the judge (contracts MODEL_ROUTES.lead_judge), which the
  * model port bounds each call by (no retry, no fallback: an overload is the ledger's retry), and the runner's

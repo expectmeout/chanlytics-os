@@ -67,7 +67,7 @@ export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null |
  * whose ends in a proposal are told of the same thing, a customer nobody followed (0008, amended 18 Oct 2026). The one
  * row-level rule the week's count (consultationsWithoutProposal) and the deal stage a list reads (dealStageOf) both ask.
  */
-export function consultationHeld(
+function consultationHeld(
   row: { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null; nextVisitMs: number | null },
   nowMs: number,
 ): boolean {

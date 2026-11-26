@@ -141,7 +141,7 @@ function ago(ms: number, nowMs: number, tz: string): string {
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */
-export const CHANNEL_KIND_WORDS = {
+const CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
   sms: "Texting",

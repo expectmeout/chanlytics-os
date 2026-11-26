@@ -47,6 +47,7 @@ import {
   fallbackMessages,
   UUID,
   isTenantId,
+  valueAt,
 } from "@chanlytics/contracts";
 import { smsBody } from "@chanlytics/channels/lines";
 import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
@@ -115,7 +116,7 @@ function rewriteBlocked(text: string, messageId: string, allowed: ReadonlySet<st
  * nothing.
  */
 function replyToOf(meta: unknown): string | undefined {
-  const replyTo = typeof meta === "object" && meta ? (meta as { reply_to?: unknown }).reply_to : undefined;
+  const replyTo = valueAt(meta, "reply_to");
   return typeof replyTo === "string" ? replyTo : undefined;
 }
 
@@ -300,10 +301,8 @@ export async function steerHeldDraft(
   if (rewriteBlocked(item.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
   const words = wordsForTheWire(channel, item.text, thread.textedBefore);
 
-  const delayMs =
-    typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
-      ? (m.meta as { delay_ms: number }).delay_ms
-      : replyDelayMs("veto", rt.policy?.reply?.limits);
+  const delayAsked = valueAt(m.meta, "delay_ms");
+  const delayMs = typeof delayAsked === "number" ? delayAsked : replyDelayMs("veto", rt.policy?.reply?.limits);
 
   // New first, then retire the old — see the header.
   const newId = await queueDraft(

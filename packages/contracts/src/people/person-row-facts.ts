@@ -77,7 +77,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
     // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
     const theirs = ts(person.last_inbound_call_at) === lastCallMs;
-    const by = theirs ? "Phoned" : "We called";
+    const by = theirs ? "Phoned" : "Called them";
     const when = ago(lastCallMs, tz, nowMs);
     return {
       ts: lastCallMs,
@@ -100,6 +100,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
   // A reply answers something: to someone who never wrote or called, the team and the receptionist wrote first. The row
   // said "Not heard from" beside "Your team replied" for the people a cold email reached (27 Oct 2026).
   const answered = heardAt(person) !== null;
+  // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
   const verb =
     lastContact === "they"
       ? "They wrote"
@@ -111,7 +112,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
           ? answered
             ? "AI replied"
             : "AI wrote"
-          : "We sent";
+          : "Chanlytics sent";
   const when = ago(result as number, tz, nowMs);
   return {
     ts: result,

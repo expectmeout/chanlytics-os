@@ -45,6 +45,7 @@ import {
   normalizeEmail,
   senderLeftWhy,
   recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import { importCursorOf, keepBefore, noteImport } from "@chanlytics/db/imports";
@@ -96,7 +97,7 @@ interface MailCursor extends MailPlace {
 
 function cursorOf(raw: Json | null): MailCursor | null {
   const items = raw && typeof raw === "object" && !Array.isArray(raw) ? recordOrEmpty(raw) : null;
-  const item = items?.window as Record<string, unknown> | undefined;
+  const item = recordOrNull(items?.window);
   if (!item || typeof item.from !== "string" || typeof item.to !== "string") return null;
   return {
     window: { from: item.from, to: item.to },
