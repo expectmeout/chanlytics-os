@@ -8,8 +8,8 @@
 import { partnerDayWords } from "./partner/earnings";
 
 /** How long a handover is open, and how many workspaces a partner may have waiting for an owner (00214). */
-export const HANDOVER_DAYS = 14;
-export const HANDOVER_WAITING_MAX = 10;
+const HANDOVER_DAYS = 14;
+const HANDOVER_WAITING_MAX = 10;
 
 /** A handover waiting for the signed-in person, as `GET workspaces` carries it on the person. */
 export interface OpenHandoverDto {

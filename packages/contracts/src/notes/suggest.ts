@@ -46,7 +46,7 @@ export const NOTE_SUGGEST_LIMITS = {
 } as const;
 
 /** The five kinds of fact worth a note. Anything else is nothing. */
-export const NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"] as const;
+const NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"] as const;
 export type NoteSuggestKind = (typeof NOTE_SUGGEST_KINDS)[number];
 
 /** One turn of the conversation the model reads: the customer's, or the business's (the receptionist or a member). */

@@ -37,15 +37,15 @@ export const PARTNER_HOLD_DAYS = 30;
 
 /* ------------------------------------------------------------------ the code */
 
-export const PARTNER_CODE_MIN = 3;
+const PARTNER_CODE_MIN = 3;
 
-export const PARTNER_CODE_MAX = 24;
+const PARTNER_CODE_MAX = 24;
 
 /** Lowercase letters, digits and dashes, a letter or digit at each end: it is a path segment in a link. */
 const CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
 
 /** Codes that would read as Chanlytics itself, or as a page of the app. */
-export const PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+const PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
 
 /** The code as it is stored: lowercased and trimmed. The database applies the same rule (partner_become). */
 export function cleanPartnerCode(raw: unknown): { ok: true; code: string } | { ok: false; reason: string } {
@@ -65,7 +65,7 @@ export const isPartnerCode = (raw: unknown): raw is string => cleanPartnerCode(r
 /* ------------------------------------------------------------------ the link */
 
 /** The link a partner hands out: `/p/<code>` on the app, which leaves the cookie and goes on to sign-up. */
-export const partnerPathFor = (code: string): string => `/p/${encodeURIComponent(code)}`;
+const partnerPathFor = (code: string): string => `/p/${encodeURIComponent(code)}`;
 
 export const partnerLinkFor = (code: string, origin: string): string =>
   `${origin.replace(/\/+$/, "")}${partnerPathFor(code)}`;

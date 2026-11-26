@@ -117,7 +117,7 @@ export const REVIEW_REPLY_MAX_CHARS = 1000;
 /** How many unreplied reviews the auto mode answers in one sync; the rest wait for the next hour. */
 export const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
 /** The auto mode answers reviews written within this long; older ones are the owner's. */
-export const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
+const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 
 function firstName(author: string | null): string | null {
   const a = (author ?? "").trim();

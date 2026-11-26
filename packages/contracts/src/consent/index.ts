@@ -56,7 +56,6 @@ export {
   GET_YES_WORDS,
   notTakingSignUps,
   optInConfirmation,
-  policyLinks,
   verbalOptInScript,
   YES_WHILE_PAUSED,
 } from "./public-page";

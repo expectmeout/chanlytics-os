@@ -4,7 +4,8 @@
  *
  *   a comment        on a post Chanlytics sent, kept once with its person (found by the Instagram-scoped id a DM's sender
  *                    carries, or made by the comment) and AI's draft of a public answer asked for, in one transaction.
- *                    A comment on a post made by hand in the Instagram app is not kept: nothing here sent it.
+ *                    One on a post made by hand in the Instagram app is kept only where Meta says it was left on an ad
+ *                    this workspace holds (00719): on the ad, counted for its drawer, and answered by its owner.
  *   our own comment  the business answering a kept comment from the Instagram app: that comment is answered, by hand.
  *   a code alone     an ig.me link that opened a chat already under way arrives as its code with no message: where the
  *                    code is a post's link's, it is kept as that person's touch of the post, in their thread, so the
@@ -36,10 +37,13 @@ async function takeComment(db: Db, routed: RoutedChannel, event: Extract<AboutAP
     parentId: event.parentId,
     words: event.text,
     at: event.atIso,
+    adId: event.adId,
   });
   logger({ tenant_id: routed.tenantId }).info(kept.kept ? "ig_comment_kept" : "ig_comment_left", {
     comment: event.commentId,
-    ...(kept.kept ? { post_id: kept.postId, new_person: kept.newPerson } : { why: kept.why }),
+    ...(kept.kept
+      ? { post_id: kept.postId, ad_id: kept.adId, new_person: kept.newPerson }
+      : { why: kept.why, on_ad: event.adId !== null }),
   });
 }
 

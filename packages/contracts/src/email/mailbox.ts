@@ -30,8 +30,8 @@ export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
   "hi",
 ]);
 
-export const MAILBOX_LOCAL_PART_MAX = 40;
-export const MAILBOX_FROM_NAME_MAX = 80;
+const MAILBOX_LOCAL_PART_MAX = 40;
+const MAILBOX_FROM_NAME_MAX = 80;
 
 /**
  * The deployment's mail domain (EMAIL_DOMAIN, the subdomain workspaces' addresses are on), lower-cased; null when email
