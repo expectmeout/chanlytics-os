@@ -293,15 +293,19 @@ test.describe("Ask with the page it is asked on", () => {
       await page.goto(`/#/${q.hash}`);
       await page.waitForLoadState("networkidle");
       test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask client on this page");
-      const context = await page.evaluate((words) => {
-        const { CHANLY } = window as unknown as { CHANLY: { address: { route: () => string } } };
-        const [p, ...rest] = CHANLY.address.route().split("/");
-        const ask = (window as unknown as { __ask: { context: (r: unknown, w: string) => unknown } }).__ask;
-        return ask.context({ page: p || "today", param: rest.length ? rest.join("/") : null }, words) as {
-          surface: string;
-          rows: Array<{ kind: string; id: string }>;
-        };
-      }, q.text);
+      // The route on screen as the app reads it, from the address (e2e/address.ts routeOf).
+      const [p, ...rest] = routeOf(page.url()).split("/");
+      const at = { page: p || "today", param: rest.length ? rest.join("/") : null };
+      const context = await page.evaluate(
+        ({ words, route }) => {
+          const ask = (window as unknown as { __ask: { context: (r: unknown, w: string) => unknown } }).__ask;
+          return ask.context(route, words) as {
+            surface: string;
+            rows: Array<{ kind: string; id: string }>;
+          };
+        },
+        { words: q.text, route: at },
+      );
       expect(context.surface).toBe(q.surface);
       if (q.rows) expect(context.rows.length, "the rows the page drew ride along").toBeGreaterThan(0);
       const ws = await activeWorkspace(page);
