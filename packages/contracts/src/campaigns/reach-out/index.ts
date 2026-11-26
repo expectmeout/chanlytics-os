@@ -16,7 +16,6 @@ export { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
 export {
   chainFirstSender,
   previewLinesOf,
-  previewRefusedWords,
   REACH_OUT_FIRST_WORDS,
   REACH_OUT_GAP_FIRST,
   REACH_OUT_NEW_LIST_WORDS,
@@ -26,7 +25,6 @@ export {
   reachOutAddStep,
   reachOutAfterDayChoices,
   reachOutChainBodyOf,
-  reachOutDefaultName,
   reachOutDoorOf,
   reachOutDraftIssues,
   reachOutDraftOf,
@@ -163,18 +161,13 @@ export {
   awayUntilOf,
   notNowDayOf,
   parseReplyReading,
-  REACH_OUT_AWAY_DAYS,
-  REACH_OUT_AWAY_MAX_DAYS,
   REPLY_ANSWERED_MAX,
-  REPLY_NOT_NOW_DAYS,
   REPLY_QUOTE_MAX,
   REPLY_READ_MAX_TOKENS,
   REPLY_REFER_TO_MAX,
-  REPLY_REREAD_DAYS,
   REPLY_REREADS,
   REPLY_SCHEMA,
   REPLY_SUBJECT_MAX,
-  REPLY_SUMMARY_WORDS,
   REPLY_WORDS_MAX,
   replyIntentQuestion,
   replySystemPrompt,
@@ -185,8 +178,6 @@ export {
 } from "./replies/words";
 export {
   DRAFT_NEEDS_MS,
-  DRAFT_NOTICE_MAX,
-  DRAFT_WHYS,
   draftExcerpt,
   draftRefusal,
   isDraftWhy,
@@ -317,7 +308,7 @@ export type {
   ColdEmailStandingKind,
   ColdEmailStep,
 } from "./standing";
-export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./timetable";
+export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable } from "./timetable";
 export type { Placed, TimetableInput, TimetableResult, TimetableSend, TimetableSender } from "./timetable";
 export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./told";
 export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId, TryPart, TrySource } from "./told";
@@ -326,7 +317,6 @@ export type { UsStateCode } from "./us-zones";
 export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf, coldWaitsTitle } from "./waiting";
 export type { WaitingColdRun } from "./waiting";
 export {
-  CHAIN_MIN_LISTINGS,
   chainOf,
   customerDomainOf,
   heldClaimOf,
@@ -371,10 +361,8 @@ export {
   chainIssueWords,
   checkOpening,
   factValue,
-  isOpeningFactKey,
   isOpeningProblem,
   OPENING_FACT_KEYS,
-  OPENING_PROBLEMS,
   openingProblemWords,
   validateReachOutChain,
 } from "./words/opening";

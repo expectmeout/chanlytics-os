@@ -139,7 +139,7 @@ const thread = () => [
 // tells it of messages, calls and notes, not of these writes). A conversation's write, a reply or a hold reaches no one new and moves no
 // step: `thread()` does not name it.
 const reportsPeople = ifDrawn(reportsPeopleLens);
-const people = () => [peopleOverride];
+const peopleRead = () => [peopleOverride];
 // A note may be a step, and the lens counts the steps overdue and due today: written, done, removed or decided, they move the lens too.
 const notes = () => [peopleOverride, ...reportsPeople()];
 // People's rows where the page on screen draws them (drawnHere: People's pages, a person's, Today), and left for the next page that
@@ -224,7 +224,7 @@ const channelChange = () => [...readiness(), ...reportsPeople(), ...reportsCampa
 // and Playbooks' composer, and Campaigns' home with its call's text and Library count, draw from that read and are made of it
 // again when it is published (surfaces/offered-templates.ts), so none is named here and none reads GET templates, GET playbooks
 // or GET broadcasts again for it: a second read of them would only follow the first.
-const templates = () => [settingsOverride];
+const templateWrite = () => [settingsOverride];
 // An email or text version, written or taken away: the one list, so the two writes cannot drift apart. The composers' Send by row and
 // preview are drawn from the settings read (the messages it holds, with the versions each has), so it is the read that moves them. The
 // playbooks are read again for the server's side of it: a message with no WhatsApp row takes its category from its own versions
@@ -232,7 +232,7 @@ const templates = () => [settingsOverride];
 // category. Not Leads: a lead's row carries nothing of a chain's words (the held sends are the runs', and a lead's stage is its own
 // write), so a version moves no row it reads.
 const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride];
-const leads = () => [leadsOverride];
+const leadsRead = () => [leadsOverride];
 // A lead's stage written (said no, not a fit, contacted, converted), in one or many, or such a write undone, sets or clears the
 // lead's closed reason: the Reach-outs part of the Campaigns lens counts Said no from it, as it stands now. Its read goes with the
 // Leads page's, forgotten and read as the page that draws it comes on screen (reportsCampaigns).
@@ -266,7 +266,7 @@ const google = () => {
   return [googleOverride, setupOverride, settingsOverride];
 };
 const billing = () => [billingOverride, setupOverride];
-const settings = () => [settingsOverride];
+const settingsRead = () => [settingsOverride];
 // A visit marked kept, missed or cancelled: what counts visits, in the writer's tab. The Calendar shows the word (and Today's queue,
 // which asks "Did they come?" of yesterday's unmarked visits, reads its blocks); People's rows (and the Inbox's chip, drawn from them, and
 // the person's page, which reads People: its History and Coming up say the word and ask the same presses) say the next and last visit and
@@ -323,13 +323,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
   // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
   // A merge moves a lead's person to the kept record (Combine, 0052): Leads is read again with People.
-  "POST contacts/[id]/merge": () => [...consentWrite(), notificationsOverride, ...leads()],
-  "PUT contacts/[id]/receptionist": people,
+  "POST contacts/[id]/merge": () => [...consentWrite(), notificationsOverride, ...leadsRead()],
+  "PUT contacts/[id]/receptionist": peopleRead,
   "PUT contacts/[id]/consent": consentWrite,
   "PUT contacts/[id]/marketing-consent": consentWrite,
   "PUT contacts/consent": consentWrite,
   "PUT contacts/marketing-consent": consentWrite,
-  "PUT contacts/receptionist": people,
+  "PUT contacts/receptionist": peopleRead,
   "PUT contacts/notes": notes,
   // Their details carry the email address a campaign by email goes to: the audiences count by it. An address changed clears a stopped
   // one, which the People lens counts.
@@ -357,10 +357,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST forms/requests": () => [...personAndThreads(), ...visits()],
   // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
   // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
-  "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
+  "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leadsRead()],
   // Linked to a business, or not at it (0052): their row trails the business, and the lead's own rows list its people.
-  "PUT people/[id]/business": () => [...personAndThreads(), ...leads()],
-  "DELETE people/[id]/business": () => [...personAndThreads(), ...leads()],
+  "PUT people/[id]/business": () => [...personAndThreads(), ...leadsRead()],
+  "DELETE people/[id]/business": () => [...personAndThreads(), ...leadsRead()],
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it, where they are drawn.
   "POST segments": () => [peopleOverride, ...audiences()],
@@ -371,36 +371,36 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // People would otherwise not know until it was read again; a lead converted is a person added, so the book the People
   // lens counts moves. A draft is not here on purpose -- it changes no row a surface shows; the lead moves when the
   // owner answers "Did you send it?", which is a stage.
-  "POST lead-searches": leads,
+  "POST lead-searches": leadsRead,
   // A list of your own (00242) is a search: the rail and the leads read again.
-  "POST lead-searches/import": leads,
-  "POST lead-searches/people": leads,
-  "POST lead-searches/chosen": leads,
-  "POST lead-searches/[id]/answer": leads,
-  "POST lead-searches/[id]/more": leads,
-  "POST lead-searches/[id]/stop": leads,
-  "POST lead-searches/[id]/undo": leads,
-  "PATCH lead-searches/[id]": leads,
-  "DELETE lead-searches/[id]": leads,
+  "POST lead-searches/import": leadsRead,
+  "POST lead-searches/people": leadsRead,
+  "POST lead-searches/chosen": leadsRead,
+  "POST lead-searches/[id]/answer": leadsRead,
+  "POST lead-searches/[id]/more": leadsRead,
+  "POST lead-searches/[id]/stop": leadsRead,
+  "POST lead-searches/[id]/undo": leadsRead,
+  "PATCH lead-searches/[id]": leadsRead,
+  "DELETE lead-searches/[id]": leadsRead,
   // Where a search's Add goes (00459 lead_search_aim): the search's row, which Leads' "Adds go to" and the sheet read.
-  "POST lead-searches/[id]/aim": leads,
-  "POST leads/[id]/keep": leads,
-  "POST leads/[id]/exclude": leads,
-  "POST leads/[id]/put-back": leads,
+  "POST lead-searches/[id]/aim": leadsRead,
+  "POST leads/[id]/keep": leadsRead,
+  "POST leads/[id]/exclude": leadsRead,
+  "POST leads/[id]/put-back": leadsRead,
   // Later, in a pass of the pile (00426): the row's later_at, its place in the pile and the progress line.
-  "POST leads/[id]/later": leads,
+  "POST leads/[id]/later": leadsRead,
   // Who a company's reach-out writes to (00430): the row's addressee, its address and that address's check.
-  "POST leads/[id]/addressee": leads,
+  "POST leads/[id]/addressee": leadsRead,
   // A lead's name or city put right (00631): the row's name, its city and its facts, which every email's blanks read.
-  "POST leads/[id]/name": leads,
+  "POST leads/[id]/name": leadsRead,
   // An add taken back (00426) skips its lead's planned email in a waiting run and takes it off the reach-out's list:
   // the run's counts and the reach-out's people move with the leads.
   "POST lead-operations/[id]/undo": () => [...leadsAnswered(), reachOutsOverride, broadcastsOverride],
   "POST leads/bulk": leadsAnswered,
   // The leads a copy took are marked, so the month is not charged for them twice (§0.2): the rows and the month's count read again.
-  "POST leads/export": leads,
-  "DELETE leads/[id]": leads,
-  "PUT lead-suggestions": leads,
+  "POST leads/export": leadsRead,
+  "DELETE leads/[id]": leadsRead,
+  "PUT lead-suggestions": leadsRead,
   "POST leads/[id]/send": () => [...leadsAnswered()],
   "POST leads/[id]/stage": () => [...leadsAnswered(), peopleOverride, ...reportsPeople()],
   // Outbound.
@@ -411,7 +411,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts/[id]/cancel": runsAndChains,
   // A playbook named by a starter files its message too (A0): the Library, and every picker that is made of it, move with it.
   // A campaign started from the Week's review-ask card (pass 6) ends its proposal there: the Week reads again where drawn.
-  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates(), ...weekIfDrawn()],
+  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templateWrite(), ...weekIfDrawn()],
   "PUT playbooks/[id]": () => [...savedAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
@@ -422,7 +422,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST sequences/[id]/steps": () => [...savedAndChains(), sequencesOverride],
   "PUT sequences/[id]/steps/[step]": () => [...savedAndChains(), sequencesOverride],
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
-  "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templates()],
+  "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templateWrite()],
   // A lead's own words (decision 0096): what a chain's waiting and held rows say of them, and nothing else on a page.
   "POST sequences/[id]/steps/[step]/lead-words": () => [reachOutsOverride],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
@@ -433,7 +433,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST sequences": () => [...savedAndChains(), sequencesOverride],
   // New's draft made (decision 0065): a sequence, as POST sequences makes one; a one-off, a run of Sent's; and a message Ask
   // wrote, filed in the Library, which every picker is made of.
-  "POST sequences/new": () => [...savedAndChains(), sequencesOverride, ...runs(), ...templates()],
+  "POST sequences/new": () => [...savedAndChains(), sequencesOverride, ...runs(), ...templateWrite()],
   // A sequence to leads (00459): leads added are each row's place on Leads and its record's people and count, with nothing
   // planned until its run is made; one moved here leaves the sequence it stood in, whose planned email is skipped; its
   // chain saved on the record is its steps' words and pace, which Templates' email rows are drawn from, and new words send
@@ -444,7 +444,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // its record and its row say.
   "POST sequences/[id]/again": () => [sequencesOverride, reachOutsOverride],
   // Its save writes each step's words as a template, and its auto-add switch puts the search's ready leads in it.
-  "PUT sequences/[id]/chain": () => [...runsAndChains(), sequencesOverride, leadsOverride, ...templates()],
+  "PUT sequences/[id]/chain": () => [...runsAndChains(), sequencesOverride, leadsOverride, ...templateWrite()],
   // A sequence to leads let go of (0072) takes its leads' places with it: Leads' "Where they stand" and its "Adds go to".
   "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride, leadsOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
@@ -492,11 +492,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST reach-out-replies/[id]/undo": () => [repliesOverride, ...thread(), leadsOverride],
   // A recheck moves what a reach-out's run holds for its owner (its sends), which the Calendar's marks never say.
   "POST broadcasts/[id]/recheck": () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns()],
-  "POST templates": templates,
-  "PUT templates/[id]": templates,
-  "DELETE templates/[id]": templates,
-  "POST templates/starter": templates,
-  "POST templates/sync": templates,
+  "POST templates": templateWrite,
+  "PUT templates/[id]": templateWrite,
+  "DELETE templates/[id]": templateWrite,
+  "POST templates/starter": templateWrite,
+  "POST templates/sync": templateWrite,
   // An email or text version of a message (One message, every channel, step 1): the Templates page reads them with the
   // settings surface, and both composers are made of that read: the Send by row closes a channel the message has no version
   // on, and the preview draws a person on the channel they are reached on as that version reads. Nothing else is told: the
@@ -530,10 +530,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A note from an owner's correction kept or dismissed (decision 0063): the settings read carries both the notes the
   // receptionist reads (Keep adds one, through the settings' own write) and the Autonomy pane's list of what waits (each
   // answer leaves it one shorter), so Settings reads again. A note is read by nothing else a page draws.
-  "POST fact-suggestions/[id]": settings,
+  "POST fact-suggestions/[id]": settingsRead,
   // A fix kept from a rehearsal or a call reviewed (decision 0069): a settings write, through the settings' own write, so
   // Settings reads again; the rehearsal's count of what was fixed comes back in the answer the card draws.
-  "POST receptionist/keep": settings,
+  "POST receptionist/keep": settingsRead,
   // A line of what Ask remembers kept, changed or forgotten (decision 0070): the Memory pane's own read, where it is drawn.
   // Nothing else a page draws reads the memory: Ask reads it fresh with every question.
   "POST ask/memory": memoryIfDrawn,
@@ -646,10 +646,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Your own name: who is looking (the workspace read carries __ME, which the sidebar and the account menu say), and the roster the
   // Team pane lists and the Inbox's teammate names are drawn from (the settings read), so the old name is not left on either.
   "PUT me": () => [workspaceOverride, settingsOverride],
-  "POST team/invite": settings,
-  "POST team/invite/[id]/resend": settings,
-  "PATCH team/[id]": settings,
-  "DELETE team/[id]": settings,
+  "POST team/invite": settingsRead,
+  "POST team/invite/[id]/resend": settingsRead,
+  "PATCH team/[id]": settingsRead,
+  "DELETE team/[id]": settingsRead,
   // Connections repaints (the channels read), and so do the Setup row that said "Connect" and the Business pane's facts the number
   // resolves (the settings read). The number connected is the one a broadcast goes out on: the composers' WhatsApp tick and who it
   // reaches follow.

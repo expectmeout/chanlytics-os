@@ -186,25 +186,30 @@ interface Asked {
  * the row that offers it, in full and until Connect is pressed again: the toast that says it is one line on a phone, and gone in
  * seconds.
  */
-function rowsOf(
+function connectionRowsOf(
   channels: Parameters<typeof connectionRows>[0]["channels"] | undefined,
   asked: Asked,
-  S: SetupSurface | null | undefined,
-  G: GoogleSurface | undefined,
+  setup: SetupSurface | null | undefined,
+  google: GoogleSurface | undefined,
 ): Row[] {
   const rows = connectionRows(
     {
       tz: pageClock().zone(),
       channels: channels || [],
       whatsapp: asked.whatsapp,
-      lines: { rows: (S && S.dto.lines && S.dto.lines.rows) || [], ready: !!(S && S.dto.lines && S.dto.lines.ready) },
-      lineRequestedAt: S ? S.dto.requests.line : null,
-      google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,
-      calendar: S ? S.dto.calendar : null,
-      email: S ? (S.dto.email ?? null) : null,
+      lines: {
+        rows: (setup && setup.dto.lines && setup.dto.lines.rows) || [],
+        ready: !!(setup && setup.dto.lines && setup.dto.lines.ready),
+      },
+      lineRequestedAt: setup ? setup.dto.requests.line : null,
+      google: google
+        ? { ready: google.dto.ready, listing: google.dto.listing, connection: google.dto.connection }
+        : null,
+      calendar: setup ? setup.dto.calendar : null,
+      email: setup ? (setup.dto.email ?? null) : null,
       codes: asked.codes,
       signupLeftOpenAt: asked.signupLeftOpenAt,
-      imports: S ? (S.dto.imports ?? null) : null,
+      imports: setup ? (setup.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
       meta: asked.meta ? { ready: asked.meta.ready, postsWaiting: asked.meta.posts_waiting } : null,
       footage: asked.footage,
@@ -212,11 +217,11 @@ function rowsOf(
     Date.now(),
     // Google Drive is left out until the day it is offered here: a Later row would promise what nobody can connect yet.
   ).filter((r) => r.kind !== "drive" || r.state !== "later");
-  const said = asked.signupSaid;
-  if (!said) return rows;
+  const signupWords = asked.signupSaid;
+  if (!signupWords) return rows;
   // What the sign-up came to is on the row, first and in full, never behind the row's press (ConnectionNote.live).
-  const came = { text: said, live: true as const };
-  return rows.map((r) => (r.verb?.to === "verb:whatsapp-connect" ? { ...r, notes: [came, ...r.notes] } : r));
+  const signupNote = { text: signupWords, live: true as const };
+  return rows.map((r) => (r.verb?.to === "verb:whatsapp-connect" ? { ...r, notes: [signupNote, ...r.notes] } : r));
 }
 
 /** What a row's own verb does: Meta's sign-up, Google's consent, a read of Google, an ask, a scroll, the email form. */
@@ -408,7 +413,7 @@ const connectionGroupsOf = (rows: Row[]) =>
 /** With a mailbox connected, its row is the Email card: its state, act and facts, its settings in a sheet. */
 function emailCardOf(
   r: Row,
-  S: SetupSurface | null | undefined,
+  setup: SetupSurface | null | undefined,
   o: {
     flash: (f: FrameFlash) => void;
     note: ReturnType<typeof connectedMailboxes.outcome>;
@@ -416,15 +421,15 @@ function emailCardOf(
     openLeft: boolean;
   },
 ): ReactNode {
-  const email = S?.dto.email ?? null;
-  if (r.kind !== "mailbox" || !S || !email?.sending?.mailboxes.length) return null;
+  const email = setup?.dto.email ?? null;
+  if (r.kind !== "mailbox" || !setup || !email?.sending?.mailboxes.length) return null;
   return (
     <EmailCard
       key={r.kind}
       r={r}
       email={email}
-      imports={S.dto.imports}
-      businessName={S.dto.business.name}
+      imports={setup.dto.imports}
+      businessName={setup.dto.business.name}
       flash={o.flash}
       note={o.note}
       onNote={o.onNote}
@@ -510,7 +515,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
 
   const doors = { instagram: logins.ig.door, meta: logins.meta.door };
   const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid, footage: drive.footage };
-  const rows = rowsOf(channels, asked, S, G);
+  const rows = connectionRowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
     if (r.kind === "drive") {

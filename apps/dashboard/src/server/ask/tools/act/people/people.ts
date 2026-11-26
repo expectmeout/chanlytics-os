@@ -59,6 +59,7 @@ export async function readSelected(
     (a, b) => a + b,
     0,
   );
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (named !== 1) return { refusal: "name who by exactly one of all (conditions), list (a token) or ids" };
   const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
   const inPool = new Set(pool.people.map((r) => r.id));
@@ -79,6 +80,7 @@ export async function readSelected(
   } else if (selection.list) {
     const token = str(selection.list, 60);
     const ref = parseListToken(token) ?? parseListToken(`list:${token}`) ?? parseListToken(`seg:${token}`);
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     if (!ref) return { refusal: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
     const kept = ref.kind === "saved" ? (await load(toolContext.rc, listsReader, undefined)).data.lists : undefined;
     const found = await findPoolList(toolContext.ctx, toolContext.tenantId, pool, ref, kept);
@@ -133,10 +135,7 @@ function notAlready(
 const QUESTIONS = { messages: "conversational", offers: "marketing" } as const;
 const ANSWERS = { yes: "opted_in", no: "opted_out", not_asked: "unknown" } as const;
 // A selection is never "in their own message": one message is not every person's (OWN_MESSAGE_REFUSALS.batch).
-const MANY_SOURCES = CONSENT_SOURCES.map((x) => x.id).filter((id) => id !== "customer_message") as [
-  string,
-  ...string[],
-];
+const MANY_SOURCES = CONSENT_SOURCES.map((x) => x.id).filter((id) => id !== "customer_message");
 
 async function proposeAnswers(
   toolContext: ToolContext,
@@ -292,6 +291,7 @@ const modesAction = actAction({
 
 export const propose_people = defineActions({
   name: "propose_people",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   description: `Propose one act for many people in People at once, as one card the person approves: their answers, AI for them, a note line under each, or putting them on or off a list kept by hand. Name who by exactly one of all (conditions in the lists' vocabulary, as propose_list takes them), list (a list's token) or ids; the card counts them first, at most ${ASK_SELECTION_MAX}, and goes in parts of fifty.`,
   tail: "Read people with action search with the same all or list first, to say who and how many. For one person, propose_person.",
   actions: {

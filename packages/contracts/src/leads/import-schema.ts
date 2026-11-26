@@ -11,7 +11,7 @@ import { LEAD_LIST_MAX } from "./import";
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
 
 /** One row of POST lead-searches/import, as leadImportPlanOf reads it. */
-export const LeadImportRowSchema = z.object({
+const LeadImportRowSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.string().trim().min(3).max(254),
   phone: nullableText(16),

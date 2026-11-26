@@ -68,7 +68,7 @@ export function LeadsBackToday() {
   const shown = all ? leads : leads.slice(0, SHOWN);
   return (
     <section className="ld-back" aria-label={W.head} data-testid="leads-back">
-      <h3 className="ld-back-head" title={W.tip}>
+      <h3 className="ld-back-head" data-tip={W.tip}>
         <Icon name="clock" size={12} /> {W.head} <span>{leads.length}</span>
       </h3>
       <ul>

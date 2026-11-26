@@ -1,21 +1,21 @@
 /**
  * A post not kept yet, as a person changes it (decision 0099, step 3): its plan, the shape on show, and the real picture of the two,
  * drawn by the server as they change. A pause in the typing draws; a newer change lets the last request go; and what was already drawn
- * comes at once (post-drawn.ts). The picture stands until the next is ready (post-frame.tsx). Only words that can't be drawn are said:
+ * comes at once (drawn.ts). The picture stands until the next is ready (frame.tsx). Only words that can't be drawn are said:
  * a lost line says nothing, and the last picture stands.
  */
 import { useEffect, useRef, useState } from "react";
-import { SECOND_MS, postPlanTidied, type PostPicture, type PostPlan, type PostShapeName } from "@chanlytics/contracts";
-import { drawnKeyOf, keepDrawn, pictureDrawn, wordsKeyOf, type PostDrawn } from "./post-drawn";
-import { fileVerbs } from "./verbs";
+import { SECOND_MS, postPlanTidied, type PostPlan, type PostShapeName } from "@chanlytics/contracts";
+import { drawnKeyOf, keepDrawn, pictureDrawn, wordsKeyOf, type PostDrawn } from "./drawn";
+import { fileVerbs } from "../verbs";
 
 /** How long a pause in the typing is before the picture is drawn again. */
 const DRAW_AFTER_MS = 0.35 * SECOND_MS;
 
 /** What a draft holds, for a card to draw and press, and for its fields to change. */
-export interface PostDraft<S extends PostPicture = PostShapeName> {
+export interface PostDraft {
   plan: PostPlan;
-  shape: S;
+  shape: PostShapeName;
   /** The picture of what is asked, or the last one while the next comes; null before the first. */
   picture: string | null;
   /** A picture is on its way. */
@@ -27,20 +27,16 @@ export interface PostDraft<S extends PostPicture = PostShapeName> {
   /** Whether the business has a number to print, once known. */
   hasPhone: boolean;
   change: (part: Partial<PostPlan>) => void;
-  choose: (shape: S) => void;
+  choose: (shape: PostShapeName) => void;
 }
 
 /** What the last answer was, and what it was the answer to: `drawing` is derived, so a request let go can't leave it standing. */
 type Answer = { key: string; picture: PostDrawn | null; refused: string | null };
 
-/** `drawing` says whether to draw at all: a post kept shows its own file, and is never drawn again. */
-export function usePostDraft<S extends PostPicture = PostShapeName>(
-  start: PostPlan,
-  wanted: boolean,
-  startShape: S = "portrait" as S,
-): PostDraft<S> {
+/** `drawing` says whether to draw at all: a post kept shows its own file, and is never drawn again. It opens on a portrait. */
+export function usePostDraft(start: PostPlan, wanted: boolean): PostDraft {
   const [plan, setPlan] = useState(start);
-  const [shape, setShape] = useState<S>(startShape);
+  const [shape, setShape] = useState<PostShapeName>("portrait");
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [last, setLast] = useState<PostDrawn | null>(null);
   const key = drawnKeyOf(plan, shape);
@@ -55,10 +51,10 @@ export function usePostDraft<S extends PostPicture = PostShapeName>(
     const timer = setTimeout(
       () => {
         wordsDrawn.current = words;
-        void fileVerbs.postPicture(postPlanTidied(plan), shape, stop.signal).then((came) => {
+        void fileVerbs.postPicture(postPlanTidied(plan), shape, stop.signal).then((reply) => {
           if (stop.signal.aborted) return;
-          if (!came.ok) return setAnswer({ key, picture: null, refused: came.refused });
-          const drawn = { url: URL.createObjectURL(came.picture), hasPhone: came.hasPhone };
+          if (!reply.ok) return setAnswer({ key, picture: null, refused: reply.refused });
+          const drawn = { url: URL.createObjectURL(reply.picture), hasPhone: reply.hasPhone };
           keepDrawn(key, drawn);
           setLast(drawn);
           setAnswer({ key, picture: drawn, refused: null });

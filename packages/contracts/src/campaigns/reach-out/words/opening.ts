@@ -143,7 +143,7 @@ export const OPENING_FACT_KEYS = [
 
 export type OpeningFactKey = (typeof OPENING_FACT_KEYS)[number];
 
-export function isOpeningFactKey(key: string): key is OpeningFactKey {
+function isOpeningFactKey(key: string): key is OpeningFactKey {
   return isOneOf(OPENING_FACT_KEYS, key);
 }
 
@@ -232,7 +232,7 @@ function recordNumbers(opening: OpeningRecord): Set<string> {
   return out;
 }
 
-export const OPENING_PROBLEMS = [
+const OPENING_PROBLEMS = [
   "empty",
   "too_long",
   "link",

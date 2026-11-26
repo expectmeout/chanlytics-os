@@ -48,7 +48,6 @@ export {
   TOAST_MAX_MS,
   TOAST_MIN_MS,
   TOAST_MS,
-  TOAST_TONES,
   TOAST_UNDO_MS,
   toastShape,
 } from "./chrome/frame";
@@ -65,7 +64,6 @@ export {
   APP_KEYS_RESIZE_CLASS,
   DEFAULT_SIDEBAR_PREF,
   IN_APP_CLASS,
-  IN_APP_UA_RE,
   inAppBootScript,
   inAppFrom,
   isSidebarPref,
@@ -147,16 +145,7 @@ export type {
   PageSpeedVM,
   PageSpotRowDto,
 } from "./page-speed";
-export {
-  combinedInto,
-  NEEDS_TITLE,
-  PERM_DOING,
-  refusalOf,
-  roleGate,
-  SESSION_ENDED,
-  sessionEnded,
-  waitWords,
-} from "./refusal";
+export { combinedInto, NEEDS_TITLE, refusalOf, roleGate, SESSION_ENDED, sessionEnded, waitWords } from "./refusal";
 export type { Refusal, RefusalInput, RolePerm } from "./refusal";
 export {
   REPORT_KIND_WORDS,
@@ -186,7 +175,6 @@ export type { LeadPinnable, StateKind, Tone } from "./tone";
 export {
   PAGE_BUILD,
   PAGE_VITAL_BANDS,
-  PAGE_VITAL_WORDS,
   PAGE_VITALS_MIN_LOADS,
   PAGE_VITALS_READ,
   PageVitalReport,

@@ -36,7 +36,7 @@ import type {
   SendNowPorts,
   ThreadPorts,
 } from "@chanlytics/core";
-import { conversationPatch, shaped, DbFailure } from "@chanlytics/contracts";
+import { conversationPatch, recordOrEmpty, shaped, textOrEmpty, valueAt, DbFailure } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import {
   cancelPendingAiReply,
@@ -257,11 +257,10 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     templateFacts: async (tenantId) => {
       // A read that fails is no facts, as it always was: the verb refuses a template that needs them.
       const config = await getStoredConfig(ctx.supabase, tenantId).catch(() => null);
-      const brain = (config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
+      const brain = recordOrEmpty(valueAt(config, "brain"));
+      const name = textOrEmpty(brain.business_name);
       // The name is enough: a template that sends no link needs none, and the verb refuses one that does (reply.ts).
-      return brain?.business_name
-        ? { business_name: brain.business_name, booking_link: brain.booking_link || null }
-        : null;
+      return name ? { business_name: name, booking_link: textOrEmpty(brain.booking_link) || null } : null;
     },
     // This row IS the receptionist's answer to "may I speak?", so a
     // write that failed for any reason is "nothing was queued": the verb refuses

@@ -51,6 +51,26 @@ const Body = z
   });
 
 /**
+ * What the body's checks proved it asks, where the handler can see it: a translation of one message on file into a
+ * language, or a draft from a brief and a category.
+ */
+function draftAskOf({ translate, language, brief, category }: z.output<typeof Body>) {
+  if (translate) {
+    const ref: SourceRef | null = translate.id
+      ? { id: translate.id }
+      : translate.starter
+        ? { starter: translate.starter, from: translate.from ?? null }
+        : null;
+    if (!ref || language === undefined)
+      throw new AppError("validation", "Say which saved message to write in another language.");
+    return { translate: ref, language };
+  }
+  if (!brief || !category)
+    throw new AppError("validation", "Say what you want to tell customers — one line is enough.");
+  return { translate: null, brief, category, language: language ?? "en_US" };
+}
+
+/**
  * POST /api/v1/templates/draft — { brief, category, language } → a template
  * drafted with the assistant, in the business's voice, inside WhatsApp's
  * rules; or { translate: { id } | { starter, from? }, language } → that
@@ -67,12 +87,10 @@ export const POST = write({
   rate: "ask",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    if (input.translate) {
-      const language = input.language as string;
-      const ref: SourceRef = input.translate.id
-        ? { id: input.translate.id }
-        : { starter: input.translate.starter as string, from: input.translate.from ?? null };
-      const src = await getTranslationSource(ctx, member.tenantId, ref, language);
+    const ask = draftAskOf(input);
+    if (ask.translate) {
+      const { language } = ask;
+      const src = await getTranslationSource(ctx, member.tenantId, ask.translate, language);
       if (!src.ok) throw new AppError(src.code, src.message);
       const translation = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
       if (!translation.ok)
@@ -83,12 +101,8 @@ export const POST = write({
         );
       return { draft: translation.draft };
     }
-    const language = input.language ?? "en_US";
-    const result = await draftTemplate(ctx, member.tenantId, {
-      brief: input.brief as string,
-      category: input.category as "marketing" | "utility",
-      language,
-    });
+    const { brief, category, language } = ask;
+    const result = await draftTemplate(ctx, member.tenantId, { brief, category, language });
     if (!result.ok)
       throw new AppError(
         result.reason === "refused" ? "upstream_anthropic" : "validation",

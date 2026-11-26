@@ -50,7 +50,7 @@ const META_VIDEO = { formats: ["mp4", "mov"], codecs: ["h264", "hevc"], fps: [23
 const META_JPEG = { formats: ["jpeg"], bytesMost: 8 * MB } as const;
 
 /** Each place's rule by kind and medium. A kind a place does not take in a medium has none (the publishing check says so). */
-export const RENDITION_RULES: Readonly<
+const RENDITION_RULES: Readonly<
   Record<PostPlace, Partial<Record<PostKind, Partial<Record<MediaMeasured["media"], RenditionRule>>>>>
 > = {
   instagram: {

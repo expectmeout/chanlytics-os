@@ -119,6 +119,7 @@ async function proposePersonNote(
   const body = typeof input.body === "string" ? input.body.trim() : "";
   if (!body) return refuse("body must be the note's words");
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be receptionist or team");
   const person = await personOnCard(toolContext, input.contact_id);
   if (isRefusedOutcome(person)) return person;
@@ -224,7 +225,7 @@ async function proposePersonDetails(
   const changed = (["name", "email"] as const).filter((k) => fields[k] !== undefined && fields[k] !== person[k]);
   if (!changed.length)
     return refuse(`already their ${(["name", "email"] as const).filter((k) => fields[k] !== undefined).join(" and ")}`);
-  const to = Object.fromEntries(changed.map((k) => [k, fields[k] as string]));
+  const to = Object.fromEntries(changed.flatMap((k) => (fields[k] === undefined ? [] : [[k, fields[k]]])));
   const previous = Object.fromEntries(changed.map((k) => [k, person[k]]));
   // A field asked that already says it is left off the card, and said beside it.
   const same = (["name", "email"] as const).filter((k) => fields[k] !== undefined && !changed.includes(k));
@@ -250,7 +251,7 @@ async function proposePersonDetails(
 const QUESTIONS = { messages: "conversational", offers: "marketing" } as const;
 /** Their answer, in a model's words, as the door stores it. */
 const ANSWERS = { yes: "opted_in", no: "opted_out", not_asked: "unknown" } as const;
-const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id) as [string, ...string[]];
+const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id);
 
 /**
  * A person's answer, heard by a member (PUT contacts/:id/consent or marketing-consent): a yes or a no, with how they gave
@@ -367,6 +368,7 @@ function carried(
   const template = name && language ? { name, language } : null;
   if (carries === "approved" && !template)
     return {
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       refusal: `only a message WhatsApp approved can go to ${personName} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
     };
   if (carries === "words" && !text && !template) return { refusal: "text is required: the words to send" };
@@ -452,6 +454,7 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (AI never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
       build: proposePersonNote,
     }),

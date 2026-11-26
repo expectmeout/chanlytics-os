@@ -30,7 +30,7 @@ export const LEAD_LIST_MAX = 500;
 export const LEAD_IMPORT_MAX_BYTES = 2_000_000;
 
 /** The two ways a search is a list of the owner's own (J1). */
-export const LEAD_LIST_VIAS = ["import", "chosen"] as const satisfies readonly LeadSearchVia[];
+const LEAD_LIST_VIAS = ["import", "chosen"] as const satisfies readonly LeadSearchVia[];
 export type LeadListVia = (typeof LEAD_LIST_VIAS)[number];
 
 /** Whether a search is a list of the owner's own, which nothing searches again (J8, J9). */
