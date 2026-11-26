@@ -52,7 +52,14 @@ export async function peopleHarness() {
   installStubReact();
   installRoleStore(globalThis.window);
   const went = moved;
-  holdRoles({ can: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action] });
+  // Who is acting decides, once someone is: a part drawn before anyone is looking (the open visit) is not refused, as
+  // the window's `gate` here never refused one.
+  holdRoles({
+    can: (action) => {
+      const role = whoIsLooking()?.me?.role;
+      return role ? !!ROLE_PERMS[role]?.[action] : true;
+    },
+  });
   bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
   bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const src = (p) => importSrc(`apps/dashboard/src/surfaces/${p}`);

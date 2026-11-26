@@ -156,12 +156,12 @@ export function frameParts() {
 }
 
 /**
- * People's parts the frame draws with, as People's courier hands them (people-detail.ts peopleFrameParts): its sheets and
- * the doors that ask for them, and its scopes, the strip's order. What a test put on the window as `peoplePages` until
- * 26 Nov 2026. Required when asked: People's TSX loads once a test's stub React is in place.
+ * People's parts the frame draws with, as the boot hands them (people/sheets/frame-parts.ts installPeopleFrameParts): its
+ * sheets and the doors that ask for them, and its scopes, the strip's order. What a test put on the window as
+ * `peoplePages` until 26 Nov 2026. Required when asked: People's TSX loads once a test's stub React is in place.
  */
 export function holdPeopleParts() {
-  bridgeHolds({ parts: requireFromDashboard("../surfaces/people/people-detail.ts").peopleFrameParts() });
+  requireFromDashboard("../surfaces/people/sheets/frame-parts.ts").installPeopleFrameParts();
 }
 
 /**

@@ -24,6 +24,7 @@ import { installTip } from "@/surfaces/frame/tip";
 import { hearFocusOutside } from "@/surfaces/kit/focus/trap";
 import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
+import { installPeopleFrameParts } from "@/surfaces/people/sheets/frame-parts";
 import { campaignsLensOpensOn } from "@/surfaces/reports/campaigns-one-code";
 import { policiesNow } from "@/surfaces/settings/business/shell";
 import { installBilling } from "@/surfaces/settings/billing/surface";
@@ -234,6 +235,8 @@ export const FRAME_INSTALLS: readonly FrameInstall[] = [
   { name: "tabMemory", run: installTabMemory },
   { name: "inboxVerbs", run: installInboxVerbs },
   { name: "peopleCourier", run: installPeopleCourier },
+  // People's two sheets and the asks that open them, and its scopes, the strip's order (people/sheets/frame-parts.ts).
+  { name: "peopleFrameParts", run: installPeopleFrameParts },
   // The streets under the lead map, when the product hosts a basemap (surfaces/leads/map/lead-map.ts); unset, the page
   // keeps its square.
   { name: "leadMap", run: () => installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE) },

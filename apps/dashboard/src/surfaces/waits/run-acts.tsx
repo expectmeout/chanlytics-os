@@ -113,7 +113,7 @@ const answerField = (data: object | undefined, field: string): unknown => (data 
 /** The broadcasts surface's verbs (provided as `broadcasts`): stop a run, approve one; nothing before they are installed. */
 export const broadcastVerbs = (): RunVerbs | undefined => provided("broadcasts");
 
-/** The toast a refused verb raises, in the shell's words (frame/flash.tsx `refusalToast`): its lead, then the server's reason. */
+/** The toast a refused verb raises, in the shell's words (frame/refusal.tsx `refusalToast`): its lead, then the server's reason. */
 function refusalFlash(res: unknown, lead: string): Flash {
   return refusalToast(typeof res === "object" ? res : null, lead);
 }

@@ -23,19 +23,19 @@ export interface OnScreen {
 }
 
 /** What a page last said is on screen, or null: the tab's one ledger. */
-let onScreen: OnScreen | null = null;
+let drawnOnScreen: OnScreen | null = null;
 
 /** Say what is on screen to Ask, or take it back with null: a page takes the ledger back only when it is its own. */
 export function setAskOnScreen(on: OnScreen | null): void {
-  onScreen = on;
+  drawnOnScreen = on;
 }
 
 /** What the ledger holds: the page Ask was last told is on screen, with its rows and view, or null. */
 export function askOnScreen(): OnScreen | null {
-  return onScreen;
+  return drawnOnScreen;
 }
 
 /** The page Ask was last told is on screen, when one is. */
 export function askOnScreenKey(): string | null {
-  return onScreen?.key ?? null;
+  return drawnOnScreen?.key ?? null;
 }

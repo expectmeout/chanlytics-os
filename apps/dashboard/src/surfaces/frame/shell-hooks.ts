@@ -62,7 +62,7 @@ export const useInboxNeeds = () => useNeedsYou() || 0;
  * Drawn again when a surface moves: a key, a list, or a route's, as the registry names them (bridge/surface-status.ts
  * surfaceHook over surface-registry.ts routeSurfaces). The frame's parts redraw on it; the pages hear their own.
  */
-export const useSurface = surfaceHook({ useCallback, useSyncExternalStore }, routeSurfaces);
+export const useFrameSurfaces = surfaceHook({ useCallback, useSyncExternalStore }, routeSurfaces);
 
 /**
  * The route gate and the honesty gate, for the route on screen. Only the escape hatches are state: readiness itself is

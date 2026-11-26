@@ -77,7 +77,7 @@ export function touchSwipe(opts: {
   return frameSwipe(opts);
 }
 
-/** A refusal as a toast (frame/flash.tsx `refusalToast`). */
+/** A refusal as a toast (frame/refusal.tsx `refusalToast`). */
 export function refusalToast(r: Parameters<typeof frameRefusal>[0], what?: string | null): Flash {
   return frameRefusal(r, what);
 }

@@ -1407,8 +1407,8 @@ test("a person the sheet cannot work out is said in the sheet as a read that fai
   }
 });
 
-test("People's courier hands the frame the sheet's doors (the bridge's `sheets`) the Inbox's thread, the Calendar and the Pipeline open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
-  (await import(`${PEOPLE}/people-detail.ts`)).installPeopleCourier();
+test("People hands the frame the sheet's doors (the bridge's `sheets`) the Inbox's thread, the Calendar and the Pipeline open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
+  (await import(`${PEOPLE}/sheets/frame-parts.ts`)).installPeopleFrameParts();
   const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
   assert.equal(provided("sheets").DealHost, doors.DealSheetHost);
   assert.equal(provided("sheets").openDeal, doors.askDealSheet);

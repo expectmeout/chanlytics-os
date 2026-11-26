@@ -20,8 +20,8 @@ const DO = "do";
 
 let seq = 0;
 
-/** How long a step back may take to say it landed before the next sheet stands its entry anyway, or afterMove goes on. */
-export const BACK_SETTLE_MS = 400;
+/** How long a step back may take to say it landed before the next sheet stands its entry anyway. */
+const BACK_SETTLE_MS = 400;
 
 /** Back's own move settling: an entry taken back is gone before the next sheet stands one, never after it. */
 let settling: Promise<void> = Promise.resolve();
@@ -75,7 +75,7 @@ export function leaveSheet(h: History | null = historyOf()): Promise<void> {
 /**
  * Close a sheet, then go on once its entry is gone: a tick for the close to be drawn (where its entry is taken back), then
  * Back's own settling, so what opens next stands on the page under it. A sheet named in the address moves no route, so the
- * frame's address (`afterMove`) never hears it close.
+ * frame's address never hears it close.
  */
 export function afterSheetCloses(close: () => void, then: () => void): void {
   close();

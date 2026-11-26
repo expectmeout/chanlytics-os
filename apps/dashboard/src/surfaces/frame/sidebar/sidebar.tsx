@@ -7,14 +7,13 @@
  */
 import { useEffect, useState } from "react";
 import { routeDoor } from "../../frame-doors";
-import type { FrameFlash } from "../../frame-verbs";
+import { useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, placeLit, type NavItem } from "../places";
 import { NAV_ROUTE } from "../shell-routes";
 import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../kit/motion/swipe";
-import { useFrameToast } from "../flash";
 
 type Badges = Record<string, string | number | null | undefined>;
 

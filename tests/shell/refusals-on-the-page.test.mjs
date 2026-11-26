@@ -168,7 +168,7 @@ test("FieldError: one sentence under the box it belongs to, announced, with the 
 });
 
 test("a refusal as a toast: the danger tone, the page's words for what did not happen, then why", async () => {
-  const toast = (await importSrc("apps/dashboard/src/surfaces/frame/flash.tsx")).refusalToast;
+  const toast = (await importSrc("apps/dashboard/src/surfaces/frame/refusal.tsx")).refusalToast;
   assert.equal(typeof toast, "function", "one shape for a refusal's toast");
   const owner = refused("Only an owner can do this.", "forbidden", 403, { needs: "owner" });
   const said = toast(owner, "Not stopped");

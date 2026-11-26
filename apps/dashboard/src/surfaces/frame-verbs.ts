@@ -10,10 +10,7 @@
 import type { MouseEvent, ReactNode, KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 import type { AskApi } from "../bridge/ask";
-import { policiesNow } from "./settings/business/shell";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
-import { BACK_SETTLE_MS } from "./kit/sheet/back";
-import { useFrameToast as useToastPart } from "./frame/flash";
 import { canDo } from "./frame/gate";
 import { CHANLY } from "./frame/constants";
 import { provided } from "@/bridge/provided";
@@ -53,7 +50,7 @@ export { holdStill } from "./kit/motion/hold-still";
 export { leaving } from "./kit/motion/leaving";
 export { keyPress } from "./kit/focus/keys";
 export { routeDoor } from "./frame-doors";
-export { refusalToast } from "./frame/flash";
+export { refusalToast } from "./frame/refusal";
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
@@ -94,45 +91,6 @@ export const warmsOnReach = (e: { pointerType?: string } | null | undefined): bo
  */
 export function drawnNow(change: () => void): void {
   flushSync(change);
-}
-
-/**
- * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
- * (the bridge's address, the provided `shell`'s `hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
- * lands a moment after it is asked for, so what follows it waits for it. A move that has not moved the route within that
- * moment moved nothing (a close of what the address does not name), and `then` runs there, since it is what the person
- * pressed for; nothing listens after, so no later move of theirs runs it. A move that throws leaves nothing listening,
- * and nothing follows it. Where the frame hears no address (the standalone mockup), `then` follows the move at once.
- */
-export function afterMove(move: () => void, then: () => void): void {
-  const shell = provided("shell");
-  if (!shell?.hear) {
-    move();
-    then();
-    return;
-  }
-  let done = false;
-  let late: ReturnType<typeof setTimeout> | undefined;
-  const end = (): boolean => {
-    if (done) return false;
-    done = true;
-    stop();
-    clearTimeout(late);
-    return true;
-  };
-  const stop = shell.hear(() => {
-    if (end()) then();
-  });
-  try {
-    move();
-  } catch (e) {
-    end();
-    throw e;
-  }
-  if (!done)
-    late = setTimeout(() => {
-      if (end()) then();
-    }, BACK_SETTLE_MS);
 }
 
 /**
@@ -193,9 +151,14 @@ export function canRefreshSurfaces(): boolean {
   return !!provided("refreshSurface");
 }
 
-/** The shell's toast (frame/flash.tsx, provided as `toast`): its node, to be drawn by the page, and the flash that raises one. */
+/**
+ * The shell's toast (frame/flash.tsx usePPToast, provided as `toast` by the boot): its node, to be drawn by the page, and
+ * the flash that raises one. Read from the bridge as it is called, never imported, so a page does not carry the toast's
+ * code (and the swipe that takes one away) beside the frame's copy. Nothing where no toast is held (a page drawn alone).
+ */
 export function useFrameToast(): [ReactNode, (flash: FrameFlash) => void] {
-  return useToastPart();
+  const toast = provided("toast");
+  return toast ? toast() : [null, () => undefined];
 }
 
 /* ------------------------------ what the kit's shared components ask of the shell ------------------------------ */
@@ -230,14 +193,6 @@ interface PolicyStore {
 /** The policy store, or nothing where the shell has none. */
 export function policyStore(): PolicyStore | undefined {
   return provided("policy");
-}
-
-/**
- * Whether the app has read the workspace's policies (the settings surface's `policies`: an object, or null where the
- * read failed). Undefined is the standalone mockup, whose seeded trust table is what its chips quote.
- */
-export function policiesRead(): boolean {
-  return policiesNow() !== undefined;
 }
 
 /** Go to Settings > Autonomy, as the policy chip does. */

@@ -167,7 +167,7 @@ export const VW_UTIL = {
  * it before warm-transferring. Away forces the holding line; the top bar's switch for it went with demo mode (16 Nov 2026).
  * Held here, once (`presence`), for the Inbox's shell.
  */
-export interface PresenceStore {
+interface PresenceStore {
   away: boolean;
   transfers: boolean;
   reachable(): boolean;

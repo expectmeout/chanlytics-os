@@ -111,15 +111,16 @@ declare global {
   }
 }
 
-/** The load this page started, kept until it settles: a second press waits on the same one. */
-let fbReady: Promise<FB> | undefined;
+/** The load each window started, kept until it settles: a second press waits on the same one. */
+const FB_READY = new WeakMap<Window, Promise<FB>>();
 
 /** Load Meta's SDK once; resolve with the global it defines. */
 function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
   const w = win;
   if (w.FB) return Promise.resolve(w.FB);
-  if (fbReady) return fbReady;
-  fbReady = new Promise<FB>((resolve, reject) => {
+  const loading = FB_READY.get(w);
+  if (loading) return loading;
+  const ready = new Promise<FB>((resolve, reject) => {
     w.fbAsyncInit = () => {
       const fb = w.FB;
       if (!fb) {
@@ -140,12 +141,13 @@ function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
     s.crossOrigin = "anonymous";
     s.onerror = () => {
       // A load that failed is not kept: the next press fetches Meta's SDK again rather than repeat this failure.
-      fbReady = undefined;
+      FB_READY.delete(w);
       reject(new Error("sdk_failed"));
     };
     w.document.head.appendChild(s);
   });
-  return fbReady;
+  FB_READY.set(w, ready);
+  return ready;
 }
 
 /** What a press needs in hand to ask for Meta's window at once: Meta's SDK, and the configuration the sign-up runs. */

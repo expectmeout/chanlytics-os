@@ -637,8 +637,8 @@ test("refused because a teammate changed the step since, the sheet reads it agai
   );
 });
 
-test("People's courier hands the frame the sheet's doors (the bridge's `sheets`) the deal card and the Inbox's thread open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
-  (await import(`${PEOPLE}/people-detail.ts`)).installPeopleCourier();
+test("People hands the frame the sheet's doors (the bridge's `sheets`) the deal card and the Inbox's thread open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
+  (await import(`${PEOPLE}/sheets/frame-parts.ts`)).installPeopleFrameParts();
   const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
   assert.equal(provided("sheets").StepHost, doors.StepSheetHost);
   assert.equal(provided("sheets").openStep, doors.askStepSheet);

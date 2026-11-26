@@ -32,7 +32,7 @@ import {
   useShellKeys,
   useShellNavigate,
   useShellRouting,
-  useSurface,
+  useFrameSurfaces,
   useTabTitle,
   useViewFade,
 } from "./shell-hooks";
@@ -123,7 +123,7 @@ export function ChanlyticsApp({
   const { page, param } = at;
   // Drawn again when a surface the route on screen is drawn from moves (surface-registry.ts routeSurfaces), and not for any
   // other surface's read. The pages hear their own.
-  useSurface({ page, param });
+  useFrameSurfaces({ page, param });
   const gate = useRouteGate(at);
   const { demoGated, arm } = gate;
   const { navigate, backToPeople, backFrom } = useShellNavigate(setRoute);

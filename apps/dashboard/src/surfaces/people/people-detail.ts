@@ -31,8 +31,6 @@ import { bootWaitsFor } from "@/bridge/hearing/page-waits";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 import { provide } from "@/bridge/provided";
-import { DealSheetHost, StepSheetHost, askDealSheet, askStepSheet } from "./sheets/doors";
-import { plScopeRoute, plScopes } from "./words";
 import { whoIsLooking } from "@/bridge/who";
 
 declare module "@/bridge/provided" {
@@ -41,19 +39,7 @@ declare module "@/bridge/provided" {
     personNotes: PersonNotesCourier;
     /** A deal's acts as a thread's Deal group offers them, and their words. */
     deal: DealMenuCourier;
-    /** The one deal sheet and the one step sheet, which the frame draws once, and the asks that open them. */
-    sheets: PeopleSheets;
-    /** People's scopes and the route of each, for where a route stands on the frame's strip of views. */
-    peopleScopes: { list: typeof plScopes; routeOf: typeof plScopeRoute };
   }
-}
-
-/** People's two sheets as the frame draws them, and what opens each from anywhere (sheets/doors.tsx). */
-interface PeopleSheets {
-  DealHost: typeof DealSheetHost;
-  StepHost: typeof StepSheetHost;
-  openDeal: typeof askDealSheet;
-  openStep: typeof askStepSheet;
 }
 
 /**
@@ -768,15 +754,8 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
  * What the shell's pages still reach a person's steps and deals through: only what one reads (the hover's warm, a step's
  * day and its done, the thread's deal acts). The sheets, cards and notes import their rules from contracts; published here
  * too, every page's first load carried the deal and step sheets' rules for nobody (the loadability review, 19 Oct 2026).
+ * The sheets and People's scopes reach the frame through sheets/frame-parts.ts.
  */
-/** What People hands the frame: its two sheets and the doors that ask for them, and its scopes, the strip's order. */
-export function peopleFrameParts() {
-  return {
-    sheets: { DealHost: DealSheetHost, StepHost: StepSheetHost, openDeal: askDealSheet, openStep: askStepSheet },
-    peopleScopes: { list: plScopes, routeOf: plScopeRoute },
-  };
-}
-
 export function installPeopleCourier(): void {
   // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).
   provide("warmPerson", (id) => {
@@ -785,7 +764,4 @@ export function installPeopleCourier(): void {
   });
   provide("personNotes", { done: markStepDone, dueDay: dueStepDay });
   provide("deal", { menu: dealMenuActs, actWords: DEAL_ACT_WORDS });
-  const people = peopleFrameParts();
-  provide("sheets", people.sheets);
-  provide("peopleScopes", people.peopleScopes);
 }

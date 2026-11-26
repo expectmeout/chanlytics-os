@@ -5,11 +5,13 @@
  * drawn again held the frames of the move. A surface the tab has never read is read at the press, since its page waits on
  * it; one it holds is read once the deck's timeline is over, and a second move inside it adds its own to the one read.
  *
- * Run on the real hearing over a window held here, the clock by hand.
+ * Run on the real hearing over a window held here, the clock by hand; a test with no motion to wait out says so to the
+ * bridge (`afterTheMoveMs`, provided).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const { hearMoves } = await importSrc("apps/dashboard/src/bridge/hearing/after-the-move.ts");
 const { setStatus } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
@@ -73,7 +75,7 @@ test("a second move inside the motion adds its own, and one read takes them all"
   stop();
 });
 
-test("a stop drops what is still owed, and a window that says there is no motion reads at once", (t) => {
+test("a stop drops what is still owed, and a bridge that says there is no motion reads at once", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const reads = [];
   const moving = windowOnToday();
@@ -86,13 +88,18 @@ test("a stop drops what is still owed, and a window that says there is no motion
   stop();
   t.mock.timers.tick(1000);
   assert.deepEqual(reads, [], "nothing read after the stop");
-  const still = windowOnToday({ __afterTheMoveMs: 0 });
+  bridgeHolds({ parts: { afterTheMoveMs: 0 } });
+  const still = windowOnToday();
   const stopStill = hearMoves(
     () => ["held-1"],
     (keys) => reads.push(keys),
     still.win,
   );
-  still.go("inbox");
-  assert.deepEqual(reads, [["held-1"]], "a test's window, with no motion to wait out");
-  stopStill();
+  try {
+    still.go("inbox");
+    assert.deepEqual(reads, [["held-1"]], "a test's world, with no motion to wait out");
+  } finally {
+    stopStill();
+    bridgeHolds({ parts: { afterTheMoveMs: undefined } });
+  }
 });

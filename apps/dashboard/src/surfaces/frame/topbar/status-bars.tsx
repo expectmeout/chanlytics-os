@@ -21,13 +21,13 @@ import { visitWordHere } from "../../workspace-word";
 import { provided } from "@/bridge/provided";
 import { frameChrome, frameShell } from "../frame-window";
 import { Icon } from "../../kit/icon/icon";
-import { useSurface } from "../shell-hooks";
+import { useFrameSurfaces } from "../shell-hooks";
 
 const CLOCK_SECOND_MS = 1000;
 
 /** Drawn again when the calls are read again (the live surface). */
 const useLiveRead = () => {
-  useSurface("live");
+  useFrameSurfaces("live");
 };
 
 /** The bars that move while a call lasts: drawn once, moved by the stylesheet, held still where motion is not welcome. */
@@ -169,7 +169,7 @@ export function BriefPlaying() {
 
 /** The Calendar's hook, where the frame has one: drawn again when its weeks are read again, or the day turns. */
 const useCalendarRead = () => {
-  useSurface("calendar");
+  useFrameSurfaces("calendar");
 };
 
 /**

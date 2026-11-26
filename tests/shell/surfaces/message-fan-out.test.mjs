@@ -1172,7 +1172,8 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const ts = (await import("typescript")).default;
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
-  // The frame's parts, which left the shell's pages for TypeScript and call the shell's hook by name (surfaces/frame).
+  // The frame's parts, which left the shell's pages for TypeScript and call the frame's own hook by name (surfaces/frame,
+  // shell-hooks.ts useFrameSurfaces).
   for (const file of repoFiles(["apps/dashboard/src/surfaces/frame"], {
     keep: /\.(jsx|tsx)$/,
   })) {
@@ -1181,7 +1182,7 @@ test("every surface a page names to useSurface is a real one: a key that is no o
       if (
         ts.isCallExpression(n) &&
         ts.isIdentifier(n.expression) &&
-        n.expression.text === "useSurface" &&
+        (n.expression.text === "useSurface" || n.expression.text === "useFrameSurfaces") &&
         n.arguments[0]
       ) {
         const arg = n.arguments[0];

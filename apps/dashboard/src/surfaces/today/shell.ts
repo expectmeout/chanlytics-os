@@ -27,7 +27,7 @@ export type { Flash } from "../shell-doors";
 
 /* -------------------------------- the toast -------------------------------- */
 
-/** The toast a refused verb raises, in the shell's words (frame/flash.tsx `refusalToast`): its lead, then the server's reason. */
+/** The toast a refused verb raises, in the shell's words (frame/refusal.tsx `refusalToast`): its lead, then the server's reason. */
 export function refusalFlash(res: unknown, lead: string): Flash {
   return refusalToast(typeof res === "object" ? res : null, lead);
 }

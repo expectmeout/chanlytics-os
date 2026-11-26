@@ -8,7 +8,7 @@
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { askCalls, type FrameFlash } from "../../frame-verbs";
+import { askCalls, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { BAR_LINE_WORDS, BELL_READ_WORDS } from "@chanlytics/contracts";
 import { askAbout, navigate, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
@@ -18,7 +18,6 @@ import { frameBell, frameChrome } from "../frame-window";
 import { NotifPopover, type BellNote } from "./notif-popover";
 import type { BellApi } from "@/bridge/notifications";
 import { Icon } from "../../kit/icon/icon";
-import { useFrameToast } from "../flash";
 
 type Flash = (p: FrameFlash) => void;
 type Bell = BellApi;

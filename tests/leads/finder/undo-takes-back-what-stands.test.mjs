@@ -145,7 +145,7 @@ const AIM = { targets: [], target: null, load: async () => {}, check: async () =
 let flashes;
 let moved;
 const flash = (t) => flashes.push(t);
-/** A toast's words, as a person reads them: a refusal's lead, then why (frame/flash.tsx refusalToast). */
+/** A toast's words, as a person reads them: a refusal's lead, then why (frame/refusal.tsx refusalToast). */
 const said = (n) =>
   n == null || typeof n === "boolean"
     ? ""
