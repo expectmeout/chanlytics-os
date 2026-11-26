@@ -73,7 +73,7 @@ test("a workspace whose cold email has waited is told once that morning, on the 
   assert.equal(bell[0].title, "2 cold email sends still wait for your approval");
   assert.match(
     bell[0].body,
-    /^12 emails .* have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\)\./,
+    /^12 emails .* have waited since Nov 8: Movers in Austin \(8\), Dentists in Tampa \(4\) · /,
   );
   assert.equal(bell[0].route, runRoute(RUN_A), "the longest-waiting run");
   assert.deepEqual([bell[0].subject_type, bell[0].subject_id], ["broadcast", RUN_A]);

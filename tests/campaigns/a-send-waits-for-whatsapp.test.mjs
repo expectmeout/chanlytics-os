@@ -293,7 +293,7 @@ test("a sequence's run waits until its day's sending hours end, no longer, and i
   assert.deepEqual([w.run.state, w.failure], ["failed", "whatsapp_wait_ended"]);
   assert.equal(
     w.alerts[0].body,
-    "WhatsApp was still checking the words when this run's time to send ended. Everyone on this run goes by WhatsApp, so nothing was sent. It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.",
+    "WhatsApp was still checking the words when this run's time to send ended. Everyone on this run goes by WhatsApp, so nothing was sent. It doesn't run again today · the next run reaches the people this one missed, and nobody gets it twice.",
   );
   assert.doesNotMatch(w.alerts[0].body, /send it again/i);
 });

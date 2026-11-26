@@ -438,6 +438,7 @@ function replyOutcomeOf(
     };
   if (reportRecipient.answered_by === "team")
     return {
+      // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
       words: `Your team answered${clock(reportRecipient.answered_at) ? ` · ${clock(reportRecipient.answered_at)}` : ""}`,
       tone: "ok",
     };

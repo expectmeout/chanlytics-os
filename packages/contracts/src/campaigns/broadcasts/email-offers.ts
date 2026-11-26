@@ -109,7 +109,7 @@ export const OFFERS_PAUSED_WORDS = {
   head: (reason: OfferPauseReason | null): string =>
     `Offers and news by email are paused: ${pausedBecause(reason)}. Reminders, confirmations and replies still go by email.`,
   /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right.",
+  fix: "Check your list for old or wrong addresses. Chanlytics turns them back on once it looks right.",
 } as const;
 
 /**
@@ -123,7 +123,7 @@ export const OFFERS_NOTICE_WORDS = {
   paused: (reason: OfferPauseReason | null): { title: string; body: string } => ({
     title: "Offers and news by email are paused",
     body:
-      `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a ` +
+      `Chanlytics paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a ` +
       `campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people ` +
       `it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on ` +
       `WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`,

@@ -120,10 +120,7 @@ test("a time booked since it was offered is taken: cancelled as the system, told
   const [, told] = f.of("alert")[0];
   assert.equal(told.kind, "broadcast_stopped");
   assert.equal(told.subject, "“Fill a cancellation · Tue 3:00 PM” didn’t go: Tue 3:00 PM was taken");
-  assert.match(
-    told.body,
-    /^Tue 3:00 PM was taken before it went: someone booked it since it freed up, so nobody was offered it\./,
-  );
+  assert.match(told.body, /^Tue 3:00 PM was booked before it went, so nobody was offered it\./);
 });
 
 test("a cancel that landed first is the row's answer: the batch sends nothing and tells nobody again", async () => {

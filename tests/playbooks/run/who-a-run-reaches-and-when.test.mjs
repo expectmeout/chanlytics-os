@@ -429,7 +429,7 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Campaign “Win-back” is ready: 2 people",
-    "2 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
+    "2 people have become eligible for “Win-back”: approve or skip it from your Inbox or Today. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);
@@ -464,7 +464,7 @@ test("REGRESSION: a reminder whose words are new waits for an OK even under Send
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Campaign “Appointment reminder” is ready: 1 person",
-    "1 person has become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them.",
+    "1 person has become eligible for “Appointment reminder”: approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them.",
     "b1",
   ]);
 });

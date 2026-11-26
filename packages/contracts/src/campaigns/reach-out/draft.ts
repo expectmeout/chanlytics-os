@@ -409,6 +409,7 @@ export const REACH_OUT_SHEET_PARTS = {
   from: "From",
   before: "Before it goes",
   subject: "Subject",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   body: "Your words",
   signAs: "Sign as",
   after: "After",

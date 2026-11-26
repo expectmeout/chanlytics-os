@@ -30,7 +30,7 @@ export const NEW_WORDS = {
     reading: "Reading your messages, your lists, and who can hear it",
     asked: "AI’s draft",
     /** Said where the line stays while Ask could not draft it. */
-    kept: "Your line is kept",
+    kept: "The number is kept",
     undo: "Undo",
     againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" } satisfies Record<
       NewAudience,
@@ -46,7 +46,7 @@ export const NEW_WORDS = {
     offer: "Send one offer to everyone",
     offerSaid: (n: number) => `${n} can hear an offer`,
     leads: (n: number) => `Write to ${n} ready ${n === 1 ? "lead" : "leads"}`,
-    leadsLine: (search: string) => `Email the ${search} we found, then follow up a week later`,
+    leadsLine: (search: string) => `Email the ${search} found, then follow up a week later`,
     /** The line a draft for leads picked on Leads is asked from. */
     leadsPicked: "Email these businesses, then follow up a week later",
     remind: "Remind people the day before",
@@ -289,11 +289,11 @@ export const NEW_WORDS = {
     checkingSaid: (n: number) => `${n} ${n === 1 ? "address" : "addresses"} still being checked`,
     leadsNote: "Each address is checked before its first email.",
     when: "When it goes",
-    whenNow: (now: string) => `Your time, ${now} now`,
+    whenNow: (now: string) => `${now} your time`,
     laterToday: "Later today",
     laterTodayAt: (time: string) => `At ${time}`,
-    nowSaid: "Goes in 10 minutes; Stop until then",
-    nowOpens: (time: string) => `Goes at ${time}, when your sending hours open; Stop until then`,
+    nowSaid: "Goes in 10 minutes · Stop until then",
+    nowOpens: (time: string) => `Goes at ${time}, when your sending hours open · Stop until then`,
     pickADay: "Pick a day and time",
     pickADaySaid: "Up to 30 days ahead",
     day: "Day",
@@ -317,6 +317,7 @@ export const NEW_WORDS = {
     okNote: "New words wait for your approval again. To leads, “on its own” isn’t offered.",
     from: "Sent from",
     fromSub: "Your own mailbox, so replies come to you",
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     yourMailbox: "Your mailbox",
     noMailbox: "No mailbox connected",
     connectSaid: "Emails go out from your own address, so replies come back to you",
@@ -326,6 +327,7 @@ export const NEW_WORDS = {
     messageSub: "Yours, or one AI writes for this step",
     writeOne: "Write one yourself",
     byAskNamed: (title: string) => `${title} · by AI`,
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     yourMessages: "Your messages",
     anOffer: "an offer, never a text",
     firstStepOnly: "Names their booking, so step 1 only",

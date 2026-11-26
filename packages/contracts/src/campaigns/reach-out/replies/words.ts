@@ -90,6 +90,7 @@ export const REPLY_SCHEMA = /* @__PURE__ */ (() => ({
  * What each intent means, as the reader is told it (replySystemPrompt says each after its name) and as a second reader is
  * asked it (replyIntentQuestion: the same words are the choice's criteria): one text for the rule.
  */
+// screen-word: said to the model, never shown on a page.
 const REPLY_INTENT_RULES: Record<ReplyIntent, string> = {
   interested:
     "they want to hear more, talk, meet, or be called; asking for more details, with no particular question, is interested.",

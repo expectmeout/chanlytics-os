@@ -142,7 +142,7 @@ function didLine(reachOutReply: ReachOutReplyDto, now: number, tz: string): stri
     case "no":
       return saidNoLine(reachOutReply);
     case "wrong_person":
-      return `Not the right person. They said to write to ${reachOutReply.refer_to ?? "someone else"}. A step is on Today.`;
+      return `Not the right person: they said to write to ${reachOutReply.refer_to ?? "someone else"}. A step is on Today.`;
     case "away":
       if (reachOutReply.claim === "auto_reply" && reachOutReply.until_at) {
         const back = clockDate(Date.parse(reachOutReply.until_at), tz, now);
@@ -181,7 +181,7 @@ export function replyStripOf(reachOutReply: ReachOutReplyDto, now: number, tz: s
       title: "Wrote back",
       said: null,
       answers,
-      did: last ? "We couldn't read it." : "We couldn't read it yet: we'll try again.",
+      did: last ? "Couldn't read it." : "Couldn't read it yet · Chanlytics tries again.",
       doors: [],
     };
   }

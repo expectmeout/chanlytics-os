@@ -77,6 +77,7 @@ export const PLAYBOOK_PATCH_WORDS = {
    * time of their own, so each would wait for an OK of their own, and a reminder's would run out when its visit began.
    */
   modeOwnTime:
+    // screen-word: the mode names a caller sends, listed back to the caller
     "This one writes to each person at a time of their own, so it sends each message (Send it) or holds it for a stop (Hold it): asked for each, a message would wait past its moment.",
   /** A mode a one-off does not take: pressing Send decided it. */
   modeOneOff: "A one-off goes as it was sent: it has no mode.",
@@ -102,5 +103,6 @@ export const PLAYBOOK_PATCH_WORDS = {
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
    */
+  // screen-word: the fields a caller sends, listed back to the caller
   putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`,
 } as const;

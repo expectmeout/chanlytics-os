@@ -34,7 +34,7 @@ export function newSequenceLine(trigger: string, word: AppointmentWord): string 
     case "new_week":
       return "Welcome each new customer in their first week";
     case "phoned_only":
-      return "Ask anyone who only phoned to save our number";
+      return "Ask anyone who only phoned to save the number";
     case "everyone_monthly":
       return "Send everyone this month’s offer";
     case "proposal_waiting":

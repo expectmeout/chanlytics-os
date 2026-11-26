@@ -96,6 +96,7 @@ export const LEAD_BUILD_WORDS = {
   saving: "Saving…",
   saved: "Saved as you change it",
   /** The booking link put in from the step: Settings keeps it. */
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   bookingLink: "Your booking link",
   bookingSave: "Save to Settings",
   bookingSaved: "Booking link saved",
@@ -128,13 +129,16 @@ export const LEAD_BUILD_WORDS = {
     noSearch: "It was made from a list, not a search",
     sending: "Sending",
     sendsFrom: "Sends from",
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     inbox: "Your inbox · you send",
     mailboxes: (n: number) =>
+      // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
       n === 0 ? "Your mailboxes · none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
     /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
     noneSends: "No mailbox sends now, so nothing goes. Connect one on Settings › Cold email.",
     /** Saved for the owner to send, with a mailbox that could send for them now. */
     canSwitch: (n: number) =>
+      // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
       `${n === 1 ? "Your mailbox is" : `Your ${n} mailboxes are`} connected: choose ${n === 1 ? "it" : "them"} to send these for you.`,
     connect: "Connect a mailbox",
     aDay: "A day, at most",
@@ -160,6 +164,7 @@ export const LEAD_BUILD_WORDS = {
     day: (perDay: number, top: number) => (perDay < top ? `${perDay} a day, rising to ${top}` : `${perDay} a day`),
     /** How its emails end (0077, D10). */
     endsWith: "Ends with",
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     endsName: (name: string) => (name.trim() ? `“${name.trim()}”` : "Your name"),
     endsSignature: (address: string) => `${address}'s signature`,
     signatureHasLink: "Its link stays out of first emails, and of any that has a link already.",

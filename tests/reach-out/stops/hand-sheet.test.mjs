@@ -38,7 +38,7 @@ test("a call or a note is offered after any email, ends the chain, and saves wit
   assert.equal(reachOutMayAddStep(d), false, "nothing after a call or a note");
   assert.equal(reachOutAddStep(d), d);
   assert.equal(reachOutAddHandStep(d, "note"), d);
-  d = reachOutSetHandWords(d, 2, "Ask whether our quote suited them");
+  d = reachOutSetHandWords(d, 2, "Ask whether the quote suited them");
   assert.equal(reachOutSetHandWords(d, 0, "x"), d, "an email has no hand to write");
   const body = reachOutChainBodyOf(d, SEARCH_ID);
   assert.equal(ReachOutChainSchema.safeParse(body).success, true);
@@ -51,7 +51,7 @@ test("a call or a note is offered after any email, ends the chain, and saves wit
     subject: null,
     body: "",
     after_days: 4,
-    hand: { kind: "call", words: "Ask whether our quote suited them" },
+    hand: { kind: "call", words: "Ask whether the quote suited them" },
   });
   assert.equal(reachOutDraftIssues(d, { bookingLink: false }).ready, true);
 });

@@ -351,7 +351,7 @@ export const pacedStep = (n, after, over = {}) => ({
 
 /** The same room for the November offer, which starts later: its broadcast reaches the whole list on its day. */
 export const ROOM_TIGHT =
-  "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.";
+  "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once. To pace it to the room, dismiss it and ask again on Nov 1.";
 
 export const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
 
@@ -605,7 +605,7 @@ export const ROWS = [
     world: world({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
     steps: [noteStep(1), firstSend(2, [1])],
     words: [
-      "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.",
+      "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once. To pace it to the room, dismiss it and ask again on Nov 1.",
       REMINDS,
       REUSED,
       NOTE,
@@ -1159,7 +1159,7 @@ export const ES_ROOM = "El calendario tiene 15 huecos libres en los próximos 14
 
 export const ES_PACED = `${ES_ROOM}, así que la oferta va como campaña: hasta 2 al día, cada persona una vez, hasta que termine, desde que la apruebes.`;
 
-export const ES_ROOM_TIGHT = `${ES_ROOM}, y el envío va a toda la lista a la vez: para ajustarla a los huecos, descarta el envío y pídemelo otra vez el 1 de noviembre.`;
+export const ES_ROOM_TIGHT = `${ES_ROOM}, y el envío va a toda la lista a la vez. Para ajustarla a los huecos, descártalo y pídemelo otra vez el 1 de noviembre.`;
 
 export const ES_NO_MAILBOX = "Va sin correo: Configura primero el correo en Ajustes › Conexiones.";
 
@@ -1264,7 +1264,7 @@ export const ES_ROWS = [
     steps: [{ ...TODAY_NOTE, n: 1 }, pacedStep(2, [1], { template_id: V(1) })],
     words: [
       ES_PACED,
-      "Su versión de WhatsApp espera la revisión de WhatsApp, que puede seguir en el primer envío: quien la reciba por WhatsApp espera a que termine.",
+      "WhatsApp aún revisa sus palabras, así que quien la reciba por WhatsApp espera a que termine.",
       ES_REUSED,
       ES_TODAY_NOTE,
     ],

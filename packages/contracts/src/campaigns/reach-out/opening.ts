@@ -33,6 +33,7 @@ export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
  * before it writes and again when it made one (29 Oct 2026: the writer, never told, guessed at how busy a business is
  * in most openings, and a rewrite told only its words made the same guess in others).
  */
+// screen-word: said to the model, never shown on a page.
 export const OPENING_UNSTATED =
   "how busy they are, how often their phone rings, how many customers or calls they get, their revenue, their feelings, their problems or their plans";
 
@@ -73,7 +74,7 @@ export interface OpeningWorkspace {
   tone: string | null;
 }
 
-/** What a record's website_says line is, told the writer and the reader alike. */
+/** What a record's website_says line is, told the writer and the reader alike. screen-word: said to the model, never shown on a page. */
 const WEBSITE_SAYS_LINE =
   "website_says, where the record has it, is what the business's own website says about itself: its words, a fact like the rest of the record.";
 
@@ -244,6 +245,7 @@ export function openingUserLines(params: OpeningInput): OpeningLine[] {
       ...(retry
         ? [
             "",
+            // screen-word: said to the model, never shown on a page.
             fenceLine("Your last opening was", retry.opening) ?? "",
             `It could not be sent: ${defang(retry.why)}. Write it again from the record only.`,
           ]
@@ -394,6 +396,7 @@ export function openingVerdict(
       hold: "unbacked_fact",
       detail: heldClaimDetail("guess", sentence),
       rewrite: true,
+      // screen-word: said to the model, never shown on a page.
       why: `it guessed (“${sentence}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
     };
   }

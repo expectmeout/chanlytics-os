@@ -96,13 +96,13 @@ const CLAIM_GUESSED: Record<Exclude<OpeningClaimKind, "detail">, string> = {
 
 // What we read of them, never "we found nothing": a held opening that quotes their site read as the check contradicting itself
 // (Ruben, 14 Nov 2026: "The opening says something we found nothing on" over "…says on its site that it launches brands").
-const NOTHING_FOUND = "nothing we read of them says so";
+const NOTHING_FOUND = "nothing Chanlytics read of them says so";
 
 /** What an unbacked opening did, by its kind alone ("the opening guesses at their calls"); a hold with none, a detail. */
 export function openingClaimWords(kind: HeldClaimKind | null): string {
   if (kind === "guess") return "the opening is worded as a guess";
   if (kind && kind !== "detail") return `the opening ${CLAIM_GUESSED[kind]}`;
-  return "the opening says something we couldn't find in what we read of them";
+  return "the opening says something not found in what Chanlytics read of them";
 }
 
 function unbackedWords(c: { kind: HeldClaimKind | null; said: string | null }): string {
@@ -127,7 +127,7 @@ export function holdWords(reachOutHold: ReachOutHold, detail: string | null, ste
         : "reads like a chain";
     }
     case "language":
-      return `their listing reads in ${languageName(detail || "?")}; the email is in ${languageName(stepLanguage)}`;
+      return `their listing reads in ${languageName(detail || "?")}, and the email is in ${languageName(stepLanguage)}`;
     case "unbacked_fact":
       return unbackedWords(heldClaimOf(detail));
     case "reads_like_spam":

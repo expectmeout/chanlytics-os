@@ -136,11 +136,11 @@ test("after a disconnect, and while signed out, an ad Meta was checking is said 
   assert.equal(alone.notice.title, "Meta was checking Weekend offer when you disconnected");
   assert.match(
     alone.notice.body,
-    /If Meta approves it, it runs and Meta charges\. It can only be paused in Meta now\.$/,
+    /if Meta approves it, it runs and Meta charges\. It can only be paused in Meta now\.$/,
   );
   const both = liveModel(left([running, checking]), SAID);
   assert.equal(both.notice.title, "Spring offer and Weekend offer were left on when you disconnected");
-  assert.match(both.notice.body, /one it was checking starts when Meta approves it/);
+  assert.match(both.notice.body, /one in review starts once approved/);
   // Only running ones: as it was said before.
   assert.match(liveModel(left([running]), SAID).notice.title, /^Spring offer was on when you disconnected$/);
   // Signed out: the row says what the ad was doing when last read, never that it was paused.
@@ -229,7 +229,7 @@ test("before anyone has written from an ad the page says how many ads there are,
   assert.deepEqual(vm.head, { strong: "2 ads", rest: " are in your Meta account." });
   assert.equal(
     vm.line,
-    "Charged to your card by Meta, never through Chanlytics. Pause an ad and it stops. Meta still bills what it already showed.",
+    "Meta charges your card, never Chanlytics. A paused ad stops, and Meta still bills what it already showed.",
   );
   assert.deepEqual(
     vm.rows.map((row) => row.line),
@@ -330,7 +330,7 @@ test("after a disconnect an ad left running is said at the top, with Meta as the
   const vm = liveModel(left, SAID);
   assert.deepEqual(vm.notice, {
     title: "Spring colour offer was on when you disconnected",
-    body: "That was Wed 18 Nov. Meta charges while it runs. It can only be paused in Meta now.",
+    body: "That was Wed 18 Nov, and Meta charges while it runs. It can only be paused in Meta now.",
     door: "Open Meta",
   });
   assert.deepEqual(
@@ -498,7 +498,7 @@ test("Reports › Ads says the page's own numbers: Chanlytics' count in its colu
   // The rows' people add up to the figure, the unnamed among them: the lens and the page cannot disagree.
   const came = vm.rows.reduce((sum, row) => sum + (Number(row.came) || 0), 0);
   assert.equal(String(came), vm.figures[0].value);
-  assert.match(vm.notes[0], /counted once, for the ad they first wrote from/);
+  assert.match(vm.notes[0], /counts once, for the ad they first wrote from/);
 });
 
 test("the page's read lists the connected account's ads and counts the people of an account connected before beside them", async () => {

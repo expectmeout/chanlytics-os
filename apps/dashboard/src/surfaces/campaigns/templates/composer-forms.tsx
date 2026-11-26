@@ -533,7 +533,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
         ) : where !== "whatsapp" ? null : (
           <>
             <span className="bc-excl-hint">
-              The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
+              The words are yours, and WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
             </span>
             <Button
               variant="primary"
@@ -593,7 +593,7 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
         ) : (
           <>
             <span className="bc-excl-hint">
-              The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
+              The words are yours, and WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
             </span>
             <span className="bc-actions-spacer" />
             <Button

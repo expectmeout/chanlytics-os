@@ -301,7 +301,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     down.held[0].answers.map((a) => a.door),
     ["take_out"],
   );
-  assert.equal(down.held[0].why, "The check couldn't run; it tries again on its own within the hour");
+  assert.equal(down.held[0].why, "The check couldn't run · it tries again on its own within the hour");
   // From step 2 the no is Skip this email: their place goes on to the next step (00459).
   assert.deepEqual(
     at({ step_n: 1 }).held[0].answers.map((a) => a.words),
@@ -318,7 +318,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
       },
     ],
   }).held[0];
-  assert.equal(claim.why, "The opening guesses how busy they are; nothing we read of them says so");
+  assert.equal(claim.why, "The opening guesses how busy they are; nothing Chanlytics read of them says so");
   assert.deepEqual(claim.opening, {
     before: "Hyde Park Bootcamp has 201 reviews, ",
     said: "clearly you're handling real volume",
@@ -544,7 +544,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     sendsNote: "step 2 · after 4 days with nothing back",
     checkLabel: "What is checked before each send",
     checkNote:
-      "Checked before each send: every slot filled or the email held · the opening's facts in the finder's record · under 120 words · the footer present · the language theirs.",
+      "Checked before each send: every slot filled · facts on record · under 120 words · the footer · their language.",
     edit: "Edit the campaign",
   });
 });

@@ -795,11 +795,11 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   const win = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "quiet_30" } });
   assert.equal(
     win.fix,
-    "Resume from Settings › Billing. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Resume from Settings › Billing. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice.",
   );
   assert.equal(win.tone, "warn");
   const visit = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "visit_tomorrow" } });
-  assert.match(visit.fix, /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/);
+  assert.match(visit.fix, /a reminder belongs to its day, so the people it missed aren't sent it later\.$/);
   // A playbook's run that reached some people first says the same: its next step is not a resend either.
   const sent = [
     { contact_id: "got", name: "Ada Lee", first_name: "Ada", state: "sent", sent_at: at(0), replied: false },
@@ -817,7 +817,7 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   ).stop;
   assert.equal(
     wire.fix,
-    "Nobody got it. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Nobody got it. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice.",
   );
 });
 

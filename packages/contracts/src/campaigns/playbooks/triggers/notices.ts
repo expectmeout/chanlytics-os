@@ -74,7 +74,7 @@ export function readyRunNotice(
 ): { subject: string; body: string } {
   return {
     subject: `Campaign “${name}” is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger, at)}.`,
+    body: `${plural(people, "person has", "people have")} become eligible for “${name}”: approve or skip it from your Inbox or Today. ${batchWaitWords(trigger, at)}.`,
   };
 }
 
@@ -129,7 +129,7 @@ export function skippedRunNotice(
   if (at && triggerOf(trigger ?? "")?.kind === "freed")
     return {
       subject,
-      body: `${phrase} waited for your approval until ${at} came, and nothing was sent, since that time has passed. The next cancellation offers its own time, and waits for your approval too: ${NEXT_BATCH_WAITS}.`,
+      body: `${phrase} waited for your approval until ${at}, so nothing was sent. The next cancellation offers its own time: ${NEXT_BATCH_WAITS}.`,
     };
   if (approvalEndsWithSendingHours(trigger))
     return {
@@ -138,7 +138,7 @@ export function skippedRunNotice(
     };
   return {
     subject,
-    body: `${phrase} waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: ${NEXT_BATCH_WAITS}.`,
+    body: `${phrase} waited for your approval all day, so nothing was sent. They're in line for its next send: ${NEXT_BATCH_WAITS}.`,
   };
 }
 
@@ -190,7 +190,7 @@ export function leftBehindNotice(name: string, people: number): { subject: strin
 export function freedTimeTakenNotice(name: string, at: string): { subject: string; body: string } {
   return {
     subject: `“${name}” didn’t go: ${at} was taken`,
-    body: `${at} was taken before it went: someone booked it since it freed up, so nobody was offered it. The next cancellation offers its own time.`,
+    body: `${at} was booked before it went, so nobody was offered it. The next cancellation offers its own time.`,
   };
 }
 
