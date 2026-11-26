@@ -50,6 +50,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
+import { listedTogether } from "../shell/boot/_frame-boot.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -495,10 +496,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   );
   // (The Playbooks tab of the Campaigns strip is gone with the strip: the old route is a door now, run in
   // campaigns-routes.test.mjs.)
-  assert.ok(
-    /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/bridge/FrameApp.tsx")),
-    "booted with the rest",
-  );
+  assert.ok(listedTogether("broadcasts", "playbooks"), "booted with the rest");
 });
 
 test("what the next run will DO: a playbook running against an empty list is not running in the sense the owner means", () => {
