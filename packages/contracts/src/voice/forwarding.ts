@@ -68,13 +68,15 @@ function national(e164: string): string {
 
 const code = (c: string): ForwardingCode => ({ code: c, tel: telHref(c) });
 
-const UNANSWERED_NOTE =
-  "Your phone rings first. After your phone company's timer, usually 15 to 30 seconds, the call comes to AI. If voicemail picks up first, calls never arrive: ask your phone company to lengthen the ring time, or forward every call.";
+const UNANSWERED_NOTES = [
+  "Your phone rings first. After 15 to 30 seconds, the call comes to AI.",
+  "If voicemail picks up first, calls never arrive: ask your phone company for a longer ring, or forward every call.",
+];
 const DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
 const OFFICE_NOTE =
-  "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+  "An office phone system takes no code: in its settings, forward the calls nobody answers to the number above.";
 const OFFICE_VOICEMAIL_NOTE =
-  "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach AI. Its support can set it for you.";
+  "Put the forwarding before voicemail, or calls never reach AI. The system's support can set it for you.";
 
 /**
  * What the owner is told to dial, or, for an office phone system, where to forward: said once, for every card.
@@ -102,7 +104,7 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
       return {
         on: code(conditional ? `*71${n10}` : `*72${n10}`),
         off: code("*73"),
-        notes: [DIAL_NOTE, ...(conditional ? [UNANSWERED_NOTE] : []), "Verizon forwards calls only, never texts."],
+        notes: [DIAL_NOTE, ...(conditional ? UNANSWERED_NOTES : []), "Verizon forwards calls only, never texts."],
       };
     case "att":
       return {
@@ -112,8 +114,8 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
           DIAL_NOTE,
           ...(conditional
             ? [
-                UNANSWERED_NOTE,
-                `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`,
+                ...UNANSWERED_NOTES,
+                `Busy too: dial *67*${n10}#. If AT&T refuses these, dial *92 then the number for no answer, *90 for busy.`,
               ]
             : []),
         ],
@@ -122,7 +124,7 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
       return {
         on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
         off: code(conditional ? "##004#" : "##21#"),
-        notes: [DIAL_NOTE, ...(conditional ? [UNANSWERED_NOTE] : []), "T-Mobile takes the number with +1 in front."],
+        notes: [DIAL_NOTE, ...(conditional ? UNANSWERED_NOTES : []), "T-Mobile takes the number with +1 in front."],
       };
     default:
       return {
@@ -130,8 +132,9 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
         off: code(conditional ? "*93" : "*73"),
         notes: [
           DIAL_NOTE,
-          ...(conditional ? [UNANSWERED_NOTE] : []),
-          "Codes vary by phone company. If these are refused, ask yours for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer.",
+          ...(conditional ? UNANSWERED_NOTES : []),
+          "Codes vary by phone company: most landlines use *72 for every call and *92 or *71 for calls you don't answer.",
+          "If these are refused, ask your phone company for its forwarding codes.",
         ],
       };
   }
