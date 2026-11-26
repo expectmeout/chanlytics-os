@@ -17420,6 +17420,11 @@ begin
     return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
       jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
   end if;
+  if cardinality(v_ids) > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.checked_again', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', cardinality(v_ids), 'by', v_user)));
+  end if;
   return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
 end $$;
 
@@ -18326,6 +18331,9 @@ begin
   end if;
   perform public.lead_blank(p_lead_id);
   update public.leads set erased_at = now(), version = version + 1 where id = p_lead_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.erased', 'lead', 'lead', p_lead_id,
+          jsonb_strip_nulls(jsonb_build_object('by', v_user)));
   -- No operation row: this one is final.
   return jsonb_build_object('erased', true, 'already', false);
 end $$;
@@ -18412,6 +18420,11 @@ begin
    where tenant_id = p_tenant_id and id = any (coalesce(p_ids, '{}'::uuid[]))
      and exported_at is null and erased_at is null and blanked_at is null;
   get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.exported', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', v_n, 'by', v_user)));
+  end if;
   return v_n;
 end $$;
 
@@ -20436,6 +20449,9 @@ begin
     raise exception 'Sequence not found.' using errcode = 'P0002';
   end if;
   update public.lead_searches set adds_to = p_sequence_id where id = p_search_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'lead_search.changed', 'lead', 'lead_search', p_search_id,
+          jsonb_strip_nulls(jsonb_build_object('adds_to', p_sequence_id, 'by', auth.uid())));
   return jsonb_build_object('search_id', p_search_id, 'adds_to', p_sequence_id);
 end $$;
 
@@ -34927,11 +34943,21 @@ declare
   r       record;
 begin
   -- Untouched for 90 days: no person, no contact, no export. Set aside.
-  update public.leads
-     set stage = 'archived', closed_reason = 'stale'
-   where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
-     and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null;
-  get diagnostics v_n = row_count; v_total := v_total + v_n;
+  with stale as (
+    update public.leads
+       set stage = 'archived', closed_reason = 'stale'
+     where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
+       and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'retention.cleared', 'system', 'workspace', s.tenant_id,
+           jsonb_build_object('what', 'leads_set_aside', 'rows', count(*))
+      from stale s group by s.tenant_id
+    returning 1
+  )
+  select count(*) into v_n from stale;
+  v_total := v_total + v_n;
   -- Set aside for 180 days since it was found: its details go.
   for r in select l.id from public.leads l
             where l.closed_reason = 'stale' and l.blanked_at is null and l.erased_at is null and l.found_at < now() - interval '180 days'

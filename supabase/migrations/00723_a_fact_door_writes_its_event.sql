@@ -3153,3 +3153,237 @@ begin
           jsonb_strip_nulls(jsonb_build_object('to', 'saved', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $_$;
+/* -- the finder's leads: aimed, exported, checked again, erased, set aside by age: each with its event -- */
+
+-- A search aimed at a sequence writes lead_search.changed; leads marked exported, sent to be checked again or erased
+-- write lead.exported, lead.checked_again or lead.erased; the leads set aside by age write retention.cleared, one row
+-- per workspace, as the other clearances do. All are kept from Activity's rows: Leads says each as it stands.
+
+-- lead_search_aim
+CREATE OR REPLACE FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.lead_searches s
+                  where s.id = p_search_id and s.tenant_id = p_tenant_id and s.removed_at is null) then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  -- A sequence to leads of this workspace that has not ended (a draft collects, a paused one waits), or none.
+  if p_sequence_id is not null and not exists (
+       select 1 from public.sequences q
+        where q.id = p_sequence_id and q.tenant_id = p_tenant_id and q.starts = 'leads' and q.state <> 'ended') then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  update public.lead_searches set adds_to = p_sequence_id where id = p_search_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'lead_search.changed', 'lead', 'lead_search', p_search_id,
+          jsonb_strip_nulls(jsonb_build_object('adds_to', p_sequence_id, 'by', auth.uid())));
+  return jsonb_build_object('search_id', p_search_id, 'adds_to', p_sequence_id);
+end $$;
+
+-- lead_export_mark
+CREATE OR REPLACE FUNCTION public.lead_export_mark(p_tenant_id uuid, p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_n    integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'export') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.leads
+     set exported_at = now()
+   where tenant_id = p_tenant_id and id = any (coalesce(p_ids, '{}'::uuid[]))
+     and exported_at is null and erased_at is null and blanked_at is null;
+  get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.exported', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', v_n, 'by', v_user)));
+  end if;
+  return v_n;
+end $$;
+
+-- lead_check_again
+CREATE OR REPLACE FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_ids  uuid[] := '{}';
+  v_r    record;
+  v_err  jsonb;
+  v_held integer := 0;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'find') then
+    raise exception 'Only an owner can check a lead again.' using errcode = '42501';
+  end if;
+  -- The switch, read before anything is scheduled (§0.5): the mailbox check is money too.
+  if not public.lead_searches_on(p_tenant_id) then
+    return jsonb_build_object('error', 'paused');
+  end if;
+  -- And whether the workspace may spend at all (00364): this door is the session's, so the route's question is asked here too.
+  v_err := public.lead_spend_refusal(p_tenant_id);
+  if v_err is not null then
+    return v_err;
+  end if;
+  -- One job per round the leads were found in: the re-check runs under the round, as the round's own checks
+  -- did, and commits through lead_check_commit. Only an address whose last check did not answer is asked
+  -- again, of a lead kept or in Needs review (00618: a kept one was refused, so it could never be checked
+  -- again); a lead left out is not; a lead whose search is still running is left to that search's own checks;
+  -- a lead with no address has nothing to check; and a lead of another workspace is not this owner's to ask about.
+  for v_r in
+    select m.round_id, array_agg(m.lead_id) as lead_ids
+      from (
+        select distinct on (m.lead_id) m.lead_id, m.round_id
+          from unnest(p_lead_ids) as x(id)
+          join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null
+          join public.lead_search_members m on m.lead_id = l.id and m.tenant_id = p_tenant_id and m.class in ('review', 'qualified') and m.blanked_at is null
+          join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
+         where l.email is not null and l.email_state = 'unknown'
+         order by m.lead_id, r.created_at desc
+      ) m
+     group by m.round_id
+  loop
+    -- Asked only with room in this month's and today's searching (00506): a check is money, as a search is.
+    if public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids) then
+      v_ids := v_ids || v_r.lead_ids;
+    else
+      v_held := v_held + cardinality(v_r.lead_ids);
+    end if;
+  end loop;
+  -- Nothing asked because there was no room: the owner reads why, in the words a search is refused in.
+  if cardinality(v_ids) = 0 and v_held > 0 then
+    return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
+      jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
+  end if;
+  if cardinality(v_ids) > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.checked_again', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', cardinality(v_ids), 'by', v_user)));
+  end if;
+  return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
+end $$;
+
+-- lead_erase
+CREATE OR REPLACE FUNCTION public.lead_erase(p_lead_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_lead public.leads%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_lead from public.leads where id = p_lead_id for update;
+  if not found or not exists (select 1 from public.memberships m where m.tenant_id = v_lead.tenant_id and m.user_id = v_user) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.memberships m where m.tenant_id = v_lead.tenant_id and m.user_id = v_user and m.role = 'owner') then
+    raise exception 'Only an owner can erase a lead.' using errcode = '42501';
+  end if;
+  if v_lead.erased_at is not null then
+    -- Idempotent: a second request is answered, not re-executed.
+    return jsonb_build_object('erased', true, 'already', true);
+  end if;
+  -- The tombstones first, exactly as an erased person's leads are hashed
+  -- (00140 leads_erase_on_contact), so no search ever finds this place, this
+  -- number or this address again (§0.4).
+  if v_lead.place_id is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'place', public.lead_suppression_hash(v_lead.tenant_id, v_lead.place_id), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  if v_lead.phone_e164 is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'phone', public.lead_suppression_hash(v_lead.tenant_id, v_lead.phone_e164), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  if v_lead.email is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'email', public.lead_suppression_hash(v_lead.tenant_id, v_lead.email), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  -- A company's domain (00430), so the people card never makes it again and no address at it is written to.
+  if v_lead.kind = 'company' and v_lead.source_key is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'domain', public.lead_suppression_hash(v_lead.tenant_id, v_lead.source_key), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  perform public.lead_blank(p_lead_id);
+  update public.leads set erased_at = now(), version = version + 1 where id = p_lead_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.erased', 'lead', 'lead', p_lead_id,
+          jsonb_strip_nulls(jsonb_build_object('by', v_user)));
+  -- No operation row: this one is final.
+  return jsonb_build_object('erased', true, 'already', false);
+end $$;
+
+-- purge_leads
+CREATE OR REPLACE FUNCTION public.purge_leads() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+  r       record;
+begin
+  -- Untouched for 90 days: no person, no contact, no export. Set aside.
+  with stale as (
+    update public.leads
+       set stage = 'archived', closed_reason = 'stale'
+     where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
+       and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'retention.cleared', 'system', 'workspace', s.tenant_id,
+           jsonb_build_object('what', 'leads_set_aside', 'rows', count(*))
+      from stale s group by s.tenant_id
+    returning 1
+  )
+  select count(*) into v_n from stale;
+  v_total := v_total + v_n;
+  -- Set aside for 180 days since it was found: its details go.
+  for r in select l.id from public.leads l
+            where l.closed_reason = 'stale' and l.blanked_at is null and l.erased_at is null and l.found_at < now() - interval '180 days'
+  loop
+    v_total := v_total + public.lead_blank(r.id);
+  end loop;
+  -- A place a search left out, 30 days on: the membership's details go and
+  -- the lead's with them when nothing else holds it; the membership stays,
+  -- excluded, so the count of what was left out does not move.
+  for r in select distinct m.lead_id from public.lead_search_members m
+            where m.class = 'excluded' and m.blanked_at is null and m.created_at < now() - interval '30 days'
+  loop
+    if not exists (select 1 from public.lead_search_members m2 where m2.lead_id = r.lead_id and m2.class <> 'excluded' and m2.blanked_at is null)
+       and not exists (select 1 from public.leads l where l.id = r.lead_id and (l.contact_id is not null or l.contacted_at is not null or l.exported_at is not null)) then
+      v_total := v_total + public.lead_blank(r.lead_id);
+    else
+      update public.lead_search_members set judgment = '{}'::jsonb, reason = '', blanked_at = now()
+       where lead_id = r.lead_id and class = 'excluded' and blanked_at is null;
+    end if;
+  end loop;
+  -- The judge's answers outlive nothing they judged.
+  delete from public.lead_judgments where created_at < now() - interval '180 days';
+  return v_total;
+end $$;
