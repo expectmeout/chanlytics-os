@@ -309,10 +309,10 @@ export const btWhole = (fold: string, draft: unknown, parts: string[], kind: "bo
 
 /** The calendar fold opens with what the owner books with, as the picker holds it (contracts booksWithOf), and the link's address. */
 export const btCalendarDraft = (config: Config): CalendarDraft => {
-  const ical_url = (config.calendar && config.calendar.ical_url) || "";
+  const icalUrl = (config.calendar && config.calendar.ical_url) || "";
   return {
-    with: booksWithOf({ ...(config.bookings || {}), ical_url }),
-    ical_url,
+    with: booksWithOf({ ...(config.bookings || {}), ical_url: icalUrl }),
+    ical_url: icalUrl,
   };
 };
 
