@@ -29,8 +29,8 @@ import { INSTAGRAM_EVENTS } from "./log-events/instagram.js";
 import { LEADS_EVENTS } from "./log-events/leads.js";
 import { LINES_EVENTS } from "./log-events/lines.js";
 import { OPS_EVENTS } from "./log-events/ops.js";
+import { PLUMBING_EVENTS } from "./log-events/plumbing.js";
 import { RECEPTIONIST_EVENTS } from "./log-events/receptionist.js";
-import { SHARED_EVENTS } from "./log-events/shared.js";
 import { VOICE_EVENTS } from "./log-events/voice.js";
 import { WHATSAPP_EVENTS } from "./log-events/whatsapp.js";
 
@@ -47,8 +47,8 @@ export const LOG_EVENTS = [
   ...LEADS_EVENTS,
   ...LINES_EVENTS,
   ...OPS_EVENTS,
+  ...PLUMBING_EVENTS,
   ...RECEPTIONIST_EVENTS,
-  ...SHARED_EVENTS,
   ...VOICE_EVENTS,
   ...WHATSAPP_EVENTS,
 ].sort();

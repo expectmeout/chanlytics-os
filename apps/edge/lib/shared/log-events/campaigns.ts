@@ -1,4 +1,4 @@
-/** The edge's log names of the campaigns: playbooks, broadcasts, reach-outs and their sends. Sorted, so two changes that add a name each land apart. */
+/** The edge's log names of the campaigns: playbooks, broadcasts, reach-outs, the late and freed-time notices and their sends. Sorted, so two changes that add a name each land apart. */
 export const CAMPAIGNS_EVENTS = [
   "ask_budget_spent",
   "broadcast_appointments_unread",
@@ -15,9 +15,18 @@ export const CAMPAIGNS_EVENTS = [
   "cold_email_waits_reminded",
   "content_plans_hand_out_failed",
   "content_weeks_start_failed",
+  "freed_time_not_offered",
+  "freed_time_offer_unasked",
+  "freed_time_offered",
+  "late_booking_not_reminded",
+  "late_booking_reminded",
+  "late_visit_not_thanked",
+  "late_visit_thanked",
+  "occasion_enrolled",
   "occasion_left",
   "occasion_run_failed",
   "occasions_yielded",
+  "offers_yes_while_stopped",
   "playbook_failed_notice_failed",
   "playbook_failed_told",
   "playbook_run_failed",

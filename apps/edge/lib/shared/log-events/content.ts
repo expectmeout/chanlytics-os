@@ -1,4 +1,4 @@
-/** The edge's log names of the business's files, the pieces and videos made of them, and the posts. Sorted, so two changes that add a name each land apart. */
+/** The edge's log names of the business's files, the pieces and videos made of them, the drafts and the posts. Sorted, so two changes that add a name each land apart. */
 export const CONTENT_EVENTS = [
   "admin_draft",
   "comment_answer_refused",
@@ -11,6 +11,7 @@ export const CONTENT_EVENTS = [
   "copy_return_failed",
   "drafts_sweep",
   "drafts_sweep_ask_failed",
+  "drafts_sweep_no_db",
   "file_copy_failed",
   "file_fetch_done",
   "file_fetch_failed",

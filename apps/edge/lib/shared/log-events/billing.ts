@@ -25,6 +25,7 @@ export const BILLING_EVENTS = [
   "partner_letters_failed",
   "partner_letters_no_sender",
   "partner_letters_unread",
+  "partners_no_db",
   "partners_review_waiting",
   "partners_sweep_failed",
   "partners_swept",

@@ -16,7 +16,6 @@ export const COGNITIVE_LIMIT = 25;
 
 /** What may stay long or wide, and why. An entry that no longer needs to be here fails. */
 export const LEFT_WHOLE = {
-  "packages/contracts/src/shared/enums.ts": "every closed set, declared once on one page",
   "packages/core/src/deliver/deliver.ts": "the one send door, read as one",
 };
 

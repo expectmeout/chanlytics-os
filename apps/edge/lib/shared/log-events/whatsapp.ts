@@ -1,7 +1,10 @@
 /** The edge's log names of WhatsApp: the numbers, the templates and the webhook. Sorted, so two changes that add a name each land apart. */
 export const WHATSAPP_EVENTS = [
+  "channel_quality_no_db",
   "channel_quality_read_failed",
   "channel_quality_row_failed",
+  "channel_quality_swept",
+  "channel_quality_unreadable",
   "media_fetch_failed",
   "media_too_large",
   "media_too_large_after_read",
