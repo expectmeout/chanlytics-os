@@ -102,6 +102,7 @@ export {
 } from "./live";
 export type {
   AdBudgetLive,
+  AdEngaged,
   AdLaunchLive,
   AdLiveDto,
   AdMadeFromLive,

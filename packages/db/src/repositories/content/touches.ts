@@ -222,11 +222,16 @@ export interface CommentToKeep {
   parentId: string | null;
   words: string | null;
   at: string | null;
+  /** The ad Meta says it was left on (its id at Meta), where it was: kept on the ad where the post is not ours (00719). */
+  adId: string | null;
 }
 
-/** What keeping a comment came to: kept (and its draft asked), or why not. */
+/**
+ * What keeping a comment came to: kept on the post Chanlytics sent (and its draft asked) or on the ad it was left on, or
+ * why not.
+ */
 export type CommentKept =
-  | { kept: true; touchId: string; postId: string; contactId: string; newPerson: boolean }
+  | { kept: true; touchId: string; postId: string | null; adId: string | null; contactId: string; newPerson: boolean }
   | { kept: false; why: "not_ours" | "again" };
 
 /** A person's comment on a post Chanlytics sent, kept once with its person (post_comment_keep). */
@@ -241,14 +246,23 @@ export async function keepPostComment(db: Db, comment: CommentToKeep): Promise<C
     p_parent_id: comment.parentId ?? "",
     p_words: comment.words ?? "",
     p_at: comment.at ?? new Date().toISOString(),
+    ...(comment.adId ? { p_ad_id: comment.adId } : {}),
   });
   if (error) throw new DbFailure(error, "post_comment_keep");
   const answer = recordOrEmpty(data);
   const touchId = touchTextOf(answer.touch_id);
   const postId = touchTextOf(answer.post_id);
+  const adId = touchTextOf(answer.ad_id);
   const contactId = touchTextOf(answer.contact_id);
-  if (answer.kept === true && touchId && postId && contactId)
-    return { kept: true, touchId, postId, contactId, newPerson: answer.new_person === true };
+  if (answer.kept === true && touchId && (postId || adId) && contactId)
+    return {
+      kept: true,
+      touchId,
+      postId: postId ?? null,
+      adId: adId ?? null,
+      contactId,
+      newPerson: answer.new_person === true,
+    };
   return { kept: false, why: answer.why === "not_ours" ? "not_ours" : "again" };
 }
 
