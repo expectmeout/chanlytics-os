@@ -26,7 +26,6 @@ import {
   triggerOf,
   twinRunsWords,
   visitTwinWords,
-  type PlaybookPatch,
   recordOrNull,
   DbFailure,
   wallClockAt,
@@ -297,7 +296,8 @@ async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>,
   if (!isPlaybookState(read.state))
     throw new Error(`playbook ${playbook.id} holds a state the check does not: ${String(read.state)}`);
   const row = { ...read, state: read.state };
-  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, playbook.tenant_id), row, record, {
+  // What each field held comes back from the door (`was`), which an undo puts back.
+  const { set } = await checkPlaybookPatch(playbookPatchPorts(ctx, playbook.tenant_id), row, record, {
     now: new Date(),
     undo: ctx.undoOf !== undefined,
   });

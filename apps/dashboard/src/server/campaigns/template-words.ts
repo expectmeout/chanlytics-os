@@ -101,7 +101,7 @@ export async function keepFixWords(
   if (!held || held.channel !== "whatsapp" || held.meta_status !== "rejected") return;
   // On the member's own session, through a door that asks who is calling (00722 template_fix_keep).
   const { error: kept } = await keepTemplateFix(ctx.supabase, tenantId, held.id, { words, reason: fixing.reason });
-  if (kept) log.error("db_failed", { tenant_id: tenantId, code: kept.code ?? null, error: kept.message });
+  if (kept) log.error("db_failed", { tenant_id: tenantId, code: kept.code, error: kept.message });
 }
 
 /**
