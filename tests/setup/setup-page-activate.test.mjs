@@ -205,6 +205,9 @@ useStubHooks(globalThis.React);
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+// The line verbs as the module wrote them, kept before the rows' stand-ins take their place: run against the window's
+// fetch in "Setup's line verbs ask their routes".
+const lineVerbs = setupVerbs.lines;
 Object.assign(setupVerbs, {
   later: async (ids, change) => {
     calls.later.push([ids, change]);
@@ -562,11 +565,51 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   tree = mount();
   const confirm = byTestId(tree, "setup-confirm");
   assert.ok(confirm, "a pick opens the confirm");
+  assert.equal(textOf(byTestId(tree, "setup-buy")), "Get this number");
   const before = calls.flash.length;
   await byTestId(tree, "setup-buy").props.onClick();
   await tick();
   assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
   assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours · setting it up now/);
+});
+
+test("Setup's line verbs ask their routes: search, buy once, and retry, each with what the row knows", async () => {
+  // surfaces/setup/surface.ts setupVerbs.lines, over the tab's API client and this window's fetch: what leaves is the
+  // route's request, and what comes back is read as the row reads it.
+  const sent = [];
+  const answers = {
+    "/api/v1/lines/search": { numbers: [{ e164: "+13055550142", friendly: "(305) 555-0142" }] },
+    "/api/v1/lines/buy": { ok: true, queued: true },
+    "/api/v1/lines/retry": { ok: false, queued: false },
+  };
+  const was = { fetch: globalThis.window.fetch, location: globalThis.window.location };
+  globalThis.window.location = { ...was.location, pathname: "/w/harbor/start", search: "", hash: "" };
+  globalThis.window.fetch = async (url, init) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    sent.push([init?.method ?? "GET", u.pathname, init?.body ? JSON.parse(init.body) : null]);
+    return Response.json({ ok: true, data: answers[u.pathname] ?? {} });
+  };
+  try {
+    const found = await lineVerbs.search("305");
+    assert.deepEqual([found.ok, found.numbers.map((n) => n.e164)], [true, ["+13055550142"]]);
+    assert.deepEqual(await lineVerbs.buy("+13055550142", "305"), { ok: true, queued: true, message: "" });
+    assert.deepEqual(await lineVerbs.retry("l1"), {
+      ok: false,
+      queued: false,
+      message: "It stopped again — a person at Chanlytics has it.",
+    });
+    assert.deepEqual(
+      sent.filter(([, p]) => p.startsWith("/api/v1/lines/")),
+      [
+        ["POST", "/api/v1/lines/search", { area_code: "305" }],
+        ["POST", "/api/v1/lines/buy", { number: "+13055550142", area_code: "305" }],
+        ["POST", "/api/v1/lines/retry", { line_id: "l1" }],
+      ],
+    );
+  } finally {
+    globalThis.window.fetch = was.fetch;
+    globalThis.window.location = was.location;
+  }
 });
 
 /* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */

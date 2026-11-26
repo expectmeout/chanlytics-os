@@ -21,7 +21,8 @@ import {
   newReceptionistDefaults,
   businessReadFactsOf,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { PHONE, cascadeOf, element, frameSheets } from "../_css.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { setupDtoFor } from "../../apps/dashboard/src/server/setup/setup.ts";
 
@@ -833,13 +834,16 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
 // The sections on a phone keep their words: they are every page's strip since 25 Sep, drawn and read in
 // settings-editor.test.mjs ("on a phone the sections are every page's strip").
 test("a Settings card keeps its height, and a row's sentence wraps on a phone", () => {
-  const mobile = readRaw("apps/dashboard/src/styles/mobile.css");
-  assert.ok(
-    mobile.includes(".set-pane > * { flex: 0 0 auto; }"),
+  // The frame's sheets, run for a Settings card and a Setup row as a phone draws them (tests/_css.mjs's cascade).
+  const phone = cascadeOf(frameSheets(), PHONE);
+  assert.equal(
+    phone.style(element(".set-pane", ".card")).flex,
+    "0 0 auto",
     "a Settings card never shrinks to fit the pane on a phone",
   );
-  assert.ok(
-    mobile.includes(".setup-rows .cl-attn-sentence { white-space: normal; }"),
+  assert.equal(
+    phone.style(element(".setup-rows", "div.cl-attn-row", "span.cl-attn-sentence"))["white-space"],
+    "normal",
     "a row's sentence wraps on a phone",
   );
 });
@@ -962,12 +966,43 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   // are route-policy.json's (routes/route-policy.test.mjs), and searching, buying and retrying run through the routes in
   // workspace/settings-routes.test.mjs ("lines: searching, retrying and forwarding are the owner's") and
   // billing/billing-routes.test.mjs. Pinned as the three routes' text until 25 Nov 2026.
-  const server = readCode("apps/dashboard/src/server/connections/lines.ts");
-  assert.ok(server.includes('callEdge("/api/admin/lines"'));
-  assert.ok(
-    !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function listLines"))),
+  // The page's lines, as the server reads them (server/connections/lines.ts listLines): every column a filing's provider
+  // ids live in is left behind, whatever the row holds.
+  const { listLines, callEdgeLines } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
+  const sids = Object.fromEntries(
+    ["subaccount_sid", "number_sid", "trunk_sid", "messaging_service_sid", "brand_sid", "campaign_sid"].map((k) => [
+      k,
+      `${k.toUpperCase()}-1`,
+    ]),
+  );
+  const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const [line] = await listLines(fakeDb({ lines: [{ ...lineRow(), tenant_id: WS, ...sids }] }), WS);
+  assert.equal(line.e164, lineRow().e164);
+  assert.deepEqual(
+    Object.keys(line).filter((k) => /sid/i.test(k)),
+    [],
     "no provider id is selected for the page",
   );
+  assert.ok(!JSON.stringify(line).includes("_SID-1"), "nor carried under another name");
+  // And its verbs go to the edge's one lines door, on a laptop only the business on record (callEdgeLines).
+  const kept = Object.fromEntries(["EDGE_URL", "EDGE_CALL_SECRET"].map((k) => [k, process.env[k]]));
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  Object.assign(process.env, { EDGE_URL: "https://edge.example.com", EDGE_CALL_SECRET: "edge-secret" });
+  globalThis.fetch = async (input, init) => {
+    asked.push([new URL(String(input instanceof Request ? input.url : input)).pathname, JSON.parse(init.body).op]);
+    return Response.json({ ok: true });
+  };
+  try {
+    assert.deepEqual((await callEdgeLines({ op: "status" })).body, { ok: false, error: "preview" });
+    await callEdgeLines({ op: "record", tenant_id: WS, user_id: "u1" });
+    assert.deepEqual(asked, [["/api/admin/lines", "record"]], "one door, and a laptop buys nothing");
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
   // The edge's verb answers and this read build a line with one builder (contracts lineDtoOf), run on both sides in
   // lines/forwarding.test.mjs: a field the read did not select arrived undefined, which is how Setup would have called
   // a mock filing "approved". The setup read carries the lines, their readiness, provider and cost: GET setup answers
@@ -1000,17 +1035,10 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );
   assert.equal(setupOverride.fresh, "its-page", "the rarest everywhere and the rest where Setup is drawn");
-  const verbs = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
-  for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"'])
-    assert.ok(verbs.includes(pin), pin);
-  // Setup's rows are TSX (surfaces/setup/rows, decision 0015 step 10): what a verb does, and the chooser it opens.
-  const [acts, chooser] = ["acts", "line-chooser"].map((f) =>
-    readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`),
-  );
-  for (const pin of ['to === "verb:choose-line"', 'to.startsWith("verb:retry-line:")'])
-    assert.ok(acts.includes(pin), pin);
-  for (const pin of ['data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'canDo("team")'])
-    assert.ok(chooser.includes(pin), pin);
+  // Setup's line verbs ask their routes (POST lines/search, lines/buy once, lines/retry), and its rows are TSX
+  // (surfaces/setup/rows, decision 0015 step 10): Get a line opens the chooser, a stopped line's Retry retries it, the
+  // chooser finds, picks and gets a number, and a viewer may not press it. All of it run in setup-page-activate.test.mjs
+  // ("Setup's line verbs ask their routes", "the chooser finds numbers", "REGRESSION (the gate)").
   const edgeLines = await importSrc("apps/edge/lib/lines/lines.ts");
   assert.equal(edgeLines.LINE_STEP_WORDS, LINE_STEP_WORDS, "one list of step words: the edge's is contracts' own");
 });
@@ -1018,32 +1046,15 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
 // The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun. The route it
 // reads is the address's (shell/address.ts), tested in shell/address/address.test.mjs.
 
-test("the words: four states, no jargon, no trade", () => {
+test("the words: four states", () => {
   assert.deepEqual(SETUP_STATE_WORDS, {
     not_started: "Not started",
     waiting_you: "Waiting on you",
     waiting_them: "Waiting on Chanlytics",
     ready: "Ready",
   });
-  // Only what the owner can read: the string literals, not our identifiers.
-  const src =
-    [
-      "packages/contracts/src/setup/setup.ts",
-      "packages/contracts/src/setup/rows/steps.ts",
-      "packages/contracts/src/setup/rows-phone.ts",
-    ]
-      .map((f) => readCode(f))
-      .join("\n") +
-    ["rows", "acts", "card-row", "line-chooser", "forwarding"]
-      .map((f) => readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`))
-      .join("\n");
-  const words = [...src.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2]).join("\n");
-  assert.doesNotMatch(
-    words,
-    /\b(tenant|onboard|provision|SIP|E\.?164|webhook|toggle)\b/i,
-    "the owner's words, not ours",
-  );
-  assert.doesNotMatch(words, /\$\d/, "no invented prices");
+  // No jargon, no trade and no invented price in any string Setup's model or rows hold: a rule of the repository's,
+  // repo/words/setup-says-the-owner-s-words.test.mjs.
 });
 
 // Setup left Settings for the first run (`start`): surface-registry.test.mjs holds its route and the old address's
