@@ -19,6 +19,7 @@
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { CorrectionSource } from "./fact-words";
 import { noteClean, noteNamesContact, noteNamesMoney, noteOverlap, noteWords, NOTE_SUGGEST_MODEL } from "./suggest";
+import { valueAt } from "../shared/unknown";
 
 /** The smallest model, the person's note's (the registry's note_suggest route): a yes-or-nothing read of one correction. */
 export const FACT_SUGGEST_MODEL = NOTE_SUGGEST_MODEL;
@@ -137,7 +138,12 @@ const modelWords = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " 
  * say what the notes or the services already say.
  */
 export function checkFactSuggestion(answer: unknown, words: string, known: readonly string[]): FactCheck {
-  const first = (answer ?? {}) as { worth?: unknown; title?: unknown; text?: unknown; quote?: unknown };
+  const first = {
+    worth: valueAt(answer, "worth"),
+    title: valueAt(answer, "title"),
+    text: valueAt(answer, "text"),
+    quote: valueAt(answer, "quote"),
+  };
   if (first.worth !== true) return { ok: false, why: "nothing" };
   const title = modelWords(first.title);
   const text = modelWords(first.text);

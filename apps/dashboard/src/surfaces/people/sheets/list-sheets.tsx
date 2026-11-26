@@ -41,10 +41,10 @@ export function PeopleListActSheet({
 }) {
   // Its own button finishes these two, and the round Close every sheet has is in the head beside it (kit.css, "One
   // Close for every sheet").
-  if (act === "rule") {
+  if (act === "rule" && list) {
     return (
       <Sheet open={open} shape="job" title="Who is on it" close={JOB_CANCEL} onClose={onClose} testid="list-act-sheet">
-        <RuleEditor list={list as SavedList} flash={flash} onDone={onClose} />
+        <RuleEditor list={list} flash={flash} onDone={onClose} />
       </Sheet>
     );
   }
@@ -60,7 +60,7 @@ export function PeopleListActSheet({
       >
         <Confirm
           block
-          question={`Delete “${(list as SavedList).name}”?`}
+          question={`Delete “${list?.name ?? ""}”?`}
           detail="The people stay."
           yes="Yes, delete"
           danger

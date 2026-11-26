@@ -24,6 +24,13 @@ export const entryOf = <R extends object>(record: R, key: unknown): R[keyof R] |
 export const textOrEmpty = (value: unknown): string =>
   typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "";
 
+/**
+ * What a catch caught, as an Error: the Error itself, or a new one whose message is the thrown value's text. A read that
+ * keeps its failure as a value (`.catch(errorOfThrown)`) is then told from its data by `instanceof Error`, which a
+ * thrown string passed as data.
+ */
+export const errorOfThrown = (thrown: unknown): Error => (thrown instanceof Error ? thrown : new Error(String(thrown)));
+
 /** A finite number, or null. */
 export const finiteOrNull = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;

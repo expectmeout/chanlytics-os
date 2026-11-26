@@ -276,15 +276,11 @@ function channelsFoot(o: {
   busy: boolean;
   onward: () => void;
 }): ReactNode {
+  const { back } = o;
   return (
     <div className="fr-foot">
-      {o.back ? (
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost"
-          onClick={() => o.go(o.back as string)}
-          data-testid="fr-back"
-        >
+      {back ? (
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => o.go(back)} data-testid="fr-back">
           {W.back}
         </button>
       ) : (

@@ -6,6 +6,7 @@
  * the query behind. The one home of what the two do alike: each names its word and what its value holds.
  */
 import { hearPageMoves } from "../frame-verbs";
+import { valueAt } from "@chanlytics/contracts";
 
 interface OverQuery {
   /** The word's value on the address, or null: none there, or no window (a prerender). */
@@ -46,8 +47,7 @@ export function overQuery(word: string): OverQuery {
     return `${url.pathname}${url.search.replace(/%3A/gi, ":")}${url.hash}`;
   };
   const ownEntry = (): boolean => {
-    const s = window.history.state as Partial<OverEntry> | null;
-    return !!s && typeof s === "object" && s.over === word;
+    return valueAt(window.history.state, "over") === word;
   };
   return {
     now,

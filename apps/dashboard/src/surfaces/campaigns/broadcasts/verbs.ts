@@ -40,7 +40,8 @@ declare module "@/bridge/provided" {
 
 export interface SendBody {
   template_id: string;
-  params: ParamSpec[];
+  /** Each slot's value: words typed, as a plain string (contracts parseParamSpec reads one as typed text), or a source. */
+  params: (string | ParamSpec)[];
   audience: { kind: AudienceKind; id: string | null };
   /** The channels it goes by (step 3): WhatsApp alone where it names none. */
   channels?: ConsentChannel[];

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import type { FoldSection } from "@/bridge/business-tab";
+import { isFoldSection } from "../fold-says";
 import type { FocusOn } from "../../../kit/record/focus";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { businessTabSave } from "../saver";
@@ -278,7 +278,7 @@ function btEditorWill<D>(a: BtEditorR<D>, o: BtOpening<D>, open: boolean, now: D
     const said = S.willSay({
       was: o.base.brain,
       next: S.saveFold(id, o.base, now).brain,
-      sections: id as FoldSection,
+      sections: isFoldSection(id) ? id : [],
       channel,
     });
     return said && said.note && !S.holdsChanges(id, o.base, now) ? { ...said, note: null } : said;

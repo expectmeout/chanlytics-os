@@ -14,10 +14,10 @@ import {
   isReplyIntent,
   sequenceLeftWords,
   LEAD_CALL_OUTCOME_WORDS,
-  type LeadCallOutcome,
   LEAD_OWN_EMAIL_WORDS,
   leadEmailLineOf,
   type LeadEmailDto,
+  entryOf,
 } from "@chanlytics/contracts";
 import type { SequencePlaceDto, LeadPeekVM } from "@chanlytics/contracts";
 
@@ -131,7 +131,7 @@ function lastWordOf(
 ): string | null {
   if (outcome === "emailed")
     return emails.length > 0 || (place && place.sends.some((s) => s.sent_at)) ? null : LW.wroteYourself;
-  return outcome ? (LEAD_CALL_OUTCOME_WORDS[outcome as LeadCallOutcome] ?? null) : null;
+  return outcome ? (entryOf(LEAD_CALL_OUTCOME_WORDS, outcome) ?? null) : null;
 }
 
 /** History: how we found them, what a sequence did and your own emails in time, and your last word with them. */

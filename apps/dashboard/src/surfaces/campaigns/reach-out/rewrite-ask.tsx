@@ -5,7 +5,13 @@
  * one email: the lead sheet's dock, a run's held row, a sequence's Needs you and its Leads tab. Every word is contracts'.
  */
 import { useEffect, useRef, useState } from "react";
-import { LEAD_REWRITE_CHANGE_MAX, REWRITE_WORDS as W, rewroteWords, type RewriteStep } from "@chanlytics/contracts";
+import {
+  LEAD_REWRITE_CHANGE_MAX,
+  REWRITE_WORDS as W,
+  rewroteWords,
+  type RewriteStep,
+  entryOf,
+} from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { checkOpeningNow } from "@/bridge/verbs/openings";
 import { Button } from "../../kit/button/button";
@@ -102,7 +108,7 @@ export function RewriteAsk(p: RewriteAskProps) {
     <div className="lw-dock-ask" data-testid={`${id}-ask`}>
       <Field
         label={W.change}
-        hint={writing ? (W.steps[step as RewriteStep] ?? W.steps.writing) : (said ?? W.changeHint)}
+        hint={writing ? (entryOf(W.steps, step) ?? W.steps.writing) : (said ?? W.changeHint)}
         value={change}
         onValueChange={setChange}
         onKeyDown={(e) => {

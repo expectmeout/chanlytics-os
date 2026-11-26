@@ -10,7 +10,7 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
-import { RENAME_WORDS, applySettingsChange, samePhone } from "@chanlytics/contracts";
+import { RENAME_WORDS, applySettingsChange, samePhone, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./model/goal";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
@@ -208,7 +208,7 @@ const btWordsSaved = (id: "name" | "address" | "website" | "booking_link") => (d
 const btNameSaved = (flash: (f: FrameFlash) => void) => (d: string) => ({
   ...btWordsSaved("name")(d),
   said: (answer: unknown): FrameFlash => {
-    const r = (answer as { renamed?: { to?: unknown; carriers_hold?: unknown; refused?: unknown } } | null)?.renamed;
+    const r = recordOrNull(valueAt(answer, "renamed"));
     if (!r) return { msg: BT_SAVED };
     if (r.refused) return { tone: "warn", msg: RENAME_WORDS.kept };
     const pages = RENAME_WORDS.pages(typeof r.to === "string" ? r.to : "");

@@ -1,3 +1,4 @@
+import { isOneOf, valueAt } from "../../shared/unknown";
 /**
  * A reach-out's hand step (Reach out Part 5, G20): a chain's last step may hand each lead it reaches to the team instead
  * of writing to them, as a call to make or a note, a dated step on the lead's person due the day the step runs. Its
@@ -20,10 +21,11 @@ export interface StepHand {
 /** A row's hand, read: null for an email step, or for anything the row should not hold. */
 export function handOf(value: unknown): StepHand | null {
   if (!value || typeof value !== "object") return null;
-  const h = value as { kind?: unknown; words?: unknown };
-  if (!HAND_KINDS.includes(h.kind as HandKind) || typeof h.words !== "string") return null;
-  const words = h.words.trim();
-  return words ? { kind: h.kind as HandKind, words } : null;
+  const kind = valueAt(value, "kind");
+  const given = valueAt(value, "words");
+  if (!isOneOf(HAND_KINDS, kind) || typeof given !== "string") return null;
+  const words = given.trim();
+  return words ? { kind, words } : null;
 }
 
 /**

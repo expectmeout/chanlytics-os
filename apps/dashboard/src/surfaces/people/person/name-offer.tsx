@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { PERSON_NAME_WORDS, type PersonNameAct } from "@chanlytics/contracts";
+import { PERSON_NAME_WORDS, type PersonNameAct, valueAt } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { Button } from "../../kit/button/button";
 import { Notice } from "../../kit/notice/notice";
@@ -41,6 +41,12 @@ function firstTimeFor(member: string | null | undefined): boolean {
   }
 }
 
+/** The name a door's answer says, or none. */
+const nameIn = (data: unknown): string | null => {
+  const name = valueAt(data, "name");
+  return typeof name === "string" ? name : null;
+};
+
 /** Undo of a name taken: the business's name back (or none), settled so the same sign-off is not taken again. */
 export async function putNameBack(personId: string, say: NameSay, onChanged: () => void): Promise<void> {
   const r = await actOnPersonName(personId, { act: "undo" });
@@ -48,7 +54,7 @@ export async function putNameBack(personId: string, say: NameSay, onChanged: () 
     say({ tone: "danger", msg: r.message || PERSON_NAME_WORDS.refused.settled });
     return;
   }
-  const back = (r.data as { name?: string | null }).name ?? null;
+  const back = nameIn(r.data);
   say({ msg: PERSON_NAME_WORDS.backTo(back) });
   onChanged();
 }
@@ -95,7 +101,7 @@ export function NameOffer({
       say({ tone: "danger", msg: r.message || PERSON_NAME_WORDS.refused.settled });
       return;
     }
-    const named = (r.data as { name?: string | null }).name ?? name;
+    const named = nameIn(r.data) ?? name;
     say({
       msg: firstTimeFor(meNow()?.id) ? (
         <>

@@ -428,6 +428,8 @@ export const HEALTH_WORDS = {
   ledgerTitle: "The ledger now",
   ledgerSub: "by lane · waiting means a retry waits its turn",
   ledgerUnread: "The ledger could not be read just now.",
+  /** A kind the ledger names that this build of the page does not know: its acts wait for the build that does. */
+  kindUnknown: "This page does not know that kind of job yet, so it cannot act on it.",
   canaryWords: (ago: string) => `The ledger's own check last finished ${ago}.`,
   canaryNever: "The ledger's own check has not finished yet.",
   oursNote: "Ours: our own workspaces (the nightly suite's, the smoke test), counted apart and never paged.",

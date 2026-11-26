@@ -3,6 +3,7 @@
  * what each may do per permission; this is the order of them, for a door that names the least role it takes.
  */
 import type { Role } from "./workspace-config/role-perms";
+import { entryOf } from "../shared/unknown";
 
 /**
  * The ladder a route's `role` names a rung of. A partner (decision 0012) sits
@@ -18,6 +19,6 @@ const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, partner: 2, ow
  * an act only to the role its door takes (Leads' Erase, PR 9). A role the ladder does not know stands on no rung.
  */
 export function roleAtLeast(role: string, atLeast: Role): boolean {
-  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role as Role] : undefined;
+  const have = entryOf(ROLE_RANK, role);
   return have !== undefined && have >= ROLE_RANK[atLeast];
 }

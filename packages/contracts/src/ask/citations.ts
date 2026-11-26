@@ -72,9 +72,23 @@ export interface AskRowRef {
 export type AskReadSet = Record<Exclude<AskCitationKind, "page">, Map<string, AskRowRef>>;
 
 export function emptyReadSet(): AskReadSet {
-  return Object.fromEntries(
-    ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, new Map<string, AskRowRef>()]),
-  ) as AskReadSet;
+  const rows = () => new Map<string, AskRowRef>();
+  return {
+    thread: rows(),
+    conversation: rows(),
+    call: rows(),
+    person: rows(),
+    lead: rows(),
+    search: rows(),
+    deal: rows(),
+    list: rows(),
+    broadcast: rows(),
+    playbook: rows(),
+    template: rows(),
+    mailbox: rows(),
+    visit: rows(),
+    review: rows(),
+  };
 }
 
 /** Rows read, into the read set by kind and id as their readers gave them. A page needs no read, and is not kept. */
