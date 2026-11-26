@@ -242,6 +242,7 @@ export function world(over = {}) {
         pauseHours: ctx.pausedHours ?? null,
         route: ctx.route,
         who: ctx.who,
+        about: ctx.about ?? null,
         channel: ctx.channel,
         target: ctx.target,
       });
