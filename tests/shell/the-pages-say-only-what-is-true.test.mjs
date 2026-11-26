@@ -311,6 +311,7 @@ for (const k of [
   "FieldError",
 ])
   shellDoors[k] = globalThis.window[k];
+globalThis.StatePill = kitPages.StatePill;
 const { OutcomePill } = await import("../../apps/dashboard/src/surfaces/inbox/pages/outcome-pill.tsx");
 
 const walk = (n, fn) => {
@@ -359,7 +360,8 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
-Object.assign(globalThis, { EmptyState: kitPages.EmptyState });
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
+globalThis.PolicyChip = kitPages.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 Object.assign(globalThis.window, {

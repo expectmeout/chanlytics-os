@@ -154,6 +154,15 @@ export function frameParts() {
 }
 
 /**
+ * People's parts the frame draws with, as People's courier hands them (people-detail.ts peopleFrameParts): its sheets and
+ * the doors that ask for them, and its scopes, the strip's order. What a test put on the window as `peoplePages` until
+ * 26 Nov 2026. Required when asked: People's TSX loads once a test's stub React is in place.
+ */
+export function holdPeopleParts() {
+  bridgeHolds({ parts: requireFromDashboard("../surfaces/people/people-detail.ts").peopleFrameParts() });
+}
+
+/**
  * What react-dom does at once in a browser, here: a portal's node drawn where it stands, and a change drawn before it
  * returns (`flushSync`). This runner's react-server condition gives react-dom neither, so a test that draws a toast, a
  * menu or a held switch with no stub React of its own calls this, where it stood `ReactDOM` in on the window until

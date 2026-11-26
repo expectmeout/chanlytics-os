@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import "../../shell/address/_address.mjs";
-import { unrefIntervals, useStubHooks } from "../../_stub-react.mjs";
+import { kitPages, unrefIntervals, useStubHooks } from "../../_stub-react.mjs";
 import {
   ROLE_PERMS,
   answerBlocks,
@@ -225,6 +225,8 @@ holdFrameParts();
 
 // Confirm is the kit's (surfaces/kit/confirm), which the pages import, over this file's own React.
 useStubHooks(globalThis.React);
+
+globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
 
 // The Line and its parts (surfaces/ask/), by their modules. Ask's face in the line (kit/face/ask-face.tsx) is drawn in every
 // case; it moves only where a case installs the bridge.

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 let cells = {};
 const frames = hookFrames();
@@ -129,6 +129,8 @@ bridgeHolds(
   { fresh: true },
 );
 holdFrameParts();
+// react-dom's portal and flushSync, drawn in place (the box draws a change at once as the keyboard opens).
+drawsInPlace();
 const box = await import("../../../apps/dashboard/src/surfaces/leads/sheet/email-box.tsx");
 const { GRAB_AT } = await import("../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");

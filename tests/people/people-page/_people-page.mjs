@@ -30,7 +30,7 @@ import { until } from "../../shared/_until.mjs";
 import { CONSENT_SOURCES, ROLE_PERMS, mayReceive, offersYesRefusal, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, holdPeopleParts } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-salon";
 
@@ -424,6 +424,12 @@ export const mayOnly = (can) => {
   };
 };
 
+// The kit's own menu and question, drawn as the page draws them: a test finds them by type (`n.type === MoreMenu`) and
+// presses their items, which are their props.
+globalThis.MoreMenu = kitPages.MoreMenu;
+
+globalThis.Confirm = kitPages.Confirm;
+
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops: People draws no peek, and the
 // Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
@@ -439,6 +445,8 @@ Object.assign(globalThis.window, {
 });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
+// People's parts the frame draws with (the strip's scopes, the deal and step sheets), as People's courier hands them.
+holdPeopleParts();
 
 export const { PeopleReal } = await import("../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 

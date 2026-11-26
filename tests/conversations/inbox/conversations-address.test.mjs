@@ -36,8 +36,8 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-bridgeHolds({ doors: { navigate: (to, opts) => went.push(["app", to, opts || null]) } });
-bridgeHolds({ doors: { navigate: (to) => went.push(["nav", to]) } });
+// The frame's move (frame-doors.ts navigate), which every page move takes: where it went, and how.
+bridgeHolds({ doors: { navigate: (to, opts) => went.push([to, opts || null]) } });
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);
@@ -201,7 +201,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   press(rows(tree)[0]);
   assert.deepEqual(
     went,
-    [["app", "conversations/phone:cv-k7", { replace: true }]],
+    [["conversations/phone:cv-k7", { replace: true }]],
     "REGRESSION: the row a person opened was nowhere in the address",
   );
   tree = redraw({ channel: "phone", initialId: "cv-k7" });
@@ -215,7 +215,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   fresh();
   tree = ConversationsPage({ channel: "all", initialId: null });
   press(rows(tree).find((r) => textOf(r).includes("Rosa")));
-  assert.deepEqual(went, [["app", "conversations/c1", { replace: true }]]);
+  assert.deepEqual(went, [["conversations/c1", { replace: true }]]);
 
   // A tab pressed is a new place: pushed, by the same spelling.
   fresh();
@@ -229,8 +229,8 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   strip(tree).onSelect("phone");
   strip(tree).onSelect("all");
   assert.deepEqual(went, [
-    ["nav", "conversations/phone"],
-    ["nav", "conversations"],
+    ["conversations/phone", null],
+    ["conversations", null],
   ]);
 });
 
@@ -245,7 +245,7 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     press(rows(tree)[0]);
     assert.deepEqual(
       went,
-      [["app", "conversations/phone:cv-k7", null]],
+      [["conversations/phone:cv-k7", null]],
       "REGRESSION: a row replaced the address on a phone, so Back left Conversations with the row open",
     );
     globalThis.window.location.hash = "#/conversations/phone:cv-k7";

@@ -804,7 +804,15 @@ test("the run open at its home is the address's: closing it goes back to where i
   answers.set("b-sent", [{ ok: true, data: detailOf(dto({ state: "sending" })) }]);
   const calls = [];
   const keep = heldDoors();
-  bridgeHolds({ doors: { navigate: (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]) } });
+  // The frame's move (frame-doors.ts navigate): where it went, and whether it replaced the entry or pushed one.
+  bridgeHolds({
+    doors: {
+      navigate: (to, opts) => {
+        went.push(to);
+        calls.push(opts && opts.replace ? "replace" : "push");
+      },
+    },
+  });
   try {
     const props = { initialRun: "b-sent" };
     page(props);
@@ -815,15 +823,15 @@ test("the run open at its home is the address's: closing it goes back to where i
     const door = find(byTestId(tree, "bc-run-solo"), (n) => n.props?.className === "bc-run-link");
     assert.ok(door, "the run's playbook is a link in the pane's head");
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
-    const before = calls.length;
     press(door);
     assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its campaign, by the campaign's own id the run names");
-    assert.equal(calls.length, before, "and it did not replace the run's entry");
+    assert.equal(calls.at(-1), "push", "and it did not replace the run's entry");
     // Closed with no frame to say what opened it (a link, a reload): onto its sequence's History, the days it is one of,
-    // never a Back out of the app. The frame's own Back to the opener is the shell's (shell/surfaces/status/).
+    // never a Back out of the app, in the run's place (frame-doors.ts backFrom, replaced as the page asks). The frame's own
+    // Back to the opener is the shell's (shell/surfaces/status/).
     press(byTestId(tree, "bc-detail-close"));
     assert.equal(went.at(-1), "campaigns/sequences/pb-1/history");
-    assert.equal(calls.length, before, "nothing replaced here: the page is left as it is drawn");
+    assert.equal(calls.at(-1), "replace", "the run's entry is its History's now: Back never lands on the closed run");
     tree = again(props);
     assert.ok(
       byTestId(tree, "bc-run-solo"),

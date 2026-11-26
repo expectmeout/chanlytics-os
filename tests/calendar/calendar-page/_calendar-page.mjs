@@ -39,7 +39,7 @@ import assert from "node:assert/strict";
 import { shiftKey, stateOf, toCalendarVM } from "@chanlytics/contracts";
 import { createRequire } from "node:module";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { kitHooks } from "../../_stub-react.mjs";
+import { kitHooks, kitPages } from "../../_stub-react.mjs";
 import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
@@ -244,6 +244,8 @@ globalThis.window = {
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 holdFrameParts();
+// The kit's parts on the stub's window, where these tests draw them by name (the pages import them).
+Object.assign(globalThis.window, kitPages);
 
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];

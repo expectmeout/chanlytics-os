@@ -162,7 +162,8 @@ test("Never write to them again presses the stop door once, says what it did in 
     // A refusal is said in its own words.
     answer({ ok: false, message: "Nothing has been written to them yet." });
     await stopWritingTo("l1", "Zilker Kettlebell Club", (m) => flashed.push(m));
-    assert.match(String(flashed.at(-1).msg), /Nothing has been written to them yet\./);
+    // A refusal as its toast says it (frame/flash.tsx refusalToast): what did not happen, then why.
+    assert.match(textOf(flashed.at(-1).msg), /Nothing has been written to them yet\./);
   } finally {
     W.removeEventListener("reach_out:leads", hear);
   }

@@ -145,6 +145,15 @@ const AIM = { targets: [], target: null, load: async () => {}, check: async () =
 let flashes;
 let moved;
 const flash = (t) => flashes.push(t);
+/** A toast's words, as a person reads them: a refusal's lead, then why (frame/flash.tsx refusalToast). */
+const said = (n) =>
+  n == null || typeof n === "boolean"
+    ? ""
+    : typeof n === "string" || typeof n === "number"
+      ? String(n)
+      : Array.isArray(n)
+        ? n.map(said).join("")
+        : said(n.props?.children);
 
 /** A page's worth of nothing: the two leads as the door holds them, and no toast yet. */
 const reset = () => {
@@ -263,7 +272,7 @@ test("out of a pile: an Undo the door refuses says so, and the page reads the le
     flashes.map((f) => f.tone),
     ["ok", "danger"],
   );
-  assert.equal(flashes.at(-1).msg, "Nothing was put back");
+  assert.match(said(flashes.at(-1).msg), /^Nothing was put back\b/);
   assert.equal(moved, seen + 1);
   assert.equal(stageOf(HYDE), "archived");
 });
@@ -279,7 +288,7 @@ test("out of a pile: a reason refused after its tap was taken back leaves nothin
   try {
     giveReason(toast, "chain");
     await until(() => flashes.length === 2, "the reason refused");
-    assert.equal(flashes.at(-1).msg, "The reason was not kept");
+    assert.match(said(flashes.at(-1).msg), /^The reason was not kept\b/);
     await toast.undo();
   } finally {
     globalThis.window.fetch = fetched;
@@ -359,5 +368,5 @@ test("in a pile: a toast whose Not a fit has left the pile's three says nothing 
   drawPile();
   await toast.undo();
   assert.equal(stageOf(HYDE), "archived");
-  assert.equal(flashes.at(-1).msg, "Nothing was put back");
+  assert.match(said(flashes.at(-1).msg), /^Nothing was put back\b/);
 });

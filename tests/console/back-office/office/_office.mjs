@@ -309,8 +309,9 @@ drawsInPlace();
 holdFrameParts();
 
 Object.assign(globalThis.window, kitPages);
+globalThis.Confirm = kitPages.Confirm;
 
-Object.assign(globalThis, { EmptyState: kitPages.EmptyState });
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 
 globalThis.window.AttnRow = ATTN;
 

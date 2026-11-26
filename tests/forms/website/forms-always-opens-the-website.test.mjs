@@ -20,7 +20,6 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { ROLE_PERMS } from "@chanlytics/contracts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
@@ -43,7 +42,7 @@ const out = await build({
   stdin: {
     contents:
       'export { FormsList, websiteDoorOf } from "../../../apps/dashboard/src/surfaces/campaigns/forms/list.tsx";\n' +
-      'export { gate } from "../../../apps/dashboard/src/surfaces/frame/gate.ts";\n' +
+      'export { provide } from "../../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/forms/website"),
@@ -71,9 +70,12 @@ fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
 fs.rmSync(file, { force: true });
 
-/** The member acting, as the boot installs it (bridge/boot/installs.ts): the role store and the gate's own sentence. */
+/**
+ * The member acting: the role store the gate asks (bridge/identity.ts, provided as `roles`), held in the bundle's own
+ * copy of the bridge's store, which the bundled page and its gate read.
+ */
 function actAs(role) {
-  bridgeHolds({ parts: { roles: { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role } } });
+  S.provide("roles", { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role });
 }
 
 const FORM = {

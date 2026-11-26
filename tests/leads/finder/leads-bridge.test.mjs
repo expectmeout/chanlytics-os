@@ -635,6 +635,8 @@ test("ideas that are due are asked to be written by a member who may find, and r
   // A page's read writes nothing (the wiring's second audit, S11-8): it says the ideas are due, and the page asks for them.
   const due = { ...SUGGESTIONS, items: [], due: true, note: "Suggestions are not available right now." };
   const asked = (w) => w.writes.filter((x) => x.key.includes("lead-suggestions")).map((x) => x.key);
+  // A member who may not find, as the role store says it (bridge/identity.ts, the bridge's `roles`).
+  holdRoles({ can: (action) => action !== "find" });
   const w = wire({ searches: [], rows: [], counts: ZERO, suggestions: due, written: SUGGESTIONS });
   await leadsView("clients/leads");
   assert.deepEqual(asked(w), [], "a member who may not find asks for nothing");

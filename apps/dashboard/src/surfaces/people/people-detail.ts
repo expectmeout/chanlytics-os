@@ -760,6 +760,14 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
  * day and its done, the thread's deal acts). The sheets, cards and notes import their rules from contracts; published here
  * too, every page's first load carried the deal and step sheets' rules for nobody (the loadability review, 19 Oct 2026).
  */
+/** What People hands the frame: its two sheets and the doors that ask for them, and its scopes, the strip's order. */
+export function peopleFrameParts() {
+  return {
+    sheets: { DealHost: DealSheetHost, StepHost: StepSheetHost, openDeal: askDealSheet, openStep: askStepSheet },
+    peopleScopes: { list: plScopes, routeOf: plScopeRoute },
+  };
+}
+
 export function installPeopleCourier(): void {
   // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).
   provide("warmPerson", (id) => {
@@ -768,11 +776,7 @@ export function installPeopleCourier(): void {
   });
   provide("personNotes", { done: markStepDone, dueDay: dueStepDay });
   provide("deal", { menu: dealMenuActs, actWords: DEAL_ACT_WORDS });
-  provide("sheets", {
-    DealHost: DealSheetHost,
-    StepHost: StepSheetHost,
-    openDeal: askDealSheet,
-    openStep: askStepSheet,
-  });
-  provide("peopleScopes", { list: plScopes, routeOf: plScopeRoute });
+  const people = peopleFrameParts();
+  provide("sheets", people.sheets);
+  provide("peopleScopes", people.peopleScopes);
 }

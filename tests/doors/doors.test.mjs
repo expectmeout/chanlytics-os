@@ -5,6 +5,7 @@
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 globalThis.window = globalThis;
 const heard = [];
@@ -138,11 +139,16 @@ test("a door nobody filled does nothing and says so once, not once a press", () 
   );
 });
 
-test("a link to a route the shell's routeDoor did not make is the address a workspace's route has, never the retired #/ one", () => {
-  globalThis.location = { pathname: "/w/studio/today" };
-  assert.equal(routeDoor("inbox/th-1").href, "/w/studio/inbox/th-1");
-  assert.equal(routeDoor("calendar").href, "/w/studio/calendar");
-  // Off a workspace page (the standalone mockup has no workspace path) the hash is the address.
+test("a link to a route is the frame's address: the workspace's own path, as the bridge's shell gives it, never the retired #/ one", () => {
+  // The bridge's shell (bridge/shell.ts, provided as `shell`), which every workspace page holds from the boot.
+  bridgeHolds({ parts: { shell: { route: () => "today", href: (to) => `/w/studio/${to}`, warm() {} } } });
+  try {
+    assert.equal(routeDoor("inbox/th-1").href, "/w/studio/inbox/th-1");
+    assert.equal(routeDoor("calendar").href, "/w/studio/calendar");
+  } finally {
+    bridgeHolds({ parts: { shell: undefined } });
+  }
+  // With no shell held (the standalone mockup had no workspace path) the hash is the address.
   globalThis.location = { pathname: "/" };
   assert.equal(routeDoor("calendar").href, "#/calendar");
   const { calls, doors3 } = frame();

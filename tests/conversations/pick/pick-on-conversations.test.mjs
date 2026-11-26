@@ -31,7 +31,8 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-bridgeHolds({ doors: { navigate: (to, opts) => went.push(["app", to, opts || null]) } });
+// The frame's move (frame-doors.ts navigate), which every page move takes: where it went, and how.
+bridgeHolds({ doors: { navigate: (to, opts) => went.push([to, opts || null]) } });
 bridgeHolds({
   who: {
     workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
@@ -41,7 +42,6 @@ bridgeHolds({
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
 });
-bridgeHolds({ doors: { navigate: (to) => went.push(["nav", to]) } });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
 holdFrameParts();
@@ -342,7 +342,7 @@ test("the rows take the Inbox's keys: Space picks a row, Enter opens it, and Spa
   draw();
   assert.deepEqual(picked(), ["Nina Park"]);
   key(rowOf("Nina"), "Enter");
-  assert.deepEqual(went.at(-1), ["app", "conversations/c2", { replace: true }]);
+  assert.deepEqual(went.at(-1), ["conversations/c2", { replace: true }]);
   assert.deepEqual(
     rows().map((r) => r.props.tabIndex),
     [0, -1, -1, -1],
