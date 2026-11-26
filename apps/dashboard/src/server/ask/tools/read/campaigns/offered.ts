@@ -237,6 +237,7 @@ export async function listAudiences(toolContext: ToolContext): Promise<unknown> 
     ...(touched
       ? []
       : [
+          // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
           "Who has had a message from you lately, or has one due, could not be read just now, so who a send goes to is not counted (can_be_sent is null): say so, and propose no send until it can be read.",
         ]),
   ];
@@ -414,6 +415,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         ...(markInPlaceOfCounts(x.kind) ?? counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     note: `A run is a send, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the campaign's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its saved message needs, a number or not; can_be_sent_now is who of them a run reaches now, the Campaigns page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. each_at_their_own_time marks a moment that names nobody ahead of time (two hours before ${words.a}, ${words.a} marked missed, the booking link sent and nothing booked, someone marked as a client): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
   };
 }

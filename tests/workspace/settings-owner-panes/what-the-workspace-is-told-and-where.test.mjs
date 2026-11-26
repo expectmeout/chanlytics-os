@@ -47,7 +47,7 @@ test("F32: a config the parser refuses closes every notifications write, and say
   type(box, "new@northside.example");
   const typed = settle("notifications");
   assert.equal(buttonSaying(typed, "Add").props.disabled, true, "and Add stays closed with an address typed");
-  assert.equal(add.props.title, why);
+  assert.equal(add.props["data-tip"], why);
   assert.equal(buttonSaying(tree, "Remove"), null, "nothing was read, so there is nothing to remove");
   assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.emailNobody));
   // What the business is emailed is held the same way: the tick says why, and saves nothing.
