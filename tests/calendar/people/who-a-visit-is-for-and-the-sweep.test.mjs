@@ -20,8 +20,10 @@ import {
   toVisitDto,
   toPersonVM,
   afterPersonRefused,
+  toCalendarVM,
+  shiftKey,
 } from "@chanlytics/contracts";
-import { ROOT, importSrc, readCode } from "../../_source.mjs";
+import { ROOT, importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import {
   ANA,
@@ -39,6 +41,7 @@ import {
   detail,
   feed,
   guestFeed,
+  peopleHarness,
   profileOf,
   selectOn,
 } from "./_people.mjs";
@@ -442,23 +445,97 @@ test("the wiring: the board and the profile read one match; both receptionists a
     [{ contact: MARIA, error: "down" }],
   );
   // The receptionists' own read of a caller's visits (the edge's findVisits: the feed's events and the record's rows for
-  // the caller, by the one index) runs in calendar/appointments/the-record-joins-the-feed.test.mjs.
-  const wa = readCode("packages/core/src/inbound/model-turn.ts");
-  assert.ok(
-    wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") &&
-      wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"),
-    "WhatsApp: with who they are",
-  );
-  // Phone: the visits in the caller context, and a call for a switched-off
-  // channel telling the platform as a text does: run in call-start.test.mjs.
-  // The open visit's parts (calendar/visit/visit.tsx) draw the sheet's view model (contracts visitSheetOf), whose footnote
-  // is one line and whose match is said only where it is a guess: run in calendar-panel.test.mjs.
-  const page = readCode("apps/dashboard/src/surfaces/calendar/visit/visit.tsx");
-  for (const id of ["cal-visit-person", "cal-visit-contact", "cal-visit-rows", "cal-visit-footnote"])
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
+  // the caller, by the one index) runs in calendar/appointments/the-record-joins-the-feed.test.mjs. A text's turn asks
+  // them by the caller's number and name and tells them after who they are: run in calendar/availability.test.mjs ("both
+  // receptionists are told what the calendar says"). Phone: the visits in the caller context, and a call for a
+  // switched-off channel telling the platform as a text does: run in call-start.test.mjs. The open visit's parts are
+  // drawn below. All three pinned as their modules' text until 26 Nov 2026.
   // The board's chip names the calendar ("From your calendar · read just now"), and the address never leaves the
   // server: run through getCalendarWeek and toCalendarVM in calendar-feed.test.mjs.
+});
+
+test("the open visit draws who it is for, or what the event names, its rows and its one footnote; how fresh the feed is stays on the board's chip", async () => {
+  // The words are the sheet's view model's (visitSheetOf), its footnote one line and its match said only where it is a
+  // guess: run in calendar-panel.test.mjs. Here, that the open visit (visit-sheet.tsx over visit.tsx) draws them.
+  await peopleHarness();
+  const { OpenVisit } = await importSrc("apps/dashboard/src/surfaces/calendar/visit/visit-sheet.tsx");
+  const { CALENDAR_VISIT_SHEET_WORDS } = await importSrc("apps/dashboard/src/surfaces/calendar/visit/sheet-view.ts");
+  const { fresh, again, byTestId, textOf } = await import("../../_stub-react.mjs");
+  const open = (item) => {
+    const days = Array.from({ length: 7 }, (_, i) => ({ key: shiftKey("2026-09-06", i), items: [], windows: [] }));
+    days[2].items.push({
+      id: "e1",
+      start: "2026-09-08T18:00:00.000Z",
+      end: "2026-09-08T19:30:00.000Z",
+      title: "Maria Lopez · Balayage",
+      all_day: false,
+      location: "12 Pier Rd",
+      description: "Bring the colour card",
+      person: null,
+      ...item,
+    });
+    const vm = toCalendarVM(
+      {
+        timezone: TZ,
+        from: "2026-09-06",
+        to: "2026-09-12",
+        feed: {
+          present: true,
+          state: "ok",
+          read_at: "2026-09-06T15:59:00.000Z",
+          events: 1,
+          recurring_expanded: 0,
+          skipped_recurring: 0,
+        },
+        hours: { tue: { open: "09:00", close: "18:00" } },
+        closures: [],
+        rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
+        booking_link: null,
+        days,
+      },
+      new Date(NOW),
+    );
+    fresh();
+    const tree = again(() =>
+      OpenVisit({
+        b: vm.days[2].blocks[0],
+        day: vm.days[2],
+        todayKey: vm.today,
+        tz: TZ,
+        source: "Google Calendar",
+        bookingLink: null,
+        moments: null,
+        days: vm.days,
+        onClose() {},
+        onWalk() {},
+        flash() {},
+      }),
+    );
+    return { tree, vm };
+  };
+  const known = open({ person: { id: MARIA, name: "Maria Lopez", via: "phone" } });
+  assert.equal(textOf(byTestId(known.tree, "cal-visit-door")).trim(), "Maria Lopez", "the person it is for, a door");
+  assert.equal(byTestId(known.tree, "cal-visit-contact"), null);
+  assert.ok(
+    textOf(byTestId(known.tree, "cal-visit-rows")).includes("12 Pier Rd"),
+    "the rows say what the head does not",
+  );
+  assert.equal(
+    textOf(byTestId(known.tree, "cal-visit-footnote")).trim(),
+    CALENDAR_VISIT_SHEET_WORDS.foot.feed("Google Calendar"),
+    "one footnote: where the visit changes",
+  );
+  const { line, read } = known.vm.feed;
+  for (const said of [line, read].filter(Boolean))
+    assert.ok(!textOf(known.tree).includes(said), `the chip's sentence stays on the chip: ${said}`);
+
+  const named = open({ contacts: { phones: ["+13055550142"], emails: [] }, guess: "Maria Lopez" });
+  assert.equal(byTestId(named.tree, "cal-visit-person"), null, "nobody in People");
+  assert.match(
+    textOf(byTestId(named.tree, "cal-visit-contact")),
+    /Maria Lopez/,
+    "what the event names, in their place",
+  );
 });
 
 test("the client's name as the event gives it: a guest first, then the title's name-like part, never a service or a plain description", async () => {
@@ -795,12 +872,14 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   );
   // A visit whose person the board cannot match offers a press, through the verb Add a person commits, never a window
   // global: pressed in reads-never-write/a-visit-the-board-cannot-match-offers-add-to-people.test.mjs.
-  // The hand's door has its screen on People now (slice D of the data program):
-  // the same route, a number and a name, opening the person it made or found.
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/people/people-detail.ts").includes(
-      'return verbAnswer(await commitVerb("person_add", body));',
-    ),
+  // The hand's door has its screen on People now (slice D of the data program): the same route, a number and a name,
+  // answering with the person it made or found. Run over People's wire (pinned as people-detail.ts's text until 26 Nov 2026).
+  const { onTheWire } = await peopleHarness();
+  const { addPerson } = await importSrc("apps/dashboard/src/surfaces/people/people-detail.ts");
+  const sent = await onTheWire(() => addPerson({ phone: "+13055550142", name: "Maria Lopez" }));
+  assert.deepEqual(
+    sent.filter((r) => r.method === "POST").map((r) => [r.route, r.body]),
+    [["contacts", { phone: "+13055550142", name: "Maria Lopez" }]],
     "the bridge verb, through the same door",
   );
   // The sweep reads the feed through the same cache (the edge's listFeedItems): run in calendar-counts.test.mjs.

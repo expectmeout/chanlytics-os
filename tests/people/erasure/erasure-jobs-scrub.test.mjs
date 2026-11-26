@@ -168,3 +168,19 @@ test("jobs purged while the scrub reads do not hide the person's job behind them
   assert.equal(n, 1, "the person's job was read");
   assert.ok(scrubbed(payloadOf(jobs, own.id)), "and its number and words are gone");
 });
+
+test("no kind is spared: every job that carried the number is scrubbed, whatever its kind", async () => {
+  // One kind was spared once (blob_thread_erase, gone with its store in 00151). Pinned as legs.ts's text in
+  // people/threads-people.test.mjs until 26 Nov 2026.
+  const kinds = ["outbound_send", "broadcast_send", "push_send", "reach_out_send", "person_policy"];
+  const own = kinds.map((kind, i) => ({
+    id: id(9000 + i),
+    tenant_id: TENANT,
+    kind,
+    state: "done",
+    payload: { to_phone: NUMBER, body: `a ${kind}` },
+  }));
+  const { jobs, db } = world(3, own);
+  assert.equal(await scrubErasedJobs(db, TENANT, PERSON, [DIGITS]), kinds.length);
+  for (const j of own) assert.ok(scrubbed(payloadOf(jobs, j.id)), `${j.kind}: its number and words are gone`);
+});
