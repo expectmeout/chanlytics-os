@@ -441,8 +441,11 @@ export function Sheet(props: SheetProps) {
           ref={place}
           initialFocus={initialFocus ?? firstFocus}
           className={cx("sheet", shown.kicker && "sheet-kicker", shown.rest && "sheet-rests", className)}
-          // What it is, said as Base UI says it, so a page's test finds the sheet by it as a screen reader does.
+          // What it is, said as Base UI says it, so a page's test finds the sheet by it as a screen reader does. And modal, as
+          // Base UI's Dialog is by default: Base UI hides the page behind it but does not say so, where the house's sheet said
+          // aria-modal, which tells a screen reader nothing outside it can be reached (the kit's gallery draws it so).
           role="dialog"
+          aria-modal="true"
           {...popupMarks(shown)}
           data-testid={testid}
           onKeyDown={props.onKeyDown}
