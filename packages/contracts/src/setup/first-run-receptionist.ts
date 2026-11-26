@@ -103,7 +103,7 @@ export function soundsWords(
   const personality = result
     ? (TONE_PRESETS.find((t) => t.key === result)?.label ?? null)
     : profile?.tone
-      ? "Your own words"
+      ? "Written by you"
       : null;
   const name = (profile?.assistant_name ?? "").trim() || null;
   return [voice, personality, name].filter(Boolean).join(" · ");

@@ -23,6 +23,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
 import { until } from "../shared/_until.mjs";
 import { bridgeHolds, provided, surfaceValue, heldRead } from "../shell/_bridge-holds.mjs";
+import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
@@ -518,7 +519,7 @@ test("the top bar shows the real feed", () => {
   // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses, its
   // foot's door to Settings › Notifications among them (this browser's one alert switch is that page's, decision 0137).
   assert.ok(
-    readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installNotifications();"),
+    stepRunning(fromDashboard("bridge/notifications.ts").installNotifications),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
   );
   assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications/feed";'));

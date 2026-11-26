@@ -589,7 +589,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
         meta: "1 under an hour old, not counted yet · 1 with no caller on record not counted",
         change: "was 3 of 4 the 7 days before",
       },
-      closed: { value: "3 of 5", meta: "5 messages came while you were closed; AI answered 3." },
+      closed: { value: "3 of 5", meta: "5 messages came while you were closed, and AI answered 3." },
       stuck: [
         { label: "Needs you", value: "2", meta: "the oldest has waited 6h" },
         { label: "Call-backs", value: "1", meta: "people to ring, counted in Needs you" },

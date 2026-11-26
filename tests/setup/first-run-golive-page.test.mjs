@@ -84,7 +84,7 @@ test("Go live, pay (canvas 5A): what starts and what it asks after, the plan at 
   assert.equal(
     textOf(byTestId(tree, "fr-pay-plan")),
     "$49.00 a month 14 days free" +
-      "Its number, calls and WhatsApp included. First charge on day 15. Cancel anytime from Billing." +
+      "Its number, calls and WhatsApp included. First charge on day 15, and cancel anytime from Billing." +
       "After you press" +
       "Its number is bought for youThen on your phone: dial one code, call your number once",
   );
@@ -151,7 +151,7 @@ test("Go live: back from Stripe before the plan lands is confirming with the ban
   assert.equal(byTestId(buying, "fr-number").props["data-stage"], "buying");
   assert.equal(
     textOf(byTestId(buying, "fr-phone-status")),
-    "Waiting on usGetting AI's number in 305…Usually a minute or two · this page updates by itself",
+    "Waiting on ChanlyticsGetting AI's number in 305…Usually a minute or two · this page updates by itself",
   );
   assert.deepEqual(asked.search, ["305"]);
   assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
@@ -231,7 +231,7 @@ test("Go live with no line provider here (canvas 5A·d): a person sets the line 
   flashes.length = 0;
   let tree = open();
   const none = byTestId(tree, "fr-no-provider");
-  assert.match(textOf(none), /^We set up your line with you/);
+  assert.match(textOf(none), /^Chanlytics sets up your number with you/);
   assert.match(textOf(none), /WhatsApp goes live now · emails keep coming to the Inbox/);
   await byTestId(tree, "fr-no-provider-ask").props.onClick();
   assert.deepEqual(asked.request, ["line"]);
@@ -506,7 +506,7 @@ test("Switch it on (canvas V6): an office phone system is shown the number, and 
   assert.equal(textOf(byTestId(tree, "fr-phone-dial")), "+1 (305) 555-0142");
   await byTestId(tree, "fr-phone-with-me-go").props.onClick();
   assert.deepEqual(asked.request, ["forwarding"]);
-  assert.equal(textOf(flashes.at(-1).msg), "We'll email you to find a time for a call.");
+  assert.equal(textOf(flashes.at(-1).msg), "Chanlytics emails you to find a time for a call.");
   setSetup(
     atLive(
       {
@@ -778,7 +778,7 @@ test("Switch it on (canvas 5B·g): WhatsApp on the number customers call keeps t
   const steps = textOf(byTestId(tree, "fr-wa-steps"));
   assert.match(steps, /^Connect WhatsApp, keep the app/);
   assert.match(steps, /In Meta's window, \+1 \(305\) 555-0100 is filled in\. Copy the code it shows\./);
-  assert.match(steps, /your one-to-one chats of the last 6 months come into Inbox/);
+  assert.match(steps, /6 months of one-to-one chats come in/);
   assert.equal(byTestId(tree, "fr-wa-not-shared"), null);
   let toggle = null;
   walk(byTestId(tree, "fr-wa-steps"), (n) => {
@@ -786,7 +786,7 @@ test("Switch it on (canvas 5B·g): WhatsApp on the number customers call keeps t
   });
   toggle.props.onClick();
   tree = mount();
-  assert.match(textOf(byTestId(tree, "fr-wa-not-shared")), /Meta offers the history once, while the number connects/);
+  assert.match(textOf(byTestId(tree, "fr-wa-not-shared")), /Meta offers them once, as the number connects/);
   assert.equal(textOf(byTestId(tree, "fr-wa-open")), "Open Meta's window");
   await byTestId(tree, "fr-wa-open").props.onClick();
   assert.deepEqual(meta.start, [{ keepApp: true }], "Meta's own flow for business app users");
@@ -921,7 +921,7 @@ test("You're live (canvas 5C): what answers now, AI's three moves each waiting f
     textOf(byTestId(tree, "fr-live-greeting")),
     /^Every caller hears “Hi, Harbor Moving\. I'm the AI assistant, and calls are recorded\./,
   );
-  assert.equal(textOf(byTestId(tree, "fr-live-note")), "We'll email you a copy of this.");
+  assert.equal(textOf(byTestId(tree, "fr-live-note")), "Chanlytics emails you a copy of this.");
   await byTestId(tree, "fr-onward").props.onClick();
   await tick();
   assert.deepEqual(activated, ["voice"], "the owner's own act, recorded");

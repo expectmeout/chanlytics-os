@@ -154,7 +154,7 @@ test("every email is on the card whole, so its press is the OK of those words: t
   // A door that could not take the press as the OK (a database before it) says the first run waits, as it does.
   assert.equal(
     PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1" }),
-    "“Personal trainers · Austin” is saved. Nothing goes until you approve the first emails. After that, each send goes as Before each send says on Cold email.",
+    "“Personal trainers · Austin” is saved. Nothing goes until you approve the first emails, then each send goes as “Before each send” says.",
   );
   // A card stored before this one says nothing of the words: its commit carries none, and its first run waits.
   const { words_shown: _shown, ...older } = p.payload;

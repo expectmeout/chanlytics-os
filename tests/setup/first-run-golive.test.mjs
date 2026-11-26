@@ -118,7 +118,7 @@ test("Pay (5A): what starts and what it asks after, the plan's price, and the tr
     ],
     price: "$49.00 a month",
     trial: "14 days free",
-    note: "Its number, calls and WhatsApp included. First charge on day 15. Cancel anytime from Billing.",
+    note: "Its number, calls and WhatsApp included. First charge on day 15, and cancel anytime from Billing.",
     after: [
       "Its number is bought for you",
       "Your booking-link message goes to Meta for approval · minutes to a day",
@@ -134,7 +134,7 @@ test("Pay (5A): what starts and what it asks after, the plan's price, and the tr
   assert.equal(FIRST_RUN_HELPERS.goLiveWords.lead(0), "Everything you chose starts at once.");
   // The trial words, as they would be with a trial: the days said, and the first charge.
   assert.equal(FIRST_RUN_HELPERS.goLiveWords.trial(14), "14 days free");
-  assert.match(FIRST_RUN_HELPERS.goLiveWords.note(14, "Sep 21"), /First charge on Sep 21\./);
+  assert.match(FIRST_RUN_HELPERS.goLiveWords.note(14, "Sep 21"), /First charge on Sep 21, and cancel/);
   // A new number, every call kept: said as what it is.
   const own = goLive(dtoOf(), { want: { way: "new", number: "+13055550177" } });
   assert.deepEqual(own.pay.starts[0], {
@@ -359,7 +359,7 @@ test("You're live never waited on WhatsApp: chosen and not connected, its steps 
     {
       key: "whatsapp_connect",
       title: "WhatsApp · connect it on its own number",
-      says: "Calls and email answer now. WhatsApp joins once you approve it on your phone; Today keeps this until then.",
+      says: "Calls and email answer now. WhatsApp joins once you approve it on your phone · Today keeps this until then.",
       act: { kind: "connect", label: "Connect WhatsApp" },
     },
   ]);

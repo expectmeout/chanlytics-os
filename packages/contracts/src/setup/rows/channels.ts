@@ -52,7 +52,7 @@ function emailRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft
       state: "not_started",
       required: false,
       sentence:
-        "Connect the mailbox customers write to. Six months of email from people comes into your Inbox, and new email arrives there.",
+        "Connect the mailbox customers write to: six months of their email comes into your Inbox, and new email after.",
       details: [EMAIL_NOT_ANSWERED_SENTENCE],
       verb: { label: "Connect your mailbox", to: firstRunStepRoute("channels") },
     };
@@ -299,7 +299,7 @@ function clientsRow(setupInputs: SetupInputs): SetupRowDraft | null {
   if (!setupInputs.imports) return null;
   const row = setupInputs.imports.find((r) => r.source === "clients_file") ?? null;
   const details: string[] = [];
-  const base = { id: "clients", icon: "users", title: "Your clients", required: false, details };
+  const base = { id: "clients", icon: "users", title: "Customers", required: false, details };
   if (row?.state === "done")
     return {
       ...base,

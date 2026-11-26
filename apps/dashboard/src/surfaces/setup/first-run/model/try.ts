@@ -92,7 +92,7 @@ export const FIRST_RUN_TRY_WORDS = {
    */
   listenForwardedOther: "Call your number from another phone. Don't pick up.",
   leadOther:
-    "A phone can't call itself, so use a second one or ask someone to call. Ask what a customer would, like “Are you open on Sunday?”",
+    "A phone can't call itself: use a second one, or ask someone. Ask what a customer would, like “Are you open on Sunday?”",
   routeOther: (kept: string) => `Another phone calls ${kept} → nobody picks up → AI answers`,
   dial: (number: string) => `Call ${number}`,
   listenOwn: "Call AI from your cell.",
@@ -124,7 +124,7 @@ export const FIRST_RUN_TRY_WORDS = {
   }),
   showCode: "Show the code again",
   help: "Ask Chanlytics for help",
-  helpSent: "We'll email you to find a time for a call.",
+  helpSent: "Chanlytics emails you to find a time for a call.",
   helpFailed: "Not asked",
   pickedUp: "It picked up.",
   proofForwarded: "Forwarding works",

@@ -190,11 +190,11 @@ export const FILE_WORDS = {
   captionWaitsGoogle: (most: number) =>
     `A post set for Google takes up to ${most.toLocaleString("en-US")} characters. Shorten it, or say Don't post first.`,
   full: "This workspace holds as many files as it can. Remove some first.",
-  wrongType: "That isn't a photo we can keep. Use a JPEG, PNG, WebP or HEIC.",
+  wrongType: "That file isn't a photo the Library takes. Use a JPEG, PNG, WebP or HEIC.",
   tooBig: "That photo is over 25 MB.",
   tooSmall: "That photo is too small to use.",
   tooManyPixels: "That photo is too large to work with. Use a copy under 50 megapixels.",
-  unreadable: "We couldn't read that photo. Try a JPEG or PNG copy.",
+  unreadable: "Couldn't read that photo. Try a JPEG or PNG copy.",
   notSaved: "That photo couldn't be saved. Try again.",
   twin: "Already here",
   alreadyHere: (n: number) => (n === 1 ? "1 was already here." : `${n} were already here.`),
@@ -210,7 +210,7 @@ export const FILE_WORDS = {
     add: "Add photos or videos",
     emptyTitle: "No photos or videos yet",
     emptyBody:
-      "Add the ones that show your place and your work. AI looks at each one, and listens to each video, and names it for what it shows.",
+      "Add the ones that show your place and your work. AI looks at and listens to each, and names it for what it shows.",
     added: (n: number) =>
       n === 1 ? "Video added. It's being prepared." : `${n} videos added. They're being prepared.`,
     ...VIDEO_TILE_WORDS,
@@ -226,7 +226,7 @@ export const FILE_WORDS = {
     cantPlay: "This video can't play just now. Try again in a minute.",
     removeAsk: "Delete this video?",
     removed: "Video deleted.",
-    wrongType: "That video isn't one we can keep. Use an MP4, MOV or WebM.",
+    wrongType: "That file isn't a video the Library takes. Use an MP4, MOV or WebM.",
     tooLong: "Up to 10 minutes a video.",
     tooBig: "Up to 500 MB a video.",
     full: `Your videos are full: ${FILE_VIDEO_MINUTES_MAX} minutes at most. Delete one to add another.`,

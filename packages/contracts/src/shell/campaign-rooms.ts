@@ -7,7 +7,6 @@
  * is the verb, whichever room it starts from. The frame's crumbs and strip name each room from here too, so the words of
  * Sequences' and New's pages stay out of the frame every page loads (lane 1 of the cold-load review, 30 Oct 2026).
  */
-import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
@@ -29,6 +28,7 @@ const { library } = CAMPAIGN_ROOMS;
  */
 export const SLOW_REVIEW_WORDS = {
   list: "Taking longer than usual",
+  // screen-word: Ruben's words for it, approved as written on 16 Nov 2026 (docs/words.md, "Kept on purpose")
   sheet:
     "WhatsApp is taking longer than usual to check this message. Chanlytics has been told and is looking into it. It sends by itself once approved.",
   pill: "Taking longer",
@@ -45,10 +45,14 @@ export const LIBRARY_WORDS = {
   failed: "Your messages couldn’t be loaded right now",
   failedWhat: "your messages",
   failedBody: "AI keeps sending · this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: `What AI and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp (${WHATSAPP_REVIEW_TAKES}), whether it is written here or in WhatsApp Manager · an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.`,
+  /**
+   * The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions,
+   * and who a marketing message reaches. How long WhatsApp's review takes is the message's sheet's to say.
+   */
+  headTip:
+    "What AI and your campaigns send, as customers see it. A marketing message can only go to people who said yes to offers.",
   noNumber:
-    "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+    "No WhatsApp number yet. Email and text versions are written here, and WhatsApp versions wait for a number.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
   writeNeedsNumber: "Connect a WhatsApp number first. WhatsApp approves each message for one number.",
   /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
@@ -128,7 +132,7 @@ export const LIBRARY_STARTER_WORDS = {
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
    */
   notAddedSentForReview:
-    "The starter's WhatsApp version went to WhatsApp for review, but the campaign couldn't be started just now. Try again: nothing is sent to WhatsApp twice.",
+    "Its WhatsApp version went for review, but the campaign couldn't start. Try again: nothing goes to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */

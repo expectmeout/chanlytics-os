@@ -111,8 +111,8 @@ function paths(path: string, setPath: (p: string) => void) {
       >
         <b>Keep my number</b>
         <span>
-          Keep the number your customers know: forward the calls you don&rsquo;t answer to AI. You keep your phone, your
-          phone company and your texts.
+          Keep the number customers know: forward the calls you don&rsquo;t answer to AI. Your phone, phone company and
+          texts stay.
         </span>
       </button>
       <button
@@ -190,7 +190,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
             msg: r.already ? (
               <>Already asked · a person at Chanlytics has it.</>
             ) : (
-              <>We got it · a person at Chanlytics will move your number with you and reach you by email.</>
+              <>Got it · a person at Chanlytics will move your number with you and email you.</>
             ),
           }
         : refusalToast(r, "Request not sent"),
@@ -226,8 +226,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
       ) : (
         <div className="setup-ask">
           <span className="setup-ask-text">
-            A person at Chanlytics files the move with your phone company. Ask, and we reach you by email for what your
-            phone company needs.
+            A person at Chanlytics files the move with your phone company. Ask, and they email you for what it needs.
           </span>
           <button
             className="btn btn-sm"
@@ -235,7 +234,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
             data-testid="setup-ask-us"
             {...gate("approve", "ask to bring your number")}
           >
-            Ask us
+            Ask Chanlytics
           </button>
         </div>
       )}

@@ -722,7 +722,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   assert.equal(
     first.stateWords,
     "Waiting for the first email",
-    "never 'Waiting on us': nobody at Chanlytics is waited on",
+    "never 'Waiting on Chanlytics': nobody at Chanlytics is waited on",
   );
   const held = row(
     setupSteps(empty({ calendar: { state: "none", tool: "booksy", emails: emails({ held: 2 }) } }), NOW),
@@ -916,7 +916,7 @@ test("the line row over the product's own line: get one when this deployment can
   assert.ok(!JSON.stringify(failed).includes("HTTP 422"), "the provider's words stay off the page");
   const own = setupSteps(live({ lines: withLines([lineRow({ voice_state: "answering", step: null })]) }), NOW);
   assert.equal(row(own, "line").state, "ready");
-  assert.ok(row(own, "line").details.includes("Your own number through Chanlytics"));
+  assert.ok(row(own, "line").details.includes("The number you have, through Chanlytics"));
   assert.equal(
     setupSteps(empty({ lines: withLines([lineRow({ voice_state: "failed" })], false) }), NOW).next.row,
     "facts",
@@ -1022,7 +1022,7 @@ test("the words: four states, no jargon, no trade", () => {
   assert.deepEqual(SETUP_STATE_WORDS, {
     not_started: "Not started",
     waiting_you: "Waiting on you",
-    waiting_them: "Waiting on us",
+    waiting_them: "Waiting on Chanlytics",
     ready: "Ready",
   });
   // Only what the owner can read: the string literals, not our identifiers.

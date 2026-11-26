@@ -83,17 +83,18 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     keepListed: "Your Google listing's number",
     lookup: (l: LineLookupDto) =>
       l.type === "mobile"
-        ? `a ${l.carrier && l.carrier !== "other" ? `${CARRIER_WORDS[l.carrier]} ` : ""}mobile, we checked`
+        ? `a ${l.carrier && l.carrier !== "other" ? `${CARRIER_WORDS[l.carrier]} ` : ""}mobile, checked`
         : l.type === "landline"
-          ? "a landline, we checked"
+          ? "a landline, checked"
           : l.type === "voip"
-            ? `an office phone system${l.name ? ` (${l.name})` : ""}, we checked`
+            ? `an office phone system${l.name ? ` (${l.name})` : ""}, checked`
             : null,
     nobodyPicksUp: "Calls nobody picks up go to AI.",
     everyCall: "Every call goes to AI.",
     newSays: "Customers call this number directly. Put it on your Google listing and your website once it's live.",
     moveSays: "Nothing changes for customers. Until the move is done, the number forwards.",
     /** Not by phone (decision 0091): a business whose customers write, and never call, goes live without a number. */
+    // screen-word: the owner's own answer about their business, said as they would say it
     noCalls: "We don't take calls",
     noCallsSays: "Not by phone. AI answers where your customers write, and you can add a number any time from Setup.",
     callsAfterAll: "Take calls after all",
@@ -107,11 +108,11 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Keeping the app (R12, coexistence), said only where this deployment connects that way. */
     same: (n: string) => `WhatsApp on ${n}`,
     sameSays:
-      "Keep using the app: AI answers what you don't. Your contacts and last 6 months of chats come in, if you say yes in Meta's window.",
+      "Keep using the app: AI answers what you don't. Say yes in Meta's window, and contacts and 6 months of chats come in.",
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
-    ownSays: "Customers write there · we register it with Meta for you.",
+    ownSays: "Customers write there · Chanlytics registers it with Meta for you.",
     later: "Later",
     laterSays: "Today keeps it as a row to finish.",
     approveAtGoLive: "Approve on your phone at Go live",
@@ -132,7 +133,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     bySite: "A booking site",
     byMessage: "By message",
     byHandSays:
-      "AI takes their name, what they need and when, and you confirm. Reminders the day before need a calendar: paste its link here any time.",
+      "AI takes their name, what they need and when, and you confirm. Day-before reminders need a calendar link, any time.",
     paste: "Paste a calendar link (optional)",
     clients: "Bring your clients",
     clientsDone: (n: number, tool: string | null) => `${n.toLocaleString()} clients in${tool ? ` from ${tool}` : ""}`,
@@ -150,18 +151,18 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     notNow: "Not now",
   },
   email: {
-    title: "Your email",
-    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and campaigns go from your address.",
+    title: "Email",
+    says: "Connect the inbox you already use: customers' emails and contacts come in, and campaigns go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
     soon: "Coming soon",
     soonSays:
-      "Connecting Gmail or Outlook opens once Google and Microsoft finish their review. Until then email stays in your own inbox.",
+      "Gmail and Outlook open once Google and Microsoft finish their review. Until then, email stays in your own inbox.",
     connected: (address: string) => `${address} is connected`,
     notAnswered: EMAIL_NOT_ANSWERED_SENTENCE,
   },
   filling: {
-    title: "Your dashboard, filling in",
+    title: "The dashboard, filling in",
     people: "People",
     peopleSub: "your clients, contacts, WhatsApp",
     inbox: "Inbox",

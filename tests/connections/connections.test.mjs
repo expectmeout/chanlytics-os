@@ -22,6 +22,7 @@ import {
   CONNECTION_GROUP_WORDS,
 } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
+import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const ago = (ms) => new Date(NOW - ms).toISOString();
@@ -265,12 +266,12 @@ test("the phone line's road: requested, being set up with the step and since, st
   const failed = by(
     connectionRows({ ...base(), lines: { rows: [line({ voice_state: "failed", step: "trunk" })], ready: true } }, NOW),
   );
-  assert.equal(failed.phone.stateWords, "Waiting on us");
+  assert.equal(failed.phone.stateWords, "Waiting on Chanlytics");
   // Retried in place, as Start's row does it (ownLineStandOf): the same sentence for the same state, and the verb is the line's own.
   assert.deepEqual(failed.phone.verb, { label: "Retry", to: "verb:retry-line:l1", who: "owner" });
   assert.equal(
     failed.phone.sentence,
-    `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here · we have been told.`,
+    `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here · Chanlytics has been told.`,
   );
   const offer = by(connectionRows({ ...base(), lines: { rows: [], ready: true } }, NOW));
   assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start/channels", who: "owner" });
@@ -395,9 +396,9 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // told the owner their texting was days from switching itself on.
   const mock = words("approved", { reg_mock: true });
   assert.equal(mock.state, "attention", "joined, not working");
-  assert.equal(mock.stateWords, "Waiting on us");
+  assert.equal(mock.stateWords, "Waiting on Chanlytics");
   assert.match(mock.sentence, /nothing is delivered/);
-  assert.match(mock.sentence, /a person at Chanlytics is filing it/);
+  assert.match(mock.sentence, /A person at Chanlytics files it/);
   assert.ok(!/switches itself on/.test(mock.sentence), "a rehearsal never switches itself on");
   assert.ok(
     !/switches itself on/.test(words("registering", { reg_mock: true }).sentence),
@@ -504,7 +505,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     fromModel && /\bconnectionRows\b/.test(fromModel[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromModel[1]),
     "the pane imports its model's rows and group words",
   );
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
+  assert.ok(!bootRunsOneNamed("installConnections"), "the frame's boot installs nothing of Connections'");
   const edge = readCode("apps/edge/lib/shared/google/config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&
@@ -702,7 +703,7 @@ test("D1-line-row-derivations: the phone row says what Start's row says in each 
     by(connectionRows({ ...base(), lines: { rows: [line({ step: "trunk", ...over })], ready: true } }, NOW)).phone;
   // Setting up for hours: Start says the setup stopped and offers Retry; Connections said "Usually a minute or two", with no button.
   const stuck = phone({ voice_state: "provisioning", state_since: ago(PROVISIONING_DEADLINE_MS + 60_000) });
-  assert.equal(stuck.stateWords, "Waiting on us");
+  assert.equal(stuck.stateWords, "Waiting on Chanlytics");
   assert.ok(
     stuck.sentence.startsWith(`Setting up stopped while ${LINE_STEP_WORDS.trunk}, 6m ago.`),
     "the same sentence Start's row opens with",

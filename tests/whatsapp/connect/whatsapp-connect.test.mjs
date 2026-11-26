@@ -16,6 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DECISION_SUBJECTS, DECISION_VERBS, templateTitle, toChannelVM } from "@chanlytics/contracts";
 import { connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { bootRunsOneNamed } from "../../shell/boot/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -135,6 +136,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "held", "prepare", "start"]);
   assert.equal(globalThis.installWhatsAppConnect, undefined, "the module, loaded, put nothing on the window");
   assert.equal(globalThis.waConnect, undefined);
+  assert.ok(!bootRunsOneNamed("installWhatsAppConnect"), "the frame's boot installs nothing of the connect's");
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {

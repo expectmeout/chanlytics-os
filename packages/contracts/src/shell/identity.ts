@@ -45,10 +45,10 @@ export function personInitials(name: string | null | undefined, email: string | 
 }
 
 export function identityWords(me: IdentityInput | null | undefined): IdentityWords {
-  if (!me) return { name: "Your account", email: "", initials: "?", role: "", named: false };
+  if (!me) return { name: "Account", email: "", initials: "?", role: "", named: false };
   const name = (me.display_name ?? "").trim();
   return {
-    name: name || "Your account",
+    name: name || "Account",
     email: me.email ?? "",
     initials: personInitials(name, me.email),
     role: ROLE_WORDS[me.role ?? ""] ?? "",

@@ -54,7 +54,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
   trial: (days: number) => (days ? `${days} days free` : "Charged today"),
   note: (days: number, firstCharge: string | null) =>
     days
-      ? `Its number, calls and WhatsApp included. First charge on ${firstCharge ?? `day ${days + 1}`}. Cancel anytime from Billing.`
+      ? `Its number, calls and WhatsApp included. First charge on ${firstCharge ?? `day ${days + 1}`}, and cancel anytime from Billing.`
       : "Its number, calls and WhatsApp included. Cancel anytime from Billing.",
   afterTitle: "After you press",
   after: {
@@ -63,7 +63,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     hands: (code: boolean, wa: boolean) =>
       `Then on your phone: ${[code ? "dial one code" : null, code ? "call your number once" : null, wa ? "approve WhatsApp" : null].filter(Boolean).join(", ")}`,
   },
-  card: "Your card",
+  card: "Card",
   /** Stripe's checkout could not be mounted in the page (Stripe.js refused, or blocked). */
   checkoutFailed: "Stripe's checkout couldn't open here. Try again in a moment · nothing was charged.",
   secured: (days: number) => (days ? "Nothing is charged today · secured by Stripe" : "Secured by Stripe"),
@@ -71,7 +71,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
   confirmingLead: "Some banks ask you to approve in their app. This page moves on by itself.",
   confirmingFoot: "Usually a few seconds",
   noProvider: {
-    heading: "We set up your line with you",
+    heading: "Chanlytics sets up your number with you",
     lead: "Phone lines aren't automatic here yet. A person at Chanlytics sets yours up and writes to you within a day.",
     /** What goes live now without the line, of what is connected: WhatsApp's number, a mailbox's mail; null for none. */
     now: (whatsapp: boolean, email: boolean): string | null =>
@@ -116,21 +116,21 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     keepAppSteps: (n: string | null) => [
       `In Meta's window, ${n ?? "your number"} is filled in. Copy the code it shows.`,
       "In WhatsApp Business, open the message from Facebook Business and tap Connect.",
-      "When the app asks to share your chat history, say yes: your one-to-one chats of the last 6 months come into Inbox. Group chats stay in the app.",
+      "Say yes when the app asks to share your chat history: 6 months of one-to-one chats come in, and group chats stay.",
       "Paste the code in Meta's window. Done.",
     ],
     keepAppAfter:
-      "You keep using the app. AI answers what you don't · your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
+      "Keep using the app: AI answers what you don't, and your replies and WhatsApp contacts show here too.",
     ifNot: "If you'd rather not share your chats",
     ifNotSays: [
       "WhatsApp still connects, and you keep the app.",
       "Every chat from now on comes into Inbox, and AI answers what you don't.",
-      "Your older chats stay only in the app. Meta offers the history once, while the number connects · to bring it later, WhatsApp has to be connected again from Settings.",
+      "Older chats stay in the app. Meta offers them once, as the number connects: later, connect WhatsApp again from Settings.",
     ],
     openMeta: "Open Meta's window",
     skipWhatsapp: "Skip WhatsApp for now",
     template: "Your booking-link message · Meta is reviewing it · until then it takes a caller's details",
-    templateOk: "Your booking-link message · approved",
+    templateOk: "Booking-link message · approved",
     needsYou: "Needs you",
     open: "Open Today, it keeps going",
     askTitle: (name: string | null) => `Getting ${name ?? "AI"} ready`,
@@ -185,11 +185,11 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       "Usually a few minutes, sometimes a day. Nothing to do: it switches on by itself, and your chat history comes in with it.",
     whatsappLater: "WhatsApp · later",
     whatsappLaterSays:
-      "Without WhatsApp it can't send a caller your booking link: it takes their details for you, or points them to your website. Connect any time from Today · your last six months of chats come in then.",
+      "Without WhatsApp, it takes a caller's details or sends them to your website. Connect it any time from Today.",
     whatsappConnect: "Connect WhatsApp now",
     /** Chosen at Where it answers and not connected yet: everything else answers, and WhatsApp joins once approved. */
     whatsappConnectSays:
-      "Calls and email answer now. WhatsApp joins once you approve it on your phone; Today keeps this until then.",
+      "Calls and email answer now. WhatsApp joins once you approve it on your phone · Today keeps this until then.",
   },
 } as const;
 

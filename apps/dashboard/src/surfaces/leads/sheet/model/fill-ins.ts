@@ -31,8 +31,11 @@ export const LEAD_FILL_WORDS = {
   firstName: "Their first name",
   title: "Their title",
   role: "Their role",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   yourName: "Your name",
+  // screen-word: "Your" tells the owner's own from the lead's (docs/words.md, The voice 5)
   yourBusiness: "Your business name",
+  // screen-word: "Your" tells the owner's own from the lead's (docs/words.md, The voice 5)
   bookingLink: "Your booking link",
   /** Where their values came from: the row's own Source word, as the Leads table's column says it. */
   source: (word: string) => `Source: ${word}`,

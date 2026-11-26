@@ -106,7 +106,9 @@ export const REPORT_WORDS = {
   thisPage: (page: string) => `This page · ${page}`,
   theError: (id: string) => `What happened · ${id}`,
   privacy: (email: string | null) =>
-    email ? `Nothing about your customers is sent. We answer at ${email}.` : "Nothing about your customers is sent.",
+    email
+      ? `Nothing about your customers is sent. Chanlytics answers at ${email}.`
+      : "Nothing about your customers is sent.",
   send: "Send",
   sending: "Sending…",
   empty: "Say what you need first.",

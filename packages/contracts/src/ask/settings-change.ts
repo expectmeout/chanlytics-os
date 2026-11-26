@@ -452,9 +452,9 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     case "set_guardrail":
       return GUARDRAIL_RULE_WORDS[change.rule][change.on ? "on" : "off"];
     case "set_goal":
-      return change.goal.trim() ? `Your goal: “${change.goal.trim()}”` : "Your goal, taken away";
+      return change.goal.trim() ? `Goal: “${change.goal.trim()}”` : "Goal, taken away";
     case "set_booking_link":
-      return change.link.trim() ? `Your booking link: ${change.link.trim()}` : "Your booking link, taken away";
+      return change.link.trim() ? `Booking link: ${change.link.trim()}` : "Booking link, taken away";
     default:
       return describeAnswersChange(change);
   }

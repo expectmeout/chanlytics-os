@@ -48,6 +48,7 @@ interface FirstRunStepDef {
 /** Each step's own, by its key (FIRST_RUN_STEP_KEYS says their order). */
 const STEP_DEFS: Record<FirstRunStepKey, Omit<FirstRunStepDef, "key">> = {
   business: {
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     name: "Your business",
     lead: "Chanlytics finds you on Google and sets up AI that answers as you.",
     rows: ["facts", "google"],
@@ -153,11 +154,11 @@ export const FIRST_RUN_WORDS = {
   find: {
     heading: (name: string | null) => (name ? `Is this ${name}?` : "Which one is your business?"),
     /** The search asks the name typed at sign-up while there is no receptionist, and the name and address on record after (the search route). */
-    lead: "We looked you up on Google with the name you signed up with.",
-    leadOnRecord: "We looked you up on Google with the name and address on record.",
+    lead: "Chanlytics looked you up on Google with the name you signed up with.",
+    leadOnRecord: "Chanlytics looked you up on Google with the name and address on record.",
     typed: (q: string) => `What Google has for “${q}”.`,
     reading: "Looking on Google…",
-    pick: "Your listing on Google",
+    pick: "Listing on Google",
     best: "Best match",
     maps: "See it on Maps",
     noAddress: "No address on Google",
@@ -166,7 +167,9 @@ export const FIRST_RUN_WORDS = {
     /** A phone shows the best match alone until this is pressed (canvas 1B, phone). */
     more: "Not this one? Search again",
     searchCta: "Search",
+    // screen-word: the owner's own answer about their business, said as they would say it
     yes: "That's us",
+    // screen-word: the owner's own answer about their business, said as they would say it
     notOnGoogle: "We're not on Google",
     linked: (name: string, read: boolean) =>
       `${name} is your listing on Google · ${read ? "read just now" : "Google will be read within the hour"}.`,
@@ -187,7 +190,7 @@ export const FIRST_RUN_WORDS = {
       `Sign in with the Google account that manages ${business ?? "your business"}, and it comes in as you keep it there:`,
     brings: [
       "All your reviews, and you answer them from here",
-      "Your hours, holiday hours included",
+      "Hours, holiday hours included",
       "Your services and prices, for you to check next",
       "New reviews within the hour, on your bell",
     ],
@@ -196,7 +199,7 @@ export const FIRST_RUN_WORDS = {
     connect: "Connect Google",
     someoneElse: "Someone else manages it",
     notNow: "Not now",
-    connectedHeading: (business: string | null) => `${business ?? "Your business"} is connected`,
+    connectedHeading: (business: string | null) => `${business ?? "The business"} is connected`,
     connectedWho: (email: string | null) => (email ? `Google · ${email} · just now` : "Google · just now"),
     rows: { reviews: "Reviews", hours: "Hours", services: "Services and prices", news: "New reviews" },
     reviewsSay: (n: number | null, back: string | null, waiting: number | null) =>
@@ -233,7 +236,7 @@ export const FIRST_RUN_WORDS = {
   },
   /** Your workspace, building (canvas 1B): what is done, what waits on the owner, and what comes next, beside Find. */
   building: {
-    title: "Your workspace, building",
+    title: "The workspace, building",
     made: (name: string) => `Workspace made · ${name}`,
     searching: "Searching Google",
     found: (n: number) =>
@@ -241,11 +244,11 @@ export const FIRST_RUN_WORDS = {
     /** While Google is asked: the line the confirming takes, said ahead, so the list keeps its length as it answers. */
     confirmNext: "Confirm your listing",
     confirm: "Waiting for you to confirm it",
-    confirmed: "Your listing, confirmed",
+    confirmed: "Listing confirmed",
     connect: "Connect your Business Profile",
     connected: "Your Business Profile, connected",
     website: "Read your website",
-    websiteRead: "Your website, read",
+    websiteRead: "Website read",
     write: "Set up AI",
     written: "AI, set up",
     note: "Until you connect it, it reads only what's public: your Google listing and your website.",
@@ -259,7 +262,7 @@ export const FIRST_RUN_WORDS = {
     basicsLead: "AI answers from this. You can add more later in Settings.",
     /** No receptionist yet, on Your business: the step is the owner's one press, said as what it does. */
     makeHeading: "Set up AI",
-    makeLead: "One press writes it from what we know. Nothing answers anyone until you go live.",
+    makeLead: "One press writes it from what Chanlytics knows. Nothing answers anyone until you go live.",
     /** Where the press starts it from: the listing, or the name typed at sign-up. */
     makeListed: "It starts from your Google listing, and you check every detail next.",
     makeNamed: (name: string | null) =>
@@ -273,7 +276,7 @@ export const FIRST_RUN_WORDS = {
     failedWhat: "AI",
     /** The onward, once what it answers from is checked: on to the rehearsal (decision 0073). */
     looksRight: "Rehearse it now",
-    rehearseNote: "Next: talk to it as a customer would, then fix what it gets wrong. Free. Nothing to buy yet.",
+    rehearseNote: "Next: talk to it as a customer would, then fix what it gets wrong. Free, with nothing to buy yet.",
     /** Not on Google, said, where Google can be searched: the way back to Find. */
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
