@@ -1034,6 +1034,15 @@ export function cascadeOf(files, ctx = {}) {
       const found = sheet.keyframes.filter((k) => k.name === name && drawn(k));
       return found.at(-1)?.frames ?? null;
     },
-    every: () => sheet.rules.map((r) => ({ file: r.file, selectors: r.selectors.map((s) => s.text), apart: r.apart })),
+    // Every rule the sheets hold, drawn here or not: what a sheet sets anywhere (a property of a family it never sets).
+    every: () =>
+      sheet.rules.map((r) => ({
+        file: r.file,
+        selectors: r.selectors.map((s) => s.text),
+        declarations: r.declarations,
+        media: r.media,
+        supports: r.supports,
+        apart: r.apart,
+      })),
   };
 }

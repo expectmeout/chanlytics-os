@@ -13,86 +13,109 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readRaw, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const { isRetryableAuthError } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/auth/errors.ts")).href
-);
+const { isRetryableAuthError } = await importSrc("apps/dashboard/src/server/shared/auth/errors.ts");
+const { threadPorts, escalationPorts } = await importSrc("apps/dashboard/src/server/conversations/ports.ts");
+const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+const routeAt = (p) => importSrc(`apps/dashboard/app/api/v1/${p}/route.ts`);
 
-/** A route by its address, or a module by its path from the root (a row loader a route imports from its domain). */
-const route = (p) => readCode(/^(packages|apps)\//.test(p) ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
-
-test("every conversation verb counts the rows its UPDATE hit, in the one adapter; zero rows is the verb's 409, which is run, not read", () => {
-  // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
-  // 409; what is pinned here is that every port the adapter hands them is
-  // row-counted through the one helper.
-  // With the writes they name, packages/db's (decision 0111).
-  const ports = readCode(
-    "apps/dashboard/src/server/conversations/ports.ts",
-    "packages/db/src/repositories/conversations/reads.ts",
-  );
-  // The take-over, the hand-back (00386) and the call-back (00387) are doors that count their own rows.
-  for (const port of ["snooze", "wake", "archive", "resolve"]) {
-    assert.ok(
-      ports.includes(`${port}: (`) &&
-        ports.includes(`${port}: (`) &&
-        new RegExp(port + ": \\([^)]*\\) =>\\s*changed\\(").test(ports),
-      `${port}: the UPDATE must be row-counted`,
-    );
-  }
-  assert.ok(ports.includes("return !!data && data.length > 0;"), "changed() is the one place zero rows is judged");
-  assert.ok(
-    /\.eq\("state", "snoozed"\)\s*\.select\("id"\)/.test(ports) &&
-      /\.eq\("state", "open"\)\s*\.select\("id"\)/.test(ports),
-    "wake and resolve are guarded on the state they leave",
-  );
+const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const ctxOver = (tables, faults = {}) => ({
+  supabase: fakeDb(tables, faults),
+  userId: "u1",
+  email: "ops@harbor.example",
+  params: {},
 });
 
-test("ids are validated by the one guard, never by a private regex", () => {
-  const validated = [
-    "escalations/[id]/resolve",
-    "apps/dashboard/src/server/conversations/held-message.ts", // messages/[id]/cancel-send's row (theMessage)
-    "team/[id]",
-    "conversations/[id]/snooze",
-    "calls/[id]/recording",
-    "contacts/[id]",
-    "calls",
+test("every conversation verb counts the rows its UPDATE hit, in the one adapter; zero rows is the verb's 409, which is run, not read", async () => {
+  // The verbs live in packages/core and core-thread-verbs.test.mjs runs each 409 over fakes; here the adapter the
+  // route hands them (server/conversations/ports.ts), run over a database: a row RLS hides or that is gone changes
+  // nothing and says false, so the verb never describes a change that did not land. The take-over, the hand-back
+  // (00386) and the call-back (00387) are doors that count their own rows.
+  const tables = () => ({
+    conversations: [{ id: C, tenant_id: T, state: "open" }],
+    escalations: [{ id: E, tenant_id: T, conversation_id: C, state: "open" }],
+  });
+  const t = tables();
+  const ports = threadPorts(ctxOver(t));
+  const until = "2026-11-27T15:00:00.000Z";
+  const elsewhere = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  assert.equal(await ports.snooze(elsewhere, until), false, "snooze: a row the member cannot see changed nothing");
+  assert.equal(await ports.archive(elsewhere), false, "archive: so did this");
+  assert.equal(await ports.wake(C), false, "wake: guarded on the state it leaves, and the thread is open");
+  assert.equal(t.conversations[0].state, "open", "and nothing was written");
+  assert.equal(await ports.snooze(C, until), true, "snooze: the one row, changed");
+  assert.equal(t.conversations[0].state, "snoozed");
+  assert.equal(await ports.wake(C), true, "wake: now that it is snoozed");
+  assert.equal(await ports.archive(C), true);
+  // resolve: guarded on the hold being open, so a second press is the verb's 409.
+  const esc = escalationPorts(ctxOver(t));
+  assert.equal(await esc.resolve(elsewhere), false);
+  assert.equal(await esc.resolve(E), true, "resolve: the open hold");
+  assert.equal(t.escalations[0].state, "resolved");
+  assert.equal(t.escalations[0].resolved_by_user_id, "u1", "by the member who pressed");
+  assert.equal(await esc.resolve(E), false, "and only while it is open");
+  // A database that refuses is a failure the route answers, never a zero read as a change.
+  const down = threadPorts(ctxOver(tables(), { "conversations.update": { code: "XX000", message: "down" } }));
+  await assert.rejects(down.snooze(C, until), (e) => e.name === "DbFailure" && e.code === "XX000");
+});
+
+test("ids are validated by the one guard, never by a private regex", async () => {
+  // Every route that takes an id, run with one that is not an id: the guard's 404 in the record's own word, before
+  // anything is asked of the database. A non-uuid PostgREST is handed is its 22P02 and a 500, which is what each
+  // table here answers if it is reached. A route that declares a row scope never sees the id: its loader (shared/
+  // verbs.ts, the one chokepoint for that row) asks the guard; every other route asks it itself.
+  const refused = { code: "22P02", message: 'invalid input syntax for type uuid: "x"' };
+  const faults = {};
+  for (const t of ["conversations", "escalations", "messages", "calls", "contacts"]) faults[`${t}.select`] = refused;
+  for (const t of ["conversations", "escalations", "messages", "memberships"]) faults[`${t}.update`] = refused;
+  const tables = {
+    memberships: [
+      {
+        id: "m1",
+        user_id: "u1",
+        tenant_id: T,
+        role: "owner",
+        tenants: { slug: "harbor" },
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+  };
+  const asks = [
+    ["escalations/[id]/resolve", "POST", "escalation"],
+    ["messages/[id]/cancel-send", "POST", "message"],
+    ["conversations/[id]/snooze", "POST", "conversation", { until: "2026-11-27T15:00:00Z" }],
+    ["calls/[id]/recording", "GET", "call"],
+    ["contacts/[id]", "GET", "contact"],
+    ["contacts/[id]", "DELETE", "contact"],
+    ["team/[id]", "PATCH", "member", { role: "viewer" }],
+    ["team/[id]", "DELETE", "member"],
+    ["calls", "GET", "conversation", null, "&conversation_id=x"],
+    ["calls", "GET", "call", null, `&ids=${C},x`],
   ];
-  // A route that declares a row scope never sees the id: its loader in verbs.ts
-  // (the one chokepoint for that row) calls the guard, which
-  // workspace-scoping.test.mjs holds. Every other route calls it itself.
-  for (const p of validated) {
-    const src = route(p);
-    const guarded = /scope: \w+Scope,/.test(src) || /requireUuid\(/.test(src);
-    assert.ok(guarded, `${p} must use requireUuid`);
-    assert.ok(!/const UUID = \//.test(src), `${p} must not carry its own UUID regex`);
+  for (const [p, method, what, body = null, query = ""] of asks) {
+    setRateStore(memoryStore());
+    const handler = (await routeAt(p))[method];
+    const request = new Request(`http://localhost/api/v1/x?workspace=${T}${query}`, {
+      method,
+      ...(body ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}),
+    });
+    await assert.rejects(handler.run(request, { ...ctxOver(tables, faults), params: { id: "x" } }), (e) => {
+      assert.equal(e.code, "not_found", `${method} ${p}: ${e.message}`);
+      assert.equal(e.message, `That ${what} does not exist.`, `${method} ${p}`);
+      return true;
+    });
   }
 });
 
-test("the reply's idempotency key belongs to the caller and to the intent (core-reply.test.mjs runs the replay; here the shape)", () => {
-  const src = route("packages/core/src/conversations/reply.ts");
-  assert.ok(
-    src.includes("const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;"),
-    "scoped to the caller",
-  );
-  assert.ok(
-    src.includes("const sameIntent = prior?.request_hash === intentHash;"),
-    "a different body is a different intent, and a receipt with no hash never answers",
-  );
-  assert.ok(
-    src.includes("ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso)"),
-    "the stored hash is the one compared, and the receipt is written on the claim's own stamp",
-  );
-  // The check happens BEFORE any side effect of the send. The first of those
-  // is the claim, which is also the pause: it used to be a mirror into a
-  // second store, and the ordering rule outlived it unchanged.
-  const check = src.indexOf("sameIntent");
-  const firstEffect = src.indexOf("ports.claimForReply(");
-  assert.ok(check > 0 && firstEffect > check, "a replay must be answered before the thread is claimed");
-});
+// The reply's idempotency key belongs to the caller and to the intent: core-reply.test.mjs runs the replay ("a replay:
+// the same key and intent..."): the key the port is handed is the caller's (`u1:k1`), a different body under the same
+// key is a different intent and goes, and a replay is answered before the thread is claimed, with nothing after it.
 
 test("an auth outage is a 503 at the gate too, and the predicate is shared", () => {
   assert.equal(isRetryableAuthError(null), false);
@@ -104,19 +127,10 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
     true,
     "no status = could not reach the auth server",
   );
-  const middleware = readCode("apps/dashboard/proxy.ts");
-  const wrapper = readCode("apps/dashboard/src/server/shared/with-route.ts");
-  for (const [name, src] of [
-    ["middleware", middleware],
-    ["withRoute", wrapper],
-  ]) {
-    assert.ok(src.includes("isRetryableAuthError(authErr)"), `${name} uses the shared predicate`);
-  }
-  assert.ok(middleware.includes('"upstream_auth"'));
-  assert.ok(
-    middleware.indexOf("isRetryableAuthError(authErr)") < middleware.indexOf('code: "unauthorized"'),
-    "the outage branch runs before the 401",
-  );
+  // The predicate, where it is asked: at the gate, auth/auth-gate.test.mjs ("an auth server that cannot be reached is
+  // 'try again', never 'signed out'": a page and a route are 503, upstream_auth, never stored); in the wrapper,
+  // auth/session/bearer.test.mjs ("a verifier that cannot be reached is 503, not a sign-out") and, for a route that
+  // asks the Auth server itself, auth/fresh-session.test.mjs.
 });
 
 test("the doors agree with the code above them", async () => {
@@ -135,16 +149,6 @@ test("the doors agree with the code above them", async () => {
   assert.ok(sql.includes("create policy idempotency_acting_member_all"));
 });
 
-test("customer numbers stay out of edge logs", () => {
-  // The pause mirror used to be checked here too; the endpoint is gone with
-  // the mirror itself. The call-start door's lines carry the caller's tail,
-  // the agent and the call, never the number: run in
-  // retell-inbound-door.test.mjs.
-  const notify = readCode("apps/edge/lib/shared/alerts/notify.ts");
-  // Every log line that mentions a subject passes it through the redactor.
-  const unredacted = notify
-    .split("\n")
-    .filter((l) => /console\.(error|log|warn)\(/.test(l) && /subject/.test(l) && !/redactNumbers\(/.test(l));
-  assert.deepEqual(unredacted, [], "a subject line names the customer");
-  assert.ok(notify.includes("function redactNumbers(subject: string): string"));
-});
+// Customer numbers stay out of edge logs: ops/notify-transport.test.mjs runs every line the platform's mail writes
+// about a subject (no key, refused, a transport that throws) and finds the number redacted in each. The call-start
+// door's lines carry the caller's tail, the agent and the call, never the number: run in retell-inbound-door.test.mjs.
