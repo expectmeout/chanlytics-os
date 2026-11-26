@@ -77,7 +77,7 @@ const server = (zone) => {
         },
       });
     }
-    if (path === "workspaces") return json({ workspaces: [row], activeWorkspaceId: row.id });
+    if (path === "workspaces") return json({ workspaces: [row], active_workspace_id: row.id });
     if (path === "settings") {
       const known = { workspace: { name: row.name, timezone: state.zone }, channels: [], listing: null };
       return json({

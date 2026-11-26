@@ -78,6 +78,39 @@ interface LateVisit {
   behind?: true;
 }
 
+/**
+ * A run's reach as the wire says it (decision 0022): RunReach with its six first counts in snake_case. A run keeps its
+ * reach under memory's names (the edge's runner writes `audience.reach` as it drew it), and the counts it kept later are
+ * snake_case already; the dashboard's read turns one into the other in `runReachDto`, so what a run keeps is not changed
+ * by the wire's rename, and either app may deploy first.
+ */
+export type RunReachDto = Omit<RunReach, "noNumber" | "noYes" | "heardThis" | "heardAny" | "overCap" | "overLimit"> & {
+  no_number: number;
+  no_yes: number;
+  heard_this: number;
+  heard_any: number;
+  over_cap: number;
+  over_limit: number;
+};
+
+/** A run's reach, as the wire says it: from a count kept under memory's names, or one already said in the wire's. */
+export function runReachDto(kept: RunReach | RunReachDto): RunReachDto {
+  if ("no_number" in kept) return kept;
+  const { noNumber, noYes, heardThis, heardAny, overCap, overLimit, ...rest } = kept;
+  return {
+    ...rest,
+    no_number: noNumber,
+    no_yes: noYes,
+    heard_this: heardThis,
+    heard_any: heardAny,
+    over_cap: overCap,
+    over_limit: overLimit,
+  };
+}
+
+/** Who a broadcast is for, as the wire says it: its run's reach in the wire's names. */
+export type AudienceDto = Omit<Audience, "reach"> & { reach?: RunReachDto };
+
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
 export function audienceTrigger(audience: unknown): string | null {
   const t = audience && typeof audience === "object" ? valueAt(audience, "trigger") : null;

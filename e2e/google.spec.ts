@@ -182,7 +182,7 @@ test.describe("Google on a real workspace", () => {
   }) => {
     // An account with more than one workspace must say which; the app's own calls always do.
     const ws = await (await page.request.get("/api/v1/workspaces")).json();
-    const id = ws.data.activeWorkspaceId ?? ws.data.workspaces[0]?.id;
+    const id = ws.data.active_workspace_id ?? ws.data.workspaces[0]?.id;
     const { data } = await (await page.request.get(`/api/v1/google?workspace=${id}`)).json();
     const res = await page.request.get(`/api/v1/google/connect?workspace=${id}`, { maxRedirects: 0 });
     if (!data.google.ready.profile) {

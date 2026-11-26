@@ -3,14 +3,15 @@
  * its flex-grow, and its colour a tone (ok, read, warn, rest) or the series colour a chart gives it; the rest of the whole,
  * where a page has one, is a part of its own after them. A part of nothing is not drawn. The meter draws no words: what it
  * says is its `aria-label`, as SegmentBar says its parts (charts/card.tsx), and a title or a legend is the page's or
- * the chart's. The share is data no class can hold, so it is the one style the kit writes in a prop, as SegmentBar
- * writes it (docs/debt.md, "Rises"). `className` is for the page's layout, and comes last; the ref reaches the element.
+ * the chart's. The share and a series' colour are data no class can hold, so each part says them as custom properties
+ * (--share, --part-color) that kit.css's .meter-part reads, as SegmentBar's parts do. `className` is for the page's
+ * layout, and comes last; the ref reaches the element.
  *
  * It draws what the gallery's Meter family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
  * tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef } from "react";
-import { cx, variants } from "../variants";
+import { customProperties, cx, variants } from "../variants";
 
 const meterClasses = variants({
   base: "meter",
@@ -102,7 +103,7 @@ export function Meter({ parts, rest = false, size, apart = false, mark = null, c
             <span
               key={at}
               className={meterPartClasses({ tone: part.tone })}
-              style={{ flexGrow: part.share, background: part.color }}
+              style={customProperties({ "--share": part.share, "--part-color": part.color })}
             />
           ),
         )}

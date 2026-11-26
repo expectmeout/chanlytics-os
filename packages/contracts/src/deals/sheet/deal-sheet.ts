@@ -237,6 +237,113 @@ const VALUE_WORDS = {
   perLabel: DEAL_SHEET_WORDS.value.per,
 } as const;
 
+/** The deal a sheet is about, and what its boxes start from: its amount as a box shows it, and today by the business's calendar. */
+interface DealSheetStart {
+  deal: ReturnType<typeof targetOf>;
+  amount: string;
+  today: string;
+}
+
+/**
+ * Where the sheet's boxes start: a new proposal from the service they consulted about and the link left on them, an
+ * edit and another try from the proposal as it stands, a yes from its value, and a dated move from today.
+ */
+function dealSheetDraftOf(
+  mode: DealSheetMode,
+  dealPerson: DealPerson,
+  start: DealSheetStart & { service: string | null | undefined; send: ReturnType<typeof dealSendOf> | null },
+): DealSheetDraft {
+  const { deal, amount, today, send } = start;
+  const dated = mode === "won" || mode === "lost" || mode === "ended";
+  return {
+    ...DRAFT_EMPTY,
+    ...(mode === "propose"
+      ? {
+          service: start.service?.trim() || consultedService(dealPerson) || "",
+          // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
+          link: !dealPerson.deal && dealPerson.proposal ? dealPerson.proposal.url : "",
+        }
+      : {}),
+    ...(mode === "again" || mode === "edit"
+      ? { link: deal?.proposal?.url ?? "", value: amount, per: deal?.per ?? "once" }
+      : {}),
+    ...(mode === "edit" ? { validUntil: deal?.validUntil?.day ?? "" } : {}),
+    ...(mode === "won"
+      ? { value: amount, per: deal?.per ?? "once", messageId: dealPerson.ownMessages?.[0]?.id ?? "" }
+      : {}),
+    ...(dated ? { when: today } : {}),
+    ...(send ? { send: send.can } : {}),
+  };
+}
+
+/** The amount box: what was agreed for a yes, said to start from the proposal's, else the proposal's value, and how often. */
+function amountFieldOf(mode: DealSheetMode, amount: string): NonNullable<DealSheetVM["value"]> {
+  const words = DEAL_SHEET_WORDS;
+  return {
+    label: mode === "won" ? words.agreed.label : words.value.label,
+    ...VALUE_WORDS,
+    hint: mode === "won" && amount ? words.agreed.fromProposal : null,
+    pers: DEAL_PERS.map((x) => ({ value: x, label: capitalize(DEAL_PER_WORDS[x]) })),
+  };
+}
+
+/** How a yes was agreed: none said, their own message (when there is one to pick), or a form, and where. */
+function wonHowOf(messages: Array<{ value: string; label: string }>): NonNullable<DealSheetVM["how"]> {
+  const words = DEAL_SHEET_WORDS;
+  return {
+    label: words.how.label,
+    options: [
+      { value: "", label: words.how.none },
+      ...(messages.length ? [{ value: "customer_message" as const, label: words.how.message }] : []),
+      { value: "form", label: words.how.form },
+    ],
+    which: words.how.which,
+    messages,
+    where: words.how.where,
+    wherePlaceholder: words.how.wherePlaceholder,
+    max: DEAL_NOTE_MAX,
+  };
+}
+
+/** The boxes a sheet asks, each only where its mode asks it and nothing has moved the deal since. */
+function dealSheetFieldsOf(
+  mode: DealSheetMode,
+  dealPerson: DealPerson,
+  start: DealSheetStart & { open: boolean },
+): Pick<DealSheetVM, "service" | "link" | "value" | "validUntil" | "when" | "reason" | "note" | "how"> {
+  const words = DEAL_SHEET_WORDS;
+  const { open, today } = start;
+  const shapes = mode === "propose" || mode === "edit" || mode === "again";
+  const dated = mode === "won" || mode === "lost" || mode === "ended";
+  const services = dealPerson.services ?? [];
+  const messages = (dealPerson.ownMessages ?? []).map((m) => ({
+    value: m.id,
+    label: [`“${m.words}”`, m.via, m.when].filter(Boolean).join(" · "),
+  }));
+  return {
+    service:
+      open && mode === "propose" && services.length > 1
+        ? {
+            label: words.service.label,
+            options: [{ value: "", label: words.service.any }, ...services.map((s) => ({ value: s, label: s }))],
+          }
+        : null,
+    link: open && shapes ? { ...words.link } : null,
+    value: open && (shapes || mode === "won") ? amountFieldOf(mode, start.amount) : null,
+    validUntil: open && shapes ? { ...words.validUntil, today } : null,
+    when: open && dated ? { label: words.when[mode], max: today } : null,
+    reason:
+      open && mode === "lost"
+        ? {
+            label: words.reason.label,
+            options: DEAL_LOST_REASONS.map((r) => ({ value: r, label: DEAL_LOST_REASON_WORDS[r] })),
+          }
+        : null,
+    note: open && mode === "lost" ? { ...words.note, max: DEAL_NOTE_MAX } : null,
+    how: open && mode === "won" ? wonHowOf(messages) : null,
+  };
+}
+
 /**
  * The sheet for a mode (0008): its title, the fields it draws with their words, and what it opens with. A new
  * proposal asks which service only where the profile lists two or more, takes the link left on a person with no deal
@@ -257,37 +364,12 @@ export function dealSheetFor(
   const blocked = mode !== "propose" && (!deal || deal.stage !== MOVES_FROM[mode]) ? words.moved : null;
   const today = zoneDayKey(nowMs, tz);
   const proposing = mode === "propose" || mode === "again";
-  const shapes = mode === "propose" || mode === "edit" || mode === "again";
-  const dated = mode === "won" || mode === "lost" || mode === "ended";
   const send = proposing ? dealSendOf(dealPerson) : null;
-  const services = dealPerson.services ?? [];
-  const messages = (dealPerson.ownMessages ?? []).map((m) => ({
-    value: m.id,
-    label: [`“${m.words}”`, m.via, m.when].filter(Boolean).join(" · "),
-  }));
-  const pers = DEAL_PERS.map((x) => ({ value: x, label: capitalize(DEAL_PER_WORDS[x]) }));
   // The deal's amount as a box shows it ("$2,500", without how often: the sheet asks that apart); parseAmount reads
   // it back to the same cents.
   const valueOf = (deal && amountWords(deal.amountCents, null, deal.currency)) || "";
-  const draft: DealSheetDraft = {
-    ...DRAFT_EMPTY,
-    ...(mode === "propose"
-      ? {
-          service: target.service?.trim() || consultedService(dealPerson) || "",
-          // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
-          link: !dealPerson.deal && dealPerson.proposal ? dealPerson.proposal.url : "",
-        }
-      : {}),
-    ...(mode === "again" || mode === "edit"
-      ? { link: deal?.proposal?.url ?? "", value: valueOf, per: deal?.per ?? "once" }
-      : {}),
-    ...(mode === "edit" ? { validUntil: deal?.validUntil?.day ?? "" } : {}),
-    ...(mode === "won"
-      ? { value: valueOf, per: deal?.per ?? "once", messageId: dealPerson.ownMessages?.[0]?.id ?? "" }
-      : {}),
-    ...(dated ? { when: today } : {}),
-    ...(send ? { send: send.can } : {}),
-  };
+  const start: DealSheetStart = { deal, amount: valueOf, today };
+  const draft = dealSheetDraftOf(mode, dealPerson, { ...start, service: target.service, send });
   const open = !blocked;
   return {
     mode,
@@ -295,49 +377,7 @@ export function dealSheetFor(
     sub: [dealPerson.name, deal?.service ?? null].filter((x): x is string => !!x).join(" · "),
     deal,
     blocked,
-    service:
-      open && mode === "propose" && services.length > 1
-        ? {
-            label: words.service.label,
-            options: [{ value: "", label: words.service.any }, ...services.map((s) => ({ value: s, label: s }))],
-          }
-        : null,
-    link: open && shapes ? { ...words.link } : null,
-    value:
-      open && (shapes || mode === "won")
-        ? {
-            label: mode === "won" ? words.agreed.label : words.value.label,
-            ...VALUE_WORDS,
-            hint: mode === "won" && valueOf ? words.agreed.fromProposal : null,
-            pers,
-          }
-        : null,
-    validUntil: open && shapes ? { ...words.validUntil, today } : null,
-    when: open && dated ? { label: words.when[mode], max: today } : null,
-    reason:
-      open && mode === "lost"
-        ? {
-            label: words.reason.label,
-            options: DEAL_LOST_REASONS.map((r) => ({ value: r, label: DEAL_LOST_REASON_WORDS[r] })),
-          }
-        : null,
-    note: open && mode === "lost" ? { ...words.note, max: DEAL_NOTE_MAX } : null,
-    how:
-      open && mode === "won"
-        ? {
-            label: words.how.label,
-            options: [
-              { value: "", label: words.how.none },
-              ...(messages.length ? [{ value: "customer_message" as const, label: words.how.message }] : []),
-              { value: "form", label: words.how.form },
-            ],
-            which: words.how.which,
-            messages,
-            where: words.how.where,
-            wherePlaceholder: words.how.wherePlaceholder,
-            max: DEAL_NOTE_MAX,
-          }
-        : null,
+    ...dealSheetFieldsOf(mode, dealPerson, { ...start, open }),
     send: open && send ? { ...send, message: { ...words.message } } : null,
     draft,
     save: {

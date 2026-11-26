@@ -90,7 +90,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
     const business = setup.business;
     if (!business.hours) missing.push("Opening hours: AI cannot say when you are open (Settings › Hours & booking).");
     if (!business.services) missing.push("Services: AI cannot say what you offer (Settings › Details).");
-    if (!business.bookingLink && setup.calendar.state === "none")
+    if (!business.booking_link && setup.calendar.state === "none")
       missing.push("A booking link or a calendar: nobody can be booked by AI (Settings › Hours & booking).");
     if (!setup.channels.whatsapp.active)
       missing.push(

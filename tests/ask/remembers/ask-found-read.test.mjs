@@ -109,7 +109,7 @@ test("a card about a batch stands only while that batch can still be pressed", a
 });
 
 test("a failed press is offered again, unless what it was about moved on", async () => {
-  const failed = { state: "failed", receipt: "No", atMs: NOW };
+  const failed = { state: "failed", receipt: "No", at_ms: NOW };
   const morning = await read(
     world([
       card("p-1", "lead_search", "Try again", {}, failed),
@@ -120,8 +120,8 @@ test("a failed press is offered again, unless what it was about moved on", async
 });
 
 test("what a teammate set aside lately stays aside, and what came of an approved idea is said", async () => {
-  const done = { state: "done", receipt: "Found 40 gyms", atMs: NOW };
-  const dismissed = { state: "dismissed", receipt: "Let go", atMs: NOW };
+  const done = { state: "done", receipt: "Found 40 gyms", at_ms: NOW };
+  const dismissed = { state: "dismissed", receipt: "Let go", at_ms: NOW };
   const morning = await read(
     world(
       [card("p-1", "lead_search", "Find florists"), card("p-2", "lead_search", "Find dentists")],

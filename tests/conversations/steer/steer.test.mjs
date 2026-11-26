@@ -11,11 +11,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
-import { installStubReact, settle } from "../_stub-react.mjs";
+import { readRaw } from "../../_source.mjs";
+import { installStubReact, settle } from "../../_stub-react.mjs";
 
 installStubReact({});
-const S = "../../apps/dashboard/src";
+const S = "../../../apps/dashboard/src";
 const { steerDraft } = await import(`${S}/surfaces/inbox/verbs.ts`);
 const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
@@ -41,57 +41,19 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
   );
 });
 
-test("the brain takes the instruction as one more system block and stops showing the model its last message twice", () => {
-  const b = readCode("apps/edge/lib/ai/receptionist-brain.ts");
-  // The question to the receptionist names its parts (core ReplyAsk, the inbound review's C6), the steer among them.
-  assert.ok(/async function answerReply\(\{[^}]*\bsteer,[^}]*\}: ReplyAsk\)/.test(b));
-  assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
-  assert.ok(
-    /const prior =\s*last && last\.role === "user" && last\.content\.trim\(\) === userText\.trim\(\) \? history\.slice\(0, -1\) : history;/.test(
-      b,
-    ),
-  );
-  assert.ok(b.includes('const messages = [...prior, { role: "user" as const, content: userContent }];'));
-});
-
-test("one writer for a held draft, used by the handler and the steer", () => {
-  const q = readCode("apps/edge/lib/ai/draft-queue.ts");
-  assert.ok(q.includes('export type DraftSource = "veto_window" | "low_confidence" | "steered";'));
-  assert.ok(
-    q.includes("queueSend("),
-    "the draft and its job in one statement (00527 queue_send): one never stands without the other",
-  );
-  const wa = readCode("apps/edge/lib/inbound/persist.ts");
-  assert.ok(wa.includes("const id = await queueDraft("));
-  assert.ok(!wa.includes('status: "queued",'), "the handler no longer writes the draft row itself");
-});
+// The brain takes the instruction as one more system block and stops showing the model its last message twice; one
+// writer for a held draft, the draft and its job in one statement, used by the handler and the steer: both run in
+// steer/a-held-draft-is-written-once-and-rewritten.test.mjs (pinned as receptionist-brain.ts's, draft-queue.ts's and
+// persist.ts's text until 26 Nov 2026).
 
 // The steer endpoint -- the door, the draft's state, the memory and the frame
 // the brain is handed, new before old, the price rule, the race and the
 // rollback, the draft's own wire -- is run in steer-door.test.mjs.
 
-test("the dashboard route keeps its doors and records the decision only after the rewrite happened", () => {
-  const r = readCode("apps/dashboard/app/api/v1/messages/[id]/steer/route.ts");
-  assert.ok(r.includes('rate: "whisper",'));
-  assert.ok(r.includes('role: "operator",'));
-  assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
-  const steered = r.indexOf("const result = await steerDraft(id, text, {");
-  const recorded = r.search(
-    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: result\.messageId,?\s*\}\)/,
-  );
-  assert.ok(steered > 0 && recorded > steered);
-  assert.ok(
-    r.includes(
-      '"The rewrite would have quoted a price or named money (a refund, a discount, a deposit), so the original draft stays."',
-    ),
-  );
-  assert.ok(
-    r.includes('"That reply went out while it was being rewritten, so nothing was changed."'),
-    "and the race has its own sentence, not a token",
-  );
-  const svc = readCode("apps/dashboard/src/server/conversations/thread-control.ts");
-  assert.ok(svc.includes('"/api/admin/steer"'));
-});
+// The dashboard route keeps its doors (an operator's, on the whisper bucket), asks the edge's steer door only for a draft
+// still waiting, says a price and a race in their own sentences, and records the decision only after the rewrite
+// happened: run in steer/a-held-draft-is-written-once-and-rewritten.test.mjs (pinned as the route's and
+// thread-control.ts's text until 26 Nov 2026).
 
 test("the Inbox's courier asks the steer route for the rewrite, with the owner's one line", async () => {
   const asked = [];

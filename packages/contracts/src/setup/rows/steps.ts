@@ -25,7 +25,7 @@ const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
   listed: !!i.google?.listing,
   unsure: i.google?.unsure ?? [],
   type: i.google?.type ?? null,
-  bookingPage: bookingPageOffered(bookingPageRead(i.reads), i.business.bookingLink),
+  bookingPage: bookingPageOffered(bookingPageRead(i.reads), i.business.booking_link),
 });
 
 /**

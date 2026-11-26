@@ -116,6 +116,7 @@ export function world(over = {}) {
     processed: 0,
     handled: [],
     queued: [],
+    queuedOn: [],
     // The owner told of a reply that waits to go in their name (decision 0064: the sink's replyHeld).
     heldTold: [],
     usage: [],
@@ -223,9 +224,11 @@ export function world(over = {}) {
         },
       }),
       // A hold that can be written, when a case asks for one (`queue: true`): the draft's id, as queueDraft answers.
-      queueReply: async (_db, _tenant, _ing, _to, body, delayMs, _L, source) => {
+      queueReply: async (_db, _tenant, _ing, _to, body, delayMs, _L, source, _meta, channel) => {
         if (!over.queue) return false;
         seen.queued.push({ body, delayMs, source });
+        // The wire the draft is written for: the job that sends it later sends on it.
+        seen.queuedOn.push(channel ?? null);
         return "m-queued";
       },
       // The thread's reply turn (00284), when a case models one.

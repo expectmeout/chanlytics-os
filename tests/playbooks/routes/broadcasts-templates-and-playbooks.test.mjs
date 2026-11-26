@@ -395,26 +395,26 @@ test("a template says what sends it: the playbooks, the broadcasts a PERSON sent
   };
   const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
   assert.deepEqual(
-    all.usedBy.winback_offer.playbooks.map((p) => [p.name, p.paused]),
+    all.used_by.winback_offer.playbooks.map((p) => [p.name, p.paused]),
     [
       ["Win-back", false],
       ["Second wind", true],
     ],
     "both playbooks, and which is paused",
   );
-  assert.equal(all.usedBy.winback_offer.broadcasts, 2, "the playbook's own run is not a third broadcast");
-  assert.equal(all.usedBy.booking_link.booking, true, "the Inbox books with it");
+  assert.equal(all.used_by.winback_offer.broadcasts, 2, "the playbook's own run is not a third broadcast");
+  assert.equal(all.used_by.booking_link.booking, true, "the Inbox books with it");
   assert.equal(
-    all.usedBy.autumn_promo,
+    all.used_by.autumn_promo,
     undefined,
     "a message nothing sends is absent, and the page reads that as nothing",
   );
-  assert.equal(all.usedBy.elsewhere, undefined, "another workspace's playbook and broadcast are not this one's");
+  assert.equal(all.used_by.elsewhere, undefined, "another workspace's playbook and broadcast are not this one's");
 
   // The composers are picking something to send and never ask, so they do not
   // pay for the two reads.
   const composer = await templates.GET.run(get(inB), ctxFor(tables));
-  assert.equal(composer.usedBy, undefined, "the composers' read stays one query");
+  assert.equal(composer.used_by, undefined, "the composers' read stays one query");
 });
 
 test("the message the Inbox books with is never one WhatsApp refuses: Settings does not name a picture-headed promo as what the receptionist sends to book", async () => {
@@ -438,13 +438,13 @@ test("the message the Inbox books with is never one WhatsApp refuses: Settings d
   };
   const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
   assert.equal(all.templates[0].blocked, "a picture for a heading");
-  assert.equal(all.usedBy.promo_with_a_picture, undefined, "nothing books with it");
+  assert.equal(all.used_by.promo_with_a_picture, undefined, "nothing books with it");
   tables.templates.push(
     tpl(T2, B, { name: "reservar_ahora", variables: link, components: [{ type: "BODY", text: "Book: {{1}}" }] }),
   );
   const both2 = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
-  assert.equal(both2.usedBy.reservar_ahora.booking, true, "the plain one beside it is the one");
-  assert.equal(both2.usedBy.promo_with_a_picture, undefined);
+  assert.equal(both2.used_by.reservar_ahora.booking, true, "the plain one beside it is the one");
+  assert.equal(both2.used_by.promo_with_a_picture, undefined);
 });
 
 test("what sends a template says what that thing is doing: a playbook's clock, a run waiting on the owner, the latest broadcasts a person sent -- the line under the words", async () => {
@@ -495,7 +495,7 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
       }),
     ],
   };
-  const { usedBy } = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
+  const { used_by: usedBy } = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
   assert.equal(
     usedBy.winback_offer.playbooks[0].runs,
     "runs daily at 10:00 AM",
@@ -614,12 +614,12 @@ test("a template says how many went out and when the last did: the people a run 
   const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
   assert.deepEqual(
     all.sends.winback_offer,
-    { count: 3, lastAt: "2026-09-17T14:00:00Z" },
+    { count: 3, last_at: "2026-09-17T14:00:00Z" },
     "three people were sent it, not the 503 its runs were scheduled for",
   );
   assert.deepEqual(
     all.sends.booking_link,
-    { count: 1, lastAt: "2026-09-18T16:00:00Z" },
+    { count: 1, last_at: "2026-09-18T16:00:00Z" },
     "the Inbox's send, and not the two that never left",
   );
   assert.equal(
@@ -665,7 +665,7 @@ test("past a thousand, a template's count is still every send: PostgREST answers
     messages: [],
   };
   const all = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables, {}, {}, { maxRows: 1000 }));
-  assert.deepEqual(all.sends.visit_reminder, { count: 2501, lastAt: "2026-09-19T10:00:00Z" });
+  assert.deepEqual(all.sends.visit_reminder, { count: 2501, last_at: "2026-09-19T10:00:00Z" });
 });
 
 test("templates: the composers see the approved and unhidden, Settings sees everything; a submission is judged in Meta's terms at the door, a duplicate is a conflict, and the door itself is the production guard here", async () => {

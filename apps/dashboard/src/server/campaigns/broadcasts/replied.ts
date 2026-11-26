@@ -2,6 +2,7 @@
 
 import "server-only";
 import {
+  runReachDto,
   isAutomatedSend,
   isPersonsWords,
   isReplyTo,
@@ -298,6 +299,15 @@ export function waitingThreads(ctx: RouteContext, tenantId: TenantId, convIds: s
   return getThreadIdsWaitingOnYou(ctx.supabase, tenantId, convIds, Date.now());
 }
 
+/**
+ * A broadcast's audience as it is kept, said as the wire says it: the edge's runner keeps a run's reach under memory's names,
+ * which the answer says in the wire's (contracts runReachDto, decision 0022). The one mapping, here at the read.
+ */
+function audienceDto(kept: Audience): BroadcastDto["audience"] {
+  const { reach, ...rest } = kept;
+  return reach ? { ...rest, reach: runReachDto(reach) } : rest;
+}
+
 export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
   return {
     id: broadcast.id,
@@ -306,12 +316,14 @@ export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): Broadca
     template_name: broadcast.template_name,
     template_language: broadcast.template_language,
     params: parseParamSpecs(broadcast.params),
-    audience: readColumn(
-      "broadcasts.audience",
-      shaped<Audience>(),
-      broadcast.audience && typeof broadcast.audience === "object"
-        ? broadcast.audience
-        : { kind: "everyone", id: null, label: "" },
+    audience: audienceDto(
+      readColumn(
+        "broadcasts.audience",
+        shaped<Audience>(),
+        broadcast.audience && typeof broadcast.audience === "object"
+          ? broadcast.audience
+          : { kind: "everyone", id: null, label: "" },
+      ),
     ),
     state: broadcast.state,
     scheduled_for: broadcast.scheduled_for,

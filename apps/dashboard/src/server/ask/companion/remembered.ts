@@ -93,7 +93,7 @@ export async function keepRememberCards(
         const kept = await keepAskMemory(ctx.supabase, { tenantId, text, source: "ask", threadId });
         if ("refused" in kept) {
           const reason = kept.refused === "full" ? ASK_MEMORY_WORDS.full : "That could not be kept.";
-          return { ...proposal, outcome: { state: "failed" as const, receipt: reason, atMs: Date.now(), undo: null } };
+          return { ...proposal, outcome: { state: "failed" as const, receipt: reason, at_ms: Date.now(), undo: null } };
         }
         return {
           ...proposal,
@@ -101,7 +101,7 @@ export async function keepRememberCards(
           outcome: {
             state: "done" as const,
             receipt: ASK_MEMORY_WORDS.receipt(kept.text),
-            atMs: Date.now(),
+            at_ms: Date.now(),
             undo: kept.again ? null : { memory_id: kept.id },
           },
         };
@@ -109,7 +109,7 @@ export async function keepRememberCards(
         log.error("ask_memory_keep_failed", { tenant_id: tenantId, error: e });
         return {
           ...proposal,
-          outcome: { state: "failed" as const, receipt: "That could not be kept.", atMs: Date.now(), undo: null },
+          outcome: { state: "failed" as const, receipt: "That could not be kept.", at_ms: Date.now(), undo: null },
         };
       }
     }),

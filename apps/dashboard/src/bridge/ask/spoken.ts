@@ -19,7 +19,7 @@
  * asked over one still unanswered ends the first with no answer, and whatever the vendor says of the first after that
  * reaches nobody.
  */
-import type { AskMessageVM } from "@chanlytics/contracts";
+import type { AskMessageDto } from "@chanlytics/contracts";
 import type { AskApiCalls, SendEvent } from "./api";
 import type { installVoice, VoiceStart } from "./voice";
 
@@ -27,7 +27,7 @@ type Voice = Pick<ReturnType<typeof installVoice>, "soonVoice" | "sayVoice">;
 
 export function spokenTurns(voice: Voice, api: Pick<AskApiCalls, "thread">) {
   /** The thread's newest message, or none (a thread that is gone, or could not be read). */
-  const newest = async (threadId: string): Promise<AskMessageVM | undefined> => {
+  const newest = async (threadId: string): Promise<AskMessageDto | undefined> => {
     const read = await api.thread(threadId);
     return read && !("missing" in read) ? read.messages.at(-1) : undefined;
   };
