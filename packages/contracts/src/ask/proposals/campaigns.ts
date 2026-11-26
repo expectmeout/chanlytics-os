@@ -122,6 +122,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
  */
 export const FIX_CARD_WORDS = {
   nothingToApprove: "This card has nothing to approve: its door opens where this is fixed.",
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   note: "Nothing to approve: this card is the one thing to fix before the campaign can reach anyone, with its door to where it is fixed. Say that one thing in a sentence, never that a campaign was proposed or is running, and propose the campaign again once it is fixed.",
 } as const;
 
@@ -584,6 +585,7 @@ export const MESSAGE_WORDS = {
    * A WhatsApp version where the number's WhatsApp Business Account is not on file, which the edge needs to ask WhatsApp
    * to review anything (the door's check, write-message.ts getWhatsAppFilingRefusal).
    */
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   noAccount:
     "This number's WhatsApp Business Account is not on file, so WhatsApp can't be asked to review a message. Say so: connecting the number again in Settings › Connections fixes it. Write it for email or text alone meanwhile.",
   /**
@@ -593,6 +595,7 @@ export const MESSAGE_WORDS = {
   emailWaits: (reason: string | null): string =>
     `Its email is kept, and goes once email can send: ${reason ?? CHANNEL_WORDS.noMailbox}`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   twin: (name: string): string =>
     `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is already one of the workspace's messages. Its words change with action message_words, its name with action message_rename.`,
   /** The card's title: what the owner calls the message (its title, else its name made words), and its language in words. */

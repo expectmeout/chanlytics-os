@@ -10,6 +10,7 @@ import { parse } from "../../_ast.mjs";
 import { screenWordsJudged } from "../../../tooling/scripts/eval-ask-words.mjs";
 import { FAMILIES, neverOnAScreen, sentencesOf, voiceMarksIn } from "./_screen-words.mjs";
 import {
+  MODEL_ONLY,
   WORD_RATCHETS,
   audienceOf,
   filesReadBy,
@@ -98,9 +99,60 @@ test("an id's place, a developer's and a model's are not read", () => {
       'const shape = z.string().describe("The thread it belongs to");',
       'const SYSTEM_PROMPT = ["You answer about the thread.", "Never name the tenant."];',
       "function replySystemPrompt() { return `Read the thread and answer`; }",
+      'const ENDS = new Set("mr mrs ms dr st jan feb mar the thread".split(" "));',
     ),
     [],
   );
+});
+
+test("a block a model alone reads is left out by where it lives, and every one it names is there", () => {
+  const at = (file, ...lines) =>
+    wordsReadIn(ts.createSourceFile(file, lines.join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)).map(
+      (w) => w.text,
+    );
+  const deal = [
+    'export function dealSentence() { return "They are a client. Offer them the service itself, not a consultation."; }',
+    'export const DEAL_STAGE_WORDS = { won: "Won · the deal is closed" };',
+  ];
+  assert.deepEqual(
+    at("packages/contracts/src/deals/vm.ts", ...deal),
+    ["Won · the deal is closed"],
+    "its sibling is read",
+  );
+  assert.deepEqual(
+    at("packages/contracts/src/deals/other.ts", ...deal),
+    ["They are a client. Offer them the service itself, not a consultation.", "Won · the deal is closed"],
+    "the same name in another file is a page's",
+  );
+  // A field of one: the finder card's brief, the half of a card AI reads, beside the rights a page shows.
+  assert.deepEqual(
+    at(
+      "packages/contracts/src/leads/search/cards.ts",
+      'const LEAD_CARDS = [{ goodFor: ["local businesses of a kind, in a city"], rights: "Public listings only" }];',
+    ),
+    ["Public listings only"],
+  );
+  // An entry that no longer names a declaration or a field of its file would leave a page's words out unseen.
+  for (const [file, names] of Object.entries(MODEL_ONLY)) {
+    const sf = parse(file);
+    const declared = new Set();
+    const visit = (n) => {
+      if (
+        (ts.isVariableDeclaration(n) ||
+          ts.isFunctionDeclaration(n) ||
+          ts.isPropertyAssignment(n) ||
+          ts.isPropertySignature(n)) &&
+        n.name
+      )
+        declared.add(n.name.getText());
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    for (const [name, why] of Object.entries(names)) {
+      assert.ok(declared.has(name), `${file}: ${name} is declared there`);
+      assert.ok(why.length > 20, `${file}: ${name} says why`);
+    }
+  }
 });
 
 test("a line keeps its word when it says why, and so does everything under a marked declaration", () => {
@@ -231,6 +283,11 @@ test("who reads a file is said by where it lives", () => {
   assert.equal(reads("apps/edge/lib/inbound/steps.ts"), "server");
   assert.equal(reads("apps/dashboard/src/bridge/refresh-map.ts"), "nobody");
   assert.equal(reads("packages/contracts/src/config/workspace-config/compose.ts"), "nobody");
+  assert.equal(
+    reads("packages/contracts/src/ask/fast-paths.ts"),
+    "nobody",
+    "patterns an owner's words are matched against",
+  );
   assert.equal(reads("packages/db/src/repositories/people/people.ts"), null);
 });
 
