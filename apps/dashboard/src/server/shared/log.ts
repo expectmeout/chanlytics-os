@@ -281,6 +281,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "source_connect_failed",
   "step_test_failed",
   "support_report_mail_failed",
+  "team_invite_email_failed",
   "tenant_config_unreadable",
   "today_bookings_read_failed",
   "today_calls_fetch_failed",

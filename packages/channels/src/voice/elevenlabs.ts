@@ -70,6 +70,7 @@ export async function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps):
   const token = typeof result?.token === "string" ? result.token : "";
   const conversationId = typeof result?.conversation_id === "string" ? result.conversation_id : "";
   if (!token || !conversationId)
+    // screen-word: the provider's answer, said to the log and never to a person
     return { outcome: "rejected", status: response.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
 }
