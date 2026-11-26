@@ -1195,7 +1195,7 @@ test("the rest of the boot waits for the page on screen to be drawn, not only fo
   const { bootComing, afterBoot } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
   const keys = ["settings", "inbox", "people", "reports", "workspace", "calendar"];
   const { order, overrides } = crowd(keys, { hash: "#/calendar" });
-  // As the frame says both at its module scope (FrameApp.tsx), before anything reads ahead.
+  // As the frame's boot says both first (bridge/boot/installs.ts, run at FrameApp's module scope), before anything reads ahead.
   bootComing();
   drawComing();
   let read = false;
