@@ -81,7 +81,7 @@ export const sbTeamSub = () => {
   return n > 1 ? <div className="sb-team-plan">{n} workspaces</div> : null;
 };
 
-const SB_NOBODY: SbWho = { name: "Your account", email: "Signed in", initials: "—", role: "", named: false };
+const SB_NOBODY: SbWho = { name: "Account", email: "Signed in", initials: "—", role: "", named: false };
 
 // The person, in the words contracts' identity rules give: the name they gave, else "Your account", never a name invented
 // from the email. Signed in with no identity yet, we say so.

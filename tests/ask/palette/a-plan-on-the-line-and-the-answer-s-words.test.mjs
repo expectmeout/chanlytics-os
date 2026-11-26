@@ -77,7 +77,7 @@ test("over the first run the Line is on the start surface: it asks about setting
         .filter((q) => q.kind === "ask")
         .slice(0, 3)
         .map((q) => q.label || q.q),
-      ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
+      ["What is left to set up?", "What are my hours this week?", "What can you do for me?"],
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     typed(tree, "What is left to set up?");

@@ -277,7 +277,7 @@ export const FIRST_RUN_WORDS = {
     failedWhat: "AI",
     /** The onward, once what it answers from is checked: on to the rehearsal (decision 0073). */
     looksRight: "Rehearse it now",
-    rehearseNote: "Next: talk to it as a customer would, then fix what it gets wrong. Free. Nothing to buy yet.",
+    rehearseNote: "Next: talk to it as a customer would, then fix what it gets wrong. Free, with nothing to buy yet.",
     /** Not on Google, said, where Google can be searched: the way back to Find. */
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
